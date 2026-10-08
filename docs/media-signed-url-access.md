@@ -23,3 +23,13 @@ No Storage Emulator, a implementação utiliza download token técnico determin�
 - URLs públicas e privadas respeitam o deadline de Account Access quando disponível.
 - Vídeos longos e seeks/Range devem ser testados antes de reduzir TTL do playback privado.
 - Não renovar periodicamente URLs de playback de vídeo que ainda não está em uso; não colocar URLs em logs ou métricas.
+
+
+## Biblioteca privada: emissão sob demanda e custo
+
+- `watchPrivateVideos$` permanece como nome de compatibilidade, mas emite apenas metadados e capas temporárias. **Não emite URLs de playback**. A renovação de oito minutos atende apenas as capas enquanto houver assinantes da UI.
+- `hydrateOwnedVideoAccess$` é a API explícita para acesso de playback. Consumidores devem chamá-la somente quando um vídeo efetivamente for reproduzido; não utilizar para carregar uma grade/lista inteira.
+- O cache LRU de capas usa somente memória, no máximo 128 entradas, particionado por sessão, UID, vídeo e revisão. Um deadline de dois minutos e trinta segundos antecipa a expiração de URLs de dez minutos. Mutações frequentes de metadados reutilizam a URL ainda elegível, evitando novas leituras/assinaturas.
+- Solicitações PREVIEW concorrentes com o mesmo lote e sessão são compartilhadas enquanto estiverem em voo, inclusive quando novos snapshots substituem o Observable anterior. Respostas antigas são descartadas na troca de sessão, inclusive logout seguido de novo login do mesmo UID.
+- O backend continua sendo autoridade em cada emissão. Cache Angular não garante revogação imediata de uma URL previamente assinada nem concede autorização nova.
+- Não é necessário proxy, worker de renovação, polling global ou persistência adicional para esse fluxo. O benefício econômico é evitar assinatura de arquivos completos sem reprodução, coalescer requisições e eliminar renovações de posters causadas apenas por emissões repetidas de metadados.

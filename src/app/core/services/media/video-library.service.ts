@@ -12,7 +12,8 @@
 //   durante o ciclo técnico necessário à publicação.
 // -----------------------------------------------------------------------------
 
-import { Injectable, inject } from '@angular/core';
+import { DestroyRef, Injectable, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   Firestore,
   collection,
@@ -22,9 +23,11 @@ import {
   query,
 } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, combineLatest, from, of, timer } from 'rxjs';
+import { Observable, combineLatest, defer, from, of, timer } from 'rxjs';
 import {
   catchError,
+  distinctUntilChanged,
+  finalize,
   map,
   shareReplay,
   switchMap,
@@ -34,8 +37,14 @@ import {
   IVideoItem,
   VideoProcessingStatus,
 } from 'src/app/core/interfaces/media/i-video-item';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { MediaApplicationErrorService } from './media-application-error.service';
+import {
+  buildPrivateVideoPreviewCacheKey,
+  PrivateVideoPreviewCache,
+  type PrivateVideoPreviewCacheEntry,
+} from './private-video-preview-cache';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 interface IVideoDoc {
@@ -90,16 +99,45 @@ export const VIDEO_OWNER_ACCESS_REFRESH_MS = 8 * 60 * 1000;
 
 @Injectable({ providedIn: 'root' })
 export class VideoLibraryService {
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly authSession = inject(AuthSessionService);
   private readonly firestore = inject(Firestore);
   private readonly functions = inject(Functions);
   private readonly firestoreCtx = inject(FirestoreContextService);
   private readonly globalErrorHandler = inject(MediaApplicationErrorService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly accessWarningOwners = new Set<string>();
+  private readonly previewCache = new PrivateVideoPreviewCache();
+  private readonly previewInFlight = new Map<
+    string,
+    Observable<PrivateVideoAccessResponse>
+  >();
+  private lastSessionUid: string | null | undefined = undefined;
+  private sessionEpoch = 0;
   private readonly privateVideoAccessCallable = httpsCallable<
     PrivateVideoAccessRequest,
     PrivateVideoAccessResponse
   >(this.functions, 'getPrivateVideoAccessUrls');
+
+  constructor() {
+    this.authSession.uid$
+      .pipe(
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((uid) => {
+        const normalizedUid = uid?.trim() || null;
+
+        if (this.lastSessionUid !== normalizedUid) {
+          this.sessionEpoch += 1;
+          this.previewCache.clear();
+          this.previewInFlight.clear();
+          this.accessWarningOwners.clear();
+        }
+
+        this.lastSessionUid = normalizedUid;
+      });
+  }
 
   /**
    * Fonte reativa de metadados. Não emite URL assinada.
@@ -139,9 +177,10 @@ export class VideoLibraryService {
   }
 
   /**
-   * Compatibilidade para consumidores existentes: metadados reativos mais
-   * hidratação temporária de playback em memória. Nada deste retorno deve ser
-   * persistido.
+   * Compatibilidade para consumidores existentes: metadados reativos e capas.
+   * Nunca autoriza playback automaticamente. A renovação periódica, somente
+   * enquanto houver assinantes, é exclusiva das capas para evitar expiração.
+   * Reproduzir um vídeo exige chamar hydrateOwnedVideoAccess$ sob demanda.
    */
   watchPrivateVideos$(ownerUid: string): Observable<IVideoItem[]> {
     const safeOwnerUid = this.normalizeUid(ownerUid);
@@ -155,7 +194,7 @@ export class VideoLibraryService {
       timer(0, VIDEO_OWNER_ACCESS_REFRESH_MS),
     ]).pipe(
       switchMap(([items]) =>
-        this.hydrateOwnedVideoAccess$(safeOwnerUid, items)
+        this.hydrateOwnedVideoPreviewAccess$(safeOwnerUid, items)
       ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -192,20 +231,45 @@ export class VideoLibraryService {
       return of(items.map((item) => this.withoutTemporaryAccess(item)));
     }
 
-    return from(
-      this.privateVideoAccessCallable({
-        ownerUid: safeOwnerUid,
-        videoIds: items.map((item) => item.id),
-        mode: 'PREVIEW',
-      })
-    ).pipe(
-      map((response) => {
-        const accessByVideoId = new Map(
-          response.data.items.map((access) => [access.videoId, access])
-        );
+    // O trabalho só começa com subscriber ativo. Chamadas já assinadas são
+    // reutilizadas em memória; mudanças de sessão/UID invalidam toda a tabela.
+    return defer(() => {
+      const sessionScope = this.currentSessionScope();
+      const fallback = items.map((item) => this.withoutTemporaryAccess(item));
 
-        return items.map((item) => {
-          const access = accessByVideoId.get(item.id);
+      if (
+        this.lastSessionUid !== undefined &&
+        this.lastSessionUid !== safeOwnerUid
+      ) {
+        return of(fallback);
+      }
+
+      const nowMs = Date.now();
+      const resolved = new Map<string, PrivateVideoPreviewCacheEntry>();
+      const pending: IVideoItem[] = [];
+      const cacheKeys = new Map<string, string>();
+
+      for (const item of items) {
+        const key = buildPrivateVideoPreviewCacheKey({
+          sessionScope,
+          ownerUid: safeOwnerUid,
+          videoId: item.id,
+          revision: item.updatedAt ?? item.processingCompletedAt ?? item.createdAt,
+          status: item.status,
+        });
+        cacheKeys.set(item.id, key);
+        const cached = this.previewCache.get(key, nowMs);
+
+        if (cached) {
+          resolved.set(item.id, cached);
+        } else {
+          pending.push(item);
+        }
+      }
+
+      const materialize = (): IVideoItem[] =>
+        items.map((item) => {
+          const access = resolved.get(item.id);
 
           return {
             ...this.withoutTemporaryAccess(item),
@@ -213,16 +277,96 @@ export class VideoLibraryService {
             thumbnailPath: access?.posterPath ?? item.thumbnailPath,
           };
         });
+
+      if (pending.length === 0) {
+        return of(materialize());
+      }
+
+      return this.requestPrivateVideoPreviews$(
+        safeOwnerUid,
+        pending.map((item) => item.id),
+        sessionScope
+      ).pipe(
+        map((response) => {
+          if (sessionScope !== this.currentSessionScope()) {
+            return fallback;
+          }
+
+          const responseNow = Date.now();
+          const requestedIds = new Set(pending.map((item) => item.id));
+
+          for (const access of response.items) {
+            if (!requestedIds.has(access.videoId)) {
+              continue;
+            }
+
+            const entry: PrivateVideoPreviewCacheEntry = {
+              posterUrl: access.posterUrl,
+              posterPath: access.posterPath,
+              expiresAt: access.expiresAt,
+            };
+            const key = cacheKeys.get(access.videoId);
+
+            if (!key) continue;
+            this.previewCache.set(key, entry, responseNow);
+
+            const reusable = this.previewCache.get(key, responseNow);
+            if (reusable) {
+              resolved.set(access.videoId, reusable);
+            }
+          }
+
+          return materialize();
+        }),
+        catchError((error) => {
+          if (sessionScope !== this.currentSessionScope()) {
+            return of(fallback);
+          }
+
+          this.reportSilent(error, {
+            op: 'hydrateOwnedVideoPreviewAccess$',
+            hasOwnerUid: !!safeOwnerUid,
+            itemCount: pending.length,
+          });
+          return of(materialize());
+        })
+      );
+    });
+  }
+
+  private requestPrivateVideoPreviews$(
+    ownerUid: string,
+    videoIds: readonly string[],
+    sessionScope: string
+  ): Observable<PrivateVideoAccessResponse> {
+    const sortedIds = [...new Set(videoIds)].sort();
+    const key = JSON.stringify([sessionScope, ownerUid, sortedIds]);
+    const existing = this.previewInFlight.get(key);
+
+    if (existing) {
+      return existing;
+    }
+
+    // Promise do Firebase não cancela I/O após iniciar. Compartilhar evita
+    // duplicar reads/assinaturas quando snapshots consecutivos chegam juntos.
+    const request$: Observable<PrivateVideoAccessResponse> = defer(() =>
+      from(this.privateVideoAccessCallable({
+        ownerUid,
+        videoIds: sortedIds,
+        mode: 'PREVIEW',
+      }))
+    ).pipe(
+      map((result) => result.data),
+      finalize(() => {
+        if (this.previewInFlight.get(key) === request$) {
+          this.previewInFlight.delete(key);
+        }
       }),
-      catchError((error) => {
-        this.reportSilent(error, {
-          op: 'hydrateOwnedVideoPreviewAccess$',
-          hasOwnerUid: !!safeOwnerUid,
-          itemCount: items.length,
-        });
-        return of(items.map((item) => this.withoutTemporaryAccess(item)));
-      })
+      shareReplay({ bufferSize: 1, refCount: false })
     );
+
+    this.previewInFlight.set(key, request$);
+    return request$;
   }
 
   private hydratePrivateUrls$(
@@ -234,14 +378,28 @@ export class VideoLibraryService {
       return of([]);
     }
 
-    return from(
-      this.privateVideoAccessCallable({
-        ownerUid,
-        videoIds: items.map((item) => item.id),
-        mode: 'PLAYBACK',
-      })
-    ).pipe(
+    return defer(() => {
+      const sessionScope = this.currentSessionScope();
+      const fallback = items.map((item) => this.withoutTemporaryAccess(item));
+      if (
+        this.lastSessionUid !== undefined &&
+        this.lastSessionUid !== ownerUid
+      ) {
+        return of(fallback);
+      }
+
+      return from(
+        this.privateVideoAccessCallable({
+          ownerUid,
+          videoIds: items.map((item) => item.id),
+          mode: 'PLAYBACK',
+        })
+      ).pipe(
       map((response) => {
+        if (sessionScope !== this.currentSessionScope()) {
+          return items.map((item) => this.withoutTemporaryAccess(item));
+        }
+
         const accessByVideoId = new Map(
           response.data.items.map((access) => [access.videoId, access])
         );
@@ -277,10 +435,25 @@ export class VideoLibraryService {
         return hydrated;
       }),
       catchError((error) => {
+        if (sessionScope !== this.currentSessionScope()) {
+          return of(fallback);
+        }
+
         this.handleHydrationError(error, ownerUid, items.length);
-        return of(items.map((item) => this.withoutTemporaryAccess(item)));
+        return of(fallback);
       })
-    );
+      );
+    });
+  }
+
+  private currentSessionScope(): string {
+    const uidScope = this.lastSessionUid
+      ? `session:uid:${this.lastSessionUid}`
+      : this.lastSessionUid === undefined
+        ? 'session:pending'
+        : 'session:anonymous';
+
+    return `${uidScope}:epoch:${this.sessionEpoch}`;
   }
 
   private withoutTemporaryAccess(item: IVideoItem): IVideoItem {
