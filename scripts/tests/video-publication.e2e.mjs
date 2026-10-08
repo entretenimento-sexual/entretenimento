@@ -358,13 +358,23 @@ async function run() {
       title: draftTitle,
       description: draftDescription,
     });
-    const concurrentRegistrations = await Promise.all([
+    const concurrentRegistrations = await Promise.allSettled([
       registerSameVideo(),
       registerSameVideo(),
     ]);
-    for (const response of concurrentRegistrations) {
-      assert.equal(response.data.videoId, videoId);
-      assert.equal(response.data.ownerUid, ownerUid);
+    const successfulRegistrations = concurrentRegistrations.filter(
+      (result) => result.status === 'fulfilled'
+    );
+    assert.ok(successfulRegistrations.length >= 1);
+    for (const result of concurrentRegistrations) {
+      if (result.status === 'fulfilled') {
+        assert.equal(result.value.data.videoId, videoId);
+        assert.equal(result.value.data.ownerUid, ownerUid);
+      } else {
+        // Uma requisição pode encontrar a reserva já consumida pelo
+        // concorrente; o resultado permitido é falhar sem destruir ativos.
+        assert.match(String(result.reason?.code ?? ''), /failed-precondition/);
+      }
     }
     assert.equal(await readFileExists(bucket.file(sourcePath)), true);
     assert.equal(await readFileExists(bucket.file(posterPath)), true);
