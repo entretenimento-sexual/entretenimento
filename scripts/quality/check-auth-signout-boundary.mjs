@@ -194,7 +194,6 @@ for (const required of [
   'authSession.authUser$',
   'onSnapshot(',
   'snapshot.metadata.fromCache',
-  'if (snapshot.metadata.fromCache) {\n                subscriber.next(false);',
   "value['role'] === 'admin'",
   'this.exitAdmin()',
   'this.sessionSubscription?.unsubscribe()',
@@ -202,6 +201,11 @@ for (const required of [
   if (!adminDashboardSource.includes(required)) {
     credentialViolations.push('Dashboard admin deve observar revogação: ' + required);
   }
+}
+
+// Snapshot de cache nunca pode preservar o painel administrativo.
+if (!/if\s*\(snapshot\.metadata\.fromCache\)\s*\{\s*subscriber\.next\(false\);\s*return;\s*\}/.test(adminDashboardSource)) {
+  credentialViolations.push('Dashboard admin deve negar acesso ao receber snapshot somente de cache.');
 }
 
 // Revogação de staff não pode depender exclusivamente de claims do JWT.
