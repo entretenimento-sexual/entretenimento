@@ -308,33 +308,41 @@ export function currentStaffPermissionAllows(
     || hasRequiredPermission(current.permissions, requiredPermission);
 }
 
+// Leitor injetável para ensaiar a mesma fronteira assíncrona sem credenciais reais.
+type StaffActorReader = (uid: string) => Promise<Record<string, unknown> | null>;
+
+export async function assertStaffAuthorizationWithReader(params: {
+  actorUid: string | null;
+  authToken: Record<string, unknown> | undefined;
+  requiredPermission: StaffPermission;
+}, readActor: StaffActorReader): Promise<void> {
+  const { actorUid, requiredPermission } = params;
+  if (!actorUid) {
+    throw new HttpsError('unauthenticated', 'Moderador não autenticado.');
+  }
+  // Nunca usa claims para promoção: o leitor consulta o estado atual em cada ação.
+  const actor = await readActor(actorUid);
+  if (!actor) {
+    throw new HttpsError('permission-denied', 'Conta do operador não encontrada.');
+  }
+  if (currentStaffPermissionAllows(actor, requiredPermission)) return;
+  throw new HttpsError(
+    'permission-denied',
+    'Usuário sem permissão suficiente para esta ação.'
+  );
+}
+
 export async function assertStaffAuthorization(params: {
   actorUid: string | null;
   authToken: Record<string, unknown> | undefined;
   requiredPermission: StaffPermission;
 }): Promise<void> {
-  const { actorUid, requiredPermission } = params;
-
-  if (!actorUid) {
-    throw new HttpsError('unauthenticated', 'Moderador não autenticado.');
-  }
-
-  // O JWT pode continuar contendo claims antigas após uma revogação.
-  // O documento canônico do ator precisa autorizar a operação AGORA.
-  // Claims nunca podem promover um papel que já foi retirado no backend.
-  const actorSnap = await db.collection('users').doc(actorUid).get();
-  if (!actorSnap.exists) {
-    throw new HttpsError('permission-denied', 'Conta do operador não encontrada.');
-  }
-  if (currentStaffPermissionAllows(
-    (actorSnap.data() ?? {}) as Record<string, unknown>,
-    requiredPermission
-  )) return;
-
-  throw new HttpsError(
-    'permission-denied',
-    'Usuário sem permissão suficiente para esta ação.'
-  );
+  return assertStaffAuthorizationWithReader(params, async (uid) => {
+    const actorSnap = await db.collection('users').doc(uid).get();
+    return actorSnap.exists
+      ? (actorSnap.data() ?? {}) as Record<string, unknown>
+      : null;
+  });
 }
 
 export function createLifecycleAudit(
