@@ -4,12 +4,10 @@ import { createReducer, on } from '@ngrx/store';
 import {
   authFailure,
   authSessionChanged,
-  login,
   loginFailure,
   loginSessionReady,
   loginStart,
   loginSuccess,
-  register,
   registerFailure,
   registerSuccess,
 } from '../../actions/actions.user/auth.actions';
@@ -78,17 +76,6 @@ export const authReducer = createReducer(
   })),
 
   /**
-   * login:
-   * - também pode iniciar loading diretamente
-   * - útil caso a UI dispare login sem loginStart antes
-   */
-  on(login, (state): AuthState => ({
-    ...state,
-    loading: true,
-    error: null,
-  })),
-
-  /**
    * loginSuccess / loginSessionReady:
    * - não alteram userId / isAuthenticated / emailVerified
    * - esses campos pertencem ao authSessionChanged
@@ -116,16 +103,6 @@ export const authReducer = createReducer(
   // ---------------------------------------------------------------------------
   // Registro
   // ---------------------------------------------------------------------------
-
-  /**
-   * register:
-   * - inicia loading para o fluxo de cadastro
-   */
-  on(register, (state): AuthState => ({
-    ...state,
-    loading: true,
-    error: null,
-  })),
 
   /**
    * registerSuccess:
