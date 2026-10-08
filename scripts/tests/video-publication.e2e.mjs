@@ -69,8 +69,8 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function waitFor(label, readValue, predicate) {
-  const deadline = Date.now() + WAIT_TIMEOUT_MS;
+async function waitFor(label, readValue, predicate, timeoutMs = WAIT_TIMEOUT_MS) {
+  const deadline = Date.now() + timeoutMs;
   let lastValue;
 
   while (Date.now() < deadline) {
@@ -83,7 +83,9 @@ async function waitFor(label, readValue, predicate) {
     await delay(WAIT_INTERVAL_MS);
   }
 
-  throw new Error(`Timeout aguardando: ${label}. Último valor: ${String(lastValue)}`);
+  throw new Error(
+    `Timeout aguardando: ${label}. Último valor: ${JSON.stringify(lastValue, (_key, value) => value instanceof Error ? value.message : value)}`
+  );
 }
 
 async function readDocumentData(reference) {
@@ -515,7 +517,8 @@ async function run() {
         value.publication?.moderationStatus === 'APPROVED' &&
         value.publicVideo?.moderationStatus === 'APPROVED' &&
         value.publicVideo?.title === draftTitle &&
-        value.publicVideo?.description === draftDescription
+        value.publicVideo?.description === draftDescription,
+      90_000
     );
     const publication = publishedState.publication;
     const publicVideo = publishedState.publicVideo;
