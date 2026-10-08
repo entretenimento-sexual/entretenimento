@@ -71,13 +71,16 @@ for (const fragment of [
   requireIncludes(registration, fragment, 'registration reservation drift');
 }
 
-// Requisições sem reserva comprovada não podem disparar rollback destrutivo.
+// Registro e cleanup competem pela mesma reserva em transação.
 for (const fragment of [
-  'let reservationValidated = false;',
-  'reservationValidated = true;',
-  'if (reservationValidated && !registrationCommitted)',
+  'claimVideoUploadReservation({ reservationId, ownerUid, videoId })',
+  'releaseVideoUploadReservationClaim(reservationId, claimToken)',
+  'let claimToken: string | null = null;',
 ]) {
-  requireIncludes(registration, fragment, 'rollback reservation authority drift');
+  requireIncludes(registration, fragment, 'registration claim boundary drift');
+}
+if (registration.includes('deleteUploadedAssetsRecoverably(')) {
+  throw new Error('[video-upload-reservation-boundary] Rollback destrutivo legado voltou ao registro.');
 }
 const invalidPosterPathBranch = registration.split(
   'if (rawPosterStoragePath && !posterStoragePath) {'
@@ -96,6 +99,10 @@ for (const fragment of [
   'consumeBackendRateLimitQuota',
   'evaluateVideoUploadQuota',
   'cleanupExpiredVideoUploadReservations',
+  'claimVideoUploadReservation',
+  "phase: 'CLEANING'",
+  "phase: 'REGISTERING'",
+  'PHASE_LEASE_MS',
 ]) {
   requireIncludes(reservation, fragment, 'backend reservation drift');
 }
