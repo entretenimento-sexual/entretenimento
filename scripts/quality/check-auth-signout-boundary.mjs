@@ -153,6 +153,23 @@ if (credentialViolations.length) {
   for (const issue of credentialViolations) console.error('[auth-boundary] ' + issue);
 }
 
+// Revogação de staff não pode depender exclusivamente de claims do JWT.
+const staffSecurity = fs.readFileSync(
+  path.join(root, 'functions/src/account_lifecycle/_shared.ts'), 'utf8'
+);
+const staffBoundary = staffSecurity.slice(
+  staffSecurity.indexOf('export async function assertStaffAuthorization'),
+  staffSecurity.indexOf('export function createLifecycleAudit')
+);
+if (
+  !staffBoundary.includes("if (!actorSnap.exists)") ||
+  !staffBoundary.includes("state['accountStatus']") ||
+  !staffBoundary.includes('collectRolesAndPermissions(state)') ||
+  staffBoundary.includes('const fromClaims =')
+) {
+  credentialViolations.push('Autorização staff deve revalidar documento canônico e lifecycle, nunca aceitar somente JWT.');
+}
+
 if (signOutViolations.length > 0 || parallelLogoutViolations.length > 0 || credentialViolations.length > 0) {
   if (signOutViolations.length > 0) {
     console.error(
