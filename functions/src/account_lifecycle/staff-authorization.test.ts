@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { HttpsError } from 'firebase-functions/v2/https';
 import { assertStaffAuthorizationWithReader, currentStaffPermissionAllows } from './_shared';
 
 const permission = 'users:suspend' as const;
@@ -54,7 +55,7 @@ test('autorização assíncrona reconsulta cada requisição e nega JWT antigo',
   actor = { accountStatus: 'active', role: 'free' };
   await assert.rejects(
     assertStaffAuthorizationWithReader(params, readActor),
-    (error: unknown) => (error as { code?: string }).code === 'functions/permission-denied'
+    (error: unknown) => error instanceof HttpsError && error.code === 'permission-denied'
   );
   actor = { accountStatus: 'active', role: 'admin' };
   await assertStaffAuthorizationWithReader(params, readActor);
@@ -67,12 +68,12 @@ test('documento ausente e operador anônimo falham fechados', async () => {
     assertStaffAuthorizationWithReader({
       actorUid: 'missing', authToken: { admin: true }, requiredPermission: permission,
     }, readMissing),
-    (error: unknown) => (error as { code?: string }).code === 'functions/permission-denied'
+    (error: unknown) => error instanceof HttpsError && error.code === 'permission-denied'
   );
   await assert.rejects(
     assertStaffAuthorizationWithReader({
       actorUid: null, authToken: { admin: true }, requiredPermission: permission,
     }, async () => { throw new Error('Não deve consultar sem UID'); }),
-    (error: unknown) => (error as { code?: string }).code === 'functions/unauthenticated'
+    (error: unknown) => error instanceof HttpsError && error.code === 'unauthenticated'
   );
 });
