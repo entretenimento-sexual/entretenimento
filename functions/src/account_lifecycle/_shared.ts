@@ -252,6 +252,7 @@ function collectRolesAndPermissions(
   const roles = new Set<string>();
   const permissions = new Set<string>();
 
+  if (String(source.role ?? '').trim().toLowerCase() === 'admin') roles.add('admin');
   normalizeStringArray(source.staffRoles).forEach((role) => roles.add(role));
   normalizeStringArray(source.roles).forEach((role) => roles.add(role));
   normalizeStringArray(source.permissions).forEach((permission) =>
@@ -286,6 +287,27 @@ function hasRequiredPermission(
   );
 }
 
+/**
+ * Decisão de autorização independente de claims potencialmente desatualizadas.
+ * O caller precisa fornecer o snapshot atual do documento users/{uid}.
+ */
+export function currentStaffPermissionAllows(
+  user: Record<string, unknown> | null,
+  requiredPermission: StaffPermission
+): boolean {
+  if (!user) return false;
+  if (
+    user['suspended'] === true ||
+    user['accountLocked'] === true ||
+    user['interactionBlocked'] === true ||
+    user['loginAllowed'] === false ||
+    (user['accountStatus'] != null && user['accountStatus'] !== 'active')
+  ) return false;
+  const current = collectRolesAndPermissions(user);
+  return hasElevatedRole(current.roles)
+    || hasRequiredPermission(current.permissions, requiredPermission);
+}
+
 export async function assertStaffAuthorization(params: {
   actorUid: string | null;
   authToken: Record<string, unknown> | undefined;
@@ -304,25 +326,10 @@ export async function assertStaffAuthorization(params: {
   if (!actorSnap.exists) {
     throw new HttpsError('permission-denied', 'Conta do operador não encontrada.');
   }
-  const actorData = (actorSnap.data() ?? {}) as UserDoc;
-  const state = actorData as Record<string, unknown>;
-  if (
-    state['suspended'] === true ||
-    state['accountLocked'] === true ||
-    state['interactionBlocked'] === true ||
-    state['loginAllowed'] === false ||
-    (state['accountStatus'] != null && state['accountStatus'] !== 'active')
-  ) {
-    throw new HttpsError('permission-denied', 'Conta do operador sem acesso administrativo.');
-  }
-
-  const current = collectRolesAndPermissions(state);
-  if (
-    hasElevatedRole(current.roles) ||
-    hasRequiredPermission(current.permissions, requiredPermission)
-  ) {
-    return;
-  }
+  if (currentStaffPermissionAllows(
+    (actorSnap.data() ?? {}) as Record<string, unknown>,
+    requiredPermission
+  )) return;
 
   throw new HttpsError(
     'permission-denied',
