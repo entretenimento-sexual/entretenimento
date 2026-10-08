@@ -291,7 +291,7 @@ export async function assertStaffAuthorization(params: {
   authToken: Record<string, unknown> | undefined;
   requiredPermission: StaffPermission;
 }): Promise<void> {
-  const { actorUid, authToken, requiredPermission } = params;
+  const { actorUid, requiredPermission } = params;
 
   if (!actorUid) {
     throw new HttpsError('unauthenticated', 'Moderador não autenticado.');
