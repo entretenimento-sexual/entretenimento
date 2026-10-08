@@ -186,6 +186,72 @@ for (const required of [
   }
 }
 
+// A página já aberta deve reagir à revogação sem nova navegação.
+const adminDashboardSource = fs.readFileSync(
+  path.join(root, 'src/app/admin-dashboard/admin-dashboard.component.ts'), 'utf8'
+);
+for (const required of [
+  'authSession.authUser
+const staffSecurity = fs.readFileSync(
+  path.join(root, 'functions/src/account_lifecycle/_shared.ts'), 'utf8'
+);
+const staffBoundary = staffSecurity.slice(
+  staffSecurity.indexOf('export async function assertStaffAuthorization'),
+  staffSecurity.indexOf('export function createLifecycleAudit')
+);
+if (
+  !staffBoundary.includes("if (!actorSnap.exists)") ||
+  !staffBoundary.includes('currentStaffPermissionAllows(') ||
+  staffBoundary.includes('const fromClaims =') ||
+  !staffSecurity.includes("source.role ?? ''") ||
+  !staffSecurity.includes("user['accountStatus']")
+) {
+  credentialViolations.push('Autorização staff deve revalidar documento canônico e lifecycle, nunca aceitar somente JWT.');
+}
+
+if (signOutViolations.length > 0 || parallelLogoutViolations.length > 0 || credentialViolations.length > 0) {
+  if (signOutViolations.length > 0) {
+    console.error(
+      '[auth-boundary] Firebase Auth signOut fora da fronteira canônica:'
+    );
+    for (const violation of signOutViolations) {
+      console.error(`  - ${violation}`);
+    }
+  }
+
+  if (parallelLogoutViolations.length > 0) {
+    console.error(
+      '[auth-boundary] Action NgRx paralela de logout detectada:'
+    );
+    for (const violation of parallelLogoutViolations) {
+      console.error(`  - ${violation}`);
+    }
+  }
+
+  console.error(
+    '[auth-boundary] Use AuthFacade.logout$()/logoutNow() ou LogoutService. '
+      + 'Somente logout.service.ts pode importar/chamar Firebase signOut; '
+      + 'NgRx deve reagir exclusivamente a authSessionChanged.'
+  );
+  process.exit(1);
+}
+
+console.log(
+  '[auth-boundary] OK: logout global permanece exclusivo de LogoutService; '
+    + 'NgRx reage somente à sessão canônica.'
+);
+,
+  'onSnapshot(',
+  'snapshot.metadata.fromCache',
+  "value['role'] === 'admin'",
+  'this.exitAdmin()',
+  'this.sessionSubscription?.unsubscribe()',
+]) {
+  if (!adminDashboardSource.includes(required)) {
+    credentialViolations.push('Dashboard admin deve observar revogação: ' + required);
+  }
+}
+
 // Revogação de staff não pode depender exclusivamente de claims do JWT.
 const staffSecurity = fs.readFileSync(
   path.join(root, 'functions/src/account_lifecycle/_shared.ts'), 'utf8'
