@@ -66,6 +66,10 @@ import {
   ConfirmationDialogData,
 } from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 import { ProfileVideoLibraryFacade } from '../state/profile-video-library.facade';
+import {
+  PrivateVideoPreviewVisibilityDirective,
+  type PrivateVideoPreviewVisibilityChange,
+} from './private-video-preview-visibility.directive';
 import type { IProfileVideoViewItem } from '../state/profile-video-library.models';
 import { VideoSimpleEditorControlsComponent } from '../video-editor/video-editor-controls.entrypoint';
 import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
@@ -102,6 +106,7 @@ const DENY_UNKNOWN: IMediaPolicyResult = {
     VideoSimpleEditorControlsComponent,
     PageHeaderComponent,
     MediaActionMenuComponent,
+    PrivateVideoPreviewVisibilityDirective,
   ],
   templateUrl: './profile-videos.component.html',
   styleUrls: [
@@ -793,6 +798,12 @@ export class ProfileVideosComponent {
       item.publication?.isPublished === true &&
       item.publication?.visibility === 'PUBLIC' &&
       item.publication?.moderationStatus === 'APPROVED';
+  }
+
+  onPreviewVisibilityChange(
+    change: PrivateVideoPreviewVisibilityChange
+  ): void {
+    this.profileVideoLibrary.setPreviewNearby(change.videoId, change.nearby);
   }
 
   openPublishedVideo(item: IProfileVideoViewItem): void {

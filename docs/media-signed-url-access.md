@@ -33,3 +33,13 @@ No Storage Emulator, a implementação utiliza download token técnico determin�
 - Solicitações PREVIEW concorrentes com o mesmo lote e sessão são compartilhadas enquanto estiverem em voo, inclusive quando novos snapshots substituem o Observable anterior. Respostas antigas são descartadas na troca de sessão, inclusive logout seguido de novo login do mesmo UID.
 - O backend continua sendo autoridade em cada emissão. Cache Angular não garante revogação imediata de uma URL previamente assinada nem concede autorização nova.
 - Não é necessário proxy, worker de renovação, polling global ou persistência adicional para esse fluxo. O benefício econômico é evitar assinatura de arquivos completos sem reprodução, coalescer requisições e eliminar renovações de posters causadas apenas por emissões repetidas de metadados.
+
+## Capas privadas por visibilidade e ciclo de vida
+
+- Na biblioteca do perfil, os cards são renderizados imediatamente com os metadados do NgRx e um placeholder estável; capas temporárias são pedidas somente para cards dentro da viewport ou da margem de 320px do `IntersectionObserver`. O `loading="lazy"` do navegador permanece ativo.
+- Entradas simultâneas são agrupadas por 75 ms e enviadas em um único lote. Não se envia nenhum vídeo fora da lista corrente do proprietário; o limite continua 60.
+- Ao sair da margem, o card deixa de receber URL na projeção efêmera; se retornar, a capa ainda válida é reaproveitada do cache de sessão, sem nova assinatura.
+- Sem suporte a `IntersectionObserver`, o navegador conserva o carregamento clássico da grade, evitando cards permanentemente sem capa. Na renderização SSR não se dispara autorização especulativa.
+- O timer de oito minutos só está ativo quando a aba está visível e a UI tem assinantes. `visibilitychange` para oculto interrompe o timer e evita novas chamadas; ao voltar, o sistema reconcilia apenas os cards próximos e só renova URLs perto da expiração.
+- Medição com privacidade: debug local opt-in `DEBUG_MEDIA=1` registra apenas quantidades totais/próximas/puladas; a callable de PREVIEW registra amostras de 5% dos tamanhos de lote, capas liberadas e falhas no Cloud Logging, **sem UID, ID do vídeo, URLs, paths ou novos documentos no Firestore**. Trata-se de proxies de trabalho evitado, não de valor financeiro faturado. A amostragem pode gerar custo mínimo de ingestão de logs; avaliar com o billing real.
+- Não confundir proximidade visual com visualização real, nem usar esses indicadores como prova de reprodução, exposição comercial ou elegibilidade de monetização.

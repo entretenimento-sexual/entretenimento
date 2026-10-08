@@ -284,6 +284,20 @@ export const getPrivateVideoAccessUrls = onCall<PrivateVideoAccessRequest>(
       (resolution) => resolution.technicalFailure
     ).length;
 
+    // Amostragem agregada (5%) de custo/eficácia do PREVIEW. Sem UID, IDs de
+    // vídeo, URL, paths ou gravações de telemetria no Firestore.
+    // Cloud Logging pode cobrar ingestão, por isso não registrar cada chamada.
+    if (mode === 'PREVIEW' && Math.random() < 0.05) {
+      logger.info('[privateVideoPreview] sampled batch', {
+        schemaVersion: 1,
+        samplingFraction: 0.05,
+        requestedCount: videoIds.length,
+        returnedCount: items.length,
+        posterGrantedCount: items.filter((item) => !!item.posterUrl).length,
+        technicalFailureCount,
+      });
+    }
+
     if (!items.length && technicalFailureCount > 0) {
       throw new HttpsError(
         'internal',

@@ -357,7 +357,11 @@
       @if (items.length > 0) {
         <div class="profile-videos__grid" aria-label="Meus vídeos">
           @for (item of items; track trackByVideoId($index, item)) {
-            <article class="profile-videos__card">
+            <article
+              class="profile-videos__card"
+              [appPrivateVideoPreviewVisibility]="item.video.id"
+              (previewVisibilityChange)="onPreviewVisibilityChange($event)"
+            >
               <div class="profile-videos__media">
                 <button
                   type="button"
