@@ -400,6 +400,76 @@ async function run() {
       `Status de registro inesperado: ${registrationResponse.data.status}`
     );
 
+    // Integração com a rotina real de reconciliação (sem Pub/Sub agendado).
+    // Uma reserva expirada já registrada preserva os arquivos canônicos.
+    const { default: reservationHandlers } = await import(
+      '../../functions/lib/media/application/reserve-video-upload.handler.js'
+    );
+    const reconcileReservation = reservationHandlers.reconcileExpiredReservation;
+    assert.equal(typeof reconcileReservation, 'function');
+    const recordedReservationRef = adminDb.doc(
+      `media_video_upload_reservations/${firstReservation.data.reservationId}`
+    );
+    await recordedReservationRef.set({
+      reservationId: firstReservation.data.reservationId,
+      ownerUid,
+      videoId,
+      videoStoragePath: sourcePath,
+      videoSizeBytes: sourceBytes.byteLength,
+      videoContentType: 'video/mp4',
+      posterStoragePath: posterPath,
+      posterSizeBytes: posterBytes.byteLength,
+      posterContentType: 'image/jpeg',
+      createdAt: new Date(Date.now() - 120_000),
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+    const registeredReservationSnapshot = await recordedReservationRef.get();
+    assert.equal(
+      await reconcileReservation(
+        registeredReservationSnapshot,
+        registeredReservationSnapshot.data()
+      ),
+      'referenced'
+    );
+    assert.equal((await recordedReservationRef.get()).exists, false);
+    assert.equal(await readFileExists(bucket.file(sourcePath)), true);
+    assert.equal(await readFileExists(bucket.file(posterPath)), true);
+
+    // Uma reserva expirada sem registro correspondente deve remover o órfão.
+    const orphanVideoId = `orphan-${runId}`;
+    const orphanReservationId = `orphan-reservation-${runId}`;
+    const orphanPath = `users/${ownerUid}/uploads/videos/${orphanVideoId}-asset.mp4`;
+    const orphanRef = adminDb.doc(
+      `media_video_upload_reservations/${orphanReservationId}`
+    );
+    await bucket.file(orphanPath).save(Buffer.from(sourceBytes), {
+      resumable: false,
+      metadata: {
+        contentType: 'video/mp4',
+        metadata: { mediaVideoReservationId: orphanReservationId },
+      },
+    });
+    await orphanRef.set({
+      reservationId: orphanReservationId,
+      ownerUid,
+      videoId: orphanVideoId,
+      videoStoragePath: orphanPath,
+      videoSizeBytes: sourceBytes.byteLength,
+      videoContentType: 'video/mp4',
+      posterStoragePath: null,
+      posterSizeBytes: 0,
+      posterContentType: null,
+      createdAt: new Date(Date.now() - 120_000),
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+    const orphanSnapshot = await orphanRef.get();
+    assert.equal(
+      await reconcileReservation(orphanSnapshot, orphanSnapshot.data()),
+      'orphan_deleted'
+    );
+    assert.equal((await orphanRef.get()).exists, false);
+    assert.equal(await readFileExists(bucket.file(orphanPath)), false);
+
     const ownerVideoRef = adminDb.doc(
       `users/${ownerUid}/videos/${videoId}`
     );
@@ -769,6 +839,8 @@ async function run() {
     assert.match(String(failureNotification.body ?? ''), /versão compatível/i);
     assert.match(String(failureNotification.body ?? ''), /removido da plataforma/i);
 
+    console.log('✔ reconciliação de reserva expirada preservou vídeo registrado');
+    console.log('✔ reconciliação removeu arquivo órfão e sua reserva expirada');
     console.log('✔ registro inválido não excluiu binários com reserva legítima');
     console.log('✔ registros concorrentes convergiram sem excluir vídeo ou capa');
     console.log('✔ arquivo-fonte protegido pelas Storage Rules');
