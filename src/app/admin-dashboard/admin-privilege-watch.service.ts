@@ -4,6 +4,21 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { Observable } from 'rxjs';
 
 /** Encapsula o listener remoto para permitir testes determinísticos de sessão. */
+export function adminPrivilegeSnapshotAllows(
+  value: Record<string, unknown> | null,
+  fromCache: boolean
+): boolean {
+  return !fromCache && !!value
+    && (value['accountStatus'] == null || value['accountStatus'] === 'active')
+    && value['suspended'] !== true
+    && value['accountLocked'] !== true
+    && value['interactionBlocked'] !== true
+    && value['loginAllowed'] !== false
+    && (value['role'] === 'admin'
+      || value['admin'] === true
+      || value['superadmin'] === true);
+}
+
 @Injectable({ providedIn: 'root' })
 export class AdminPrivilegeWatchService {
   constructor(private readonly firestore: Firestore) {}
@@ -14,20 +29,8 @@ export class AdminPrivilegeWatchService {
         doc(this.firestore, 'users', uid),
         { includeMetadataChanges: true },
         (snapshot) => {
-          if (snapshot.metadata.fromCache) {
-            subscriber.next(false);
-            return;
-          }
           const value = snapshot.exists() ? snapshot.data() : null;
-          subscriber.next(!!value
-            && (value['accountStatus'] == null || value['accountStatus'] === 'active')
-            && value['suspended'] !== true
-            && value['accountLocked'] !== true
-            && value['interactionBlocked'] !== true
-            && value['loginAllowed'] !== false
-            && (value['role'] === 'admin'
-              || value['admin'] === true
-              || value['superadmin'] === true));
+          subscriber.next(adminPrivilegeSnapshotAllows(value, snapshot.metadata.fromCache));
         },
         (error) => subscriber.error(error)
       )
