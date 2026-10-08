@@ -42,6 +42,7 @@ import { EmailInputModalService } from 'src/app/core/services/autentication/emai
 import { LoginService } from 'src/app/core/services/autentication/login.service';
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PostAuthNavigationService } from 'src/app/register-module/data-access/post-auth-navigation.service';
 
 type LoginAction =
@@ -76,6 +77,7 @@ export class LoginComponent implements OnInit {
     private readonly router: Router,
     private readonly route: ActivatedRoute,
     private readonly notify: ErrorNotificationService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly logoutService: LogoutService,
     private readonly authFacade: AuthFacade,
     private readonly loginservice: LoginService,
@@ -167,9 +169,7 @@ export class LoginComponent implements OnInit {
   }
 
   get currentAssistiveStatus(): string {
-    if (this.errorMessage) return this.errorMessage;
-    if (this.successMessage) return this.successMessage;
-    if (this.isLoading) return this.loadingMessage;
+    // Mensagens e progresso já usam regiões aria-live dedicadas no template.
     return 'Formulário de login pronto.';
   }
 
@@ -221,10 +221,14 @@ export class LoginComponent implements OnInit {
             .navigateByUrl(target, { replaceUrl: true })
             .catch(() => {});
         }),
-        catchError((error) => {
-          this.setSystemError(
-            error?.message || 'Erro inesperado. Tente novamente.'
-          );
+        catchError((error: unknown) => {
+          const descriptor = this.applicationError.report(error, {
+            feature: 'login',
+            operation: 'resolveAfterEmailLogin$',
+            fallbackMessage: 'Não foi possível concluir o acesso agora. Tente novamente.',
+            presentation: { surface: 'inline', severity: 'error' },
+          });
+          this.setSystemError(descriptor.userMessage);
           return of(void 0);
         }),
         finalize(() => this.setBusyState(false)),
@@ -243,7 +247,7 @@ export class LoginComponent implements OnInit {
     const redirectTo = this.getRedirectTo();
 
     this.authFacade
-      .googleLogin$()
+      .googleLogin$(!!this.loginForm.get('rememberMe')?.value)
       .pipe(
         switchMap((result) => {
           if (!result?.success) {
@@ -270,10 +274,14 @@ export class LoginComponent implements OnInit {
             .navigateByUrl(navigation.target, { replaceUrl: true })
             .catch(() => {});
         }),
-        catchError((error) => {
-          this.setSystemError(
-            error?.message || 'Erro inesperado no login com Google.'
-          );
+        catchError((error: unknown) => {
+          const descriptor = this.applicationError.report(error, {
+            feature: 'login',
+            operation: 'resolveAfterSocialLogin$',
+            fallbackMessage: 'Não foi possível concluir o acesso com Google agora.',
+            presentation: { surface: 'inline', severity: 'error' },
+          });
+          this.setSystemError(descriptor.userMessage);
           return of(void 0);
         }),
         finalize(() => this.setBusyState(false)),
@@ -379,14 +387,12 @@ export class LoginComponent implements OnInit {
   private setSystemError(message: string): void {
     this.errorMessage = message;
     this.successMessage = '';
-    this.notify.showError(message);
     this.cdr.markForCheck();
   }
 
   private setSuccess(message: string): void {
     this.successMessage = message;
     this.errorMessage = '';
-    this.notify.showSuccess(message);
     this.cdr.markForCheck();
   }
 

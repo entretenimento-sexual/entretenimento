@@ -64,6 +64,22 @@ describe('AuthFacade social auth recovery', () => {
     facade = TestBed.inject(AuthFacade);
   });
 
+  it('preserva a escolha de sessão curta no login Google', async () => {
+    socialAuth.googleLogin.mockReturnValue(of({
+      success: false,
+      outcome: 'error',
+      isNewUser: false,
+      emailVerified: false,
+      user: null,
+      nextRoute: null,
+      code: 'auth/persistence-unavailable',
+      message: 'Sessão indisponível.',
+    }));
+
+    await firstValueFrom(facade.googleLogin$(false));
+    expect(socialAuth.googleLogin).toHaveBeenCalledWith(false);
+  });
+
   it('encaminha para recuperação quando o Auth concluiu e o bootstrap do perfil falhou', async () => {
     socialAuth.googleLogin.mockReturnValue(
       of({

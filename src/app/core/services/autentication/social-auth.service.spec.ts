@@ -19,6 +19,7 @@ import { firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { SocialAuthService } from './social-auth.service';
+import { AuthSessionPersistenceService } from './auth-session-persistence.service';
 import { FirestoreReadService } from '../data-handling/firestore/core/firestore-read.service';
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
 import { ApplicationErrorService } from '../error-handler/application-error.service';
@@ -69,6 +70,10 @@ describe('SocialAuthService', () => {
     TestBed.configureTestingModule({
       providers: [
         SocialAuthService,
+        {
+          provide: AuthSessionPersistenceService,
+          useValue: { setSessionPersistence$: vi.fn(() => of(void 0)) },
+        },
         { provide: Auth, useValue: authMock },
         { provide: FirestoreReadService, useValue: readMock },
         { provide: FirestoreWriteService, useValue: writeMock },
@@ -113,6 +118,17 @@ describe('SocialAuthService', () => {
       ...overrides,
     };
   }
+
+  it('encaminha para a política de sessão a escolha feita no login Google', async () => {
+    vi.spyOn(service as any, 'signInWithPopupInCtx$')
+      .mockReturnValue(throwError(() => Object.assign(new Error('cancel'), {
+        code: 'auth/popup-closed-by-user',
+      })));
+
+    await firstValueFrom(service.googleLogin(false));
+
+    expect((service as any).ensurePersistentAuth$).toHaveBeenCalledWith(false);
+  });
 
   it('deve ser criado', () => {
     expect(service).toBeTruthy();

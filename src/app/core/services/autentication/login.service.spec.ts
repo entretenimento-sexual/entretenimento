@@ -5,6 +5,7 @@ import { firstValueFrom, Observable, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LoginService } from './login.service';
+import { AuthSessionPersistenceService } from './auth-session-persistence.service';
 import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 import { ApplicationErrorService } from '../error-handler/application-error.service';
 import { FirestoreContextService } from '../data-handling/firestore/core/firestore-context.service';
@@ -14,9 +15,11 @@ describe('LoginService', () => {
   let authMock: { currentUser: any };
   let deferPromise$: ReturnType<typeof vi.fn>;
   const report = vi.fn();
+  const setSessionPersistence$ = vi.fn(() => of(void 0));
 
   beforeEach(() => {
     vi.clearAllMocks();
+    setSessionPersistence$.mockReturnValue(of(void 0));
 
     authMock = { currentUser: null };
     deferPromise$ = vi.fn(
@@ -26,6 +29,7 @@ describe('LoginService', () => {
     TestBed.configureTestingModule({
       providers: [
         LoginService,
+        { provide: AuthSessionPersistenceService, useValue: { setSessionPersistence$ } },
         {
           provide: FirestoreUserQueryService,
           useValue: {
@@ -50,6 +54,22 @@ describe('LoginService', () => {
     });
 
     service = TestBed.inject(LoginService);
+  });
+
+  it('não autentica quando a persistência solicitada falha', async () => {
+    setSessionPersistence$.mockReturnValueOnce(throwError(() =>
+      Object.assign(new Error('storage denied'), {
+        code: 'auth/persistence-unavailable',
+      })
+    ) as any);
+
+    const result = await firstValueFrom(service.login$('pessoa@example.com', 'senha', false));
+
+    expect(result).toMatchObject({
+      success: false,
+      code: 'auth/persistence-unavailable',
+    });
+    expect(deferPromise$).not.toHaveBeenCalled();
   });
 
   it('deve ser criado', () => {

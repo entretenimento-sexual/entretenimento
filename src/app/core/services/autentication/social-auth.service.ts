@@ -33,8 +33,6 @@ import {
 import { Auth } from '@angular/fire/auth';
 import {
   GoogleAuthProvider,
-  browserLocalPersistence,
-  setPersistence,
   signInWithPopup,
   type User as FirebaseUser,
   type UserCredential,
@@ -53,6 +51,7 @@ import { FirestoreReadService } from '../data-handling/firestore/core/firestore-
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
 import { ApplicationErrorService } from '../error-handler/application-error.service';
 import { RegistrationBootstrapService } from './register/registration-bootstrap.service';
+import { AuthSessionPersistenceService } from './auth-session-persistence.service';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
@@ -171,27 +170,24 @@ export class SocialAuthService {
     private readonly write: FirestoreWriteService,
     private readonly registrationBootstrap: RegistrationBootstrapService,
     private readonly applicationError: ApplicationErrorService,
-    private readonly envInjector: EnvironmentInjector
+    private readonly envInjector: EnvironmentInjector,
+    private readonly sessionPersistence: AuthSessionPersistenceService
   ) {}
 
   // ==============================================================
   // API pública
   // ==============================================================
 
-  private ensurePersistentAuth$(): Observable<void> {
-    return defer(() =>
-      runInInjectionContext(this.envInjector, () =>
-        setPersistence(this.auth, browserLocalPersistence)
-      )
-    ).pipe(
-      map(() => void 0)
+  private ensurePersistentAuth$(rememberMe = true): Observable<void> {
+    return this.sessionPersistence.setSessionPersistence$(
+      rememberMe ? 'local' : 'session'
     );
   }
 
-  googleLogin(): Observable<SocialAuthResult> {
+  googleLogin(rememberMe = true): Observable<SocialAuthResult> {
     const provider = this.buildGoogleProvider();
 
-    return this.ensurePersistentAuth$().pipe(
+    return this.ensurePersistentAuth$(rememberMe).pipe(
       switchMap(() => this.signInWithPopupInCtx$(provider)),
       switchMap((credential) => this.bootstrapUserAfterAuth$(credential)),
       catchError((err) => of(this.handleGoogleLoginError(err)))
@@ -728,6 +724,18 @@ export class SocialAuthService {
       });
 
       return this.makeCancelledResult();
+    }
+
+    if (code === 'auth/persistence-unavailable') {
+      this.reportSilent(err, {
+        phase: 'googleLogin.persistence',
+        code,
+        expected: false,
+      });
+      return this.makeErrorResult({
+        code,
+        message: 'Não foi possível configurar a duração da sessão neste navegador. Verifique as permissões de armazenamento e tente novamente.',
+      });
     }
 
     if (code === 'auth/popup-blocked') {

@@ -28,14 +28,8 @@ import {
 } from 'rxjs/operators';
 
 import {
-  browserLocalPersistence,
-  browserSessionPersistence,
   confirmPasswordReset,
-  EmailAuthProvider,
-  inMemoryPersistence,
-  reauthenticateWithCredential,
   sendPasswordResetEmail as sendPasswordResetEmailFn,
-  setPersistence,
   signInWithEmailAndPassword,
   type Persistence,
   type User,
@@ -47,6 +41,9 @@ import { ApplicationErrorService } from '../error-handler/application-error.serv
 import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 import { environment } from 'src/environments/environment';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
+import { AccountReauthenticationService } from 'src/app/account/application/account-reauthentication.service';
+import { AuthSessionPersistenceService } from './auth-session-persistence.service';
+import { resolveFirebaseAuthEmulatorPersistenceMode } from '@core/firebase/firebase-environment.config';
 
 export interface LoginResult {
   success: boolean;
@@ -64,13 +61,14 @@ type EmuPersistMode = 'memory' | 'session';
 @Injectable({ providedIn: 'root' })
 export class LoginService {
   private readonly NET_TIMEOUT_MS = 12_000;
-  private readonly EMU_AUTH_PERSIST_KEY = '__EMU_AUTH_PERSIST__';
 
   constructor(
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly applicationError: ApplicationErrorService,
     private readonly auth: Auth,
-    private readonly ctx: FirestoreContextService
+    private readonly ctx: FirestoreContextService,
+    private readonly sessionPersistence: AuthSessionPersistenceService,
+    private readonly accountReauthentication: AccountReauthenticationService
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -98,19 +96,6 @@ export class LoginService {
         DBG?: (message: string, extra?: unknown) => void;
       };
       debugWindow.DBG?.(`[LoginService] ${message}`, extra ?? '');
-    } catch {
-      // Debug nunca interfere na autenticação.
-    }
-  }
-
-  private warn(message: string, extra?: unknown): void {
-    if (!this.debugEnabled()) return;
-
-    try {
-      const debugWindow = window as Window & {
-        DBG?: (message: string, extra?: unknown) => void;
-      };
-      debugWindow.DBG?.(`[LoginService][WARN] ${message}`, extra ?? '');
     } catch {
       // Debug nunca interfere na autenticação.
     }
@@ -170,102 +155,14 @@ export class LoginService {
   }
 
   private getEmuPersistMode(): EmuPersistMode {
-    if (!this.isBrowser()) return 'session';
-
-    const raw = String(
-      localStorage.getItem(this.EMU_AUTH_PERSIST_KEY) ?? ''
-    )
-      .trim()
-      .toLowerCase();
-
-    return raw === 'memory' ? 'memory' : 'session';
+    return resolveFirebaseAuthEmulatorPersistenceMode();
   }
 
-  private resolvePersistence(
-    input: SessionMode | Persistence
-  ): Persistence {
-    if (typeof input !== 'string') return input;
-
-    if (this.isAuthEmuActive()) {
-      return this.getEmuPersistMode() === 'session'
-        ? browserSessionPersistence
-        : inMemoryPersistence;
-    }
-
-    switch (input) {
-      case 'local':
-        return browserLocalPersistence;
-      case 'session':
-        return browserSessionPersistence;
-      case 'none':
-      default:
-        return inMemoryPersistence;
-    }
-  }
-
-  private persistenceLabel(persistence: Persistence): string {
-    if (persistence === browserLocalPersistence) return 'local';
-    if (persistence === browserSessionPersistence) return 'session';
-    if (persistence === inMemoryPersistence) return 'memory';
-    return 'custom';
-  }
-
+  /** API pública preservada; política única para e-mail e Google. */
   setSessionPersistence$(
     modeOrPersistence: SessionMode | Persistence
   ): Observable<void> {
-    const requested = this.resolvePersistence(modeOrPersistence);
-    const fallback =
-      requested === browserLocalPersistence
-        ? browserSessionPersistence
-        : inMemoryPersistence;
-
-    const trySet$ = (persistence: Persistence): Observable<void> =>
-      this.ctx
-        .deferPromise$<void>(() => setPersistence(this.auth, persistence))
-        .pipe(
-          timeout({ each: this.NET_TIMEOUT_MS }),
-          map(() => void 0)
-        );
-
-    this.dbg('setSessionPersistence:start', {
-      requested: this.persistenceLabel(requested),
-      fallback: this.persistenceLabel(fallback),
-      usingEmulator: this.isAuthEmuActive(),
-    });
-
-    return trySet$(requested).pipe(
-      catchError((firstError: unknown) => {
-        this.warn('setSessionPersistence:fallback', firstError);
-
-        return trySet$(fallback).pipe(
-          catchError((secondError: unknown) => {
-            if (fallback === inMemoryPersistence) {
-              this.reportSilent(
-                'Não foi possível definir a persistência da sessão.',
-                secondError,
-                { operation: 'setSessionPersistence$', firstError }
-              );
-              return of(void 0);
-            }
-
-            return trySet$(inMemoryPersistence).pipe(
-              catchError((thirdError: unknown) => {
-                this.reportSilent(
-                  'Não foi possível definir a persistência da sessão.',
-                  thirdError,
-                  {
-                    operation: 'setSessionPersistence$',
-                    firstError,
-                    secondError,
-                  }
-                );
-                return of(void 0);
-              })
-            );
-          })
-        );
-      })
-    );
+    return this.sessionPersistence.setSessionPersistence$(modeOrPersistence);
   }
 
   // ---------------------------------------------------------------------------
@@ -507,14 +404,15 @@ export class LoginService {
     const user = this.auth.currentUser;
     const safePassword = String(password ?? '');
 
-    if (!user?.email) {
+    // Assinatura legada exclusiva para senha. Fluxos com Google devem
+    // utilizar AccountReauthenticationService diretamente.
+    if (!user?.email || this.accountReauthentication.getCurrentMode() !== 'password') {
       return this.failClosed$(
         'Não foi possível confirmar uma conta com senha nesta sessão.',
         'auth/password-provider-unavailable',
         'reauthenticateUser$'
       );
     }
-
     if (!safePassword) {
       return this.failClosed$(
         'Informe sua senha para confirmar a identidade.',
@@ -522,25 +420,7 @@ export class LoginService {
         'reauthenticateUser$'
       );
     }
-
-    const credential = EmailAuthProvider.credential(
-      user.email,
-      safePassword
-    );
-
-    return this.ctx
-      .deferPromise$(() =>
-        reauthenticateWithCredential(user, credential)
-      )
-      .pipe(
-        timeout({ each: this.NET_TIMEOUT_MS }),
-        map(() => void 0),
-        catchError((error: unknown) =>
-          this.reportAndRethrow$(error, 'reauthenticateUser$', {
-            uid: user.uid,
-          })
-        )
-      );
+    return this.accountReauthentication.reauthenticateForSensitiveAction$(safePassword);
   }
 
   // ---------------------------------------------------------------------------
@@ -652,6 +532,9 @@ export class LoginService {
         break;
       case 'auth/too-many-requests':
         message = 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
+        break;
+      case 'auth/persistence-unavailable':
+        message = 'Não foi possível configurar a duração da sessão neste navegador. Verifique as permissões de armazenamento e tente novamente.';
         break;
       case 'auth/network-request-failed':
         message = this.isAuthEmuActive()

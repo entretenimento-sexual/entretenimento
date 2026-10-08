@@ -262,10 +262,10 @@ export class AuthFacade {
    * - navegar para result.nextRoute
    * - abrir fluxo complementar
    */
-  googleLogin$(): Observable<AuthFacadeSocialAuthResult> {
+  googleLogin$(rememberMe = true): Observable<AuthFacadeSocialAuthResult> {
     this.startLoading();
 
-    return this.socialAuthService.googleLogin().pipe(
+    return this.socialAuthService.googleLogin(rememberMe).pipe(
       map((result) => this.normalizeSocialAuthResult(result)),
       catchError((err: any) =>
         of({
@@ -276,7 +276,7 @@ export class AuthFacade {
           user: null,
           nextRoute: null,
           code: err?.code ?? 'auth-facade/social-login-failed',
-          message: err?.message ?? 'Não foi possível autenticar com Google agora.',
+          message: 'Não foi possível autenticar com Google agora.',
         } as AuthFacadeSocialAuthResult)
       ),
       finalize(() => this.stopLoading())

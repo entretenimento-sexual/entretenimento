@@ -62,11 +62,17 @@
             </p>
           }
 
+          @if (vm.cooldownUntilMs > 0 && !vm.requestCompleted) {
+            <p class="recovery-next-step" role="status">
+              Aguarde um minuto antes de solicitar outro envio.
+            </p>
+          }
+
           <div class="modal-actions">
             <button
               class="app-action app-action--primary"
               type="submit"
-              [disabled]="vm.isSending || vm.requestCompleted"
+              [disabled]="vm.isSending || vm.requestCompleted || vm.cooldownUntilMs > 0"
               [attr.aria-busy]="vm.isSending ? 'true' : 'false'"
             >
               {{ vm.isSending ? 'Enviando...' : vm.requestCompleted ? 'Solicitação enviada' : 'Enviar instruções' }}

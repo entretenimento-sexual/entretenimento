@@ -9,11 +9,12 @@
 // - usar feedback neutro para evitar enumeração de contas;
 // - diferenciar a orientação de produção da orientação do Auth Emulator.
 // -----------------------------------------------------------------------------
-import { Injectable, isDevMode } from '@angular/core';
-import { BehaviorSubject, Subject } from 'rxjs';
+import { Injectable } from '@angular/core';
+import { BehaviorSubject, Subject, Subscription, timer } from 'rxjs';
 import { finalize, take } from 'rxjs/operators';
 
 import { LoginService } from '../autentication/login.service';
+import { getFirebaseEmulatorEndpoint } from '@core/firebase/firebase-environment.config';
 
 export type PasswordRecoveryFeedbackType = 'info' | 'success' | 'error';
 
@@ -29,6 +30,7 @@ export interface PasswordRecoveryModalState {
   requestCompleted: boolean;
   submittedEmail: string | null;
   isLocalDev: boolean;
+  cooldownUntilMs: number;
   feedback: PasswordRecoveryFeedback | null;
 }
 
@@ -40,6 +42,10 @@ export class EmailInputModalService {
    */
   public readonly isModalOpen = new Subject<boolean>();
   public readonly emailSentMessage = new Subject<string>();
+
+  private readonly cooldownStorageKey = '__AUTH_PASSWORD_RECOVERY_COOLDOWN_UNTIL__';
+  private readonly cooldownMs = 60_000;
+  private cooldownTimer?: Subscription;
 
   private readonly productionSuccessMessage =
     'Solicitação enviada. Se esse e-mail estiver cadastrado, as instruções chegarão na caixa de entrada. Verifique também o spam.';
@@ -53,7 +59,8 @@ export class EmailInputModalService {
     isSending: false,
     requestCompleted: false,
     submittedEmail: null,
-    isLocalDev: isDevMode(),
+    isLocalDev: getFirebaseEmulatorEndpoint('auth') !== null,
+    cooldownUntilMs: 0,
     feedback: null,
   });
 
@@ -63,8 +70,11 @@ export class EmailInputModalService {
 
   openModal(initialEmail = ''): void {
     const email = (initialEmail ?? '').trim();
+    const cooldownUntilMs = this.readCooldownUntilMs();
+    this.scheduleCooldownExpiry(cooldownUntilMs);
 
     this.patchState({
+      cooldownUntilMs,
       isOpen: true,
       email,
       isSending: false,
@@ -124,9 +134,24 @@ export class EmailInputModalService {
 
     const currentState = this.stateSubject.value;
 
+    if (currentState.isSending) return;
     if (currentState.requestCompleted && currentState.submittedEmail === safeEmail) {
       return;
     }
+
+    const cooldownUntilMs = Math.max(
+      currentState.cooldownUntilMs,
+      this.readCooldownUntilMs()
+    );
+    if (cooldownUntilMs > Date.now()) {
+      this.patchState({ cooldownUntilMs });
+      this.scheduleCooldownExpiry(cooldownUntilMs);
+      this.setFeedback('info', 'Aguarde um minuto entre solicitações de recuperação.');
+      return;
+    }
+
+    // Mitigação local de reenvios acidentais, não rate limit de segurança.
+    this.startLocalCooldown();
 
     this.patchState({
       email: safeEmail,
@@ -177,7 +202,54 @@ export class EmailInputModalService {
   }
 
   private getSuccessMessage(): string {
-    return isDevMode() ? this.emulatorSuccessMessage : this.productionSuccessMessage;
+    return getFirebaseEmulatorEndpoint('auth')
+      ? this.emulatorSuccessMessage
+      : this.productionSuccessMessage;
+  }
+
+  private readCooldownUntilMs(): number {
+    try {
+      if (typeof window === 'undefined') return 0;
+      const value = Number(window.localStorage.getItem(this.cooldownStorageKey));
+      const now = Date.now();
+      return Number.isFinite(value) && value > now && value <= now + this.cooldownMs
+        ? value
+        : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private startLocalCooldown(): void {
+    const until = Date.now() + this.cooldownMs;
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(this.cooldownStorageKey, String(until));
+      }
+    } catch {
+      // Mesmo sem storage, a proteção em memória continua ativa.
+    }
+    this.patchState({ cooldownUntilMs: until });
+    this.scheduleCooldownExpiry(until);
+  }
+
+  private scheduleCooldownExpiry(until: number): void {
+    this.cooldownTimer?.unsubscribe();
+    const remaining = until - Date.now();
+    if (remaining <= 0) {
+      this.patchState({ cooldownUntilMs: 0 });
+      return;
+    }
+    this.cooldownTimer = timer(remaining).pipe(take(1)).subscribe(() => {
+      this.patchState({ cooldownUntilMs: 0 });
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem(this.cooldownStorageKey);
+        }
+      } catch {
+        // O bloqueio expirou mesmo se o storage estiver inacessível.
+      }
+    });
   }
 
   private patchState(patch: Partial<PasswordRecoveryModalState>): void {
