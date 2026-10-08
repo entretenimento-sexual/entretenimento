@@ -297,25 +297,29 @@ export async function assertStaffAuthorization(params: {
     throw new HttpsError('unauthenticated', 'Moderador não autenticado.');
   }
 
-  const fromClaims = collectRolesAndPermissions(
-    (authToken ?? {}) as Record<string, unknown>
-  );
+  // O JWT pode continuar contendo claims antigas após uma revogação.
+  // O documento canônico do ator precisa autorizar a operação AGORA.
+  // Claims nunca podem promover um papel que já foi retirado no backend.
+  const actorSnap = await db.collection('users').doc(actorUid).get();
+  if (!actorSnap.exists) {
+    throw new HttpsError('permission-denied', 'Conta do operador não encontrada.');
+  }
+  const actorData = (actorSnap.data() ?? {}) as UserDoc;
+  const state = actorData as Record<string, unknown>;
   if (
-    hasElevatedRole(fromClaims.roles) ||
-    hasRequiredPermission(fromClaims.permissions, requiredPermission)
+    state['suspended'] === true ||
+    state['accountLocked'] === true ||
+    state['interactionBlocked'] === true ||
+    state['loginAllowed'] === false ||
+    (state['accountStatus'] != null && state['accountStatus'] !== 'active')
   ) {
-    return;
+    throw new HttpsError('permission-denied', 'Conta do operador sem acesso administrativo.');
   }
 
-  const actorSnap = await db.collection('users').doc(actorUid).get();
-  const actorData = (actorSnap.data() ?? {}) as UserDoc;
-
-  const fromUserDoc = collectRolesAndPermissions(
-    actorData as Record<string, unknown>
-  );
+  const current = collectRolesAndPermissions(state);
   if (
-    hasElevatedRole(fromUserDoc.roles) ||
-    hasRequiredPermission(fromUserDoc.permissions, requiredPermission)
+    hasElevatedRole(current.roles) ||
+    hasRequiredPermission(current.permissions, requiredPermission)
   ) {
     return;
   }
