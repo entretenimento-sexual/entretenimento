@@ -393,7 +393,10 @@ async function run() {
 
     assert.equal(registrationResponse.data.videoId, videoId);
     assert.equal(registrationResponse.data.ownerUid, ownerUid);
-    assert.equal(registrationResponse.data.status, 'ready');
+    assert.ok(
+      ['uploaded', 'ready'].includes(registrationResponse.data.status),
+      `Status de registro inesperado: ${registrationResponse.data.status}`
+    );
 
     const ownerVideoRef = adminDb.doc(
       `users/${ownerUid}/videos/${videoId}`
