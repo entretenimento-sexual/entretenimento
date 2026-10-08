@@ -14,7 +14,7 @@
 // -----------------------------------------------------------------------------
 import { inject, Injectable, InjectionToken } from '@angular/core';
 import { createStore, del, get, keys as idbKeys, set } from 'idb-keyval';
-import { from, map, Observable, switchMap } from 'rxjs';
+import { from, map, Observable, of, switchMap } from 'rxjs';
 
 export const CACHE_PERSISTENCE_SCHEMA_VERSION = 2 as const;
 
@@ -56,6 +56,11 @@ export class CachePersistenceService {
   private readonly persistentStore = inject(CACHE_PERSISTENCE_STORE);
   private readonly mutationQueues = new Map<string, Promise<void>>();
   private readonly writeVersions = new Map<string, number>();
+  private sessionMutationEpoch = 0;
+  private sensitiveExactKeys = new Set<string>();
+  private sensitivePrefixes: string[] = [];
+  private activeSessionPurgeEpoch: number | null = null;
+  private readonly freshWritesDuringPurge = new Set<string>();
 
   /** Compatibilidade com consumidores legados sem TTL. */
   setPersistent<T>(key: string, value: T): Observable<void> {
@@ -77,6 +82,7 @@ export class CachePersistenceService {
     const safeKey = this.normalizeKey(key);
     const now = Date.now();
     const writeVersion = (this.writeVersions.get(safeKey) ?? 0) + 1;
+    const writeSessionEpoch = this.sessionMutationEpoch;
 
     this.writeVersions.set(safeKey, writeVersion);
 
@@ -92,7 +98,24 @@ export class CachePersistenceService {
     return from(
       this.enqueueMutation(
         safeKey,
-        () => set(safeKey, envelope, this.persistentStore)
+        async () => {
+          // Escrita A pendente antes do logout não deve ressuscitar o cache em B.
+          if (
+            writeSessionEpoch !== this.sessionMutationEpoch
+            && this.isSensitiveSessionKey(safeKey)
+          ) {
+            return;
+          }
+
+          await set(safeKey, envelope, this.persistentStore);
+          if (
+            this.activeSessionPurgeEpoch === writeSessionEpoch
+            && this.isSensitiveSessionKey(safeKey)
+          ) {
+            // Uma escrita válida de B prevalece sobre a limpeza de A.
+            this.freshWritesDuringPurge.add(safeKey);
+          }
+        }
       )
     );
   }
@@ -101,9 +124,20 @@ export class CachePersistenceService {
     key: string
   ): Observable<CachePersistentEnvelope<T> | null> {
     const safeKey = this.normalizeKey(key);
+    const readSessionEpoch = this.sessionMutationEpoch;
 
     return from(this.readAfterPendingMutations(safeKey)).pipe(
       switchMap((stored) => {
+        if (
+          this.isSensitiveSessionKey(safeKey)
+          && (
+            readSessionEpoch !== this.sessionMutationEpoch
+            || this.activeSessionPurgeEpoch !== null
+          )
+        ) {
+          // Nunca exponha IndexedDB antigo enquanto a purga da sessão ocorre.
+          return of(null);
+        }
         if (stored === undefined || stored === null) {
           return from(Promise.resolve(null));
         }
@@ -185,6 +219,79 @@ export class CachePersistenceService {
         ).then(() => matchingKeys.length);
       })
     );
+  }
+
+  /**
+   * Fronteira de sessão do IndexedDB.
+   *
+   * - invalida imediatamente a geração de escritas sensíveis enfileiradas;
+   * - espera escritas anteriores já iniciadas antes de enumerar chaves;
+   * - inclui chaves exatas mesmo quando ainda não estão enumeráveis;
+   * - uma escrita nova no mesmo processo é preservada ao terminar a purga;
+   * - purgas sucessivas A→B→A tornam purgas antigas inofensivas.
+   *
+   * A Promise é iniciada aqui, não ao assinar o Observable. Assim a barreira
+   * ocorre na mesma chamada síncrona que iniciou o reset de sessão.
+   */
+  purgeSensitiveSessionEntries(
+    exactKeys: readonly string[],
+    prefixes: readonly string[]
+  ): Observable<void> {
+    const normalizedExact = [...new Set(
+      (exactKeys ?? []).map((key) => this.normalizeKey(key)).filter(Boolean)
+    )];
+    const normalizedPrefixes = [...new Set(
+      (prefixes ?? []).map((prefix) => this.normalizeKey(prefix)).filter(Boolean)
+    )];
+
+    this.sensitiveExactKeys = new Set(normalizedExact);
+    this.sensitivePrefixes = normalizedPrefixes;
+
+    const purgeEpoch = ++this.sessionMutationEpoch;
+    this.activeSessionPurgeEpoch = purgeEpoch;
+    this.freshWritesDuringPurge.clear();
+
+    const pendingBeforePurge = [...this.mutationQueues.values()];
+    const purgePromise = Promise.all(
+      pendingBeforePurge.map((pending) => pending.catch(() => void 0))
+    ).then(async () => {
+      if (this.sessionMutationEpoch !== purgeEpoch) return;
+
+      const storedKeys = await idbKeys(this.persistentStore);
+      const candidates = new Set(normalizedExact);
+      for (const key of storedKeys) {
+        if (typeof key === 'string' && this.isSensitiveSessionKey(key)) {
+          candidates.add(key);
+        }
+      }
+
+      await Promise.all(
+        [...candidates].map((key) =>
+          this.enqueueMutation(key, async () => {
+            if (
+              this.sessionMutationEpoch !== purgeEpoch
+              || this.freshWritesDuringPurge.has(key)
+            ) {
+              return;
+            }
+            await del(key, this.persistentStore);
+            this.writeVersions.delete(key);
+          })
+        )
+      );
+    }).finally(() => {
+      if (this.activeSessionPurgeEpoch === purgeEpoch) {
+        this.activeSessionPurgeEpoch = null;
+        this.freshWritesDuringPurge.clear();
+      }
+    });
+
+    return from(purgePromise).pipe(map(() => void 0));
+  }
+
+  private isSensitiveSessionKey(key: string): boolean {
+    return this.sensitiveExactKeys.has(key)
+      || this.sensitivePrefixes.some((prefix) => key.startsWith(prefix));
   }
 
   /**

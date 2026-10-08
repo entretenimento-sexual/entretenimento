@@ -23,6 +23,7 @@ describe('CacheService', () => {
   const deletePersistent = vi.fn(() => of(void 0));
   const deletePersistentMany = vi.fn(() => of(0));
   const deletePersistentByPrefix = vi.fn(() => of(0));
+  const purgeSensitiveSessionEntries = vi.fn(() => of(void 0));
   const handleError = vi.fn();
   const log = vi.fn();
 
@@ -43,6 +44,7 @@ describe('CacheService', () => {
             deletePersistent,
             deletePersistentMany,
             deletePersistentByPrefix,
+            purgeSensitiveSessionEntries,
           },
         },
         {
@@ -237,17 +239,18 @@ describe('CacheService', () => {
       service.has('media:public:snapshot:uid:user-1:top-photos')
     ).toBe(false);
 
-    expect(deletePersistentByPrefix).toHaveBeenCalledWith('preferences:');
-    expect(deletePersistentByPrefix).toHaveBeenCalledWith('friendSettings:');
-    expect(deletePersistentByPrefix).toHaveBeenCalledWith('search:');
-    expect(deletePersistentByPrefix).toHaveBeenCalledWith(
-      'media:public:snapshot:'
-    );
-    expect(deletePersistentMany).toHaveBeenCalledWith(
+    expect(purgeSensitiveSessionEntries).toHaveBeenCalledTimes(1);
+    expect(purgeSensitiveSessionEntries).toHaveBeenCalledWith(
       expect.arrayContaining([
         'friendSettings',
         'loadingSearch',
         'loadingSettings',
+      ]),
+      expect.arrayContaining([
+        'preferences:',
+        'friendSettings:',
+        'search:',
+        'media:public:snapshot:',
       ])
     );
   });

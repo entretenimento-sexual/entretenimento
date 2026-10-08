@@ -22,7 +22,6 @@ import {
   catchError,
   defer,
   finalize,
-  forkJoin,
   map,
   of,
   shareReplay,
@@ -414,26 +413,14 @@ export class CacheService {
       deleted: this.deleteMemoryByPrefix(prefix),
     }));
 
-    const persistentPrefixDeletes$ = prefixes.map((prefix) =>
-      this.cachePersistence.deletePersistentByPrefix(prefix).pipe(
-        map((deleted) => ({
-          prefix: this.maskCacheKey(prefix),
-          deleted,
-        }))
-      )
-    );
-
-    return forkJoin([
-      this.cachePersistence.deletePersistentMany(exactKeys),
-      ...persistentPrefixDeletes$,
-    ]).pipe(
-      map(([exactDeleted, ...prefixDeleted]) => {
+    return this.cachePersistence.purgeSensitiveSessionEntries(
+      exactKeys,
+      prefixes
+    ).pipe(
+      map(() => {
         this.log('clearSensitiveSessionCache$ → concluído', {
-          exactDeleted,
           memoryDeletedByPrefix,
-          persistentDeletedByPrefix: prefixDeleted,
         });
-
         return void 0;
       }),
       catchError((error) => {

@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { createStore, get, set } from 'idb-keyval';
 import { firstValueFrom } from 'rxjs';
+import { vi } from 'vitest';
 
 import {
   CACHE_PERSISTENCE_SCHEMA_VERSION,
@@ -199,4 +200,85 @@ describe('CachePersistenceService', () => {
     expect(stored?.value).toEqual({ version: 'fresh' });
     expect(stored?.expiresAt).toBeGreaterThan(Date.now());
   });
+  it('bloqueia gravação de A enfileirada antes de purga, mesmo quando a chave não existia no IndexedDB', async () => {
+    const cacheKey = key('preferences:delayed-a');
+    const internal = service as unknown as {
+      enqueueMutation: (key: string, action: () => Promise<void>) => Promise<void>;
+    };
+    const enqueue = internal.enqueueMutation.bind(service);
+    let releaseOldWrite!: () => void;
+    const oldWriteGate = new Promise<void>((resolve) => { releaseOldWrite = resolve; });
+    let first = true;
+    const spy = vi.spyOn(internal, 'enqueueMutation').mockImplementation((entryKey, action) => {
+      if (entryKey === cacheKey && first) {
+        first = false;
+        return enqueue(entryKey, async () => {
+          await oldWriteGate;
+          await action();
+        });
+      }
+      return enqueue(entryKey, action);
+    });
+
+    const oldWrite = firstValueFrom(service.setPersistentEntry(
+      cacheKey, { owner: 'user-a' }, Date.now() + 60_000
+    ));
+    const purge = firstValueFrom(service.purgeSensitiveSessionEntries([], [key('preferences:')]));
+
+    releaseOldWrite();
+    await Promise.all([oldWrite, purge]);
+    expect(await get(cacheKey, persistenceStore)).toBeUndefined();
+    spy.mockRestore();
+  });
+
+  it('preserva escrita nova de B durante purga mesmo quando a chave é a mesma', async () => {
+    const cacheKey = key('user:profile');
+    await firstValueFrom(service.setPersistentEntry(
+      cacheKey, { owner: 'user-a' }, Date.now() + 60_000
+    ));
+
+    const purge = firstValueFrom(service.purgeSensitiveSessionEntries([], [key('user:')]));
+    const writeB = firstValueFrom(service.setPersistentEntry(
+      cacheKey, { owner: 'user-b' }, Date.now() + 60_000
+    ));
+    await Promise.all([purge, writeB]);
+
+    const fresh = await firstValueFrom(service.getPersistentEntry<{ owner: string }>(cacheKey));
+    expect(fresh?.value).toEqual({ owner: 'user-b' });
+  });
+
+  it('uma segunda transição A→B→A invalida a primeira purga sem eliminar a sessão mais recente', async () => {
+    const cacheKey = key('search:account');
+    await firstValueFrom(service.setPersistentEntry(
+      cacheKey, { owner: 'user-a', seq: 1 }, Date.now() + 60_000
+    ));
+
+    const purgeA = firstValueFrom(service.purgeSensitiveSessionEntries([], [key('search:')]));
+    const pendingB = firstValueFrom(service.setPersistentEntry(
+      cacheKey, { owner: 'user-b' }, Date.now() + 60_000
+    ));
+    const purgeB = firstValueFrom(service.purgeSensitiveSessionEntries([], [key('search:')]));
+    const freshA = firstValueFrom(service.setPersistentEntry(
+      cacheKey, { owner: 'user-a', seq: 2 }, Date.now() + 60_000
+    ));
+
+    await Promise.all([purgeA, pendingB, purgeB, freshA]);
+    const entry = await firstValueFrom(service.getPersistentEntry<{ owner: string; seq: number }>(cacheKey));
+    expect(entry?.value).toEqual({ owner: 'user-a', seq: 2 });
+  });
+
+  it('nega leitura iniciada antes da transição e não devolve envelope de A após a purga', async () => {
+    const cacheKey = key('preferences:read');
+    await firstValueFrom(service.setPersistentEntry(
+      cacheKey, { owner: 'user-a' }, Date.now() + 60_000
+    ));
+
+    const staleRead = firstValueFrom(service.getPersistentEntry(cacheKey));
+    const purge = firstValueFrom(service.purgeSensitiveSessionEntries([], [key('preferences:')]));
+
+    expect(await staleRead).toBeNull();
+    await purge;
+    expect(await get(cacheKey, persistenceStore)).toBeUndefined();
+  });
+
 });
