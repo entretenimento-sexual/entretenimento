@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { Timestamp } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
@@ -57,8 +57,9 @@ export interface VideoUploadReservationDocument {
   posterContentType: string | null;
   createdAt: Timestamp;
   expiresAt: Timestamp;
-  phase?: 'REGISTERING' | 'CLEANING';
+  phase?: 'READY' | 'REGISTERING' | 'CLEANING';
   phaseStartedAt?: number;
+  phaseOwner?: string;
   cleanupAttempts?: number;
   cleanupLastError?: string | null;
 }
@@ -68,6 +69,7 @@ const QUOTA_COLLECTION = 'media_video_upload_quota';
 const DEAD_LETTER_COLLECTION = 'media_video_upload_cleanup_dead_letters';
 const CLEANUP_BATCH_SIZE = 50;
 const CLEANUP_MAX_ATTEMPTS = 5;
+const PHASE_LEASE_MS = 15 * 60_000;
 const DEAD_LETTER_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
 const ALLOWED_VIDEO_TYPES = new Set<string>(VIDEO_INPUT_MIME_TYPES);
 const VIDEO_UPLOAD_RESERVE_RATE_LIMIT = Object.freeze({
@@ -122,7 +124,7 @@ function sameReservation(
   input: Omit<
     VideoUploadReservationDocument,
     'reservationId' | 'createdAt' | 'expiresAt' |
-    'cleanupAttempts' | 'cleanupLastError' | 'phase' | 'phaseStartedAt'
+    'cleanupAttempts' | 'cleanupLastError' | 'phase' | 'phaseStartedAt' | 'phaseOwner'
   >
 ): boolean {
   return current.ownerUid === input.ownerUid
@@ -222,12 +224,14 @@ export async function reconcileExpiredReservation(
       const fresh = await tx.get(snapshot.ref);
       if (!fresh.exists) return false;
       const current = fresh.data() as VideoUploadReservationDocument;
-      if (current.phase || reservationExpiryMs(current.expiresAt) > Date.now()) {
+      if ((current.phase && current.phase !== 'READY' && Date.now() - Number(current.phaseStartedAt ?? 0) < PHASE_LEASE_MS) ||
+          reservationExpiryMs(current.expiresAt) > Date.now()) {
         return false;
       }
       tx.update(snapshot.ref, {
         phase: 'CLEANING',
         phaseStartedAt: Date.now(),
+        phaseOwner: randomUUID(),
       });
       return true;
     });
@@ -532,8 +536,9 @@ export async function claimVideoUploadReservation(input: {
   reservationId: string;
   ownerUid: string;
   videoId: string;
-}): Promise<void> {
+}): Promise<string> {
   const ref = db.collection(RESERVATION_COLLECTION).doc(input.reservationId);
+  const token = randomUUID();
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) {
@@ -541,11 +546,21 @@ export async function claimVideoUploadReservation(input: {
     }
     const data = snap.data() as VideoUploadReservationDocument;
     if (data.ownerUid !== input.ownerUid || data.videoId !== input.videoId ||
-        data.phase === 'CLEANING' ||
+        (data.phase && data.phase !== 'READY' && Date.now() - Number(data.phaseStartedAt ?? 0) < PHASE_LEASE_MS) ||
         reservationExpiryMs(data.expiresAt) <= Date.now()) {
       throw new HttpsError('failed-precondition', 'A reserva não está disponível para registro.');
     }
-    tx.update(ref, { phase: 'REGISTERING', phaseStartedAt: Date.now() });
+    tx.update(ref, { phase: 'REGISTERING', phaseStartedAt: Date.now(), phaseOwner: token });
+  });
+  return token;
+}
+
+export async function releaseVideoUploadReservationClaim(reservationId: string, token: string): Promise<void> {
+  const ref = db.collection(RESERVATION_COLLECTION).doc(reservationId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists || snap.data()?.['phaseOwner'] !== token || snap.data()?.['phase'] !== 'REGISTERING') return;
+    tx.update(ref, { phase: 'READY', phaseStartedAt: 0, phaseOwner: '' });
   });
 }
 
