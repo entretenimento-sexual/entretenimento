@@ -320,7 +320,26 @@ service cloud.firestore {
         && request.auth.token[k] == true;
     }
 
-    function isAdmin() { return hasClaim("admin"); }
+    // Claim é necessária, mas nunca suficiente: revogação de admin deve
+    // valer imediatamente mesmo que o cliente mantenha um JWT antigo.
+    function isAdmin() {
+      let actorPath = /databases/$(database)/documents/users/$(uid());
+      let actor = hasClaim("admin") && exists(actorPath)
+        ? get(actorPath).data
+        : null;
+      return actor is map
+        && (mapFieldOrNull(actor, "accountStatus") == null
+          || mapFieldOrNull(actor, "accountStatus") == "active")
+        && mapFieldOrNull(actor, "suspended") != true
+        && mapFieldOrNull(actor, "accountLocked") != true
+        && mapFieldOrNull(actor, "interactionBlocked") != true
+        && mapFieldOrNull(actor, "loginAllowed") != false
+        && (
+          mapFieldOrNull(actor, "role") == "admin"
+          || mapFieldOrNull(actor, "admin") == true
+          || mapFieldOrNull(actor, "superadmin") == true
+        );
+    }
 
     // ===============================================================
     // Optional fields helpers (campos opcionais)
