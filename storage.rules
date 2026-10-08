@@ -153,12 +153,57 @@ service firebase.storage {
       allow read, write: if false;
     }
 
+    // Acesso direto a avatares acompanha a autoridade canônica da conta.
+    // Não confundir esta regra com URLs Firebase de download com token,
+    // que precisam de política própria de emissão/revogação.
+    function userDocument(uid) {
+      return /databases/(default)/documents/users/$(uid);
+    }
+
+    function userDataOrNull(uid) {
+      let path = userDocument(uid);
+      return firestore.exists(path) ? firestore.get(path).data : null;
+    }
+
+    function activeAccountForAvatar(uid) {
+      let user = userDataOrNull(uid);
+      return user != null
+        && user.get('accountStatus', 'active') == 'active'
+        && user.get('suspended', false) != true
+        && user.get('accountLocked', false) != true
+        && user.get('loginAllowed', true) != false
+        && user.get('interactionBlocked', false) != true;
+    }
+
+    function avatarOwnerExposable(uid) {
+      let user = userDataOrNull(uid);
+      return activeAccountForAvatar(uid)
+        && user.get('publicVisibility', 'visible') == 'visible';
+    }
+
+    function activeBlock(blockerUid, targetUid) {
+      let path = /databases/(default)/documents/users/$(blockerUid)/blocks/$(targetUid);
+      return firestore.exists(path)
+        && firestore.get(path).data.get('isBlocked', false) == true;
+    }
+
+    function mayReadPublishedAvatar(uid) {
+      return isSelf(uid)
+        || (
+          signedIn()
+          && activeAccountForAvatar(request.auth.uid)
+          && avatarOwnerExposable(uid)
+          && !activeBlock(uid, request.auth.uid)
+          && !activeBlock(request.auth.uid, uid)
+        );
+    }
+
     // ============================================================
     // Avatar publicado
     // ============================================================
 
     match /users/{uid}/published/avatar/{fileName} {
-      allow read: if signedIn();
+      allow read: if mayReadPublishedAvatar(uid);
       allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
       allow delete: if isSelf(uid);
     }
