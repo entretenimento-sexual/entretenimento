@@ -7,12 +7,12 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
  * AUTH ACTIONS
  * =============================================================================
  * A sessão canônica nasce no Firebase Auth e é refletida por
- * authSessionChanged. Actions de login/registro representam intents e feedback.
+ * authSessionChanged. Actions carregam somente estado e feedback, nunca credenciais.
  * =============================================================================
  */
 
 // ============================================================================
-// Registro
+// Registro (feedback sem credenciais)
 // ============================================================================
 
 /**
@@ -38,7 +38,7 @@ export const registerFailure = createAction(
 );
 
 // ============================================================================
-// Login
+// Login (feedback sem credenciais)
 // ============================================================================
 
 export const loginStart = createAction('[Auth] Login Start');
