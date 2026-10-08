@@ -114,6 +114,11 @@ export class AuthSessionSyncEffects {
 
         try { this.globalErrorHandler.handleError(error); } catch { /* Telemetria não pode derrubar a observação. */ }
 
+        // O fallback uid:null também precisa purgar o cache auxiliar,
+        // não apenas os slices NgRx. A leitura anterior pode ter pertencido
+        // a outra identidade quando o stream falhou.
+        this.purgeAuxiliarySessionCache(null);
+
         // Recadastra os observadores após falha; sem isso o effect morre.
         return concat(
           of(authSessionChanged({ uid: null, emailVerified: false })),
