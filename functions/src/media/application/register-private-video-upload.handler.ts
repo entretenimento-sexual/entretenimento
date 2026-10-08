@@ -305,6 +305,29 @@ async function clearCleanupJobsBestEffort(paths: string[]): Promise<void> {
   );
 }
 
+async function isRegisteredAsset(
+  ownerUid: string,
+  videoId: string,
+  storagePath: string,
+  assetKind: PrivateUploadAssetKind
+): Promise<boolean> {
+  const snapshot = await db.doc(`users/${ownerUid}/videos/${videoId}`).get();
+  if (!snapshot.exists) {
+    return false;
+  }
+
+  const video = snapshot.data() as RegisteredVideoDocument;
+  const registeredPath = assetKind === 'video'
+    ? extractOwnedPrivateVideoPathForId(ownerUid, videoId, video.path)
+    : extractOwnedPrivateVideoPosterPath(
+      ownerUid,
+      videoId,
+      video.thumbnailPath
+    );
+
+  return registeredPath === storagePath;
+}
+
 function buildExistingResponse(
   videoId: string,
   ownerUid: string,
