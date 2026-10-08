@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
@@ -10,14 +11,14 @@ describe('AdminDashboardComponent / revogação ativa', () => {
   let session: BehaviorSubject<{ uid: string } | null>;
   let streams: Map<string, Subject<boolean>>;
   let terminated: string[];
-  let watch: jasmine.Spy;
-  let navigate: jasmine.Spy;
+  let watch: ReturnType<typeof vi.fn>;
+  let navigate: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     session = new BehaviorSubject<{ uid: string } | null>({ uid: 'admin-one' });
     streams = new Map();
     terminated = [];
-    watch = jasmine.createSpy('watch').and.callFake((uid: string) =>
+    watch = vi.fn((uid: string) =>
       new Observable<boolean>((observer) => {
         let source = streams.get(uid);
         if (!source) {
@@ -31,7 +32,7 @@ describe('AdminDashboardComponent / revogação ativa', () => {
         };
       })
     );
-    navigate = jasmine.createSpy('navigate').and.resolveTo(true);
+    navigate = vi.fn().mockResolvedValue(true);
 
     await TestBed.configureTestingModule({
       declarations: [AdminDashboardComponent],
@@ -56,7 +57,7 @@ describe('AdminDashboardComponent / revogação ativa', () => {
     streams.get('admin-one')!.next(true);
     expect(navigate).not.toHaveBeenCalled();
     streams.get('admin-one')!.next(false);
-    expect(navigate).toHaveBeenCalledOnceWith(['/dashboard']);
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(['/dashboard']);
     expect(terminated).toContain('admin-one');
     fixture.destroy();
   });
@@ -64,14 +65,14 @@ describe('AdminDashboardComponent / revogação ativa', () => {
   it('sai ao receber indisponibilidade do servidor (snapshot de cache traduzido em false)', () => {
     const fixture = mount();
     streams.get('admin-one')!.next(false);
-    expect(navigate).toHaveBeenCalledOnceWith(['/dashboard']);
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(['/dashboard']);
     fixture.destroy();
   });
 
   it('sai ao receber erro de listener', () => {
     const fixture = mount();
     streams.get('admin-one')!.error(new Error('firestore unavailable'));
-    expect(navigate).toHaveBeenCalledOnceWith(['/dashboard']);
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(['/dashboard']);
     fixture.destroy();
   });
 
@@ -90,7 +91,7 @@ describe('AdminDashboardComponent / revogação ativa', () => {
     const fixture = mount();
     session.next(null);
     session.next({ uid: 'admin-two' });
-    expect(navigate).toHaveBeenCalledOnceWith(['/dashboard']);
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(['/dashboard']);
     expect(watch).toHaveBeenCalledTimes(1);
     fixture.destroy();
   });
@@ -99,7 +100,7 @@ describe('AdminDashboardComponent / revogação ativa', () => {
     const fixture = mount();
     streams.get('admin-one')!.next(false);
     streams.get('admin-one')!.next(false);
-    expect(navigate).toHaveBeenCalledOnceWith(['/dashboard']);
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(['/dashboard']);
     fixture.destroy();
   });
 });
