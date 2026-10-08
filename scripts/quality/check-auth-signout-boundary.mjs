@@ -153,6 +153,23 @@ if (credentialViolations.length) {
   for (const issue of credentialViolations) console.error('[auth-boundary] ' + issue);
 }
 
+// Rules também não podem usar a claim admin como única autoridade.
+const firestoreHelpers = fs.readFileSync(
+  path.join(root, 'firestore-rules/_helpers.rules'), 'utf8'
+);
+const firestoreAdminRule = firestoreHelpers.slice(
+  firestoreHelpers.indexOf('function isAdmin()'),
+  firestoreHelpers.indexOf('// Optional fields helpers')
+);
+if (
+  !firestoreAdminRule.includes('hasClaim("admin") && exists(actorPath)') ||
+  !firestoreAdminRule.includes('get(actorPath).data') ||
+  !firestoreAdminRule.includes('mapFieldOrNull(actor, "role") == "admin"') ||
+  !firestoreAdminRule.includes('mapFieldOrNull(actor, "suspended") != true')
+) {
+  credentialViolations.push('Firestore isAdmin deve revalidar a conta atual e a claim.');
+}
+
 // Revogação de staff não pode depender exclusivamente de claims do JWT.
 const staffSecurity = fs.readFileSync(
   path.join(root, 'functions/src/account_lifecycle/_shared.ts'), 'utf8'
