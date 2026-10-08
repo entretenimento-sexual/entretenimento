@@ -218,17 +218,18 @@ export async function reconcileExpiredReservation(
   snapshot: FirebaseFirestore.QueryDocumentSnapshot,
   reservation: VideoUploadReservationDocument
 ): Promise<'referenced' | 'orphan_deleted' | 'retryable' | 'dead_letter'> {
+  const reservationRef = db.collection(RESERVATION_COLLECTION).doc(snapshot.id);
   try {
     // Compare-and-claim impede a limpeza de ultrapassar um registro iniciado.
     const claimed = await db.runTransaction(async (tx) => {
-      const fresh = await tx.get(snapshot.ref);
+      const fresh = await tx.get(reservationRef);
       if (!fresh.exists) return false;
       const current = fresh.data() as VideoUploadReservationDocument;
       if ((current.phase && current.phase !== 'READY' && Date.now() - Number(current.phaseStartedAt ?? 0) < PHASE_LEASE_MS) ||
           reservationExpiryMs(current.expiresAt) > Date.now()) {
         return false;
       }
-      tx.update(snapshot.ref, {
+      tx.update(reservationRef, {
         phase: 'CLEANING',
         phaseStartedAt: Date.now(),
         phaseOwner: randomUUID(),
@@ -238,7 +239,7 @@ export async function reconcileExpiredReservation(
     if (!claimed) return 'referenced';
 
     if (await hasCanonicalVideoReference(reservation)) {
-      await snapshot.ref.delete();
+      await reservationRef.delete();
       return 'referenced';
     }
 
@@ -253,7 +254,7 @@ export async function reconcileExpiredReservation(
       ),
     ]);
 
-    await snapshot.ref.delete();
+    await reservationRef.delete();
     return 'orphan_deleted';
   } catch (error) {
     const attempts = Number(reservation.cleanupAttempts ?? 0) + 1;
@@ -263,7 +264,7 @@ export async function reconcileExpiredReservation(
       return 'dead_letter';
     }
 
-    await snapshot.ref.set(
+    await reservationRef.set(
       {
         cleanupAttempts: attempts,
         cleanupLastError: normalizeErrorMessage(error),
