@@ -73,6 +73,7 @@ describe('Firestore Rules / moderation evidence', () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       const db = context.firestore();
 
+      await setDoc(doc(db, 'users', ADMIN_UID), { accountStatus: 'active', role: 'admin' });
       await setDoc(reportRef(db), {
         reporterUid: USER_UID,
         targetType: 'photo',
