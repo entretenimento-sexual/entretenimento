@@ -416,10 +416,12 @@ async function run() {
         evidenceFileExists: await fileExists(bucket.file(evidenceStoragePath)),
       }),
       (state) =>
-        state.video?.moderationStatus === 'HIDDEN' &&
+        state.video?.moderationStatus === 'FLAGGED' &&
         state.publication?.visibility === 'PUBLIC' &&
         state.publication?.moderationStatus === 'FLAGGED' &&
         state.report?.contentQuarantined === true &&
+        state.report?.automationMode === 'SHADOW' &&
+        state.report?.automationDecision === 'NONE' &&
         state.report?.evidencePreservationStatus === 'PRESERVED' &&
         state.evidence?.retentionStatus === 'LEGAL_REVIEW_REQUIRED' &&
         state.evidence?.storagePath === evidenceStoragePath &&
