@@ -12,12 +12,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LogoutService } from './logout.service';
 
 type PushMode = 'success' | 'error' | 'empty' | 'never';
+type PushStateMode = 'active' | 'never';
 type CleanupMode = 'success' | 'never';
 type SignOutMode = 'success' | 'error';
 
 interface HarnessOptions {
   presenceMode?: CleanupMode;
   pushMode?: PushMode;
+  pushStateMode?: PushStateMode;
   cacheMode?: CleanupMode;
   signOutMode?: SignOutMode;
 }
@@ -30,6 +32,7 @@ const originalNotification = Object.getOwnPropertyDescriptor(
 function createHarness(options: HarnessOptions = {}) {
   const presenceMode = options.presenceMode ?? 'success';
   const pushMode = options.pushMode ?? 'success';
+  const pushStateMode = options.pushStateMode ?? 'active';
   const cacheMode = options.cacheMode ?? 'success';
   const signOutMode = options.signOutMode ?? 'success';
   const calls: string[] = [];
@@ -68,7 +71,7 @@ function createHarness(options: HarnessOptions = {}) {
   };
 
   const pushNotifications = {
-    state$: of('active' as const),
+    state$: pushStateMode === 'never' ? NEVER : of('active' as const),
     deactivate$: vi.fn(() =>
       defer(() => {
         calls.push('push');
@@ -251,6 +254,229 @@ describe('LogoutService global session lifecycle', () => {
 
     await Promise.all([firstDone, secondDone]);
     expect(executeSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('mascara a sessão antes da captura de Web Push e continua se ela não emitir', async () => {
+    vi.useFakeTimers();
+
+    const {
+      service,
+      calls,
+      authSession,
+      applicationError,
+    } = createHarness({ pushStateMode: 'never' });
+
+    const completed = firstValueFrom(service.logout$());
+
+    expect(authSession.beginTermination).toHaveBeenCalledTimes(1);
+    expect(calls).toEqual(['session:begin']);
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    await completed;
+
+    expect(calls).toContain('signout:strict');
+    expect(calls).toContain('cache');
+    expect(calls).toContain('session:end');
+    expect(applicationError.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: '[LogoutService] best-effort push state capture timeout',
+      }),
+      expect.objectContaining({
+        operation: 'capturePushStateBestEffort
+    Object.defineProperty(globalThis, 'Notification', {
+      configurable: true,
+      value: { permission: 'granted' },
+    });
+
+    const {
+      service,
+      calls,
+      auth,
+      pushNotifications,
+      currentUserStore,
+      applicationError,
+    } = createHarness({ signOutMode: 'error' });
+
+    await expect(firstValueFrom(service.logout$())).rejects.toThrow(
+      'signout unavailable'
+    );
+
+    expect(auth.currentUser?.uid).toBe('user-a');
+    expect(calls).toEqual([
+      'session:begin',
+      'geolocation',
+      'presence',
+      'push',
+      'signout:strict',
+      'session:end',
+      'push:restore',
+    ]);
+    expect(pushNotifications.activate$).toHaveBeenCalledTimes(1);
+    expect(currentUserStore.clear).not.toHaveBeenCalled();
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
+    expect(applicationError.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'signout unavailable',
+      }),
+      {
+        feature: 'auth',
+        operation: 'logout',
+        fallbackMessage: 'Não foi possível sair agora. Tente novamente.',
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: {
+          scope: 'LogoutService',
+          sessionRestored: true,
+        },
+      }
+    );
+  });
+
+  it('falha do Web Push é reportada silenciosamente e não bloqueia o logout', async () => {
+    const { service, calls, applicationError } = createHarness({
+      pushMode: 'error',
+    });
+
+    await firstValueFrom(service.logout$());
+
+    expect(calls).toContain('signout:strict');
+    expect(calls).toContain('cache');
+    expect(calls).toContain('navigate');
+    expect(applicationError.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'push unavailable',
+      }),
+      {
+        feature: 'auth',
+        operation: 'deactivatePushBestEffort$',
+        fallbackMessage:
+          'Não foi possível concluir uma etapa interna do encerramento da sessão.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'LogoutService',
+          phase: 'deactivatePushBestEffort$',
+        },
+      }
+    );
+  });
+
+  it('Observable vazio do cleanup de Web Push não encerra a cadeia de logout', async () => {
+    const { service, calls } = createHarness({ pushMode: 'empty' });
+
+    await firstValueFrom(service.logout$());
+
+    expect(calls).toContain('signout:strict');
+    expect(calls).toContain('navigate');
+  });
+
+  it('cleanups best-effort que nunca completam não prendem o logout', async () => {
+    vi.useFakeTimers();
+
+    const { service, calls, applicationError } = createHarness({
+      presenceMode: 'never',
+      pushMode: 'never',
+      cacheMode: 'never',
+    });
+
+    const done = firstValueFrom(service.logout$());
+
+    await vi.runAllTimersAsync();
+    await done;
+
+    expect(calls).toEqual([
+      'session:begin',
+      'geolocation',
+      'presence',
+      'push',
+      'signout:strict',
+      'cache',
+      'navigate',
+      'session:end',
+    ]);
+    expect(applicationError.report).toHaveBeenCalledTimes(3);
+    expect(applicationError.report).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        message: '[LogoutService] best-effort cleanup timeout',
+      }),
+      expect.objectContaining({
+        feature: 'auth',
+        operation: 'stopPresenceBestEffort$',
+        presentation: { surface: 'none', severity: 'error' },
+      })
+    );
+    expect(applicationError.report).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        message: '[LogoutService] best-effort cleanup timeout',
+      }),
+      expect.objectContaining({
+        feature: 'auth',
+        operation: 'deactivatePushBestEffort$',
+        presentation: { surface: 'none', severity: 'error' },
+      })
+    );
+    expect(applicationError.report).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        message: '[LogoutService] best-effort cleanup timeout',
+      }),
+      expect.objectContaining({
+        feature: 'auth',
+        operation: 'clearLocalSessionDataBestEffort$',
+        presentation: { surface: 'none', severity: 'error' },
+      })
+    );
+  });
+
+  it('hard signout usa o mesmo lifecycle e centraliza o aviso de sessão encerrada', async () => {
+    const { service, calls, applicationError, authSession } = createHarness();
+
+    await firstValueFrom(service.hardSignOutToWelcome$('auth-invalid'));
+
+    expect(calls).toEqual([
+      'session:begin',
+      'geolocation',
+      'presence',
+      'push',
+      'signout:best-effort',
+      'cache',
+      'navigate',
+      'session:end',
+    ]);
+    expect(applicationError.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Hard sign-out initiated',
+      }),
+      {
+        feature: 'auth',
+        operation: 'hardSignOutToWelcome',
+        fallbackMessage:
+          'Sua sessão foi encerrada. Faça login novamente.',
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: {
+          scope: 'LogoutService',
+          reason: 'auth-invalid',
+          expectedTermination: true,
+        },
+      }
+    );
+    expect(authSession.beginTermination).toHaveBeenCalledTimes(1);
+    expect(authSession.endTermination).toHaveBeenCalledTimes(1);
+  });
+
+  it('não apresenta aviso de hard signout durante o fluxo de registro', async () => {
+    const { service, router, applicationError } = createHarness();
+    router.url = '/register/welcome';
+
+    await firstValueFrom(service.hardSignOutToWelcome$('auth-invalid'));
+
+    expect(applicationError.report).not.toHaveBeenCalled();
+  });
+});
+,
+        presentation: { surface: 'none', severity: 'error' },
+      })
+    );
   });
 
   it('restaura a sessão operacional e Web Push se o signOut estrito falhar', async () => {

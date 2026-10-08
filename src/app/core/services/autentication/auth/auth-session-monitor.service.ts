@@ -72,12 +72,24 @@ private dbg(message: string, extra?: unknown): void {
     )
       .pipe(
         exhaustMap(() => {
+          // O Firebase user técnico pode persistir até o signOut efetivo.
+          if (this.authSession.isTerminatingSnapshot) return of(null);
           const currentUser = this.authSession.currentAuthUser;
           if (!currentUser) return of(null);
+          const monitoredUid = currentUser.uid;
 
           return from(currentUser.reload()).pipe(
             map(() => null),
             catchError((err: any) => {
+              // Não encerra B por uma resposta atrasada de A; tampouco disputa
+              // o lifecycle com um logout iniciado durante a verificação.
+              if (
+                this.authSession.isTerminatingSnapshot ||
+                this.authSession.currentAuthUser?.uid !== monitoredUid
+              ) {
+                return of(null);
+              }
+
               const code = String(err?.code || '');
 
               if (

@@ -9,11 +9,12 @@ import { LogoutService } from './logout.service';
 
 function createHarness(reloadImpl?: () => Promise<void>) {
   const currentAuthUser = reloadImpl
-    ? { reload: vi.fn(reloadImpl) }
+    ? { uid: 'user-a', reload: vi.fn(reloadImpl) }
     : null;
 
   const authSession = {
     currentAuthUser,
+    isTerminatingSnapshot: false,
   };
 
   const logoutService = {
@@ -112,6 +113,67 @@ describe('AuthSessionMonitorService canonical errors', () => {
     );
     expect(applicationError.report).not.toHaveBeenCalled();
 
+    service.stop();
+  });
+
+  it('não executa reload técnico durante o encerramento voluntário', async () => {
+    vi.useFakeTimers();
+    const { service, authSession, currentAuthUser, logoutService } =
+      createHarness(() => Promise.reject(new Error('stale token')));
+    authSession.isTerminatingSnapshot = true;
+
+    service.start();
+    await vi.advanceTimersByTimeAsync(600_000);
+
+    expect(currentAuthUser?.reload).not.toHaveBeenCalled();
+    expect(logoutService.hardSignOutToWelcome).not.toHaveBeenCalled();
+    service.stop();
+  });
+
+  it('ignora invalidação assíncrona de A após troca direta para B', async () => {
+    vi.useFakeTimers();
+    let rejectReload!: (error: Error) => void;
+    const pending = new Promise<void>((_resolve, reject) => {
+      rejectReload = reject;
+    });
+
+    const { service, authSession, logoutService, applicationError } =
+      createHarness(() => pending);
+    service.start();
+    await vi.advanceTimersByTimeAsync(600_000);
+
+    authSession.currentAuthUser = {
+      uid: 'user-b',
+      reload: vi.fn().mockResolvedValue(undefined),
+    };
+    rejectReload(Object.assign(new Error('old token expired'), {
+      code: 'auth/user-token-expired',
+    }));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(logoutService.hardSignOutToWelcome).not.toHaveBeenCalled();
+    expect(applicationError.report).not.toHaveBeenCalled();
+    service.stop();
+  });
+
+  it('ignora invalidação que chega após o início do logout', async () => {
+    vi.useFakeTimers();
+    let rejectReload!: (error: Error) => void;
+    const pending = new Promise<void>((_resolve, reject) => {
+      rejectReload = reject;
+    });
+
+    const { service, authSession, logoutService } = createHarness(() => pending);
+    service.start();
+    await vi.advanceTimersByTimeAsync(600_000);
+
+    authSession.isTerminatingSnapshot = true;
+    rejectReload(Object.assign(new Error('old token expired'), {
+      code: 'auth/user-token-expired',
+    }));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(logoutService.hardSignOutToWelcome).not.toHaveBeenCalled();
     service.stop();
   });
 
