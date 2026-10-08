@@ -290,31 +290,6 @@ async function validateOptionalPoster(
   return { mimeType, sizeBytes };
 }
 
-async function enqueueCleanup(
-  ownerUid: string,
-  videoId: string,
-  storagePath: string,
-  assetKind: PrivateUploadAssetKind,
-  error: unknown
-): Promise<void> {
-  const now = Date.now();
-  const job: PrivateUploadCleanupJob = {
-    ownerUid,
-    videoId,
-    storagePath,
-    assetKind,
-    createdAt: now,
-    updatedAt: now,
-    attempts: 1,
-    lastError: normalizeErrorMessage(error),
-  };
-
-  await db
-    .collection(CLEANUP_COLLECTION)
-    .doc(cleanupJobId(storagePath))
-    .set(job, { merge: true });
-}
-
 async function clearCleanupJobsBestEffort(paths: string[]): Promise<void> {
   await Promise.all(
     paths.map(async (storagePath) => {
@@ -325,77 +300,6 @@ async function clearCleanupJobsBestEffort(paths: string[]): Promise<void> {
           .delete();
       } catch {
         // O retry agendado também protege objetos já referenciados.
-      }
-    })
-  );
-}
-
-async function isRegisteredAsset(
-  ownerUid: string,
-  videoId: string,
-  storagePath: string,
-  assetKind: PrivateUploadAssetKind
-): Promise<boolean> {
-  const snapshot = await db.doc(`users/${ownerUid}/videos/${videoId}`).get();
-
-  if (!snapshot.exists) {
-    return false;
-  }
-
-  const video = snapshot.data() as RegisteredVideoDocument;
-  const registeredPath = assetKind === 'video'
-    ? extractOwnedPrivateVideoPathForId(ownerUid, videoId, video.path)
-    : extractOwnedPrivateVideoPosterPath(
-      ownerUid,
-      videoId,
-      video.thumbnailPath
-    );
-
-  return registeredPath === storagePath;
-}
-
-async function deleteUploadedAssetsRecoverably(
-  ownerUid: string,
-  videoId: string,
-  assets: Array<{
-    storagePath: string;
-    assetKind: PrivateUploadAssetKind;
-  }>
-): Promise<void> {
-  await Promise.all(
-    assets.map(async ({ storagePath, assetKind }) => {
-      try {
-        if (
-          await isRegisteredAsset(
-            ownerUid,
-            videoId,
-            storagePath,
-            assetKind
-          )
-        ) {
-          await clearCleanupJobsBestEffort([storagePath]);
-          return;
-        }
-
-        await storage
-          .bucket()
-          .file(storagePath)
-          .delete({ ignoreNotFound: true });
-        await clearCleanupJobsBestEffort([storagePath]);
-      } catch (error) {
-        await enqueueCleanup(
-          ownerUid,
-          videoId,
-          storagePath,
-          assetKind,
-          error
-        );
-        logger.warn('[registerPrivateVideoUpload] Limpeza física pendente.', {
-          ownerUid,
-          videoId,
-          assetKind,
-          error: normalizeErrorMessage(error),
-        });
       }
     })
   );
