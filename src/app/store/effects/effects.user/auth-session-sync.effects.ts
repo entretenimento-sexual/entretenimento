@@ -146,7 +146,7 @@ export class AuthSessionSyncEffects {
         uid ? observeUserChanges({ uid }) : stopObserveUserChanges()
       ),
 
-      catchError((err) => {
+      catchError((err, source) => {
         const error =
           err instanceof Error
             ? err
