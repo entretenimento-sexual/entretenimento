@@ -191,7 +191,19 @@ const adminDashboardSource = fs.readFileSync(
   path.join(root, 'src/app/admin-dashboard/admin-dashboard.component.ts'), 'utf8'
 );
 for (const required of [
-  'authSession.authUser
+  'authSession.authUser$',
+  'onSnapshot(',
+  'snapshot.metadata.fromCache',
+  "value['role'] === 'admin'",
+  'this.exitAdmin()',
+  'this.sessionSubscription?.unsubscribe()',
+]) {
+  if (!adminDashboardSource.includes(required)) {
+    credentialViolations.push('Dashboard admin deve observar revogação: ' + required);
+  }
+}
+
+// Revogação de staff não pode depender exclusivamente de claims do JWT.
 const staffSecurity = fs.readFileSync(
   path.join(root, 'functions/src/account_lifecycle/_shared.ts'), 'utf8'
 );
