@@ -3,7 +3,7 @@ import { Auth } from '@angular/fire/auth';
 import { Firestore } from '@angular/fire/firestore';
 import { Functions } from '@angular/fire/functions';
 import { Storage } from '@angular/fire/storage';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -50,4 +50,49 @@ describe('VideoUploadFlowService / registro após troca de conta', () => {
     ).rejects.toThrow('session changed');
     expect(callable).toHaveBeenCalledTimes(1);
   });
+  it('cancela preparação de metadados ao trocar de conta', async () => {
+    const uid$ = new BehaviorSubject<string | null>('owner-a');
+    const metadata$ = new Subject<never>();
+    const cancelled = vi.fn();
+    const metadataPreparation = {
+      prepare$: vi.fn(() => new Observable((observer) => {
+        const subscription = metadata$.subscribe(observer);
+        return () => {
+          cancelled();
+          subscription.unsubscribe();
+        };
+      })),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        VideoUploadFlowService,
+        { provide: Auth, useValue: { currentUser: { uid: 'owner-a' } } },
+        { provide: AuthSessionService, useValue: { uid$: uid$.asObservable() } },
+        { provide: Firestore, useValue: {} },
+        { provide: Functions, useValue: {} },
+        { provide: Storage, useValue: {} },
+        { provide: VideoMetadataPreparationService, useValue: metadataPreparation },
+        { provide: MediaApplicationErrorService, useValue: { reportSilently: vi.fn() } },
+        { provide: PrivacyDebugLoggerService, useValue: { log: vi.fn() } },
+      ],
+    });
+    const service = TestBed.inject(VideoUploadFlowService);
+    const next = vi.fn();
+    const error = vi.fn();
+    const subscription = service.uploadPrivateVideo$({
+      ownerUid: 'owner-a',
+      file: new File(['video'], 'clip.mp4', { type: 'video/mp4' }),
+      publication: {} as Parameters<VideoUploadFlowService['uploadPrivateVideo]>[0]['publication'],
+    }).subscribe({ next, error });
+
+    expect(metadataPreparation.prepare$).toHaveBeenCalledTimes(1);
+    uid$.next('owner-b');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(cancelled).toHaveBeenCalledTimes(1);
+    expect(subscription.closed).toBe(true);
+    expect(error).not.toHaveBeenCalled();
+    expect(next.mock.calls.some(([value]) => value?.type === 'success')).toBe(false);
+  });
+
 });
