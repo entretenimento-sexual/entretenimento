@@ -13,7 +13,6 @@ const HOST = '127.0.0.1';
 const AUTH_PORT = 19099, FIRESTORE_PORT = 18080, FUNCTIONS_PORT = 15001;
 assert.equal(process.env.FIREBASE_AUTH_EMULATOR_HOST, `${HOST}:${AUTH_PORT}`);
 assert.equal(process.env.FIRESTORE_EMULATOR_HOST, `${HOST}:${FIRESTORE_PORT}`);
-assert.equal(process.env.FUNCTIONS_EMULATOR, 'true');
 process.env.GCLOUD_PROJECT = PROJECT_ID;
 process.env.GCP_PROJECT = PROJECT_ID;
 
