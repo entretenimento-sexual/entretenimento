@@ -49,11 +49,9 @@ match /venues/{venueId} {
   }
 
   function optStringSized(field, min, max) {
-    return !hasField(field)
-      || request.resource.data[field] == null
-      || (request.resource.data[field] is string
-        && request.resource.data[field].size() >= min
-        && request.resource.data[field].size() <= max);
+    let value = request.resource.data.get(field, null);
+    return value == null || (value is string
+      && value.size() >= min && value.size() <= max);
   }
 
   function validRegion() {
@@ -72,11 +70,9 @@ match /venues/{venueId} {
   }
 
   function validOptionalRegionString(field, min, max) {
-    return !hasRegionField(field)
-      || request.resource.data.region[field] == null
-      || (request.resource.data.region[field] is string
-        && request.resource.data.region[field].size() >= min
-        && request.resource.data.region[field].size() <= max);
+    let value = request.resource.data.region.get(field, null);
+    return value == null || (value is string
+      && value.size() >= min && value.size() <= max);
   }
 
   function validModeration() {
@@ -103,18 +99,14 @@ match /venues/{venueId} {
   }
 
   function validOptionalModerationTime(field) {
-    return !hasModerationField(field)
-      || request.resource.data.moderation[field] == null
-      || request.resource.data.moderation[field] is number
-      || request.resource.data.moderation[field] is timestamp;
+    let value = request.resource.data.moderation.get(field, null);
+    return value == null || value is number || value is timestamp;
   }
 
   function validOptionalModerationString(field, min, max) {
-    return !hasModerationField(field)
-      || request.resource.data.moderation[field] == null
-      || (request.resource.data.moderation[field] is string
-        && request.resource.data.moderation[field].size() >= min
-        && request.resource.data.moderation[field].size() <= max);
+    let value = request.resource.data.moderation.get(field, null);
+    return value == null || (value is string
+      && value.size() >= min && value.size() <= max);
   }
 
   function validSponsorship() {
@@ -141,18 +133,14 @@ match /venues/{venueId} {
   }
 
   function validOptionalSponsorNumber(field, min, max) {
-    return !hasSponsorField(field)
-      || request.resource.data.sponsorship[field] == null
-      || (request.resource.data.sponsorship[field] is number
-        && request.resource.data.sponsorship[field] >= min
-        && request.resource.data.sponsorship[field] <= max);
+    let value = request.resource.data.sponsorship.get(field, null);
+    return value == null || (value is number
+      && value >= min && value <= max);
   }
 
   function validOptionalSponsorTime(field) {
-    return !hasSponsorField(field)
-      || request.resource.data.sponsorship[field] == null
-      || request.resource.data.sponsorship[field] is number
-      || request.resource.data.sponsorship[field] is timestamp;
+    let value = request.resource.data.sponsorship.get(field, null);
+    return value == null || value is number || value is timestamp;
   }
 
   function validChatConfig() {
