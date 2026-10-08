@@ -170,6 +170,22 @@ if (
   credentialViolations.push('Firestore isAdmin deve revalidar a conta atual e a claim.');
 }
 
+// O router precisa negar privilégios revogados mesmo com claim antiga.
+const adminGuardSource = fs.readFileSync(
+  path.join(root, 'src/app/core/guards/access-guard/admin.guard.ts'), 'utf8'
+);
+for (const required of [
+  'getDocFromServer',
+  "doc(firestore, 'users', uid)",
+  "account['accountStatus']",
+  "account['role'] === 'admin'",
+  "account['suspended'] !== true",
+]) {
+  if (!adminGuardSource.includes(required)) {
+    credentialViolations.push('Guard admin não verifica privilégio atual: ' + required);
+  }
+}
+
 // Revogação de staff não pode depender exclusivamente de claims do JWT.
 const staffSecurity = fs.readFileSync(
   path.join(root, 'functions/src/account_lifecycle/_shared.ts'), 'utf8'
