@@ -132,7 +132,28 @@ for (const absolutePath of walkTypeScriptFiles(appRoot)) {
   }
 }
 
-if (signOutViolations.length > 0 || parallelLogoutViolations.length > 0) {
+// Actions persistidas no DevTools nunca podem transportar credenciais.
+const authActionsPath = path.join(root, 'src/app/store/actions/actions.user/auth.actions.ts');
+const authEffectsPath = path.join(root, 'src/app/store/effects/effects.user/auth.effects.ts');
+const storeModulePath = path.join(root, 'src/app/store/store.module.ts');
+const credentialViolations = [];
+if (!fs.existsSync(authActionsPath) || !fs.existsSync(storeModulePath)) {
+  credentialViolations.push('Arquivos canônicos de auth/store ausentes');
+} else {
+  const authActions = fs.readFileSync(authActionsPath, 'utf8');
+  const storeModule = fs.readFileSync(storeModulePath, 'utf8');
+  if (/\\bpassword\\s*:/i.test(authActions) || /\\b(?:login|register)\\s*=\\s*createAction\\s*\\(/.test(authActions)) {
+    credentialViolations.push('auth.actions.ts recriou intent de credenciais');
+  }
+  if (/\\bAuthEffects\\b/.test(storeModule) || fs.existsSync(authEffectsPath)) {
+    credentialViolations.push('AuthEffects legado voltou a ser carregado');
+  }
+}
+if (credentialViolations.length) {
+  for (const issue of credentialViolations) console.error('[auth-boundary] ' + issue);
+}
+
+if (signOutViolations.length > 0 || parallelLogoutViolations.length > 0 || credentialViolations.length > 0) {
   if (signOutViolations.length > 0) {
     console.error(
       '[auth-boundary] Firebase Auth signOut fora da fronteira canônica:'
