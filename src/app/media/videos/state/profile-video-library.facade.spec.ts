@@ -36,7 +36,7 @@ function setup() {
   };
   mockDocument.visibilityState = 'visible';
 
-  const hydrate = vi.fn((ownerUid: string, videos: readonly { id: string; url: string }[]) =>
+  const hydrate = vi.fn((_ownerUid: string, videos: readonly { id: string; url: string }[]) =>
     of(videos.map(video => ({
       ...video, thumbnailUrl: `https://example.test/${video.id}`,
     })))
