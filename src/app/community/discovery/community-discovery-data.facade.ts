@@ -5,6 +5,7 @@ import {
   Subject,
   catchError,
   concat,
+  distinctUntilChanged,
   map,
   of,
   scan,
@@ -15,6 +16,7 @@ import {
 } from 'rxjs';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import {
   CommunityDiscoveryPage,
   CommunityPreviewCard,
@@ -124,27 +126,36 @@ export class CommunityDiscoveryDataFacade {
   private readonly repository = inject(CommunityPreviewRepository);
   private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
   private readonly applicationError = inject(ApplicationErrorService);
+  private readonly session = inject(AuthSessionService);
   private readonly loadRequests$ = new Subject<CommunityDiscoveryLoadRequest>();
   private readonly pageLoadedSubject = new Subject<CommunityDiscoveryPageLoaded>();
 
   readonly pageLoaded$ = this.pageLoadedSubject.asObservable();
 
   connect(config: CommunityDiscoveryDataConfig): Observable<CommunityDiscoveryState> {
-    return this.loadRequests$.pipe(
-      startWith<CommunityDiscoveryLoadRequest>({
-        cursor: null,
-        append: false,
-        tagId: config.initialTagId,
-      }),
-      switchMap((request) =>
-        this.resolveLoadEvents$(request, config).pipe(
-          startWith<CommunityDiscoveryLoadEvent>({ type: 'loading', request }),
-          catchError((error: unknown) =>
-            this.recoverLoadError$(error, request, config)
-          )
+    return this.session.uid$.pipe(
+      distinctUntilChanged(),
+      // Troca A→B invalida imediatamente a visualização e cancela a consulta
+      // anterior. Assim um resultado tardio de A não é exibido nem gravado
+      // pelo rememberPage() sob a identidade B.
+      switchMap(() =>
+        this.loadRequests$.pipe(
+          startWith<CommunityDiscoveryLoadRequest>({
+            cursor: null,
+            append: false,
+            tagId: config.initialTagId,
+          }),
+          switchMap((request) =>
+            this.resolveLoadEvents$(request, config).pipe(
+              startWith<CommunityDiscoveryLoadEvent>({ type: 'loading', request }),
+              catchError((error: unknown) =>
+                this.recoverLoadError$(error, request, config)
+              )
+            )
+          ),
+          scan(reduceState, INITIAL_STATE)
         )
       ),
-      scan(reduceState, INITIAL_STATE),
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }

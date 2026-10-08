@@ -4,7 +4,7 @@
 // novos de billing, lifecycle ou compliance.
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { from, merge, of, timer } from 'rxjs';
+import { EMPTY, from, merge, of, timer } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -58,6 +58,11 @@ export class UserEffects {
 
   private dbg(message: string, extra?: unknown): void {
     this.privacyDebug.log('profile', `UserEffects: ${message}`, extra);
+  }
+
+  /** UID operacional canônico; nunca use uma resposta antiga para reidratar B. */
+  private isCurrentUserRequest(uid: string): boolean {
+    return this.currentUserStore.getLoggedUserUIDSnapshot() === uid;
   }
 
   private buildUnavailableAction(uid: string) {
@@ -133,6 +138,9 @@ export class UserEffects {
           return of(clearCurrentUser());
         }
 
+        // A action pode ter sido enfileirada antes da troca A→B.
+        if (!this.isCurrentUserRequest(uid)) return EMPTY;
+
         this.currentUserStore.markUnhydrated();
 
         try {
@@ -149,6 +157,11 @@ export class UserEffects {
         }
 
         return this.firestoreUserQuery.getUser(uid).pipe(
+          // Cancela o efeito lógico mesmo antes da action stop/observe da nova
+          // sessão chegar ao Store. O switchMap externo cancela fisicamente.
+          filter((user) =>
+            this.isCurrentUserRequest(uid) && (!user || user.uid === uid)
+          ),
           distinctUntilChanged((previous, current) =>
             this.areUsersEquivalent(
               (previous as IUserDados | null | undefined) ?? null,
@@ -174,6 +187,7 @@ export class UserEffects {
             }
 
             return timer(this.UNAVAILABLE_CONFIRM_DELAY_MS).pipe(
+              filter(() => this.isCurrentUserRequest(uid)),
               tap(() => {
                 this.dbg('user snapshot -> confirmed unavailable', {
                   uid,
@@ -185,6 +199,8 @@ export class UserEffects {
             );
           }),
           catchError((errorValue) => {
+            if (!this.isCurrentUserRequest(uid)) return EMPTY;
+
             const error =
               errorValue instanceof Error
                 ? errorValue
@@ -224,24 +240,28 @@ export class UserEffects {
   loadUsers$ = createEffect(() =>
     this.actions$.pipe(
       ofType(loadUsers),
-      switchMap(() =>
-        this.firestoreQuery.getDocumentsByQuery<IUserDados>('users', []).pipe(
+      switchMap(() => {
+        const requestingUid = this.currentUserStore.getLoggedUserUIDSnapshot();
+        return this.firestoreQuery.getDocumentsByQuery<IUserDados>('users', []).pipe(
+          filter(() => this.currentUserStore.getLoggedUserUIDSnapshot() === requestingUid),
           map((users) =>
             loadUsersSuccess({ users: sanitizeUsersForStore(users) })
           ),
           catchError((error) =>
-            of(
-              loadUsersFailure({
-                error: toStoreError(
-                  error,
-                  'Falha ao carregar usuários.',
-                  'UserEffects.loadUsers$'
-                ),
-              })
-            )
+            this.currentUserStore.getLoggedUserUIDSnapshot() !== requestingUid
+              ? EMPTY
+              : of(
+                  loadUsersFailure({
+                    error: toStoreError(
+                      error,
+                      'Falha ao carregar usuários.',
+                      'UserEffects.loadUsers$'
+                    ),
+                  })
+                )
           )
-        )
-      )
+        );
+      })
     )
   );
 }

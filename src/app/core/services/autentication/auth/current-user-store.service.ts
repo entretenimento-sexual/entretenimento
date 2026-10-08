@@ -144,6 +144,8 @@ export class CurrentUserStoreService {
     // Uma resposta atrasada de users/{uid} não pode repovoar estado runtime
     // enquanto o Firebase ainda conclui o signOut técnico.
     if (!user?.uid || this.authSession.isTerminatingSnapshot) return;
+    const authenticatedUid = this.authSession.currentAuthUser?.uid?.trim();
+    if (authenticatedUid && authenticatedUid !== user.uid) return;
 
     const safeUser = normalizeCurrentUserRuntimeVisibility(user);
     const current = this.userSubject.value;
@@ -285,6 +287,8 @@ export class CurrentUserStoreService {
     // início de um logout, enquanto a sessão técnica ainda está presente.
     if (this.authSession.isTerminatingSnapshot) return null;
     const authUid = String(uid ?? '').trim();
+    const authenticatedUid = this.authSession.currentAuthUser?.uid?.trim();
+    if (authenticatedUid && authenticatedUid !== authUid) return null;
     if (!authUid) {
       this.dbg('restoreFromCacheForUid() -> skip (no uid)');
       return null;

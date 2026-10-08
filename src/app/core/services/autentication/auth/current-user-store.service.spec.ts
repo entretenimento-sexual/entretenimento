@@ -275,6 +275,23 @@ describe('CurrentUserStoreService', () => {
     expect(cache.delete).toHaveBeenCalledWith('currentUserUid');
   });
 
+  it('ignora perfil atrasado de A quando a sessão técnica já é B', () => {
+    authSession.currentAuthUser = { uid: 'user-b' };
+    service.set(userMock);
+
+    expect(service.getSnapshot()).toBeUndefined();
+    expect(cache.set).not.toHaveBeenCalled();
+  });
+
+  it('não restaura cache da conta anterior em troca direta A→B', () => {
+    authSession.currentAuthUser = { uid: 'user-b' };
+    cache.getSync.mockReturnValue(userMock);
+
+    expect(service.restoreFromCacheForUid('u1')).toBeNull();
+    expect(cache.getSync).not.toHaveBeenCalled();
+    expect(service.getSnapshot()).toBeUndefined();
+  });
+
   it('restoreFromCacheForUid() deve restaurar do cache quando uid bater', () => {
     cache.getSync.mockReturnValue(userMock);
 
