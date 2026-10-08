@@ -206,6 +206,7 @@ for (const required of [
 for (const required of [
   'onSnapshot(',
   'snapshot.metadata.fromCache',
+  'adminPrivilegeSnapshotAllows(value, snapshot.metadata.fromCache)',
   "value['role'] === 'admin'",
   'subscriber.error(error)',
 ]) {
@@ -213,8 +214,8 @@ for (const required of [
     credentialViolations.push('Listener admin deve observar revogação: ' + required);
   }
 }
-if (!/if\s*\(snapshot\.metadata\.fromCache\)\s*\{\s*subscriber\.next\(false\);\s*return;\s*\}/.test(adminPrivilegeWatchSource)) {
-  credentialViolations.push('Listener admin deve negar acesso ao receber snapshot somente de cache.');
+if (!/return\s+!fromCache\s*&&\s*!!value/.test(adminPrivilegeWatchSource)) {
+  credentialViolations.push('Listener admin deve negar snapshots de cache.');
 }
 
 // Revogação de staff não pode depender exclusivamente de claims do JWT.
