@@ -9,7 +9,7 @@
 // - usar feedback neutro para evitar enumeração de contas;
 // - diferenciar a orientação de produção da orientação do Auth Emulator.
 // -----------------------------------------------------------------------------
-import { Injectable } from '@angular/core';
+import { Injectable, OnDestroy } from '@angular/core';
 import { BehaviorSubject, Subject, Subscription, timer } from 'rxjs';
 import { finalize, take } from 'rxjs/operators';
 
@@ -35,7 +35,7 @@ export interface PasswordRecoveryModalState {
 }
 
 @Injectable({ providedIn: 'root' })
-export class EmailInputModalService {
+export class EmailInputModalService implements OnDestroy {
   /**
    * Mantidos por compatibilidade com usos/specs antigos.
    * Novo fluxo deve preferir state$.
@@ -46,6 +46,13 @@ export class EmailInputModalService {
   private readonly cooldownStorageKey = '__AUTH_PASSWORD_RECOVERY_COOLDOWN_UNTIL__';
   private readonly cooldownMs = 60_000;
   private cooldownTimer?: Subscription;
+
+  private readonly onCooldownStorageChange = (event: StorageEvent): void => {
+    if (event.key !== this.cooldownStorageKey) return;
+    const until = this.getActiveCooldownUntilMs();
+    this.patchState({ cooldownUntilMs: until });
+    this.scheduleCooldownExpiry(until);
+  };
 
   private readonly productionSuccessMessage =
     'Solicitação enviada. Se esse e-mail estiver cadastrado, as instruções chegarão na caixa de entrada. Verifique também o spam.';
@@ -66,16 +73,22 @@ export class EmailInputModalService {
 
   readonly state$ = this.stateSubject.asObservable();
 
-  constructor(private readonly loginService: LoginService) {}
+  constructor(private readonly loginService: LoginService) {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', this.onCooldownStorageChange);
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.cooldownTimer?.unsubscribe();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('storage', this.onCooldownStorageChange);
+    }
+  }
 
   openModal(initialEmail = ''): void {
     const email = (initialEmail ?? '').trim();
-    const cooldownUntilMs = Math.max(
-      this.stateSubject.value.cooldownUntilMs > Date.now()
-        ? this.stateSubject.value.cooldownUntilMs
-        : 0,
-      this.readCooldownUntilMs()
-    );
+    const cooldownUntilMs = this.getActiveCooldownUntilMs();
     this.scheduleCooldownExpiry(cooldownUntilMs);
 
     this.patchState({
@@ -144,10 +157,7 @@ export class EmailInputModalService {
       return;
     }
 
-    const cooldownUntilMs = Math.max(
-      currentState.cooldownUntilMs,
-      this.readCooldownUntilMs()
-    );
+    const cooldownUntilMs = this.getActiveCooldownUntilMs();
     if (cooldownUntilMs > Date.now()) {
       this.patchState({ cooldownUntilMs });
       this.scheduleCooldownExpiry(cooldownUntilMs);
@@ -185,10 +195,7 @@ export class EmailInputModalService {
           return;
         }
 
-        this.setFeedback(
-          'error',
-          'Não foi possível solicitar a recuperação agora. Verifique sua conexão e tente novamente.'
-        );
+        this.setFeedback('error', this.getRecoveryFailureMessage(error));
       },
     });
   }
@@ -209,6 +216,14 @@ export class EmailInputModalService {
     return getFirebaseEmulatorEndpoint('auth')
       ? this.emulatorSuccessMessage
       : this.productionSuccessMessage;
+  }
+
+  private getActiveCooldownUntilMs(): number {
+    const inMemory = this.stateSubject.value.cooldownUntilMs;
+    return Math.max(
+      inMemory > Date.now() ? inMemory : 0,
+      this.readCooldownUntilMs()
+    );
   }
 
   private readCooldownUntilMs(): number {
@@ -245,9 +260,21 @@ export class EmailInputModalService {
       return;
     }
     this.cooldownTimer = timer(remaining).pipe(take(1)).subscribe(() => {
+      // Outra aba pode ter iniciado uma janela mais recente. Nunca limpe
+      // o estado/storage de uma solicitação que ainda está protegida.
+      const currentUntil = this.getActiveCooldownUntilMs();
+      if (currentUntil > Date.now() && currentUntil !== until) {
+        this.patchState({ cooldownUntilMs: currentUntil });
+        this.scheduleCooldownExpiry(currentUntil);
+        return;
+      }
+
       this.patchState({ cooldownUntilMs: 0 });
       try {
-        if (typeof window !== 'undefined') {
+        if (
+          typeof window !== 'undefined'
+          && window.localStorage.getItem(this.cooldownStorageKey) === String(until)
+        ) {
           window.localStorage.removeItem(this.cooldownStorageKey);
         }
       } catch {
@@ -279,12 +306,34 @@ export class EmailInputModalService {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
 
+  private getRecoveryFailureMessage(error: unknown): string {
+    const source = error as { code?: unknown; name?: unknown } | null;
+    const code = String(source?.code ?? '').toLowerCase();
+
+    switch (code) {
+      case 'auth/too-many-requests':
+      case 'auth/quota-exceeded':
+      case 'resource-exhausted':
+        return 'Limite de solicitações atingido. Aguarde antes de tentar novamente.';
+      case 'auth/network-request-failed':
+      case 'unavailable':
+        return 'Falha de conexão. Verifique sua internet e tente novamente mais tarde.';
+      case 'deadline-exceeded':
+        return 'A solicitação demorou mais que o esperado. Tente novamente mais tarde.';
+      default:
+        return source?.name === 'TimeoutError'
+          ? 'A solicitação demorou mais que o esperado. Tente novamente mais tarde.'
+          : 'Não foi possível solicitar a recuperação agora. Tente novamente mais tarde.';
+    }
+  }
+
   private isAccountLookupError(error: unknown): boolean {
     const code = String((error as { code?: unknown })?.code ?? '').toLowerCase();
 
     return (
       code === 'auth/user-not-found' ||
       code === 'auth/email-not-found' ||
+      code === 'auth/user-disabled' ||
       code === 'auth/invalid-email'
     );
   }
