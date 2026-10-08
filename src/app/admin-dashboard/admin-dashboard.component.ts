@@ -2,12 +2,11 @@
 // A decisão de segurança continua no backend/Firestore Rules.
 import { Component, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
-import { Firestore } from '@angular/fire/firestore';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { EMPTY, Observable, Subscription } from 'rxjs';
+import { EMPTY, Subscription } from 'rxjs';
 import { distinctUntilChanged, switchMap } from 'rxjs/operators';
 
 import { AuthSessionService } from '../core/services/autentication/auth/auth-session.service';
+import { AdminPrivilegeWatchService } from './admin-privilege-watch.service';
 
 @Component({
   selector: 'app-admin-dashboard',
@@ -17,10 +16,11 @@ import { AuthSessionService } from '../core/services/autentication/auth/auth-ses
 })
 export class AdminDashboardComponent implements OnInit, OnDestroy {
   private sessionSubscription?: Subscription;
+  private exiting = false;
 
   constructor(
     private readonly authSession: AuthSessionService,
-    private readonly firestore: Firestore,
+    private readonly privilegeWatch: AdminPrivilegeWatchService,
     private readonly router: Router,
     private readonly zone: NgZone
   ) {}
@@ -33,32 +33,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
           this.exitAdmin();
           return EMPTY;
         }
-        return new Observable<boolean>((subscriber) =>
-          onSnapshot(
-            doc(this.firestore, 'users', user.uid),
-            { includeMetadataChanges: true },
-            (snapshot) => {
-              // Sem confirmação do servidor, a área administrativa deve fechar.
-              // Isso cobre tanto a primeira leitura quanto a perda de conexão.
-              if (snapshot.metadata.fromCache) {
-                subscriber.next(false);
-                return;
-              }
-              const value = snapshot.exists() ? snapshot.data() : null;
-              const allowed = !!value
-                && (value['accountStatus'] == null || value['accountStatus'] === 'active')
-                && value['suspended'] !== true
-                && value['accountLocked'] !== true
-                && value['interactionBlocked'] !== true
-                && value['loginAllowed'] !== false
-                && (value['role'] === 'admin'
-                  || value['admin'] === true
-                  || value['superadmin'] === true);
-              subscriber.next(allowed);
-            },
-            (error) => subscriber.error(error)
-          )
-        );
+        return this.privilegeWatch.watch(user.uid);
       })
     ).subscribe({
       next: (allowed) => { if (!allowed) this.exitAdmin(); },
@@ -71,6 +46,9 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   }
 
   private exitAdmin(): void {
+    if (this.exiting) return;
+    this.exiting = true;
+    this.sessionSubscription?.unsubscribe();
     this.zone.run(() => {
       void this.router.navigate(['/dashboard']);
     });
