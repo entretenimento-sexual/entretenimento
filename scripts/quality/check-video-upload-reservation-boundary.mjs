@@ -71,6 +71,23 @@ for (const fragment of [
   requireIncludes(registration, fragment, 'registration reservation drift');
 }
 
+// Requisições sem reserva comprovada não podem disparar rollback destrutivo.
+for (const fragment of [
+  'let reservationValidated = false;',
+  'reservationValidated = true;',
+  'if (reservationValidated && !registrationCommitted)',
+]) {
+  requireIncludes(registration, fragment, 'rollback reservation authority drift');
+}
+const invalidPosterPathBranch = registration.split(
+  'if (rawPosterStoragePath && !posterStoragePath) {'
+)[1]?.split('throw new HttpsError(')[0] ?? '';
+if (!invalidPosterPathBranch || invalidPosterPathBranch.includes('deleteUploadedAssetsRecoverably')) {
+  throw new Error(
+    '[video-upload-reservation-boundary] Path de capa inválido não pode apagar objeto antes de validar reserva.'
+  );
+}
+
 const reservation = read(
   'functions/src/media/application/reserve-video-upload.handler.ts'
 );
