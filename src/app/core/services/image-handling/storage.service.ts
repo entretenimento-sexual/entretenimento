@@ -27,6 +27,7 @@ import {
   uploadBytes,
   uploadBytesResumable,
   type UploadMetadata,
+  type UploadTask,
 } from 'firebase/storage';
 import { Observable, defer, from, of, throwError } from 'rxjs';
 import { catchError, filter, map, switchMap, takeUntil } from 'rxjs/operators';
@@ -63,6 +64,42 @@ export interface PhotoUploadAssetResult {
   readonly storagePath: string;
   readonly reservationId: string;
   readonly location: string;
+}
+
+/**
+ * Adaptador puro para uploads Firebase. Recebe a task já criada, permitindo
+ * testar cancelamento real sem inicializar o SDK/Storage no navegador de testes.
+ */
+export function observeStorageUploadTask$(
+  task: Pick<UploadTask, 'on' | 'cancel'>,
+  storagePath: string,
+  progressCallback?: (progress: number) => void
+): Observable<string> {
+  return new Observable<string>((observer) => {
+    let settled = false;
+    const unsubscribe = task.on(
+      'state_changed',
+      (snapshot) => {
+        const progress = snapshot.totalBytes
+          ? (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+          : 0;
+        progressCallback?.(normalizeMediaUploadProgress(progress));
+      },
+      (error) => {
+        settled = true;
+        observer.error(error);
+      },
+      () => {
+        settled = true;
+        observer.next(storagePath);
+        observer.complete();
+      }
+    );
+    return () => {
+      unsubscribe();
+      if (!settled) task.cancel();
+    };
+  });
 }
 
 @Injectable({
@@ -364,40 +401,11 @@ export class StorageService {
     progressCallback?: (progress: number) => void,
     metadata?: UploadMetadata
   ): Observable<string> {
-    return new Observable<string>((observer) => {
-      const storageRef = ref(this.storage, storagePath);
-      const uploadTask = uploadBytesResumable(storageRef, file, metadata);
-      let settled = false;
-      const unsubscribe = uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          const progress = snapshot.totalBytes
-            ? (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-            : 0;
-          const normalizedProgress = normalizeMediaUploadProgress(progress);
-          this.dbg('upload progress', { kind, progress: normalizedProgress });
-          progressCallback?.(normalizedProgress);
-        },
-        (error) => {
-          settled = true;
-          const errorMsg = this.extractErrorMessage(error);
-          this.dbg('upload failed', { kind, errorMsg });
-          observer.error(error);
-        },
-        () => {
-          settled = true;
-          observer.next(storagePath);
-          observer.complete();
-        }
-      );
-      return () => {
-        unsubscribe();
-        // Desinscrever o listener não cancela a transferência do Firebase.
-        // Sem este cancelamento, bytes de A podem continuar após o logout.
-        if (!settled) {
-          uploadTask.cancel();
-        }
-      };
+    const storageRef = ref(this.storage, storagePath);
+    const task = uploadBytesResumable(storageRef, file, metadata);
+    return observeStorageUploadTask$(task, storagePath, (progress) => {
+      this.dbg('upload progress', { kind, progress });
+      progressCallback?.(progress);
     });
   }
 

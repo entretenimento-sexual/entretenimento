@@ -1,4 +1,5 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Optional } from '@angular/core';
+import { AuthSessionService } from '../autentication/auth/auth-session.service';
 import { BehaviorSubject, Observable, distinctUntilChanged, map } from 'rxjs';
 
 import {
@@ -41,6 +42,24 @@ export class VideoEditorSessionService {
     new BehaviorSubject<IVideoEditorDraft | null>(null);
   private expiryTimer: ReturnType<typeof setTimeout> | null = null;
   private lastTeardownReasonValue: VideoEditorSessionTeardownReason | null = null;
+  private activeOwnerUid: string | null = null;
+
+  constructor(@Optional() private readonly authSession: AuthSessionService | null = null) {
+    this.authSession?.uid$.subscribe((uid) => {
+      this.activeOwnerUid = String(uid ?? '').trim() || null;
+      this.clearIfOwnerMismatch(this.activeOwnerUid);
+    });
+  }
+
+  private assertActiveOwner(ownerUid: string): void {
+    if (
+      this.authSession &&
+      (this.authSession.isTerminatingSnapshot || this.activeOwnerUid !== ownerUid)
+    ) {
+      this.clearDraft(undefined, 'auth-changed');
+      throw new Error('Sua sessão de usuário mudou. Selecione o vídeo novamente para continuar.');
+    }
+  }
 
   readonly draft$: Observable<IVideoEditorDraft | null> =
     this.draftSubject.asObservable();
@@ -69,6 +88,7 @@ export class VideoEditorSessionService {
     if (!normalizedOwnerUid) {
       throw new Error('O editor de vídeo requer um proprietário autenticado.');
     }
+    this.assertActiveOwner(normalizedOwnerUid);
 
     this.clearDraft(undefined, 'replaced');
 
@@ -225,6 +245,7 @@ export class VideoEditorSessionService {
 
   private requireOwnedDraft(ownerUid: string): IVideoEditorDraft {
     const normalizedOwnerUid = String(ownerUid ?? '').trim();
+    this.assertActiveOwner(normalizedOwnerUid);
     const draft = this.requireDraft();
 
     if (!normalizedOwnerUid || draft.ownerUid !== normalizedOwnerUid) {
@@ -240,6 +261,14 @@ export class VideoEditorSessionService {
   private currentLiveDraft(): IVideoEditorDraft | null {
     const draft = this.draftSubject.value;
     if (!draft) {
+      return null;
+    }
+
+    if (
+      this.authSession &&
+      (this.authSession.isTerminatingSnapshot || draft.ownerUid !== this.activeOwnerUid)
+    ) {
+      this.clearDraft(undefined, 'auth-changed');
       return null;
     }
 

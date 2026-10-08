@@ -13,13 +13,16 @@ import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import {
   Observable,
   catchError,
+  defaultIfEmpty,
   defer,
+  filter,
   finalize,
   from,
   map,
   of,
   switchMap,
   take,
+  takeUntil,
   throwError,
 } from 'rxjs';
 
@@ -126,7 +129,11 @@ export class PhotoEditorLauncherService {
           ));
         }
 
-        return factory(ownerUid);
+        return factory(ownerUid).pipe(
+          // Fechar modal e cancelar import/resultados atrasados após logout.
+          takeUntil(this.authSession.uid$.pipe(filter((nextUid) => nextUid !== ownerUid))),
+          defaultIfEmpty(null)
+        );
       }),
       catchError((error: unknown) => {
         this.reportMediaError(error, source);
@@ -153,19 +160,27 @@ export class PhotoEditorLauncherService {
           windowClass: 'photo-editor-modal-window',
         });
 
+        let settled = false;
         return from(modalRef.result).pipe(
           map((payload: unknown) => {
+            settled = true;
             const result = payload as PhotoEditorModalProcessSuccess | null;
             return result?.reason === 'processSuccess'
               ? result.result
               : null;
           }),
-          catchError((reason: unknown) =>
-            this.isExpectedDismiss(reason)
+          catchError((reason: unknown) => {
+            settled = true;
+            return this.isExpectedDismiss(reason)
               ? of(null)
-              : throwError(() => reason)
-          ),
+              : throwError(() => reason);
+          }),
           finalize(() => {
+            if (!settled) {
+              // Cancelamento por troca de sessão ou desmontagem da tela.
+              // Dismiss também libera buffers próprios do componente modal.
+              modalRef.dismiss?.('auth-changed');
+            }
             this.session.clearDraft();
             this.restoreFocusAfterModal(focusOrigin);
           })

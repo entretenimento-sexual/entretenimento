@@ -5,7 +5,8 @@
 // contexto visual necessários para processar a imagem; o consumidor mantém os
 // identificadores de Firestore/Storage e decide o destino após o resultado.
 
-import { Injectable } from '@angular/core';
+import { Injectable, Optional } from '@angular/core';
+import { AuthSessionService } from '../autentication/auth/auth-session.service';
 import { BehaviorSubject, Observable } from 'rxjs';
 
 import {
@@ -58,8 +59,34 @@ export type IPhotoEditorDraft =
 @Injectable({ providedIn: 'root' })
 export class PhotoEditorSessionService {
   private readonly draftSubject = new BehaviorSubject<IPhotoEditorDraft | null>(null);
+  private activeOwnerUid: string | null = null;
 
   readonly draft$: Observable<IPhotoEditorDraft | null> = this.draftSubject.asObservable();
+
+  constructor(@Optional() private readonly authSession: AuthSessionService | null = null) {
+    // O próprio domínio de rascunhos observa a autoridade de Auth. Não depende
+    // da abertura do modal/launcher para descartar File e URLs privadas.
+    this.authSession?.uid$.subscribe((uid) => {
+      this.activeOwnerUid = String(uid ?? '').trim() || null;
+      if (this.draftSubject.value?.ownerUid !== this.activeOwnerUid) {
+        this.clearDraft();
+      }
+    });
+  }
+
+  private requireCurrentOwner(uid: string): string {
+    const ownerUid = String(uid ?? '').trim();
+    if (!ownerUid ||
+      (this.authSession && (
+        this.authSession.isTerminatingSnapshot ||
+        this.activeOwnerUid !== ownerUid
+      ))
+    ) {
+      this.clearDraft();
+      throw new Error('Sua sessão mudou. Selecione a foto novamente para editar.');
+    }
+    return ownerUid;
+  }
 
   setCreateDraft(
     file: File,
@@ -68,6 +95,7 @@ export class PhotoEditorSessionService {
     options: PhotoEditorCreateOptions = {}
   ): void {
     const defaults = this.resolveSourceDefaults(source);
+    const authenticatedOwner = this.requireCurrentOwner(ownerUid);
 
     this.draftSubject.next({
       mode: 'create',
@@ -75,7 +103,7 @@ export class PhotoEditorSessionService {
       context: options.context ?? defaults.context,
       preset: options.preset ?? defaults.preset,
       file,
-      ownerUid,
+      ownerUid: authenticatedOwner,
       createdAt: Date.now(),
     });
   }
@@ -86,12 +114,13 @@ export class PhotoEditorSessionService {
     storedImageState?: string | null;
     fileName?: string | null;
   }): void {
+    const authenticatedOwner = this.requireCurrentOwner(params.ownerUid);
     this.draftSubject.next({
       mode: 'edit',
       source: 'profile-photos',
       context: 'profile-photo',
       preset: 'profile-photo',
-      ownerUid: params.ownerUid,
+      ownerUid: authenticatedOwner,
       storedImageUrl: params.storedImageUrl,
       storedImageState: params.storedImageState ?? null,
       fileName: params.fileName ?? null,
@@ -100,11 +129,19 @@ export class PhotoEditorSessionService {
   }
 
   peekDraft(): IPhotoEditorDraft | null {
-    return this.draftSubject.value;
+    const draft = this.draftSubject.value;
+    if (
+      draft && this.authSession &&
+      (this.authSession.isTerminatingSnapshot || draft.ownerUid !== this.activeOwnerUid)
+    ) {
+      this.clearDraft();
+      return null;
+    }
+    return draft;
   }
 
   clearDraft(): void {
-    this.draftSubject.next(null);
+    if (this.draftSubject.value) this.draftSubject.next(null);
   }
 
   private resolveSourceDefaults(source: PhotoEditorCreateSource): {
