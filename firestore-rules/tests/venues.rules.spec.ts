@@ -114,6 +114,7 @@ async function seedVenues(): Promise<void> {
           status: 'NONE',
         },
       }),
+      setDoc(doc(db, 'users', ADMIN_UID), { uid: ADMIN_UID, accountStatus: 'active', role: 'admin' }),
       setDoc(doc(db, 'age_eligibility_records', USER_UID), {
         uid: USER_UID,
         status: 'VERIFIED_ADULT',
