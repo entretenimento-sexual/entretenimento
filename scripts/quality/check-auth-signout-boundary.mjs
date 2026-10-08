@@ -142,10 +142,10 @@ if (!fs.existsSync(authActionsPath) || !fs.existsSync(storeModulePath)) {
 } else {
   const authActions = fs.readFileSync(authActionsPath, 'utf8');
   const storeModule = fs.readFileSync(storeModulePath, 'utf8');
-  if (/\\bpassword\\s*:/i.test(authActions) || /\\b(?:login|register)\\s*=\\s*createAction\\s*\\(/.test(authActions)) {
+  if (/\bpassword\s*:/i.test(authActions) || /\b(?:login|register)\s*=\s*createAction\s*\(/.test(authActions)) {
     credentialViolations.push('auth.actions.ts recriou intent de credenciais');
   }
-  if (/\\bAuthEffects\\b/.test(storeModule) || fs.existsSync(authEffectsPath)) {
+  if (/\bAuthEffects\b/.test(storeModule) || fs.existsSync(authEffectsPath)) {
     credentialViolations.push('AuthEffects legado voltou a ser carregado');
   }
 }
