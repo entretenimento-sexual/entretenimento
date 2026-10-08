@@ -345,18 +345,17 @@ async function run() {
     assert.equal(restored.data.status, 'VISIBLE');
     assert.equal(restored.data.commentsCount, 1);
 
-    await publicationRef.set(
-      {
-        isPublished: false,
-        visibility: 'PRIVATE',
-        moderationStatus: 'PRIVATE',
-        updatedAt: Date.now(),
-      },
-      { merge: true }
+    // A exclusão do conteúdo é a autoridade canônica de remoção;
+    // alterações diretas na publicação não representam despublicação.
+    const deleteProfileVideo = httpsCallable(
+      ownerClient.functions,
+      'deleteProfileVideo'
     );
+    const deletion = await deleteProfileVideo({ ownerUid, videoId });
+    assert.equal(deletion.data.videoId, videoId);
 
     await waitFor(
-      'interações serem removidas após despublicação',
+      'interações serem removidas após exclusão canônica',
       async () => ({
         video: await readDocumentData(publicVideoRef),
         like: await readDocumentData(likeRef),
@@ -374,7 +373,7 @@ async function run() {
     console.log('✔ preferência do autor bloqueou comentário desabilitado');
     console.log('✔ comentário e resposta do autor atualizaram contadores');
     console.log('✔ ocultação e restauração foram autorizadas ao proprietário');
-    console.log('✔ despublicação removeu curtidas e comentários recursivamente');
+    console.log('✔ exclusão canônica removeu curtidas e comentários recursivamente');
   } finally {
     const cleanupTasks = [];
 
