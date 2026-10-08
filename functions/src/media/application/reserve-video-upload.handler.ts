@@ -57,6 +57,8 @@ export interface VideoUploadReservationDocument {
   posterContentType: string | null;
   createdAt: Timestamp;
   expiresAt: Timestamp;
+  phase?: 'REGISTERING' | 'CLEANING';
+  phaseStartedAt?: number;
   cleanupAttempts?: number;
   cleanupLastError?: string | null;
 }
@@ -120,7 +122,7 @@ function sameReservation(
   input: Omit<
     VideoUploadReservationDocument,
     'reservationId' | 'createdAt' | 'expiresAt' |
-    'cleanupAttempts' | 'cleanupLastError'
+    'cleanupAttempts' | 'cleanupLastError' | 'phase' | 'phaseStartedAt'
   >
 ): boolean {
   return current.ownerUid === input.ownerUid
@@ -215,6 +217,22 @@ export async function reconcileExpiredReservation(
   reservation: VideoUploadReservationDocument
 ): Promise<'referenced' | 'orphan_deleted' | 'retryable' | 'dead_letter'> {
   try {
+    // Compare-and-claim impede a limpeza de ultrapassar um registro iniciado.
+    const claimed = await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(snapshot.ref);
+      if (!fresh.exists) return false;
+      const current = fresh.data() as VideoUploadReservationDocument;
+      if (current.phase || reservationExpiryMs(current.expiresAt) > Date.now()) {
+        return false;
+      }
+      tx.update(snapshot.ref, {
+        phase: 'CLEANING',
+        phaseStartedAt: Date.now(),
+      });
+      return true;
+    });
+    if (!claimed) return 'referenced';
+
     if (await hasCanonicalVideoReference(reservation)) {
       await snapshot.ref.delete();
       return 'referenced';
@@ -508,6 +526,27 @@ export async function assertVideoUploadReservation(input: {
       'A reserva não corresponde ao vídeo armazenado.'
     );
   }
+}
+
+export async function claimVideoUploadReservation(input: {
+  reservationId: string;
+  ownerUid: string;
+  videoId: string;
+}): Promise<void> {
+  const ref = db.collection(RESERVATION_COLLECTION).doc(input.reservationId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) {
+      throw new HttpsError('failed-precondition', 'Reserva de vídeo inexistente.');
+    }
+    const data = snap.data() as VideoUploadReservationDocument;
+    if (data.ownerUid !== input.ownerUid || data.videoId !== input.videoId ||
+        data.phase === 'CLEANING' ||
+        reservationExpiryMs(data.expiresAt) <= Date.now()) {
+      throw new HttpsError('failed-precondition', 'A reserva não está disponível para registro.');
+    }
+    tx.update(ref, { phase: 'REGISTERING', phaseStartedAt: Date.now() });
+  });
 }
 
 export async function consumeVideoUploadReservationBestEffort(
