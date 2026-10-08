@@ -79,6 +79,14 @@ for (const fragment of [
 ]) {
   requireIncludes(registration, fragment, 'registration claim boundary drift');
 }
+// A limpeza agendada precisa consultar a referência canônica antes de apagar.
+for (const fragment of [
+  'async function isRegisteredAsset(',
+  'await isRegisteredAsset(',
+  'cleanupPendingPrivateVideoUploadAssets',
+]) {
+  requireIncludes(registration, fragment, 'scheduled cleanup reference guard drift');
+}
 if (registration.includes('deleteUploadedAssetsRecoverably(')) {
   throw new Error('[video-upload-reservation-boundary] Rollback destrutivo legado voltou ao registro.');
 }
