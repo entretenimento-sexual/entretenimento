@@ -10,12 +10,14 @@ import {
   distinctUntilChanged,
   filter,
   map,
+  take,
   tap,
 } from 'rxjs/operators';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import { CacheService } from 'src/app/core/services/general/cache/cache.service';
 import { authSessionChanged } from 'src/app/store/actions/actions.user/auth.actions';
 import {
   observeUserChanges,
@@ -24,11 +26,40 @@ import {
 
 @Injectable()
 export class AuthSessionSyncEffects {
+  private previousOperationalUid: string | null | undefined;
+
   constructor(
     private readonly authSession: AuthSessionService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly privacyDebug: PrivacyDebugLoggerService
+    private readonly privacyDebug: PrivacyDebugLoggerService,
+    private readonly cache: CacheService
   ) {}
+
+  /**
+   * O reset NgRx ocorre no meta-reducer da action canônica. CacheService
+   * mantém entradas efêmeras/persistidas fora do NgRx: precisamos invalidá-las
+   * na MESMA transição de UID, inclusive A→B sem logout explícito.
+   *
+   * A purga de memória é síncrona e a do IndexedDB é best-effort assíncrona;
+   * não atrasamos a publicação de authSessionChanged nem abrimos um watcher
+   * de sessão independente.
+   */
+  private purgeAuxiliarySessionCache(uid: string | null): void {
+    if (this.previousOperationalUid === uid) return;
+    this.previousOperationalUid = uid;
+
+    this.cache.clearSensitiveSessionCache$().pipe(take(1)).subscribe({
+      error: (error: unknown) => {
+        this.globalErrorHandler.handleError(
+          Object.assign(new Error('Falha ao limpar cache de sessão.'), {
+            original: error,
+            silent: true,
+            skipUserNotification: true,
+          })
+        );
+      },
+    });
+  }
 
   /**
    * Debug seguro da sincronização entre AuthSession e NgRx Store.
@@ -63,6 +94,7 @@ export class AuthSessionSyncEffects {
         (a, b) => a.uid === b.uid && a.emailVerified === b.emailVerified
       ),
 
+      tap(({ uid }) => this.purgeAuxiliarySessionCache(uid)),
       tap((session) => this.dbg('authSessionChanged()', session)),
 
       map(({ uid, emailVerified }) =>
