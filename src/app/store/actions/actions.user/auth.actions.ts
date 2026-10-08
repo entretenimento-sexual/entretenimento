@@ -11,31 +11,9 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
  * =============================================================================
  */
 
-export interface RegistrationTermsAcceptance {
-  accepted: boolean;
-  date: number;
-}
-
 // ============================================================================
 // Registro
 // ============================================================================
-
-/**
- * Intent legada de registro.
- *
- * `acceptedTerms` permanece opcional no tipo apenas para não quebrar imports e
- * chamadas antigas durante a migração. O effect falha fechado quando a evidência
- * não é enviada ou é inválida; ele nunca inventa aceite em nome do usuário.
- */
-export const register = createAction(
-  '[Auth] Register',
-  props<{
-    email: string;
-    password: string;
-    nickname: string;
-    acceptedTerms?: RegistrationTermsAcceptance;
-  }>()
-);
 
 /**
  * Feedback serializável do cadastro.
@@ -64,11 +42,6 @@ export const registerFailure = createAction(
 // ============================================================================
 
 export const loginStart = createAction('[Auth] Login Start');
-
-export const login = createAction(
-  '[Auth] Login',
-  props<{ email: string; password: string }>()
-);
 
 export const loginSuccess = createAction(
   '[Auth] Login Success',
