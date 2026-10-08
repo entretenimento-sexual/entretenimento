@@ -194,6 +194,7 @@ for (const required of [
   'authSession.authUser$',
   'onSnapshot(',
   'snapshot.metadata.fromCache',
+  'if (snapshot.metadata.fromCache) {\n                subscriber.next(false);',
   "value['role'] === 'admin'",
   'this.exitAdmin()',
   'this.sessionSubscription?.unsubscribe()',
