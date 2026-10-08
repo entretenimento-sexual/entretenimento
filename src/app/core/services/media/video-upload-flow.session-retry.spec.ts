@@ -10,7 +10,7 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { VideoMetadataPreparationService } from './video-metadata-preparation.service';
 import { MediaApplicationErrorService } from './media-application-error.service';
-import { VideoUploadFlowService } from './video-upload-flow.service';
+import { IVideoUploadCommand, VideoUploadFlowService } from './video-upload-flow.service';
 
 describe('VideoUploadFlowService / registro após troca de conta', () => {
   it('não repete a callable de A quando a sessão mudou durante backoff', async () => {
@@ -82,7 +82,7 @@ describe('VideoUploadFlowService / registro após troca de conta', () => {
     const subscription = service.uploadPrivateVideo$({
       ownerUid: 'owner-a',
       file: new File(['video'], 'clip.mp4', { type: 'video/mp4' }),
-      publication: {} as Parameters<VideoUploadFlowService['uploadPrivateVideo]>[0]['publication'],
+      publication: {} as IVideoUploadCommand['publication'],
     }).subscribe({ next, error });
 
     expect(metadataPreparation.prepare$).toHaveBeenCalledTimes(1);
