@@ -140,7 +140,8 @@
     "maintenance:photo-storage-orphans:emu": "npm run functions:build && node scripts/maintenance/reconcile-orphan-photo-storage-emu.mjs",
     "maintenance:legacy-photo-review:emu": "npm run functions:build && node scripts/maintenance/reconcile-legacy-photo-preventive-review-emu.mjs",
     "maintenance:media-state:emu": "npm run maintenance:photo-storage-orphans:emu -- --apply && npm run maintenance:legacy-photo-review:emu -- --apply && npm run emu:save",
-    "emu:diagnose": "node scripts/dev/safe-emulator-pre.mjs --diagnose-only"
+    "emu:diagnose": "node scripts/dev/safe-emulator-pre.mjs --diagnose-only",
+    "test:auth:revocation:e2e": "npm run rules:build && npm run rules:check && npm run functions:build && firebase emulators:exec --config firebase.media-e2e.json --only auth,firestore,functions --project demo-entretenimento-media-e2e \"node scripts/tests/admin-revocation.e2e.mjs\""
   },
   "private": true,
   "dependencies": {
