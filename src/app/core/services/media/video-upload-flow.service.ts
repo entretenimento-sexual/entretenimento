@@ -14,7 +14,7 @@ import {
   type UploadTask,
   uploadBytesResumable,
 } from 'firebase/storage';
-import { Observable, Subscription, firstValueFrom } from 'rxjs';
+import { Observable, Subject, Subscription, firstValueFrom, takeUntil } from 'rxjs';
 
 import {
   DEFAULT_VIDEO_EDIT_RECIPE_INPUT,
@@ -178,6 +178,10 @@ export class VideoUploadFlowService {
       let videoUploadStarted = false;
       let posterUploadStarted = false;
       let authBoundarySubscription: Subscription | null = null;
+      const cancelled$ = new Subject<void>();
+      const cancelPendingPreparation = (): void => {
+        cancelled$.next();
+      };
 
       const scheduleCleanup = (): Promise<void> => {
         cleanupChain = cleanupChain.then(async () => {
@@ -217,6 +221,7 @@ export class VideoUploadFlowService {
         }
 
         cancelRequested = true;
+        cancelPendingPreparation();
         activeTask?.cancel();
 
         if (!registrationStarted) {
@@ -228,6 +233,7 @@ export class VideoUploadFlowService {
 
       const run = async (): Promise<void> => {
         try {
+          assertNotCancelled();
           observer.next({ type: 'progress', phase: 'preparing', progress: 2 });
 
           const editRecipe =
@@ -236,7 +242,7 @@ export class VideoUploadFlowService {
             this.metadataPreparation.prepare$(file, {
               aspectRatio: editRecipe.aspectRatio,
               preferredTimeMs: editRecipe.trimStartMs,
-            })
+            }).pipe(takeUntil(cancelled$))
           );
           const posterBlob = selectedPosterBlob ?? metadata.posterBlob;
           assertNotCancelled();
@@ -406,6 +412,7 @@ export class VideoUploadFlowService {
         }
 
         cancelRequested = true;
+        cancelPendingPreparation();
         activeTask?.cancel();
         void scheduleCleanup();
       };
