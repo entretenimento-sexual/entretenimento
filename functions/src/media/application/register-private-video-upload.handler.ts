@@ -14,6 +14,8 @@ import {
 } from '../media-format.generated';
 import {
   assertVideoUploadReservation,
+  claimVideoUploadReservation,
+  releaseVideoUploadReservationClaim,
   consumeVideoUploadReservationBestEffort,
 } from './reserve-video-upload.handler';
 import {
@@ -540,7 +542,7 @@ export const registerPrivateVideoUpload = onCall<
     }
 
     let registrationCommitted = false;
-    let reservationValidated = false;
+    let claimToken: string | null = null;
     const rollbackAssets = [
       { storagePath: videoStoragePath, assetKind: 'video' as const },
       ...(posterStoragePath
@@ -569,7 +571,6 @@ export const registerPrivateVideoUpload = onCall<
         posterSizeBytes: posterMetadata?.sizeBytes ?? 0,
         posterContentType: posterMetadata?.mimeType ?? null,
       });
-      reservationValidated = true;
 
       if (
         requestedMimeType &&
@@ -590,6 +591,8 @@ export const registerPrivateVideoUpload = onCall<
           'O tamanho do arquivo enviado diverge do arquivo armazenado.'
         );
       }
+
+      claimToken = await claimVideoUploadReservation({ reservationId, ownerUid, videoId });
 
       const durationMs = normalizePositiveInteger(request.data?.durationMs);
       const status: RegisteredVideoStatus =
@@ -681,12 +684,17 @@ export const registerPrivateVideoUpload = onCall<
         createdAt,
       };
     } catch (error) {
-      if (reservationValidated && !registrationCommitted) {
-        await deleteUploadedAssetsRecoverably(
-          ownerUid,
-          videoId,
-          rollbackAssets
-        );
+      // Não destrua binários num erro de registro: outro registro pode
+      // estar concluindo a mesma reserva. O reconciliador cuida dos órfãos.
+      if (claimToken && !registrationCommitted) {
+        try {
+          await releaseVideoUploadReservationClaim(reservationId, claimToken);
+        } catch (releaseError) {
+          logger.warn('[registerPrivateVideoUpload] Liberação de reserva pendente.', {
+            reservationId,
+            error: normalizeErrorMessage(releaseError),
+          });
+        }
       }
 
       if (error instanceof HttpsError) {
