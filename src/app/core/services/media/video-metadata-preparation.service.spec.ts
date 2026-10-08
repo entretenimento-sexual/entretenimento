@@ -211,4 +211,36 @@ describe('VideoMetadataPreparationService', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:pending-video');
   });
 
+  it('descarta capa cujo canvas.toBlob terminou após fechamento do editor', async () => {
+    const video = document.createElement('video');
+    Object.defineProperties(video, {
+      videoWidth: { configurable: true, value: 640 },
+      videoHeight: { configurable: true, value: 480 },
+      readyState: {
+        configurable: true,
+        value: HTMLMediaElement.HAVE_CURRENT_DATA,
+      },
+    });
+
+    let finishCanvas: ((blob: Blob | null) => void) | null = null;
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob')
+      .mockImplementation((callback) => { finishCanvas = callback; });
+
+    const next = vi.fn();
+    const warning = vi.fn();
+    const subscription = service.captureCurrentFrame$(video)
+      .subscribe({ next, error: warning });
+
+    expect(finishCanvas).toBeTypeOf('function');
+    subscription.unsubscribe();
+    const callback = finishCanvas as unknown as (blob: Blob | null) => void;
+    callback(new Blob(['late-poster'], { type: 'image/jpeg' }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(next).not.toHaveBeenCalled();
+    expect(warning).not.toHaveBeenCalled();
+    expect(subscription.closed).toBe(true);
+  });
+
 });

@@ -57,9 +57,24 @@ export class VideoMetadataPreparationService {
     aspectRatio: TVideoEditAspectRatio = 'ORIGINAL',
     rotationDegrees: TVideoRotationDegrees = 0
   ): Observable<Blob> {
-    return defer(() => from(
-      this.captureCurrentFrame(video, aspectRatio, rotationDegrees)
-    ));
+    return new Observable<Blob>((observer) => {
+      const controller = new AbortController();
+      void this.captureCurrentFrame(
+        video, aspectRatio, rotationDegrees, controller.signal
+      ).then(
+        (blob) => {
+          if (controller.signal.aborted || observer.closed) return;
+          observer.next(blob);
+          observer.complete();
+        },
+        (error: unknown) => {
+          if (!controller.signal.aborted && !observer.closed) {
+            observer.error(error);
+          }
+        }
+      );
+      return () => controller.abort();
+    });
   }
 
   private async prepare(
@@ -127,7 +142,8 @@ export class VideoMetadataPreparationService {
   private async captureCurrentFrame(
     video: HTMLVideoElement,
     aspectRatio: TVideoEditAspectRatio,
-    rotationDegrees: TVideoRotationDegrees
+    rotationDegrees: TVideoRotationDegrees,
+    signal?: AbortSignal
   ): Promise<Blob> {
     if (
       typeof document === 'undefined' ||
@@ -141,11 +157,13 @@ export class VideoMetadataPreparationService {
       );
     }
 
+    if (signal?.aborted) throw new Error('Captura de capa cancelada.');
     const blob = await this.drawCurrentFrame(
       video,
       aspectRatio,
       rotationDegrees
     );
+    if (signal?.aborted) throw new Error('Captura de capa cancelada.');
 
     if (!blob) {
       throw new Error('Não foi possível gerar a capa neste navegador.');
