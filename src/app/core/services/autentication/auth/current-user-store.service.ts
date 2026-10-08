@@ -141,7 +141,9 @@ export class CurrentUserStoreService {
   }
 
   set(user: IUserDados): void {
-    if (!user?.uid) return;
+    // Uma resposta atrasada de users/{uid} não pode repovoar estado runtime
+    // enquanto o Firebase ainda conclui o signOut técnico.
+    if (!user?.uid || this.authSession.isTerminatingSnapshot) return;
 
     const safeUser = normalizeCurrentUserRuntimeVisibility(user);
     const current = this.userSubject.value;
@@ -158,6 +160,7 @@ export class CurrentUserStoreService {
   }
 
   patch(partial: Partial<IUserDados>): void {
+    if (this.authSession.isTerminatingSnapshot) return;
     const current = this.userSubject.value;
     if (!current || current === null) return;
 
@@ -194,7 +197,7 @@ export class CurrentUserStoreService {
 
     this.cache.delete(this.keyUser);
 
-    const authUid = this.authSession.currentAuthUser?.uid ?? null;
+    const authUid = this.getLoggedUserUIDSnapshot();
 
     if (authUid) {
       this.cache.set(this.keyUid, authUid, undefined, { persist: false });
@@ -261,6 +264,9 @@ export class CurrentUserStoreService {
    * Cache e perfil runtime nunca podem promover um UID sem sessão confirmada.
    */
   getLoggedUserUIDSnapshot(): string | null {
+    // Firebase currentUser é um snapshot técnico, ainda presente durante
+    // encerramento. Somente o UID operacional pode autorizar trabalho no app.
+    if (this.authSession.isTerminatingSnapshot) return null;
     return this.authSession.currentAuthUser?.uid?.trim() || null;
   }
 
@@ -269,13 +275,15 @@ export class CurrentUserStoreService {
   }
 
   restoreFromCache(): IUserDados | null {
-    const uid = this.authSession.currentAuthUser?.uid ?? null;
-    return this.restoreFromCacheForUid(uid);
+    return this.restoreFromCacheForUid(this.getLoggedUserUIDSnapshot());
   }
 
   restoreFromCacheForUid(
     uid: string | null | undefined
   ): IUserDados | null {
+    // Mesmo um UID explícito antigo não pode restaurar o cache após o
+    // início de um logout, enquanto a sessão técnica ainda está presente.
+    if (this.authSession.isTerminatingSnapshot) return null;
     const authUid = String(uid ?? '').trim();
     if (!authUid) {
       this.dbg('restoreFromCacheForUid() -> skip (no uid)');

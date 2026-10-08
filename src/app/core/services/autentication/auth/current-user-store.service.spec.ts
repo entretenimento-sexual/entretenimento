@@ -21,6 +21,7 @@ class MockAuthSessionService {
   uid$ = new BehaviorSubject<string | null>(null);
   authUser$ = new BehaviorSubject<any | null>(null);
   currentAuthUser: { uid: string } | null = null;
+  isTerminatingSnapshot = false;
 }
 
 describe('CurrentUserStoreService', () => {
@@ -56,6 +57,7 @@ describe('CurrentUserStoreService', () => {
 
     vi.clearAllMocks();
     authSession.currentAuthUser = null;
+    authSession.isTerminatingSnapshot = false;
     authSession.ready$.next(false);
     authSession.uid$.next(null);
     authSession.authUser$.next(null);
@@ -243,6 +245,34 @@ describe('CurrentUserStoreService', () => {
     service.set(userMock);
 
     expect(service.getLoggedUserUIDSnapshot()).toBeNull();
+  });
+
+  it('bloqueia UID técnico e restauração do cache durante logout', () => {
+    authSession.currentAuthUser = { uid: 'u1' };
+    cache.getSync.mockReturnValue(userMock);
+    authSession.isTerminatingSnapshot = true;
+
+    expect(service.getLoggedUserUIDSnapshot()).toBeNull();
+    expect(service.restoreFromCache()).toBeNull();
+    expect(service.restoreFromCacheForUid('u1')).toBeNull();
+    expect(cache.getSync).not.toHaveBeenCalled();
+    expect(service.getSnapshot()).toBeUndefined();
+  });
+
+  it('não repovoa perfil ou cache após começar o encerramento', () => {
+    authSession.currentAuthUser = { uid: 'u1' };
+    service.set(userMock);
+    authSession.isTerminatingSnapshot = true;
+    service.clear();
+    vi.clearAllMocks();
+
+    service.set(userMock);
+    service.patch({ nickname: 'tentativa-atrasada' });
+    service.setUnavailable();
+
+    expect(service.getSnapshot()).toBeNull();
+    expect(cache.set).not.toHaveBeenCalled();
+    expect(cache.delete).toHaveBeenCalledWith('currentUserUid');
   });
 
   it('restoreFromCacheForUid() deve restaurar do cache quando uid bater', () => {

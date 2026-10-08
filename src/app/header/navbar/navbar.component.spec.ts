@@ -174,12 +174,13 @@ describe('NavbarComponent', () => {
     expect(component.homeLink).toEqual(['/dashboard', 'principal']);
   });
 
-  it('logout: deve chamar logoutService e notificar sucesso', () => {
+  it('logout: confirma sucesso pela navegação canônica, sem toast duplicado', () => {
     component.logout();
     fixture.detectChanges();
 
-    expect(logout.logout$).toHaveBeenCalled();
-    expect(notify.showSuccess).toHaveBeenCalledWith('Você saiu da sua conta.');
+    expect(logout.logout$).toHaveBeenCalledTimes(1);
+    expect(notify.showSuccess).not.toHaveBeenCalled();
+    expect(notify.showError).not.toHaveBeenCalled();
   });
 
   it('logout: não deve duplicar feedback de erro já centralizado no LogoutService', () => {

@@ -591,14 +591,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
       take(1),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
-      next: () => {
-        this.notify.showSuccess('Você saiu da sua conta.');
-      },
+      // A navegação para login confirma o sucesso; não há toast adicional.
+      // A falha já recebe feedback canônico do LogoutService.
       error: (error) => {
         this.logNavbar('logout error', { error });
-        // Supressão intencional: não há console.error nem showError local.
-        // LogoutService/ApplicationErrorService é a autoridade canônica do erro
-        // de logout e já entrega um único feedback seguro ao usuário.
       }
     });
   }

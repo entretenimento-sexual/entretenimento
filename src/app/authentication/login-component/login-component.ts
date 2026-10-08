@@ -41,7 +41,6 @@ import { LogoutService } from 'src/app/core/services/autentication/auth/logout.s
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PostAuthNavigationService } from 'src/app/register-module/data-access/post-auth-navigation.service';
 
@@ -76,7 +75,6 @@ export class LoginComponent implements OnInit {
   constructor(
     private readonly router: Router,
     private readonly route: ActivatedRoute,
-    private readonly notify: ErrorNotificationService,
     private readonly applicationError: ApplicationErrorService,
     private readonly logoutService: LogoutService,
     private readonly authFacade: AuthFacade,
@@ -347,12 +345,9 @@ export class LoginComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
-        next: () => {
-          this.notify.showSuccess('Você saiu da sua conta.');
-        },
-        error: () => {
-          this.setSystemError('Não foi possível sair agora. Tente novamente.');
-        },
+        // LogoutService navega para login e publica a falha na autoridade
+        // canônica. Mensagens locais gerariam duplicidade (snackbar + inline).
+        error: () => {},
       });
   }
 
