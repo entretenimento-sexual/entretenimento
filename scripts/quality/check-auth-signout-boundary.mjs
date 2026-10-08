@@ -163,9 +163,10 @@ const staffBoundary = staffSecurity.slice(
 );
 if (
   !staffBoundary.includes("if (!actorSnap.exists)") ||
-  !staffBoundary.includes("state['accountStatus']") ||
-  !staffBoundary.includes('collectRolesAndPermissions(state)') ||
-  staffBoundary.includes('const fromClaims =')
+  !staffBoundary.includes('currentStaffPermissionAllows(') ||
+  staffBoundary.includes('const fromClaims =') ||
+  !staffSecurity.includes("source.role ?? ''") ||
+  !staffSecurity.includes("user['accountStatus']")
 ) {
   credentialViolations.push('Autorização staff deve revalidar documento canônico e lifecycle, nunca aceitar somente JWT.');
 }
