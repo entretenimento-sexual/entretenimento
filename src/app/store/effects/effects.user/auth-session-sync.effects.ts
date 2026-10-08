@@ -4,10 +4,11 @@
 // o estado real da sessão (AuthSession) e o estado do Store.
 import { Injectable } from '@angular/core';
 import { createEffect } from '@ngrx/effects';
-import { of, combineLatest } from 'rxjs';
+import { of, combineLatest, concat } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
+  delay,
   filter,
   map,
   take,
@@ -101,7 +102,7 @@ export class AuthSessionSyncEffects {
         authSessionChanged({ uid, emailVerified })
       ),
 
-      catchError((err) => {
+      catchError((err, source) => {
         const error =
           err instanceof Error
             ? err
@@ -111,9 +112,13 @@ export class AuthSessionSyncEffects {
         (error as any).original = err;
         (error as any).context = 'AuthSessionSyncEffects.syncAuthSession$';
 
-        this.globalErrorHandler.handleError(error);
+        try { this.globalErrorHandler.handleError(error); } catch { /* Telemetria não pode derrubar a observação. */ }
 
-        return of(authSessionChanged({ uid: null, emailVerified: false }));
+        // Recadastra os observadores após falha; sem isso o effect morre.
+        return concat(
+          of(authSessionChanged({ uid: null, emailVerified: false })),
+          source.pipe(delay(1_000))
+        );
       })
     )
   );
@@ -152,9 +157,12 @@ export class AuthSessionSyncEffects {
         (error as any).context =
           'AuthSessionSyncEffects.ensureCurrentUserListener$';
 
-        this.globalErrorHandler.handleError(error);
+        try { this.globalErrorHandler.handleError(error); } catch { /* Telemetria best-effort. */ }
 
-        return of(stopObserveUserChanges());
+        return concat(
+          of(stopObserveUserChanges()),
+          source.pipe(delay(1_000))
+        );
       })
     )
   );
