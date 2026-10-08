@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Observable, defer, from } from 'rxjs';
+import { Observable } from 'rxjs';
 
 import {
   TVideoEditAspectRatio,
@@ -98,6 +98,17 @@ export class VideoMetadataPreparationService {
     video.playsInline = true;
     video.src = objectUrl;
 
+    let released = false;
+    const release = (): void => {
+      if (released) return;
+      released = true;
+      video.removeAttribute('src');
+      video.load();
+      URL.revokeObjectURL(objectUrl);
+    };
+    signal?.addEventListener('abort', release, { once: true });
+    if (signal?.aborted) release();
+
     try {
       const metadataLoaded = this.waitForEvent(
         video,
@@ -133,9 +144,8 @@ export class VideoMetadataPreparationService {
     } catch {
       return this.emptyResult();
     } finally {
-      video.removeAttribute('src');
-      video.load();
-      URL.revokeObjectURL(objectUrl);
+      signal?.removeEventListener('abort', release);
+      release();
     }
   }
 
@@ -161,7 +171,8 @@ export class VideoMetadataPreparationService {
     const blob = await this.drawCurrentFrame(
       video,
       aspectRatio,
-      rotationDegrees
+      rotationDegrees,
+      signal
     );
     if (signal?.aborted) throw new Error('Captura de capa cancelada.');
 
@@ -199,7 +210,8 @@ export class VideoMetadataPreparationService {
       return await this.drawCurrentFrame(
         video,
         options.aspectRatio ?? 'ORIGINAL',
-        options.rotationDegrees ?? 0
+        options.rotationDegrees ?? 0,
+        signal
       );
     } catch {
       return null;
@@ -209,8 +221,10 @@ export class VideoMetadataPreparationService {
   private async drawCurrentFrame(
     video: HTMLVideoElement,
     aspectRatio: TVideoEditAspectRatio,
-    rotationDegrees: TVideoRotationDegrees
+    rotationDegrees: TVideoRotationDegrees,
+    signal?: AbortSignal
   ): Promise<Blob | null> {
+    if (signal?.aborted) return null;
     const normalizedRotation = this.normalizeRotation(rotationDegrees);
     let source: CanvasImageSource = video;
     let sourceWidth = video.videoWidth;
@@ -276,7 +290,7 @@ export class VideoMetadataPreparationService {
       height
     );
 
-    return await this.canvasToBlob(canvas);
+    return await this.canvasToBlob(canvas, signal);
   }
 
   private resolveSourceCrop(
@@ -377,9 +391,33 @@ export class VideoMetadataPreparationService {
     });
   }
 
-  private canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
-    return new Promise((resolve) => {
-      canvas.toBlob(resolve, 'image/jpeg', POSTER_QUALITY);
+  private canvasToBlob(
+    canvas: HTMLCanvasElement,
+    signal?: AbortSignal
+  ): Promise<Blob | null> {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (blob: Blob | null): void => {
+        if (settled) return;
+        settled = true;
+        signal?.removeEventListener('abort', abort);
+        resolve(blob);
+      };
+      const abort = (): void => finish(null);
+      if (signal?.aborted) {
+        abort();
+        return;
+      }
+      signal?.addEventListener('abort', abort, { once: true });
+      try {
+        canvas.toBlob(finish, 'image/jpeg', POSTER_QUALITY);
+      } catch (error) {
+        if (!settled) {
+          settled = true;
+          signal?.removeEventListener('abort', abort);
+          reject(error);
+        }
+      }
     });
   }
 
