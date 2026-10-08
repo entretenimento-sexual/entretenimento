@@ -56,12 +56,6 @@
             </p>
           }
 
-          @if (vm.requestCompleted) {
-            <p class="recovery-next-step">
-              Solicitação concluída para este e-mail. Para tentar outro endereço, altere o campo acima.
-            </p>
-          }
-
           @if (vm.cooldownUntilMs > 0 && !vm.requestCompleted) {
             <p class="recovery-next-step" role="status">
               Aguarde um minuto antes de solicitar outro envio.

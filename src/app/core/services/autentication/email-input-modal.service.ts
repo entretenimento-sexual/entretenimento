@@ -70,7 +70,12 @@ export class EmailInputModalService {
 
   openModal(initialEmail = ''): void {
     const email = (initialEmail ?? '').trim();
-    const cooldownUntilMs = this.readCooldownUntilMs();
+    const cooldownUntilMs = Math.max(
+      this.stateSubject.value.cooldownUntilMs > Date.now()
+        ? this.stateSubject.value.cooldownUntilMs
+        : 0,
+      this.readCooldownUntilMs()
+    );
     this.scheduleCooldownExpiry(cooldownUntilMs);
 
     this.patchState({
@@ -146,7 +151,6 @@ export class EmailInputModalService {
     if (cooldownUntilMs > Date.now()) {
       this.patchState({ cooldownUntilMs });
       this.scheduleCooldownExpiry(cooldownUntilMs);
-      this.setFeedback('info', 'Aguarde um minuto entre solicitações de recuperação.');
       return;
     }
 

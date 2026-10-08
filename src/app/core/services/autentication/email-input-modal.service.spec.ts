@@ -45,6 +45,20 @@ describe('EmailInputModalService', () => {
     expect(sendPasswordResetEmail$).toHaveBeenCalledTimes(1);
   });
 
+  it('mantém o cooldown na mesma sessão mesmo sem a chave persistida', () => {
+    service.openModal();
+    service.sendPasswordRecoveryEmail('person@example.com');
+    try {
+      window.localStorage.removeItem('__AUTH_PASSWORD_RECOVERY_COOLDOWN_UNTIL__');
+    } catch {
+      // Simula storage não disponível.
+    }
+    service.closeModal();
+    service.openModal();
+    service.sendPasswordRecoveryEmail('other@example.com');
+    expect(sendPasswordResetEmail$).toHaveBeenCalledTimes(1);
+  });
+
   it('impede requisições simultâneas na própria camada de serviço', () => {
     const pending$ = new Subject<void>();
     sendPasswordResetEmail$.mockReturnValue(pending$.asObservable());
