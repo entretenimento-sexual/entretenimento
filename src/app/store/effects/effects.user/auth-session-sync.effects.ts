@@ -4,11 +4,11 @@
 // o estado real da sessão (AuthSession) e o estado do Store.
 import { Injectable } from '@angular/core';
 import { createEffect } from '@ngrx/effects';
-import { of, combineLatest, concat } from 'rxjs';
+import { of, combineLatest, concat, timer } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
-  delay,
+  switchMap,
   filter,
   map,
   take,
@@ -117,7 +117,7 @@ export class AuthSessionSyncEffects {
         // Recadastra os observadores após falha; sem isso o effect morre.
         return concat(
           of(authSessionChanged({ uid: null, emailVerified: false })),
-          source.pipe(delay(1_000))
+          timer(1_000).pipe(switchMap(() => source))
         );
       })
     )
@@ -161,7 +161,7 @@ export class AuthSessionSyncEffects {
 
         return concat(
           of(stopObserveUserChanges()),
-          source.pipe(delay(1_000))
+          timer(1_000).pipe(switchMap(() => source))
         );
       })
     )
