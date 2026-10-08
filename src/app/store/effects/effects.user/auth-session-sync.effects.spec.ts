@@ -74,4 +74,24 @@ describe('AuthSessionSyncEffects - limpeza canônica do cache auxiliar', () => {
 
     subscription.unsubscribe();
   });
+
+  it('purga cache auxiliar ao falhar stream autenticado antes da publicação de uid:null', () => {
+    const { effects, session, cache } = harness();
+    const actions: unknown[] = [];
+    const subscription = effects.syncAuthSession$.subscribe((action) => actions.push(action));
+
+    session.ready$.next(true);
+    session.authUser$.next({ uid: 'user-a', emailVerified: true });
+    expect(cache.clearSensitiveSessionCache$).toHaveBeenCalledTimes(2);
+
+    // Falha do stream interrompe observação; fallback precisa invalidar
+    // imediatamente tanto a projeção NgRx quanto caches fora do Store.
+    session.authUser$.error(new Error('authentication observer crashed'));
+    expect(actions.at(-1)).toEqual(
+      authSessionChanged({ uid: null, emailVerified: false })
+    );
+    expect(cache.clearSensitiveSessionCache$).toHaveBeenCalledTimes(3);
+    subscription.unsubscribe();
+  });
+
 });
