@@ -327,7 +327,7 @@ export class VideoUploadFlowService {
             editRecipe,
             publishWhenReady: true,
             ...publication,
-          });
+          }, assertNotCancelled);
           assertNotCancelled();
 
           completed = true;
@@ -420,9 +420,11 @@ export class VideoUploadFlowService {
   }
 
   private async registerUploadedVideo(
-    payload: RegisterPrivateVideoUploadRequest
+    payload: RegisterPrivateVideoUploadRequest,
+    assertActive: () => void
   ): Promise<RegisterPrivateVideoUploadResponse> {
     try {
+      assertActive();
       const response = await this.registerPrivateVideoUploadCallable(payload);
       return response.data;
     } catch (error) {
@@ -431,6 +433,8 @@ export class VideoUploadFlowService {
       }
 
       await this.delay(REGISTER_RETRY_DELAY_MS);
+      // Não repita registro de A sob credenciais de B após logout/troca.
+      assertActive();
       const retryResponse = await this.registerPrivateVideoUploadCallable(payload);
       return retryResponse.data;
     }

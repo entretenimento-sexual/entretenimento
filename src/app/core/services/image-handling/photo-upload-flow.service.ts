@@ -1,7 +1,8 @@
 // src/app/core/services/image-handling/photo-upload-flow.service.ts
 import { Injectable } from '@angular/core';
 import { Observable, from, of, throwError } from 'rxjs';
-import { catchError, map, switchMap } from 'rxjs/operators';
+import { catchError, filter, map, switchMap, takeUntil } from 'rxjs/operators';
+import { AuthSessionService } from '../autentication/auth/auth-session.service';
 
 import { StorageService } from './storage.service';
 import { PhotoFirestoreService } from './photo-firestore.service';
@@ -52,7 +53,12 @@ export class PhotoUploadFlowService {
     private readonly photoFirestoreService: PhotoFirestoreService,
     private readonly photoStorageLifecycle: PhotoStorageLifecycleService,
     private readonly errorHandler: MediaApplicationErrorService,
+    private readonly authSession: AuthSessionService,
   ) {}
+
+  private ownerSessionEnded$(userId: string): Observable<string | null> {
+    return this.authSession.uid$.pipe(filter((uid) => uid !== userId));
+  }
 
   uploadProcessedPhoto$(
     command: IPhotoUploadFlowCommand
@@ -102,7 +108,8 @@ export class PhotoUploadFlowService {
             fileName,
           }
         )
-      )
+      ),
+      takeUntil(this.ownerSessionEnded$(safeUserId))
     );
   }
 
@@ -216,7 +223,8 @@ export class PhotoUploadFlowService {
             fileName,
           }
         )
-      )
+      ),
+      takeUntil(this.ownerSessionEnded$(safeUserId))
     );
   }
 
@@ -288,7 +296,7 @@ export class PhotoUploadFlowService {
       });
 
       return () => subscription.unsubscribe();
-    });
+    }).pipe(takeUntil(this.ownerSessionEnded$(safeUserId)));
   }
 
   private uploadNewPhotoBinary$(

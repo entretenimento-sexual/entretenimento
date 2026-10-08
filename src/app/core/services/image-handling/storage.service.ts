@@ -29,7 +29,8 @@ import {
   type UploadMetadata,
 } from 'firebase/storage';
 import { Observable, defer, from, of, throwError } from 'rxjs';
-import { catchError, map, switchMap } from 'rxjs/operators';
+import { catchError, filter, map, switchMap, takeUntil } from 'rxjs/operators';
+import { AuthSessionService } from '../autentication/auth/auth-session.service';
 import { MediaApplicationErrorService } from '../media/media-application-error.service';
 import type { MediaErrorReason } from '../media/media-error.catalog';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
@@ -70,6 +71,7 @@ export interface PhotoUploadAssetResult {
 export class StorageService {
   private readonly storage = inject(Storage);
   private readonly auth = inject(Auth);
+  private readonly authSession = inject(AuthSessionService);
   private readonly functions = inject(Functions);
 
   constructor(
@@ -153,7 +155,15 @@ export class StorageService {
   }
 
   private get currentUid(): string | null {
+    if (this.authSession.isTerminatingSnapshot) return null;
     return this.auth.currentUser?.uid?.trim() || null;
+  }
+
+  /** O UID operacional invalida reservas, uploads e callbacks da sessão anterior. */
+  private ownerSessionEnded$(ownerUid: string): Observable<string | null> {
+    return this.authSession.uid$.pipe(
+      filter((uid) => uid !== ownerUid)
+    );
   }
 
   private sanitizeUid(userId: string): string {
@@ -357,6 +367,7 @@ export class StorageService {
     return new Observable<string>((observer) => {
       const storageRef = ref(this.storage, storagePath);
       const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+      let settled = false;
       const unsubscribe = uploadTask.on(
         'state_changed',
         (snapshot) => {
@@ -368,16 +379,25 @@ export class StorageService {
           progressCallback?.(normalizedProgress);
         },
         (error) => {
+          settled = true;
           const errorMsg = this.extractErrorMessage(error);
           this.dbg('upload failed', { kind, errorMsg });
           observer.error(error);
         },
         () => {
+          settled = true;
           observer.next(storagePath);
           observer.complete();
         }
       );
-      return () => unsubscribe();
+      return () => {
+        unsubscribe();
+        // Desinscrever o listener não cancela a transferência do Firebase.
+        // Sem este cancelamento, bytes de A podem continuar após o logout.
+        if (!settled) {
+          uploadTask.cancel();
+        }
+      };
     });
   }
 
@@ -509,6 +529,7 @@ export class StorageService {
         })
       );
     }).pipe(
+      takeUntil(this.ownerSessionEnded$(this.sanitizeUid(userId))),
       catchError((error) => {
         const errorMsg = this.extractErrorMessage(error);
         this.dbg('uploadOwnedPhotoFile failed', {
@@ -592,6 +613,7 @@ export class StorageService {
         })
       );
     }).pipe(
+      takeUntil(this.ownerSessionEnded$(this.sanitizeUid(userId))),
       catchError((error) => {
         const errorMsg = this.extractErrorMessage(error);
         this.dbg('uploadFile flow failed', {
@@ -663,6 +685,7 @@ export class StorageService {
         })
       );
     }).pipe(
+      takeUntil(this.ownerSessionEnded$(this.sanitizeUid(userId))),
       catchError((error) => {
         const errorMsg = this.extractErrorMessage(error);
         this.dbg('uploadProfileAvatar flow failed', {

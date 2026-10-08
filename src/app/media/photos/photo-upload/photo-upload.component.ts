@@ -21,9 +21,12 @@ import {
   switchMap,
   take,
   tap,
+  filter,
+  takeUntil,
 } from 'rxjs/operators';
 
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
@@ -69,6 +72,7 @@ export class PhotoUploadComponent {
   private readonly router = inject(Router);
 
   private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly authSession = inject(AuthSessionService);
   private readonly policy = inject(MediaPolicyService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(MediaApplicationErrorService);
@@ -87,6 +91,15 @@ export class PhotoUploadComponent {
 
   constructor() {
     this.destroyRef.onDestroy(() => this.revokePreviewUrl());
+    // Um arquivo selecionado também é dado privado: descarte ao trocar
+    // identidade ou navegar para outro perfil, mesmo antes do upload.
+    combineLatest([this.authSession.uid$, this.ownerUid$]).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(([uid, ownerUid]) => {
+      if (uid !== ownerUid) {
+        this.discardSessionDraft();
+      }
+    });
   }
 
   readonly ownerUid$: Observable<string> = this.route.paramMap.pipe(
@@ -360,6 +373,8 @@ export class PhotoUploadComponent {
                 });
                 return EMPTY;
               }),
+              takeUntil(this.authSession.uid$.pipe(filter((uid) => uid !== ownerUid))),
+              takeUntil(this.ownerUid$.pipe(filter((uid) => uid !== ownerUid))),
               finalize(() => {
                 if (this.phaseSubject.value === 'EDITING') {
                   this.phaseSubject.next('READY');
@@ -370,6 +385,21 @@ export class PhotoUploadComponent {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
+  }
+
+  private discardSessionDraft(): void {
+    if (
+      !this.fileSubject.value &&
+      this.phaseSubject.value === 'IDLE'
+    ) return;
+
+    this.revokePreviewUrl();
+    this.fileSubject.next(null);
+    this.imageStateSubject.next(null);
+    this.previewUrlSubject.next(null);
+    this.phaseSubject.next('IDLE');
+    this.audienceSubject.next(null);
+    this.uploadPercentSubject.next(0);
   }
 
   resetSelection(fileInput?: HTMLInputElement): void {
@@ -510,6 +540,14 @@ export class PhotoUploadComponent {
           }
         );
         return EMPTY;
+      }),
+      takeUntil(this.authSession.uid$.pipe(filter((uid) => uid !== ownerUid))),
+      takeUntil(this.ownerUid$.pipe(filter((uid) => uid !== ownerUid))),
+      finalize(() => {
+        if (this.currentUserStore.getLoggedUserUIDSnapshot() !== ownerUid) {
+          // Não manter o arquivo selecionado nem a prévia de A após logout.
+          this.discardSessionDraft();
+        }
       })
     );
   }
