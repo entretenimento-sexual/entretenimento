@@ -12,7 +12,6 @@ import { reducers } from './reducers';
 import { metaReducers as appMetaReducers } from './reducers/meta-reducers';
 
 // EFFECTS - USER
-import { AuthEffects } from './effects/effects.user/auth.effects';
 import { UserEffects } from './effects/effects.user/user.effects';
 import { OnlineUsersEffects } from './effects/effects.user/online-users.effects';
 import { AuthStatusSyncEffects } from './effects/effects.user/auth-status-sync.effects';
@@ -48,7 +47,6 @@ const metaReducers = appMetaReducers;
  */
 export const ROOT_EFFECTS = [
   // USER
-  AuthEffects,
   UserEffects,
   OnlineUsersEffects,
   AuthSessionSyncEffects,
