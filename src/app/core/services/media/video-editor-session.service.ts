@@ -1,4 +1,5 @@
 import { Injectable, Optional } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthSessionService } from '../autentication/auth/auth-session.service';
 import { BehaviorSubject, Observable, distinctUntilChanged, map } from 'rxjs';
 
@@ -45,7 +46,7 @@ export class VideoEditorSessionService {
   private activeOwnerUid: string | null = null;
 
   constructor(@Optional() private readonly authSession: AuthSessionService | null = null) {
-    this.authSession?.uid$.subscribe((uid) => {
+    this.authSession?.uid$.pipe(takeUntilDestroyed()).subscribe((uid) => {
       this.activeOwnerUid = String(uid ?? '').trim() || null;
       this.clearIfOwnerMismatch(this.activeOwnerUid);
     });

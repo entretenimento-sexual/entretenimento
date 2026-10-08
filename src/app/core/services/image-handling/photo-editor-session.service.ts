@@ -6,6 +6,7 @@
 // identificadores de Firestore/Storage e decide o destino após o resultado.
 
 import { Injectable, Optional } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthSessionService } from '../autentication/auth/auth-session.service';
 import { BehaviorSubject, Observable } from 'rxjs';
 
@@ -66,7 +67,7 @@ export class PhotoEditorSessionService {
   constructor(@Optional() private readonly authSession: AuthSessionService | null = null) {
     // O próprio domínio de rascunhos observa a autoridade de Auth. Não depende
     // da abertura do modal/launcher para descartar File e URLs privadas.
-    this.authSession?.uid$.subscribe((uid) => {
+    this.authSession?.uid$.pipe(takeUntilDestroyed()).subscribe((uid) => {
       this.activeOwnerUid = String(uid ?? '').trim() || null;
       if (this.draftSubject.value?.ownerUid !== this.activeOwnerUid) {
         this.clearDraft();
