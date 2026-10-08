@@ -38,8 +38,12 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
             doc(this.firestore, 'users', user.uid),
             { includeMetadataChanges: true },
             (snapshot) => {
-              // Cache local não prova autorização nem revogação atual.
-              if (snapshot.metadata.fromCache) return;
+              // Sem confirmação do servidor, a área administrativa deve fechar.
+              // Isso cobre tanto a primeira leitura quanto a perda de conexão.
+              if (snapshot.metadata.fromCache) {
+                subscriber.next(false);
+                return;
+              }
               const value = snapshot.exists() ? snapshot.data() : null;
               const allowed = !!value
                 && (value['accountStatus'] == null || value['accountStatus'] === 'active')
