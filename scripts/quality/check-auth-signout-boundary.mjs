@@ -212,8 +212,9 @@ const staffBoundary = staffSecurity.slice(
   staffSecurity.indexOf('export function createLifecycleAudit')
 );
 if (
-  !staffBoundary.includes("if (!actorSnap.exists)") ||
-  !staffBoundary.includes('currentStaffPermissionAllows(') ||
+  !staffBoundary.includes("db.collection('users').doc(uid).get()") ||
+  !staffBoundary.includes('assertStaffAuthorizationWithReader(params, async (uid)') ||
+  !staffSecurity.includes('currentStaffPermissionAllows(actor, requiredPermission)') ||
   staffBoundary.includes('const fromClaims =') ||
   !staffSecurity.includes("source.role ?? ''") ||
   !staffSecurity.includes("user['accountStatus']")
