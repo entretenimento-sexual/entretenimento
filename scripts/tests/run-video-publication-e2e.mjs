@@ -273,13 +273,12 @@ console.log(
     'explicitamente a fila e a conclusao simulada do provedor.'
 );
 
+// Sem inspector: o emulador deve permitir execuções paralelas para o teste de corrida.
 const child = spawn(
   nodeRuntime.executable,
   [
     firebaseCli,
     'emulators:exec',
-    '--inspect-functions',
-    '19229',
     '--config',
     'firebase.media-e2e.json',
     '--only',
