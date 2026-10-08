@@ -6,25 +6,23 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   inMemoryPersistence,
-  setPersistence,
 } from 'firebase/auth';
 import {
   AuthSessionPersistenceService,
   resolveAuthSessionPersistence,
 } from './auth-session-persistence.service';
 
-vi.mock('firebase/auth', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('firebase/auth')>()),
-  setPersistence: vi.fn(),
-}));
-
 describe('AuthSessionPersistenceService', () => {
+  const persist = vi.fn();
+
   beforeEach(() => {
-    vi.mocked(setPersistence).mockReset();
+    persist.mockReset();
     TestBed.configureTestingModule({
       providers: [
         AuthSessionPersistenceService,
-        { provide: Auth, useValue: {} },
+        // Firebase modular setPersistence delega a auth.setPersistence().
+        // Este stub testa o mesmo contrato sem modificar o módulo global.
+        { provide: Auth, useValue: { setPersistence: persist } },
       ],
     });
   });
@@ -37,20 +35,20 @@ describe('AuthSessionPersistenceService', () => {
   });
 
   it('conclui quando Firebase confirma o modo', async () => {
-    vi.mocked(setPersistence).mockResolvedValue(undefined);
+    persist.mockResolvedValue(undefined);
     await expect(
       firstValueFrom(TestBed.inject(AuthSessionPersistenceService)
         .setSessionPersistence$('session'))
     ).resolves.toBeUndefined();
-    expect(setPersistence).toHaveBeenCalledTimes(1);
+    expect(persist).toHaveBeenCalledTimes(1);
   });
 
   it('falha fechado, sem tentar outro modo de sessão', async () => {
-    vi.mocked(setPersistence).mockRejectedValue(new Error('storage denied'));
+    persist.mockRejectedValue(new Error('storage denied'));
     await expect(
       firstValueFrom(TestBed.inject(AuthSessionPersistenceService)
         .setSessionPersistence$('local'))
     ).rejects.toMatchObject({ code: 'auth/persistence-unavailable' });
-    expect(setPersistence).toHaveBeenCalledTimes(1);
+    expect(persist).toHaveBeenCalledTimes(1);
   });
 });

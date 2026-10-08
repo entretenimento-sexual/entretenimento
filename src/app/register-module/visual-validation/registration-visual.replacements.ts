@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { CanActivateFn, CanMatchFn, Router } from '@angular/router';
 import type { User } from '@angular/fire/auth';
-import { Observable, defer, of } from 'rxjs';
+import { BehaviorSubject, Observable, defer, of } from 'rxjs';
 import { map, shareReplay } from 'rxjs/operators';
 
 import type {
@@ -41,18 +41,20 @@ export class AuthSessionService {
   readonly readyAuthUser$: Observable<User | null> = of(null);
   readonly readyUid$: Observable<string | null> = of(null);
 
-  private terminating = false;
+  // Espelha a autoridade reativa do AuthSessionService real nos builds visuais.
+  private readonly terminationSubject = new BehaviorSubject<boolean>(false);
+  readonly isTerminating$: Observable<boolean> = this.terminationSubject.asObservable();
 
   beginTermination(): void {
-    this.terminating = true;
+    this.terminationSubject.next(true);
   }
 
   endTermination(): void {
-    this.terminating = false;
+    this.terminationSubject.next(false);
   }
 
   get isTerminatingSnapshot(): boolean {
-    return this.terminating;
+    return this.terminationSubject.value;
   }
 
   whenReady(): Promise<void> {
