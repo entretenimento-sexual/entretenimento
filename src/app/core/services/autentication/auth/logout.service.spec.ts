@@ -72,6 +72,10 @@ function createHarness(options: HarnessOptions = {}) {
 
   const pushNotifications = {
     state$: pushStateMode === 'never' ? NEVER : of('active' as const),
+    get currentStateSnapshot() {
+      if (pushStateMode === 'never') calls.push('push:snapshot');
+      return 'active' as const;
+    },
     deactivate$: vi.fn(() =>
       defer(() => {
         calls.push('push');
@@ -256,30 +260,21 @@ describe('LogoutService global session lifecycle', () => {
     expect(executeSignOut).toHaveBeenCalledTimes(1);
   });
 
-  it('mascara a sessão antes da captura de Web Push e continua se ela não emitir', async () => {
-    vi.useFakeTimers();
+  it('usa snapshot de Web Push sem aguardar emissões para mascarar a sessão', async () => {
     const { service, calls, authSession, applicationError } =
       createHarness({ pushStateMode: 'never' });
-    const completed = firstValueFrom(service.logout$());
 
-    expect(authSession.beginTermination).toHaveBeenCalledTimes(1);
-    expect(calls).toEqual(['session:begin']);
+    await firstValueFrom(service.logout$());
 
-    await vi.advanceTimersByTimeAsync(3_000);
-    await completed;
-
+    expect(calls.slice(0, 3)).toEqual([
+      'push:snapshot',
+      'session:begin',
+      'geolocation',
+    ]);
     expect(calls).toContain('signout:strict');
-    expect(calls).toContain('cache');
     expect(calls).toContain('session:end');
-    expect(applicationError.report).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: '[LogoutService] best-effort push state capture timeout',
-      }),
-      expect.objectContaining({
-        operation: 'capturePushStateBestEffort$',
-        presentation: { surface: 'none', severity: 'error' },
-      })
-    );
+    expect(authSession.beginTermination).toHaveBeenCalledTimes(1);
+    expect(applicationError.report).not.toHaveBeenCalled();
   });
 
   it('restaura a sessão operacional e Web Push se o signOut estrito falhar', async () => {

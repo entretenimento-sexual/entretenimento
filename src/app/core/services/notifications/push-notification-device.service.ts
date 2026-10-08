@@ -106,6 +106,11 @@ export class PushNotificationDeviceService implements OnDestroy {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+  /** Snapshot read-only para rollback do logout, antes da queda reativa de UID. */
+  get currentStateSnapshot(): PushNotificationDeviceState {
+    return this.stateSubject.value;
+  }
+
   readonly busy$: Observable<boolean> = this.busySubject.asObservable().pipe(
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })

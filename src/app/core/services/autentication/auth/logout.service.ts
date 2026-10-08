@@ -85,11 +85,12 @@ export class LogoutService {
 
     let shared$: Observable<void>;
 
-    // Máscara a sessão operacional no momento da assinatura, antes da leitura
-    // reativa de Web Push, que pode demorar ou nunca emitir.
+    // Snapshot síncrono antes de mascarar o UID: a própria troca de sessão
+    // pode publicar 'inactive' em Web Push. Nenhum stream prende o logout.
     shared$ = defer(() => {
+      const pushState = this.pushNotifications.currentStateSnapshot;
       this.authSession.beginTermination();
-      return this.capturePushStateBestEffort$();
+      return of(pushState);
     }).pipe(
       switchMap((pushState) =>
         this.stopGeolocationBestEffort$().pipe(
@@ -243,30 +244,6 @@ export class LogoutService {
    * Captura somente o estado necessário para rollback do logout voluntário.
    * Não lê token, UID ou conteúdo de notificação.
    */
-  private capturePushStateBestEffort$(): Observable<PushNotificationDeviceState> {
-    return defer(() => this.pushNotifications.state$).pipe(
-      take(1),
-      defaultIfEmpty('inactive' as PushNotificationDeviceState),
-      timeout({
-        first: BEST_EFFORT_CLEANUP_TIMEOUT_MS,
-        with: () => {
-          this.reportSilent(
-            new Error('[LogoutService] best-effort push state capture timeout'),
-            {
-              phase: 'capturePushStateBestEffort$',
-              timeoutMs: BEST_EFFORT_CLEANUP_TIMEOUT_MS,
-            }
-          );
-          return of('inactive' as PushNotificationDeviceState);
-        },
-      }),
-      catchError((err) => {
-        this.reportSilent(err, { phase: 'capturePushStateBestEffort$' });
-        return of('inactive' as PushNotificationDeviceState);
-      })
-    );
-  }
-
   /**
    * Falha de signOut voluntário não pode deixar a conta autenticada com Presence,
    * geolocalização/Store já desmontados. Primeiro reexpomos a sessão canônica;
