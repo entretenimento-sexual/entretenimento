@@ -517,9 +517,7 @@ export const registerPrivateVideoUpload = onCall<
       : null;
 
     if (rawPosterStoragePath && !posterStoragePath) {
-      await deleteUploadedAssetsRecoverably(ownerUid, videoId, [
-        { storagePath: videoStoragePath, assetKind: 'video' },
-      ]);
+      // Entrada inválida não autoriza excluir objetos antes de validar a reserva.
       throw new HttpsError(
         'invalid-argument',
         'O caminho da capa não pertence ao vídeo informado.'
@@ -542,6 +540,7 @@ export const registerPrivateVideoUpload = onCall<
     }
 
     let registrationCommitted = false;
+    let reservationValidated = false;
     const rollbackAssets = [
       { storagePath: videoStoragePath, assetKind: 'video' as const },
       ...(posterStoragePath
@@ -570,6 +569,7 @@ export const registerPrivateVideoUpload = onCall<
         posterSizeBytes: posterMetadata?.sizeBytes ?? 0,
         posterContentType: posterMetadata?.mimeType ?? null,
       });
+      reservationValidated = true;
 
       if (
         requestedMimeType &&
@@ -681,7 +681,7 @@ export const registerPrivateVideoUpload = onCall<
         createdAt,
       };
     } catch (error) {
-      if (!registrationCommitted) {
+      if (reservationValidated && !registrationCommitted) {
         await deleteUploadedAssetsRecoverably(
           ownerUid,
           videoId,
