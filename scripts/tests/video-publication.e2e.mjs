@@ -326,6 +326,49 @@ async function run() {
       clientFunctions,
       'registerPrivateVideoUpload'
     );
+    // A requisição inválida não deve apagar um binário com reserva legítima.
+    await assert.rejects(
+      () => registerPrivateVideoUpload({
+        reservationId: firstReservation.data.reservationId,
+        ownerUid,
+        videoId,
+        videoStoragePath: sourcePath,
+        posterStoragePath: `users/${ownerUid}/uploads/video-posters/other-video/invalid.jpg`,
+        mimeType: 'video/mp4',
+        sizeBytes: sourceBytes.byteLength,
+      }),
+      (error) => {
+        assert.match(String(error?.code ?? ''), /invalid-argument/);
+        return true;
+      }
+    );
+    assert.equal(await readFileExists(bucket.file(sourcePath)), true);
+    assert.equal(await readFileExists(bucket.file(posterPath)), true);
+
+    // Registros concorrentes devem convergir no mesmo documento, sem
+    // apagar os binários por conflito de create() ou resposta atrasada.
+    const registerSameVideo = () => registerVideo({
+      registerCallable: registerPrivateVideoUpload,
+      reservationId: firstReservation.data.reservationId,
+      ownerUid,
+      videoId,
+      sourcePath,
+      posterPath,
+      sourceBytes,
+      title: draftTitle,
+      description: draftDescription,
+    });
+    const concurrentRegistrations = await Promise.all([
+      registerSameVideo(),
+      registerSameVideo(),
+    ]);
+    for (const response of concurrentRegistrations) {
+      assert.equal(response.data.videoId, videoId);
+      assert.equal(response.data.ownerUid, ownerUid);
+    }
+    assert.equal(await readFileExists(bucket.file(sourcePath)), true);
+    assert.equal(await readFileExists(bucket.file(posterPath)), true);
+
     const registrationResponse = await registerVideo({
       registerCallable: registerPrivateVideoUpload,
       reservationId: firstReservation.data.reservationId,
@@ -710,6 +753,8 @@ async function run() {
     assert.match(String(failureNotification.body ?? ''), /versão compatível/i);
     assert.match(String(failureNotification.body ?? ''), /removido da plataforma/i);
 
+    console.log('✔ registro inválido não excluiu binários com reserva legítima');
+    console.log('✔ registros concorrentes convergiram sem excluir vídeo ou capa');
     console.log('✔ arquivo-fonte protegido pelas Storage Rules');
     console.log('✔ registro nasceu privado com intenção de publicação PUBLIC após processamento');
     console.log('✔ fila de processamento criada e publicação automática ficou APPROVED');
