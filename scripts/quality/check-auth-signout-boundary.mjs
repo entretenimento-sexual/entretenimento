@@ -186,15 +186,16 @@ for (const required of [
   }
 }
 
-// A página já aberta deve reagir à revogação sem nova navegação.
+// Dashboard e listener precisam preservar a revogação reativa.
 const adminDashboardSource = fs.readFileSync(
   path.join(root, 'src/app/admin-dashboard/admin-dashboard.component.ts'), 'utf8'
 );
+const adminPrivilegeWatchSource = fs.readFileSync(
+  path.join(root, 'src/app/admin-dashboard/admin-privilege-watch.service.ts'), 'utf8'
+);
 for (const required of [
   'authSession.authUser$',
-  'onSnapshot(',
-  'snapshot.metadata.fromCache',
-  "value['role'] === 'admin'",
+  'privilegeWatch.watch(user.uid)',
   'this.exitAdmin()',
   'this.sessionSubscription?.unsubscribe()',
 ]) {
@@ -202,10 +203,18 @@ for (const required of [
     credentialViolations.push('Dashboard admin deve observar revogação: ' + required);
   }
 }
-
-// Snapshot de cache nunca pode preservar o painel administrativo.
-if (!/if\s*\(snapshot\.metadata\.fromCache\)\s*\{\s*subscriber\.next\(false\);\s*return;\s*\}/.test(adminDashboardSource)) {
-  credentialViolations.push('Dashboard admin deve negar acesso ao receber snapshot somente de cache.');
+for (const required of [
+  'onSnapshot(',
+  'snapshot.metadata.fromCache',
+  "value['role'] === 'admin'",
+  'subscriber.error(error)',
+]) {
+  if (!adminPrivilegeWatchSource.includes(required)) {
+    credentialViolations.push('Listener admin deve observar revogação: ' + required);
+  }
+}
+if (!/if\s*\(snapshot\.metadata\.fromCache\)\s*\{\s*subscriber\.next\(false\);\s*return;\s*\}/.test(adminPrivilegeWatchSource)) {
+  credentialViolations.push('Listener admin deve negar acesso ao receber snapshot somente de cache.');
 }
 
 // Revogação de staff não pode depender exclusivamente de claims do JWT.
