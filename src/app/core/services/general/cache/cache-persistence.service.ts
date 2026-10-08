@@ -60,6 +60,7 @@ export class CachePersistenceService {
   private sensitiveExactKeys = new Set<string>();
   private sensitivePrefixes: string[] = [];
   private activeSessionPurgeEpoch: number | null = null;
+  private sensitivePurgeFailed = false;
   private readonly freshWritesDuringPurge = new Set<string>();
 
   /** Compatibilidade com consumidores legados sem TTL. */
@@ -133,6 +134,7 @@ export class CachePersistenceService {
           && (
             readSessionEpoch !== this.sessionMutationEpoch
             || this.activeSessionPurgeEpoch !== null
+            || this.sensitivePurgeFailed
           )
         ) {
           // Nunca exponha IndexedDB antigo enquanto a purga da sessão ocorre.
@@ -279,6 +281,17 @@ export class CachePersistenceService {
           })
         )
       );
+    }).then(() => {
+      if (this.sessionMutationEpoch === purgeEpoch) {
+        this.sensitivePurgeFailed = false;
+      }
+    }).catch((error: unknown) => {
+      // Uma falha parcial não pode permitir reidratação de A em B. Leituras
+      // persistentes sensíveis ficam fechadas até uma purga posterior válida.
+      if (this.sessionMutationEpoch === purgeEpoch) {
+        this.sensitivePurgeFailed = true;
+      }
+      throw error;
     }).finally(() => {
       if (this.activeSessionPurgeEpoch === purgeEpoch) {
         this.activeSessionPurgeEpoch = null;

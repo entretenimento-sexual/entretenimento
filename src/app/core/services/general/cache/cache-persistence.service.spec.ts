@@ -281,4 +281,36 @@ describe('CachePersistenceService', () => {
     expect(await get(cacheKey, persistenceStore)).toBeUndefined();
   });
 
+  it('falha parcial de purga mantém leituras sensíveis fechadas até uma limpeza bem-sucedida', async () => {
+    const cacheKey = key('user:stale-profile');
+    await firstValueFrom(service.setPersistentEntry(
+      cacheKey, { owner: 'user-a' }, Date.now() + 60_000
+    ));
+
+    const internal = service as unknown as {
+      enqueueMutation: (key: string, action: () => Promise<void>) => Promise<void>;
+    };
+    const enqueue = internal.enqueueMutation.bind(service);
+    let rejectOnce = true;
+    const spy = vi.spyOn(internal, 'enqueueMutation').mockImplementation((entryKey, action) => {
+      if (entryKey === cacheKey && rejectOnce) {
+        rejectOnce = false;
+        return Promise.reject(new Error('indexeddb delete unavailable'));
+      }
+      return enqueue(entryKey, action);
+    });
+
+    await expect(firstValueFrom(
+      service.purgeSensitiveSessionEntries([], [key('user:')])
+    )).rejects.toThrow('indexeddb delete unavailable');
+    expect(await get(cacheKey, persistenceStore)).toBeTruthy();
+
+    // A sessão B não recebe o envelope antigo, apesar de ele ainda existir.
+    expect(await firstValueFrom(service.getPersistentEntry(cacheKey))).toBeNull();
+    spy.mockRestore();
+
+    await firstValueFrom(service.purgeSensitiveSessionEntries([], [key('user:')]));
+    expect(await get(cacheKey, persistenceStore)).toBeUndefined();
+  });
+
 });
