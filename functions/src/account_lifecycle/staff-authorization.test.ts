@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { currentStaffPermissionAllows } from './_shared';
+import { assertStaffAuthorizationWithReader, currentStaffPermissionAllows } from './_shared';
 
 const permission = 'users:suspend' as const;
 
@@ -38,4 +38,41 @@ test('restauração de privilégio volta a autorizar sem mudar a decisão sobre 
   const restored = { accountStatus: 'active', role: 'admin' };
   assert.equal(currentStaffPermissionAllows(revoked, permission), false);
   assert.equal(currentStaffPermissionAllows(restored, permission), true);
+});
+
+test('autorização assíncrona reconsulta cada requisição e nega JWT antigo', async () => {
+  const sameJwt = { admin: true, roles: ['admin'] };
+  let actor: Record<string, unknown> | null = { accountStatus: 'active', role: 'admin' };
+  let reads = 0;
+  const readActor = async (uid: string) => {
+    assert.equal(uid, 'operator-a');
+    reads += 1;
+    return actor;
+  };
+  const params = { actorUid: 'operator-a', authToken: sameJwt, requiredPermission: permission };
+  await assertStaffAuthorizationWithReader(params, readActor);
+  actor = { accountStatus: 'active', role: 'free' };
+  await assert.rejects(
+    assertStaffAuthorizationWithReader(params, readActor),
+    (error: unknown) => (error as { code?: string }).code === 'functions/permission-denied'
+  );
+  actor = { accountStatus: 'active', role: 'admin' };
+  await assertStaffAuthorizationWithReader(params, readActor);
+  assert.equal(reads, 3);
+});
+
+test('documento ausente e operador anônimo falham fechados', async () => {
+  const readMissing = async () => null;
+  await assert.rejects(
+    assertStaffAuthorizationWithReader({
+      actorUid: 'missing', authToken: { admin: true }, requiredPermission: permission,
+    }, readMissing),
+    (error: unknown) => (error as { code?: string }).code === 'functions/permission-denied'
+  );
+  await assert.rejects(
+    assertStaffAuthorizationWithReader({
+      actorUid: null, authToken: { admin: true }, requiredPermission: permission,
+    }, async () => { throw new Error('Não deve consultar sem UID'); }),
+    (error: unknown) => (error as { code?: string }).code === 'functions/unauthenticated'
+  );
 });
