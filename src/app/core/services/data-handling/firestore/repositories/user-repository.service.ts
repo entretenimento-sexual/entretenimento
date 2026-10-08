@@ -21,6 +21,7 @@ import { UsersReadRepository } from '@core/services/data-handling/firestore/repo
 import { UserStateCacheService } from '@core/services/data-handling/firestore/state/user-state-cache.service';
 
 import { IUserDados } from '@core/interfaces/iuser-dados';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { IUserRegistrationData } from '@core/interfaces/iuser-registration-data';
 import { FirestoreWriteService } from '../core/firestore-write.service';
 
@@ -36,7 +37,17 @@ export class UserRepositoryService {
     private readonly firestoreError: FirestoreErrorHandlerService,
     private readonly usersReadRepo: UsersReadRepository,
     private readonly userStateCache: UserStateCacheService,
+    private readonly authSession: AuthSessionService,
   ) { }
+
+  /**
+   * Apenas leituras privadas da identidade operacional podem alimentar o
+   * cache de usuário. O resultado pode chegar após logout/troca A→B.
+   */
+  private canCachePrivateUser(uid: string): boolean {
+    return !this.authSession.isTerminatingSnapshot
+      && this.authSession.currentAuthUser?.uid === uid;
+  }
 
   private norm(uid: string): string {
     return (uid ?? '').toString().trim();
@@ -70,7 +81,11 @@ export class UserRepositoryService {
         return this.store.select(selectUserProfileDataByUid(id)).pipe(
           take(1),
           switchMap((fromStore) => fromStore ? of(fromStore) : this.usersReadRepo.getUserOnce$(id)),
-          tap((user) => { if (user) this.userStateCache.upsertUser(user); })
+          tap((user) => {
+            if (user?.uid === id && this.canCachePrivateUser(id)) {
+              this.userStateCache.upsertUser(user);
+            }
+          })
         );
       }),
       catchError((err) =>
@@ -127,7 +142,9 @@ export class UserRepositoryService {
 
     return this.usersReadRepo.watchUser$(id).pipe(
       tap((user) => {
-        if (user) this.userStateCache.upsertUser(user);
+        if (user?.uid === id && this.canCachePrivateUser(id)) {
+          this.userStateCache.upsertUser(user);
+        }
       }),
       catchError((err) =>
         this.firestoreError.handleFirestoreErrorAndReturnNull<IUserDados>(err, {
