@@ -243,4 +243,60 @@ describe('VideoMetadataPreparationService', () => {
     expect(subscription.closed).toBe(true);
   });
 
+
+  it('libera vídeo imediatamente ao cancelar enquanto canvas.toBlob está pendente', async () => {
+    const originalCreateElement = document.createElement.bind(document);
+    const video = originalCreateElement('video');
+    Object.defineProperties(video, {
+      duration: { configurable: true, value: 10 },
+      videoWidth: { configurable: true, value: 640 },
+      videoHeight: { configurable: true, value: 480 },
+      readyState: {
+        configurable: true,
+        value: HTMLMediaElement.HAVE_CURRENT_DATA,
+      },
+    });
+    vi.spyOn(document, 'createElement').mockImplementation((tagName: string) =>
+      tagName.toLowerCase() === 'video' ? video : originalCreateElement(tagName)
+    );
+    vi.spyOn(video, 'load').mockImplementation(() => {
+      queueMicrotask(() => video.dispatchEvent(new Event('loadedmetadata')));
+    });
+    Object.defineProperty(video, 'currentTime', {
+      configurable: true,
+      get: () => 0,
+      set: () => queueMicrotask(() => video.dispatchEvent(new Event('seeked'))),
+    });
+    let finishCanvas: ((blob: Blob | null) => void) | undefined;
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) => {
+      finishCanvas = callback;
+    });
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn(() => 'blob:encoding-pending'),
+      revokeObjectURL,
+    });
+    const next = vi.fn();
+    const error = vi.fn();
+    const subscription = service.prepare$(
+      new File(['video'], 'pending.mp4', { type: 'video/mp4' })
+    ).subscribe({ next, error });
+
+    for (let index = 0; index < 12 && !finishCanvas; index += 1) {
+      await Promise.resolve();
+    }
+    expect(finishCanvas).toBeTypeOf('function');
+    subscription.unsubscribe();
+
+    expect(video.getAttribute('src')).toBeNull();
+    expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:encoding-pending');
+    finishCanvas?.(new Blob(['late'], { type: 'image/jpeg' }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(next).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+  });
+
 });
