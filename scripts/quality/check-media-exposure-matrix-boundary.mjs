@@ -35,6 +35,19 @@ function requireIncludes(source, fragments, label) {
   }
 }
 
+const storageRules = read('storage.rules');
+requireIncludes(storageRules, [
+  'function mayReadPublishedAvatar(uid)',
+  'allow read: if mayReadPublishedAvatar(uid);',
+  'activeAccountForAvatar(request.auth.uid)',
+  'avatarOwnerExposable(uid)',
+  '!activeBlock(uid, request.auth.uid)',
+  '!activeBlock(request.auth.uid, uid)',
+], 'avatar publicado deve respeitar lifecycle e bloqueio bilateral');
+if (storageRules.includes('allow read: if signedIn();')) {
+  throw new Error('[media-exposure-matrix] Avatar não pode ter leitura irrestrita por sessão.');
+}
+
 const helpers = read('firestore-rules/_helpers.rules');
 requireIncludes(helpers, [
   'canonicalOwnerLifecycleAllowsPublicMediaExposure',
