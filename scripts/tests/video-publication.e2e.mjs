@@ -462,6 +462,24 @@ async function run() {
       createdAt: new Date(Date.now() - 120_000),
       expiresAt: new Date(Date.now() - 60_000),
     });
+    // Força a disputa: o registro assume a reserva, então ela vence.
+    // A limpeza não pode apagar o binário até o registro liberar o claim.
+    await orphanRef.update({ expiresAt: new Date(Date.now() + 60_000) });
+    const claimToken = await reservationHandlers.claimVideoUploadReservation({
+      reservationId: orphanReservationId,
+      ownerUid,
+      videoId: orphanVideoId,
+    });
+    await orphanRef.update({ expiresAt: new Date(Date.now() - 60_000) });
+    const claimedSnapshot = await orphanRef.get();
+    await reconcileReservation(claimedSnapshot, claimedSnapshot.data());
+    assert.equal((await orphanRef.get()).exists, true);
+    assert.equal(await readFileExists(bucket.file(orphanPath)), true);
+    await reservationHandlers.releaseVideoUploadReservationClaim(
+      orphanReservationId,
+      claimToken
+    );
+
     const orphanSnapshot = await orphanRef.get();
     assert.equal(
       await reconcileReservation(orphanSnapshot, orphanSnapshot.data()),
@@ -840,6 +858,7 @@ async function run() {
     assert.match(String(failureNotification.body ?? ''), /removido da plataforma/i);
 
     console.log('✔ reconciliação de reserva expirada preservou vídeo registrado');
+    console.log('✔ claim de registro impediu limpeza de reserva expirada até liberação');
     console.log('✔ reconciliação removeu arquivo órfão e sua reserva expirada');
     console.log('✔ registro inválido não excluiu binários com reserva legítima');
     console.log('✔ registros concorrentes convergiram sem excluir vídeo ou capa');
