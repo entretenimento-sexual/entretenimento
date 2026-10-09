@@ -82,6 +82,17 @@ describe('Firestore Rules / direct chat reactions', () => {
     expect(after.data()?.['reactionsByUser']).toEqual({ [B]: '🔥' });
   });
 
+  it('preserva ambas as reações enviadas simultaneamente por participantes distintos', async () => {
+    // Inicia ambas as escritas sem aguardar uma terminar.
+    const results = await Promise.allSettled([
+      write(A, '❤️'),
+      write(B, '🔥'),
+    ]);
+    expect(results.map((result) => result.status)).toEqual(['fulfilled', 'fulfilled']);
+    const snap = await assertSucceeds(getDoc(message(A)));
+    expect(snap.data()?.['reactionsByUser']).toEqual({ [A]: '❤️', [B]: '🔥' });
+  });
+
   it('nega alteração da reação de outro participante', async () => {
     await assertSucceeds(write(A, '❤️'));
     await assertFails(updateDoc(message(B), new FieldPath('reactionsByUser', A), '😂'));
