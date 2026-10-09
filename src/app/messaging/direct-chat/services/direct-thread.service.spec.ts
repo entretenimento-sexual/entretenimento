@@ -201,6 +201,38 @@ describe('DirectThreadService', () => {
     sub.unsubscribe();
   });
 
+  it('descarta falha tardia da callable após troca de conta sem snackbar', async () => {
+    let rejectPending!: (reason: unknown) => void;
+    sendCallableMock.mockImplementationOnce(() => new Promise((_resolve, reject) => {
+      rejectPending = reject;
+    }));
+    const values: unknown[] = [];
+    const errors: unknown[] = [];
+    const subscription = service.sendMessage$('chat-1', 'olá', 'req-1')
+      .subscribe({ next: (value: unknown) => values.push(value), error: (error: unknown) => errors.push(error) });
+
+    expect(sendCallableMock).toHaveBeenCalledTimes(1);
+    authUid$.next('user-b');
+    rejectPending(new Error('old session failure'));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(values).toEqual([]);
+    expect(errors).toEqual([]);
+    expect(applicationErrorMock.report).not.toHaveBeenCalled();
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
+    subscription.unsubscribe();
+  });
+
+  it('não despacha callable quando não há sessão ou permissão', async () => {
+    authUid$.next(null);
+    expect(await firstValueFrom(service.sendMessage$('chat-1', 'olá', 'req-1'))).toBeNull();
+    authUid$.next('user-a');
+    canListenRealtime$.next(false);
+    expect(await firstValueFrom(service.sendMessage$('chat-1', 'olá', 'req-2'))).toBeNull();
+    expect(sendCallableMock).not.toHaveBeenCalled();
+  });
+
   it('sendMessage$ deve retornar null quando chatId vier vazio', async () => {
     const result = await firstValueFrom(
       service.sendMessage$('   ', 'olá', 'req-1')
