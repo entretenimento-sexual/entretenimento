@@ -225,7 +225,8 @@ export async function reconcileExpiredReservation(
       const fresh = await tx.get(reservationRef);
       if (!fresh.exists) return false;
       const current = fresh.data() as VideoUploadReservationDocument;
-      if ((current.phase && current.phase !== 'READY' && Date.now() - Number(current.phaseStartedAt ?? 0) < PHASE_LEASE_MS) ||
+      if ((current.phase && current.phase !== 'READY' &&
+          Date.now() - Number(current.phaseStartedAt ?? 0) < PHASE_LEASE_MS) ||
           reservationExpiryMs(current.expiresAt) > Date.now()) {
         return false;
       }
