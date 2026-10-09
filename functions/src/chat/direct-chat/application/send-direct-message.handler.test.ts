@@ -56,9 +56,10 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
   });
 
   const send = (content: string, clientRequestId: string) =>
-    invoke({ chatId, content, clientRequestId }, {
+    invoke({
+      data: { chatId, content, clientRequestId },
       auth: { uid: actorUid, token: { email_verified: true } },
-    });
+    }, {});
 
   it('deduplica duas chamadas simultâneas com o mesmo requestId', async () => {
     const id = randomUUID();
