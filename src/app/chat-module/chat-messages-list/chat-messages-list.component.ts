@@ -128,7 +128,19 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     this.authSession.uid$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((uid) => {
-        this.currentUserUid = String(uid ?? '').trim() || null;
+        const nextUid = String(uid ?? '').trim() || null;
+        if (nextUid === this.currentUserUid) return;
+        const previousUid = this.currentUserUid;
+        this.currentUserUid = nextUid;
+        this.activeThreadSub?.unsubscribe();
+        this.activeThreadSub = undefined;
+        this.detachScrollWatcher();
+        this.resetThreadState();
+        // Em troca de conta, aguardar o shell selecionar a thread da nova sessão.
+        // No bootstrap inicial, o input da thread pode ter chegado antes do UID.
+        if (!previousUid && nextUid && this.chatId && !this.activeThreadKey) {
+          this.rebindThread();
+        }
       });
   }
 
@@ -144,7 +156,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     this.activeThreadSub = undefined;
     this.detachScrollWatcher();
 
-    if (!safeChatId || (safeType !== 'chat' && safeType !== 'room')) {
+    if (!this.currentUserUid || !safeChatId || (safeType !== 'chat' && safeType !== 'room')) {
       this.resetThreadState();
       return;
     }
