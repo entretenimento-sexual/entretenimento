@@ -85,8 +85,8 @@ export class DiscoveryFeedEffects {
         slice.nextCursor !== null
       ),
       withLatestFrom(this.access.authUid$),
-      filter(([{ request }, , uid]) => request.viewerUid === uid),
-      exhaustMap(([{ request }, slice]) =>
+      filter(([[{ request }], uid]) => request.viewerUid === uid),
+      exhaustMap(([[{ request }, slice]]) =>
         this.repository.loadPage$(request, slice.nextCursor).pipe(
           takeUntil(this.access.authUid$.pipe(filter(uid => uid !== request.viewerUid))),
           map((page) =>
