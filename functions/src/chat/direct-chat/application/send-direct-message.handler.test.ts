@@ -143,6 +143,104 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     }
   });
 
+  /**
+   * Pausa somente a primeira tentativa imediatamente antes do commit.
+   * A revogação é persistida entre a leitura transacional e esse commit.
+   * O Firestore deve detectar o conflito, repetir as leituras e negar o envio.
+   */
+  async function assertRevocationWinsRace(
+    label: string,
+    revoke: () => Promise<void>,
+    restore: () => Promise<void>,
+    acceptedErrors: string[]
+  ): Promise<void> {
+    const id = randomUUID();
+    const chatRef = db.doc(`chats/${chatId}`);
+    const previewBefore = (await chatRef.get()).data()?.lastMessage;
+    const originalRunTransaction = db.runTransaction.bind(db);
+    let signalPaused!: () => void;
+    let releaseCommit!: () => void;
+    let intercepted = false;
+    const paused = new Promise<void>((resolve) => { signalPaused = resolve; });
+    const released = new Promise<void>((resolve) => { releaseCommit = resolve; });
+
+    (db as any).runTransaction = (callback: any, options?: any) =>
+      originalRunTransaction(async (transaction) => {
+        const result = await callback(transaction);
+        if (!intercepted) {
+          intercepted = true;
+          signalPaused();
+          await released;
+        }
+        return result;
+      }, options);
+
+    try {
+      const attemptedSend = send(label, id);
+      // Anexa a rejeição imediatamente para evitar unhandled rejection.
+      const settled = attemptedSend.then(
+        (value: any) => ({ value, error: null }),
+        (error: any) => ({ value: null, error })
+      );
+      await paused;
+      await revoke();
+      releaseCommit();
+      const outcome = await settled;
+      assert.ok(outcome.error, 'envio deveria falhar após revogação');
+      assert.ok(
+        acceptedErrors.some((code) =>
+          String(outcome.error?.code ?? '').includes(code)
+        ),
+        `erro inesperado: ${String(outcome.error?.code)}`
+      );
+      const [messages, chat] = await Promise.all([
+        db.collection(`chats/${chatId}/messages`)
+          .where('clientRequestId', '==', id).get(),
+        chatRef.get(),
+      ]);
+      assert.equal(messages.size, 0, 'revogação não pode criar mensagem');
+      assert.deepEqual(
+        chat.data()?.lastMessage,
+        previewBefore,
+        'envio rejeitado não deve modificar o preview'
+      );
+    } finally {
+      releaseCommit();
+      (db as any).runTransaction = originalRunTransaction;
+      await restore();
+    }
+  }
+
+  it('revoga bloqueio entre leitura e commit do envio', async () => {
+    const ref = db.doc(`users/${targetUid}/blocks/${actorUid}`);
+    await assertRevocationWinsRace(
+      'corrida-bloqueio',
+      () => ref.set({ isBlocked: true }),
+      () => ref.delete(),
+      ['permission-denied']
+    );
+  });
+
+  it('revoga acesso da conta entre leitura e commit do envio', async () => {
+    const ref = db.doc(`users/${actorUid}`);
+    await assertRevocationWinsRace(
+      'corrida-suspensão',
+      () => ref.update({ accountStatus: 'suspended' }),
+      () => ref.update({ accountStatus: 'active' }),
+      ['permission-denied', 'failed-precondition']
+    );
+  });
+
+  it('remove conexão entre leitura e commit do envio', async () => {
+    const ref = db.doc(`users/${targetUid}/friends/${actorUid}`);
+    await assertRevocationWinsRace(
+      'corrida-amizade',
+      () => ref.delete(),
+      () => ref.set({ accepted: true }),
+      ['failed-precondition']
+    );
+  });
+
   it('nega envio quando a amizade bilateral é removida', async () => {
     await db.doc(`users/${targetUid}/friends/${actorUid}`).delete();
     await assert.rejects(send('não autorizado', randomUUID()), (error: any) =>
