@@ -14,6 +14,7 @@ describe('DirectThreadService', () => {
   let canListenRealtime$: BehaviorSubject<boolean>;
   let authUid$: BehaviorSubject<string | null>;
   let sendCallableMock: MockFn;
+  let deleteCallableMock: MockFn;
 
   let chatServiceMock: {
     monitorChat: MockFn;
@@ -53,6 +54,7 @@ describe('DirectThreadService', () => {
     canListenRealtime$ = new BehaviorSubject<boolean>(true);
     authUid$ = new BehaviorSubject<string | null>('user-a');
     sendCallableMock = vi.fn();
+    deleteCallableMock = vi.fn();
 
     chatServiceMock = {
       monitorChat: vi.fn(),
@@ -73,7 +75,9 @@ describe('DirectThreadService', () => {
     };
 
     functionsMocks.httpsCallable.mockReset();
-    functionsMocks.httpsCallable.mockReturnValue(sendCallableMock as any);
+    functionsMocks.httpsCallable.mockImplementation((_functions: any, name: string) =>
+      name === 'sendDirectMessage' ? sendCallableMock : deleteCallableMock
+    );
 
     service = new DirectThreadServiceToken(
       {},
@@ -90,10 +94,8 @@ describe('DirectThreadService', () => {
 
   it('deve ser criado', () => {
     expect(service).toBeTruthy();
-    expect(functionsMocks.httpsCallable).toHaveBeenCalledWith(
-      {},
-      'sendDirectMessage'
-    );
+    expect(functionsMocks.httpsCallable).toHaveBeenCalledWith({}, 'sendDirectMessage');
+    expect(functionsMocks.httpsCallable).toHaveBeenCalledWith({}, 'deleteDirectMessage');
   });
 
   it('observeMessages$ deve retornar [] quando chatId vier vazio', async () => {
@@ -393,78 +395,64 @@ describe('DirectThreadService', () => {
     );
   });
 
-  it('deleteMessage$ não chama adapter sem UID autenticado', async () => {
+  it('deleteMessage$ não chama callable sem UID autenticado', async () => {
     authUid$.next(null);
     await firstValueFrom(service.deleteMessage$('chat-1', 'msg-1'));
-    expect(chatServiceMock.deleteMessage).not.toHaveBeenCalled();
+    expect(deleteCallableMock).not.toHaveBeenCalled();
   });
 
-  it('deleteMessage$ descarta falha tardia após troca direta de UID', () => {
-    const pending = new Subject<void>();
-    chatServiceMock.deleteMessage.mockReturnValueOnce(pending.asObservable());
+  it('deleteMessage$ descarta falha tardia após troca de UID', async () => {
+    let rejectPending!: (reason: unknown) => void;
+    deleteCallableMock.mockImplementationOnce(() => new Promise((_resolve, reject) => {
+      rejectPending = reject;
+    }));
     const values: void[] = [];
     const sub = service.deleteMessage$('chat-1', 'msg-1').subscribe(
       (value: void) => values.push(value)
     );
-    expect(chatServiceMock.deleteMessage).toHaveBeenCalledTimes(1);
+    expect(deleteCallableMock).toHaveBeenCalledTimes(1);
     authUid$.next('user-b');
-    pending.error(new Error('old session failure'));
+    rejectPending(new Error('old session failure'));
+    await Promise.resolve();
+    await Promise.resolve();
     expect(values).toEqual([]);
     expect(errorNotifierMock.showError).not.toHaveBeenCalled();
     expect(applicationErrorMock.report).not.toHaveBeenCalled();
     sub.unsubscribe();
   });
 
-  it('deleteMessage$ deve ignorar ids inválidos', async () => {
+  it('deleteMessage$ ignora IDs inválidos', async () => {
     await firstValueFrom(service.deleteMessage$(' ', 'msg-1'));
     await firstValueFrom(service.deleteMessage$('chat-1', ' '));
-
-    expect(chatServiceMock.deleteMessage).not.toHaveBeenCalled();
-    expect(applicationErrorMock.report).not.toHaveBeenCalled();
+    expect(deleteCallableMock).not.toHaveBeenCalled();
   });
 
-  it('deleteMessage$ deve ignorar exclusão quando realtime estiver bloqueado', async () => {
+  it('deleteMessage$ não despacha sem realtime liberado', async () => {
     canListenRealtime$.next(false);
-
     await firstValueFrom(service.deleteMessage$('chat-1', 'msg-1'));
-
-    expect(chatServiceMock.deleteMessage).not.toHaveBeenCalled();
-    expect(applicationErrorMock.report).not.toHaveBeenCalled();
+    expect(deleteCallableMock).not.toHaveBeenCalled();
   });
 
-  it('deleteMessage$ deve chamar adapter quando ids forem válidos e gate estiver liberado', async () => {
-    chatServiceMock.deleteMessage.mockReturnValueOnce(of(void 0));
-
+  it('deleteMessage$ usa callable com IDs válidos', async () => {
+    deleteCallableMock.mockResolvedValueOnce({
+      data: { chatId: 'chat-1', messageId: 'msg-1', deleted: true },
+    });
     await firstValueFrom(service.deleteMessage$('chat-1', 'msg-1'));
-
-    expect(chatServiceMock.deleteMessage).toHaveBeenCalledWith(
-      'chat-1',
-      'msg-1'
-    );
-    expect(applicationErrorMock.report).not.toHaveBeenCalled();
-
+    expect(deleteCallableMock).toHaveBeenCalledWith({
+      chatId: 'chat-1', messageId: 'msg-1',
+    });
     expect(privacyDebugMock.log).toHaveBeenCalledWith(
-      'chat',
-      'DirectThreadService: deleteMessage$',
-      {
-        chatId: 'chat-1',
-        messageId: 'msg-1',
-      }
+      'chat', 'DirectThreadService: deleteMessage$',
+      { chatId: 'chat-1', messageId: 'msg-1' }
     );
   });
 
-  it('deleteMessage$ mantém apenas feedback de UX para erro já diagnosticado pelo ChatService', async () => {
-    chatServiceMock.deleteMessage.mockReturnValueOnce(
-      throwError(() => new Error('delete failed'))
-    );
-
+  it('deleteMessage$ apresenta erro da callable', async () => {
+    deleteCallableMock.mockRejectedValueOnce(new Error('delete failed'));
     await firstValueFrom(service.deleteMessage$('chat-1', 'msg-1'));
-
-    expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
     expect(errorNotifierMock.showError).toHaveBeenCalledWith(
       'Não foi possível excluir a mensagem.'
     );
-    expect(applicationErrorMock.report).not.toHaveBeenCalled();
   });
 
   it('deleteMessage$ diagnostica silenciosamente falha originada no gate', async () => {
