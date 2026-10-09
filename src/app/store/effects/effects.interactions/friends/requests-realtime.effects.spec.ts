@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Actions } from '@ngrx/effects';
-import { BehaviorSubject, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { vi } from 'vitest';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
@@ -13,13 +13,13 @@ describe('FriendsRequestsRealtimeEffects / isolamento de sessão', () => {
     const uid = new BehaviorSubject<string | null>('user-a');
     const snapshots = new Subject<unknown[]>();
     const unsubscribe = vi.fn();
-    const watchFriends = vi.fn(() => new (class extends Subject<unknown[]> {
-      override subscribe(...args: Parameters<Subject<unknown[]>['subscribe']>) {
-        const sub = snapshots.subscribe(...args);
-        sub.add(unsubscribe);
-        return sub;
-      }
-    })());
+    const watchFriends = vi.fn(() => new Observable<unknown[]>((observer) => {
+      const sub = snapshots.subscribe(observer);
+      return () => {
+        unsubscribe();
+        sub.unsubscribe();
+      };
+    }));
     TestBed.configureTestingModule({
       providers: [
         FriendsRequestsRealtimeEffects,
