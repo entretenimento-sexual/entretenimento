@@ -76,6 +76,7 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     assert.equal(messages.size, 1);
     const chat = await db.doc(`chats/${chatId}`).get();
     assert.equal(chat.data()?.lastMessage?.content, 'mensagem concorrente');
+    assert.equal(chat.data()?.lastMessage?.messageId, results[0].messageId);
   });
 
   it('rejeita reutilização do requestId com conteúdo divergente', async () => {
@@ -107,6 +108,7 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     const preview = chat.data()?.lastMessage;
     assert.ok(['concorrente A', 'concorrente B'].includes(preview?.content));
     assert.equal(preview?.senderId, actorUid);
+    assert.ok([a.messageId, b.messageId].includes(preview?.messageId));
   });
 
   it('impede novo envio depois de bloqueio bilateral confirmado', async () => {
