@@ -421,6 +421,26 @@ describe('DirectThreadService', () => {
     sub.unsubscribe();
   });
 
+  it('deleteMessage$ descarta resposta tardia após revogação do gate', async () => {
+    let rejectPending!: (reason: unknown) => void;
+    deleteCallableMock.mockImplementationOnce(() => new Promise((_resolve, reject) => {
+      rejectPending = reject;
+    }));
+    const values: void[] = [];
+    const sub = service.deleteMessage$('chat-1', 'msg-1').subscribe(
+      (value: void) => values.push(value)
+    );
+    expect(deleteCallableMock).toHaveBeenCalledTimes(1);
+    canListenRealtime$.next(false);
+    rejectPending(new Error('revoked session response'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(values).toEqual([]);
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
+    expect(applicationErrorMock.report).not.toHaveBeenCalled();
+    sub.unsubscribe();
+  });
+
   it('deleteMessage$ ignora IDs inválidos', async () => {
     await firstValueFrom(service.deleteMessage$(' ', 'msg-1'));
     await firstValueFrom(service.deleteMessage$('chat-1', ' '));
@@ -450,9 +470,11 @@ describe('DirectThreadService', () => {
   it('deleteMessage$ apresenta erro da callable', async () => {
     deleteCallableMock.mockRejectedValueOnce(new Error('delete failed'));
     await firstValueFrom(service.deleteMessage$('chat-1', 'msg-1'));
+    expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
     expect(errorNotifierMock.showError).toHaveBeenCalledWith(
       'Não foi possível excluir a mensagem.'
     );
+    expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
   });
 
   it('deleteMessage$ diagnostica silenciosamente falha originada no gate', async () => {
