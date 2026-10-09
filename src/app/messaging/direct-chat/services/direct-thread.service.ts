@@ -157,35 +157,48 @@ export class DirectThreadService {
       return of(null);
     }
 
-    return defer(() =>
-      from(
-        this.sendDirectMessageCallable({
+    return defer(() => combineLatest([
+      this.accessControl.authUid$,
+      this.accessControl.canListenRealtime$,
+    ]).pipe(
+      take(1),
+      switchMap(([ownerUid, canSend]) => {
+        if (!ownerUid || !canSend) {
+          return of(null);
+        }
+
+        return from(this.sendDirectMessageCallable({
           chatId: safeChatId,
           content: safeContent,
           clientRequestId: safeClientRequestId,
-        })
-      )
-    ).pipe(
-      map((result) => {
-        const messageId = String(result.data?.messageId ?? '').trim();
-
-        if (!messageId) {
-          throw new Error('Resposta inválida ao enviar mensagem direta.');
-        }
-
-        this.dbg('sendMessage$ callable ok', {
-          chatId: safeChatId,
-          messageId,
-          deduplicated: result.data?.deduplicated === true,
-        });
-
-        return messageId;
-      }),
-      catchError((error) => {
-        this.reportSendMessageError(error, safeChatId);
-        return throwError(() => error);
+        })).pipe(
+          map((result) => {
+            const messageId = String(result.data?.messageId ?? '').trim();
+            if (!messageId) {
+              throw new Error('Resposta inválida ao enviar mensagem direta.');
+            }
+            this.dbg('sendMessage$ callable ok', {
+              chatId: safeChatId,
+              messageId,
+              deduplicated: result.data?.deduplicated === true,
+            });
+            return messageId;
+          }),
+          catchError((error) => {
+            this.reportSendMessageError(error, safeChatId);
+            return throwError(() => error);
+          }),
+          // Cancelamento lógico: a callable já enviada pode continuar no
+          // backend, mas resposta/erro da sessão antiga não chegam à UI.
+          takeUntil(combineLatest([
+            this.accessControl.authUid$,
+            this.accessControl.canListenRealtime$,
+          ]).pipe(
+            filter(([uid, allowed]) => uid !== ownerUid || !allowed)
+          ))
+        );
       })
-    );
+    )) ;
   }
 
   // ---------------------------------------------------------------------------
