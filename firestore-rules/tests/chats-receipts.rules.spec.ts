@@ -118,6 +118,19 @@ describe('Firestore Rules / direct chat receipts', () => {
     expect(final.data()?.['deleted']).toBe(true);
   });
 
+  it('exclusão concorrente com recibo mantém tombstone e bloqueia novo avanço', async () => {
+    const outcomes = await Promise.allSettled([
+      adminUpdate({ deleted: true, reactionsByUser: {} }),
+      updateDoc(message(RECIPIENT), { status: 'delivered' }),
+    ]);
+    expect(outcomes[0].status).toBe('fulfilled');
+    const final = (await getDoc(message(RECIPIENT))).data();
+    expect(final?.['deleted']).toBe(true);
+    expect(['sent', 'delivered']).toContain(final?.['status']);
+    expect(final?.['reactionsByUser']).toEqual({});
+    await assertFails(updateDoc(message(RECIPIENT), { status: 'read' }));
+  });
+
   it('recibos concorrentes não produzem salto ou regressão', async () => {
     const results = await Promise.allSettled([
       updateDoc(message(RECIPIENT), { status: 'delivered' }),
