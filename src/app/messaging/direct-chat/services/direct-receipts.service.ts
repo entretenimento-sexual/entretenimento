@@ -107,8 +107,105 @@ export class DirectReceiptsService {
           )
       )
     ).pipe(
+      takeUntil(this.accessControl.authUid$.pipe(
+        filter((currentUid) => currentUid !== safeUid)
+      )),
       tap(() => {
-        this.dbg('markDeliveredAsRead$', {
+        this.dbg('markDeliveredAsRead, {
+          chatId: safeChatId,
+          count: transitions.length,
+          deliveredCount: transitions.filter(
+            (transition) => transition.nextStatus === 'delivered'
+          ).length,
+          readCount: transitions.filter(
+            (transition) => transition.nextStatus === 'read'
+          ).length,
+        });
+      }),
+      map(() => transitions.length),
+      catchError((error) => {
+        this.reportSilent(
+          error,
+          'DirectReceiptsService.markDeliveredAsRead$',
+          { chatId: safeChatId }
+        );
+
+        return of(0);
+      })
+        );
+      })
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  private pickReceiptTransitions(
+    currentUserUid: string,
+    messages: Message[]
+  ): ReceiptTransition[] {
+    return messages
+      .map((message): ReceiptTransition | null => {
+        const messageId = String(message?.id ?? '').trim();
+
+        if (!messageId) {
+          return null;
+        }
+
+        if (message?.senderId === currentUserUid) {
+          return null;
+        }
+
+        const status = message?.status ?? 'sent';
+
+        if (status === 'sent') {
+          return {
+            messageId,
+            nextStatus: 'delivered',
+          };
+        }
+
+        if (status === 'delivered') {
+          return {
+            messageId,
+            nextStatus: 'read',
+          };
+        }
+
+        return null;
+      })
+      .filter((transition): transition is ReceiptTransition => !!transition)
+      .slice(0, this.maxUpdatesPerTick);
+  }
+
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log('chat', `DirectReceiptsService: ${message}`, extra);
+  }
+
+  private reportSilent(
+    error: unknown,
+    context: string,
+    extra?: Record<string, unknown>
+  ): void {
+    try {
+      this.applicationError.report(error, {
+        feature: 'direct-receipts',
+        operation: context,
+        fallbackMessage:
+          'Não foi possível concluir uma atualização interna de recibo.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'DirectReceiptsService',
+          context,
+          ...(extra ?? {}),
+        },
+      });
+    } catch {
+      // Receipts são best-effort e nunca podem quebrar a thread.
+    }
+  }
+}, {
           chatId: safeChatId,
           count: transitions.length,
           deliveredCount: transitions.filter(
