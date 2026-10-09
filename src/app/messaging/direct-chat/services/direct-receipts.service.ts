@@ -17,10 +17,11 @@
 import { Injectable } from '@angular/core';
 
 import { forkJoin, Observable, of } from 'rxjs';
-import { catchError, map, tap } from 'rxjs/operators';
+import { catchError, filter, map, switchMap, take, takeUntil, tap } from 'rxjs/operators';
 
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
+import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { ChatService } from '@core/services/batepapo/chat-service/chat.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
@@ -39,7 +40,8 @@ export class DirectReceiptsService {
   constructor(
     private readonly chatService: ChatService,
     private readonly applicationError: ApplicationErrorService,
-    private readonly privacyDebug: PrivacyDebugLoggerService
+    private readonly privacyDebug: PrivacyDebugLoggerService,
+    private readonly accessControl: AccessControlService
   ) {}
 
   /**
@@ -76,7 +78,11 @@ export class DirectReceiptsService {
       return of(0);
     }
 
-    return forkJoin(
+    return this.accessControl.authUid$.pipe(
+      take(1),
+      switchMap((uid) => {
+        if (uid !== safeUid) return of(0);
+        return forkJoin(
       transitions.map((transition) =>
         this.chatService
           .updateMessageStatus(
@@ -123,6 +129,11 @@ export class DirectReceiptsService {
 
         return of(0);
       })
+        );
+      }),
+      takeUntil(this.accessControl.authUid$.pipe(
+        filter((uid) => uid !== safeUid)
+      ))
     );
   }
 
