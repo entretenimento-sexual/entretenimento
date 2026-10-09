@@ -30,15 +30,17 @@
 // - a prioridade agora é compatibilidade estável e sem erro de tipagem
 // ============================================================================
 import { Injectable } from '@angular/core';
-import { combineLatest, Observable, of } from 'rxjs';
+import { combineLatest, defer, Observable, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
   map,
+  filter,
   shareReplay,
   startWith,
   switchMap,
   take,
+  takeUntil,
   tap,
 } from 'rxjs/operators';
 
@@ -172,89 +174,113 @@ export class DirectThreadFacade {
   /**
    * Envia mensagem para a thread atualmente selecionada.
    */
-  sendMessage$(content: string): Observable<string | null> {
-    const safeContent = (content ?? '').trim();
-    if (!safeContent) {
-      return of(null);
-    }
-
+  /**
+   * Executa comandos apenas no contexto capturado atomicamente na assinatura.
+   * O cancelamento impede que respostas antigas atinjam a UI. Uma chamada
+   * HTTP/Firestore já enviada não é revertida pelo unsubscribe: backend/rules
+   * continuam responsáveis pela autorização no momento da escrita.
+   */
+  private commandContext$(): Observable<{
+    chatId: string | null;
+    uid: string | null;
+    canOpen: boolean;
+    canListen: boolean;
+  }> {
     return combineLatest([
-      this.activeChatId$.pipe(take(1)),
-      this.canSend$.pipe(take(1)),
+      this.activeChatId$,
+      this.canOpen$,
+      this.authSession.uid$,
+      this.accessControl.canListenRealtime$,
     ]).pipe(
-      switchMap(([chatId, canSend]) => {
-        if (!chatId || !canSend) {
-          return of(null);
-        }
-
-        return this.directThreadService.sendMessage$(chatId, safeContent);
-      })
+      map(([chatId, canOpen, uid, canListen]) => ({
+        chatId,
+        uid: String(uid ?? '').trim() || null,
+        canOpen,
+        canListen,
+      }))
     );
   }
 
-  /**
-   * Exclui mensagem da thread atualmente selecionada.
-   */
+  private withinCommandContext$<T>(
+    operation: Observable<T>,
+    context: { chatId: string | null; uid: string | null }
+  ): Observable<T> {
+    return operation.pipe(
+      takeUntil(this.commandContext$().pipe(
+        filter((current) =>
+          current.chatId !== context.chatId ||
+          current.uid !== context.uid ||
+          !current.canOpen ||
+          !current.canListen
+        )
+      ))
+    );
+  }
+
+  sendMessage$(content: string): Observable<string | null> {
+    const safeContent = (content ?? '').trim();
+    if (!safeContent) return of(null);
+
+    return defer(() => this.commandContext$().pipe(
+      take(1),
+      switchMap((context) => {
+        if (!context.chatId || !context.uid || !context.canOpen || !context.canListen) {
+          return of(null);
+        }
+        return this.withinCommandContext$(
+          this.directThreadService.sendMessage$(context.chatId, safeContent),
+          context
+        );
+      })
+    ));
+  }
+
   deleteMessage$(messageId: string): Observable<void> {
     const safeMessageId = (messageId ?? '').trim();
-    if (!safeMessageId) {
-      return of(void 0);
-    }
+    if (!safeMessageId) return of(void 0);
 
-    return combineLatest([
-      this.activeChatId$.pipe(take(1)),
-      this.canOpen$.pipe(take(1)),
-    ]).pipe(
-      switchMap(([chatId, canOpen]) => {
-        if (!chatId || !canOpen) {
+    return defer(() => this.commandContext$().pipe(
+      take(1),
+      switchMap((context) => {
+        if (!context.chatId || !context.uid || !context.canOpen || !context.canListen) {
           return of(void 0);
         }
-
-        return this.directThreadService.deleteMessage$(chatId, safeMessageId);
+        return this.withinCommandContext$(
+          this.directThreadService.deleteMessage$(context.chatId, safeMessageId),
+          context
+        );
       }),
       catchError((error) => {
         this.reportSilent(error, 'DirectThreadFacade.deleteMessage$');
         return of(void 0);
       })
-    );
+    ));
   }
 
-  /**
-   * Marca mensagens visíveis como lidas.
-   *
-   * Best-effort:
-   * - exige chat ativo
-   * - exige uid autenticado
-   * - exige thread válida
-   */
   markVisibleMessagesAsRead$(messages: Message[]): Observable<number> {
     const safeMessages = Array.isArray(messages) ? messages : [];
+    if (!safeMessages.length) return of(0);
 
-    if (!safeMessages.length) {
-      return of(0);
-    }
-
-    return combineLatest([
-      this.activeChatId$.pipe(take(1)),
-      this.authSession.uid$.pipe(take(1)),
-      this.canOpen$.pipe(take(1)),
-    ]).pipe(
-      switchMap(([chatId, currentUid, canOpen]) => {
-        if (!chatId || !currentUid || !canOpen) {
+    return defer(() => this.commandContext$().pipe(
+      take(1),
+      switchMap((context) => {
+        if (!context.chatId || !context.uid || !context.canOpen || !context.canListen) {
           return of(0);
         }
-
-        return this.directReceiptsService.markDeliveredAsRead$(
-          chatId,
-          currentUid,
-          safeMessages
+        return this.withinCommandContext$(
+          this.directReceiptsService.markDeliveredAsRead$(
+            context.chatId,
+            context.uid,
+            safeMessages
+          ),
+          context
         );
       }),
       catchError((error) => {
         this.reportSilent(error, 'DirectThreadFacade.markVisibleMessagesAsRead$');
         return of(0);
       })
-    );
+    ));
   }
 
   // ---------------------------------------------------------------------------
