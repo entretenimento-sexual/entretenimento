@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
 import { Firestore } from '@angular/fire/firestore';
-import { of } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 
 import { ChatMessageComponent } from './chat-message.component';
 import { ChatReplyQuotePipe } from '../pipes/chat-reply-quote.pipe';
@@ -21,9 +21,11 @@ class DateFormatTestingPipe implements PipeTransform {
 }
 
 describe('ChatMessageComponent', () => {
+  const uid$ = new BehaviorSubject<string | null>('u1');
   let fixture: ComponentFixture<ChatMessageComponent>;
 
   beforeEach(async () => {
+    uid$.next('u1');
     await TestBed.configureTestingModule({
       declarations: [ChatMessageComponent, ChatReplyQuotePipe, DateFormatTestingPipe],
       providers: [
@@ -38,7 +40,7 @@ describe('ChatMessageComponent', () => {
         {
           provide: AuthSessionService,
           useValue: {
-            uid$: of('u1'),
+            uid$: uid$.asObservable(),
           },
         },
         {
@@ -77,6 +79,35 @@ describe('ChatMessageComponent', () => {
 
   it('should create', () => {
     expect(fixture.componentInstance).toBeTruthy();
+  });
+
+  it('limpa reação do usuário anterior após troca de UID', () => {
+    fixture.componentRef.setInput('message', {
+      id: 'msg-1',
+      senderId: 'u2',
+      content: 'Mensagem',
+      reactionsByUser: { u1: '❤️', u2: '🔥' },
+    } as any);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.selectedReaction).toBe('❤️');
+    uid$.next(null);
+    expect(fixture.componentInstance.selectedReaction).toBeNull();
+    uid$.next('u2');
+    expect(fixture.componentInstance.selectedReaction).toBe('🔥');
+  });
+
+  it('não grava reação direta sem sessão autenticada', () => {
+    uid$.next(null);
+    fixture.componentRef.setInput('message', {
+      id: 'msg-1',
+      senderId: 'u2',
+      content: 'Mensagem',
+      reactionsByUser: {},
+    } as any);
+    fixture.detectChanges();
+    fixture.componentInstance.selectQuickReaction('❤️');
+    expect(fixture.componentInstance.selectedReaction).toBeNull();
+    expect(fixture.componentInstance.isSavingReaction).toBe(false);
   });
 
   it('renderiza referência de vídeo sem expor URL assinada', () => {
