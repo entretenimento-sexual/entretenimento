@@ -1,7 +1,7 @@
 // src/app/chat-module/chat-messages-list/chat-messages-list.component.spec.ts
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 
 import { ChatMessagesListComponent } from './chat-messages-list.component';
 import { RoomMessagesService } from '../../core/services/batepapo/room-services/room-messages.service';
@@ -15,21 +15,27 @@ import { DirectThreadFacade } from '../../messaging/direct-chat/application/dire
 
 describe('ChatMessagesListComponent', () => {
   let fixture: ComponentFixture<ChatMessagesListComponent>;
+  let uid$: BehaviorSubject<string | null>;
+  let threadState$: BehaviorSubject<{ chatId: string; messages: any[] }>;
+  let selectChat: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
+    uid$ = new BehaviorSubject<string | null>('test-uid');
+    threadState$ = new BehaviorSubject({ chatId: 'c1', messages: [] as any[] });
+    selectChat = vi.fn();
     await TestBed.configureTestingModule({
       declarations: [ChatMessagesListComponent],
       providers: [
         {
           provide: DirectChatFacade,
           useValue: {
-            selectChat: vi.fn(),
+            selectChat,
           },
         },
         {
           provide: DirectThreadFacade,
           useValue: {
-            state$: of({ chatId: 'c1', messages: [] }),
+            state$: threadState$,
             markVisibleMessagesAsRead$: vi.fn(() => of(void 0)),
           },
         },
@@ -66,7 +72,7 @@ describe('ChatMessagesListComponent', () => {
         {
           provide: AuthSessionService,
           useValue: {
-            uid$: of('test-uid'),
+            uid$,
           },
         },
       ],
@@ -80,5 +86,21 @@ describe('ChatMessagesListComponent', () => {
 
   it('should create', () => {
     expect(fixture.componentInstance).toBeTruthy();
+  });
+
+  it('limpa mensagens imediatamente no logout e não reabre thread antiga na troca de conta', () => {
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'm1', senderId: 'test-uid', content: 'privado' }] });
+    expect(fixture.componentInstance.messages.length).toBe(1);
+    const selectionsBefore = selectChat.mock.calls.length;
+
+    uid$.next(null);
+    expect(fixture.componentInstance.messages).toEqual([]);
+    expect(fixture.componentInstance.threadItems).toEqual([]);
+    expect(fixture.componentInstance.pendingIncomingCount).toBe(0);
+
+    uid$.next('another-uid');
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'm2', senderId: 'test-uid', content: 'atrasada' }] });
+    expect(fixture.componentInstance.messages).toEqual([]);
+    expect(selectChat.mock.calls.length).toBe(selectionsBefore);
   });
 });
