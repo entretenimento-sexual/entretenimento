@@ -117,15 +117,18 @@ export function resolveDirectMessageTargetUid(
     );
   }
 
-  const participants = Array.from(
-    new Set(
-      chat.participants
-        .map((participant) => String(participant ?? '').trim())
-        .filter(Boolean)
-    )
+  // O documento deve conter exatamente dois UIDs distintos e válidos.
+  // Não normalizar por Set antes de validar: [A, B, B] não é conversa 1:1.
+  const participants = chat.participants.map((participant) =>
+    typeof participant === 'string' ? participant.trim() : ''
   );
 
-  if (participants.length !== 2 || !participants.includes(actorUid)) {
+  if (
+    participants.length !== 2 ||
+    participants.some((uid) => !uid) ||
+    new Set(participants).size !== 2 ||
+    !participants.includes(actorUid)
+  ) {
     throw new HttpsError(
       'permission-denied',
       'Esta conversa não está disponível.'
