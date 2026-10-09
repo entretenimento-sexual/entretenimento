@@ -11,17 +11,21 @@ import * as A from '../../../actions/actions.interactions/actions.friends';
 import { FriendsNetworkEffects } from './network.effects';
 
 describe('FriendsNetworkEffects / isolamento entre UIDs', () => {
-  let actions: Subject<ReturnType<typeof A.loadFriends> | ReturnType<typeof A.loadBlockedUsers>>;
+  let actions: Subject<ReturnType<typeof A.loadFriends> | ReturnType<typeof A.loadBlockedUsers> | ReturnType<typeof A.blockUser> | ReturnType<typeof A.unblockUser> | ReturnType<typeof A.endFriendship>>;
   let uid: BehaviorSubject<string | null>;
   let pendingFriends: Subject<unknown[]>;
   let pendingBlocked: Subject<unknown[]>;
   let effects: FriendsNetworkEffects;
+  let pendingMutation: Subject<void>;
+  let notifier: { showSuccess: ReturnType<typeof vi.fn>; showError: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     actions = new Subject();
     uid = new BehaviorSubject<string | null>('user-a');
     pendingFriends = new Subject();
     pendingBlocked = new Subject();
+    pendingMutation = new Subject<void>();
+    notifier = { showSuccess: vi.fn(), showError: vi.fn() };
     TestBed.configureTestingModule({
       providers: [
         FriendsNetworkEffects,
@@ -29,13 +33,16 @@ describe('FriendsNetworkEffects / isolamento entre UIDs', () => {
         { provide: FriendshipService, useValue: {
           listFriends: vi.fn(() => pendingFriends.asObservable()),
           listBlocked: vi.fn(() => pendingBlocked.asObservable()),
+          blockUser: vi.fn(() => pendingMutation.asObservable()),
+          unblockUser: vi.fn(() => pendingMutation.asObservable()),
+          endFriendship: vi.fn(() => pendingMutation.asObservable()),
         } },
         { provide: AccessControlService, useValue: {
           authUid$: uid.asObservable(),
           canEnterCore$: new BehaviorSubject(true),
           canUseAdultSocial$: new BehaviorSubject(true),
         } },
-        { provide: ErrorNotificationService, useValue: {} },
+        { provide: ErrorNotificationService, useValue: notifier },
         { provide: PrivacyDebugLoggerService, useValue: { log: vi.fn() } },
       ],
     });
@@ -71,4 +78,21 @@ describe('FriendsNetworkEffects / isolamento entre UIDs', () => {
     expect(output).toEqual([]);
     sub.unsubscribe();
   });
+  it.each([
+    ['blockUser$', () => A.blockUser({ ownerUid: 'user-a', targetUid: 'other', reason: 'test' })],
+    ['unblockUser$', () => A.unblockUser({ ownerUid: 'user-a', targetUid: 'other' })],
+    ['endFriendship$', () => A.endFriendship({ ownerUid: 'user-a', friendUid: 'other' })],
+  ] as const)('descarta retorno tardio de %s depois da troca de conta', (effectName, createAction) => {
+    const output: unknown[] = [];
+    const sub = effects[effectName].subscribe(action => output.push(action));
+    actions.next(createAction());
+    uid.next('user-b');
+    pendingMutation.next();
+    pendingMutation.complete();
+    expect(output).toEqual([]);
+    expect(notifier.showSuccess).not.toHaveBeenCalled();
+    expect(notifier.showError).not.toHaveBeenCalled();
+    sub.unsubscribe();
+  });
+
 });
