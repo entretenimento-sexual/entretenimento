@@ -12,10 +12,12 @@ import { Observable, Subject, combineLatest, of, throwError } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
+  filter,
   map,
   shareReplay,
   switchMap,
   take,
+  takeUntil,
   tap,
 } from 'rxjs/operators';
 
@@ -165,6 +167,26 @@ export class ChatService implements OnDestroy {
     );
   }
 
+  /**
+   * Escritas iniciadas pela sessão anterior não podem gerar resultados ou
+   * diagnósticos na sessão seguinte. O cancelamento é lógico: a autorização
+   * da gravação já enviada continua sob controle das Firestore Rules.
+   */
+  private sessionBoundWrite$(
+    ownerUid: string,
+    write$: Observable<void>
+  ): Observable<void> {
+    return write$.pipe(
+      takeUntil(combineLatest([
+        this.authSession.ready$,
+        this.authSession.uid$,
+        this.appBlock.reason$,
+      ]).pipe(
+        filter(([ready, uid, blocked]) => !ready || uid !== ownerUid || !!blocked)
+      ))
+    );
+  }
+
   // ===========================================================================
   // CHAT ID
   // ===========================================================================
@@ -253,7 +275,12 @@ export class ChatService implements OnDestroy {
     }
 
     return this.requireUidOnce$().pipe(
-      switchMap((uid) => this.msgsRepo.setMessageReaction$(cid, mid, uid, safeEmoji)),
+      switchMap((uid) =>
+        this.sessionBoundWrite$(
+          uid,
+          this.msgsRepo.setMessageReaction$(cid, mid, uid, safeEmoji)
+        )
+      ),
       catchError(err => this.reportSilent('setMessageReaction', err))
     );
   }
@@ -405,7 +432,13 @@ export class ChatService implements OnDestroy {
     const mid = (messageId ?? '').toString().trim();
     if (!cid || !mid) return this.reportSilent('updateMessageStatus', new Error('ids inválidos'));
 
-    return this.msgsRepo.updateMessageStatus$(cid, mid, status).pipe(
+    return this.requireUidOnce$().pipe(
+      switchMap((uid) =>
+        this.sessionBoundWrite$(
+          uid,
+          this.msgsRepo.updateMessageStatus$(cid, mid, status)
+        )
+      ),
       catchError(err => this.reportSilent('updateMessageStatus', err))
     );
   }
