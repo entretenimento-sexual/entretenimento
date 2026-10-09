@@ -138,7 +138,7 @@ describe('ChatMessageComponent', () => {
     expect(updateDoc).toHaveBeenCalledTimes(1);
     const args = vi.mocked(updateDoc).mock.calls[0];
     expect(args[1]).toBeInstanceOf(FieldPath);
-    expect(String(args[1])).toContain('u1');
+    expect(args[1]).toEqual(new FieldPath('reactionsByUser', 'u1'));
     expect(args[2]).toBe('❤️');
     expect(args).toHaveLength(3);
   });
@@ -158,7 +158,7 @@ describe('ChatMessageComponent', () => {
 
     const args = vi.mocked(updateDoc).mock.calls[0];
     expect(args[1]).toBeInstanceOf(FieldPath);
-    expect(String(args[1])).toContain('u1');
+    expect(args[1]).toEqual(new FieldPath('reactionsByUser', 'u1'));
     expect(args[2]).toEqual(deleteField());
     expect(args).toHaveLength(3);
   });
