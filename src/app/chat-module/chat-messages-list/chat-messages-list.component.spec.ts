@@ -1,6 +1,7 @@
 // src/app/chat-module/chat-messages-list/chat-messages-list.component.spec.ts
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { BehaviorSubject, of } from 'rxjs';
 
 import { ChatMessagesListComponent } from './chat-messages-list.component';
@@ -25,6 +26,7 @@ describe('ChatMessagesListComponent', () => {
     selectChat = vi.fn();
     await TestBed.configureTestingModule({
       declarations: [ChatMessagesListComponent],
+      schemas: [NO_ERRORS_SCHEMA],
       providers: [
         {
           provide: DirectChatFacade,
