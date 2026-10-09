@@ -9,11 +9,12 @@
 import { Injectable, inject } from '@angular/core';
 
 import { EMPTY, Observable, concat, of, throwError } from 'rxjs';
-import { map, switchMap, take, tap } from 'rxjs/operators';
+import { filter, map, switchMap, take, takeUntil, tap } from 'rxjs/operators';
 
 import {
   PublicProfileReadBoundaryService,
 } from 'src/app/core/services/discovery/public-profile-read-boundary.service';
+import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { CacheService } from 'src/app/core/services/general/cache/cache.service';
 
 import {
@@ -36,6 +37,7 @@ export class DiscoveryPublicProfilesRepository {
     PublicProfileReadBoundaryService
   );
   private readonly cache = inject(CacheService);
+  private readonly access = inject(AccessControlService);
 
   loadPage$(
     request: DiscoveryFeedRequest,
@@ -55,41 +57,54 @@ export class DiscoveryPublicProfilesRepository {
       normalizedCursor
     );
 
-    const server$ = this.fetchServerPage$(
-      normalizedRequest,
-      normalizedCursor
-    ).pipe(
-      tap((page) => {
-        const cachedPage: CachedDiscoveryFeedPage = {
-          items: page.items,
-          nextCursor: page.nextCursor,
-          reachedEnd: page.reachedEnd,
-          fetchedAt: page.fetchedAt,
-        };
+    // O limite de sessão também pertence ao repositório: consumidores fora do
+    // NgRx não podem reidratar memória/IndexedDB ou persistir respostas de A em B.
+    return this.access.authUid$.pipe(
+      take(1),
+      filter((uid) => uid === normalizedRequest.viewerUid),
+      switchMap(() => {
+        const server$ = this.fetchServerPage$(
+          normalizedRequest,
+          normalizedCursor
+        ).pipe(
+          tap((page) => {
+            const cachedPage: CachedDiscoveryFeedPage = {
+              items: page.items,
+              nextCursor: page.nextCursor,
+              reachedEnd: page.reachedEnd,
+              fetchedAt: page.fetchedAt,
+            };
 
-        this.cache.set(
-          cacheKey,
-          cachedPage,
-          this.resolveCacheTtl(),
-          { persist: true }
+            this.cache.set(
+              cacheKey,
+              cachedPage,
+              this.resolveCacheTtl(),
+              { persist: true }
+            );
+          })
+        );
+
+        return this.cache.get<CachedDiscoveryFeedPage>(cacheKey).pipe(
+          take(1),
+          switchMap((cached) =>
+            concat(
+              cached
+                ? of<DiscoveryFeedPage>({
+                    ...cached,
+                    items: cached.items,
+                    source: 'cache',
+                  })
+                : EMPTY,
+              server$
+            )
+          ),
+          takeUntil(
+            this.access.authUid$.pipe(
+              filter((uid) => uid !== normalizedRequest.viewerUid)
+            )
+          )
         );
       })
-    );
-
-    return this.cache.get<CachedDiscoveryFeedPage>(cacheKey).pipe(
-      take(1),
-      switchMap((cached) =>
-        concat(
-          cached
-            ? of<DiscoveryFeedPage>({
-                ...cached,
-                items: cached.items,
-                source: 'cache',
-              })
-            : EMPTY,
-          server$
-        )
-      )
     );
   }
 
