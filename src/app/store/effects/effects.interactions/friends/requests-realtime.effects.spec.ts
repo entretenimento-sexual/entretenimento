@@ -67,7 +67,7 @@ describe('FriendsRequestsRealtimeEffects / isolamento de sessão', () => {
     });
     const effects = TestBed.inject(FriendsRequestsRealtimeEffects);
     const output: unknown[] = [];
-    const subscription = effects[effectName].subscribe(action => output.push(action));
+    const subscription = (effects[effectName] as Observable<unknown>).subscribe((action: unknown) => output.push(action));
     actions.next(startAction({ uid: 'user-a' }));
     expect(watcher).toHaveBeenCalledTimes(1);
     uid.next('user-b');
