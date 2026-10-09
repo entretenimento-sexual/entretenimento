@@ -110,8 +110,11 @@ private dbg(msg: string, extra?: unknown): void {
   endFriendship$ = createEffect(() =>
   this.actions$.pipe(
     ofType(A.endFriendship),
-    mergeMap(({ ownerUid, friendUid }) =>
+    withLatestFrom(this.access.authUid$),
+    filter(([{ ownerUid }, currentUid]) => ownerUid === currentUid),
+    mergeMap(([{ ownerUid, friendUid }]) =>
       this.svc.endFriendship(ownerUid, friendUid).pipe(
+        takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== ownerUid))),
         mergeMap(() => {
           this.notifier.showSuccess('Amizade desfeita.');
 
@@ -147,8 +150,11 @@ private dbg(msg: string, extra?: unknown): void {
   blockUser$ = createEffect(() =>
     this.actions$.pipe(
       ofType(A.blockUser),
-      mergeMap(({ ownerUid, targetUid, reason }) =>
+    withLatestFrom(this.access.authUid$),
+    filter(([{ ownerUid }, currentUid]) => ownerUid === currentUid),
+    mergeMap(([{ ownerUid, targetUid, reason }]) =>
         this.svc.blockUser(ownerUid, targetUid, reason).pipe(
+        takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== ownerUid))),
           mergeMap(() => of(
             A.blockUserSuccess({ ownerUid, targetUid }),
             A.loadBlockedUsers({ uid: ownerUid })
@@ -162,8 +168,11 @@ private dbg(msg: string, extra?: unknown): void {
   unblockUser$ = createEffect(() =>
     this.actions$.pipe(
       ofType(A.unblockUser),
-      mergeMap(({ ownerUid, targetUid }) =>
+    withLatestFrom(this.access.authUid$),
+    filter(([{ ownerUid }, currentUid]) => ownerUid === currentUid),
+    mergeMap(([{ ownerUid, targetUid }) =>
         this.svc.unblockUser(ownerUid, targetUid).pipe(
+        takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== ownerUid))),
           mergeMap(() => of(
             A.unblockUserSuccess({ ownerUid, targetUid }),
             A.loadBlockedUsers({ uid: ownerUid })
