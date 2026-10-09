@@ -152,8 +152,8 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
    */
   async function assertRevocationWinsRace(
     label: string,
-    revoke: () => Promise<void>,
-    restore: () => Promise<void>,
+    revoke: () => Promise<unknown>,
+    restore: () => Promise<unknown>,
     acceptedErrors: string[]
   ): Promise<void> {
     const id = randomUUID();
