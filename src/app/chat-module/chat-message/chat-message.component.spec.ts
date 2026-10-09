@@ -1,19 +1,12 @@
 // src/app/chat-module/chat-message/chat-message.component.spec.ts
-vi.mock('firebase/firestore', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('firebase/firestore')>();
-  return {
-    ...actual,
-    doc: vi.fn(() => ({ path: 'chats/chat-1/messages/msg-1' })),
-    updateDoc: vi.fn(() => Promise.resolve()),
-  };
-});
+vi.mock('firebase/firestore', { spy: true });
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
 import { Firestore } from '@angular/fire/firestore';
 import { BehaviorSubject, of } from 'rxjs';
-import { deleteField, FieldPath, updateDoc } from 'firebase/firestore';
+import { deleteField, doc, FieldPath, updateDoc } from 'firebase/firestore';
 
 
 import { ChatMessageComponent } from './chat-message.component';
@@ -37,6 +30,7 @@ describe('ChatMessageComponent', () => {
 
   beforeEach(async () => {
     uid$.next('u1');
+    vi.mocked(doc).mockReturnValue({ path: 'chats/chat-1/messages/msg-1' } as any);
     vi.mocked(updateDoc).mockReset();
     vi.mocked(updateDoc).mockResolvedValue(undefined);
     await TestBed.configureTestingModule({
