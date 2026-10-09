@@ -130,10 +130,7 @@ export class DirectReceiptsService {
         return of(0);
       })
         );
-      }),
-      takeUntil(this.accessControl.authUid$.pipe(
-        filter((uid) => uid !== safeUid)
-      ))
+      })
     );
   }
 
