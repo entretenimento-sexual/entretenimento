@@ -265,7 +265,10 @@ export class ChatMessageComponent implements OnInit {
     from(updateDoc(messageRef, reactionField, nextReaction ?? deleteField()))
       .pipe(
         takeUntil(this.authSession.uid$.pipe(
-          filter((activeUid) => activeUid !== uid)
+          filter((activeUid) => String(activeUid ?? '').trim() !== uid)
+        )),
+        takeUntil(this.message$.pipe(
+          filter((activeMessage) => String(activeMessage?.id ?? '').trim() !== messageId)
         )),
         tap(() => {
           this.dbg('persistDirectChatReaction -> ok', {
