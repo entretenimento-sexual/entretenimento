@@ -170,7 +170,7 @@ private dbg(msg: string, extra?: unknown): void {
       ofType(A.unblockUser),
     withLatestFrom(this.access.authUid$),
     filter(([{ ownerUid }, currentUid]) => ownerUid === currentUid),
-    mergeMap(([{ ownerUid, targetUid }) =>
+    mergeMap(([{ ownerUid, targetUid }]) =>
         this.svc.unblockUser(ownerUid, targetUid).pipe(
         takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== ownerUid))),
           mergeMap(() => of(
