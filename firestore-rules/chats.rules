@@ -78,7 +78,7 @@ match /chats/{chatId} {
       }
 
       function hasOnlyReactionFieldChanged() {
-        return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           "reactionsByUser"
         ]);
       }
@@ -111,7 +111,9 @@ match /chats/{chatId} {
       }
 
       function isReactionUpdate() {
-        return hasOnlyReactionFieldChanged()
+        return resource.data.get("deleted", false) != true
+          && request.resource.data.get("deleted", false) != true
+          && hasOnlyReactionFieldChanged()
           && changesOnlyOwnReaction()
           && hasValidReactionValue();
       }
