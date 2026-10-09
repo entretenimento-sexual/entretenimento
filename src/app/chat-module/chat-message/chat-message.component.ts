@@ -34,15 +34,17 @@ import {
   catchError,
   distinctUntilChanged,
   finalize,
+  filter,
   map,
   switchMap,
   take,
+  takeUntil,
   tap,
 } from 'rxjs/operators';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 
 import { Firestore } from '@angular/fire/firestore';
-import { doc, updateDoc } from 'firebase/firestore';
+import { deleteField, doc, FieldPath, updateDoc } from 'firebase/firestore';
 
 import {
   Message,
@@ -147,16 +149,17 @@ export class ChatMessageComponent implements OnInit {
   }
 
   private observeSenderName(): void {
-    this.message$
+    combineLatest([this.message$, this.authSession.uid$])
       .pipe(
-        map((message) => ({
+        map(([message, uid]) => ({
           senderId: (message?.senderId ?? '').trim(),
           nickname: (message?.nickname ?? '').trim(),
+          uid: String(uid ?? '').trim(),
         })),
         distinctUntilChanged(
-          (a, b) => a.senderId === b.senderId && a.nickname === b.nickname
+          (a, b) => a.senderId === b.senderId && a.nickname === b.nickname && a.uid === b.uid
         ),
-        switchMap(({ senderId, nickname }) => {
+        switchMap(({ senderId, nickname, uid }) => {
           if (nickname) {
             return of(nickname);
           }
@@ -165,7 +168,7 @@ export class ChatMessageComponent implements OnInit {
             return of('Usuário desconhecido');
           }
 
-          const isSelfMessage = senderId === this.currentUserUid;
+          const isSelfMessage = !!uid && senderId === uid;
           const user$ = isSelfMessage
             ? this.firestoreUserQuery.getUser$(senderId)
             : this.firestoreUserQuery.getPublicUserById$(senderId);
@@ -247,27 +250,23 @@ export class ChatMessageComponent implements OnInit {
     const messageId = String(this.message()?.id ?? '').trim();
 
     if (!uid || !chatId || !messageId) {
-      this.selectLocalReaction(emoji);
       return;
     }
 
     const previousReaction = this.selectedReaction;
     const nextReaction = previousReaction === emoji ? null : emoji;
-    const nextReactionsByUser = { ...(this.message().reactionsByUser ?? {}) };
-
-    if (nextReaction) {
-      nextReactionsByUser[uid] = nextReaction;
-    } else {
-      delete nextReactionsByUser[uid];
-    }
-
     this.selectedReaction = nextReaction;
     this.isSavingReaction = true;
 
     const messageRef = doc(this.db, `chats/${chatId}/messages/${messageId}`);
+    // Atualiza apenas o campo deste UID: não substitui reações concorrentes.
+    const reactionField = new FieldPath('reactionsByUser', uid);
 
-    from(updateDoc(messageRef, { reactionsByUser: nextReactionsByUser }))
+    from(updateDoc(messageRef, reactionField, nextReaction ?? deleteField()))
       .pipe(
+        takeUntil(this.authSession.uid$.pipe(
+          filter((activeUid) => activeUid !== uid)
+        )),
         tap(() => {
           this.dbg('persistDirectChatReaction -> ok', {
             chatId,
@@ -295,7 +294,6 @@ export class ChatMessageComponent implements OnInit {
   private selectLocalReaction(emoji: string): void {
     const nextReaction = this.selectedReaction === emoji ? null : emoji;
     this.selectedReaction = nextReaction;
-    this.persistLocalReaction(nextReaction);
   }
 
   getReactionAriaLabel(reaction: QuickReaction): string {
@@ -344,30 +342,6 @@ export class ChatMessageComponent implements OnInit {
     }
 
     return reference;
-  }
-
-  private persistLocalReaction(reaction: string | null): void {
-    const storageKey = this.getReactionStorageKey();
-    if (!storageKey) return;
-
-    try {
-      if (!reaction) {
-        sessionStorage.removeItem(storageKey);
-        return;
-      }
-      sessionStorage.setItem(storageKey, reaction);
-    } catch {
-      // storage indisponível não deve quebrar a thread.
-    }
-  }
-
-  private getReactionStorageKey(): string | null {
-    const messageId = String(this.message()?.id ?? '').trim();
-    const chatId = String(this.chatId() ?? '').trim();
-    const type = this.type();
-    return messageId
-      ? `chat-reaction:${type}:${chatId || 'thread'}:${messageId}`
-      : null;
   }
 
   isDirectChat(): boolean { return this.type() === 'chat'; }
