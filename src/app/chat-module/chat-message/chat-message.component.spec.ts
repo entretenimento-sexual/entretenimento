@@ -4,6 +4,16 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
 import { Firestore } from '@angular/fire/firestore';
 import { BehaviorSubject, of } from 'rxjs';
+import { deleteField, FieldPath, updateDoc } from 'firebase/firestore';
+
+vi.mock('firebase/firestore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('firebase/firestore')>();
+  return {
+    ...actual,
+    doc: vi.fn(() => ({ path: 'chats/chat-1/messages/msg-1' })),
+    updateDoc: vi.fn(() => Promise.resolve()),
+  };
+});
 
 import { ChatMessageComponent } from './chat-message.component';
 import { ChatReplyQuotePipe } from '../pipes/chat-reply-quote.pipe';
@@ -26,6 +36,8 @@ describe('ChatMessageComponent', () => {
 
   beforeEach(async () => {
     uid$.next('u1');
+    vi.mocked(updateDoc).mockReset();
+    vi.mocked(updateDoc).mockResolvedValue(undefined);
     await TestBed.configureTestingModule({
       declarations: [ChatMessageComponent, ChatReplyQuotePipe, DateFormatTestingPipe],
       providers: [
@@ -106,6 +118,71 @@ describe('ChatMessageComponent', () => {
     } as any);
     fixture.detectChanges();
     fixture.componentInstance.selectQuickReaction('❤️');
+    expect(fixture.componentInstance.selectedReaction).toBeNull();
+    expect(fixture.componentInstance.isSavingReaction).toBe(false);
+  });
+
+  it('grava apenas a reação do UID atual sem substituir o mapa dos demais', async () => {
+    fixture.componentRef.setInput('chatId', 'chat-1');
+    fixture.componentRef.setInput('message', {
+      id: 'msg-1',
+      senderId: 'u2',
+      content: 'Mensagem',
+      reactionsByUser: { u2: '🔥' },
+    } as any);
+    fixture.detectChanges();
+
+    fixture.componentInstance.selectQuickReaction('❤️');
+    await Promise.resolve();
+
+    expect(updateDoc).toHaveBeenCalledTimes(1);
+    const args = vi.mocked(updateDoc).mock.calls[0];
+    expect(args[1]).toBeInstanceOf(FieldPath);
+    expect(String(args[1])).toContain('u1');
+    expect(args[2]).toBe('❤️');
+    expect(args).toHaveLength(3);
+  });
+
+  it('usa deleteField para remover somente a reação do UID atual', async () => {
+    fixture.componentRef.setInput('chatId', 'chat-1');
+    fixture.componentRef.setInput('message', {
+      id: 'msg-1',
+      senderId: 'u2',
+      content: 'Mensagem',
+      reactionsByUser: { u1: '❤️', u2: '🔥' },
+    } as any);
+    fixture.detectChanges();
+
+    fixture.componentInstance.selectQuickReaction('❤️');
+    await Promise.resolve();
+
+    const args = vi.mocked(updateDoc).mock.calls[0];
+    expect(args[1]).toBeInstanceOf(FieldPath);
+    expect(String(args[1])).toContain('u1');
+    expect(args[2]).toEqual(deleteField());
+    expect(args).toHaveLength(3);
+  });
+
+  it('descarta resposta de erro pendente após troca de UID', async () => {
+    let rejectWrite!: (reason: unknown) => void;
+    vi.mocked(updateDoc).mockImplementationOnce(
+      () => new Promise<void>((_resolve, reject) => { rejectWrite = reject; })
+    );
+    fixture.componentRef.setInput('chatId', 'chat-1');
+    fixture.componentRef.setInput('message', {
+      id: 'msg-1',
+      senderId: 'u2',
+      content: 'Mensagem',
+      reactionsByUser: {},
+    } as any);
+    fixture.detectChanges();
+
+    fixture.componentInstance.selectQuickReaction('❤️');
+    uid$.next('u2');
+    rejectWrite(new Error('late permission denied'));
+    await Promise.resolve();
+    await Promise.resolve();
+
     expect(fixture.componentInstance.selectedReaction).toBeNull();
     expect(fixture.componentInstance.isSavingReaction).toBe(false);
   });
