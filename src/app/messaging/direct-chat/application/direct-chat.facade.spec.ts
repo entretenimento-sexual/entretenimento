@@ -236,6 +236,41 @@ describe('DirectChatFacade session isolation', () => {
   });
 });
 
+describe('DirectChatFacade late opening isolation', () => {
+  it('não seleciona conversa criada por requisição da sessão anterior', () => {
+    const uid = new BehaviorSubject<string | null>('user-a');
+    const pending = new Subject<string | null>();
+    const service = {
+      getMyDirectChats$: () => of([] as IChat[]),
+      ensureDirectChatIdWithUser$: () => pending.asObservable(),
+    } as unknown as DirectChatService;
+    const query = {
+      getUsersPublicMap$: () => of({}),
+    } as unknown as FirestoreUserQueryService;
+    const facade = new DirectChatFacade(
+      service,
+      buildAuthSession(uid),
+      query,
+      buildApplicationError().service,
+      buildDestroyRef()
+    );
+    const output: Array<string | null> = [];
+    const subscription = facade.openChatWithUser$('peer-a').subscribe(
+      (chatId) => output.push(chatId)
+    );
+    uid.next('user-b');
+    pending.next('old-chat');
+    expect(output).toEqual([]);
+    const selected: Array<string | null> = [];
+    const selection = facade.requestedSelectedChatId$.subscribe(
+      (chatId) => selected.push(chatId)
+    );
+    expect(last(selected)).toBeNull();
+    subscription.unsubscribe();
+    selection.unsubscribe();
+  });
+});
+
 describe('DirectChatFacade canonical errors', () => {
   it('mantém falha do listener silenciosa e devolve lista vazia', async () => {
     const uidSubject = new BehaviorSubject<string | null>('user-a');
