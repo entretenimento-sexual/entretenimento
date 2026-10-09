@@ -138,6 +138,8 @@ match /chats/{chatId} {
        * Em etapa futura, receipts também deverão migrar para backend.
        */
       allow update: if isChatParticipantByChat()
+        && resource.data.get("deleted", false) != true
+        && request.resource.data.get("deleted", false) != true
         && isMessageReceivedByCurrentUser()
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
           "status"
