@@ -79,6 +79,8 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
   private readonly hostRef = inject<ElementRef<HTMLElement>>(ElementRef);
   private currentUserUid: string | null = null;
+  private hasObservedInitialSession = false;
+  private requiresFreshThreadSelection = false;
 
   private activeThreadSub?: Subscription;
   private scrollWatchSub?: Subscription;
@@ -109,6 +111,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['chatId'] || changes['type']) {
+      this.requiresFreshThreadSelection = false;
       this.rebindThread();
     }
   }
@@ -129,16 +132,21 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((uid) => {
         const nextUid = String(uid ?? '').trim() || null;
-        if (nextUid === this.currentUserUid) return;
-        const previousUid = this.currentUserUid;
+        if (this.hasObservedInitialSession && nextUid === this.currentUserUid) return;
+        const isInitialSession = !this.hasObservedInitialSession;
+        this.hasObservedInitialSession = true;
         this.currentUserUid = nextUid;
         this.activeThreadSub?.unsubscribe();
         this.activeThreadSub = undefined;
         this.detachScrollWatcher();
         this.resetThreadState();
-        // Em troca de conta, aguardar o shell selecionar a thread da nova sessão.
-        // No bootstrap inicial, o input da thread pode ter chegado antes do UID.
-        if (!previousUid && nextUid && this.chatId && !this.activeThreadKey) {
+        // Uma thread escolhida pela sessão anterior nunca pode ser reaberta
+        // apenas porque outra conta autenticou, mesmo com o mesmo chatId.
+        if (!isInitialSession) {
+          this.requiresFreshThreadSelection = true;
+          return;
+        }
+        if (nextUid && this.chatId) {
           this.rebindThread();
         }
       });
@@ -156,7 +164,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     this.activeThreadSub = undefined;
     this.detachScrollWatcher();
 
-    if (!this.currentUserUid || !safeChatId || (safeType !== 'chat' && safeType !== 'room')) {
+    if (this.requiresFreshThreadSelection || !this.currentUserUid || !safeChatId || (safeType !== 'chat' && safeType !== 'room')) {
       this.resetThreadState();
       return;
     }
