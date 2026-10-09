@@ -12,10 +12,13 @@ import {
   filter,
   map,
   switchMap,
+  takeUntil,
+  withLatestFrom,
 } from 'rxjs/operators';
 
 import { DiscoveryPublicProfilesRepository } from 'src/app/dashboard/discovery/data-access/discovery-public-profiles.repository';
 import { buildDiscoveryFeedQueryKey } from 'src/app/dashboard/discovery/models/discovery-feed-page.model';
+import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
 import * as DiscoveryActions from '../../actions/actions.discovery/discovery-feed.actions';
@@ -28,6 +31,7 @@ export class DiscoveryFeedEffects {
   private readonly store = inject(Store<AppState>);
   private readonly repository = inject(DiscoveryPublicProfilesRepository);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly access = inject(AccessControlService);
 
   readonly loadFirstOrRefresh$ = createEffect(() =>
     this.actions$.pipe(
@@ -35,8 +39,11 @@ export class DiscoveryFeedEffects {
         DiscoveryActions.loadDiscoveryFirstPage,
         DiscoveryActions.refreshDiscoveryFeed
       ),
-      switchMap(({ request }) =>
+      withLatestFrom(this.access.authUid$),
+      filter(([{ request }, uid]) => request.viewerUid === uid),
+      switchMap(([{ request }]) =>
         this.repository.loadPage$(request, null).pipe(
+          takeUntil(this.access.authUid$.pipe(filter(uid => uid !== request.viewerUid))),
           map((page) =>
             DiscoveryActions.loadDiscoveryPageSuccess({
               request,
@@ -77,8 +84,11 @@ export class DiscoveryFeedEffects {
         !slice.reachedEnd &&
         slice.nextCursor !== null
       ),
+      withLatestFrom(this.access.authUid$),
+      filter(([{ request }, , uid]) => request.viewerUid === uid),
       exhaustMap(([{ request }, slice]) =>
         this.repository.loadPage$(request, slice.nextCursor).pipe(
+          takeUntil(this.access.authUid$.pipe(filter(uid => uid !== request.viewerUid))),
           map((page) =>
             DiscoveryActions.loadDiscoveryPageSuccess({
               request,
