@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { getFirestore } from 'firebase-admin/firestore';
+import { db } from '../../../firebaseApp';
 import { TERMS_ACCEPTANCE_VERSION, ADULT_CONSENT_VERSION } from '../../../compliance/platform-legal.constants';
 
 const emulatorConfigured = !!process.env.FIRESTORE_EMULATOR_HOST;
@@ -10,7 +10,6 @@ const run = emulatorConfigured ? describe : describe.skip;
 run('sendDirectMessage — Firestore Emulator transactional integration', () => {
   let invoke: (data: unknown, options: unknown) => Promise<any>;
   let cleanup: (() => void) | undefined;
-  const db = getFirestore();
   const prefix = `dm-integration-${randomUUID()}`;
   const actorUid = `${prefix}-a`;
   const targetUid = `${prefix}-b`;
@@ -18,7 +17,9 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
 
   before(async () => {
     const firebaseFunctionsTest = require('firebase-functions-test');
-    const testEnvironment = firebaseFunctionsTest({ projectId: process.env.GCLOUD_PROJECT || 'demo-entretenimento' });
+    const testEnvironment = firebaseFunctionsTest({
+      projectId: process.env.GCLOUD_PROJECT || 'demo-entretenimento',
+    });
     cleanup = () => testEnvironment.cleanup();
     const { sendDirectMessage } = require('./send-direct-message.handler');
     invoke = testEnvironment.wrap(sendDirectMessage);
@@ -61,9 +62,15 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
 
   it('deduplica duas chamadas simultâneas com o mesmo requestId', async () => {
     const id = randomUUID();
-    const results = await Promise.all([send('mensagem concorrente', id), send('mensagem concorrente', id)]);
+    const results = await Promise.all([
+      send('mensagem concorrente', id),
+      send('mensagem concorrente', id),
+    ]);
     assert.equal(results[0].messageId, results[1].messageId);
-    assert.equal(results.filter((item: any) => item.deduplicated === false).length, 1);
+    assert.equal(
+      results.filter((item: any) => item.deduplicated === false).length,
+      1
+    );
     const messages = await db.collection(`chats/${chatId}/messages`).get();
     assert.equal(messages.size, 1);
     const chat = await db.doc(`chats/${chatId}`).get();
