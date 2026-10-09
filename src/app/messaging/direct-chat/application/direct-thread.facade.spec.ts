@@ -103,6 +103,60 @@ describe('DirectThreadFacade', () => {
     subscription.unsubscribe();
   });
 
+  it('descarta respostas tardias de envio, exclusão e leitura após troca de sessão', () => {
+    const selectedChatId$ = new BehaviorSubject<string | null>('chat-1');
+    const uid$ = new BehaviorSubject<string | null>('user-a');
+    const canListenRealtime$ = new BehaviorSubject(true);
+    const send$ = new Subject<string>();
+    const delete$ = new Subject<void>();
+    const receipts$ = new Subject<number>();
+    const sendNext = vi.fn();
+    const deleteNext = vi.fn();
+    const receiptNext = vi.fn();
+    const facade = new DirectThreadFacade(
+      { selectedChatId$, selectedChatCanOpen$: of(true) } as any,
+      {
+        observeMessages$: vi.fn(() => of([])),
+        sendMessage$: vi.fn(() => send$),
+        deleteMessage$: vi.fn(() => delete$),
+      } as any,
+      { markDeliveredAsRead$: vi.fn(() => receipts$) } as any,
+      { uid$ } as any,
+      { canListenRealtime$ } as any,
+      { report: vi.fn() } as any,
+      { log: vi.fn() } as any,
+    );
+    facade.sendMessage$('oi').subscribe(sendNext);
+    facade.deleteMessage$('message-1').subscribe(deleteNext);
+    facade.markVisibleMessagesAsRead$([{ id: 'message-1' }] as any).subscribe(receiptNext);
+    uid$.next('user-b');
+    send$.next('old-result');
+    delete$.next();
+    receipts$.next(1);
+    expect(sendNext).not.toHaveBeenCalled();
+    expect(deleteNext).not.toHaveBeenCalled();
+    expect(receiptNext).not.toHaveBeenCalled();
+  });
+
+  it('cancela comando pendente quando a conversa muda', () => {
+    const selectedChatId$ = new BehaviorSubject<string | null>('chat-1');
+    const result$ = new Subject<string>();
+    const observer = vi.fn();
+    const facade = new DirectThreadFacade(
+      { selectedChatId$, selectedChatCanOpen$: of(true) } as any,
+      { sendMessage$: vi.fn(() => result$) } as any,
+      {} as any,
+      { uid$: of('me') } as any,
+      { canListenRealtime$: of(true) } as any,
+      { report: vi.fn() } as any,
+      { log: vi.fn() } as any,
+    );
+    facade.sendMessage$('oi').subscribe(observer);
+    selectedChatId$.next('chat-2');
+    result$.next('stale');
+    expect(observer).not.toHaveBeenCalled();
+  });
+
   it('envia mensagem pela conversa ativa quando o envio está liberado', async () => {
     const { facade, directThreadService, applicationError } = setup();
 
