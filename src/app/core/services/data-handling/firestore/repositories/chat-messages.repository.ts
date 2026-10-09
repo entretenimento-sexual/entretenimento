@@ -29,7 +29,6 @@ import {
   limit,
   orderBy,
   query,
-  setDoc,
   startAfter,
   updateDoc,
 } from '@angular/fire/firestore';
@@ -151,7 +150,7 @@ export class ChatMessagesRepository {
     return defer(() =>
       from(
         this.ctx.run(() =>
-          setDoc(this.messageRef(cid, mid), { status } as any, { merge: true })
+          updateDoc(this.messageRef(cid, mid), { status })
         )
       )
     ).pipe(
