@@ -31,6 +31,7 @@ interface DeleteDirectMessageResponse {
 interface DirectChatForDelete {
   participants?: unknown;
   lastMessage?: {
+    messageId?: unknown;
     content?: unknown;
     senderId?: unknown;
     senderUid?: unknown;
@@ -135,12 +136,10 @@ export const deleteDirectMessage = onCall<DeleteDirectMessageRequest>(
       );
 
       const lastMessage = chat?.lastMessage;
-      const lastMessageSender = normalizeIdentifier(lastMessage?.senderId)
-        || normalizeIdentifier(lastMessage?.senderUid);
-      const shouldUpdatePreview = lastMessageSender === actorUid
-        && normalizeIdentifier(lastMessage?.content) === normalizeIdentifier(
-          (messageSnapshot.data() as { content?: unknown } | undefined)?.content
-        );
+      // Sem ID persistido, textos iguais não identificam a mensagem correta.
+      // Preserva previews legados sem tentar uma correspondência ambígua.
+      const shouldUpdatePreview =
+        normalizeIdentifier(lastMessage?.messageId) === messageId;
 
       if (shouldUpdatePreview) {
         transaction.set(
@@ -151,7 +150,6 @@ export const deleteDirectMessage = onCall<DeleteDirectMessageRequest>(
               content: deletedContent,
               senderId: actorUid,
               senderUid: actorUid,
-              timestamp: FieldValue.serverTimestamp(),
               deleted: true,
             },
             updatedAt: FieldValue.serverTimestamp(),
