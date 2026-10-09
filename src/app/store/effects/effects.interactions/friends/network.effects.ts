@@ -2,7 +2,7 @@
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { of, combineLatest, timer } from 'rxjs';
-import { catchError, distinctUntilChanged, map, mergeMap, switchMap, tap } from 'rxjs/operators';
+import { catchError, distinctUntilChanged, filter, map, mergeMap, switchMap, takeUntil, tap, withLatestFrom } from 'rxjs/operators';
 
 import * as A from '../../../actions/actions.interactions/actions.friends';
 import * as RT from '../../../actions/actions.interactions/friends/friends-realtime.actions';
@@ -95,8 +95,11 @@ private dbg(msg: string, extra?: unknown): void {
   loadFriends$ = createEffect(() =>
     this.actions$.pipe(
       ofType(A.loadFriends),
-      switchMap(({ uid }) =>
+      withLatestFrom(this.access.authUid$),
+      filter(([{ uid }, currentUid]) => uid === currentUid),
+      switchMap(([{ uid }]) =>
         this.svc.listFriends(uid).pipe(
+          takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== uid))),
           map(friends => A.loadFriendsSuccess({ friends })),
           catchError(err => of(A.loadFriendsFailure({ error: String(err?.message ?? err) })))
         )
@@ -174,8 +177,11 @@ private dbg(msg: string, extra?: unknown): void {
   loadBlocked$ = createEffect(() =>
     this.actions$.pipe(
       ofType(A.loadBlockedUsers),
-      switchMap(({ uid }) =>
+      withLatestFrom(this.access.authUid$),
+      filter(([{ uid }, currentUid]) => uid === currentUid),
+      switchMap(([{ uid }]) =>
         this.svc.listBlocked(uid).pipe(
+          takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== uid))),
           map(blocked => A.loadBlockedUsersSuccess({ blocked })),
           catchError(err => of(A.loadBlockedUsersFailure({ error: String(err?.message ?? err) })))
         )
