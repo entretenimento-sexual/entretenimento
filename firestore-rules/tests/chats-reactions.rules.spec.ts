@@ -119,6 +119,22 @@ describe('Firestore Rules / direct chat reactions', () => {
     await assertFails(write(A, '❤️'));
   });
 
+  it('exclusão lógica concorrente com reação preserva tombstone sem reações', async () => {
+    const deleteLogical = env.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(
+        doc(context.firestore(), 'chats', CHAT_ID, 'messages', MESSAGE_ID),
+        { deleted: true, content: 'Mensagem apagada', reactionsByUser: {} }
+      );
+    });
+    const outcomes = await Promise.allSettled([deleteLogical, write(B, '🔥')]);
+    expect(outcomes[0].status).toBe('fulfilled');
+    const final = await assertSucceeds(getDoc(message(A)));
+    expect(final.data()?.['deleted']).toBe(true);
+    expect(final.data()?.['reactionsByUser']).toEqual({});
+    await assertFails(write(A, '❤️'));
+    await assertFails(write(B, '👀'));
+  });
+
   it('nega reação de usuário não autenticado', async () => {
     const anonymous = env.unauthenticatedContext().firestore();
     await assertFails(updateDoc(
