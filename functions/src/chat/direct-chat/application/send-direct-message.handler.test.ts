@@ -144,9 +144,11 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
   });
 
   /**
-   * Pausa somente a primeira tentativa imediatamente antes do commit.
-   * A revogação é persistida entre a leitura transacional e esse commit.
-   * O Firestore deve detectar o conflito, repetir as leituras e negar o envio.
+   * Pausa a primeira tentativa antes das leituras da transação.
+   * A revogação é confirmada enquanto o envio está pendente e antes
+   * de adquirir locks sobre os documentos de autorização.
+   * Firestore pode usar locks pessimistas: pausar após ler e tentar
+   * atualizar o mesmo documento criaria um impasse artificial.
    */
   async function assertRevocationWinsRace(
     label: string,
@@ -166,13 +168,12 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
 
     (db as any).runTransaction = (callback: any, options?: any) =>
       originalRunTransaction(async (transaction) => {
-        const result = await callback(transaction);
         if (!intercepted) {
           intercepted = true;
           signalPaused();
           await released;
         }
-        return result;
+        return callback(transaction);
       }, options);
 
     try {
@@ -211,7 +212,7 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     }
   }
 
-  it('revoga bloqueio entre leitura e commit do envio', async () => {
+  it('confirma bloqueio antes da leitura transacional pendente', async () => {
     const ref = db.doc(`users/${targetUid}/blocks/${actorUid}`);
     await assertRevocationWinsRace(
       'corrida-bloqueio',
@@ -221,7 +222,7 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     );
   });
 
-  it('revoga acesso da conta entre leitura e commit do envio', async () => {
+  it('confirma suspensão antes da leitura transacional pendente', async () => {
     const ref = db.doc(`users/${actorUid}`);
     await assertRevocationWinsRace(
       'corrida-suspensão',
@@ -231,7 +232,7 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     );
   });
 
-  it('remove conexão entre leitura e commit do envio', async () => {
+  it('remove conexão antes da leitura transacional pendente', async () => {
     const ref = db.doc(`users/${targetUid}/friends/${actorUid}`);
     await assertRevocationWinsRace(
       'corrida-amizade',
