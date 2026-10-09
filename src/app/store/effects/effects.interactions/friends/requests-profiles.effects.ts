@@ -4,11 +4,13 @@ import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router } from '@angular/router';
 import { of } from 'rxjs';
-import { catchError, filter, map, switchMap, tap, withLatestFrom } from 'rxjs/operators';
+import { catchError, filter, map, switchMap, takeUntil, tap, withLatestFrom } from 'rxjs/operators';
 import * as A from '../../../actions/actions.interactions/actions.friends';
 import * as RT from '../../../actions/actions.interactions/friends/friends-realtime.actions';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { Store } from '@ngrx/store';
+import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
+import { authSessionChanged } from '../../../actions/actions.user/auth.actions';
 import { AppState } from 'src/app/store/states/app.state';
 import { selectRequestersMap } from 'src/app/store/selectors/selectors.interactions/friends/feature';
 import { selectInboundRequests } from 'src/app/store/selectors/selectors.interactions/friends/inbound.selectors';
@@ -24,7 +26,16 @@ export class FriendsRequestsProfilesEffects {
   private snack = inject(MatSnackBar);
   private router = inject(Router);
   private store = inject(Store<AppState>);
+  private access = inject(AccessControlService);
   private seenInbound = new Set<string>();
+
+  resetNotificationStateOnSession$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(authSessionChanged),
+      tap(() => this.seenInbound.clear())
+    ),
+    { dispatch: false }
+  );
 
   // Inbound → perfis de quem solicitou
   loadInboundRequestsSuccess$ = createEffect(() =>
@@ -43,8 +54,11 @@ export class FriendsRequestsProfilesEffects {
   loadRequesterProfiles$ = createEffect(() =>
     this.actions$.pipe(
       ofType(A.loadRequesterProfiles),
-      switchMap(({ uids }) =>
+      withLatestFrom(this.access.authUid$),
+      filter(([, uid]) => !!uid),
+      switchMap(([{ uids }, uid]) =>
         this.userQuery.getUsersPublicMap$(uids).pipe(
+          takeUntil(this.access.authUid$.pipe(filter(current => current !== uid))),
           map(mapData => A.loadRequesterProfilesSuccess({ map: mapData })),
           catchError(error => of(A.loadRequesterProfilesFailure({ error })))
         )
@@ -69,8 +83,11 @@ export class FriendsRequestsProfilesEffects {
   loadTargetProfiles$ = createEffect(() =>
     this.actions$.pipe(
       ofType(A.loadTargetProfiles),
-      switchMap(({ uids }) =>
+      withLatestFrom(this.access.authUid$),
+      filter(([, uid]) => !!uid),
+      switchMap(([{ uids }, uid]) =>
         this.userQuery.getUsersPublicMap$(uids).pipe(
+          takeUntil(this.access.authUid$.pipe(filter(current => current !== uid))),
           map(mapData => A.loadTargetProfilesSuccess({ map: mapData })),
           catchError(error => of(A.loadTargetProfilesFailure({ error })))
         )
