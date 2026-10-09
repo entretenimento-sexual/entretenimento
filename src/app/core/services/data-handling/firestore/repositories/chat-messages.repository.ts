@@ -154,11 +154,7 @@ export class ChatMessagesRepository {
         )
       )
     ).pipe(
-      map(() => void 0),
-      catchError((err) => {
-        this.reportSilent('updateMessageStatus$', err);
-        return of(void 0);
-      })
+      map(() => void 0)
     );
   }
 
@@ -183,11 +179,7 @@ export class ChatMessagesRepository {
     return defer(() =>
       from(this.ctx.run(() => updateDoc(this.messageRef(cid, mid), patch as any)))
     ).pipe(
-      map(() => void 0),
-      catchError((err) => {
-        this.reportSilent('setMessageReaction$', err);
-        return of(void 0);
-      })
+      map(() => void 0)
     );
   }
 
