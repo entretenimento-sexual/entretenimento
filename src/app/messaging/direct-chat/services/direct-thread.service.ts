@@ -45,6 +45,17 @@ interface SendDirectMessagePayload {
   clientRequestId: string;
 }
 
+interface DeleteDirectMessagePayload {
+  chatId: string;
+  messageId: string;
+}
+
+interface DeleteDirectMessageResponse {
+  chatId: string;
+  messageId: string;
+  deleted: true;
+}
+
 interface SendDirectMessageResponse {
   chatId: string;
   messageId: string;
@@ -55,6 +66,10 @@ interface SendDirectMessageResponse {
 export class DirectThreadService {
   private readonly sendDirectMessageCallable: ReturnType<
     typeof httpsCallable<SendDirectMessagePayload, SendDirectMessageResponse>
+  >;
+
+  private readonly deleteDirectMessageCallable: ReturnType<
+    typeof httpsCallable<DeleteDirectMessagePayload, DeleteDirectMessageResponse>
   >;
 
   constructor(
@@ -69,6 +84,9 @@ export class DirectThreadService {
       SendDirectMessagePayload,
       SendDirectMessageResponse
     >(this.functions, 'sendDirectMessage');
+    this.deleteDirectMessageCallable = httpsCallable<
+      DeleteDirectMessagePayload, DeleteDirectMessageResponse
+    >(this.functions, 'deleteDirectMessage');
   }
 
   // ---------------------------------------------------------------------------
@@ -230,7 +248,11 @@ export class DirectThreadService {
           return of(void 0);
         }
 
-        return this.chatService.deleteMessage(safeChatId, safeMessageId).pipe(
+        return from(this.deleteDirectMessageCallable({
+          chatId: safeChatId,
+          messageId: safeMessageId,
+        })).pipe(
+          map(() => void 0),
           takeUntil(this.accessControl.authUid$.pipe(
             filter((uid) => uid !== ownerUid)
           )),
@@ -241,7 +263,7 @@ export class DirectThreadService {
             });
           }),
           catchError(() => {
-            // O adapter diagnostica a falha; aqui tratamos somente feedback de UX.
+            // Erro pertence à callable; centraliza diagnóstico sem duplicar UI.
             this.notifyError('Não foi possível excluir a mensagem.');
             return of(void 0);
           })
