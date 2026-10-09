@@ -36,6 +36,7 @@ import {
   distinctUntilChanged,
   map,
   shareReplay,
+  startWith,
   switchMap,
   take,
   tap,
@@ -107,61 +108,50 @@ export class DirectThreadFacade {
   );
 
   /**
-   * Mensagens da thread ativa.
+   * Estado atômico por thread e sessão: o chatId acompanha as mensagens
+   * produzidas por seu próprio listener, nunca por combineLatest paralelo.
+   * Troca de chat, UID ou perda de acesso cancela o listener anterior e
+   * emite imediatamente uma thread vazia.
    */
-  readonly messages$: Observable<Message[]> = combineLatest([
+  readonly state$: Observable<DirectThreadState> = combineLatest([
     this.activeChatId$,
     this.canOpen$,
+    this.authSession.uid$,
+    this.accessControl.canListenRealtime$,
   ]).pipe(
-    switchMap(([chatId, canOpen]) => {
-      if (!chatId || !canOpen) {
-        return of([] as Message[]);
+    switchMap(([chatId, canOpen, uid, canListen]) => {
+      const permittedChatId =
+        chatId && canOpen && String(uid ?? '').trim() && canListen
+          ? chatId
+          : null;
+      const emptyState: DirectThreadState = {
+        chatId: permittedChatId,
+        messages: [],
+        loading: false,
+      };
+
+      if (!permittedChatId) {
+        return of(emptyState);
       }
 
-      return this.directThreadService.observeMessages$(chatId);
-    }),
-    tap((messages) => {
-      this.dbg('messages$', {
-        count: Array.isArray(messages) ? messages.length : 0,
-      });
-    }),
-    catchError((error) => {
-      this.reportSilent(error, 'DirectThreadFacade.messages$');
-      return of([] as Message[]);
+      return this.directThreadService.observeMessages$(permittedChatId).pipe(
+        map((messages): DirectThreadState => ({
+          chatId: permittedChatId,
+          messages: Array.isArray(messages) ? messages : [],
+          loading: false,
+        })),
+        startWith(emptyState),
+        catchError((error) => {
+          this.reportSilent(error, 'DirectThreadFacade.state$');
+          return of(emptyState);
+        })
+      );
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  /**
-   * Estado consolidado da thread.
-   *
-   * IMPORTANTE:
-   * - mantido estritamente compatível com DirectThreadState atual
-   */
-  readonly state$: Observable<DirectThreadState> = combineLatest([
-    this.activeChatId$,
-    this.messages$,
-  ]).pipe(
-    map(([chatId, messages]) => ({
-      chatId,
-      messages: Array.isArray(messages) ? messages : [],
-      loading: false,
-    })),
-    tap((state) => {
-      this.dbg('state$', {
-        chatId: state.chatId,
-        messagesCount: state.messages.length,
-        loading: state.loading,
-      });
-    }),
-    catchError((error) => {
-      this.reportSilent(error, 'DirectThreadFacade.state$');
-      return of({
-        chatId: null,
-        messages: [],
-        loading: false,
-      } as DirectThreadState);
-    }),
+  readonly messages$: Observable<Message[]> = this.state$.pipe(
+    map((state) => state.messages),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
