@@ -86,6 +86,63 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     );
   });
 
+  it('mantém preview coerente sob envios concorrentes com IDs diferentes', async () => {
+    const first = randomUUID();
+    const second = randomUUID();
+    const [a, b] = await Promise.all([
+      send('concorrente A', first),
+      send('concorrente B', second),
+    ]);
+    assert.notEqual(a.messageId, b.messageId);
+    assert.equal(a.deduplicated, false);
+    assert.equal(b.deduplicated, false);
+
+    const [messages, chat] = await Promise.all([
+      db.collection(`chats/${chatId}/messages`).get(),
+      db.doc(`chats/${chatId}`).get(),
+    ]);
+    const ids = new Set(messages.docs.map((doc) => doc.id));
+    assert.ok(ids.has(a.messageId));
+    assert.ok(ids.has(b.messageId));
+    const preview = chat.data()?.lastMessage;
+    assert.ok(['concorrente A', 'concorrente B'].includes(preview?.content));
+    assert.equal(preview?.senderId, actorUid);
+  });
+
+  it('impede novo envio depois de bloqueio bilateral confirmado', async () => {
+    const blockRef = db.doc(`users/${targetUid}/blocks/${actorUid}`);
+    await blockRef.set({ isBlocked: true });
+    try {
+      const id = randomUUID();
+      await assert.rejects(send('bloqueado', id), (error: any) =>
+        String(error?.code ?? '').includes('permission-denied')
+      );
+      const messages = await db.collection(`chats/${chatId}/messages`)
+        .where('clientRequestId', '==', id).get();
+      assert.equal(messages.size, 0);
+    } finally {
+      await blockRef.delete();
+    }
+  });
+
+  it('impede novo envio depois de suspensão confirmada', async () => {
+    const actorRef = db.doc(`users/${actorUid}`);
+    await actorRef.update({ accountStatus: 'suspended' });
+    try {
+      const id = randomUUID();
+      await assert.rejects(send('suspenso', id), (error: any) =>
+        ['permission-denied', 'failed-precondition'].some((code) =>
+          String(error?.code ?? '').includes(code)
+        )
+      );
+      const messages = await db.collection(`chats/${chatId}/messages`)
+        .where('clientRequestId', '==', id).get();
+      assert.equal(messages.size, 0);
+    } finally {
+      await actorRef.update({ accountStatus: 'active' });
+    }
+  });
+
   it('nega envio quando a amizade bilateral é removida', async () => {
     await db.doc(`users/${targetUid}/friends/${actorUid}`).delete();
     await assert.rejects(send('não autorizado', randomUUID()), (error: any) =>
