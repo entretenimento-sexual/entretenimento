@@ -188,6 +188,31 @@ describe('ChatMessageComponent', () => {
     expect(fixture.componentInstance.isSavingReaction).toBe(false);
   });
 
+  it('descarta erro de reação da mensagem anterior quando o balão muda de mensagem', async () => {
+    let rejectWrite!: (reason: unknown) => void;
+    vi.mocked(updateDoc).mockImplementationOnce(
+      () => new Promise<void>((_resolve, reject) => { rejectWrite = reject; })
+    );
+    fixture.componentRef.setInput('chatId', 'chat-1');
+    fixture.componentRef.setInput('message', {
+      id: 'msg-1', senderId: 'u2', content: 'Mensagem A', reactionsByUser: {},
+    } as any);
+    fixture.detectChanges();
+
+    fixture.componentInstance.selectQuickReaction('❤️');
+    fixture.componentRef.setInput('message', {
+      id: 'msg-2', senderId: 'u2', content: 'Mensagem B',
+      reactionsByUser: { u1: '🔥' },
+    } as any);
+    fixture.detectChanges();
+    rejectWrite(new Error('late permission denied'));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fixture.componentInstance.selectedReaction).toBe('🔥');
+    expect(fixture.componentInstance.isSavingReaction).toBe(false);
+  });
+
   it('renderiza referência de vídeo sem expor URL assinada', () => {
     fixture.componentRef.setInput('message', {
       senderId: 'u2',
