@@ -1,4 +1,4 @@
-import { firstValueFrom, of } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of, Subject, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
@@ -6,14 +6,17 @@ import { ApplicationErrorService } from '@core/services/error-handler/applicatio
 import { ChatService } from './chat.service';
 
 function createHarness() {
+  const uid$ = new BehaviorSubject<string | null>('user-1');
+  const ready$ = new BehaviorSubject(true);
+  const blockReason$ = new BehaviorSubject<string | null>(null);
   const authSession = {
-    ready$: of(true),
+    ready$,
     authUser$: of({ uid: 'user-1', emailVerified: true }),
-    uid$: of('user-1'),
+    uid$,
   };
 
   const appBlock = {
-    reason$: of(null),
+    reason$: blockReason$,
   };
 
   const cache = {
@@ -30,7 +33,10 @@ function createHarness() {
   };
 
   const chatsRepo = {};
-  const msgsRepo = {};
+  const msgsRepo = {
+    updateMessageStatus$: vi.fn(),
+    setMessageReaction$: vi.fn(),
+  };
 
   const applicationError = {
     report: vi.fn(),
@@ -47,10 +53,7 @@ function createHarness() {
     applicationError as unknown as ApplicationErrorService
   );
 
-  return {
-    service,
-    applicationError,
-  };
+  return { service, applicationError, uid$, ready$, blockReason$, msgsRepo };
 }
 
 describe('ChatService canonical errors', () => {
@@ -139,6 +142,51 @@ describe('ChatService canonical errors', () => {
 
     await expect(firstValueFrom(outer$)).rejects.toBe(error);
     expect(applicationError.report).toHaveBeenCalledTimes(1);
+  });
+
+  it('recibo rejeitado propaga falha com diagnóstico único', async () => {
+    const { service, applicationError, msgsRepo } = createHarness();
+    const failure = new Error('permission-denied');
+    msgsRepo.updateMessageStatus$.mockReturnValue(
+      throwError(() => failure)
+    );
+
+    await expect(firstValueFrom(
+      service.updateMessageStatus('chat-1', 'message-1', 'delivered')
+    )).rejects.toBe(failure);
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
+  });
+
+  it('recibo não publica erro tardio de outra sessão', () => {
+    const { service, applicationError, msgsRepo, uid$ } = createHarness();
+    const pending = new Subject<void>();
+    msgsRepo.updateMessageStatus$.mockReturnValue(pending.asObservable());
+    const values: void[] = [];
+    const subscription = service.updateMessageStatus(
+      'chat-1', 'message-1', 'delivered'
+    ).subscribe((value) => values.push(value));
+
+    uid$.next('user-2');
+    pending.error(new Error('stale receipt failure'));
+    expect(values).toEqual([]);
+    expect(applicationError.report).not.toHaveBeenCalled();
+    subscription.unsubscribe();
+  });
+
+  it('reação não publica erro tardio após bloqueio da sessão', () => {
+    const { service, applicationError, msgsRepo, blockReason$ } = createHarness();
+    const pending = new Subject<void>();
+    msgsRepo.setMessageReaction$.mockReturnValue(pending.asObservable());
+    const values: void[] = [];
+    const subscription = service.setMessageReaction(
+      'chat-1', 'message-1', '❤️'
+    ).subscribe((value) => values.push(value));
+
+    blockReason$.next('revoked');
+    pending.error(new Error('stale reaction failure'));
+    expect(values).toEqual([]);
+    expect(applicationError.report).not.toHaveBeenCalled();
+    subscription.unsubscribe();
   });
 
   it('preserva valor original quando precisa criar um Error para falha não-Error', async () => {
