@@ -292,6 +292,7 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
       const nickname = resolveNickname(actor);
 
       const lastMessage = {
+        messageId,
         content,
         senderId: actorUid,
         senderUid: actorUid,
