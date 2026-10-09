@@ -1,5 +1,5 @@
 // src/app/messaging/direct-chat/services/direct-thread.service.spec.ts
-import { BehaviorSubject, firstValueFrom, of, throwError } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of, Subject, throwError } from 'rxjs';
 
 const functionsMocks = {
   httpsCallable: vi.fn(),
@@ -12,6 +12,7 @@ describe('DirectThreadService', () => {
   let DirectThreadServiceToken: any;
 
   let canListenRealtime$: BehaviorSubject<boolean>;
+  let authUid$: BehaviorSubject<string | null>;
   let sendCallableMock: MockFn;
 
   let chatServiceMock: {
@@ -50,6 +51,7 @@ describe('DirectThreadService', () => {
 
   beforeEach(() => {
     canListenRealtime$ = new BehaviorSubject<boolean>(true);
+    authUid$ = new BehaviorSubject<string | null>('user-a');
     sendCallableMock = vi.fn();
 
     chatServiceMock = {
@@ -78,6 +80,7 @@ describe('DirectThreadService', () => {
       chatServiceMock,
       {
         canListenRealtime$: canListenRealtime$.asObservable(),
+        authUid$: authUid$.asObservable(),
       },
       applicationErrorMock,
       errorNotifierMock,
@@ -170,6 +173,32 @@ describe('DirectThreadService', () => {
         chatId: 'chat-1',
       },
     });
+  });
+
+  it('observeMessages$ encerra listener de A antes de ativar B', () => {
+    const oldMessages = new Subject<any[]>();
+    const newMessages = new Subject<any[]>();
+    chatServiceMock.monitorChat
+      .mockReturnValueOnce(oldMessages.asObservable())
+      .mockReturnValueOnce(newMessages.asObservable());
+
+    const emitted: any[][] = [];
+    const sub = service.observeMessages$('chat-1').subscribe(
+      (messages: any[]) => emitted.push(messages)
+    );
+    expect(chatServiceMock.monitorChat).toHaveBeenCalledTimes(1);
+
+    authUid$.next(null);
+    expect(emitted.at(-1)).toEqual([]);
+    authUid$.next('user-b');
+    expect(chatServiceMock.monitorChat).toHaveBeenCalledTimes(2);
+
+    oldMessages.next([{ id: 'old-message' }]);
+    expect(emitted.some(items => items.some(x => x.id === 'old-message'))).toBe(false);
+
+    newMessages.next([{ id: 'new-message' }]);
+    expect(emitted.at(-1)).toEqual([{ id: 'new-message' }]);
+    sub.unsubscribe();
   });
 
   it('sendMessage$ deve retornar null quando chatId vier vazio', async () => {
