@@ -1,4 +1,4 @@
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { BehaviorSubject, Subject, firstValueFrom, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DirectThreadFacade } from './direct-thread.facade';
@@ -59,6 +59,49 @@ describe('DirectThreadFacade', () => {
       applicationError,
     };
   }
+
+  it('não associa mensagens da thread anterior ao novo chat ou à nova sessão', () => {
+    const selectedChatId$ = new BehaviorSubject<string | null>('chat-1');
+    const uid$ = new BehaviorSubject<string | null>('user-a');
+    const canListenRealtime$ = new BehaviorSubject(true);
+    const chatOne$ = new Subject<any[]>();
+    const chatTwo$ = new Subject<any[]>();
+    const observeMessages$ = vi.fn((chatId: string) =>
+      chatId === 'chat-1' ? chatOne$ : chatTwo$
+    );
+    const facade = new DirectThreadFacade(
+      { selectedChatId$, selectedChatCanOpen$: of(true) } as any,
+      { observeMessages$ } as any,
+      { markDeliveredAsRead$: vi.fn() } as any,
+      { uid$ } as any,
+      { canListenRealtime$ } as any,
+      { report: vi.fn() } as any,
+      { log: vi.fn() } as any,
+    );
+    const states: Array<{ chatId: string | null; messages: any[] }> = [];
+    const subscription = facade.state$.subscribe((state) => states.push(state));
+
+    chatOne$.next([{ id: 'from-a' }]);
+    expect(states.at(-1)).toMatchObject({ chatId: 'chat-1', messages: [{ id: 'from-a' }] });
+
+    selectedChatId$.next('chat-2');
+    expect(states.at(-1)).toMatchObject({ chatId: 'chat-2', messages: [] });
+    chatOne$.next([{ id: 'stale-from-a' }]);
+    expect(states.at(-1)?.messages).toEqual([]);
+
+    chatTwo$.next([{ id: 'from-b' }]);
+    expect(states.at(-1)).toMatchObject({ chatId: 'chat-2', messages: [{ id: 'from-b' }] });
+    uid$.next(null);
+    expect(states.at(-1)).toMatchObject({ chatId: null, messages: [] });
+    chatTwo$.next([{ id: 'stale-after-logout' }]);
+    expect(states.at(-1)?.messages).toEqual([]);
+
+    uid$.next('user-b');
+    expect(states.at(-1)).toMatchObject({ chatId: 'chat-2', messages: [] });
+    canListenRealtime$.next(false);
+    expect(states.at(-1)).toMatchObject({ chatId: null, messages: [] });
+    subscription.unsubscribe();
+  });
 
   it('envia mensagem pela conversa ativa quando o envio está liberado', async () => {
     const { facade, directThreadService, applicationError } = setup();
