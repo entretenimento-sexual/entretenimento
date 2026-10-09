@@ -361,6 +361,28 @@ describe('DirectThreadService', () => {
     );
   });
 
+  it('deleteMessage$ não chama adapter sem UID autenticado', async () => {
+    authUid$.next(null);
+    await firstValueFrom(service.deleteMessage$('chat-1', 'msg-1'));
+    expect(chatServiceMock.deleteMessage).not.toHaveBeenCalled();
+  });
+
+  it('deleteMessage$ descarta falha tardia após troca direta de UID', () => {
+    const pending = new Subject<void>();
+    chatServiceMock.deleteMessage.mockReturnValueOnce(pending.asObservable());
+    const values: void[] = [];
+    const sub = service.deleteMessage$('chat-1', 'msg-1').subscribe(
+      (value: void) => values.push(value)
+    );
+    expect(chatServiceMock.deleteMessage).toHaveBeenCalledTimes(1);
+    authUid$.next('user-b');
+    pending.error(new Error('old session failure'));
+    expect(values).toEqual([]);
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
+    expect(applicationErrorMock.report).not.toHaveBeenCalled();
+    sub.unsubscribe();
+  });
+
   it('deleteMessage$ deve ignorar ids inválidos', async () => {
     await firstValueFrom(service.deleteMessage$(' ', 'msg-1'));
     await firstValueFrom(service.deleteMessage$('chat-1', ' '));
