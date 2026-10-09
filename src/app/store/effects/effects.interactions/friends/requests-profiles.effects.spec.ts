@@ -3,7 +3,7 @@ import { Actions } from '@ngrx/effects';
 import { Store } from '@ngrx/store';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router } from '@angular/router';
-import { BehaviorSubject, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
@@ -35,7 +35,7 @@ describe('FriendsRequestsProfilesEffects / isolamento assíncrono', () => {
 
     const effects = TestBed.inject(FriendsRequestsProfilesEffects);
     const output: unknown[] = [];
-    const subscription = effects[effectName].subscribe(value => output.push(value));
+    const subscription = (effects[effectName] as Observable<unknown>).subscribe((value: unknown) => output.push(value));
 
     actions.next(action);
     expect(getUsersPublicMap$).toHaveBeenCalledTimes(1);
