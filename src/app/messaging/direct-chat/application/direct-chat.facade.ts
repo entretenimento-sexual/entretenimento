@@ -24,6 +24,8 @@ import {
   startWith,
   switchMap,
   take,
+  takeUntil,
+  filter,
   tap,
 } from 'rxjs/operators';
 
@@ -264,7 +266,15 @@ export class DirectChatFacade {
    * Recebe UID do outro perfil, resolve/cria a conversa e seleciona o chat real.
    */
   openChatWithUser$(otherUserUid: string): Observable<string | null> {
+    const session = this.sessionIdentitySubject.value;
+    if (!session.uid) return of(null);
+
     return this.directChatService.ensureDirectChatIdWithUser$(otherUserUid).pipe(
+      takeUntil(this.sessionIdentity$.pipe(
+        filter((current) =>
+          current.uid !== session.uid || current.epoch !== session.epoch
+        )
+      )),
       tap((chatId) => {
         if (chatId) {
           this.selectChat(chatId);
