@@ -45,6 +45,8 @@ import {
   catchError,
   distinctUntilChanged,
   finalize,
+  filter,
+  takeUntil,
   map,
   shareReplay,
   tap,
@@ -127,6 +129,7 @@ export class ChatModuleLayoutComponent implements OnInit {
   // ---------------------------------------------------------------------------
 
   messageContent = '';
+  private activeSessionUid: string | null = null;
 
   readonly maxMessageLength = DIRECT_CHAT_MAX_MESSAGE_LENGTH;
 
@@ -254,9 +257,12 @@ get shouldShowComposerHelp(): boolean {
     this.currentUid$
       .pipe(
         tap((uid) => {
-          if (!uid) {
+          if (uid !== this.activeSessionUid) {
+            this.activeSessionUid = uid;
             this.messageContent = '';
             this.selectionContext.clear();
+            this.directMessageBlockedReason.set(null);
+            this.canSendCurrentMessage.set(false);
           }
 
           this.dbg('observeAuthenticatedUser()', {
@@ -441,6 +447,9 @@ if (this.isMessageTooLong) {
       return;
     }
 
+    const sendingUid = this.activeSessionUid;
+    if (!sendingUid) return;
+
     this.isSendingMessage.set(true);
 
     this.sendOrchestrator
@@ -464,6 +473,7 @@ if (this.isMessageTooLong) {
         finalize(() => {
           this.isSendingMessage.set(false);
         }),
+        takeUntil(this.currentUid$.pipe(filter((uid) => uid !== sendingUid))),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
