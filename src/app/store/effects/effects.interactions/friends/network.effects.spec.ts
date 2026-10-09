@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Actions } from '@ngrx/effects';
-import { BehaviorSubject, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { vi } from 'vitest';
 
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
@@ -84,7 +84,7 @@ describe('FriendsNetworkEffects / isolamento entre UIDs', () => {
     ['endFriendship$', () => A.endFriendship({ ownerUid: 'user-a', friendUid: 'other' })],
   ] as const)('descarta retorno tardio de %s depois da troca de conta', (effectName, createAction) => {
     const output: unknown[] = [];
-    const sub = effects[effectName].subscribe(action => output.push(action));
+    const sub = (effects[effectName] as Observable<unknown>).subscribe((action: unknown) => output.push(action));
     actions.next(createAction());
     uid.next('user-b');
     pendingMutation.next();
