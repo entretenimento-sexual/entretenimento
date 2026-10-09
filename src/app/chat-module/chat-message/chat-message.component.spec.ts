@@ -1,11 +1,4 @@
 // src/app/chat-module/chat-message/chat-message.component.spec.ts
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
-import { Firestore } from '@angular/fire/firestore';
-import { BehaviorSubject, of } from 'rxjs';
-import { deleteField, FieldPath, updateDoc } from 'firebase/firestore';
-
 vi.mock('firebase/firestore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('firebase/firestore')>();
   return {
@@ -14,6 +7,14 @@ vi.mock('firebase/firestore', async (importOriginal) => {
     updateDoc: vi.fn(() => Promise.resolve()),
   };
 });
+
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
+import { Firestore } from '@angular/fire/firestore';
+import { BehaviorSubject, of } from 'rxjs';
+import { deleteField, FieldPath, updateDoc } from 'firebase/firestore';
+
 
 import { ChatMessageComponent } from './chat-message.component';
 import { ChatReplyQuotePipe } from '../pipes/chat-reply-quote.pipe';
