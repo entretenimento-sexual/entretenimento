@@ -20,7 +20,7 @@
 import { Injectable } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 
-import { Observable, defer, from, of, throwError } from 'rxjs';
+import { Observable, combineLatest, defer, from, of, throwError } from 'rxjs';
 import {
   catchError,
   map,
@@ -86,9 +86,12 @@ export class DirectThreadService {
       return of([]);
     }
 
-    return this.accessControl.canListenRealtime$.pipe(
-      switchMap((canListen) => {
-        if (!canListen) {
+    return combineLatest([
+      this.accessControl.authUid$,
+      this.accessControl.canListenRealtime$,
+    ]).pipe(
+      switchMap(([uid, canListen]) => {
+        if (!uid || !canListen) {
           this.dbg('observeMessages$ blocked', { chatId: safeChatId });
           return of([] as Message[]);
         }
