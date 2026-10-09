@@ -266,7 +266,14 @@ export class DirectThreadService {
             });
           }),
           catchError((error) => {
-            this.reportSilent(error, 'DirectThreadService.deleteMessage
+            this.reportSilent(error, 'chat.delete', {
+              chatId: safeChatId,
+              messageId: safeMessageId,
+            });
+            this.notifyError('Não foi possível excluir a mensagem.');
+            return of(void 0);
+          })
+        );
       }),
       catchError((error) => {
         this.reportSilent(error, 'DirectThreadService.deleteMessage$', {
