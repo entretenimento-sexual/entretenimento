@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 describe('direct chat reconciliation CLI — fail-closed operational boundary', () => {
@@ -26,6 +27,13 @@ describe('direct chat reconciliation CLI — fail-closed operational boundary', 
     assert.match(result.stderr, /Falha no dry-run: Error:/);
     assert.doesNotMatch(result.stdout, /pairHash|eligibleChatIds/);
   }
+
+  it('não serializa identificadores de pares ou de conversas no resumo', () => {
+    const source = readFileSync(join(__dirname, 'direct-chat-reconciliation.emulator-cli.js'), 'utf8');
+    assert.match(source, /eligibleHistoryCount/);
+    assert.match(source, /requiresManualReview/);
+    assert.doesNotMatch(source, /JSON\\.stringify\\(report, null, 2\\)/);
+  });
 
   it('rejeita host ausente ou remoto antes de consultar Firestore', () => {
     denied({ FIRESTORE_EMULATOR_HOST: undefined });
