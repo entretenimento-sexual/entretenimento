@@ -18,7 +18,6 @@
 // - novos chats usam ID determinístico, evitando duplicidade futura.
 // -----------------------------------------------------------------------------
 
-import { createHash } from 'node:crypto';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
@@ -37,6 +36,7 @@ import type {
 
 import {
   DIRECT_CHAT_POLICY_VERSION,
+  buildDirectChatPairIdentity,
   ENSURE_DIRECT_CHAT_RATE_LIMIT_CONFIG,
   ENSURE_DIRECT_CHAT_LEGACY_SCAN_LIMIT,
   assertCanCreateNewDirectChat,
@@ -72,18 +72,6 @@ interface StoredDirectChatDoc {
 function normalizeUid(value: unknown): string {
   const uid = typeof value === 'string' ? value.trim() : '';
   return uid && uid.length <= 128 && !uid.includes('/') ? uid : '';
-}
-
-function buildParticipants(actorUid: string, targetUid: string): string[] {
-  return [actorUid, targetUid].sort();
-}
-
-function buildParticipantsKey(participants: string[]): string {
-  return participants.join('_');
-}
-
-function buildPairHash(participantsKey: string): string {
-  return createHash('sha256').update(participantsKey).digest('hex');
 }
 
 function timestampMillis(value: unknown): number {
@@ -177,9 +165,13 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
       message: 'Muitas tentativas de abrir conversas. Tente novamente mais tarde.',
     });
 
-    const participants = buildParticipants(actorUid, targetUid);
-    const participantsKey = buildParticipantsKey(participants);
-    const pairHash = buildPairHash(participantsKey);
+    const {
+      participants,
+      legacyKey,
+      legacyHash,
+      canonicalKey,
+      canonicalHash,
+    } = buildDirectChatPairIdentity(actorUid, targetUid);
 
     const actorRef = db.collection('users').doc(actorUid);
     const targetRef = db.collection('users').doc(targetUid);
@@ -193,7 +185,8 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
      * Registro interno de par -> chat canônico.
      * O cliente não deverá ler nem escrever nesta coleção.
      */
-    const registryRef = db.collection('direct_chat_pairs').doc(pairHash);
+    const registryRef = db.collection('direct_chat_pairs').doc(canonicalHash);
+    const legacyRegistryRef = db.collection('direct_chat_pairs').doc(legacyHash);
 
     /**
      * Novas conversas passam a usar ID determinístico.
@@ -201,7 +194,8 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
      */
     const deterministicChatRef = db
       .collection('chats')
-      .doc(`direct_${pairHash}`);
+      .doc(`direct_${canonicalHash}`);
+    const legacyDeterministicChatRef = db.collection('chats').doc(`direct_${legacyHash}`);
 
     /**
      * Esta consulta hoje é negada no cliente. No backend, ela é executada para
@@ -209,7 +203,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
      */
     const legacyQuery = db
       .collection('chats')
-      .where('participantsKey', '==', participantsKey)
+      .where('participantsKey', '==', legacyKey)
       .limit(ENSURE_DIRECT_CHAT_LEGACY_SCAN_LIMIT);
 
     const auditRef = db.collection('direct_chat_audit').doc();
