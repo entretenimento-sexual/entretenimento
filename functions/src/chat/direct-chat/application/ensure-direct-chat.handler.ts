@@ -364,10 +364,43 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
       const canonicalLegacyChat =
         selectCanonicalLegacyChat(legacyCandidates);
 
+      // Um determinístico v1 sem participantsKey continua recuperável.
+      const legacyDeterministicEligible =
+        legacyDeterministicChatSnapshot.exists
+        && isEligibleExistingDirectChat(
+          legacyDeterministicChatSnapshot.data() as StoredDirectChatDoc | undefined,
+          participants
+        );
+      if (legacyDeterministicEligible && !canonicalLegacyChat) {
+        if (deterministicChatSnapshot.exists) {
+          throw new HttpsError('data-loss',
+            'Mais de um histórico foi encontrado para esta conversa.');
+        }
+        transaction.set(registryRef, {
+          chatId: legacyDeterministicChatRef.id,
+          pairHash: canonicalHash,
+          pairKeyVersion: 2,
+          participants,
+          source: 'legacy-deterministic-recovered',
+          policyVersion: DIRECT_CHAT_POLICY_VERSION,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return {
+          chatId: legacyDeterministicChatRef.id,
+          created: false,
+          resolution: 'legacy-adopted' as const,
+        };
+      }
+
       if (canonicalLegacyChat) {
+        if (deterministicChatSnapshot.exists) {
+          throw new HttpsError('data-loss',
+            'Mais de um histórico foi encontrado para esta conversa.');
+        }
         transaction.set(registryRef, {
           chatId: canonicalLegacyChat.id,
-          pairHash,
+          pairHash: canonicalHash,
           participants,
           source: 'legacy-adopted',
           duplicateCandidatesDetected: legacyCandidates.length > 1,
@@ -385,7 +418,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
           actorUid,
           targetUid,
           chatId: canonicalLegacyChat.id,
-          pairHash,
+          pairHash: canonicalHash,
           duplicateCandidatesDetected: legacyCandidates.length > 1,
           duplicateCandidateIds:
             legacyCandidates.length > 1
@@ -417,7 +450,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
 
         transaction.set(registryRef, {
           chatId: deterministicChatRef.id,
-          pairHash,
+          pairHash: canonicalHash,
           participants,
           source: 'deterministic-recovered',
           policyVersion: DIRECT_CHAT_POLICY_VERSION,
@@ -434,7 +467,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
 
       transaction.set(deterministicChatRef, {
         participants,
-        participantsKey,
+        participantsKey: canonicalKey,
 
         conversationType: 'direct',
         conversationStatus: 'active',
@@ -450,7 +483,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
 
       transaction.set(registryRef, {
         chatId: deterministicChatRef.id,
-        pairHash,
+        pairHash: canonicalHash,
         participants,
         source: 'created',
         policyVersion: DIRECT_CHAT_POLICY_VERSION,
@@ -463,7 +496,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         actorUid,
         targetUid,
         chatId: deterministicChatRef.id,
-        pairHash,
+        pairHash: canonicalHash,
         origin: 'accepted-friendship',
         policyVersion: DIRECT_CHAT_POLICY_VERSION,
         createdAt: FieldValue.serverTimestamp(),
