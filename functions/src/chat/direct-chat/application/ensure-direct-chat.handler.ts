@@ -299,6 +299,56 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         };
       }
 
+      // Migração preguiçosa: um registry v1 pode apontar para um chat válido
+      // já existente. Validar sempre os participantes; hashes v1 colidem para
+      // pares distintos com '_' no UID, portanto NUNCA confiar no hash sozinho.
+      const previousRegistryId = normalizeUid(
+        (legacyRegistrySnapshot.data() as DirectChatPairRegistryDoc | undefined)?.chatId
+      );
+      if (previousRegistryId) {
+        const previousRef = db.collection('chats').doc(previousRegistryId);
+        const previousSnapshot =
+          previousRegistryId === legacyDeterministicChatRef.id
+            ? legacyDeterministicChatSnapshot
+            : previousRegistryId === deterministicChatRef.id
+              ? deterministicChatSnapshot
+              : await transaction.get(previousRef);
+
+        if (previousSnapshot.exists && isEligibleExistingDirectChat(
+          previousSnapshot.data() as StoredDirectChatDoc | undefined,
+          participants
+        )) {
+          if (deterministicChatSnapshot.exists
+              && deterministicChatRef.id !== previousRegistryId) {
+            throw new HttpsError('data-loss',
+              'Mais de um histórico foi encontrado para esta conversa.');
+          }
+          transaction.set(registryRef, {
+            chatId: previousRegistryId,
+            pairHash: canonicalHash,
+            pairKeyVersion: 2,
+            participants,
+            source: 'legacy-registry-adopted',
+            policyVersion: DIRECT_CHAT_POLICY_VERSION,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          transaction.set(auditRef, {
+            action: 'adopt-legacy-direct-chat-registry',
+            actorUid,
+            targetUid,
+            chatId: previousRegistryId,
+            pairHash: canonicalHash,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+          return {
+            chatId: previousRegistryId,
+            created: false,
+            resolution: 'legacy-adopted' as const,
+          };
+        }
+      }
+
       if (legacySnapshot.size >= ENSURE_DIRECT_CHAT_LEGACY_SCAN_LIMIT) {
         throw new HttpsError('failed-precondition',
           'Esta conversa precisa de revisão antes de ser aberta.');
