@@ -202,6 +202,10 @@ getMyDirectChats$(): Observable<IChat[]> {
       (error as { message?: unknown } | null)?.message ?? ''
     ).toLowerCase();
 
+    if (code.includes('resource-exhausted')) {
+      return 'Muitas tentativas de abrir conversas. Tente novamente mais tarde.';
+    }
+
     if (code.includes('unauthenticated')) {
       return 'Entre novamente para iniciar uma conversa.';
     }
@@ -237,6 +241,7 @@ getMyDirectChats$(): Observable<IChat[]> {
           unauthenticated: userMessage,
           'failed-precondition': userMessage,
           'permission-denied': userMessage,
+          'resource-exhausted': userMessage,
         },
         presentation: { surface: 'snackbar', severity: 'error' },
         metadata: {
