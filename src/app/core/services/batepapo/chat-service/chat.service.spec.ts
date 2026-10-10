@@ -210,9 +210,12 @@ describe('ChatService canonical errors', () => {
     expect(msgsRepo.addMessage$).not.toHaveBeenCalled();
     expect(msgsRepo.deleteMessage$).not.toHaveBeenCalled();
     expect(applicationError.report).toHaveBeenCalledTimes(operations.length);
-    expect(applicationError.report.mock.calls.every(
-      ([, options]) => options.presentation.surface === 'none'
-    )).toBe(true);
+    expect(applicationError.report).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        presentation: { surface: 'none', severity: 'error' },
+      })
+    );
   });
 
   it('enrichment legado não consulta perfil privado nem grava dados de terceiros', async () => {
