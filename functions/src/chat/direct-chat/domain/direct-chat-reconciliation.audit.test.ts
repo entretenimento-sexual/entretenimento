@@ -73,6 +73,41 @@ describe('direct chat reconciliation dry-run classifier', () => {
     assert.ok(result.findings.includes('CANONICAL_REGISTRY_WRONG_PAIR'));
   });
 
+  it('registra ausência comprovada da referência v1', () => {
+    const result = auditDirectChatPair({
+      participants, chats: [], legacyRegistryChatId: 'gone',
+      verifiedReferences: { gone: false },
+    });
+    assert.ok(result.findings.includes('LEGACY_REGISTRY_MISSING_CHAT'));
+    assert.equal(result.requiresManualReview, true);
+  });
+
+  it('mantém referência v1 não lida como inconclusiva', () => {
+    const result = auditDirectChatPair({
+      participants, chats: [], legacyRegistryChatId: 'not-read',
+    });
+    assert.ok(result.findings.includes('REFERENCE_NOT_VERIFIED'));
+    assert.ok(!result.findings.includes('LEGACY_REGISTRY_MISSING_CHAT'));
+  });
+
+  it('não silencia candidatos repetidos com o mesmo ID', () => {
+    const result = auditDirectChatPair({
+      participants, chats: [candidate('repeat'), candidate('repeat')],
+    });
+    assert.ok(result.findings.includes('DUPLICATE_CANDIDATE_ID'));
+    assert.equal(result.requiresManualReview, true);
+  });
+
+  it('identifica ID determinístico v2 ocupado por par diferente', () => {
+    const result = auditDirectChatPair({
+      participants, chats: [{
+        id: `direct_${pair.canonicalHash}`,
+        participants: ['another', 'pair'],
+      }],
+    });
+    assert.ok(result.findings.includes('DETERMINISTIC_ID_WRONG_PAIR'));
+  });
+
   it('falha fechado em amostra truncada', () => {
     const result = auditDirectChatPair({
       participants, chats: [candidate('legacy-1')], truncated: true,
