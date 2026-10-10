@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { db } from '../../../firebaseApp';
 import { buildDirectChatPairIdentity } from '../domain/direct-chat.policy';
@@ -8,6 +10,62 @@ import { readDirectChatReconciliation } from './direct-chat-reconciliation.reade
 const run = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip;
 
 run('direct chat reconciliation — Firestore emulator', () => {
+  it('executa CLI isolado com históricos conflitantes sem expor IDs nem modificar dados', async () => {
+    const suffix = randomUUID();
+    const participants: [string, string] = [
+      `audit-cli-${suffix}-a`, `audit-cli-${suffix}-b`,
+    ];
+    const pair = buildDirectChatPairIdentity(...participants);
+    const first = db.collection('chats').doc(`audit-cli-first-${suffix}`);
+    const second = db.collection('chats').doc(`audit-cli-second-${suffix}`);
+    const registry = db.doc(`direct_chat_pairs/${pair.canonicalHash}`);
+    const data = {
+      participants: pair.participants,
+      participantsKey: pair.legacyKey,
+      conversationType: 'direct',
+    };
+    try {
+      await Promise.all([
+        first.set(data), second.set(data),
+        registry.set({ chatId: first.id, version: 2 }),
+      ]);
+      const before = await Promise.all([first.get(), second.get(), registry.get()]);
+      const result = spawnSync(process.execPath, [
+        join(__dirname, 'direct-chat-reconciliation.emulator-cli.js'),
+        ...participants,
+      ], {
+        encoding: 'utf8',
+        timeout: 15000,
+        env: {
+          ...process.env,
+          FIRESTORE_EMULATOR_HOST: process.env.FIRESTORE_EMULATOR_HOST,
+          GCLOUD_PROJECT: 'demo-entretenimento',
+          GOOGLE_CLOUD_PROJECT: 'demo-entretenimento',
+          GCP_PROJECT: 'demo-entretenimento',
+          FIREBASE_CONFIG: undefined,
+        },
+      });
+      assert.equal(result.status, 0, result.stderr);
+      const report: Record<string, unknown> = JSON.parse(result.stdout);
+      assert.deepEqual(Object.keys(report).sort(), [
+        'mode', 'findings', 'eligibleHistoryCount', 'inspectedDocuments',
+        'boundedQuery', 'requiresManualReview',
+      ].sort());
+      assert.equal(report.mode, 'DRY_RUN');
+      assert.equal(report.eligibleHistoryCount, 2);
+      assert.equal(report.requiresManualReview, true);
+      assert.ok(Array.isArray(report.findings));
+      assert.ok((report.findings as string[]).includes('MULTIPLE_HISTORIES'));
+      for (const secret of [...participants, first.id, second.id, pair.canonicalHash]) {
+        assert.ok(!result.stdout.includes(secret), 'CLI expôs um identificador');
+      }
+      const after = await Promise.all([first.get(), second.get(), registry.get()]);
+      assert.deepEqual(after.map((doc) => doc.data()), before.map((doc) => doc.data()));
+    } finally {
+      await Promise.all([first.delete(), second.delete(), registry.delete()]);
+    }
+  });
+
   it('sinaliza registry v2 cruzado e preserva todas as fontes em leituras repetidas', async () => {
     const suffix = randomUUID();
     const participants: [string, string] = [
