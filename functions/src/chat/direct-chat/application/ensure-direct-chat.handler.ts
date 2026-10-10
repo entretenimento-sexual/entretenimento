@@ -70,7 +70,8 @@ interface StoredDirectChatDoc {
 }
 
 function normalizeUid(value: unknown): string {
-  return String(value ?? '').trim();
+  const uid = typeof value === 'string' ? value.trim() : '';
+  return uid && uid.length <= 128 && !uid.includes('/') ? uid : '';
 }
 
 function buildParticipants(actorUid: string, targetUid: string): string[] {
