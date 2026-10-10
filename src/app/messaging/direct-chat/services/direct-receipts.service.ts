@@ -91,10 +91,10 @@ export class DirectReceiptsService {
         return forkJoin(
           transitions.map((transition) =>
             defer(() => {
-              // Um snapshot repetido não deve iniciar outra escrita concorrente
-              // para a mesma mensagem, mesmo que tente avançar o status.
+              // Coalesce apenas a MESMA transição. delivered -> read deve
+              // continuar possível quando o snapshot local avançar de status.
               const key = JSON.stringify([
-                safeUid, safeChatId, transition.messageId,
+                safeUid, safeChatId, transition.messageId, transition.nextStatus,
               ]);
               if (this.pendingTransitions.has(key)) {
                 return of(false);
