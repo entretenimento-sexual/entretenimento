@@ -5,7 +5,7 @@ import { DirectReceiptsService } from './direct-receipts.service';
 
 describe('DirectReceiptsService', () => {
   function setup(updateResult = of(void 0)) {
-    const updateMessageStatus = vi.fn(() => updateResult as any);
+    const updateMessageStatus = vi.fn((_chatId: string, _messageId: string, _status: string) => updateResult as any);
     const report = vi.fn();
     const log = vi.fn();
     const uid = new BehaviorSubject<string | null>('me');
