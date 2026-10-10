@@ -46,7 +46,7 @@ async function main(): Promise<void> {
   const { readDirectChatReconciliation } = require('./direct-chat-reconciliation.reader') as
     typeof import('./direct-chat-reconciliation.reader');
   const report = await readDirectChatReconciliation(db, [args[0], args[1]]);
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({ mode: 'DRY_RUN', findings: report.findings, eligibleHistoryCount: report.eligibleChatIds.length, inspectedDocuments: report.inspectedDocuments, boundedQuery: report.boundedQuery, requiresManualReview: report.requiresManualReview }, null, 2)}\n`);
 }
 
 if (require.main === module) {
