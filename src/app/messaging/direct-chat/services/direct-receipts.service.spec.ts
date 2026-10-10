@@ -108,45 +108,7 @@ describe('DirectReceiptsService', () => {
     ]));
     expect(count).toBe(1);
     expect(report).toHaveBeenCalledTimes(1);
-    expect(log).toHaveBeenCalledWith('chat', 'DirectReceiptsService: markDeliveredAsRead
-    const { service, uid, updateMessageStatus } = setup();
-    uid.next('other-user');
-    const count = await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', [
-      { id: 'm1', senderId: 'peer', status: 'sent' } as any,
-    ]));
-    expect(count).toBe(0);
-    expect(updateMessageStatus).not.toHaveBeenCalled();
-  });
-
-  it('descarta atualização de recibo pendente após troca A para B', () => {
-    const { service, uid, updateMessageStatus } = setup();
-    const pending = new Subject<void>();
-    updateMessageStatus.mockReturnValue(pending.asObservable());
-    const counts: number[] = [];
-    const sub = service.markDeliveredAsRead$('chat-1', 'me', [
-      { id: 'm1', senderId: 'peer', status: 'sent' } as any,
-    ]).subscribe((count: number) => counts.push(count));
-    expect(updateMessageStatus).toHaveBeenCalledTimes(1);
-    uid.next('other-user');
-    pending.next();
-    pending.complete();
-    expect(counts).toEqual([]);
-    sub.unsubscribe();
-  });
-
-  it('ignora input inválido sem tocar no adapter', async () => {
-    const { service, updateMessageStatus, report } = setup();
-
-    const count = await firstValueFrom(
-      service.markDeliveredAsRead$(' ', 'me', [])
-    );
-
-    expect(count).toBe(0);
-    expect(updateMessageStatus).not.toHaveBeenCalled();
-    expect(report).not.toHaveBeenCalled();
-  });
-});
-, {
+    expect(log).toHaveBeenCalledWith('chat', 'DirectReceiptsService: markDeliveredAsRead$', {
       chatId: 'chat-1',
       attemptedCount: 2,
       confirmedCount: 1,
@@ -182,14 +144,14 @@ describe('DirectReceiptsService', () => {
     expect(updateMessageStatus).toHaveBeenCalledWith('chat-1', 'm1', 'delivered');
   });
 
-  it('coalesce chamadas simultâneas para a mesma mensagem enquanto aguarda confirmação', async () => {
+  it('coalesce chamadas simultâneas para a mesma transição enquanto aguarda confirmação', async () => {
     const { service, updateMessageStatus } = setup();
     const pending = new Subject<void>();
     updateMessageStatus.mockReturnValue(pending.asObservable());
     const counts: number[] = [];
     const messages = [{ id: 'm1', senderId: 'peer', status: 'sent' } as any];
     const subscription = service.markDeliveredAsRead$('chat-1', 'me', messages)
-      .subscribe((count) => counts.push(count));
+      .subscribe((count: number) => counts.push(count));
     expect(updateMessageStatus).toHaveBeenCalledTimes(1);
     const duplicateCount = await firstValueFrom(
       service.markDeliveredAsRead$('chat-1', 'me', messages)
@@ -212,10 +174,10 @@ describe('DirectReceiptsService', () => {
     const counts: number[] = [];
     const subA = service.markDeliveredAsRead$('chat-1', 'me', [
       { id: 'm1', senderId: 'peer', status: 'sent' } as any,
-    ]).subscribe((count) => counts.push(count));
+    ]).subscribe((count: number) => counts.push(count));
     const subB = service.markDeliveredAsRead$('chat-1', 'me', [
       { id: 'm1', senderId: 'peer', status: 'delivered' } as any,
-    ]).subscribe((count) => counts.push(count));
+    ]).subscribe((count: number) => counts.push(count));
     expect(updateMessageStatus).toHaveBeenCalledTimes(2);
     delivered.next();
     delivered.complete();
@@ -233,7 +195,7 @@ describe('DirectReceiptsService', () => {
     const counts: number[] = [];
     const sub = service.markDeliveredAsRead$('chat-1', 'me', [
       { id: 'm1', senderId: 'peer', status: 'sent' } as any,
-    ]).subscribe((count) => counts.push(count));
+    ]).subscribe((count: number) => counts.push(count));
     canListen.next(false);
     pending.error(new Error('revoked'));
     expect(counts).toEqual([]);
