@@ -430,6 +430,15 @@ while (functionsQueue.length > 0) {
 // fail-closed). A exceção precisa ser explícita e pequena: qualquer novo arquivo
 // continua sendo órfão por padrão.
 const functionsOperationalArtifacts = new Set([
+  // Ferramenta de reconciliação local: o CLI exige Firestore Emulator antes
+  // de carregar Admin SDK. Leitor e classificador são dependências desse CLI,
+  // não exports de Cloud Functions. Exceções limitadas a estes três arquivos.
+  ...[
+    'chat/direct-chat/application/direct-chat-reconciliation.emulator-cli.ts',
+    'chat/direct-chat/application/direct-chat-reconciliation.reader.ts',
+    'chat/direct-chat/domain/direct-chat-reconciliation.audit.ts',
+  ].map((relativePath) => posix(path.join(functionsSourceRoot, relativePath))),
+
   posix(path.join(
     functionsSourceRoot,
     'community-boost/community-boost-cost-calibration.policy.ts'
