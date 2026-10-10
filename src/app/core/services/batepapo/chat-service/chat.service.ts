@@ -84,38 +84,6 @@ export class ChatService implements OnDestroy {
     return throwError(() => error);
   }
 
-  /**
-   * failUi:
-   * - Para validações de UX, apresenta a mensagem segura pelo pipeline canônico.
-   * - Marca uiShown=true para consumidores legados não repetirem o snackbar.
-   * - Reaproveita a mesma marca de diagnóstico para catches aninhados.
-   */
-  private failUi(
-    action: string,
-    userMsg: string,
-    err: unknown
-  ): Observable<never> {
-    const error = this.asChatError(action, err);
-    (error as any).uiShown = true;
-
-    if (!(error as any).chatApplicationErrorReported) {
-      this.applicationError.report(error, {
-        feature: 'chat',
-        operation: action,
-        fallbackMessage: userMsg,
-        presentation: { surface: 'snackbar', severity: 'error' },
-        metadata: {
-          scope: 'ChatService',
-          action,
-          uiShown: true,
-        },
-      });
-      (error as any).chatApplicationErrorReported = true;
-    }
-
-    return throwError(() => error);
-  }
-
   private asChatError(action: string, err: unknown): Error {
     if (err instanceof Error) {
       return err;
