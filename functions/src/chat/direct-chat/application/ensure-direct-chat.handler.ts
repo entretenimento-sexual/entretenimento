@@ -365,6 +365,13 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         )
       );
 
+      // Históricos legados distintos exigem reconciliação explícita.
+      // A atividade mais recente não comprova equivalência de mensagens.
+      if (legacyCandidates.length > 1) {
+        throw new HttpsError('failed-precondition',
+          'Foram encontrados históricos distintos que precisam de revisão.');
+      }
+
       const canonicalLegacyChat =
         selectCanonicalLegacyChat(legacyCandidates);
 
