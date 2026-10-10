@@ -40,6 +40,7 @@ import {
   ENSURE_DIRECT_CHAT_RATE_LIMIT_CONFIG,
   assertCanCreateNewDirectChat,
 } from '../domain/direct-chat.policy';
+import { assertNoDirectMessagingBlock } from '../domain/direct-message.policy';
 
 interface EnsureDirectChatRequest {
   otherUserUid?: unknown;
@@ -203,6 +204,8 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
 
     const actorFriendRef = actorRef.collection('friends').doc(targetUid);
     const targetFriendRef = targetRef.collection('friends').doc(actorUid);
+    const actorBlockRef = actorRef.collection('blocks').doc(targetUid);
+    const targetBlockRef = targetRef.collection('blocks').doc(actorUid);
 
     /**
      * Registro interno de par -> chat canônico.
@@ -235,6 +238,8 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         targetSnapshot,
         actorFriendSnapshot,
         targetFriendSnapshot,
+        actorBlockSnapshot,
+        targetBlockSnapshot,
         registrySnapshot,
         deterministicChatSnapshot,
         legacySnapshot,
@@ -243,6 +248,8 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         transaction.get(targetRef),
         transaction.get(actorFriendRef),
         transaction.get(targetFriendRef),
+        transaction.get(actorBlockRef),
+        transaction.get(targetBlockRef),
         transaction.get(registryRef),
         transaction.get(deterministicChatRef),
         transaction.get(legacyQuery),
@@ -262,6 +269,11 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
       });
       assertPlatformAccountAccessData(actor);
       assertPlatformAccountAccessData(target);
+
+      assertNoDirectMessagingBlock({
+        actorBlockedTarget: actorBlockSnapshot.data()?.isBlocked === true,
+        targetBlockedActor: targetBlockSnapshot.data()?.isBlocked === true,
+      });
 
       /**
        * CONSENTIMENTO BILATERAL OBRIGATÓRIO.
