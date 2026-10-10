@@ -24,16 +24,15 @@ function createHarness() {
     set: vi.fn(),
   };
 
-  const userRepo = {
-    getUser$: vi.fn(() => of(null)),
+  const chatsRepo = {
+    findChatIdByParticipantsKey$: vi.fn(),
+    createChat$: vi.fn(),
+    updateChat$: vi.fn(),
+    deleteChat$: vi.fn(),
   };
-
-  const policy = {
-    canSendMessage$: vi.fn(() => of({ canSend: true })),
-  };
-
-  const chatsRepo = {};
   const msgsRepo = {
+    addMessage$: vi.fn(),
+    deleteMessage$: vi.fn(),
     updateMessageStatus$: vi.fn(),
     setMessageReaction$: vi.fn(),
   };
@@ -46,14 +45,12 @@ function createHarness() {
     authSession as any,
     appBlock as any,
     cache as any,
-    userRepo as any,
-    policy as any,
     chatsRepo as any,
     msgsRepo as any,
     applicationError as unknown as ApplicationErrorService
   );
 
-  return { service, applicationError, uid$, ready$, blockReason$, msgsRepo };
+  return { service, applicationError, uid$, ready$, blockReason$, msgsRepo, chatsRepo, cache };
 }
 
 describe('ChatService canonical errors', () => {
@@ -187,6 +184,45 @@ describe('ChatService canonical errors', () => {
     expect(values).toEqual([]);
     expect(applicationError.report).not.toHaveBeenCalled();
     subscription.unsubscribe();
+  });
+
+  it('operações legadas de chat falham sem acessar cache ou repositório', async () => {
+    const { service, applicationError, chatsRepo, msgsRepo, cache } = createHarness();
+
+    const operations = [
+      service.getOrCreateChatId(['user-1', 'user-2']),
+      service.createChat(['user-1', 'user-2']),
+      service.updateChat('chat-1', { participants: ['user-1', 'user-2'] }),
+      service.deleteChat('chat-1'),
+      service.deleteMessage('chat-1', 'msg-1'),
+      service.sendMessage('chat-1', { content: 'privada' } as any, 'user-1'),
+    ];
+    for (const operation of operations) {
+      await expect(firstValueFrom(operation)).rejects.toMatchObject({
+        code: 'failed-precondition',
+      });
+    }
+
+    expect(cache.get).not.toHaveBeenCalled();
+    for (const mock of Object.values(chatsRepo)) {
+      expect(mock).not.toHaveBeenCalled();
+    }
+    expect(msgsRepo.addMessage$).not.toHaveBeenCalled();
+    expect(msgsRepo.deleteMessage$).not.toHaveBeenCalled();
+    expect(applicationError.report).toHaveBeenCalledTimes(operations.length);
+    expect(applicationError.report.mock.calls.every(
+      ([, options]) => options.presentation.surface === 'none'
+    )).toBe(true);
+  });
+
+  it('enrichment legado não consulta perfil privado nem grava dados de terceiros', async () => {
+    const { service, chatsRepo } = createHarness();
+
+    await expect(firstValueFrom(
+      service.fetchAndPersistParticipantDetails('chat-1', 'user-2')
+    )).resolves.toBeNull();
+    expect(service.refreshParticipantDetailsIfNeeded('chat-1')).toBeUndefined();
+    expect(chatsRepo.updateChat$).not.toHaveBeenCalled();
   });
 
   it('preserva valor original quando precisa criar um Error para falha não-Error', async () => {
