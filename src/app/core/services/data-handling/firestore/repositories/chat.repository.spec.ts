@@ -1,4 +1,4 @@
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, type Observable } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 
 import { ChatRepository } from './chat.repository';
@@ -17,7 +17,7 @@ describe('ChatRepository backend-only mutation boundary', () => {
 
   for (const [operation, execute] of blocked) {
     it(`bloqueia ${operation} sem retornar sucesso aparente`, async () => {
-      await expect(firstValueFrom(execute())).rejects.toMatchObject({
+      await expect(firstValueFrom(execute() as Observable<unknown>)).rejects.toMatchObject({
         code: 'failed-precondition',
         operation,
       });
