@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { buildDirectChatPairIdentity } from '../domain/direct-chat.policy';
 import { after, before, describe, it } from 'node:test';
 import { db } from '../../../firebaseApp';
 import {
@@ -13,8 +14,8 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
   const prefix = `ensure-chat-${randomUUID()}`;
   const actorUid = `${prefix}-a`;
   const targetUid = `${prefix}-b`;
-  const pairKey = [actorUid, targetUid].sort().join('_');
-  const pairHash = createHash('sha256').update(pairKey).digest('hex');
+  const identity = buildDirectChatPairIdentity(actorUid, targetUid);
+  const pairHash = identity.canonicalHash;
   const registryRef = db.doc(`direct_chat_pairs/${pairHash}`);
   const canonicalRef = db.doc(`chats/direct_${pairHash}`);
   const actorBlockRef = db.doc(`users/${actorUid}/blocks/${targetUid}`);
@@ -82,6 +83,8 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
     assert.equal(canonical.exists, true);
     assert.equal(registry.data()?.chatId, canonicalRef.id);
     assert.deepEqual(canonical.data()?.participants, [actorUid, targetUid].sort());
+    assert.equal(canonical.data()?.participantsKey, identity.canonicalKey);
+    assert.equal(canonical.data()?.pairKeyVersion, 2);
   });
 
   for (const [label, blockRef] of [
