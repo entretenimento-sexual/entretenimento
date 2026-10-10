@@ -151,6 +151,42 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
     }
   });
 
+  it('não adota automaticamente dois históricos legados indexados do mesmo par', async () => {
+    const left = `${prefix}-indexed-left`;
+    const right = `${prefix}-indexed-right`;
+    const pair = buildDirectChatPairIdentity(left, right);
+    const first = db.doc(`chats/indexed_first_${randomUUID()}`);
+    const second = db.doc(`chats/indexed_second_${randomUUID()}`);
+    const registry = db.doc(`direct_chat_pairs/${pair.canonicalHash}`);
+    try {
+      await Promise.all([
+        db.doc(`users/${left}`).set(user(left)),
+        db.doc(`users/${right}`).set(user(right)),
+        db.doc(`users/${left}/friends/${right}`).set({ accepted: true }),
+        db.doc(`users/${right}/friends/${left}`).set({ accepted: true }),
+        first.set({ participants: pair.participants, participantsKey: pair.legacyKey }),
+        second.set({ participants: pair.participants, participantsKey: pair.legacyKey }),
+      ]);
+      await assert.rejects(invoke({
+        data: { otherUserUid: right },
+        auth: { uid: left, token: { email_verified: true } },
+      }, {}), (error: any) =>
+        String(error?.code ?? '').includes('failed-precondition')
+      );
+      assert.equal((await registry.get()).exists, false);
+      assert.equal((await first.get()).exists, true);
+      assert.equal((await second.get()).exists, true);
+    } finally {
+      await Promise.all([
+        db.recursiveDelete(db.doc(`users/${left}`)),
+        db.recursiveDelete(db.doc(`users/${right}`)),
+        db.recursiveDelete(first),
+        db.recursiveDelete(second),
+        registry.delete(),
+      ]);
+    }
+  });
+
   it('não escolhe silenciosamente entre dois históricos v1 diferentes', async () => {
     const left = `${prefix}-duplicate-left`;
     const right = `${prefix}-duplicate-right`;
