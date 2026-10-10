@@ -270,6 +270,10 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         registrySnapshot.data() as DirectChatPairRegistryDoc | undefined;
 
       const registeredChatId = normalizeUid(registry?.chatId);
+      if (registrySnapshot.exists && !registeredChatId) {
+        throw new HttpsError('data-loss',
+          'Não foi possível validar o registro desta conversa.');
+      }
 
       if (registeredChatId) {
         const registeredChatRef = db.collection('chats').doc(registeredChatId);
@@ -401,6 +405,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         transaction.set(registryRef, {
           chatId: canonicalLegacyChat.id,
           pairHash: canonicalHash,
+          pairKeyVersion: 2,
           participants,
           source: 'legacy-adopted',
           duplicateCandidatesDetected: legacyCandidates.length > 1,
@@ -451,6 +456,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         transaction.set(registryRef, {
           chatId: deterministicChatRef.id,
           pairHash: canonicalHash,
+          pairKeyVersion: 2,
           participants,
           source: 'deterministic-recovered',
           policyVersion: DIRECT_CHAT_POLICY_VERSION,
@@ -468,6 +474,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
       transaction.set(deterministicChatRef, {
         participants,
         participantsKey: canonicalKey,
+        pairKeyVersion: 2,
 
         conversationType: 'direct',
         conversationStatus: 'active',
@@ -484,6 +491,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
       transaction.set(registryRef, {
         chatId: deterministicChatRef.id,
         pairHash: canonicalHash,
+        pairKeyVersion: 2,
         participants,
         source: 'created',
         policyVersion: DIRECT_CHAT_POLICY_VERSION,
