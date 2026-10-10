@@ -276,6 +276,8 @@ describe('DirectChatService canonical errors', () => {
           'Vocês precisam estar conectados para iniciar uma conversa.',
         'permission-denied':
           'Vocês precisam estar conectados para iniciar uma conversa.',
+        'resource-exhausted':
+          'Vocês precisam estar conectados para iniciar uma conversa.',
       },
       presentation: { surface: 'snackbar', severity: 'error' },
       metadata: {
@@ -284,6 +286,24 @@ describe('DirectChatService canonical errors', () => {
       },
     });
     expect(errorNotifier.showError).not.toHaveBeenCalled();
+  });
+
+  it('exibe orientação específica quando a quota de abertura se esgota', async () => {
+    const error = Object.assign(new Error('limit'), {
+      code: 'functions/resource-exhausted',
+    });
+    const { service, callable, applicationError } = createHarness();
+    callable.mockRejectedValue(error);
+    await expect(firstValueFrom(service.ensureDirectChatIdWithUser$('peer-b')))
+      .resolves.toBeNull();
+    expect(applicationError.report).toHaveBeenCalledWith(
+      error,
+      expect.objectContaining({
+        fallbackMessage:
+          'Muitas tentativas de abrir conversas. Tente novamente mais tarde.',
+      })
+    );
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
   });
 
   it('preserva feedback se a camada canônica falhar antes da apresentação', async () => {
