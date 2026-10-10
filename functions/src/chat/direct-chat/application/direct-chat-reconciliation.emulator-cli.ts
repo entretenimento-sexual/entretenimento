@@ -9,8 +9,9 @@ async function main(): Promise<void> {
     throw new Error('Forneça exatamente dois UIDs; sem varredura global.');
   }
   // Carregar Admin SDK somente depois de confirmar o ambiente de emulação.
-  const { db } = await import('../../../firebaseApp');
-  const { readDirectChatReconciliation } = await import('./direct-chat-reconciliation.reader');
+  const { db } = require('../../../firebaseApp') as typeof import('../../../firebaseApp');
+  const { readDirectChatReconciliation } = require('./direct-chat-reconciliation.reader')
+    as typeof import('./direct-chat-reconciliation.reader');
   const report = await readDirectChatReconciliation(db, [args[0], args[1]]);
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 }
