@@ -114,6 +114,43 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
     }
   });
 
+  it('recupera chat determinístico v1 sem participantsKey e sem registry', async () => {
+    const left = `${prefix}-legacy-left`;
+    const right = `${prefix}-legacy-right`;
+    const identity = buildDirectChatPairIdentity(left, right);
+    const oldRef = db.doc(`chats/direct_${identity.legacyHash}`);
+    const newRegistry = db.doc(`direct_chat_pairs/${identity.canonicalHash}`);
+    const newChat = db.doc(`chats/direct_${identity.canonicalHash}`);
+    try {
+      await Promise.all([
+        db.doc(`users/${left}`).set(user(left)),
+        db.doc(`users/${right}`).set(user(right)),
+        db.doc(`users/${left}/friends/${right}`).set({ accepted: true }),
+        db.doc(`users/${right}/friends/${left}`).set({ accepted: true }),
+        oldRef.set({
+          participants: identity.participants,
+          conversationType: 'direct',
+          conversationStatus: 'active',
+        }),
+      ]);
+      const result = await invoke({
+        data: { otherUserUid: right },
+        auth: { uid: left, token: { email_verified: true } },
+      }, {});
+      assert.equal(result.chatId, oldRef.id);
+      assert.equal(result.created, false);
+      assert.equal((await newRegistry.get()).data()?.chatId, oldRef.id);
+      assert.equal((await newChat.get()).exists, false);
+    } finally {
+      await Promise.all([
+        db.recursiveDelete(db.doc(`users/${left}`)),
+        db.recursiveDelete(db.doc(`users/${right}`)),
+        db.recursiveDelete(oldRef),
+        newRegistry.delete(),
+      ]);
+    }
+  });
+
   it('mantém pares distintos isolados mesmo quando suas chaves v1 colidem', async () => {
     const x = `${prefix}-x`;
     const y = `${prefix}-y`;
