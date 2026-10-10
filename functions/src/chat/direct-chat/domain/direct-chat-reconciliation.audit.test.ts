@@ -31,8 +31,26 @@ describe('direct chat reconciliation dry-run classifier', () => {
   it('identifica registro canônico ausente do conjunto inspecionado', () => {
     const result = auditDirectChatPair({
       participants, chats: [], canonicalRegistryChatId: 'missing',
+      verifiedReferences: { missing: false },
     });
     assert.ok(result.findings.includes('CANONICAL_REGISTRY_MISSING_CHAT'));
+    assert.equal(result.requiresManualReview, true);
+  });
+
+  it('não confunde referência não carregada com chat inexistente', () => {
+    const result = auditDirectChatPair({
+      participants, chats: [], canonicalRegistryChatId: 'not-loaded',
+    });
+    assert.ok(result.findings.includes('REFERENCE_NOT_VERIFIED'));
+    assert.ok(!result.findings.includes('CANONICAL_REGISTRY_MISSING_CHAT'));
+    assert.equal(result.requiresManualReview, true);
+  });
+
+  it('não classifica amostra truncada como histórico único conclusivo', () => {
+    const result = auditDirectChatPair({
+      participants, chats: [candidate('legacy-1')], truncated: true,
+    });
+    assert.ok(!result.findings.includes('SINGLE_ELIGIBLE_HISTORY'));
     assert.equal(result.requiresManualReview, true);
   });
 
