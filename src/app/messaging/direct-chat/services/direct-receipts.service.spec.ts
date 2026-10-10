@@ -202,6 +202,30 @@ describe('DirectReceiptsService', () => {
     subscription.unsubscribe();
   });
 
+  it('não bloqueia delivered -> read quando a confirmação de delivered ainda está pendente', () => {
+    const { service, updateMessageStatus } = setup();
+    const delivered = new Subject<void>();
+    const read = new Subject<void>();
+    updateMessageStatus.mockImplementation((_chat: string, _id: string, status: string) =>
+      status === 'delivered' ? delivered.asObservable() : read.asObservable()
+    );
+    const counts: number[] = [];
+    const subA = service.markDeliveredAsRead$('chat-1', 'me', [
+      { id: 'm1', senderId: 'peer', status: 'sent' } as any,
+    ]).subscribe((count) => counts.push(count));
+    const subB = service.markDeliveredAsRead$('chat-1', 'me', [
+      { id: 'm1', senderId: 'peer', status: 'delivered' } as any,
+    ]).subscribe((count) => counts.push(count));
+    expect(updateMessageStatus).toHaveBeenCalledTimes(2);
+    delivered.next();
+    delivered.complete();
+    read.next();
+    read.complete();
+    expect(counts).toEqual([1, 1]);
+    subA.unsubscribe();
+    subB.unsubscribe();
+  });
+
   it('encerra recibo pendente sem erro visível após revogação de acesso', () => {
     const { service, updateMessageStatus, report, canListen } = setup();
     const pending = new Subject<void>();
