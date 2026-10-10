@@ -14,15 +14,13 @@
 // - permite persistir reação por usuário em mensagens diretas
 
 import { Injectable } from '@angular/core';
-import { Observable, defer, from, of } from 'rxjs';
+import { Observable, defer, from, of, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
 import {
   Firestore,
-  addDoc,
   collection,
   collectionData,
-  deleteDoc,
   deleteField,
   doc,
   getDocs,
@@ -107,35 +105,31 @@ export class ChatMessagesRepository {
     );
   }
 
-  addMessage$(chatId: string, msg: Message): Observable<string> {
-    const cid = this.normChatId(chatId);
-    if (!cid) return of('');
-
-    return defer(() =>
-      from(this.ctx.run(() => addDoc(this.messagesCol(cid), msg as any)))
-    ).pipe(
-      map((ref) => ref.id),
-      catchError((err) => {
-        this.reportSilent('addMessage$', err);
-        return of('');
-      })
-    );
+  /**
+   * Tombstones legados: gravação e exclusão de mensagem direta são exclusivas
+   * de sendDirectMessage/deleteDirectMessage no backend. Não tente addDoc
+   * ou deleteDoc: as Rules bloqueiam ambas as operações.
+   *
+   * Preservamos as assinaturas por compatibilidade, mas retornamos erro
+   * explícito, sem sucesso aparente e sem qualquer request ao Firestore.
+   */
+  private rejectLegacyMessageMutation$<T>(operation: string): Observable<T> {
+    return defer(() => {
+      const error = new Error(
+        'Operação de mensagem direta descontinuada. Use a Cloud Function.'
+      ) as Error & { code: string; operation: string };
+      error.code = 'failed-precondition';
+      error.operation = operation;
+      return throwError(() => error);
+    });
   }
 
-  deleteMessage$(chatId: string, messageId: string): Observable<void> {
-    const cid = this.normChatId(chatId);
-    const mid = this.normMessageId(messageId);
-    if (!cid || !mid) return of(void 0);
+  addMessage$(_chatId: string, _msg: Message): Observable<string> {
+    return this.rejectLegacyMessageMutation$('addMessage$');
+  }
 
-    return defer(() =>
-      from(this.ctx.run(() => deleteDoc(this.messageRef(cid, mid))))
-    ).pipe(
-      map(() => void 0),
-      catchError((err) => {
-        this.reportSilent('deleteMessage$', err);
-        return of(void 0);
-      })
-    );
+  deleteMessage$(_chatId: string, _messageId: string): Observable<void> {
+    return this.rejectLegacyMessageMutation$('deleteMessage$');
   }
 
   updateMessageStatus$(
