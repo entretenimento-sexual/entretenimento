@@ -16,8 +16,8 @@
 
 import { Injectable } from '@angular/core';
 
-import { forkJoin, Observable, of } from 'rxjs';
-import { catchError, filter, map, switchMap, take, takeUntil, tap } from 'rxjs/operators';
+import { combineLatest, defer, forkJoin, Observable, of } from 'rxjs';
+import { catchError, filter, finalize, map, switchMap, take, takeUntil, tap } from 'rxjs/operators';
 
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
@@ -36,6 +36,7 @@ type ReceiptTransition = {
 @Injectable({ providedIn: 'root' })
 export class DirectReceiptsService {
   private readonly maxUpdatesPerTick = 50;
+  private readonly pendingTransitions = new Set<string>();
 
   constructor(
     private readonly chatService: ChatService,
@@ -73,58 +74,78 @@ export class DirectReceiptsService {
     }
 
     const transitions = this.pickReceiptTransitions(safeUid, safeMessages);
-
     if (!transitions.length) {
       return of(0);
     }
 
-    return this.accessControl.authUid$.pipe(
+    const access$ = combineLatest([
+      this.accessControl.authUid$,
+      this.accessControl.canListenRealtime$,
+    ]);
+
+    return access$.pipe(
       take(1),
-      switchMap((uid) => {
-        if (uid !== safeUid) return of(0);
+      switchMap(([uid, canListen]) => {
+        if (uid !== safeUid || !canListen) return of(0);
 
         return forkJoin(
           transitions.map((transition) =>
-            this.chatService.updateMessageStatus(
-              safeChatId,
-              transition.messageId,
-              transition.nextStatus
-            ).pipe(
-              catchError((error) => {
-                this.reportSilent(
-                  error,
-                  'DirectReceiptsService.markDeliveredAsRead$.updateMessageStatus',
-                  {
-                    chatId: safeChatId,
-                    messageId: transition.messageId,
-                    nextStatus: transition.nextStatus,
-                  }
-                );
-                return of(void 0);
-              })
-            )
+            defer(() => {
+              // Um snapshot repetido não deve iniciar outra escrita concorrente
+              // para a mesma mensagem, mesmo que tente avançar o status.
+              const key = JSON.stringify([
+                safeUid, safeChatId, transition.messageId,
+              ]);
+              if (this.pendingTransitions.has(key)) {
+                return of(false);
+              }
+              this.pendingTransitions.add(key);
+
+              return defer(() =>
+                this.chatService.updateMessageStatus(
+                  safeChatId,
+                  transition.messageId,
+                  transition.nextStatus
+                )
+              ).pipe(
+                map(() => true),
+                catchError((error) => {
+                  this.reportIfUnreported(
+                    error,
+                    'DirectReceiptsService.markDeliveredAsRead$.updateMessageStatus',
+                    {
+                      chatId: safeChatId,
+                      messageId: transition.messageId,
+                      nextStatus: transition.nextStatus,
+                    }
+                  );
+                  return of(false);
+                }),
+                finalize(() => this.pendingTransitions.delete(key))
+              );
+            })
           )
         ).pipe(
-          takeUntil(
-            this.accessControl.authUid$.pipe(
-              filter((currentUid) => currentUid !== safeUid)
-            )
-          ),
-          tap(() => {
+          takeUntil(access$.pipe(
+            filter(([activeUid, allowed]) => activeUid !== safeUid || !allowed)
+          )),
+          tap((results) => {
+            const confirmed = transitions.filter((_, index) => results[index]);
             this.dbg('markDeliveredAsRead$', {
               chatId: safeChatId,
-              count: transitions.length,
-              deliveredCount: transitions.filter(
+              attemptedCount: transitions.length,
+              confirmedCount: confirmed.length,
+              deliveredCount: confirmed.filter(
                 (transition) => transition.nextStatus === 'delivered'
               ).length,
-              readCount: transitions.filter(
+              readCount: confirmed.filter(
                 (transition) => transition.nextStatus === 'read'
               ).length,
             });
           }),
-          map(() => transitions.length),
+          map((results) => results.filter(Boolean).length),
           catchError((error) => {
-            this.reportSilent(
+            this.reportIfUnreported(
               error,
               'DirectReceiptsService.markDeliveredAsRead$',
               { chatId: safeChatId }
@@ -144,19 +165,23 @@ export class DirectReceiptsService {
     currentUserUid: string,
     messages: Message[]
   ): ReceiptTransition[] {
+    const seen = new Set<string>();
     return messages
       .map((message): ReceiptTransition | null => {
         const messageId = String(message?.id ?? '').trim();
 
-        if (!messageId) {
+        if (!messageId || message?.deleted === true) {
           return null;
         }
 
-        if (message?.senderId === currentUserUid) {
+        // Ambos os campos existem em mensagens legadas; nenhum pode identificar
+        // o destinatário como autor para fins de recibos.
+        if (message?.senderId === currentUserUid ||
+            message?.senderUid === currentUserUid) {
           return null;
         }
 
-        const status = message?.status ?? 'sent';
+        const status = message?.status;
 
         if (status === 'sent') {
           return {
@@ -174,12 +199,29 @@ export class DirectReceiptsService {
 
         return null;
       })
-      .filter((transition): transition is ReceiptTransition => !!transition)
+      .filter((transition): transition is ReceiptTransition => {
+        if (!transition || seen.has(transition.messageId)) return false;
+        seen.add(transition.messageId);
+        return true;
+      })
       .slice(0, this.maxUpdatesPerTick);
   }
 
   private dbg(message: string, extra?: unknown): void {
     this.privacyDebug.log('chat', `DirectReceiptsService: ${message}`, extra);
+  }
+
+  private reportIfUnreported(
+    error: unknown,
+    context: string,
+    extra?: Record<string, unknown>
+  ): void {
+    // ChatService já registra o erro canônico; não repetir o mesmo diagnóstico.
+    if ((error as { chatApplicationErrorReported?: boolean } | null)
+      ?.chatApplicationErrorReported === true) {
+      return;
+    }
+    this.reportSilent(error, context, extra);
   }
 
   private reportSilent(
