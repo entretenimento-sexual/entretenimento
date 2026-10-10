@@ -63,8 +63,9 @@ async function main(): Promise<void> {
 }
 
 if (require.main === module) {
-  main().then(() => process.exit(0)).catch((error: unknown) => {
-    process.stderr.write(`Falha no dry-run: ${String(error)}\n`);
+  main().then(() => process.exit(0)).catch(() => {
+    // Nunca encaminhar mensagens, stack traces ou caminhos de exceções internas.
+    process.stderr.write('Falha no dry-run: operação não concluída.\n');
     process.exitCode = 1;
   });
 }
