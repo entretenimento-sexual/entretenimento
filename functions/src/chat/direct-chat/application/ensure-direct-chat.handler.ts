@@ -218,6 +218,8 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         targetBlockSnapshot,
         registrySnapshot,
         deterministicChatSnapshot,
+        legacyRegistrySnapshot,
+        legacyDeterministicChatSnapshot,
         legacySnapshot,
       ] = await Promise.all([
         transaction.get(actorRef),
@@ -228,6 +230,8 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         transaction.get(targetBlockRef),
         transaction.get(registryRef),
         transaction.get(deterministicChatRef),
+        transaction.get(legacyRegistryRef),
+        transaction.get(legacyDeterministicChatRef),
         transaction.get(legacyQuery),
       ]);
 
