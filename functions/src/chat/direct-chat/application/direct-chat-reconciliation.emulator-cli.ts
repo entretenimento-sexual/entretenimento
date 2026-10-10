@@ -38,7 +38,7 @@ async function main(): Promise<void> {
     throw new Error('Forneça exatamente dois UIDs; sem varredura global.');
   }
   if (args.some((uid) => !uid || uid.length > 128 || uid.includes('/')
-    || /[\x00-\x1f\x7f]/.test(uid)) || args[0] === args[1]) {
+    || [...uid].some((char) => { const code = char.charCodeAt(0); return code < 32 || code === 127; })) || args[0] === args[1]) {
     throw new Error('Auditoria bloqueada: par de UIDs inválido.');
   }
   // Carregar Admin SDK somente depois de confirmar o ambiente de emulação.
