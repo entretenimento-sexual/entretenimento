@@ -12,10 +12,41 @@
 // - bloqueio bilateral é obrigatório antes de resolver/adotar/criar qualquer chat.
 // -----------------------------------------------------------------------------
 
+import { createHash } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
 import type { BackendFixedWindowRateLimitConfig } from '../../../shared/security/backend-fixed-window-rate-limit';
 
-export const DIRECT_CHAT_POLICY_VERSION = 'direct-chat-v1' as const;
+export const DIRECT_CHAT_POLICY_VERSION = 'direct-chat-v2' as const;
+
+export interface DirectChatPairIdentity {
+  participants: [string, string];
+  /** Apenas para consulta de históricos existentes; pode colidir. */
+  legacyKey: string;
+  legacyHash: string;
+  /** Chave não ambígua e identificador usados em novos registros. */
+  canonicalKey: string;
+  canonicalHash: string;
+}
+
+export function buildDirectChatPairIdentity(
+  actorUid: string,
+  targetUid: string
+): DirectChatPairIdentity {
+  const participants = [actorUid, targetUid].sort() as [string, string];
+  if (participants.some((uid) => !uid || uid.includes('/') || uid.length > 128)
+    || participants[0] === participants[1]) {
+    throw new HttpsError('invalid-argument', 'Par de participantes inválido.');
+  }
+
+  const legacyKey = participants.join('_');
+  const canonicalKey = `v2:${JSON.stringify(participants)}`;
+  const legacyHash = createHash('sha256').update(legacyKey).digest('hex');
+  const canonicalHash = createHash('sha256')
+    .update('direct-chat-pair-v2:')
+    .update(JSON.stringify(participants))
+    .digest('hex');
+  return { participants, legacyKey, legacyHash, canonicalKey, canonicalHash };
+}
 
 export const ENSURE_DIRECT_CHAT_RATE_LIMIT_CONFIG: BackendFixedWindowRateLimitConfig = {
   burstWindowMs: 60_000,
