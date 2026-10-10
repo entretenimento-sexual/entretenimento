@@ -38,7 +38,9 @@ import type {
 import {
   DIRECT_CHAT_POLICY_VERSION,
   ENSURE_DIRECT_CHAT_RATE_LIMIT_CONFIG,
+  ENSURE_DIRECT_CHAT_LEGACY_SCAN_LIMIT,
   assertCanCreateNewDirectChat,
+  isEligibleExistingDirectChat,
 } from '../domain/direct-chat.policy';
 import { assertNoDirectMessagingBlock } from '../domain/direct-message.policy';
 
@@ -81,27 +83,6 @@ function buildParticipantsKey(participants: string[]): string {
 
 function buildPairHash(participantsKey: string): string {
   return createHash('sha256').update(participantsKey).digest('hex');
-}
-
-function isSameParticipantPair(
-  chat: StoredDirectChatDoc | undefined,
-  expectedParticipants: string[]
-): boolean {
-  if (!Array.isArray(chat?.participants)) {
-    return false;
-  }
-
-  const actualParticipants = chat.participants
-    .map((participant) => String(participant ?? '').trim())
-    .filter(Boolean)
-    .sort();
-
-  return (
-    actualParticipants.length === expectedParticipants.length &&
-    actualParticipants.every(
-      (participant, index) => participant === expectedParticipants[index]
-    )
-  );
 }
 
 function timestampMillis(value: unknown): number {
@@ -228,7 +209,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
     const legacyQuery = db
       .collection('chats')
       .where('participantsKey', '==', participantsKey)
-      .limit(10);
+      .limit(ENSURE_DIRECT_CHAT_LEGACY_SCAN_LIMIT);
 
     const auditRef = db.collection('direct_chat_audit').doc();
 
@@ -301,7 +282,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
 
         if (
           !registeredChatSnapshot.exists ||
-          !isSameParticipantPair(
+          !isEligibleExistingDirectChat(
             registeredChatSnapshot.data() as StoredDirectChatDoc | undefined,
             participants
           )
@@ -319,8 +300,13 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         };
       }
 
+      if (legacySnapshot.size >= ENSURE_DIRECT_CHAT_LEGACY_SCAN_LIMIT) {
+        throw new HttpsError('failed-precondition',
+          'Esta conversa precisa de revisão antes de ser aberta.');
+      }
+
       const legacyCandidates = legacySnapshot.docs.filter((snapshot) =>
-        isSameParticipantPair(
+        isEligibleExistingDirectChat(
           snapshot.data() as StoredDirectChatDoc | undefined,
           participants
         )
@@ -369,7 +355,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
 
       if (deterministicChatSnapshot.exists) {
         if (
-          !isSameParticipantPair(
+          !isEligibleExistingDirectChat(
             deterministicChatSnapshot.data() as StoredDirectChatDoc | undefined,
             participants
           )
