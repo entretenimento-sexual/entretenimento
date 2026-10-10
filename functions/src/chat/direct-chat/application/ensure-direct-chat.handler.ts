@@ -375,6 +375,11 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
           legacyDeterministicChatSnapshot.data() as StoredDirectChatDoc | undefined,
           participants
         );
+      if (legacyDeterministicEligible && canonicalLegacyChat
+          && legacyDeterministicChatRef.id !== canonicalLegacyChat.id) {
+        throw new HttpsError('failed-precondition',
+          'Foram encontrados históricos distintos que precisam de revisão.');
+      }
       if (legacyDeterministicEligible && !canonicalLegacyChat) {
         if (deterministicChatSnapshot.exists) {
           throw new HttpsError('data-loss',
