@@ -1,4 +1,4 @@
-import { BehaviorSubject, firstValueFrom, of, Subject, throwError } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of, Subject, throwError, type Observable } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
@@ -151,7 +151,7 @@ describe('ChatService canonical errors', () => {
       service.sendMessage('chat-1', { content: 'privada' } as any, 'user-1'),
     ];
     for (const operation of operations) {
-      await expect(firstValueFrom(operation)).rejects.toMatchObject({
+      await expect(firstValueFrom(operation as Observable<unknown>)).rejects.toMatchObject({
         code: 'failed-precondition',
       });
     }
