@@ -25,6 +25,8 @@ import {
   shareReplay,
   switchMap,
   take,
+  takeUntil,
+  filter,
 } from 'rxjs/operators';
 
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
@@ -120,58 +122,58 @@ getMyDirectChats$(): Observable<IChat[]> {
    */
   ensureDirectChatIdWithUser$(otherUserUid: string): Observable<string | null> {
     const safeOtherUid = (otherUserUid ?? '').trim();
-    if (!safeOtherUid) {
-      return of(null);
-    }
+    if (!safeOtherUid) return of(null);
 
-    return this.authSession.uid$.pipe(
+    const access$ = combineLatest([
+      this.authSession.uid$,
+      this.accessControl.canListenRealtime$,
+    ]);
+
+    return access$.pipe(
       take(1),
-      switchMap((currentUid) => {
-        const safeCurrentUid = (currentUid ?? '').trim();
+      switchMap(([currentUid, canListen]) => {
+        const safeCurrentUid = String(currentUid ?? '').trim();
 
         if (!safeCurrentUid) {
-          this.notifyUser(
-            'Você precisa estar autenticado para abrir este chat.'
-          );
+          this.notifyUser('Você precisa estar autenticado para abrir este chat.');
           return of(null);
         }
+
+        // O gate canônico não autoriza iniciar novas operações de chat.
+        // Não produzir mensagem de erro para estado transitório/revogado.
+        if (!canListen) return of(null);
 
         if (safeCurrentUid === safeOtherUid) {
-          this.notifyUser(
-            'Não é possível abrir um chat com o próprio perfil.'
-          );
+          this.notifyUser('Não é possível abrir um chat com o próprio perfil.');
           return of(null);
         }
 
+        // Inscreve o cancelamento também na autorização, e não apenas no UID.
+        // A promise HTTPS pode continuar no backend; seu resultado/erro tardio
+        // não deve tocar a UI da nova sessão.
         return defer(() =>
-          from(
-            this.ensureDirectChatCallable({
-              otherUserUid: safeOtherUid,
-            })
-          )
+          from(this.ensureDirectChatCallable({ otherUserUid: safeOtherUid }))
         ).pipe(
           map((result) => {
             const chatId = String(result.data?.chatId ?? '').trim();
-
             if (!chatId) {
-              throw new Error(
-                'Resposta inválida ao abrir conversa direta.'
-              );
+              throw new Error('Resposta inválida ao abrir conversa direta.');
             }
-
             return chatId;
           }),
           catchError((error) => {
             this.reportOpenChatError(error);
             return of(null);
-          })
+          }),
+          takeUntil(access$.pipe(
+            filter(([activeUid, allowed]) =>
+              String(activeUid ?? '').trim() !== safeCurrentUid || !allowed
+            )
+          ))
         );
       }),
       catchError((error) => {
-        this.reportSilent(
-          error,
-          'DirectChatService.ensureDirectChatIdWithUser$'
-        );
+        this.reportSilent(error, 'DirectChatService.ensureDirectChatIdWithUser$');
         return of(null);
       })
     );
