@@ -6,7 +6,7 @@ async function main(): Promise<void> {
     throw new Error('Auditoria bloqueada: FIRESTORE_EMULATOR_HOST é obrigatório.');
   }
   // Aceitar apenas emulador Firestore local, sem URLs, DNS remoto ou credenciais.
-  if (!/^(?:127\\.0\\.0\\.1|localhost):[0-9]{1,5}$/.test(host)) {
+  if (!/^(?:127\.0\.0\.1|localhost):[0-9]{1,5}$/.test(host)) {
     throw new Error('Auditoria bloqueada: Firestore Emulator deve usar host loopback.');
   }
   const port = Number(host.slice(host.lastIndexOf(':') + 1));
@@ -38,7 +38,7 @@ async function main(): Promise<void> {
     throw new Error('Forneça exatamente dois UIDs; sem varredura global.');
   }
   if (args.some((uid) => !uid || uid.length > 128 || uid.includes('/')
-    || /[\\x00-\\x1f\\x7f]/.test(uid)) || args[0] === args[1]) {
+    || /[\x00-\x1f\x7f]/.test(uid)) || args[0] === args[1]) {
     throw new Error('Auditoria bloqueada: par de UIDs inválido.');
   }
   // Carregar Admin SDK somente depois de confirmar o ambiente de emulação.
