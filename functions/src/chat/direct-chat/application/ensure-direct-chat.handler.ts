@@ -26,6 +26,7 @@ import {
 } from '../../../account_lifecycle/interaction-access.policy';
 import { db, FieldValue } from '../../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
+import { consumeBackendRateLimitQuota } from '../../../shared/security/backend-rate-limit.service';
 
 import {
   assertMessagingAccountOperational,
@@ -36,6 +37,7 @@ import type {
 
 import {
   DIRECT_CHAT_POLICY_VERSION,
+  ENSURE_DIRECT_CHAT_RATE_LIMIT_CONFIG,
   assertCanCreateNewDirectChat,
 } from '../domain/direct-chat.policy';
 
@@ -184,6 +186,13 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         'Não é possível iniciar uma conversa consigo mesmo.'
       );
     }
+
+    await consumeBackendRateLimitQuota({
+      action: 'ensure-direct-chat',
+      subject: actorUid,
+      config: ENSURE_DIRECT_CHAT_RATE_LIMIT_CONFIG,
+      message: 'Muitas tentativas de abrir conversas. Tente novamente mais tarde.',
+    });
 
     const participants = buildParticipants(actorUid, targetUid);
     const participantsKey = buildParticipantsKey(participants);
