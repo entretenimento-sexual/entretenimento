@@ -49,7 +49,7 @@ describe('ensureDirectChat canonical pair policy', () => {
 
   it('limita transições de abertura na quota compartilhada', () => {
     assert.equal(ENSURE_DIRECT_CHAT_LEGACY_SCAN_LIMIT > 10, true);
-    let state;
+    let state: ReturnType<typeof buildBackendFixedWindowRateLimitDecision>['nextState'] | undefined;
     for (let i = 0; i < ENSURE_DIRECT_CHAT_RATE_LIMIT_CONFIG.burstMax; i++) {
       const decision = buildBackendFixedWindowRateLimitDecision({
         now: 100000 + i,
