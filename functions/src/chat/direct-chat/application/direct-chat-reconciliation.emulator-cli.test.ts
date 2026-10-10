@@ -24,9 +24,15 @@ describe('direct chat reconciliation CLI — fail-closed operational boundary', 
       env, encoding: 'utf8', timeout: 10000,
     });
     assert.equal(result.status, 1, result.stderr);
-    assert.match(result.stderr, /Falha no dry-run: Error:/);
-    assert.doesNotMatch(result.stdout, /pairHash|eligibleChatIds/);
+    assert.equal(result.stderr, 'Falha no dry-run: operação não concluída.\n');
+    assert.equal(result.stdout, '');
   }
+
+  it('não propaga dados maliciosos dos argumentos em mensagens de erro', () => {
+    const secret = 'private-uid-123';
+    denied({}, [secret, secret]);
+    denied({ FIRESTORE_EMULATOR_HOST: 'remote.example:8080' }, [secret, 'other']);
+  });
 
   it('não serializa identificadores de pares ou de conversas no resumo', () => {
     const source = readFileSync(join(__dirname, 'direct-chat-reconciliation.emulator-cli.js'), 'utf8');
