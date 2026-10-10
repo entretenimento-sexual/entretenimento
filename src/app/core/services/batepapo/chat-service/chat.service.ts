@@ -8,7 +8,7 @@
 // - Erros: ApplicationErrorService centraliza diagnóstico e apresentação declarativa.
 // =============================================================================
 import { Injectable, OnDestroy } from '@angular/core';
-import { Observable, Subject, combineLatest, of, throwError } from 'rxjs';
+import { Observable, Subject, combineLatest, defer, of, throwError } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -36,11 +36,6 @@ import { ChatMessagesRepository } from '@core/services/data-handling/firestore/r
 
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
-// ✅ garanta que esse import aponta para o DONO real (o service que você ajustou pra ser owner do getUser$)
-
-
-import { ChatPolicyService } from './chat-policy.service';
-import { UserRepositoryService } from '../../data-handling/firestore/repositories/user-repository.service';
 
 @Injectable({ providedIn: 'root' })
 export class ChatService implements OnDestroy {
@@ -51,9 +46,6 @@ export class ChatService implements OnDestroy {
     private readonly appBlock: AuthAppBlockService,
 
     private readonly cache: CacheService,
-    private readonly userRepo: UserRepositoryService,
-
-    private readonly policy: ChatPolicyService,
     private readonly chatsRepo: ChatRepository,
     private readonly msgsRepo: ChatMessagesRepository,
 
@@ -187,82 +179,45 @@ export class ChatService implements OnDestroy {
     );
   }
 
-  // ===========================================================================
-  // CHAT ID
-  // ===========================================================================
-  getOrCreateChatId(participants: string[]): Observable<string> {
-    const ids = Array.from(new Set((participants ?? []).map(x => (x ?? '').toString().trim()).filter(Boolean)));
-    if (ids.length < 2) {
-      return this.failUi('getOrCreateChatId', 'Não foi possível iniciar o chat.', new Error('Participantes inválidos'));
-    }
-
-    const participantsKey = [...ids].sort().join('_');
-    const cacheKey = `chatId:${participantsKey}`;
-
-    return this.cache.get<string>(cacheKey).pipe(
-      take(1),
-      switchMap(cached => {
-        if (cached) return of(cached);
-
-        return this.chatsRepo.findChatIdByParticipantsKey$(participantsKey).pipe(
-          switchMap(existingId => {
-            if (existingId) {
-              this.cache.set(cacheKey, existingId);
-              return of(existingId);
-            }
-            return this.createChat(ids).pipe(
-              tap(newId => this.cache.set(cacheKey, newId))
-            );
-          })
-        );
-      }),
-      catchError(err => this.reportSilent('getOrCreateChatId', err))
-    );
+  /**
+   * Operações legadas de escrita não podem consultar o cache de outro UID,
+   * ler dados privados nem tentar writes rejeitadas pelas Firestore Rules.
+   * A autoridade para criar/recuperar um par é ensureDirectChat, consumida
+   * por DirectChatService/DirectChatFacade; editar o chat exige backend.
+   */
+  private rejectLegacyChatOperation$<T>(operation: string): Observable<T> {
+    return defer(() => {
+      const error = new Error(
+        'Operação do chat legado indisponível; use o fluxo canônico de conversa direta.'
+      ) as Error & { code: string };
+      error.code = 'failed-precondition';
+      return this.reportSilent(operation, error);
+    });
   }
 
-  // ===========================================================================
-  // CRUD Chat (sem dispatch NgRx)
-  // ===========================================================================
-  createChat(participants: string[]): Observable<string> {
-    const ids = Array.from(new Set((participants ?? []).map(x => (x ?? '').toString().trim()).filter(Boolean)));
-    if (ids.length < 2) {
-      return this.failUi('createChat', 'Não foi possível criar o chat agora.', new Error('Participantes inválidos'));
-    }
-
-    const participantsKey = [...ids].sort().join('_');
-
-    return this.chatsRepo.createChat$(ids, participantsKey).pipe(
-      catchError(err => this.reportSilent('createChat', err))
-    );
+  /** @deprecated Use DirectChatFacade.openChatWithUser$. */
+  getOrCreateChatId(_participants: string[]): Observable<string> {
+    return this.rejectLegacyChatOperation$('getOrCreateChatId');
   }
 
-  updateChat(chatId: string, updateData: Partial<IChat>): Observable<string> {
-    const id = (chatId ?? '').toString().trim();
-    if (!id) return this.reportSilent('updateChat', new Error('chatId inválido'));
-
-    return this.chatsRepo.updateChat$(id, updateData).pipe(
-      map(() => id),
-      catchError(err => this.reportSilent('updateChat', err))
-    );
+  /** @deprecated Use DirectChatService.ensureDirectChatIdWithUser$. */
+  createChat(_participants: string[]): Observable<string> {
+    return this.rejectLegacyChatOperation$('createChat');
   }
 
-  deleteChat(chatId: string): Observable<void> {
-    const id = (chatId ?? '').toString().trim();
-    if (!id) return this.reportSilent('deleteChat', new Error('chatId inválido'));
-
-    return this.chatsRepo.deleteChat$(id).pipe(
-      catchError(err => this.reportSilent('deleteChat', err))
-    );
+  /** @deprecated Alterações estruturais pertencem exclusivamente ao backend. */
+  updateChat(_chatId: string, _updateData: Partial<IChat>): Observable<string> {
+    return this.rejectLegacyChatOperation$('updateChat');
   }
 
-  deleteMessage(chatId: string, messageId: string): Observable<void> {
-    const cid = (chatId ?? '').toString().trim();
-    const mid = (messageId ?? '').toString().trim();
-    if (!cid || !mid) return this.reportSilent('deleteMessage', new Error('ids inválidos'));
+  /** @deprecated Exclusão estrutural não existe no contrato cliente. */
+  deleteChat(_chatId: string): Observable<void> {
+    return this.rejectLegacyChatOperation$('deleteChat');
+  }
 
-    return this.msgsRepo.deleteMessage$(cid, mid).pipe(
-      catchError(err => this.reportSilent('deleteMessage', err))
-    );
+  /** @deprecated Use DirectThreadService.deleteMessage$ (soft delete callable). */
+  deleteMessage(_chatId: string, _messageId: string): Observable<void> {
+    return this.rejectLegacyChatOperation$('deleteMessage');
   }
 
   setMessageReaction(chatId: string, messageId: string, emoji: string | null): Observable<void> {
@@ -288,117 +243,27 @@ export class ChatService implements OnDestroy {
   // ===========================================================================
   // Participant details (usa o DONO do getUser$)
   // ===========================================================================
-  fetchAndPersistParticipantDetails(chatId: string, participantUid: string): Observable<IChat | null> {
-    const uid = (participantUid ?? '').toString().trim();
-    const cid = (chatId ?? '').toString().trim();
-    if (!uid || !cid) return of(null);
-
-    return this.userRepo.getUser$(uid).pipe(
-      take(1),
-      switchMap(user => {
-        if (!user) return of(null);
-        return this.updateChat(cid, { otherParticipantDetails: user } as any).pipe(
-          map(() => null)
-        );
-      }),
-      catchError(err => this.reportSilent('fetchAndPersistParticipantDetails', err))
-    );
+  /**
+   * Compatibilidade sem acesso a /users privado de terceiros.
+   * O enrichment moderno usa exclusivamente projeções públicas na facade.
+   */
+  fetchAndPersistParticipantDetails(
+    _chatId: string,
+    _participantUid: string
+  ): Observable<IChat | null> {
+    return of(null);
   }
 
-  refreshParticipantDetailsIfNeeded(chatId: string): void {
-    const cid = (chatId ?? '').toString().trim();
-    if (!cid) return;
-
-    this.cache.get<IChat>(`chat:${cid}`).pipe(
-      take(1),
-      switchMap(chat => {
-        if (!chat || (chat as any).otherParticipantDetails) return of(null);
-
-        return this.requireUidOnce$().pipe(
-          switchMap(loggedUid => {
-            const otherUid = chat.participants?.find(u => u !== loggedUid);
-            return otherUid ? this.fetchAndPersistParticipantDetails(cid, otherUid) : of(null);
-          })
-        );
-      }),
-      catchError(() => of(null))
-    ).subscribe();
+  refreshParticipantDetailsIfNeeded(_chatId: string): void {
+    // No-op: DirectChatFacade.enrichListItemsWithPublicProfiles$ é a autoridade.
   }
 
   // ===========================================================================
   // Mensagens (sem dispatch NgRx)
   // ===========================================================================
-  sendMessage(chatId: string, message: Message, senderId: string): Observable<string> {
-    const cid = (chatId ?? '').toString().trim();
-    if (!cid) return this.reportSilent('sendMessage', new Error('chatId inválido'));
-
-    const content = (message?.content ?? '').toString().trim();
-    if (!content) {
-      return this.failUi('sendMessage', 'A mensagem não pode ser vazia.', new Error('Mensagem vazia'));
-    }
-
-    return this.requireUidOnce$().pipe(
-      switchMap(loggedUid => {
-        if (!senderId || senderId !== loggedUid) {
-          return this.failUi('sendMessage', 'Não foi possível enviar a mensagem.', new Error('senderId divergente'));
-        }
-
-        return this.policy.canSendMessage$(content).pipe(
-          take(1),
-          switchMap(decision => {
-            if (!decision.canSend) {
-              return this.failUi(
-                'sendMessage.policy',
-                decision.reason || 'Você não pode enviar mensagens agora.',
-                new Error(decision.reason || 'blocked')
-              );
-            }
-
-            return this.userRepo.getUser$(senderId).pipe(
-              take(1),
-              switchMap(user => {
-                if (!user) {
-                  return this.failUi('sendMessage.user', 'Não foi possível enviar a mensagem.', new Error('Usuário não encontrado'));
-                }
-
-                const now = Timestamp.now();
-
-                const msgToSend: Message = {
-                  ...message,
-                  content,
-                  senderId,
-                  nickname: (user as any).nickname || 'Anônimo',
-                  timestamp: now,
-                  status: 'sent',
-                };
-
-                // compat/auditoria
-                (msgToSend as any).senderUid = senderId;
-                (msgToSend as any).createdAt = now;
-
-                return this.msgsRepo.addMessage$(cid, msgToSend).pipe(
-                  switchMap(messageId => {
-                    const chatPatch: Partial<IChat> = {
-                      lastMessage: {
-                        content: msgToSend.content,
-                        nickname: msgToSend.nickname,
-                        senderId: msgToSend.senderId,
-                        timestamp: msgToSend.timestamp,
-                      } as any
-                    };
-
-                    return this.updateChat(cid, chatPatch).pipe(
-                      map(() => messageId)
-                    );
-                  })
-                );
-              })
-            );
-          })
-        );
-      }),
-      catchError(err => this.reportSilent('sendMessage', err))
-    );
+  /** @deprecated Use DirectThreadService.sendMessage$ (sendDirectMessage callable). */
+  sendMessage(_chatId: string, _message: Message, _senderId: string): Observable<string> {
+    return this.rejectLegacyChatOperation$('sendMessage');
   }
 
   getMessages(chatId: string, lastMessageTimestamp?: Timestamp): Observable<Message[]> {
