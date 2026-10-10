@@ -4,6 +4,7 @@ import {
   ENSURE_DIRECT_CHAT_LEGACY_SCAN_LIMIT,
   ENSURE_DIRECT_CHAT_RATE_LIMIT_CONFIG,
   assertCanCreateNewDirectChat,
+  buildDirectChatPairIdentity,
   isEligibleExistingDirectChat,
 } from './direct-chat.policy';
 import { buildBackendFixedWindowRateLimitDecision } from '../../../shared/security/backend-fixed-window-rate-limit';
@@ -11,6 +12,29 @@ import { buildBackendFixedWindowRateLimitDecision } from '../../../shared/securi
 const PAIR = ['user-a', 'user-b'] as const;
 
 describe('ensureDirectChat canonical pair policy', () => {
+  it('identifica pares independentemente da ordem sem colisões por separador', () => {
+    const p1 = buildDirectChatPairIdentity('x', 'y_z');
+    const reversed = buildDirectChatPairIdentity('y_z', 'x');
+    const p2 = buildDirectChatPairIdentity('x_y', 'z');
+    assert.equal(p1.legacyKey, p2.legacyKey);
+    assert.equal(p1.legacyHash, p2.legacyHash);
+    assert.notEqual(p1.canonicalKey, p2.canonicalKey);
+    assert.notEqual(p1.canonicalHash, p2.canonicalHash);
+    assert.deepEqual(p1, reversed);
+    assert.ok(p1.canonicalKey.startsWith('v2:'));
+  });
+
+  it('falha fechado para pares vazios, repetidos e com separadores de caminho', () => {
+    for (const pair of [
+      ['', 'x'], ['x', 'x'], ['abc/def', 'x'], ['x', 'y'.repeat(129)],
+    ]) {
+      assert.throws(
+        () => buildDirectChatPairIdentity(pair[0], pair[1]),
+        (error: any) => error?.code === 'invalid-argument'
+      );
+    }
+  });
+
   it('aceita conversa direta válida e legado sem status explícito', () => {
     assert.equal(isEligibleExistingDirectChat({
       participants: ['user-b', 'user-a'],
