@@ -114,6 +114,72 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
     }
   });
 
+  it('mantém pares distintos isolados mesmo quando suas chaves v1 colidem', async () => {
+    const x = `${prefix}-x`;
+    const y = `${prefix}-y`;
+    const z = `${prefix}-z`;
+    const pairA = buildDirectChatPairIdentity(x, `${y}_${z}`);
+    const pairB = buildDirectChatPairIdentity(`${x}_${y}`, z);
+    assert.equal(pairA.legacyHash, pairB.legacyHash);
+    assert.notEqual(pairA.canonicalHash, pairB.canonicalHash);
+
+    const allUids = [...new Set([...pairA.participants, ...pairB.participants])];
+    const legacyChatRef = db.doc(`chats/legacy_collision_${randomUUID()}`);
+    const oldRegistryRef = db.doc(`direct_chat_pairs/${pairA.legacyHash}`);
+    const canonicalA = db.doc(`direct_chat_pairs/${pairA.canonicalHash}`);
+    const canonicalB = db.doc(`direct_chat_pairs/${pairB.canonicalHash}`);
+    const newChatB = db.doc(`chats/direct_${pairB.canonicalHash}`);
+
+    try {
+      await Promise.all(allUids.map((uid) =>
+        db.doc(`users/${uid}`).set(user(uid))
+      ));
+      for (const pair of [pairA, pairB]) {
+        await Promise.all([
+          db.doc(`users/${pair.participants[0]}/friends/${pair.participants[1]}`)
+            .set({ accepted: true }),
+          db.doc(`users/${pair.participants[1]}/friends/${pair.participants[0]}`)
+            .set({ accepted: true }),
+        ]);
+      }
+      await legacyChatRef.set({
+        participants: pairA.participants,
+        participantsKey: pairA.legacyKey,
+        timestamp: new Date(),
+      });
+      await oldRegistryRef.set({ chatId: legacyChatRef.id });
+
+      const call = (actorUid: string, otherUserUid: string) =>
+        invoke({
+          data: { otherUserUid },
+          auth: { uid: actorUid, token: { email_verified: true } },
+        }, {});
+      const first = await call(...pairA.participants);
+      const second = await call(...pairB.participants);
+      assert.equal(first.chatId, legacyChatRef.id);
+      assert.equal(first.created, false);
+      assert.equal(second.chatId, newChatB.id);
+      assert.equal(second.created, true);
+
+      const [registryA, registryB, priorRegistry, chatB] = await Promise.all([
+        canonicalA.get(), canonicalB.get(), oldRegistryRef.get(), newChatB.get(),
+      ]);
+      assert.equal(registryA.data()?.chatId, legacyChatRef.id);
+      assert.equal(registryB.data()?.chatId, newChatB.id);
+      assert.equal(priorRegistry.data()?.chatId, legacyChatRef.id);
+      assert.equal(chatB.data()?.participantsKey, pairB.canonicalKey);
+    } finally {
+      await Promise.all([
+        ...allUids.map((uid) => db.recursiveDelete(db.doc(`users/${uid}`))),
+        db.recursiveDelete(legacyChatRef),
+        db.recursiveDelete(newChatB),
+        oldRegistryRef.delete(),
+        canonicalA.delete(),
+        canonicalB.delete(),
+      ]);
+    }
+  });
+
   it('revogação da amizade impede recuperar chat existente', async () => {
     const friendRef = db.doc(`users/${targetUid}/friends/${actorUid}`);
     await friendRef.delete();
