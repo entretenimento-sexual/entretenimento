@@ -14,7 +14,9 @@ export interface DirectChatReadOnlyReport extends DirectChatAuditResult {
   boundedQuery: true;
 }
 
-function candidate(snapshot: DocumentSnapshot<DocumentData> | QueryDocumentSnapshot<DocumentData>): DirectChatAuditCandidate {
+function candidate(
+  snapshot: DocumentSnapshot<DocumentData> | QueryDocumentSnapshot<DocumentData>
+): DirectChatAuditCandidate {
   const data = snapshot.data() ?? {};
   return {
     id: snapshot.id,
