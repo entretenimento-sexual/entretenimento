@@ -5,7 +5,7 @@ import { describe, it } from 'node:test';
 
 describe('direct chat reconciliation CLI — fail-closed operational boundary', () => {
   const cli = join(__dirname, 'direct-chat-reconciliation.emulator-cli.js');
-  const base = {
+  const base: NodeJS.ProcessEnv = {
     ...process.env,
     FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080',
     GCLOUD_PROJECT: 'demo-entretenimento',
