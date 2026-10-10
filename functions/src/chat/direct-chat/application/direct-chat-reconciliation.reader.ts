@@ -1,9 +1,13 @@
 // Diagnóstico sob demanda, somente leitura. Não é exportado como Cloud Function.
 // Um chamador administrativo deve fornecer um Firestore Admin autenticado.
 // Não consulta subcoleções de mensagens e não persiste relatórios.
-import type { Firestore, DocumentData, DocumentSnapshot, QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import type {
+  Firestore, DocumentData, DocumentSnapshot, QueryDocumentSnapshot,
+} from 'firebase-admin/firestore';
 import { buildDirectChatPairIdentity, ENSURE_DIRECT_CHAT_LEGACY_SCAN_LIMIT } from '../domain/direct-chat.policy';
-import { auditDirectChatPair, type DirectChatAuditCandidate, type DirectChatAuditResult } from '../domain/direct-chat-reconciliation.audit';
+import {
+  auditDirectChatPair, type DirectChatAuditCandidate, type DirectChatAuditResult,
+} from '../domain/direct-chat-reconciliation.audit';
 
 export interface DirectChatReadOnlyReport extends DirectChatAuditResult {
   inspectedDocuments: number;
