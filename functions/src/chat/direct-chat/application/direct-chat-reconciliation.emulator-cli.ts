@@ -37,8 +37,13 @@ async function main(): Promise<void> {
   if (args.length !== 2) {
     throw new Error('Forneça exatamente dois UIDs; sem varredura global.');
   }
-  if (args.some((uid) => !uid || uid.length > 128 || uid.includes('/')
-    || [...uid].some((char) => { const code = char.charCodeAt(0); return code < 32 || code === 127; })) || args[0] === args[1]) {
+  const invalidUid = args.some((uid) =>
+    !uid || uid.length > 128 || uid.includes('/')
+    || [...uid].some((char) => {
+      const code = char.charCodeAt(0);
+      return code < 32 || code === 127;
+    }));
+  if (invalidUid || args[0] === args[1]) {
     throw new Error('Auditoria bloqueada: par de UIDs inválido.');
   }
   // Carregar Admin SDK somente depois de confirmar o ambiente de emulação.
@@ -46,7 +51,15 @@ async function main(): Promise<void> {
   const { readDirectChatReconciliation } = require('./direct-chat-reconciliation.reader') as
     typeof import('./direct-chat-reconciliation.reader');
   const report = await readDirectChatReconciliation(db, [args[0], args[1]]);
-  process.stdout.write(`${JSON.stringify({ mode: 'DRY_RUN', findings: report.findings, eligibleHistoryCount: report.eligibleChatIds.length, inspectedDocuments: report.inspectedDocuments, boundedQuery: report.boundedQuery, requiresManualReview: report.requiresManualReview }, null, 2)}\n`);
+  const summary = {
+    mode: 'DRY_RUN',
+    findings: report.findings,
+    eligibleHistoryCount: report.eligibleChatIds.length,
+    inspectedDocuments: report.inspectedDocuments,
+    boundedQuery: report.boundedQuery,
+    requiresManualReview: report.requiresManualReview,
+  };
+  process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
 }
 
 if (require.main === module) {
