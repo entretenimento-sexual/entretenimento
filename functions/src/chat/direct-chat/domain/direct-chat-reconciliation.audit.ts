@@ -20,11 +20,14 @@ export interface DirectChatAuditInput {
   canonicalRegistryChatId?: string | null;
   legacyRegistryChatId?: string | null;
   truncated?: boolean;
+  /** IDs verificados por leitura pontual; false significa ausência confirmada. */
+  verifiedReferences?: Readonly<Record<string, boolean>>;
 }
 
 export type DirectChatAuditFinding =
   | 'SCAN_TRUNCATED'
   | 'MULTIPLE_HISTORIES'
+  | 'REFERENCE_NOT_VERIFIED'
   | 'CANONICAL_REGISTRY_MISSING_CHAT'
   | 'CANONICAL_REGISTRY_WRONG_PAIR'
   | 'LEGACY_REGISTRY_WRONG_PAIR'
@@ -52,18 +55,25 @@ export function auditDirectChatPair(input: DirectChatAuditInput): DirectChatAudi
 
   if (input.truncated) findings.add('SCAN_TRUNCATED');
   if (eligible.length > 1) findings.add('MULTIPLE_HISTORIES');
-  if (eligible.length === 0) findings.add('NO_ELIGIBLE_HISTORY');
-  if (eligible.length === 1) findings.add('SINGLE_ELIGIBLE_HISTORY');
+  if (!input.truncated && eligible.length === 0) findings.add('NO_ELIGIBLE_HISTORY');
+  if (!input.truncated && eligible.length === 1) findings.add('SINGLE_ELIGIBLE_HISTORY');
 
   if (input.canonicalRegistryChatId) {
     const referenced = chats.get(input.canonicalRegistryChatId);
-    if (!referenced) findings.add('CANONICAL_REGISTRY_MISSING_CHAT');
+    if (!referenced && input.verifiedReferences?.[input.canonicalRegistryChatId] === false) {
+      findings.add('CANONICAL_REGISTRY_MISSING_CHAT');
+    } else if (!referenced) {
+      findings.add('REFERENCE_NOT_VERIFIED');
+    }
     else if (!isEligibleExistingDirectChat(referenced, pair.participants)) {
       findings.add('CANONICAL_REGISTRY_WRONG_PAIR');
     }
   }
   if (input.legacyRegistryChatId) {
     const referenced = chats.get(input.legacyRegistryChatId);
+    if (!referenced && input.verifiedReferences?.[input.legacyRegistryChatId] !== false) {
+      findings.add('REFERENCE_NOT_VERIFIED');
+    }
     if (referenced && !isEligibleExistingDirectChat(referenced, pair.participants)) {
       findings.add('LEGACY_REGISTRY_WRONG_PAIR');
     }
