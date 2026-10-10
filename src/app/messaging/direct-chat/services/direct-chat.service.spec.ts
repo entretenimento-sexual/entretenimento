@@ -1,4 +1,4 @@
-import { firstValueFrom, Observable, of, throwError } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, Observable, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Functions } from '@angular/fire/functions';
@@ -162,6 +162,87 @@ describe('DirectChatService canonical errors', () => {
     expect(errorNotifier.showError).toHaveBeenCalledWith(
       'Não é possível abrir um chat com o próprio perfil.'
     );
+  });
+
+  it('não chama ensureDirectChat quando o gate de realtime está bloqueado', async () => {
+    const { service, callable, applicationError, errorNotifier } = createHarness({
+      canListen$: of(false),
+    });
+    await expect(firstValueFrom(
+      service.ensureDirectChatIdWithUser$('peer-b')
+    )).resolves.toBeNull();
+    expect(callable).not.toHaveBeenCalled();
+    expect(applicationError.report).not.toHaveBeenCalled();
+    expect(errorNotifier.showError).not.toHaveBeenCalled();
+  });
+
+  it('descarta chat retornado após logout/troca de UID, sem diagnosticar outra sessão', async () => {
+    const uid$ = new BehaviorSubject<string | null>('user-a');
+    const canListen$ = new BehaviorSubject(true);
+    const { service, callable, applicationError, errorNotifier } = createHarness({
+      uid$: uid$.asObservable(),
+      canListen$: canListen$.asObservable(),
+    });
+    let resolvePending!: (response: { data: { chatId: string } }) => void;
+    callable.mockReturnValue(new Promise((resolve) => {
+      resolvePending = resolve;
+    }));
+    const received: Array<string | null> = [];
+    const complete = vi.fn();
+    const subscription = service.ensureDirectChatIdWithUser$('peer-b').subscribe({
+      next: (chatId) => received.push(chatId),
+      complete,
+    });
+    expect(callable).toHaveBeenCalledTimes(1);
+    uid$.next(null);
+    uid$.next('user-b');
+    resolvePending({ data: { chatId: 'chat-from-old-session' } });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(received).toEqual([]);
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(applicationError.report).not.toHaveBeenCalled();
+    expect(errorNotifier.showError).not.toHaveBeenCalled();
+    subscription.unsubscribe();
+  });
+
+  it('ignora falha tardia do callable depois de revogação do acesso', async () => {
+    const uid$ = new BehaviorSubject<string | null>('user-a');
+    const canListen$ = new BehaviorSubject(true);
+    const { service, callable, applicationError, errorNotifier } = createHarness({
+      uid$: uid$.asObservable(),
+      canListen$: canListen$.asObservable(),
+    });
+    let rejectPending!: (error: Error) => void;
+    callable.mockReturnValue(new Promise((_resolve, reject) => {
+      rejectPending = reject;
+    }));
+    const received = vi.fn();
+    const complete = vi.fn();
+    const subscription = service.ensureDirectChatIdWithUser$('peer-b').subscribe({
+      next: received,
+      complete,
+    });
+    expect(callable).toHaveBeenCalledTimes(1);
+    canListen$.next(false);
+    canListen$.next(true);
+    rejectPending(new Error('permission denied on previous session'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(received).not.toHaveBeenCalled();
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(applicationError.report).not.toHaveBeenCalled();
+    expect(errorNotifier.showError).not.toHaveBeenCalled();
+    subscription.unsubscribe();
+  });
+
+  it('mantém resposta válida quando sessão e autorização continuam ativas', async () => {
+    const { service, callable, applicationError } = createHarness();
+    callable.mockResolvedValue({ data: { chatId: 'chat-valid' } });
+    await expect(firstValueFrom(
+      service.ensureDirectChatIdWithUser$('peer-b')
+    )).resolves.toBe('chat-valid');
+    expect(applicationError.report).not.toHaveBeenCalled();
   });
 
   it('centraliza falha do callable em um único diagnóstico e snackbar', async () => {
