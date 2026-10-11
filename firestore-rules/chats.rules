@@ -146,14 +146,18 @@ match /chats/{chatId} {
        *
        * Em etapa futura, receipts também deverão migrar para backend.
        */
-      allow update: if isChatParticipantByChat()
+      // Valida a forma da mutação antes das consultas de conta/chat/bloqueio.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status"
+        ])
+        && request.resource.data.diff(resource.data).affectedKeys().hasAll([
+          "status"
+        ])
         && resource.data.get("deleted", false) != true
         && request.resource.data.get("deleted", false) != true
         && isMessageReceivedByCurrentUser()
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-          "status"
-        ])
-        && isForwardReceiptTransition();
+        && isForwardReceiptTransition()
+        && isChatParticipantByChat();
 
       /**
        * Reações persistentes:
@@ -162,8 +166,9 @@ match /chats/{chatId} {
        * - usuário só altera a própria chave;
        * - valores limitados aos emojis suportados na UI.
        */
-      allow update: if isChatParticipantByChat()
-        && isReactionUpdate();
+      // Evita consultar lifecycle e bloqueios em tentativas malformadas.
+      allow update: if isReactionUpdate()
+        && isChatParticipantByChat();
 
       allow delete: if false;
     }
