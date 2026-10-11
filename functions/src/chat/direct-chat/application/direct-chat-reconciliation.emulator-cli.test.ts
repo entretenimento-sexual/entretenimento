@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { describe, it } from 'node:test';
 
 describe('direct chat reconciliation CLI — fail-closed operational boundary', () => {
@@ -27,6 +28,30 @@ describe('direct chat reconciliation CLI — fail-closed operational boundary', 
     assert.equal(result.stderr, 'Falha no dry-run: operação não concluída.\n');
     assert.equal(result.stdout, '');
   }
+
+  it('falha fechado quando o Firestore Emulator não está acessível', async () => {
+    const server = createServer();
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => error ? reject(error) : resolve()));
+    const secretUid = 'private-uid-connection-failure';
+    const result = spawnSync(process.execPath, [cli, secretUid, 'other-user'], {
+      encoding: 'utf8',
+      timeout: 14000,
+      env: {
+        ...base,
+        FIRESTORE_EMULATOR_HOST: `127.0.0.1:${address.port}`,
+        NODE_NO_WARNINGS: '1',
+      },
+    });
+    assert.equal(result.error, undefined, String(result.error));
+    assert.equal(result.status, 1, result.stderr);
+    assert.equal(result.stdout, '');
+    assert.equal(result.stderr, 'Falha no dry-run: operação não concluída.\\n');
+    assert.ok(!result.stderr.includes(secretUid));
+  });
 
   it('não propaga dados maliciosos dos argumentos em mensagens de erro', () => {
     const secret = 'private-uid-123';
