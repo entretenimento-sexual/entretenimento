@@ -67,14 +67,16 @@ if (require.main === module) {
   const deadline = new Promise<never>((_, reject) => {
     timeout = setTimeout(() => reject(new Error('deadline')), 8000);
   });
-  Promise.race([main(), deadline])
-    .then(() => process.exit(0))
-    .catch(() => {
+  Promise.race([main(), deadline]).then(
+    () => {
+      if (timeout) clearTimeout(timeout);
+      process.exit(0);
+    },
+    () => {
+      if (timeout) clearTimeout(timeout);
       // Nunca encaminhar mensagens, stack traces ou caminhos de exceções internas.
       process.stderr.write('Falha no dry-run: operação não concluída.\n');
-      process.exitCode = 1;
-    })
-    .finally(() => {
-      if (timeout) clearTimeout(timeout);
-    });
+      process.exit(1);
+    }
+  );
 }
