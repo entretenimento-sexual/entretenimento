@@ -18,6 +18,7 @@ describe('direct chat reconciliation CLI — fail-closed operational boundary', 
   };
   delete base.GCP_PROJECT;
   delete base.FIREBASE_CONFIG;
+  delete base.GOOGLE_APPLICATION_CREDENTIALS;
 
   function assertSafeFailure(
     result: Pick<SpawnSyncReturns<string>, 'status' | 'stdout' | 'stderr'>,
@@ -178,6 +179,19 @@ describe('direct chat reconciliation CLI — fail-closed operational boundary', 
     ]) {
       denied({ FIRESTORE_EMULATOR_HOST: host });
     }
+  });
+
+  it('rejeita arquivo de credenciais herdado antes de inicializar o Admin SDK', () => {
+    denied({
+      GOOGLE_APPLICATION_CREDENTIALS: 'C:\\private\\production-service-account.json',
+    });
+    denied({
+      GOOGLE_APPLICATION_CREDENTIALS: '/tmp/inherited-prod-credentials.json',
+      FIREBASE_CONFIG: JSON.stringify({
+        projectId: 'demo-entretenimento',
+        project_id: 'demo-entretenimento',
+      }),
+    });
   });
 
   it('rejeita varredura, par idêntico e UIDs inseguros', () => {
