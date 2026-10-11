@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
+import type { SpawnSyncReturns } from 'node:child_process';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { describe, it } from 'node:test';
+
+const SAFE_FAILURE = 'Falha no dry-run: operação não concluída.\n';
 
 describe('direct chat reconciliation CLI — fail-closed operational boundary', () => {
   const cli = join(__dirname, 'direct-chat-reconciliation.emulator-cli.js');
@@ -16,6 +19,18 @@ describe('direct chat reconciliation CLI — fail-closed operational boundary', 
   delete base.GCP_PROJECT;
   delete base.FIREBASE_CONFIG;
 
+  function assertSafeFailure(
+    result: Pick<SpawnSyncReturns<string>, 'status' | 'stdout' | 'stderr'>,
+    secrets: string[] = []
+  ): void {
+    assert.equal(result.status, 1, result.stderr);
+    assert.equal(result.stdout, '');
+    assert.equal(result.stderr, SAFE_FAILURE);
+    for (const secret of secrets) {
+      assert.ok(!result.stderr.includes(secret), 'CLI expôs identificador em stderr');
+    }
+  }
+
   function denied(
     overrides: Record<string, string | undefined>,
     args: string[] = ['alice', 'bob']
@@ -24,9 +39,7 @@ describe('direct chat reconciliation CLI — fail-closed operational boundary', 
     const result = spawnSync(process.execPath, [cli, ...args], {
       env, encoding: 'utf8', timeout: 10000,
     });
-    assert.equal(result.status, 1, result.stderr);
-    assert.equal(result.stderr, 'Falha no dry-run: operação não concluída.\n');
-    assert.equal(result.stdout, '');
+    assertSafeFailure(result, args);
   }
 
   it('encerra por deadline quando o servidor aceita conexão sem responder', async () => {
@@ -65,11 +78,8 @@ describe('direct chat reconciliation CLI — fail-closed operational boundary', 
         child.on('close', (code) => { clearTimeout(watchdog); resolve(code); });
       });
       const elapsed = Date.now() - started;
-      assert.equal(exitCode, 1);
+      assertSafeFailure({ status: exitCode, stdout, stderr }, [secretUid]);
       assert.ok(elapsed >= 7500 && elapsed < 12500, `deadline inválido: ${elapsed}ms`);
-      assert.equal(stdout, '');
-      assert.equal(stderr, 'Falha no dry-run: operação não concluída.\n');
-      assert.ok(!stderr.includes(secretUid));
     } finally {
       for (const socket of sockets) socket.destroy();
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -94,10 +104,7 @@ describe('direct chat reconciliation CLI — fail-closed operational boundary', 
       },
     });
     assert.equal(result.error, undefined, String(result.error));
-    assert.equal(result.status, 1, result.stderr);
-    assert.equal(result.stdout, '');
-    assert.equal(result.stderr, 'Falha no dry-run: operação não concluída.\n');
-    assert.ok(!result.stderr.includes(secretUid));
+    assertSafeFailure(result, [secretUid]);
   });
 
   it('não propaga dados maliciosos dos argumentos em mensagens de erro', () => {
