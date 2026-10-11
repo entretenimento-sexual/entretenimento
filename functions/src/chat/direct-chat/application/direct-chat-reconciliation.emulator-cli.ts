@@ -36,6 +36,9 @@ async function main(): Promise<void> {
       throw new Error('Auditoria bloqueada: FIREBASE_CONFIG aponta para outro projeto.');
     }
   }
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    throw new Error('Credenciais externas indisponíveis neste diagnóstico local.');
+  }
   const args = process.argv.slice(2);
   if (args.length !== 2) {
     throw new Error('Forneça exatamente dois UIDs; sem varredura global.');
