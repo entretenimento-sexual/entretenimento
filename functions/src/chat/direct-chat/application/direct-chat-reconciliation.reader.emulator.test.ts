@@ -42,7 +42,11 @@ run('direct chat reconciliation — Firestore emulator', () => {
           GCLOUD_PROJECT: 'demo-entretenimento',
           GOOGLE_CLOUD_PROJECT: 'demo-entretenimento',
           GCP_PROJECT: 'demo-entretenimento',
-          FIREBASE_CONFIG: undefined,
+          FIREBASE_CONFIG: JSON.stringify({
+            projectId: 'demo-entretenimento',
+            project_id: 'demo-entretenimento',
+          }),
+          GOOGLE_APPLICATION_CREDENTIALS: undefined,
         },
       });
       assert.equal(result.status, 0, result.stderr);
