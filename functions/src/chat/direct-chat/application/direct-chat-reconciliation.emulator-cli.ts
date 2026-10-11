@@ -28,8 +28,11 @@ async function main(): Promise<void> {
     } catch {
       throw new Error('Auditoria bloqueada: FIREBASE_CONFIG inválido.');
     }
-    const configProject = config?.projectId ?? config?.project_id;
-    if (configProject !== undefined && configProject !== 'demo-entretenimento') {
+    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+      throw new Error('Auditoria bloqueada: FIREBASE_CONFIG inválido.');
+    }
+    const configProjects = [config.projectId, config.project_id];
+    if (configProjects.some((id) => id !== undefined && id !== 'demo-entretenimento')) {
       throw new Error('Auditoria bloqueada: FIREBASE_CONFIG aponta para outro projeto.');
     }
   }
