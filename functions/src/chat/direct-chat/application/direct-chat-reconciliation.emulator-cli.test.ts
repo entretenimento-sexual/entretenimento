@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -28,6 +28,50 @@ describe('direct chat reconciliation CLI — fail-closed operational boundary', 
     assert.equal(result.stderr, 'Falha no dry-run: operação não concluída.\n');
     assert.equal(result.stdout, '');
   }
+
+  it('encerra por deadline quando o servidor aceita conexão sem responder', async () => {
+    const sockets = new Set<import('node:net').Socket>();
+    const server = createServer((socket) => {
+      sockets.add(socket);
+      socket.on('close', () => sockets.delete(socket));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    try {
+      const secretUid = 'private-uid-timeout';
+      const child = spawn(process.execPath, [cli, secretUid, 'other-user'], {
+        env: {
+          ...base,
+          FIRESTORE_EMULATOR_HOST: `127.0.0.1:${address.port}`,
+          NODE_NO_WARNINGS: '1',
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.setEncoding('utf8').on('data', (chunk: string) => { stdout += chunk; });
+      child.stderr.setEncoding('utf8').on('data', (chunk: string) => { stderr += chunk; });
+      const started = Date.now();
+      const exitCode = await new Promise<number | null>((resolve, reject) => {
+        const watchdog = setTimeout(() => {
+          child.kill();
+          reject(new Error('CLI não encerrou dentro do watchdog de teste'));
+        }, 12500);
+        child.on('error', (error) => { clearTimeout(watchdog); reject(error); });
+        child.on('close', (code) => { clearTimeout(watchdog); resolve(code); });
+      });
+      const elapsed = Date.now() - started;
+      assert.equal(exitCode, 1);
+      assert.ok(elapsed >= 7500 && elapsed < 12500, `deadline inválido: ${elapsed}ms`);
+      assert.equal(stdout, '');
+      assert.equal(stderr, 'Falha no dry-run: operação não concluída.\n');
+      assert.ok(!stderr.includes(secretUid));
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
 
   it('falha fechado quando o Firestore Emulator não está acessível', async () => {
     const server = createServer();
