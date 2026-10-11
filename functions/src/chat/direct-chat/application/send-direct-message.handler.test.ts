@@ -127,6 +127,41 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     }
   });
 
+  it('restaura envio após desbloqueio sem recriar chat ou duplicar histórico', async () => {
+    const chatRef = db.doc(`chats/${chatId}`);
+    const blockRef = db.doc(`users/${actorUid}/blocks/${targetUid}`);
+    const before = await send('antes do bloqueio', randomUUID());
+    const originalChat = await chatRef.get();
+    const deniedId = randomUUID();
+
+    await blockRef.set({ isBlocked: true });
+    try {
+      await assert.rejects(send('não deve ser enviada', deniedId), (error: any) =>
+        String(error?.code ?? '').includes('permission-denied')
+      );
+      assert.equal((await chatRef.get()).id, originalChat.id);
+      assert.equal((await db.doc(`chats/${chatId}/messages/${before.messageId}`).get()).exists, true);
+    } finally {
+      await blockRef.delete();
+    }
+
+    const after = await send('após desbloqueio', randomUUID());
+    assert.equal(after.chatId, chatId);
+    assert.notEqual(after.messageId, before.messageId);
+    assert.equal(after.deduplicated, false);
+
+    const [oldMessage, newMessage, deniedMessages, chats] = await Promise.all([
+      db.doc(`chats/${chatId}/messages/${before.messageId}`).get(),
+      db.doc(`chats/${chatId}/messages/${after.messageId}`).get(),
+      db.collection(`chats/${chatId}/messages`).where('clientRequestId', '==', deniedId).get(),
+      chatRef.get(),
+    ]);
+    assert.equal(oldMessage.exists, true);
+    assert.equal(newMessage.exists, true);
+    assert.equal(deniedMessages.empty, true);
+    assert.equal(chats.data()?.lastMessage?.messageId, after.messageId);
+  });
+
   it('impede novo envio depois de suspensão confirmada', async () => {
     const actorRef = db.doc(`users/${actorUid}`);
     await actorRef.update({ accountStatus: 'suspended' });
