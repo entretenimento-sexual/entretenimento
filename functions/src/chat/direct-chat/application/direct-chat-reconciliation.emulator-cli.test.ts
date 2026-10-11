@@ -142,6 +142,44 @@ describe('direct chat reconciliation CLI — fail-closed operational boundary', 
     denied({ FIREBASE_CONFIG: 'not-json' });
   });
 
+  it('rejeita todos os aliases de projeto divergentes, inclusive em combinação', () => {
+    for (const key of ['GCLOUD_PROJECT', 'GOOGLE_CLOUD_PROJECT', 'GCP_PROJECT']) {
+      denied({ [key]: 'entretenimento-prod' });
+      denied({ [key]: 'demo-entretenimento-extra' });
+    }
+    denied({
+      GCLOUD_PROJECT: undefined,
+      GOOGLE_CLOUD_PROJECT: undefined,
+      GCP_PROJECT: undefined,
+    });
+  });
+
+  it('rejeita aliases divergentes e JSON não objeto no FIREBASE_CONFIG', () => {
+    const demo = 'demo-entretenimento';
+    const prod = 'entretenimento-prod';
+    denied({ FIREBASE_CONFIG: JSON.stringify({ projectId: demo, project_id: prod }) });
+    denied({ FIREBASE_CONFIG: JSON.stringify({ projectId: prod, project_id: demo }) });
+    denied({ FIREBASE_CONFIG: JSON.stringify({ project_id: prod }) });
+    denied({ FIREBASE_CONFIG: JSON.stringify({ projectId: null }) });
+    for (const value of ['null', '[]', '"demo-entretenimento"', '123']) {
+      denied({ FIREBASE_CONFIG: value });
+    }
+  });
+
+  it('rejeita variações de host que podem mascarar conexão externa', () => {
+    for (const host of [
+      'LOCALHOST:8080',
+      'localhost.:8080',
+      '[::1]:8080',
+      '127.0.0.1:0',
+      '127.0.0.1:65536',
+      '127.0.0.1:8080/path',
+      'localhost:8080@evil.example',
+    ]) {
+      denied({ FIRESTORE_EMULATOR_HOST: host });
+    }
+  });
+
   it('rejeita varredura, par idêntico e UIDs inseguros', () => {
     denied({}, []);
     denied({}, ['alice']);
