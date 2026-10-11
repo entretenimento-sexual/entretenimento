@@ -34,12 +34,15 @@ try {
     },
   }), 'utf8');
 
-  const args = [
-    'emulators:exec', '--only', 'firestore',
-    '--project', 'demo-entretenimento', '--config', config,
-    'node --test functions/lib/chat/direct-chat/application/direct-chat-reconciliation.reader.emulator.test.js',
-  ];
-  const child = spawn(process.platform === 'win32' ? 'firebase.cmd' : 'firebase', args, {
+  // Uma única linha de shell preserva o argumento de comando do emulators:exec
+  // no cmd.exe. spawn(firebase.cmd, args, { shell: true }) perdia as aspas.
+  const command = [
+    'firebase emulators:exec --only firestore',
+    '--project demo-entretenimento',
+    `--config "${config}"`,
+    '"node --test functions/lib/chat/direct-chat/application/direct-chat-reconciliation.reader.emulator.test.js"',
+  ].join(' ');
+  const child = spawn(command, {
     cwd: process.cwd(),
     stdio: 'inherit',
     shell: process.platform === 'win32',
