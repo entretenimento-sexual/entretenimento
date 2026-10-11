@@ -102,6 +102,17 @@ describe('Firestore Rules / direct chat receipts', () => {
     expect(final.data()?.['deleted']).toBe(false);
   });
 
+  it('revoga recibo com a mesma sessão após suspensão do destinatário', async () => {
+    const currentSession = message(RECIPIENT);
+    await assertSucceeds(getDoc(currentSession));
+    await env.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), 'users', RECIPIENT), {
+        accountStatus: 'suspended', loginAllowed: false,
+      });
+    });
+    await assertFails(updateDoc(currentSession, { status: 'delivered' }));
+  });
+
   it('permite avanço sequencial sent -> delivered -> read', async () => {
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'delivered' }));
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'read' }));
