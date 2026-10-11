@@ -135,6 +135,19 @@ describe('Firestore Rules / direct chat reactions', () => {
     await assertFails(write(B, '👀'));
   });
 
+  it('revoga reação com sessão antiga após suspensão da conta', async () => {
+    const originalSession = message(B);
+    await assertSucceeds(getDoc(originalSession));
+    await env.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), 'users', B), {
+        accountStatus: 'suspended', loginAllowed: false,
+      });
+    });
+    await assertFails(updateDoc(
+      originalSession, new FieldPath('reactionsByUser', B), '❤️',
+    ));
+  });
+
   it('nega reação de usuário não autenticado', async () => {
     const anonymous = env.unauthenticatedContext().firestore();
     await assertFails(updateDoc(
