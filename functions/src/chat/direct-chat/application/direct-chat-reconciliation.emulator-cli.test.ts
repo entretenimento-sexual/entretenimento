@@ -49,7 +49,7 @@ describe('direct chat reconciliation CLI — fail-closed operational boundary', 
     assert.equal(result.error, undefined, String(result.error));
     assert.equal(result.status, 1, result.stderr);
     assert.equal(result.stdout, '');
-    assert.equal(result.stderr, 'Falha no dry-run: operação não concluída.\\n');
+    assert.equal(result.stderr, 'Falha no dry-run: operação não concluída.\n');
     assert.ok(!result.stderr.includes(secretUid));
   });
 
