@@ -137,37 +137,29 @@ match /chats/{chatId} {
        */
       allow create: if false;
 
-      /**
-       * Exceção temporária e estrita para recibos:
-       * - somente participante;
-       * - somente mensagem recebida;
-       * - somente campo status;
-       * - somente avanço sent -> delivered -> read.
-       *
-       * Em etapa futura, receipts também deverão migrar para backend.
-       */
-      // Valida a forma da mutação antes das consultas de conta/chat/bloqueio.
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          "status"
-        ])
-        && request.resource.data.diff(resource.data).affectedKeys().hasAll([
-          "status"
-        ])
-        && resource.data.get("deleted", false) != true
-        && request.resource.data.get("deleted", false) != true
-        && isMessageReceivedByCurrentUser()
-        && isForwardReceiptTransition()
-        && isChatParticipantByChat();
+      // As duas modalidades de update passam por uma única autorização.
+      // Rejeita primeiro alterações de campos não previstos e só depois
+      // consulta lifecycle, participantes e bloqueio bilateral.
+      function isReceiptUpdate() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "status"
+          ])
+          && request.resource.data.diff(resource.data).affectedKeys().hasAll([
+            "status"
+          ])
+          && isMessageReceivedByCurrentUser()
+          && isForwardReceiptTransition();
+      }
 
-      /**
-       * Reações persistentes:
-       * - somente participante;
-       * - somente campo reactionsByUser;
-       * - usuário só altera a própria chave;
-       * - valores limitados aos emojis suportados na UI.
-       */
-      // Evita consultar lifecycle e bloqueios em tentativas malformadas.
-      allow update: if isReactionUpdate()
+      function isPermittedMessageMutation() {
+        return resource.data.get("deleted", false) != true
+          && request.resource.data.get("deleted", false) != true
+          && (isReceiptUpdate() || isReactionUpdate());
+      }
+
+      // Escrita estrutural e criação continuam backend-only.
+      // A autorização relacional é executada uma vez por atualização.
+      allow update: if isPermittedMessageMutation()
         && isChatParticipantByChat();
 
       allow delete: if false;
