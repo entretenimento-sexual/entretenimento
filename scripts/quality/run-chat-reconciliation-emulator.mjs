@@ -3,7 +3,8 @@
 import { spawn } from 'node:child_process';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { access } from 'node:fs/promises';
 import { createServer } from 'node:net';
 
 async function availablePort() {
@@ -23,8 +24,11 @@ try {
   const ports = new Set();
   while (ports.size < 3) ports.add(await availablePort());
   const [firestore, hub, logging] = [...ports];
+  const rules = resolve('firestore.rules');
+  await access(rules);
   const config = join(directory, 'firebase.json');
   await writeFile(config, JSON.stringify({
+    firestore: { rules },
     emulators: {
       singleProjectMode: true,
       firestore: { host: '127.0.0.1', port: firestore },
@@ -50,6 +54,7 @@ try {
       ...process.env,
       GOOGLE_APPLICATION_CREDENTIALS: '',
       FIRESTORE_EMULATOR_HOST: '',
+      CHAT_RECONCILIATION_EXPECTED_EMULATOR_HOST: `127.0.0.1:${firestore}`,
       GCLOUD_PROJECT: 'demo-entretenimento',
       GOOGLE_CLOUD_PROJECT: 'demo-entretenimento',
       GCP_PROJECT: 'demo-entretenimento',
