@@ -63,12 +63,18 @@ async function main(): Promise<void> {
 }
 
 if (require.main === module) {
+  let timeout: NodeJS.Timeout | undefined;
   const deadline = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error('deadline')), 8000);
+    timeout = setTimeout(() => reject(new Error('deadline')), 8000);
   });
-  Promise.race([main(), deadline]).then(() => process.exit(0)).catch(() => {
-    // Nunca encaminhar mensagens, stack traces ou caminhos de exceções internas.
-    process.stderr.write('Falha no dry-run: operação não concluída.\n');
-    process.exit(1);
-  });
+  Promise.race([main(), deadline])
+    .then(() => process.exit(0))
+    .catch(() => {
+      // Nunca encaminhar mensagens, stack traces ou caminhos de exceções internas.
+      process.stderr.write('Falha no dry-run: operação não concluída.\n');
+      process.exitCode = 1;
+    })
+    .finally(() => {
+      if (timeout) clearTimeout(timeout);
+    });
 }
