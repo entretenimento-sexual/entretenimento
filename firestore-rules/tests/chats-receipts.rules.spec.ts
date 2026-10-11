@@ -79,6 +79,29 @@ describe('Firestore Rules / direct chat receipts', () => {
 
   afterAll(async () => { await env.cleanup(); });
 
+  it('nega leitura e recibo sem autenticação ou por terceiro', async () => {
+    const anonymous = env.unauthenticatedContext().firestore();
+    const ref = doc(anonymous, 'chats', CHAT_ID, 'messages', MESSAGE_ID);
+    await assertFails(getDoc(ref));
+    await assertFails(updateDoc(ref, { status: 'delivered' }));
+    await assertFails(getDoc(message(OUTSIDER)));
+  });
+
+  it('nega adulteração da identidade e dos campos autoritativos pelo destinatário', async () => {
+    for (const patch of [
+      { senderId: RECIPIENT },
+      { content: 'texto adulterado' },
+      { deleted: true },
+      { status: 'delivered', senderId: RECIPIENT },
+    ]) {
+      await assertFails(updateDoc(message(RECIPIENT), patch));
+    }
+    const final = await assertSucceeds(getDoc(message(SENDER)));
+    expect(final.data()?.['senderId']).toBe(SENDER);
+    expect(final.data()?.['status']).toBe('sent');
+    expect(final.data()?.['deleted']).toBe(false);
+  });
+
   it('permite avanço sequencial sent -> delivered -> read', async () => {
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'delivered' }));
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'read' }));
