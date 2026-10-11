@@ -148,6 +148,24 @@ describe('Firestore Rules / direct chat reactions', () => {
     ));
   });
 
+  it.each([
+    [A, B],
+    [B, A],
+  ])('revoga reações após bloqueio persistido de %s para %s', async (owner, target) => {
+    // O cliente mantém a sessão existente; somente o backend altera o bloqueio.
+    const session = message(target);
+    await assertSucceeds(getDoc(session));
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users', owner, 'blocks', target), {
+        uid: target, isBlocked: true, actorUid: owner,
+        reason: 'Proteção do usuário', blockedAt: new Date(), updatedAt: new Date(),
+      });
+    });
+    await assertFails(updateDoc(
+      session, new FieldPath('reactionsByUser', target), '❤️',
+    ));
+  });
+
   it('nega reação de usuário não autenticado', async () => {
     const anonymous = env.unauthenticatedContext().firestore();
     await assertFails(updateDoc(
