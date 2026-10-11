@@ -7,7 +7,12 @@ import { db } from '../../../firebaseApp';
 import { buildDirectChatPairIdentity } from '../domain/direct-chat.policy';
 import { readDirectChatReconciliation } from './direct-chat-reconciliation.reader';
 
-const run = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip;
+const expectedHost = process.env.CHAT_RECONCILIATION_EXPECTED_EMULATOR_HOST;
+const actualHost = process.env.FIRESTORE_EMULATOR_HOST;
+if (expectedHost && actualHost !== expectedHost) {
+  throw new Error('A integração foi direcionada a outro Firestore Emulator.');
+}
+const run = actualHost ? describe : describe.skip;
 
 run('direct chat reconciliation — Firestore emulator', () => {
   it('executa CLI isolado com históricos conflitantes sem expor IDs nem modificar dados', async () => {
