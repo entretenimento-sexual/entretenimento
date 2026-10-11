@@ -20,8 +20,14 @@
     // =======================================================================
 match /chats/{chatId} {
   function isChatParticipant() {
+    let participants = resource.data.participants;
     return currentUserCanUseAdultSocialPlatform()
-      && (uid() in resource.data.participants);
+      && participants is list
+      && participants.size() == 2
+      && (uid() in participants)
+      && bilateralExposureAllows(
+        participants[0] == uid() ? participants[1] : participants[0]
+      );
   }
 
   /**
@@ -45,13 +51,16 @@ match /chats/{chatId} {
       }
 
       function isChatParticipantByChat() {
+        let chat = chatExists()
+          ? get(/databases/$(database)/documents/chats/$(chatId)).data
+          : null;
+        let participants = chat is map ? chat.get("participants", null) : null;
         return currentUserCanUseAdultSocialPlatform()
-          && chatExists()
-          && get(/databases/$(database)/documents/chats/$(chatId)).data.participants is list
-          && (
-            uid() in get(
-              /databases/$(database)/documents/chats/$(chatId)
-            ).data.participants
+          && participants is list
+          && participants.size() == 2
+          && (uid() in participants)
+          && bilateralExposureAllows(
+            participants[0] == uid() ? participants[1] : participants[0]
           );
       }
 
