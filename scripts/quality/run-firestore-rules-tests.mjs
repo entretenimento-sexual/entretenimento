@@ -92,6 +92,15 @@ child.on('close', (code) => {
     console.error('\n[rules] Falha por complexidade interna das Firestore Rules:');
     for (const diagnostic of detected) {
       console.error(`- ${diagnostic}`);
+      // O log de execução pode ser enorme e o terminal exibir só o fim.
+      // Mostra o contexto imediato da primeira ocorrência real capturada.
+      const position = normalizedOutput.indexOf(diagnostic.toLowerCase());
+      const excerpt = combinedOutput.slice(
+        Math.max(0, position - 900),
+        Math.min(combinedOutput.length, position + diagnostic.length + 350)
+      );
+      console.error('[rules] Contexto da primeira ocorrência:');
+      console.error(excerpt);
     }
     console.error(
       '[rules] A negação deve ocorrer pela política declarada, não por limite do avaliador.'
