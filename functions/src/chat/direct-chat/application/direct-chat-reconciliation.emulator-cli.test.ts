@@ -33,6 +33,9 @@ describe('direct chat reconciliation CLI — fail-closed operational boundary', 
     const sockets = new Set<import('node:net').Socket>();
     const server = createServer((socket) => {
       sockets.add(socket);
+      // O CLI encerra a conexão pendente ao atingir o deadline.
+      // ECONNRESET é esperado no socket do servidor TCP simulado.
+      socket.on('error', () => {});
       socket.on('close', () => sockets.delete(socket));
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
