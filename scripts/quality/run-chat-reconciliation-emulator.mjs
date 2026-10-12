@@ -6,6 +6,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { access } from 'node:fs/promises';
 import { createServer } from 'node:net';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const firebaseCli = require.resolve('firebase-tools/lib/bin/firebase.js');
 
 async function availablePort() {
   const server = createServer();
@@ -38,8 +42,8 @@ try {
     },
   }), 'utf8');
 
-  // Uma única linha de shell preserva o argumento de comando do emulators:exec
-  // no cmd.exe. spawn(firebase.cmd, args, { shell: true }) perdia as aspas.
+  // Node executa o CLI diretamente: preserva o comando do emulators:exec
+  // como argumento único em Windows e Linux, sem expansão pelo cmd.exe.
   const testCommand = [
     'node --test',
     'functions/lib/chat/direct-chat/application/direct-chat-reconciliation.reader.emulator.test.js',
@@ -54,13 +58,10 @@ try {
     '--config', config,
     testCommand,
   ];
-  // O Windows precisa do launcher .cmd; no CI Linux argumentos são enviados
-  // diretamente, sem interpretação adicional por shell.
-  const isWindows = process.platform === 'win32';
-  const child = spawn(isWindows ? 'npx.cmd' : 'npx', ['firebase', ...args], {
+  const child = spawn(process.execPath, [firebaseCli, ...args], {
     cwd: process.cwd(),
     stdio: 'inherit',
-    shell: isWindows,
+    shell: false,
     env: {
       ...process.env,
       GOOGLE_APPLICATION_CREDENTIALS: '',
