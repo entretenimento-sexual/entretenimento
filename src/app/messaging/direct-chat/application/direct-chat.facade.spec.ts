@@ -383,6 +383,34 @@ describe('DirectChatFacade canonical errors', () => {
     subscription.unsubscribe();
   });
 
+  it('reaproveita perfis quando apenas o preview muda e isola nova sessão', () => {
+    const uidSubject = new BehaviorSubject<string | null>('user-a');
+    const chats = new BehaviorSubject<IChat[]>([
+      { ...buildChat('chat-a', ['user-a', 'peer-b']), lastMessage: { content: 'primeira' } } as IChat,
+    ]);
+    const getUsersPublicMap$ = vi.fn(() => of({ 'peer-b': { uid: 'peer-b', nickname: 'Perfil B' } }));
+    const facade = new DirectChatFacade(
+      { getMyDirectChats$: () => chats.asObservable() } as unknown as DirectChatService,
+      buildAuthSession(uidSubject),
+      { getUsersPublicMap$ } as unknown as FirestoreUserQueryService,
+      buildApplicationError().service,
+      buildDestroyRef(),
+      { observe$: () => of(true) } as any
+    );
+    const values: any[][] = [];
+    const sub = facade.items$.subscribe((items) => values.push(items));
+    expect(getUsersPublicMap$).toHaveBeenCalledTimes(1);
+    chats.next([{ ...buildChat('chat-a', ['user-a', 'peer-b']),
+      lastMessage: { content: 'segunda' } } as IChat]);
+    expect(getUsersPublicMap$).toHaveBeenCalledTimes(1);
+    expect(last(values)?.[0]?.lastMessagePreview).toBe('segunda');
+    uidSubject.next(null);
+    expect(last(values)).toEqual([]);
+    uidSubject.next('user-a');
+    expect(getUsersPublicMap$).toHaveBeenCalledTimes(2);
+    sub.unsubscribe();
+  });
+
   it('mantém itens básicos quando o enriquecimento público falha', () => {
     const uidSubject = new BehaviorSubject<string | null>('user-a');
     const error = new Error('public profile unavailable');
