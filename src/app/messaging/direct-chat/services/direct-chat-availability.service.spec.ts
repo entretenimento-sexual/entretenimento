@@ -1,92 +1,34 @@
-import { EnvironmentInjector } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
-import { BehaviorSubject, firstValueFrom } from 'rxjs';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { DirectChatReconciliationCoordinator } from './direct-chat-reconciliation-coordinator';
 
-const mocks = vi.hoisted(() => ({
-  projections: new Map<string, BehaviorSubject<unknown>>(),
-  callable: vi.fn(),
-}));
-
-vi.mock('@angular/fire/firestore', () => ({
-  doc: (_db: unknown, ...segments: string[]) => segments.join('/'),
-  docData: (path: string) => {
-    let source = mocks.projections.get(path);
-    if (!source) {
-      source = new BehaviorSubject<unknown>(undefined);
-      mocks.projections.set(path, source);
-    }
-    return source.asObservable();
-  },
-}));
-
-vi.mock('@angular/fire/functions', () => ({
-  httpsCallable: () => mocks.callable,
-}));
-
-import { DirectChatAvailabilityService } from './direct-chat-availability.service';
-
-const path = 'direct_chat_access/user-a/peers/user-b';
-let injector: EnvironmentInjector;
-
-function service(): DirectChatAvailabilityService {
-  return new DirectChatAvailabilityService({} as any, injector, {} as any);
-}
-
-beforeEach(() => {
-  mocks.projections.clear();
-  mocks.callable.mockReset();
-  TestBed.configureTestingModule({});
-  injector = TestBed.inject(EnvironmentInjector);
-});
-
-afterEach(() => vi.restoreAllMocks());
-
-describe('DirectChatAvailabilityService runtime reconciliation', () => {
-  it('mantém dois observadores fechados e compartilha um único callable', async () => {
-    let release!: (value: unknown) => void;
-    mocks.callable.mockImplementation(() => new Promise((resolve) => { release = resolve; }));
-    const sut = service();
-    const first: boolean[] = [];
-    const second: boolean[] = [];
-    const a = sut.observe$('user-a', 'user-b').subscribe((value) => first.push(value));
-    const b = sut.observe$('user-a', 'user-b').subscribe((value) => second.push(value));
-    await vi.waitFor(() => expect(mocks.callable).toHaveBeenCalledTimes(1));
-    mocks.projections.get(path)?.next({ version: 1, available: true });
-    expect(first.at(-1)).toBe(true);
-    expect(second.at(-1)).toBe(true);
-    release({ data: { reconciled: true } });
-    await Promise.resolve();
-    a.unsubscribe();
-    b.unsubscribe();
+describe('DirectChatReconciliationCoordinator', () => {
+  it('compartilha uma solicitação em andamento entre observadores do mesmo par', async () => {
+    const coordinator = new DirectChatReconciliationCoordinator();
+    let release!: () => void;
+    const request = vi.fn(() => new Promise<void>(resolve => { release = resolve; }));
+    const first = coordinator.run('user-a', 'user-b', request);
+    const second = coordinator.run('user-a', 'user-b', request);
+    expect(first).toBe(second);
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    release();
+    await Promise.all([first, second]);
   });
 
-  it('não reenvia chamadas durante cooldown após falha e exige snapshot para liberar', async () => {
-    mocks.callable.mockRejectedValue(new Error('temporarily unavailable'));
-    const sut = service();
-    expect(await firstValueFrom(sut.observe$('user-a', 'user-b'))).toBe(false);
-    await vi.waitFor(() => expect(mocks.callable).toHaveBeenCalledTimes(1));
-    expect(await firstValueFrom(sut.observe$('user-a', 'user-b'))).toBe(false);
-    expect(mocks.callable).toHaveBeenCalledTimes(1);
-    const values: boolean[] = [];
-    const sub = sut.observe$('user-a', 'user-b').subscribe(v => values.push(v));
-    mocks.projections.get(path)?.next({ version: 1, available: false });
-    expect(values.at(-1)).toBe(false);
-    mocks.projections.get(path)?.next({ version: 1, available: true });
-    expect(values.at(-1)).toBe(true);
-    sub.unsubscribe();
+  it('não repete chamadas durante cooldown depois de falha', async () => {
+    const coordinator = new DirectChatReconciliationCoordinator();
+    const request = vi.fn().mockRejectedValue(new Error('indisponível'));
+    await coordinator.run('user-a', 'user-b', request);
+    await coordinator.run('user-a', 'user-b', request);
+    expect(request).toHaveBeenCalledTimes(1);
   });
 
-  it('resposta tardia após cancelamento não produz autorização', async () => {
-    let release!: (value: unknown) => void;
-    mocks.callable.mockImplementation(() => new Promise(resolve => { release = resolve; }));
-    const values: boolean[] = [];
-    const sut = service();
-    const subscription = sut.observe$('user-a', 'user-b').subscribe(v => values.push(v));
-    await vi.waitFor(() => expect(mocks.callable).toHaveBeenCalledTimes(1));
-    subscription.unsubscribe();
-    release({ data: { reconciled: true } });
-    await Promise.resolve();
-    expect(values).not.toContain(true);
+  it('ignora respostas tardias e não transforma resultado de callable em permissão', async () => {
+    const coordinator = new DirectChatReconciliationCoordinator();
+    let resolve!: (value: unknown) => void;
+    const request = vi.fn(() => new Promise<unknown>(r => { resolve = r; }));
+    const pending = coordinator.run('user-a', 'user-b', request);
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    resolve({ data: { reconciled: true } });
+    await expect(pending).resolves.toBeUndefined();
   });
 });
