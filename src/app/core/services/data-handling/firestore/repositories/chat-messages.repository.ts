@@ -23,6 +23,7 @@ import {
   collectionData,
   deleteField,
   doc,
+  documentId,
   getDocs,
   limit,
   orderBy,
@@ -79,6 +80,7 @@ export class ChatMessagesRepository {
       query(
         this.messagesCol(chatId),
         orderBy('timestamp', 'desc'),
+        orderBy(documentId(), 'desc'),
         limit(pageSize)
       )
     );
@@ -87,19 +89,24 @@ export class ChatMessagesRepository {
   private buildDescQuery(
     chatId: string,
     pageSize: number,
-    lastMessageTimestamp?: Timestamp
+    lastMessageTimestamp?: Timestamp,
+    lastMessageId?: string
   ) {
     return this.ctx.run(() =>
       lastMessageTimestamp
         ? query(
             this.messagesCol(chatId),
             orderBy('timestamp', 'desc'),
-            startAfter(lastMessageTimestamp),
+            orderBy(documentId(), 'desc'),
+            ...(lastMessageId
+              ? [startAfter(lastMessageTimestamp, lastMessageId)]
+              : [startAfter(lastMessageTimestamp)]),
             limit(pageSize)
           )
         : query(
             this.messagesCol(chatId),
             orderBy('timestamp', 'desc'),
+            orderBy(documentId(), 'desc'),
             limit(pageSize)
           )
     );
@@ -180,13 +187,14 @@ export class ChatMessagesRepository {
   getMessagesPageOnce$(
     chatId: string,
     lastMessageTimestamp?: Timestamp,
-    pageSize = 20
+    pageSize = 20,
+    lastMessageId?: string
   ): Observable<Message[]> {
     const cid = this.normChatId(chatId);
     if (!cid) return of([]);
 
     return defer(() => {
-      const q = this.buildDescQuery(cid, pageSize, lastMessageTimestamp);
+      const q = this.buildDescQuery(cid, pageSize, lastMessageTimestamp, lastMessageId);
       return from(this.ctx.run(() => getDocs(q)));
     }).pipe(
       map((snap) =>
