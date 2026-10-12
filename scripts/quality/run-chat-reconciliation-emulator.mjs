@@ -44,6 +44,8 @@ try {
     'node --test',
     'functions/lib/chat/direct-chat/application/direct-chat-reconciliation.reader.emulator.test.js',
     'functions/lib/chat/direct-chat/application/reconcile-direct-chat-access.handler.test.js',
+    'functions/lib/chat/direct-chat/application/send-direct-message.handler.test.js',
+    'functions/lib/chat/direct-chat/application/delete-direct-message.handler.test.js',
   ].join(' ');
   const args = [
     'emulators:exec',
