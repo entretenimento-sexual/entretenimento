@@ -333,7 +333,6 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     const cursorId = String(oldest?.id ?? '').trim();
     const timestamp = oldest?.timestamp as Timestamp | undefined;
     if (!cursorId || !timestamp || typeof (timestamp as any)?.seconds !== 'number') {
-      this.hasMoreHistory = false;
       this.historyLoadError = true;
       this.cdRef.detectChanges();
       return;
