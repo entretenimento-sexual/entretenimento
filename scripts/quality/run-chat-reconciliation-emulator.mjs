@@ -40,16 +40,25 @@ try {
 
   // Uma única linha de shell preserva o argumento de comando do emulators:exec
   // no cmd.exe. spawn(firebase.cmd, args, { shell: true }) perdia as aspas.
-  const command = [
-    'firebase emulators:exec --only firestore',
-    '--project demo-entretenimento',
-    `--config "${config}"`,
-    '"node --test functions/lib/chat/direct-chat/application/direct-chat-reconciliation.reader.emulator.test.js functions/lib/chat/direct-chat/application/reconcile-direct-chat-access.handler.test.js"',
+  const testCommand = [
+    'node --test',
+    'functions/lib/chat/direct-chat/application/direct-chat-reconciliation.reader.emulator.test.js',
+    'functions/lib/chat/direct-chat/application/reconcile-direct-chat-access.handler.test.js',
   ].join(' ');
-  const child = spawn(command, {
+  const args = [
+    'emulators:exec',
+    '--only', 'firestore',
+    '--project', 'demo-entretenimento',
+    '--config', config,
+    testCommand,
+  ];
+  // O Windows precisa do launcher .cmd; no CI Linux argumentos são enviados
+  // diretamente, sem interpretação adicional por shell.
+  const isWindows = process.platform === 'win32';
+  const child = spawn(isWindows ? 'npx.cmd' : 'npx', ['firebase', ...args], {
     cwd: process.cwd(),
     stdio: 'inherit',
-    shell: process.platform === 'win32',
+    shell: isWindows,
     env: {
       ...process.env,
       GOOGLE_APPLICATION_CREDENTIALS: '',
