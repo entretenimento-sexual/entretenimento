@@ -329,6 +329,16 @@ jobs:
           set -o pipefail
           npm run test:rules 2>&1 | tee logs/firestore-rules-tests.log
 
+      - name: Run direct chat reconciliation emulator
+        id: chat_reconciliation
+        if: steps.app_install.outcome == 'success' && steps.functions_install.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run rules:build
+          npm run chat:reconciliation:emulator:test 2>&1 | tee logs/chat-reconciliation-emulator.log
+
       - name: Resolve aggregate result
         id: aggregate
         if: always()
@@ -345,6 +355,7 @@ jobs:
           ANGULAR_TESTS: ${{ steps.angular_tests.outcome }}
           ANGULAR_BUILD: ${{ steps.angular_build.outcome }}
           FIRESTORE_RULES: ${{ steps.firestore_rules.outcome }}
+          CHAT_RECONCILIATION: ${{ steps.chat_reconciliation.outcome }}
         run: |
           state='success'
           description='Todos os checks de qualidade passaram.'
@@ -361,6 +372,7 @@ jobs:
             "angular_tests:$ANGULAR_TESTS"
             "angular_build:$ANGULAR_BUILD"
             "firestore_rules:$FIRESTORE_RULES"
+            "chat_reconciliation:$CHAT_RECONCILIATION"
           )
 
           for check in "${checks[@]}"; do
@@ -392,6 +404,7 @@ jobs:
           ANGULAR_TESTS: ${{ steps.angular_tests.outcome }}
           ANGULAR_BUILD: ${{ steps.angular_build.outcome }}
           FIRESTORE_RULES: ${{ steps.firestore_rules.outcome }}
+          CHAT_RECONCILIATION: ${{ steps.chat_reconciliation.outcome }}
         run: |
           {
             echo '## Canonical Quality Gate'
@@ -409,6 +422,7 @@ jobs:
             echo "| Angular tests | $ANGULAR_TESTS |"
             echo "| Angular safe build | $ANGULAR_BUILD |"
             echo "| Firestore Rules tests | $FIRESTORE_RULES |"
+            echo "| Direct chat reconciliation emulator | $CHAT_RECONCILIATION |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish aggregate commit status
