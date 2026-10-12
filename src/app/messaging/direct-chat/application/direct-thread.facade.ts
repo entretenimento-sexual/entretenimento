@@ -146,7 +146,13 @@ export class DirectThreadFacade {
         startWith(emptyState),
         catchError((error) => {
           this.reportSilent(error, 'DirectThreadFacade.state$');
-          return of(emptyState);
+          const code = String((error as { code?: unknown } | null)?.code ?? '').toLowerCase();
+          const errorMessage = code.includes('permission-denied')
+            ? 'Você não tem mais acesso a esta conversa.'
+            : code.includes('unauthenticated')
+              ? 'Entre novamente para acessar esta conversa.'
+              : 'Não foi possível carregar as mensagens. Verifique sua conexão.';
+          return of({ ...emptyState, errorMessage, loaded: false });
         })
       );
     }),
