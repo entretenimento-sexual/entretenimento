@@ -516,6 +516,26 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.messages.some(m => m.id === 'stale')).toBe(false);
   });
 
+  it('revogação cancela paginação pendente e descarta resposta tardia', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'private', timestamp: stamp(100) }] });
+    const pending = new Subject<any[]>();
+    loadOlderMessages.mockReturnValue(pending.asObservable());
+
+    fixture.componentInstance.loadOlderMessages();
+    expect(fixture.componentInstance.loadingOlderMessages).toBe(true);
+    expect(pending.observed).toBe(true);
+
+    threadState$.next({ chatId: '', messages: [] });
+    expect(pending.observed).toBe(false);
+    pending.next([{ id: 'stale-private', timestamp: stamp(50) }]);
+    pending.complete();
+
+    expect(fixture.componentInstance.messages).toEqual([]);
+    expect(fixture.componentInstance.loadingOlderMessages).toBe(false);
+    expect(fixture.componentInstance.historyLoadError).toBe(false);
+  });
+
   it('revogação da thread cancela recuperação pendente e limpa dados privados', () => {
     const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
