@@ -132,12 +132,7 @@ export class DirectThreadService {
           count: Array.isArray(messages) ? messages.length : 0,
         });
       }),
-      catchError((error) => {
-        this.reportSilent(error, 'DirectThreadService.observeMessages$', {
-          chatId: safeChatId,
-        });
-        return of([] as Message[]);
-      })
+      // Erros seguem para a facade; não os transformar em mensagens vazias aqui.
     );
   }
 
