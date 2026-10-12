@@ -38,6 +38,23 @@ export class DirectReceiptsService {
   private readonly maxUpdatesPerTick = 50;
   private readonly maxConcurrentUpdates = 5;
   private readonly pendingTransitions = new Set<string>();
+  private readonly confirmedTransitions = new Map<string, number>();
+  private readonly confirmationTtlMs = 30_000;
+  private readonly maxConfirmedEntries = 512;
+  private receiptSessionUid: string | null = null;
+
+  private rememberConfirmed(key: string): void {
+    const now = Date.now();
+    for (const [entry, time] of this.confirmedTransitions) {
+      if (now - time >= this.confirmationTtlMs) this.confirmedTransitions.delete(entry);
+    }
+    this.confirmedTransitions.delete(key);
+    if (this.confirmedTransitions.size >= this.maxConfirmedEntries) {
+      const oldest = this.confirmedTransitions.keys().next().value;
+      if (oldest !== undefined) this.confirmedTransitions.delete(oldest);
+    }
+    this.confirmedTransitions.set(key, now);
+  }
 
   constructor(
     private readonly chatService: ChatService,
@@ -87,6 +104,10 @@ export class DirectReceiptsService {
     return access$.pipe(
       take(1),
       switchMap(([uid, canListen]) => {
+        if (this.receiptSessionUid !== uid || !canListen) {
+          this.confirmedTransitions.clear();
+          this.receiptSessionUid = uid;
+        }
         if (uid !== safeUid || !canListen) return of(0);
 
         return from(transitions.map((transition, index) => ({ transition, index }))).pipe(
@@ -97,6 +118,10 @@ export class DirectReceiptsService {
               const key = JSON.stringify([
                 safeUid, safeChatId, transition.messageId, transition.nextStatus,
               ]);
+              const confirmedAt = this.confirmedTransitions.get(key);
+              if (confirmedAt !== undefined && Date.now() - confirmedAt < this.confirmationTtlMs) {
+                return of({ index, confirmed: false });
+              }
               if (this.pendingTransitions.has(key)) {
                 return of({ index, confirmed: false });
               }
@@ -109,7 +134,10 @@ export class DirectReceiptsService {
                   transition.nextStatus
                 )
               ).pipe(
-                map(() => ({ index, confirmed: true })),
+                map(() => {
+                  this.rememberConfirmed(key);
+                  return { index, confirmed: true };
+                }),
                 catchError((error) => {
                   this.reportIfUnreported(
                     error,
@@ -127,7 +155,8 @@ export class DirectReceiptsService {
             }), this.maxConcurrentUpdates),
           toArray(),
           takeUntil(access$.pipe(
-            filter(([activeUid, allowed]) => activeUid !== safeUid || !allowed)
+            filter(([activeUid, allowed]) => activeUid !== safeUid || !allowed),
+            tap(() => this.confirmedTransitions.clear())
           )),
           tap((results) => {
             const confirmed = results
