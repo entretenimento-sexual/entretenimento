@@ -45,6 +45,7 @@ import {
 } from 'rxjs/operators';
 
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
+import { Timestamp } from 'firebase/firestore';
 
 import { DirectThreadState } from '../models/direct-message.models';
 import { DirectThreadService } from '../services/direct-thread.service';
@@ -215,6 +216,26 @@ export class DirectThreadFacade {
         )
       ))
     );
+  }
+
+  /** Recupera uma página anterior apenas para a conversa/sessão ainda ativa. */
+  loadOlderMessages$(
+    chatId: string,
+    timestamp: Timestamp,
+    messageId: string
+  ): Observable<Message[]> {
+    return defer(() => this.commandContext$().pipe(
+      take(1),
+      switchMap((context) => {
+        if (context.chatId !== chatId || !context.uid || !context.canOpen || !context.canListen) {
+          return of([] as Message[]);
+        }
+        return this.withinCommandContext$(
+          this.directThreadService.loadOlderMessages$(chatId, timestamp, messageId),
+          context
+        );
+      })
+    ));
   }
 
   sendMessage$(content: string): Observable<string | null> {
