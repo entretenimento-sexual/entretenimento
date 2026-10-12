@@ -1,7 +1,7 @@
 import { firstValueFrom } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ChatMessagesRepository } from './chat-messages.repository';
+import { ChatMessagesRepository, boundedChatMessagePageSize } from './chat-messages.repository';
 
 describe('ChatMessagesRepository legacy mutation boundary', () => {
   function setup() {
@@ -50,5 +50,17 @@ describe('ChatMessagesRepository legacy mutation boundary', () => {
     await expect(firstValueFrom(repository.deleteMessage$(' ', ' ')))
       .rejects.toMatchObject({ code: 'failed-precondition' });
     expect(context.run).not.toHaveBeenCalled();
+  });
+});
+
+describe('ChatMessagesRepository read bounds', () => {
+  it('limita página histórica e realtime a no máximo 60 documentos', () => {
+    expect(boundedChatMessagePageSize(20, 20)).toBe(20);
+    expect(boundedChatMessagePageSize(60, 60)).toBe(60);
+    expect(boundedChatMessagePageSize(1000, 20)).toBe(60);
+    expect(boundedChatMessagePageSize(-5, 20)).toBe(1);
+    expect(boundedChatMessagePageSize(2.8, 20)).toBe(2);
+    expect(boundedChatMessagePageSize(Number.POSITIVE_INFINITY, 20)).toBe(20);
+    expect(boundedChatMessagePageSize(Number.NaN, 60)).toBe(60);
   });
 });
