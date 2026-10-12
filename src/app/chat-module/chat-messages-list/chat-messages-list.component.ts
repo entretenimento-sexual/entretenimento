@@ -364,14 +364,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
       },
       error: (error) => {
         if (requestId !== this.historyRequestId) return;
-        if (String((error as { code?: string })?.code ?? '').includes('permission-denied')) {
-          this.requiresFreshThreadSelection = true;
-          this.activeThreadSub?.unsubscribe();
-          this.activeThreadSub = undefined;
-          this.cancelPendingReads();
-          this.resetThreadState();
-          return;
-        }
+        if (this.handleHistoryAccessFailure(error)) return;
         this.loadingOlderMessages = false;
         this.historyLoadError = true;
         this.reportError('Não foi possível carregar mensagens anteriores.', error,
@@ -447,6 +440,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
       },
       error: error => {
         if (request !== this.gapRequestId) return;
+        if (this.handleHistoryAccessFailure(error)) return;
         this.loadingGap = false;
         this.gapLoadError = true;
         this.reportError('Não foi possível recuperar o intervalo de mensagens.', error,
@@ -459,6 +453,18 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
         this.cdRef.detectChanges();
       },
     });
+  }
+
+  private handleHistoryAccessFailure(error: unknown): boolean {
+    const code = String((error as { code?: unknown } | null)?.code ?? '').toLowerCase();
+    if (!['permission-denied', 'firestore/permission-denied',
+      'unauthenticated', 'auth/unauthenticated'].includes(code)) return false;
+    this.requiresFreshThreadSelection = true;
+    this.activeThreadSub?.unsubscribe();
+    this.activeThreadSub = undefined;
+    this.cancelPendingReads();
+    this.resetThreadState();
+    return true;
   }
 
   private cancelPendingReads(): void {
