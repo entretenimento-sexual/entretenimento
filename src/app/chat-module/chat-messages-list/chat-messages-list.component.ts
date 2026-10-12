@@ -343,8 +343,21 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private combineHistoryAndRealtime(): Message[] {
+    // A janela realtime é autoritativa para o intervalo que cobre.
+    // Histórico em sobreposição não pode ressuscitar mensagens excluídas.
+    const firstRealtime = this.latestRealtimeMessages[0];
+    const compare = (a: Message, b: Message): number => {
+      const left = a.timestamp as Timestamp | undefined;
+      const right = b.timestamp as Timestamp | undefined;
+      return ((left?.seconds ?? 0) - (right?.seconds ?? 0)) ||
+        ((left?.nanoseconds ?? 0) - (right?.nanoseconds ?? 0)) ||
+        String(a.id).localeCompare(String(b.id), 'en');
+    };
+    const historical = firstRealtime
+      ? this.olderMessages.filter(message => compare(message, firstRealtime) < 0)
+      : this.olderMessages;
     const messages = new Map<string, Message>();
-    for (const message of [...this.olderMessages, ...this.latestRealtimeMessages]) {
+    for (const message of [...historical, ...this.latestRealtimeMessages]) {
       if (message.id) messages.set(message.id, message);
     }
     return [...messages.values()].sort((a, b) => {
@@ -396,10 +409,9 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
   // ---------------------------------------------------------------------------
 
   private renderMessages(nextMessages: Message[], historyOnly = false): void {
-    const previousCount = this.lastRenderedMessageCount;
     const shouldScroll = !historyOnly && this.shouldScrollAfterRender(nextMessages);
 
-    if (!historyOnly) this.updatePendingIncomingCount(nextMessages, previousCount, shouldScroll);
+    if (!historyOnly) this.updatePendingIncomingCount(nextMessages, shouldScroll);
 
     this.messages = nextMessages;
     this.threadItems = this.buildThreadItems(nextMessages);
@@ -423,7 +435,8 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     const nextLastMessageKey = this.getLastMessageKey(nextMessages);
-    const hasNewMessage = nextMessages.length > this.lastRenderedMessageCount;
+    const previousIds = new Set(this.messages.map(message => message.id));
+    const hasNewMessage = nextMessages.some(message => !!message.id && !previousIds.has(message.id));
     const lastMessageChanged =
       !!nextLastMessageKey &&
       nextLastMessageKey !== this.lastRenderedLastMessageKey;
@@ -455,10 +468,9 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
 
   private updatePendingIncomingCount(
     nextMessages: Message[],
-    previousCount: number,
     shouldScroll: boolean
   ): void {
-    if (!nextMessages.length || nextMessages.length <= previousCount) {
+    if (!nextMessages.length) {
       if (shouldScroll || this.isNearBottom()) {
         this.pendingIncomingCount = 0;
       }
