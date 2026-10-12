@@ -32,6 +32,7 @@ import {
 import { normalizePublicUserIdentity } from '@core/domain/public-user-identity/public-user-identity.model';
 import { normalizePublicUserPreview } from '@core/domain/public-user-preview/public-user-preview.model';
 import { IChat } from '@core/interfaces/interfaces-chat/chat.interface';
+import { UserPublic } from '@core/interfaces/user-public.interface';
 import {
   DirectChatListItem,
   DirectChatListState,
@@ -132,17 +133,39 @@ export class DirectChatFacade {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly items$: Observable<DirectChatListItem[]> = this.sessionChats$.pipe(
-    switchMap(({ chats, uid }) => {
-      if (!uid) {
-        return of([] as DirectChatListItem[]);
-      }
+  readonly items$: Observable<DirectChatListItem[]> = this.sessionIdentity$.pipe(
+    switchMap(({ uid, epoch }) => {
+      if (!uid) return of([] as DirectChatListItem[]);
 
-      const items = (chats ?? [])
-        .map((chat) => this.toListItem(chat, uid))
-        .filter((item) => !!item.id);
+      const scopedItems$ = this.sessionChats$.pipe(
+        filter((scope) => scope.uid === uid && scope.epoch === epoch),
+        map(({ chats }) => chats
+          .map((chat) => this.toListItem(chat, uid))
+          .filter((item) => !!item.id)),
+        shareReplay({ bufferSize: 1, refCount: true })
+      );
 
-      return this.enrichListItemsWithPublicProfiles$(items);
+      // Uma mudança no preview/unread não altera os UIDs a consultar.
+      const publicProfiles$ = scopedItems$.pipe(
+        map((items) => Array.from(new Set(items
+          .map((item) => String(item.otherParticipantUid ?? '').trim())
+          .filter(Boolean))).sort()),
+        distinctUntilChanged((a, b) =>
+          a.length === b.length && a.every((uid, i) => uid === b[i])),
+        switchMap((uids) => {
+          if (!uids.length) return of({} as Record<string, UserPublic>);
+          return this.firestoreUserQuery.getUsersPublicMap$(uids).pipe(
+            catchError((error) => {
+              this.reportSilent(error, 'DirectChatFacade.enrichListItemsWithPublicProfiles$');
+              return of({} as Record<string, UserPublic>);
+            })
+          );
+        })
+      );
+
+      return combineLatest([scopedItems$, publicProfiles$]).pipe(
+        map(([items, profiles]) => this.applyPublicProfiles(items, profiles))
+      );
     }),
     catchError((error) => {
       this.reportSilent(error, 'DirectChatFacade.items$');
@@ -331,59 +354,24 @@ export class DirectChatFacade {
    * - normaliza identidade e prévia pelo contrato universal do perfil público;
    * - UID localiza o participante, mas nunca substitui o profileId público.
    */
-  private enrichListItemsWithPublicProfiles$(
-    items: DirectChatListItem[]
-  ): Observable<DirectChatListItem[]> {
-    const participantUids = Array.from(
-      new Set(
-        items
-          .map((item) => String(item.otherParticipantUid ?? '').trim())
-          .filter((uid) => uid.length > 0)
-      )
-    );
-
-    if (!participantUids.length) {
-      return of(items);
-    }
-
-    return this.firestoreUserQuery.getUsersPublicMap$(participantUids).pipe(
-      map((publicProfiles) =>
-        items.map((item) => {
-          const participantUid = String(
-            item.otherParticipantUid ?? ''
-          ).trim();
-
-          const publicProfile = participantUid
-            ? publicProfiles[participantUid]
-            : undefined;
-          const preview = publicProfile
-            ? normalizePublicUserPreview(publicProfile)
-            : null;
-          const identity = preview?.identity
-            ?? (publicProfile
-              ? normalizePublicUserIdentity(publicProfile)
-              : null);
-
-          return {
-            ...item,
-            otherParticipantIdentity: identity,
-            otherParticipantPreview: preview,
-            // Aliases legados permanecem derivados da mesma identidade, evitando
-            // duas fontes de verdade durante a migração do Chat.
-            otherParticipantNickname: identity?.nickname ?? null,
-            otherParticipantPhotoURL: identity?.avatarUrl ?? null,
-          };
-        })
-      ),
-      catchError((error) => {
-        this.reportSilent(
-          error,
-          'DirectChatFacade.enrichListItemsWithPublicProfiles$'
-        );
-
-        return of(items);
-      })
-    );
+  private applyPublicProfiles(
+    items: DirectChatListItem[],
+    publicProfiles: Record<string, UserPublic>
+  ): DirectChatListItem[] {
+    return items.map((item) => {
+      const participantUid = String(item.otherParticipantUid ?? '').trim();
+      const publicProfile = participantUid ? publicProfiles[participantUid] : undefined;
+      const preview = publicProfile ? normalizePublicUserPreview(publicProfile) : null;
+      const identity = preview?.identity ??
+        (publicProfile ? normalizePublicUserIdentity(publicProfile) : null);
+      return {
+        ...item,
+        otherParticipantIdentity: identity,
+        otherParticipantPreview: preview,
+        otherParticipantNickname: identity?.nickname ?? null,
+        otherParticipantPhotoURL: identity?.avatarUrl ?? null,
+      };
+    });
   }
 
   private toListItem(
