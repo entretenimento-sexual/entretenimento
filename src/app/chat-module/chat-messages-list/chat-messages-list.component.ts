@@ -218,6 +218,13 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     return this.directThreadFacade.state$.pipe(
       map((state) => {
         if (state.chatId !== chatId) {
+          // Acesso revogado ou thread trocada: dados históricos privados
+          // também devem desaparecer, não apenas a janela realtime.
+          this.cancelHistoryRequest();
+          this.olderMessages = [];
+          this.latestRealtimeMessages = [];
+          this.hasMoreHistory = true;
+          this.historyLoadError = false;
           return [] as Message[];
         }
 
