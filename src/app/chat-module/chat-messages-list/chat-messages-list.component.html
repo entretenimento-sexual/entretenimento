@@ -6,11 +6,11 @@
         <button type="button" class="app-action app-action--ghost"
           [disabled]="loadingOlderMessages" [attr.aria-busy]="loadingOlderMessages"
           (click)="loadOlderMessages()">
-          {{ loadingOlderMessages ? 'Carregando mensagens anteriores…' : 'Carregar mensagens anteriores' }}
+          {{ loadingOlderMessages ? 'Carregando mensagens anteriores…' : historyLoadError ? 'Tentar novamente' : 'Carregar mensagens anteriores' }}
         </button>
       }
-      @if (historyLoadError) {
-        <p role="alert">Não foi possível recuperar o histórico. Tente novamente.</p>
+      @if (historyLoadError && !loadingOlderMessages) {
+        <p role="alert">Não foi possível recuperar o histórico. Se a opção estiver disponível, tente novamente.</p>
       }
       @if (safeType === 'chat' && historyGap) {
         <div role="status" aria-live="polite">
@@ -20,7 +20,7 @@
             (click)="recoverHistoryGap()">
             {{ loadingGap ? 'Recuperando mensagens…' : 'Recuperar mensagens pendentes' }}
           </button>
-          @if (gapLoadError) {
+          @if (gapLoadError && !loadingGap) {
             <p role="alert">Falha na recuperação. Você pode tentar novamente.</p>
           }
         </div>
