@@ -198,7 +198,8 @@ describe('ChatMessagesListComponent', () => {
       ...initial.slice(1), { id: 'm-new', timestamp: stamp(61), senderId: 'other-user' },
     ] });
     expect(fixture.componentInstance.messages.at(-1)?.id).toBe('m-new');
-    expect(fixture.componentInstance.messages).toHaveLength(60);
+    expect(fixture.componentInstance.messages).toHaveLength(61);
+    expect(fixture.componentInstance.messages[0]?.id).toBe('m-0');
   });
 
   it('não ressuscita histórico removido dentro do intervalo realtime autoritativo', () => {
