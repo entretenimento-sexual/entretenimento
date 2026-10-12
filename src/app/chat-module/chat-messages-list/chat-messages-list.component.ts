@@ -416,10 +416,24 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
         this.loadingGap = false;
         const scroll = this.getScrollContainer();
         const anchorTop = scroll?.scrollTop ?? 0;
+        const visibleAnchor = scroll
+          ? [...scroll.querySelectorAll<HTMLElement>('[data-chat-message-id]')]
+              .find(element => element.getBoundingClientRect().bottom >
+                scroll.getBoundingClientRect().top)
+          : undefined;
+        const anchorId = visibleAnchor?.getAttribute('data-chat-message-id');
+        const offset = visibleAnchor?.getBoundingClientRect().top ?? 0;
         this.renderMessages(this.combineHistoryAndRealtime(), true);
-        // Não arranca o usuário da posição de leitura quando uma página
-        // intermediária é inserida abaixo ou acima da área visível.
-        if (scroll) scroll.scrollTop = anchorTop;
+        if (scroll) {
+          const matching = anchorId
+            ? [...scroll.querySelectorAll<HTMLElement>('[data-chat-message-id]')]
+                .find(element => element.getAttribute('data-chat-message-id') === anchorId)
+            : undefined;
+          // Compensa a altura real inserida acima da mensagem visível.
+          scroll.scrollTop = matching
+            ? anchorTop + matching.getBoundingClientRect().top - offset
+            : anchorTop;
+        }
       },
       error: error => {
         if (request !== this.gapRequestId) return;
