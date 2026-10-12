@@ -71,7 +71,7 @@ function collectRuntimeTypeScriptFiles(directory: string): string[] {
 }
 
 function relativePath(absolutePath: string): string {
-  return relative(APP_ROOT, absolutePath).replaceAll('\\\\', '/');
+  return relative(APP_ROOT, absolutePath).replace(/\\/g, '/');
 }
 
 function notificationRuntimeFiles(): Array<{
