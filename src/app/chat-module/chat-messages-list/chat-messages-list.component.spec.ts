@@ -117,6 +117,28 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.messages[21].id).toBe('newest');
   });
 
+  it('deduplica IDs repetidos em uma página de recuperação de lacuna', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'previous', timestamp: stamp(10) },
+    ] });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'recent', timestamp: stamp(100) },
+    ] });
+    loadOlderMessages.mockReturnValue(of([
+      { id: 'gap-message', timestamp: stamp(50) },
+      { id: 'gap-message', timestamp: stamp(50) },
+      { id: 'previous', timestamp: stamp(10) },
+    ]));
+
+    fixture.componentInstance.recoverHistoryGap();
+
+    const historical = (fixture.componentInstance as any).olderMessages as any[];
+    expect(historical.filter(message => message.id === 'gap-message')).toHaveLength(1);
+    expect(fixture.componentInstance.messages.filter(message => message.id === 'gap-message'))
+      .toHaveLength(1);
+  });
+
   it('não retém IDs duplicados dentro da mesma página histórica', () => {
     const timestamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     threadState$.next({ chatId: 'c1', messages: [
