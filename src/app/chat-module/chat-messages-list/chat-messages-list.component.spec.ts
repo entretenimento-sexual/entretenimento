@@ -225,6 +225,42 @@ describe('ChatMessagesListComponent', () => {
     ]);
   });
 
+  it('preserva mensagem expulsa da janela de 60 sem confundi-la com exclusão', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    const initial = Array.from({ length: 60 }, (_, i) => ({
+      id: `m-${i}`, timestamp: stamp(i + 1), senderId: 'other-user',
+    }));
+    threadState$.next({ chatId: 'c1', messages: initial });
+    threadState$.next({ chatId: 'c1', messages: [
+      ...initial.slice(1),
+      { id: 'm-60', timestamp: stamp(61), senderId: 'other-user' },
+    ] });
+    expect(fixture.componentInstance.messages).toHaveLength(61);
+    expect(fixture.componentInstance.messages[0].id).toBe('m-0');
+
+    // A próxima remoção acontece DENTRO da janela, não por limite.
+    threadState$.next({ chatId: 'c1', messages: [
+      ...initial.slice(1, 25),
+      ...initial.slice(26),
+      { id: 'm-60', timestamp: stamp(61), senderId: 'other-user' },
+    ] });
+    const ids = fixture.componentInstance.messages.map(m => m.id);
+    expect(ids).toContain('m-0');
+    expect(ids).not.toContain('m-25');
+  });
+
+  it('não preserva histórico privado após snapshot vazio', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'm-1', timestamp: stamp(1) },
+      { id: 'm-2', timestamp: stamp(2) },
+    ] });
+    loadOlderMessages.mockReturnValue(of([{ id: 'old', timestamp: stamp(0) }]));
+    fixture.componentInstance.loadOlderMessages();
+    threadState$.next({ chatId: 'c1', messages: [] });
+    expect(fixture.componentInstance.messages).toEqual([]);
+  });
+
   it('should create', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
