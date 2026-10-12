@@ -177,6 +177,23 @@ describe('DirectThreadService', () => {
     });
   });
 
+  it('não recria listener quando UID e permissão emitem valores idênticos', () => {
+    const messages = new Subject<any[]>();
+    chatServiceMock.monitorChat.mockReturnValue(messages.asObservable());
+    const sub = service.observeMessages$('chat-1').subscribe();
+    expect(chatServiceMock.monitorChat).toHaveBeenCalledTimes(1);
+    expect(messages.observers.length).toBe(1);
+
+    authUid$.next('user-a');
+    canListenRealtime$.next(true);
+    authUid$.next('user-a');
+
+    expect(chatServiceMock.monitorChat).toHaveBeenCalledTimes(1);
+    expect(messages.observers.length).toBe(1);
+    sub.unsubscribe();
+    expect(messages.observers.length).toBe(0);
+  });
+
   it('observeMessages$ encerra listener de A antes de ativar B', () => {
     const oldMessages = new Subject<any[]>();
     const newMessages = new Subject<any[]>();
