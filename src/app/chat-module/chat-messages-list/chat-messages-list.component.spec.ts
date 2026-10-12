@@ -395,6 +395,33 @@ describe('ChatMessagesListComponent', () => {
     expect(ids).not.toContain('removed');
   });
 
+  it('preserva recibo realtime atualizado durante recuperação histórica concorrente', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'recent', timestamp: stamp(100), status: 'sent' },
+    ] });
+    const pending = new Subject<any[]>();
+    loadOlderMessages.mockReturnValue(pending.asObservable());
+    fixture.componentInstance.recoverHistoryGap();
+
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'recent', timestamp: stamp(100), status: 'read' },
+      { id: 'incoming', timestamp: stamp(101), status: 'delivered' },
+    ] });
+    pending.next([
+      { id: 'bridge', timestamp: stamp(50), status: 'sent' },
+      { id: 'recent', timestamp: stamp(100), status: 'sent' },
+    ]);
+    pending.complete();
+
+    const messages = fixture.componentInstance.messages;
+    expect(messages.find(m => m.id === 'recent')?.status).toBe('read');
+    expect(messages.find(m => m.id === 'incoming')?.status).toBe('delivered');
+    expect(messages.find(m => m.id === 'bridge')?.status).toBe('sent');
+    expect(new Set(messages.map(m => m.id)).size).toBe(messages.length);
+  });
+
   it('cancela recuperação da lacuna ao encerrar sessão', () => {
     const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
