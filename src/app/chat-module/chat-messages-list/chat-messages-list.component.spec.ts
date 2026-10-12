@@ -246,6 +246,51 @@ describe('ChatMessagesListComponent', () => {
     expect(pending.observed).toBe(false);
   });
 
+  it('descarta página histórica pendente após trocar de conversa', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    const pending = new Subject<any[]>();
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'c1-current', timestamp: stamp(100) },
+    ] });
+    loadOlderMessages.mockReturnValue(pending.asObservable());
+    fixture.componentInstance.loadOlderMessages();
+    expect(pending.observed).toBe(true);
+
+    fixture.componentRef.setInput('chatId', 'c2');
+    fixture.detectChanges();
+    threadState$.next({ chatId: 'c2', messages: [
+      { id: 'c2-current', timestamp: stamp(200) },
+    ] });
+    pending.next([{ id: 'c1-private', timestamp: stamp(10) }]);
+
+    expect(pending.observed).toBe(false);
+    expect(fixture.componentInstance.messages.map(message => message.id))
+      .toEqual(['c2-current']);
+    expect((fixture.componentInstance as any).olderMessages).toEqual([]);
+  });
+
+  it('descarta recuperação de lacuna pendente após revogação da thread', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    const pending = new Subject<any[]>();
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'old', timestamp: stamp(1) },
+    ] });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'recent', timestamp: stamp(100) },
+    ] });
+    loadOlderMessages.mockReturnValue(pending.asObservable());
+    fixture.componentInstance.recoverHistoryGap();
+    expect(pending.observed).toBe(true);
+
+    threadState$.next({ chatId: '', messages: [] });
+    pending.next([{ id: 'private-gap', timestamp: stamp(50) }]);
+
+    expect(pending.observed).toBe(false);
+    expect(fixture.componentInstance.messages).toEqual([]);
+    expect(fixture.componentInstance.historyGap).toBe(false);
+    expect(fixture.componentInstance.loadingGap).toBe(false);
+  });
+
   it('mantém retry disponível quando o histórico falha', () => {
     const timestamp = { seconds: 100, nanoseconds: 0 };
     threadState$.next({ chatId: 'c1', messages: [{ id: 'm1', timestamp }] });
