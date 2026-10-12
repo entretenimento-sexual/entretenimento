@@ -7,9 +7,8 @@ vi.mock('firebase/firestore', async (importOriginal) => {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
-import { Firestore } from '@angular/fire/firestore';
 import { BehaviorSubject, of } from 'rxjs';
-import { deleteField, doc, FieldPath, updateDoc } from 'firebase/firestore';
+import { ChatReactionWriteService } from './chat-reaction-write.service';
 
 
 import { ChatMessageComponent } from './chat-message.component';
@@ -30,16 +29,16 @@ class DateFormatTestingPipe implements PipeTransform {
 describe('ChatMessageComponent', () => {
   const uid$ = new BehaviorSubject<string | null>('u1');
   let fixture: ComponentFixture<ChatMessageComponent>;
+  const writeReaction = vi.fn<(...args: [string, string, string, string | null]) => Promise<void>>();
 
   beforeEach(async () => {
     uid$.next('u1');
-    vi.mocked(doc).mockReturnValue({ path: 'chats/chat-1/messages/msg-1' } as any);
-    vi.mocked(updateDoc).mockReset();
-    vi.mocked(updateDoc).mockResolvedValue(undefined);
+    writeReaction.mockReset();
+    writeReaction.mockResolvedValue(undefined);
     await TestBed.configureTestingModule({
       declarations: [ChatMessageComponent, ChatReplyQuotePipe, DateFormatTestingPipe],
       providers: [
-        { provide: Firestore, useValue: {} },
+        { provide: ChatReactionWriteService, useValue: { write: writeReaction } },
         {
           provide: FirestoreUserQueryService,
           useValue: {
@@ -133,12 +132,7 @@ describe('ChatMessageComponent', () => {
     fixture.componentInstance.selectQuickReaction('❤️');
     await Promise.resolve();
 
-    expect(updateDoc).toHaveBeenCalledTimes(1);
-    const args = vi.mocked(updateDoc).mock.calls[0];
-    expect(args[1]).toBeInstanceOf(FieldPath);
-    expect((args[1] as FieldPath).isEqual(new FieldPath('reactionsByUser', 'u1'))).toBe(true);
-    expect(args[2]).toBe('❤️');
-    expect(args).toHaveLength(3);
+    expect(writeReaction).toHaveBeenCalledExactlyOnceWith('chat-1', 'msg-1', 'u1', '❤️');
   });
 
   it('usa deleteField para remover somente a reação do UID atual', async () => {
@@ -154,16 +148,12 @@ describe('ChatMessageComponent', () => {
     fixture.componentInstance.selectQuickReaction('❤️');
     await Promise.resolve();
 
-    const args = vi.mocked(updateDoc).mock.calls[0];
-    expect(args[1]).toBeInstanceOf(FieldPath);
-    expect((args[1] as FieldPath).isEqual(new FieldPath('reactionsByUser', 'u1'))).toBe(true);
-    expect(args[2]).toEqual(deleteField());
-    expect(args).toHaveLength(3);
+    expect(writeReaction).toHaveBeenCalledExactlyOnceWith('chat-1', 'msg-1', 'u1', null);
   });
 
   it('descarta resposta de erro pendente após troca de UID', async () => {
     let rejectWrite!: (reason: unknown) => void;
-    vi.mocked(updateDoc).mockImplementationOnce(
+    writeReaction.mockImplementationOnce(
       () => new Promise<void>((_resolve, reject) => { rejectWrite = reject; })
     );
     fixture.componentRef.setInput('chatId', 'chat-1');
@@ -187,7 +177,7 @@ describe('ChatMessageComponent', () => {
 
   it('descarta erro de reação da mensagem anterior quando o balão muda de mensagem', async () => {
     let rejectWrite!: (reason: unknown) => void;
-    vi.mocked(updateDoc).mockImplementationOnce(
+    writeReaction.mockImplementationOnce(
       () => new Promise<void>((_resolve, reject) => { rejectWrite = reject; })
     );
     fixture.componentRef.setInput('chatId', 'chat-1');
