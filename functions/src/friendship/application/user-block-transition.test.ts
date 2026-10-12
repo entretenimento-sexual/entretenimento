@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { resolveUserBlockTransition } from './user-block-transition';
+import { resolveUserBlockTransition, isBilateralChatAvailable } from './user-block-transition';
 
 describe('user-block-transition', () => {
   it('bloqueia quando o estado atual não está bloqueado', () => {
@@ -44,5 +44,19 @@ describe('user-block-transition', () => {
       nextIsBlocked: false,
       status: 'unblocked',
     });
+  });
+});
+
+
+describe('direct chat access projection', () => {
+  it('nega disponibilidade quando qualquer lado mantém bloqueio', () => {
+    assert.equal(isBilateralChatAvailable(true, false), false);
+    assert.equal(isBilateralChatAvailable(false, true), false);
+    assert.equal(isBilateralChatAvailable(true, true), false);
+  });
+
+  it('restaura disponibilidade somente após ambos os bloqueios cessarem', () => {
+    assert.equal(isBilateralChatAvailable(false, false), true);
+    assert.equal(isBilateralChatAvailable(false, undefined), true);
   });
 });
