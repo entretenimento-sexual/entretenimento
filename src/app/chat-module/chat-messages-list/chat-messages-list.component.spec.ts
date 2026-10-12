@@ -157,6 +157,37 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.gapLoadError).toBe(true);
   });
 
+  it('libera novo cursor após uma lacuna sem progresso ser reiniciada', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'old', timestamp: stamp(10) },
+    ] });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'recent', timestamp: stamp(100) },
+    ] });
+    loadOlderMessages.mockReturnValue(of(Array.from({ length: 20 }, (_, i) => ({
+      id: `future-${i}`, timestamp: stamp(110 + i),
+    }))));
+    fixture.componentInstance.recoverHistoryGap();
+    expect(loadOlderMessages).toHaveBeenCalledTimes(1);
+    fixture.componentInstance.recoverHistoryGap();
+    expect(loadOlderMessages).toHaveBeenCalledTimes(1);
+
+    threadState$.next({ chatId: 'c1', messages: [] });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'older-again', timestamp: stamp(5) },
+    ] });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'newer-again', timestamp: stamp(200) },
+    ] });
+    loadOlderMessages.mockReturnValue(of([
+      { id: 'recovered', timestamp: stamp(90) },
+    ]));
+    fixture.componentInstance.recoverHistoryGap();
+    expect(loadOlderMessages).toHaveBeenCalledTimes(2);
+    expect(fixture.componentInstance.historyGap).toBe(false);
+  });
+
   it('deduplica IDs repetidos em uma página de recuperação de lacuna', () => {
     const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     threadState$.next({ chatId: 'c1', messages: [
