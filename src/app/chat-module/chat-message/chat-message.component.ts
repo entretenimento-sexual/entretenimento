@@ -43,8 +43,7 @@ import {
 } from 'rxjs/operators';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 
-import { Firestore } from '@angular/fire/firestore';
-import { deleteField, doc, FieldPath, updateDoc } from 'firebase/firestore';
+import { ChatReactionWriteService } from './chat-reaction-write.service';
 
 import {
   Message,
@@ -113,7 +112,7 @@ export class ChatMessageComponent implements OnInit {
   );
 
   constructor(
-    private readonly db: Firestore,
+    private readonly reactionWriter: ChatReactionWriteService,
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly authSession: AuthSessionService,
     private readonly errorNotifier: ErrorNotificationService,
@@ -258,11 +257,7 @@ export class ChatMessageComponent implements OnInit {
     this.selectedReaction = nextReaction;
     this.isSavingReaction = true;
 
-    const messageRef = doc(this.db, `chats/${chatId}/messages/${messageId}`);
-    // Atualiza apenas o campo deste UID: não substitui reações concorrentes.
-    const reactionField = new FieldPath('reactionsByUser', uid);
-
-    from(updateDoc(messageRef, reactionField, nextReaction ?? deleteField()))
+    from(this.reactionWriter.write(chatId, messageId, uid, nextReaction))
       .pipe(
         takeUntil(this.authSession.uid$.pipe(
           filter((activeUid) => String(activeUid ?? '').trim() !== uid)
