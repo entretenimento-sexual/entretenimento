@@ -197,10 +197,20 @@ export class DirectChatFacade {
     this.sessionIdentity$,
   ]).pipe(
     switchMap(([chat, session]) => {
-      const peerUid = (chat?.participants ?? []).find(
-        (participant) => participant !== session.uid
-      );
-      if (!chat || !session.uid || !peerUid) return of(false);
+      const participants = chat?.participants ?? [];
+      if (
+        !chat ||
+        chat.isRoom === true ||
+        !session.uid ||
+        participants.length !== 2 ||
+        participants[0] === participants[1] ||
+        !participants.includes(session.uid) ||
+        participants.some((uid) => typeof uid !== 'string' || !uid.trim())
+      ) {
+        return of(false);
+      }
+      const peerUid = participants.find((participant) => participant !== session.uid);
+      if (!peerUid) return of(false);
       return this.availabilityService.observe$(session.uid, peerUid).pipe(
         startWith(false)
       );
