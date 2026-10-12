@@ -2,6 +2,80 @@ import { BehaviorSubject, Subject, firstValueFrom, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DirectThreadFacade } from './direct-thread.facade';
+import { DirectChatFacade } from './direct-chat.facade';
+
+describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
+  it('revoga histórico e comandos no bloqueio e só reabre após novo snapshot autorizado', () => {
+    const uid$ = new BehaviorSubject<string | null>('user-a');
+    const chats$ = new BehaviorSubject<any[]>([
+      { id: 'chat-1', participants: ['user-a', 'peer-b'], isRoom: false },
+    ]);
+    // Simula a projeção bilateral observada no Firestore.
+    const availability$ = new BehaviorSubject(false);
+    const observeAccess = vi.fn(() => availability$.asObservable());
+    const chatFacade = new DirectChatFacade(
+      { getMyDirectChats$: () => chats$.asObservable() } as any,
+      { uid$: uid$.asObservable() } as any,
+      { getUsersPublicMap$: () => of({}) } as any,
+      { report: vi.fn() } as any,
+      { destroyed: false, onDestroy: () => () => undefined } as any,
+      { observe$: observeAccess } as any
+    );
+    const messages$ = new Subject<any[]>();
+    const sendMessage$ = vi.fn(() => of('new-message'));
+    const observeMessages$ = vi.fn(() => messages$.asObservable());
+    const threadFacade = new DirectThreadFacade(
+      chatFacade,
+      { observeMessages$, sendMessage$ } as any,
+      { markDeliveredAsRead$: vi.fn(() => of(0)) } as any,
+      { uid$: uid$.asObservable() } as any,
+      { canListenRealtime$: of(true) } as any,
+      { report: vi.fn() } as any,
+      { log: vi.fn() } as any
+    );
+    const states: any[] = [];
+    const canSend: boolean[] = [];
+    const stateSub = threadFacade.state$.subscribe(state => states.push(state));
+    const canSendSub = threadFacade.canSend$.subscribe(allowed => canSend.push(allowed));
+
+    chatFacade.selectChat('chat-1');
+    expect(states.at(-1)?.messages).toEqual([]);
+    expect(canSend.at(-1)).toBe(false);
+    expect(observeMessages$).not.toHaveBeenCalled();
+
+    availability$.next(true);
+    expect(canSend.at(-1)).toBe(true);
+    expect(observeMessages$).toHaveBeenCalledTimes(1);
+    messages$.next([{ id: 'private-before-block' }]);
+    expect(states.at(-1)?.messages).toEqual([{ id: 'private-before-block' }]);
+
+    // Bloqueio remoto atualiza o espelho de acesso e cancela o listener.
+    availability$.next(false);
+    expect(canSend.at(-1)).toBe(false);
+    expect(states.at(-1)).toMatchObject({ chatId: null, messages: [] });
+    expect(messages$.observers.length).toBe(0);
+    const denied: Array<string | null> = [];
+    threadFacade.sendMessage$('blocked').subscribe(result => denied.push(result));
+    expect(denied).toEqual([null]);
+    expect(sendMessage$).not.toHaveBeenCalled();
+
+    messages$.next([{ id: 'stale-after-block' }]);
+    expect(states.at(-1)?.messages).toEqual([]);
+
+    // Desbloqueio sem confirmação no snapshot não reabre nada.
+    expect(canSend.at(-1)).toBe(false);
+    availability$.next(true);
+    expect(states.at(-1)).toMatchObject({ chatId: 'chat-1', messages: [] });
+    expect(observeMessages$).toHaveBeenCalledTimes(2);
+    expect(canSend.at(-1)).toBe(true);
+
+    uid$.next(null);
+    expect(states.at(-1)).toMatchObject({ chatId: null, messages: [] });
+    expect(messages$.observers.length).toBe(0);
+    stateSub.unsubscribe();
+    canSendSub.unsubscribe();
+  });
+});
 
 describe('DirectThreadFacade', () => {
   function setup(input?: {
