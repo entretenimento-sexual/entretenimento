@@ -261,6 +261,54 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.messages).toEqual([]);
   });
 
+  it('detecta lacuna após desconexão prolongada e recupera por página limitada', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'old-1', timestamp: stamp(1) },
+      { id: 'old-2', timestamp: stamp(2) },
+    ] });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'recent-100', timestamp: stamp(100) },
+      { id: 'recent-101', timestamp: stamp(101) },
+    ] });
+    expect(fixture.componentInstance.historyGap).toBe(true);
+
+    loadOlderMessages.mockReturnValueOnce(of([
+      { id: 'bridge-50', timestamp: stamp(50) },
+      { id: 'bridge-99', timestamp: stamp(99) },
+    ])).mockReturnValueOnce(of([
+      { id: 'bridge-3', timestamp: stamp(3) },
+      { id: 'bridge-40', timestamp: stamp(40) },
+    ]));
+    fixture.componentInstance.recoverHistoryGap();
+    expect(loadOlderMessages).toHaveBeenNthCalledWith(1, 'c1', stamp(100), 'recent-100');
+    expect(fixture.componentInstance.historyGap).toBe(true);
+    fixture.componentInstance.recoverHistoryGap();
+    expect(loadOlderMessages).toHaveBeenNthCalledWith(2, 'c1', stamp(50), 'bridge-50');
+    expect(fixture.componentInstance.historyGap).toBe(true);
+    expect(fixture.componentInstance.messages.map(m => m.id)).toContain('bridge-3');
+
+    loadOlderMessages.mockReturnValueOnce(of([{ id: 'old-2', timestamp: stamp(2) }]));
+    fixture.componentInstance.recoverHistoryGap();
+    expect(fixture.componentInstance.historyGap).toBe(false);
+    expect(new Set(fixture.componentInstance.messages.map(m => m.id)).size)
+      .toBe(fixture.componentInstance.messages.length);
+  });
+
+  it('cancela recuperação da lacuna ao encerrar sessão', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'recent', timestamp: stamp(100) }] });
+    const pending = new Subject<any[]>();
+    loadOlderMessages.mockReturnValue(pending.asObservable());
+    fixture.componentInstance.recoverHistoryGap();
+    uid$.next(null);
+    pending.next([{ id: 'secret', timestamp: stamp(50) }]);
+    expect(pending.observed).toBe(false);
+    expect(fixture.componentInstance.messages).toEqual([]);
+    expect(fixture.componentInstance.historyGap).toBe(false);
+  });
+
   it('should create', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
