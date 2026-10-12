@@ -21,6 +21,7 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
   const actorBlockRef = db.doc(`users/${actorUid}/blocks/${targetUid}`);
   const targetBlockRef = db.doc(`users/${targetUid}/blocks/${actorUid}`);
   let invoke: (request: unknown, options: unknown) => Promise<any>;
+  let sendInvoke: (request: unknown, options: unknown) => Promise<any>;
   let cleanup: (() => void) | undefined;
 
   function user(uid: string) {
@@ -53,6 +54,8 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
     cleanup = () => testEnvironment.cleanup();
     const { ensureDirectChat } = require('./ensure-direct-chat.handler');
     invoke = testEnvironment.wrap(ensureDirectChat);
+    const { sendDirectMessage } = require('./send-direct-message.handler');
+    sendInvoke = testEnvironment.wrap(sendDirectMessage);
 
     await Promise.all([
       db.doc(`users/${actorUid}`).set(user(actorUid)),
@@ -317,6 +320,37 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
     assert.deepEqual((await canonicalRef.get()).data()?.participants,
       initialChat.data()?.participants);
     assert.equal((await registryRef.get()).data()?.chatId, initial.chatId);
+  });
+
+  it('integra ensure e envio com revogação e restauração do vínculo no mesmo chat', async () => {
+    const friendRef = db.doc(`users/${targetUid}/friends/${actorUid}`);
+    const opened = await ensure();
+    const send = (content: string) => sendInvoke({
+      data: { chatId: opened.chatId, content, clientRequestId: randomUUID() },
+      auth: { uid: actorUid, token: { email_verified: true } },
+    }, {});
+
+    const before = await send('antes do fim da amizade');
+    assert.equal(before.chatId, opened.chatId);
+    await friendRef.delete();
+    try {
+      await assert.rejects(ensure(), (error: any) =>
+        String(error?.code ?? '').includes('failed-precondition'));
+      await assert.rejects(send('envio sem amizade'), (error: any) =>
+        String(error?.code ?? '').includes('failed-precondition'));
+      assert.equal((await db.doc(`chats/${opened.chatId}/messages/${before.messageId}`).get()).exists, true);
+    } finally {
+      await friendRef.set({ accepted: true });
+    }
+    const reopened = await ensure();
+    const after = await send('depois de restaurar amizade');
+    assert.equal(reopened.chatId, opened.chatId);
+    assert.equal(reopened.created, false);
+    assert.equal(after.chatId, opened.chatId);
+    assert.notEqual(after.messageId, before.messageId);
+    assert.equal((await registryRef.get()).data()?.chatId, opened.chatId);
+    assert.equal((await db.doc(`chats/${opened.chatId}/messages/${before.messageId}`).get()).exists, true);
+    assert.equal((await db.doc(`chats/${opened.chatId}/messages/${after.messageId}`).get()).exists, true);
   });
 
   it('revogação da amizade impede recuperar chat existente', async () => {
