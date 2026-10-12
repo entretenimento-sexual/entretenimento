@@ -233,13 +233,8 @@ export class ChatMessagesRepository {
       // cronológica crescente, sem alterar o contrato de monitorChat.
       map((arr) => [...(arr ?? [])].reverse() as Message[]),
       catchError((err) => {
-        this.reportSilent('watchMessages
-    );
-  }
-}
-, err);
-        // Não disfarçar perda de permissão ou erro de transporte como chat vazio.
-        // O chamador controla a limpeza da thread e eventual feedback ao usuário.
+        this.reportSilent('watchMessages$', err);
+        // Falha de transporte não é sinônimo de conversa sem mensagens.
         return throwError(() => err);
       })
     );
