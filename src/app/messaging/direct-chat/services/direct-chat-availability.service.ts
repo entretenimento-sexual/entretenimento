@@ -25,6 +25,16 @@ export class DirectChatAvailabilityService {
         if (now - (this.lastAttempt.get(key) ?? -Infinity) < DirectChatAvailabilityService.RETRY_AFTER_MS) {
           return of(false);
         }
+        // Mantém somente tentativas recentes para limitar memória em sessões longas.
+        for (const [entry, attemptedAt] of this.lastAttempt) {
+          if (now - attemptedAt >= DirectChatAvailabilityService.RETRY_AFTER_MS) {
+            this.lastAttempt.delete(entry);
+          }
+        }
+        if (this.lastAttempt.size >= 256) {
+          const oldest = this.lastAttempt.keys().next().value;
+          if (oldest !== undefined) this.lastAttempt.delete(oldest);
+        }
         this.lastAttempt.set(key, now);
         const reconcile = runInInjectionContext(this.injector, () =>
           httpsCallable<{ peerUid: string }, { reconciled: boolean }>(
