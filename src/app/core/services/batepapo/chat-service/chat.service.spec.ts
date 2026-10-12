@@ -189,6 +189,16 @@ describe('ChatService canonical errors', () => {
     );
   });
 
+  it('propaga erro do listener em vez de apresentar falha como conversa vazia', async () => {
+    const { service, msgsRepo, applicationError } = createHarness();
+    const failure = Object.assign(new Error('access revoked'), { code: 'permission-denied' });
+    msgsRepo.watchMessages$.mockReturnValue(throwError(() => failure));
+
+    await expect(firstValueFrom(service.monitorChat('chat-1'))).rejects.toBe(failure);
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
+    expect(msgsRepo.watchMessages$).toHaveBeenCalledWith('chat-1', 60);
+  });
+
   it('encerra listener de mensagens durante troca de UID mesmo com ambas as contas aptas', () => {
     const { service, uid$, msgsRepo } = createHarness();
     const messages$ = new Subject<any[]>();
