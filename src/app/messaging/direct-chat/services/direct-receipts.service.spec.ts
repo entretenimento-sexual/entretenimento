@@ -10,6 +10,20 @@ describe('DirectReceiptsService', () => {
     const log = vi.fn();
     const uid = new BehaviorSubject<string | null>('me');
     const canListen = new BehaviorSubject(true);
+    const destroyCallbacks: Array<() => void> = [];
+    const destroyRef = {
+      onDestroy: (callback: () => void) => {
+        destroyCallbacks.push(callback);
+        return () => {
+          const index = destroyCallbacks.indexOf(callback);
+          if (index >= 0) destroyCallbacks.splice(index, 1);
+        };
+      },
+    };
+    const destroy = () => {
+      for (const callback of [...destroyCallbacks]) callback();
+      destroyCallbacks.length = 0;
+    };
 
     const service = new DirectReceiptsService(
       { updateMessageStatus } as any,
@@ -18,11 +32,21 @@ describe('DirectReceiptsService', () => {
       {
         authUid$: uid.asObservable(),
         canListenRealtime$: canListen.asObservable(),
-      } as any
+      } as any,
+      destroyRef as any
     );
 
-    return { service, updateMessageStatus, report, log, uid, canListen };
+    return { service, updateMessageStatus, report, log, uid, canListen, destroy };
   }
+
+  it('encerra o listener de sessão quando o injector destrói o serviço', () => {
+    const { uid, canListen, destroy } = setup();
+    expect(uid.observers.length).toBe(1);
+    expect(canListen.observers.length).toBe(1);
+    destroy();
+    expect(uid.observers.length).toBe(0);
+    expect(canListen.observers.length).toBe(0);
+  });
 
   it('avança sent para delivered e delivered para read', async () => {
     const { service, updateMessageStatus } = setup();
