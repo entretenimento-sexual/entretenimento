@@ -233,10 +233,10 @@ export class ChatService implements OnDestroy {
     return this.rejectLegacyChatOperation$('sendMessage');
   }
 
-  getMessages(chatId: string, lastMessageTimestamp?: Timestamp): Observable<Message[]> {
+  getMessages(chatId: string, lastMessageTimestamp?: Timestamp, lastMessageId?: string): Observable<Message[]> {
     const cid = (chatId ?? '').toString().trim();
     if (!cid) return of([]);
-    return this.msgsRepo.getMessagesPageOnce$(cid, lastMessageTimestamp, 20).pipe(
+    return this.msgsRepo.getMessagesPageOnce$(cid, lastMessageTimestamp, 20, lastMessageId).pipe(
       catchError(err => this.reportSilent('getMessages', err))
     );
   }
