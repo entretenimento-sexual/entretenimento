@@ -2,6 +2,16 @@
 <div class="thread-shell" #messagesContainer>
   @if (type; as safeType) {
     @if (messages.length > 0) {
+      @if (safeType === 'chat' && hasMoreHistory) {
+        <button type="button" class="app-action app-action--ghost"
+          [disabled]="loadingOlderMessages" [attr.aria-busy]="loadingOlderMessages"
+          (click)="loadOlderMessages()">
+          {{ loadingOlderMessages ? 'Carregando mensagens anteriores…' : 'Carregar mensagens anteriores' }}
+        </button>
+      }
+      @if (historyLoadError) {
+        <p role="alert">Não foi possível recuperar o histórico. Tente novamente.</p>
+      }
       <div class="thread-shell__stack">
         @for (item of threadItems; track item.id) {
           @if (item.kind === 'date-separator') {
