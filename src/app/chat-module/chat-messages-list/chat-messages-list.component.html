@@ -38,6 +38,7 @@
           } @else {
             @if (item.message; as message) {
               <app-chat-message
+                [attr.data-chat-message-id]="message.id"
                 [message]="message"
                 [previousMessage]="item.previousMessage ?? null"
                 [nextMessage]="item.nextMessage ?? null"
