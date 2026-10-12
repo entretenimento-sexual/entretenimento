@@ -416,7 +416,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
         this.loadingGap = false;
         const scroll = this.getScrollContainer();
         const anchorTop = scroll?.scrollTop ?? 0;
-        const visibleAnchor = scroll
+        const visibleAnchor = scroll?.querySelectorAll
           ? [...scroll.querySelectorAll<HTMLElement>('[data-chat-message-id]')]
               .find(element => element.getBoundingClientRect().bottom >
                 scroll.getBoundingClientRect().top)
@@ -425,7 +425,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
         const offset = visibleAnchor?.getBoundingClientRect().top ?? 0;
         this.renderMessages(this.combineHistoryAndRealtime(), true);
         if (scroll) {
-          const matching = anchorId
+          const matching = anchorId && scroll.querySelectorAll
             ? [...scroll.querySelectorAll<HTMLElement>('[data-chat-message-id]')]
                 .find(element => element.getAttribute('data-chat-message-id') === anchorId)
             : undefined;
