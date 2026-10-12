@@ -57,6 +57,20 @@ function createHarness() {
 }
 
 describe('ChatService canonical errors', () => {
+  it('não recria listener legado de mensagens em emissões idênticas de sessão', () => {
+    const { service, uid$, ready$, msgsRepo } = createHarness();
+    const snapshots = new Subject<any[]>();
+    msgsRepo.watchMessages$.mockReturnValue(snapshots.asObservable());
+    const subscription = service.monitorChat('chat-1').subscribe();
+    expect(msgsRepo.watchMessages$).toHaveBeenCalledTimes(1);
+    uid$.next('user-1');
+    ready$.next(true);
+    uid$.next('user-1');
+    expect(msgsRepo.watchMessages$).toHaveBeenCalledTimes(1);
+    subscription.unsubscribe();
+    expect(snapshots.observers).toHaveLength(0);
+  });
+
   it('encaminha cursor composto e mantém carregamento inicial compatível', async () => {
     const { service, msgsRepo } = createHarness();
     const timestamp = { seconds: 100, nanoseconds: 0 } as any;
