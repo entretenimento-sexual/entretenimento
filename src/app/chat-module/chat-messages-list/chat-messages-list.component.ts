@@ -232,7 +232,11 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
               !!message.id && !currentIds.has(message.id) &&
               this.compareMessages(message, floor) < 0
             );
-            this.olderMessages = [...evicted, ...this.olderMessages];
+            const historicalIds = new Set(this.olderMessages.map(message => message.id));
+            this.olderMessages = [
+              ...evicted.filter(message => !historicalIds.has(message.id)),
+              ...this.olderMessages,
+            ];
           }
           this.latestRealtimeMessages = incoming;
           this.renderMessages(this.combineHistoryAndRealtime());
