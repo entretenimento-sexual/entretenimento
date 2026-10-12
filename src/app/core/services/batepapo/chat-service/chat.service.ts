@@ -251,6 +251,7 @@ export class ChatService implements OnDestroy {
     if (!cid) return of([]);
 
     return this.listeningUid$.pipe(
+      distinctUntilChanged(),
       switchMap(listeningUid => {
         if (!listeningUid) return of([] as Message[]);
         // Janela recente limitada; histórico anterior é recuperado por cursor em páginas de 20.
