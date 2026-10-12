@@ -1,4 +1,5 @@
 import { EnvironmentInjector } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -35,9 +36,8 @@ function service(): DirectChatAvailabilityService {
 beforeEach(() => {
   mocks.projections.clear();
   mocks.callable.mockReset();
-  injector = {
-    runInContext: (fn: () => unknown) => fn(),
-  } as unknown as EnvironmentInjector;
+  TestBed.configureTestingModule({});
+  injector = TestBed.inject(EnvironmentInjector);
 });
 
 afterEach(() => vi.restoreAllMocks());
