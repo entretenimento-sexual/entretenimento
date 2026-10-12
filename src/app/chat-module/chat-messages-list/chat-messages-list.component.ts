@@ -401,7 +401,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
           ...recovered.filter(message => !!message.id && !knownIds.has(message.id)),
           ...this.olderMessages,
         ];
-        if (!sorted.length || sorted.some(message => this.compareMessages(message, target) <= 0)) {
+        if (sorted.length < 20 || sorted.some(message => this.compareMessages(message, target) <= 0)) {
           this.historyGap = false;
         } else {
           const nextCursor = sorted[0];
