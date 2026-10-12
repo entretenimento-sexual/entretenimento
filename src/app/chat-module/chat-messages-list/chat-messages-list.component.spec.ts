@@ -306,6 +306,23 @@ describe('ChatMessagesListComponent', () => {
     expect(loadOlderMessages).toHaveBeenCalledTimes(1);
   });
 
+  it('preserva o scroll e cancela auto-scroll pendente ao recuperar páginas', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'recent', timestamp: stamp(100) }] });
+    const component = fixture.componentInstance as any;
+    const container = { scrollTop: 140, scrollHeight: 800, clientHeight: 300 };
+    vi.spyOn(component, 'getScrollContainer').mockReturnValue(container);
+    const cancelScroll = vi.spyOn(component, 'cancelScheduledScroll');
+    loadOlderMessages.mockReturnValue(of([{ id: 'bridge', timestamp: stamp(50) }]));
+
+    component.recoverHistoryGap();
+
+    expect(cancelScroll).toHaveBeenCalled();
+    expect(container.scrollTop).toBe(140);
+    expect(component.messages.map((message: any) => message.id)).toContain('bridge');
+  });
+
   it('cancela recuperação da lacuna ao encerrar sessão', () => {
     const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
