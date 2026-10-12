@@ -29,12 +29,14 @@ function createHarness() {
     createChat$: vi.fn(),
     updateChat$: vi.fn(),
     deleteChat$: vi.fn(),
+    watchChats$: vi.fn(),
   };
   const msgsRepo = {
     addMessage$: vi.fn(),
     deleteMessage$: vi.fn(),
     updateMessageStatus$: vi.fn(),
     setMessageReaction$: vi.fn(),
+    watchMessages$: vi.fn(),
   };
 
   const applicationError = {
@@ -162,7 +164,7 @@ describe('ChatService canonical errors', () => {
 
     await expect(firstValueFrom(service.getChats('user-1'))).resolves.toEqual([]);
     expect(cache.get).not.toHaveBeenCalled();
-    expect(chatsRepo.watchChats$).toBeUndefined();
+    expect(chatsRepo.watchChats$).not.toHaveBeenCalled();
   });
 
   it('encerra listener de lista de chats ao alterar o UID', () => {
