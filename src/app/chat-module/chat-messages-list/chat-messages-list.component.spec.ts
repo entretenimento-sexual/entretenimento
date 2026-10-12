@@ -117,6 +117,24 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.messages[21].id).toBe('newest');
   });
 
+  it('não consulta Firestore com cursor de lacuna sem ID ou timestamp válido', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'previous', timestamp: stamp(10) },
+    ] });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'recent', timestamp: stamp(100) },
+    ] });
+    (fixture.componentInstance as any).gapCursor = {
+      id: '', timestamp: stamp(100),
+    };
+    fixture.componentInstance.recoverHistoryGap();
+    expect(loadOlderMessages).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.gapLoadError).toBe(true);
+    expect(fixture.componentInstance.loadingGap).toBe(false);
+    expect(fixture.componentInstance.historyGap).toBe(true);
+  });
+
   it('deduplica IDs repetidos em uma página de recuperação de lacuna', () => {
     const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     threadState$.next({ chatId: 'c1', messages: [
