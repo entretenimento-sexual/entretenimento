@@ -146,6 +146,23 @@ describe('DirectThreadFacade', () => {
     expect(applicationError.report).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['permission-denied', 'Você não tem mais acesso a esta conversa.'],
+    ['unauthenticated', 'Entre novamente para acessar esta conversa.'],
+    ['unavailable', 'Não foi possível carregar as mensagens. Verifique sua conexão.'],
+  ])('distingue erro realtime %s de conversa vazia', async (code, message) => {
+    const { facade, directThreadService } = setup();
+    directThreadService.observeMessages$.mockReturnValue(
+      throwError(() => Object.assign(new Error('failed'), { code }))
+    );
+    const states: any[] = [];
+    const sub = facade.state$.subscribe((state) => states.push(state));
+    expect(states.at(-1)).toMatchObject({
+      chatId: 'chat-1', messages: [], errorMessage: message, loaded: false,
+    });
+    sub.unsubscribe();
+  });
+
   it('diagnostica falha nova do listener uma única vez', async () => {
     const { facade, directThreadService, applicationError } = setup();
     const error = new Error('unexpected gate error');
