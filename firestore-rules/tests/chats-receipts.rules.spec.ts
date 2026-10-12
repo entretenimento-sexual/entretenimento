@@ -264,6 +264,45 @@ describe('Firestore Rules / direct chat receipts', () => {
     await assertSucceeds(getDoc(message(RECIPIENT)));
   });
 
+  it('mantém o mesmo histórico após desfazer e restabelecer amizade bilateral', async () => {
+    const existingChat = doc(
+      env.authenticatedContext(SENDER, { email_verified: true }).firestore(),
+      'chats', CHAT_ID
+    );
+    const before = await assertSucceeds(getDoc(existingChat));
+    await env.withSecurityRulesDisabled(async (context) => {
+      const admin = context.firestore();
+      await setDoc(doc(admin, 'users', SENDER, 'friends', RECIPIENT), {
+        accepted: true,
+      });
+      await setDoc(doc(admin, 'users', RECIPIENT, 'friends', SENDER), {
+        accepted: true,
+      });
+    });
+    await assertSucceeds(getDoc(message(RECIPIENT)));
+    await env.withSecurityRulesDisabled(async (context) => {
+      const admin = context.firestore();
+      await Promise.all([
+        deleteDoc(doc(admin, 'users', SENDER, 'friends', RECIPIENT)),
+        deleteDoc(doc(admin, 'users', RECIPIENT, 'friends', SENDER)),
+      ]);
+    });
+    await assertSucceeds(getDoc(message(RECIPIENT)));
+    await env.withSecurityRulesDisabled(async (context) => {
+      const admin = context.firestore();
+      await setDoc(doc(admin, 'users', SENDER, 'friends', RECIPIENT), {
+        accepted: true,
+      });
+      await setDoc(doc(admin, 'users', RECIPIENT, 'friends', SENDER), {
+        accepted: true,
+      });
+    });
+    const after = await assertSucceeds(getDoc(existingChat));
+    expect(after.id).toBe(before.id);
+    expect(after.data()?.['participants']).toEqual([SENDER, RECIPIENT]);
+    await assertSucceeds(getDoc(message(RECIPIENT)));
+  });
+
   it('permite avanço sequencial sent -> delivered -> read', async () => {
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'delivered' }));
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'read' }));
