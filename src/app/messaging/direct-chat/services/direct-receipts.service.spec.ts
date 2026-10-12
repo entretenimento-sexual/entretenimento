@@ -338,6 +338,49 @@ describe('DirectReceiptsService', () => {
     expect(updateMessageStatus).toHaveBeenCalledTimes(2);
   });
 
+  it('bloqueio, desbloqueio e reconexão não duplicam escritas ou listeners', async () => {
+    const { service, updateMessageStatus, uid, canListen, destroy } = setup();
+    const oldWrite = new Subject<void>();
+    updateMessageStatus.mockReturnValueOnce(oldWrite.asObservable());
+    const sent = [{ id: 'lifecycle', senderId: 'peer', status: 'sent' }] as any;
+    const delivered = [{ id: 'lifecycle', senderId: 'peer', status: 'delivered' }] as any;
+    const previousResults: number[] = [];
+
+    const previous = service.markDeliveredAsRead$('chat-1', 'me', sent)
+      .subscribe(count => previousResults.push(count));
+    expect(updateMessageStatus).toHaveBeenCalledTimes(1);
+    expect(oldWrite.observers.length).toBe(1);
+
+    // A revogação cancela o envio em curso e não apresenta sucesso tardio.
+    canListen.next(false);
+    expect(oldWrite.observers.length).toBe(0);
+    oldWrite.next();
+    oldWrite.complete();
+    expect(previousResults).toEqual([]);
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', sent))).toBe(0);
+    expect(updateMessageStatus).toHaveBeenCalledTimes(1);
+
+    // Só após autorização novamente válida pode surgir uma nova tentativa.
+    canListen.next(true);
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', sent))).toBe(1);
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', sent))).toBe(0);
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', delivered))).toBe(1);
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', delivered))).toBe(0);
+    expect(updateMessageStatus).toHaveBeenCalledTimes(3);
+
+    // Múltiplas reconexões não criam observadores permanentes adicionais.
+    canListen.next(false);
+    canListen.next(true);
+    uid.next(null);
+    uid.next('me');
+    expect(uid.observers.length).toBe(1);
+    expect(canListen.observers.length).toBe(1);
+    previous.unsubscribe();
+    destroy();
+    expect(uid.observers.length).toBe(0);
+    expect(canListen.observers.length).toBe(0);
+  });
+
   it('ignora input inválido sem tocar no adapter', async () => {
     const { service, updateMessageStatus, report } = setup();
 
