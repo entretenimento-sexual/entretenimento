@@ -27,6 +27,7 @@ import {
 } from '../../media/application/media-notification-distribution.policy';
 import {
   resolveUserBlockTransition,
+  isBilateralChatAvailable,
   type UserBlockAction,
 } from './user-block-transition';
 
@@ -244,10 +245,11 @@ async function manageUserBlock(input: {
 
     // Projeção privada derivada, não autoridade de autorização.
     // A revogação em qualquer sentido prevalece mesmo durante desbloqueio.
-    const unavailable = transition.nextIsBlocked ||
-      reverseBlockSnapshot.data()?.isBlocked === true;
     const accessProjection = {
-      available: !unavailable,
+      available: isBilateralChatAvailable(
+        transition.nextIsBlocked,
+        reverseBlockSnapshot.data()?.isBlocked
+      ),
       version: 1,
       updatedAt: now,
     };
