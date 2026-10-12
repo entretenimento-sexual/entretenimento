@@ -38,6 +38,12 @@ import { Message } from '@core/interfaces/interfaces-chat/message.interface';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 
+/** Evita consultas excessivas mesmo quando um chamador passa limite inválido. */
+export function boundedChatMessagePageSize(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(60, Math.max(1, Math.trunc(value)));
+}
+
 @Injectable({ providedIn: 'root' })
 export class ChatMessagesRepository {
   constructor(
@@ -196,7 +202,7 @@ export class ChatMessagesRepository {
     if (!cid) return of([]);
 
     return defer(() => {
-      const q = this.buildDescQuery(cid, pageSize, lastMessageTimestamp, lastMessageId);
+      const q = this.buildDescQuery(cid, boundedChatMessagePageSize(pageSize, 20), lastMessageTimestamp, lastMessageId);
       return from(this.ctx.run(() => getDocs(q)));
     }).pipe(
       map((snap) =>
@@ -218,7 +224,7 @@ export class ChatMessagesRepository {
     return defer(() => {
       // A janela realtime precisa acompanhar as mensagens MAIS RECENTES, inclusive
       // depois de um intervalo offline; não a primeira página histórica.
-      const q = this.buildLatestQuery(cid, pageSize);
+      const q = this.buildLatestQuery(cid, boundedChatMessagePageSize(pageSize, 60));
       return this.ctx.run(() =>
         collectionData(q as any, { idField: 'id' })
       ) as Observable<Message[]>;
