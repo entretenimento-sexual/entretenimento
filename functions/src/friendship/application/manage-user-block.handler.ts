@@ -180,11 +180,20 @@ async function manageUserBlock(input: {
   let response: UserBlockResponse | null = null;
 
   await db.runTransaction(async (transaction) => {
-    const [actorSnapshot, targetSnapshot, blockSnapshot, reverseBlockSnapshot] = await Promise.all([
+    const [
+      actorSnapshot,
+      targetSnapshot,
+      blockSnapshot,
+      reverseBlockSnapshot,
+      actorAccessSnapshot,
+      targetAccessSnapshot,
+    ] = await Promise.all([
       transaction.get(actorRef),
       transaction.get(targetRef),
       transaction.get(blockRef),
       transaction.get(reverseBlockRef),
+      transaction.get(actorAccessRef),
+      transaction.get(targetAccessRef),
     ]);
 
     const actor = actorSnapshot.data() as FriendshipUserDoc | undefined;
@@ -203,6 +212,22 @@ async function manageUserBlock(input: {
     );
 
     if (!transition.changed) {
+      // Compatibilidade com bloqueios anteriores à projeção: uma repetição
+      // idempotente repara snapshots ausentes/desatualizados sem nova auditoria.
+      const available = isBilateralChatAvailable(
+        transition.nextIsBlocked,
+        reverseBlockSnapshot.data()?.isBlocked
+      );
+      if (actorAccessSnapshot.data()?.available !== available ||
+          targetAccessSnapshot.data()?.available !== available) {
+        const projection = {
+          available,
+          version: 1,
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        transaction.set(actorAccessRef, projection);
+        transaction.set(targetAccessRef, projection);
+      }
       response = {
         actorUid: input.actorUid,
         targetUid: input.targetUid,
