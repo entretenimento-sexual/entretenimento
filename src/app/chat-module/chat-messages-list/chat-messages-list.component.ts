@@ -41,6 +41,7 @@ import { catchError, map, switchMap, take, tap, throttleTime } from 'rxjs/operat
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
+import { Timestamp } from 'firebase/firestore';
 import { DateTimeService } from 'src/app/core/services/general/date-time.service';
 import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
 import { DirectThreadFacade } from 'src/app/messaging/direct-chat/application/direct-thread.facade';
@@ -75,6 +76,13 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
   messages: Message[] = [];
   threadItems: ThreadViewItem[] = [];
   pendingIncomingCount = 0;
+  loadingOlderMessages = false;
+  hasMoreHistory = true;
+  historyLoadError = false;
+  private olderMessages: Message[] = [];
+  private latestRealtimeMessages: Message[] = [];
+  private historyRequestSub?: Subscription;
+  private historyRequestId = 0;
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly hostRef = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -119,6 +127,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
   ngOnDestroy(): void {
     this.activeThreadSub?.unsubscribe();
     this.activeThreadSub = undefined;
+    this.cancelHistoryRequest();
     this.detachScrollWatcher();
     this.cancelScheduledScroll();
   }
@@ -138,6 +147,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
         this.currentUserUid = nextUid;
         this.activeThreadSub?.unsubscribe();
         this.activeThreadSub = undefined;
+        this.cancelHistoryRequest();
         this.detachScrollWatcher();
         this.resetThreadState();
         // Uma thread escolhida pela sessão anterior nunca pode ser reaberta
@@ -162,6 +172,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
 
     this.activeThreadSub?.unsubscribe();
     this.activeThreadSub = undefined;
+    this.cancelHistoryRequest();
     this.detachScrollWatcher();
 
     if (this.requiresFreshThreadSelection || !this.currentUserUid || !safeChatId || (safeType !== 'chat' && safeType !== 'room')) {
@@ -176,6 +187,10 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
       this.resetRenderTracking();
       this.forceScrollOnNextRender = true;
       this.pendingIncomingCount = 0;
+      this.olderMessages = [];
+      this.latestRealtimeMessages = [];
+      this.hasMoreHistory = true;
+      this.historyLoadError = false;
     }
 
     const source$ =
@@ -186,7 +201,13 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     this.activeThreadSub = source$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((messages) => {
-        this.renderMessages(Array.isArray(messages) ? messages : []);
+        const incoming = Array.isArray(messages) ? messages : [];
+        if (safeType === 'chat') {
+          this.latestRealtimeMessages = incoming;
+          this.renderMessages(this.combineHistoryAndRealtime());
+        } else {
+          this.renderMessages(incoming);
+        }
         this.attachScrollWatcher();
       });
   }
@@ -261,6 +282,81 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     );
   }
 
+  /** Carrega mensagens anteriores sem bloquear o listener realtime. */
+  loadOlderMessages(): void {
+    if (this.type !== 'chat' || !this.chatId || !this.currentUserUid ||
+        this.loadingOlderMessages || !this.hasMoreHistory || !this.messages.length) return;
+
+    const oldest = this.messages[0];
+    const cursorId = String(oldest?.id ?? '').trim();
+    const timestamp = oldest?.timestamp as Timestamp | undefined;
+    if (!cursorId || !timestamp || typeof (timestamp as any)?.seconds !== 'number') {
+      this.hasMoreHistory = false;
+      this.historyLoadError = true;
+      this.cdRef.detectChanges();
+      return;
+    }
+
+    const chatId = this.chatId;
+    const sessionUid = this.currentUserUid;
+    const requestId = ++this.historyRequestId;
+    this.loadingOlderMessages = true;
+    this.historyLoadError = false;
+    this.historyRequestSub = this.directThreadFacade.loadOlderMessages$(
+      chatId, timestamp, cursorId
+    ).pipe(take(1)).subscribe({
+      next: (page) => {
+        if (requestId !== this.historyRequestId || this.chatId !== chatId ||
+            this.currentUserUid !== sessionUid || this.activeThreadKey !== `chat:${chatId}`) return;
+        const scroll = this.getScrollContainer();
+        const oldHeight = scroll?.scrollHeight ?? 0;
+        const oldTop = scroll?.scrollTop ?? 0;
+        const knownIds = new Set(this.messages.map(message => message.id));
+        const unique = (page ?? []).filter(message => !!message.id && !knownIds.has(message.id));
+        this.olderMessages = [...unique, ...this.olderMessages];
+        this.hasMoreHistory = (page ?? []).length === 20 && unique.length > 0;
+        this.loadingOlderMessages = false;
+        this.renderMessages(this.combineHistoryAndRealtime(), true);
+        if (scroll) scroll.scrollTop = oldTop + (scroll.scrollHeight - oldHeight);
+      },
+      error: (error) => {
+        if (requestId !== this.historyRequestId) return;
+        this.loadingOlderMessages = false;
+        this.historyLoadError = true;
+        this.reportError('Não foi possível carregar mensagens anteriores.', error,
+          { op: 'loadOlderMessages', chatId });
+        this.cdRef.detectChanges();
+      },
+      complete: () => {
+        if (requestId !== this.historyRequestId) return;
+        this.loadingOlderMessages = false;
+        this.cdRef.detectChanges();
+      },
+    });
+  }
+
+  private combineHistoryAndRealtime(): Message[] {
+    const messages = new Map<string, Message>();
+    for (const message of [...this.olderMessages, ...this.latestRealtimeMessages]) {
+      if (message.id) messages.set(message.id, message);
+    }
+    return [...messages.values()].sort((a, b) => {
+      const left = a.timestamp as Timestamp | undefined;
+      const right = b.timestamp as Timestamp | undefined;
+      const seconds = (left?.seconds ?? 0) - (right?.seconds ?? 0);
+      if (seconds) return seconds;
+      const nanos = (left?.nanoseconds ?? 0) - (right?.nanoseconds ?? 0);
+      return nanos || String(a.id).localeCompare(String(b.id), 'en');
+    });
+  }
+
+  private cancelHistoryRequest(): void {
+    ++this.historyRequestId;
+    this.historyRequestSub?.unsubscribe();
+    this.historyRequestSub = undefined;
+    this.loadingOlderMessages = false;
+  }
+
   // ---------------------------------------------------------------------------
   // Template helpers
   // ---------------------------------------------------------------------------
@@ -292,11 +388,11 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
   // Render / scroll
   // ---------------------------------------------------------------------------
 
-  private renderMessages(nextMessages: Message[]): void {
+  private renderMessages(nextMessages: Message[], historyOnly = false): void {
     const previousCount = this.lastRenderedMessageCount;
-    const shouldScroll = this.shouldScrollAfterRender(nextMessages);
+    const shouldScroll = !historyOnly && this.shouldScrollAfterRender(nextMessages);
 
-    this.updatePendingIncomingCount(nextMessages, previousCount, shouldScroll);
+    if (!historyOnly) this.updatePendingIncomingCount(nextMessages, previousCount, shouldScroll);
 
     this.messages = nextMessages;
     this.threadItems = this.buildThreadItems(nextMessages);
@@ -553,7 +649,12 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private resetThreadState(): void {
+    this.cancelHistoryRequest();
     this.activeThreadKey = '';
+    this.olderMessages = [];
+    this.latestRealtimeMessages = [];
+    this.hasMoreHistory = true;
+    this.historyLoadError = false;
     this.messages = [];
     this.threadItems = [];
     this.pendingIncomingCount = 0;
