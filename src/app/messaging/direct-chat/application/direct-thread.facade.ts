@@ -313,6 +313,10 @@ private dbg(message: string, extra?: unknown): void {
 }
 
   private reportSilent(error: unknown, context: string): void {
+    // O ChatService já registrou erros do transporte; não duplicar diagnóstico.
+    if ((error as { chatApplicationErrorReported?: boolean } | null)?.chatApplicationErrorReported) {
+      return;
+    }
     try {
       this.applicationError.report(error, {
         feature: 'direct-thread',
