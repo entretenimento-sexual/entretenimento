@@ -158,6 +158,23 @@ describe('ChatService canonical errors', () => {
     subscription.unsubscribe();
   });
 
+  it('limita realtime a 60 mensagens sem modificar páginas históricas de 20', async () => {
+    const { service, msgsRepo } = createHarness();
+    const latest = [{ id: 'recent' }];
+    msgsRepo.watchMessages$.mockReturnValue(of(latest));
+    msgsRepo.getMessagesPageOnce$.mockReturnValue(of([{ id: 'older' }]));
+
+    expect(await firstValueFrom(service.monitorChat('chat-1'))).toEqual(latest);
+    expect(msgsRepo.watchMessages$).toHaveBeenCalledWith('chat-1', 60);
+
+    const cursor = { seconds: 42, nanoseconds: 0 } as any;
+    expect(await firstValueFrom(service.getMessages('chat-1', cursor, 'older-cursor')))
+      .toEqual([{ id: 'older' }]);
+    expect(msgsRepo.getMessagesPageOnce$).toHaveBeenCalledWith(
+      'chat-1', cursor, 20, 'older-cursor'
+    );
+  });
+
   it('encerra listener de mensagens durante troca de UID mesmo com ambas as contas aptas', () => {
     const { service, uid$, msgsRepo } = createHarness();
     const messages$ = new Subject<any[]>();
