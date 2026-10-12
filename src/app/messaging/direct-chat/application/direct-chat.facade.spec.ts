@@ -85,7 +85,8 @@ describe('DirectChatFacade session isolation', () => {
       buildAuthSession(uidSubject),
       firestoreUserQuery,
       applicationError.service,
-      buildDestroyRef()
+      buildDestroyRef(),
+      { observe$: () => of(true) } as any
     );
 
     const chatEmissions: IChat[][] = [];
@@ -219,7 +220,8 @@ describe('DirectChatFacade session isolation', () => {
       buildAuthSession(uidSubject),
       firestoreUserQuery,
       applicationError.service,
-      buildDestroyRef()
+      buildDestroyRef(),
+      { observe$: () => of(true) } as any
     );
 
     const emissions: any[][] = [];
@@ -283,7 +285,8 @@ describe('DirectChatFacade late opening isolation', () => {
       buildAuthSession(uid),
       query,
       buildApplicationError().service,
-      buildDestroyRef()
+      buildDestroyRef(),
+      { observe$: () => of(true) } as any
     );
     const output: Array<string | null> = [];
     const subscription = facade.openChatWithUser$('peer-a').subscribe(
@@ -322,7 +325,8 @@ describe('DirectChatFacade canonical errors', () => {
       buildAuthSession(uidSubject),
       firestoreUserQuery,
       applicationError.service,
-      buildDestroyRef()
+      buildDestroyRef(),
+      { observe$: () => of(true) } as any
     );
 
     const emissions: IChat[][] = [];
@@ -367,7 +371,8 @@ describe('DirectChatFacade canonical errors', () => {
       buildAuthSession(uidSubject),
       firestoreUserQuery,
       applicationError.service,
-      buildDestroyRef()
+      buildDestroyRef(),
+      { observe$: () => of(true) } as any
     );
 
     const emissions: any[][] = [];
@@ -416,7 +421,8 @@ describe('DirectChatFacade canonical errors', () => {
       buildAuthSession(uidSubject),
       firestoreUserQuery,
       applicationError.service,
-      buildDestroyRef()
+      buildDestroyRef(),
+      { observe$: () => of(true) } as any
     );
 
     await expect(
@@ -458,7 +464,8 @@ describe('DirectChatFacade canonical errors', () => {
       buildAuthSession(uidSubject),
       firestoreUserQuery,
       applicationError.service,
-      buildDestroyRef()
+      buildDestroyRef(),
+      { observe$: () => of(true) } as any
     );
 
     const emissions: IChat[][] = [];
