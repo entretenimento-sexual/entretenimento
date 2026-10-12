@@ -172,14 +172,18 @@ async function manageUserBlock(input: {
   const actorRef = db.collection('users').doc(input.actorUid);
   const targetRef = db.collection('users').doc(input.targetUid);
   const blockRef = actorRef.collection('blocks').doc(input.targetUid);
+  const reverseBlockRef = targetRef.collection('blocks').doc(input.actorUid);
+  const actorAccessRef = db.doc(`direct_chat_access/${input.actorUid}/peers/${input.targetUid}`);
+  const targetAccessRef = db.doc(`direct_chat_access/${input.targetUid}/peers/${input.actorUid}`);
 
   let response: UserBlockResponse | null = null;
 
   await db.runTransaction(async (transaction) => {
-    const [actorSnapshot, targetSnapshot, blockSnapshot] = await Promise.all([
+    const [actorSnapshot, targetSnapshot, blockSnapshot, reverseBlockSnapshot] = await Promise.all([
       transaction.get(actorRef),
       transaction.get(targetRef),
       transaction.get(blockRef),
+      transaction.get(reverseBlockRef),
     ]);
 
     const actor = actorSnapshot.data() as FriendshipUserDoc | undefined;
@@ -237,6 +241,18 @@ async function manageUserBlock(input: {
         updatedAt: now,
       }, { merge: true });
     }
+
+    // Projeção privada derivada, não autoridade de autorização.
+    // A revogação em qualquer sentido prevalece mesmo durante desbloqueio.
+    const unavailable = transition.nextIsBlocked ||
+      reverseBlockSnapshot.data()?.isBlocked === true;
+    const accessProjection = {
+      available: !unavailable,
+      version: 1,
+      updatedAt: now,
+    };
+    transaction.set(actorAccessRef, accessProjection);
+    transaction.set(targetAccessRef, accessProjection);
 
     transaction.create(eventRef, {
       type: input.action,
