@@ -459,10 +459,24 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
       return;
     }
 
-    const addedMessages = nextMessages.slice(previousCount);
-    const incomingCount = addedMessages.filter(
-      (message) => !this.isMessageFromCurrentUser(message)
-    ).length;
+    // Páginas históricas entram antes da janela realtime. Comparar o tamanho
+    // ou usar slice(previousCount) classificaria mensagens antigas como novas.
+    const previousIds = new Set(this.messages.map(message => message.id));
+    const addedMessages = nextMessages.filter(message =>
+      !!message.id && !previousIds.has(message.id)
+    );
+    const previousLast = this.messages[this.messages.length - 1];
+    const previousSeconds = (previousLast?.timestamp as Timestamp | undefined)?.seconds ?? -Infinity;
+    const previousNanos = (previousLast?.timestamp as Timestamp | undefined)?.nanoseconds ?? 0;
+    const incomingCount = addedMessages.filter(message => {
+      const stamp = message.timestamp as Timestamp | undefined;
+      const seconds = stamp?.seconds ?? -Infinity;
+      const nanos = stamp?.nanoseconds ?? 0;
+      const isAfterLast = seconds > previousSeconds ||
+        (seconds === previousSeconds && (nanos > previousNanos ||
+          (nanos === previousNanos && String(message.id) > String(previousLast?.id ?? ''))));
+      return isAfterLast && !this.isMessageFromCurrentUser(message);
+    }).length;
 
     if (!incomingCount) {
       this.pendingIncomingCount = 0;
