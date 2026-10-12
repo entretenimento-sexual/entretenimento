@@ -7,6 +7,11 @@ const source = readFileSync(
   'utf8'
 ).replace(/\r\n/g, '\n');
 
+const coordinatorSource = readFileSync(
+  resolve(process.cwd(), 'src/app/messaging/direct-chat/services/direct-chat-reconciliation-coordinator.ts'),
+  'utf8'
+).replace(/\r\n/g, '\n');
+
 describe('DirectChatAvailability reconciliation boundary', () => {
   it('exige snapshot versionado e booleano antes de liberar abertura', () => {
     expect(source).toContain("projection?.version === 1 && typeof projection.available === 'boolean'");
@@ -15,15 +20,15 @@ describe('DirectChatAvailability reconciliation boundary', () => {
   });
 
   it('coalesce solicitações por par e limita novas tentativas', () => {
-    expect(source).toContain('JSON.stringify([owner, peer])');
-    expect(source).toContain('this.inFlight.get(key)');
-    expect(source).toContain('this.inFlight.set(key, pending)');
-    expect(source).toContain('RETRY_AFTER_MS = 60_000');
-    expect(source).toContain('this.lastAttempt.size >= 256');
+    expect(coordinatorSource).toContain('JSON.stringify([owner, peer])');
+    expect(coordinatorSource).toContain('this.inFlight.get(key)');
+    expect(coordinatorSource).toContain('this.inFlight.set(key, pending)');
+    expect(coordinatorSource).toContain('retryAfterMs = 60_000');
+    expect(coordinatorSource).toContain('this.lastAttempt.size >= this.maxAttemptEntries');
   });
 
   it('não usa sucesso do callable como autorização de acesso', () => {
-    expect(source).toContain('from(pending).pipe(switchMap(() => of(false)))');
+    expect(source).toContain('switchMap(() => of(false))');
     expect(source).toContain('catchError(() => of(false))');
     expect(source).not.toContain('of(true)');
   });
