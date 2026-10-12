@@ -224,6 +224,32 @@ describe('Firestore Rules / direct chat receipts', () => {
     await assertFails(updateDoc(session, { status: 'delivered' }));
   });
 
+  it('preserva leitura do histórico depois de desfazer amizade bilateral', async () => {
+    const recipientMessage = message(RECIPIENT);
+    await assertSucceeds(getDoc(recipientMessage));
+    await env.withSecurityRulesDisabled(async (context) => {
+      const admin = context.firestore();
+      await setDoc(doc(admin, 'users', SENDER, 'friends', RECIPIENT), {
+        accepted: true,
+      });
+      await setDoc(doc(admin, 'users', RECIPIENT, 'friends', SENDER), {
+        accepted: true,
+      });
+    });
+    await assertSucceeds(getDoc(recipientMessage));
+    await env.withSecurityRulesDisabled(async (context) => {
+      const admin = context.firestore();
+      await import('firebase/firestore').then(({ deleteDoc }) =>
+        Promise.all([
+          deleteDoc(doc(admin, 'users', SENDER, 'friends', RECIPIENT)),
+          deleteDoc(doc(admin, 'users', RECIPIENT, 'friends', SENDER)),
+        ])
+      );
+    });
+    await assertSucceeds(getDoc(recipientMessage));
+    await assertSucceeds(getDoc(message(SENDER)));
+  });
+
   it('permite avanço sequencial sent -> delivered -> read', async () => {
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'delivered' }));
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'read' }));
