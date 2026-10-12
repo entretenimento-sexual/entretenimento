@@ -131,7 +131,7 @@ export class DirectThreadService {
           chatId: safeChatId,
           count: Array.isArray(messages) ? messages.length : 0,
         });
-      }),
+      })
       // Erros seguem para a facade; não os transformar em mensagens vazias aqui.
     );
   }
