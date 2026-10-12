@@ -229,6 +229,29 @@ describe('DirectReceiptsService', () => {
     sub.unsubscribe();
   });
 
+  it('limita a cinco escritas simultâneas mesmo com cinquenta mensagens', () => {
+    const { service, updateMessageStatus } = setup();
+    const pending = Array.from({ length: 50 }, () => new Subject<void>());
+    let requested = 0;
+    updateMessageStatus.mockImplementation(() => pending[requested++].asObservable());
+    const messages = Array.from({ length: 50 }, (_, index) => ({
+      id: `msg-${index}`, senderId: 'peer', status: 'sent',
+    })) as any;
+    const counts: number[] = [];
+    const subscription = service.markDeliveredAsRead$('chat-1', 'me', messages)
+      .subscribe(count => counts.push(count));
+
+    expect(requested).toBe(5);
+    for (let index = 0; index < 50; index += 1) {
+      pending[index].next();
+      pending[index].complete();
+      expect(requested).toBe(Math.min(50, index + 6));
+    }
+    expect(counts).toEqual([50]);
+    expect(updateMessageStatus).toHaveBeenCalledTimes(50);
+    subscription.unsubscribe();
+  });
+
   it('ignora input inválido sem tocar no adapter', async () => {
     const { service, updateMessageStatus, report } = setup();
 
