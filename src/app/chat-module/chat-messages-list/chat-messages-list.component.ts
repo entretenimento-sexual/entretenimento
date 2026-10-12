@@ -386,6 +386,8 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
         this.loadingGap || this.type !== 'chat') return;
 
     const request = ++this.gapRequestId;
+    // Uma recuperação manual não deve executar um auto-scroll pendente.
+    this.cancelScheduledScroll();
     this.loadingGap = true;
     this.gapLoadError = false;
     this.gapRequestSub = this.directThreadFacade.loadOlderMessages$(
@@ -412,7 +414,12 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
           }
         }
         this.loadingGap = false;
+        const scroll = this.getScrollContainer();
+        const anchorTop = scroll?.scrollTop ?? 0;
         this.renderMessages(this.combineHistoryAndRealtime(), true);
+        // Não arranca o usuário da posição de leitura quando uma página
+        // intermediária é inserida abaixo ou acima da área visível.
+        if (scroll) scroll.scrollTop = anchorTop;
       },
       error: error => {
         if (request !== this.gapRequestId) return;
