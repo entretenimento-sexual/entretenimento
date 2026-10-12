@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
 const ROOT = resolve(process.cwd());
 
 function source(path: string): string {
-  return readFileSync(resolve(ROOT, path), 'utf8');
+  return readFileSync(resolve(ROOT, path), 'utf8').replace(/\r\n/g, '\n');
 }
 
 function hasClassToken(value: string, token: string): boolean {
