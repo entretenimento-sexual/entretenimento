@@ -104,7 +104,6 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
 
   private activeThreadKey = '';
   private forceScrollOnNextRender = false;
-  private lastRenderedMessageCount = 0;
   private lastRenderedLastMessageKey = '';
 
   private readonly nearBottomThresholdPx = 220;
@@ -795,12 +794,10 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
 
   private resetRenderTracking(): void {
     this.forceScrollOnNextRender = false;
-    this.lastRenderedMessageCount = 0;
     this.lastRenderedLastMessageKey = '';
   }
 
   private storeRenderTracking(messages: Message[]): void {
-    this.lastRenderedMessageCount = messages.length;
     this.lastRenderedLastMessageKey = this.getLastMessageKey(messages);
   }
 
