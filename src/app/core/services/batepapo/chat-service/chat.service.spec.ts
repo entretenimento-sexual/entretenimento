@@ -139,6 +139,46 @@ describe('ChatService canonical errors', () => {
     subscription.unsubscribe();
   });
 
+  it('encerra listener de mensagens durante troca de UID mesmo com ambas as contas aptas', () => {
+    const { service, uid$, msgsRepo } = createHarness();
+    const messages$ = new Subject<any[]>();
+    msgsRepo.watchMessages$ = vi.fn(() => messages$.asObservable());
+    const values: any[][] = [];
+    const subscription = service.monitorChat('chat-1').subscribe(value => values.push(value));
+
+    expect(msgsRepo.watchMessages$).toHaveBeenCalledTimes(1);
+    expect(messages$.observers.length).toBe(1);
+
+    uid$.next('user-2');
+
+    expect(messages$.observers.length).toBe(0);
+    expect(values.at(-1)).toEqual([]);
+    subscription.unsubscribe();
+  });
+
+  it('não consulta cache nem abre chats de outro UID após troca de sessão', async () => {
+    const { service, uid$, chatsRepo, cache } = createHarness();
+    uid$.next('user-2');
+
+    await expect(firstValueFrom(service.getChats('user-1'))).resolves.toEqual([]);
+    expect(cache.get).not.toHaveBeenCalled();
+    expect(chatsRepo.watchChats$).toBeUndefined();
+  });
+
+  it('encerra listener de lista de chats ao alterar o UID', () => {
+    const { service, uid$, chatsRepo } = createHarness();
+    const chats$ = new Subject<any[]>();
+    chatsRepo.watchChats$ = vi.fn(() => chats$.asObservable());
+    const received: any[][] = [];
+    const subscription = service.watchChats$('user-1').subscribe(value => received.push(value));
+
+    expect(chats$.observers.length).toBe(1);
+    uid$.next('user-2');
+    expect(chats$.observers.length).toBe(0);
+    expect(received.at(-1)).toEqual([]);
+    subscription.unsubscribe();
+  });
+
   it('operações legadas de chat falham sem acessar cache ou repositório', async () => {
     const { service, applicationError, chatsRepo, msgsRepo, cache } = createHarness();
 
