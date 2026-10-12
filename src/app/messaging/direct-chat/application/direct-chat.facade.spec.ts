@@ -197,7 +197,7 @@ describe('DirectChatFacade session isolation', () => {
     expect(observed.at(-1)).toBe(false);
     chats$.next([buildChat('invalid', ['user-a', 'user-a'])]);
     expect(observed.at(-1)).toBe(false);
-    chats$.next([{ ...buildChat('invalid', ['user-a', 'peer-b']), isRoom: true }]);
+    chats$.next([{ ...buildChat('invalid', ['user-a', 'peer-b']), isRoom: true } as unknown as IChat]);
     expect(observed.at(-1)).toBe(false);
     expect(observe$).not.toHaveBeenCalled();
 
