@@ -261,7 +261,7 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.messages).toEqual([]);
   });
 
-  it('detecta lacuna após desconexão prolongada e recupera por página limitada', () => {
+  it('recupera lacuna em páginas completas e fecha ao alcançar o ponto conhecido', () => {
     const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     threadState$.next({ chatId: 'c1', messages: [
       { id: 'old-1', timestamp: stamp(1) },
@@ -273,26 +273,37 @@ describe('ChatMessagesListComponent', () => {
     ] });
     expect(fixture.componentInstance.historyGap).toBe(true);
 
-    loadOlderMessages.mockReturnValueOnce(of([
-      { id: 'bridge-50', timestamp: stamp(50) },
-      { id: 'bridge-99', timestamp: stamp(99) },
-    ])).mockReturnValueOnce(of([
+    loadOlderMessages.mockReturnValueOnce(of(
+      Array.from({ length: 20 }, (_, i) => ({
+        id: `bridge-${80 + i}`, timestamp: stamp(80 + i),
+      }))
+    )).mockReturnValueOnce(of([
       { id: 'bridge-3', timestamp: stamp(3) },
-      { id: 'bridge-40', timestamp: stamp(40) },
+      { id: 'old-2', timestamp: stamp(2) },
     ]));
     fixture.componentInstance.recoverHistoryGap();
     expect(loadOlderMessages).toHaveBeenNthCalledWith(1, 'c1', stamp(100), 'recent-100');
     expect(fixture.componentInstance.historyGap).toBe(true);
     fixture.componentInstance.recoverHistoryGap();
-    expect(loadOlderMessages).toHaveBeenNthCalledWith(2, 'c1', stamp(50), 'bridge-50');
-    expect(fixture.componentInstance.historyGap).toBe(true);
-    expect(fixture.componentInstance.messages.map(m => m.id)).toContain('bridge-3');
-
-    loadOlderMessages.mockReturnValueOnce(of([{ id: 'old-2', timestamp: stamp(2) }]));
-    fixture.componentInstance.recoverHistoryGap();
+    expect(loadOlderMessages).toHaveBeenNthCalledWith(2, 'c1', stamp(80), 'bridge-80');
     expect(fixture.componentInstance.historyGap).toBe(false);
+    expect(fixture.componentInstance.messages.map(m => m.id)).toContain('bridge-3');
     expect(new Set(fixture.componentInstance.messages.map(m => m.id)).size)
       .toBe(fixture.componentInstance.messages.length);
+  });
+
+  it('encerra recuperação após página curta sem insistir em consultas vazias', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'recent', timestamp: stamp(100) }] });
+    loadOlderMessages.mockReturnValue(of([{ id: 'bridge', timestamp: stamp(50) }]));
+
+    fixture.componentInstance.recoverHistoryGap();
+
+    expect(fixture.componentInstance.historyGap).toBe(false);
+    expect(fixture.componentInstance.messages.map(m => m.id)).toContain('bridge');
+    fixture.componentInstance.recoverHistoryGap();
+    expect(loadOlderMessages).toHaveBeenCalledTimes(1);
   });
 
   it('cancela recuperação da lacuna ao encerrar sessão', () => {
