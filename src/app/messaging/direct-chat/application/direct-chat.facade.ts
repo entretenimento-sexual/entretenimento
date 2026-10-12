@@ -29,9 +29,9 @@ import {
   tap,
 } from 'rxjs/operators';
 
-import { normalizePublicUserIdentity } from 'src/app/core/domain/public-user-identity/public-user-identity.model';
-import { normalizePublicUserPreview } from 'src/app/core/domain/public-user-preview/public-user-preview.model';
-import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
+import { normalizePublicUserIdentity } from '@core/domain/public-user-identity/public-user-identity.model';
+import { normalizePublicUserPreview } from '@core/domain/public-user-preview/public-user-preview.model';
+import { IChat } from '@core/interfaces/interfaces-chat/chat.interface';
 import {
   DirectChatListItem,
   DirectChatListState,
