@@ -4,6 +4,7 @@ import { doc, docData, Firestore } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { defer, from, Observable, of } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
+import { DirectChatReconciliationCoordinator } from './direct-chat-reconciliation-coordinator';
 
 interface DirectChatAccessProjection {
   available?: unknown;
@@ -12,47 +13,21 @@ interface DirectChatAccessProjection {
 
 @Injectable({ providedIn: 'root' })
 export class DirectChatAvailabilityService {
-  private readonly inFlight = new Map<string, Promise<unknown>>();
-  private readonly lastAttempt = new Map<string, number>();
-  private static readonly RETRY_AFTER_MS = 60_000;
+  private readonly coordinator = new DirectChatReconciliationCoordinator();
 
   private reconcile$(owner: string, peer: string): Observable<boolean> {
-    const key = JSON.stringify([owner, peer]);
     return defer(() => {
-      let pending = this.inFlight.get(key);
-      if (!pending) {
-        const now = Date.now();
-        if (now - (this.lastAttempt.get(key) ?? -Infinity) < DirectChatAvailabilityService.RETRY_AFTER_MS) {
-          return of(false);
-        }
-        // Mantém somente tentativas recentes para limitar memória em sessões longas.
-        for (const [entry, attemptedAt] of this.lastAttempt) {
-          if (now - attemptedAt >= DirectChatAvailabilityService.RETRY_AFTER_MS) {
-            this.lastAttempt.delete(entry);
-          }
-        }
-        if (this.lastAttempt.size >= 256) {
-          const oldest = this.lastAttempt.keys().next().value;
-          if (oldest !== undefined) this.lastAttempt.delete(oldest);
-        }
-        this.lastAttempt.set(key, now);
-        const reconcile = runInInjectionContext(this.injector, () =>
-          httpsCallable<{ peerUid: string }, { reconciled: boolean }>(
-            this.functions, 'reconcileDirectChatAccess'
-          )
-        );
-        pending = Promise.resolve().then(() => reconcile({ peerUid: peer })).then(
-          () => undefined,
-          () => undefined
-        );
-        this.inFlight.set(key, pending);
-        void pending.finally(() => {
-          if (this.inFlight.get(key) === pending) this.inFlight.delete(key);
-        });
-      }
-      return from(pending).pipe(switchMap(() => of(false)));
+      const reconcile = runInInjectionContext(this.injector, () =>
+        httpsCallable<{ peerUid: string }, { reconciled: boolean }>(
+          this.functions, 'reconcileDirectChatAccess'
+        )
+      );
+      return from(this.coordinator.run(owner, peer, () => reconcile({ peerUid: peer }))).pipe(
+        switchMap(() => of(false))
+      );
     });
   }
+
   constructor(
     private readonly firestore: Firestore,
     private readonly injector: EnvironmentInjector,
