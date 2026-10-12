@@ -15,6 +15,8 @@ run('reconcileDirectChatAccess — bounded bilateral projection', () => {
   const leftBlock = db.doc(`users/${left}/blocks/${right}`);
   const rightBlock = db.doc(`users/${right}/blocks/${left}`);
   let invoke: (request: unknown, options: unknown) => Promise<any>;
+  let block: (request: unknown, options: unknown) => Promise<any>;
+  let unblock: (request: unknown, options: unknown) => Promise<any>;
   let cleanup: (() => void) | undefined;
 
   const user = (uid: string) => ({
@@ -38,6 +40,9 @@ run('reconcileDirectChatAccess — bounded bilateral projection', () => {
     cleanup = () => environment.cleanup();
     const { reconcileDirectChatAccess } = require('./reconcile-direct-chat-access.handler');
     invoke = environment.wrap(reconcileDirectChatAccess);
+    const blockHandler = require('../../../friendship/application/manage-user-block.handler');
+    block = environment.wrap(blockHandler.blockUser);
+    unblock = environment.wrap(blockHandler.unblockUser);
     await Promise.all([
       db.doc(`users/${left}`).set(user(left)),
       db.doc(`users/${right}`).set(user(right)),
@@ -92,6 +97,35 @@ run('reconcileDirectChatAccess — bounded bilateral projection', () => {
     } finally {
       await friend.set({ accepted: true });
     }
+  });
+
+  it('blockUser revoga ambos os espelhos e unblockUser não libera sem amizade mútua', async () => {
+    const missingFriend = db.doc(`users/${right}/friends/${left}`);
+    const manageRequest = (targetUid: string) => ({
+      data: { targetUid },
+      auth: { uid: left, token: { email_verified: true } },
+    });
+
+    await request();
+    const blocked = await block(manageRequest(right), {});
+    assert.equal(blocked.status, 'blocked');
+    assert.equal((await leftAccess.get()).data()?.available, false);
+    assert.equal((await rightAccess.get()).data()?.available, false);
+
+    await missingFriend.delete();
+    try {
+      const unblocked = await unblock(manageRequest(right), {});
+      assert.equal(unblocked.status, 'unblocked');
+      assert.equal((await leftAccess.get()).data()?.available, false);
+      assert.equal((await rightAccess.get()).data()?.available, false);
+      await unblock(manageRequest(right), {});
+      assert.equal((await leftAccess.get()).data()?.available, false);
+    } finally {
+      await missingFriend.set({ accepted: true });
+    }
+    await unblock(manageRequest(right), {});
+    assert.equal((await leftAccess.get()).data()?.available, true);
+    assert.equal((await rightAccess.get()).data()?.available, true);
   });
 
   it('não aceita consulta de par alheio nem UIDs inválidos', async () => {
