@@ -19,6 +19,7 @@ import { catchError, map } from 'rxjs/operators';
 
 import {
   Firestore,
+  FieldPath,
   collection,
   collectionData,
   deleteField,
@@ -172,13 +173,14 @@ export class ChatMessagesRepository {
 
     if (!cid || !mid || !safeUid) return of(void 0);
 
-    const fieldPath = `reactionsByUser.${safeUid}`;
-    const patch = safeEmoji
-      ? { [fieldPath]: safeEmoji }
-      : { [fieldPath]: deleteField() };
-
     return defer(() =>
-      from(this.ctx.run(() => updateDoc(this.messageRef(cid, mid), patch as any)))
+      from(this.ctx.run(() =>
+        updateDoc(
+          this.messageRef(cid, mid),
+          new FieldPath('reactionsByUser', safeUid),
+          safeEmoji ?? deleteField()
+        )
+      ))
     ).pipe(
       map(() => void 0)
     );
