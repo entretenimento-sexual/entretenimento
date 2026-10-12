@@ -143,7 +143,7 @@ describe('Firestore Rules / direct chat receipts', () => {
     await assertFails(updateDoc(existingSession, { status: 'delivered' }));
   });
 
-  it('revoga leitura e escrita quando participante sai da conversa', async () => {
+  it('nega leitura e escrita quando chat direto perde a dupla de participantes', async () => {
     const existingSession = message(RECIPIENT);
     await assertSucceeds(getDoc(existingSession));
     await env.withSecurityRulesDisabled(async (context) => {
@@ -153,6 +153,9 @@ describe('Firestore Rules / direct chat receipts', () => {
     });
     await assertFails(getDoc(existingSession));
     await assertFails(updateDoc(existingSession, { status: 'delivered' }));
+    // Um chat direto exige exatamente dois participantes: nenhum dos lados
+    // continua autorizado enquanto o documento estiver estruturalmente inválido.
+    await assertFails(getDoc(message(SENDER)));
   });
 
   it.each(['remoção', 'suspensão', 'bloqueio do remetente', 'bloqueio do destinatário'])(
