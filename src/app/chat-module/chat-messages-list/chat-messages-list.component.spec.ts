@@ -146,6 +146,20 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.messages.map(message => message.id)).toEqual(['m1']);
   });
 
+  it('apaga histórico acumulado quando a facade revoga a thread', () => {
+    const timestamp = { seconds: 100, nanoseconds: 0 };
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'm1', timestamp }] });
+    loadOlderMessages.mockReturnValue(of([
+      { id: 'old', timestamp: { seconds: 10, nanoseconds: 0 } },
+    ]));
+    fixture.componentInstance.loadOlderMessages();
+    expect(fixture.componentInstance.messages.map(message => message.id)).toContain('old');
+
+    threadState$.next({ chatId: '', messages: [] });
+    expect(fixture.componentInstance.messages).toEqual([]);
+    expect(fixture.componentInstance.threadItems).toEqual([]);
+  });
+
   it('should create', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
