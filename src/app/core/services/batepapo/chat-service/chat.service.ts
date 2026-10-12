@@ -309,21 +309,18 @@ export class ChatService implements OnDestroy {
 
     const cacheKey = `chats:${uid}`;
 
-    return this.cache.get<IChat[]>(cacheKey).pipe(
+    return this.listeningUid$.pipe(
       take(1),
-      switchMap(cached => {
-        if (!lastChatTimestamp && cached?.length) return of(cached);
-
-        return this.canListen$.pipe(
+      switchMap(listeningUid => {
+        if (listeningUid !== uid) return of([] as IChat[]);
+        return this.cache.get<IChat[]>(cacheKey).pipe(
           take(1),
-          switchMap(listeningUid => {
-            if (!lastChatTimestamp && listeningUid === uid) {
-              return this.chatsRepo.watchChats$(uid, 10).pipe(
-                tap(list => this.cache.set(cacheKey, list))
-              );
-            }
-
-            return this.chatsRepo.getChatsPageOnce$(uid, lastChatTimestamp, 10).pipe(
+          switchMap(cached => {
+            if (!lastChatTimestamp && cached?.length) return of(cached);
+            const result$ = !lastChatTimestamp
+              ? this.chatsRepo.watchChats$(uid, 10)
+              : this.chatsRepo.getChatsPageOnce$(uid, lastChatTimestamp, 10);
+            return result$.pipe(
               tap(list => this.cache.set(cacheKey, list))
             );
           })
