@@ -252,6 +252,27 @@ describe('DirectReceiptsService', () => {
     subscription.unsubscribe();
   });
 
+  it('revogação cancela escritas pendentes e não inicia itens enfileirados', () => {
+    const { service, updateMessageStatus, canListen } = setup();
+    const pending = new Subject<void>();
+    updateMessageStatus.mockReturnValue(pending.asObservable());
+    const messages = Array.from({ length: 25 }, (_, index) => ({
+      id: `pending-${index}`, senderId: 'peer', status: 'sent',
+    })) as any;
+    const counts: number[] = [];
+    const subscription = service.markDeliveredAsRead$('chat-1', 'me', messages)
+      .subscribe(value => counts.push(value));
+
+    expect(updateMessageStatus).toHaveBeenCalledTimes(5);
+    canListen.next(false);
+    expect(pending.observers.length).toBe(0);
+    pending.next();
+    pending.complete();
+    expect(updateMessageStatus).toHaveBeenCalledTimes(5);
+    expect(counts).toEqual([]);
+    subscription.unsubscribe();
+  });
+
   it('ignora input inválido sem tocar no adapter', async () => {
     const { service, updateMessageStatus, report } = setup();
 
