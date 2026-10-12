@@ -162,6 +162,40 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     assert.equal(chats.data()?.lastMessage?.messageId, after.messageId);
   });
 
+  it('projeção disponível obsoleta não contorna bloqueio ou amizade revogada', async () => {
+    const leftAccess = db.doc(`direct_chat_access/${actorUid}/peers/${targetUid}`);
+    const rightAccess = db.doc(`direct_chat_access/${targetUid}/peers/${actorUid}`);
+    const blocked = db.doc(`users/${targetUid}/blocks/${actorUid}`);
+    const friend = db.doc(`users/${targetUid}/friends/${actorUid}`);
+    const stale = { available: true, version: 1 };
+    await Promise.all([leftAccess.set(stale), rightAccess.set(stale)]);
+    try {
+      await blocked.set({ isBlocked: true });
+      const blockedId = randomUUID();
+      await assert.rejects(send('projeção obsoleta com bloqueio', blockedId), (error: any) =>
+        String(error?.code ?? '').includes('permission-denied')
+      );
+      assert.equal((await db.collection(`chats/${chatId}/messages`)
+        .where('clientRequestId', '==', blockedId).get()).empty, true);
+
+      await blocked.delete();
+      await friend.delete();
+      const revokedId = randomUUID();
+      await assert.rejects(send('projeção obsoleta sem amizade', revokedId), (error: any) =>
+        String(error?.code ?? '').includes('failed-precondition')
+      );
+      assert.equal((await db.collection(`chats/${chatId}/messages`)
+        .where('clientRequestId', '==', revokedId).get()).empty, true);
+    } finally {
+      await Promise.all([
+        blocked.delete(),
+        friend.set({ accepted: true }),
+        leftAccess.delete(),
+        rightAccess.delete(),
+      ]);
+    }
+  });
+
   it('impede novo envio depois de suspensão confirmada', async () => {
     const actorRef = db.doc(`users/${actorUid}`);
     await actorRef.update({ accountStatus: 'suspended' });
