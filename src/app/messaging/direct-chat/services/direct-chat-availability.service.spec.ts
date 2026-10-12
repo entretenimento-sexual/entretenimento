@@ -51,8 +51,7 @@ describe('DirectChatAvailabilityService runtime reconciliation', () => {
     const second: boolean[] = [];
     const a = sut.observe$('user-a', 'user-b').subscribe((value) => first.push(value));
     const b = sut.observe$('user-a', 'user-b').subscribe((value) => second.push(value));
-    await Promise.resolve();
-    expect(mocks.callable).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(mocks.callable).toHaveBeenCalledTimes(1));
     mocks.projections.get(path)?.next({ version: 1, available: true });
     expect(first.at(-1)).toBe(true);
     expect(second.at(-1)).toBe(true);
@@ -66,7 +65,7 @@ describe('DirectChatAvailabilityService runtime reconciliation', () => {
     mocks.callable.mockRejectedValue(new Error('temporarily unavailable'));
     const sut = service();
     expect(await firstValueFrom(sut.observe$('user-a', 'user-b'))).toBe(false);
-    await Promise.resolve();
+    await vi.waitFor(() => expect(mocks.callable).toHaveBeenCalledTimes(1));
     expect(await firstValueFrom(sut.observe$('user-a', 'user-b'))).toBe(false);
     expect(mocks.callable).toHaveBeenCalledTimes(1);
     const values: boolean[] = [];
@@ -84,7 +83,7 @@ describe('DirectChatAvailabilityService runtime reconciliation', () => {
     const values: boolean[] = [];
     const sut = service();
     const subscription = sut.observe$('user-a', 'user-b').subscribe(v => values.push(v));
-    await Promise.resolve();
+    await vi.waitFor(() => expect(mocks.callable).toHaveBeenCalledTimes(1));
     subscription.unsubscribe();
     release({ data: { reconciled: true } });
     await Promise.resolve();
