@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, of, Subject, throwError } from 'rxjs';
 
 import { ChatMessagesListComponent } from './chat-messages-list.component';
 import { RoomMessagesService } from '../../core/services/batepapo/room-services/room-messages.service';
@@ -113,6 +113,37 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.messages).toHaveLength(22);
     expect(fixture.componentInstance.messages[0].id).toBe('older');
     expect(fixture.componentInstance.messages[21].id).toBe('newest');
+  });
+
+  it('descarta página pendente quando a sessão é encerrada', () => {
+    const timestamp = { seconds: 100, nanoseconds: 0 };
+    const pending = new Subject<any[]>();
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'm1', timestamp, content: 'atual' },
+    ] });
+    loadOlderMessages.mockReturnValue(pending.asObservable());
+
+    fixture.componentInstance.loadOlderMessages();
+    expect(fixture.componentInstance.loadingOlderMessages).toBe(true);
+
+    uid$.next(null);
+    pending.next([{ id: 'private-old', timestamp: { seconds: 10, nanoseconds: 0 } }]);
+    expect(fixture.componentInstance.messages).toEqual([]);
+    expect(fixture.componentInstance.loadingOlderMessages).toBe(false);
+    expect(pending.observed).toBe(false);
+  });
+
+  it('mantém retry disponível quando o histórico falha', () => {
+    const timestamp = { seconds: 100, nanoseconds: 0 };
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'm1', timestamp }] });
+    loadOlderMessages.mockReturnValue(throwError(() => new Error('offline')));
+
+    fixture.componentInstance.loadOlderMessages();
+
+    expect(fixture.componentInstance.historyLoadError).toBe(true);
+    expect(fixture.componentInstance.loadingOlderMessages).toBe(false);
+    expect(fixture.componentInstance.hasMoreHistory).toBe(true);
+    expect(fixture.componentInstance.messages.map(message => message.id)).toEqual(['m1']);
   });
 
   it('should create', () => {
