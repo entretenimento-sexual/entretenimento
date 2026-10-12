@@ -164,6 +164,41 @@ describe('ChatMessagesListComponent', () => {
     expect(loadOlderMessages).toHaveBeenCalledTimes(2);
   });
 
+  it.each(['permission-denied', 'unauthenticated'])(
+    'revoga acesso e limpa mensagens após erro %s na paginação',
+    (code) => {
+      const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+      threadState$.next({ chatId: 'c1', messages: [{ id: 'private', timestamp: stamp(100) }] });
+      loadOlderMessages.mockReturnValue(throwError(() => ({ code })));
+
+      fixture.componentInstance.loadOlderMessages();
+
+      expect(fixture.componentInstance.messages).toEqual([]);
+      expect(fixture.componentInstance.loadingOlderMessages).toBe(false);
+      expect(fixture.componentInstance.historyLoadError).toBe(false);
+      fixture.componentInstance.loadOlderMessages();
+      expect(loadOlderMessages).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(['permission-denied', 'unauthenticated'])(
+    'revoga acesso e limpa mensagens após erro %s na recuperação da lacuna',
+    (code) => {
+      const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+      threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
+      threadState$.next({ chatId: 'c1', messages: [{ id: 'recent', timestamp: stamp(100) }] });
+      loadOlderMessages.mockReturnValue(throwError(() => ({ code })));
+
+      fixture.componentInstance.recoverHistoryGap();
+
+      expect(fixture.componentInstance.messages).toEqual([]);
+      expect(fixture.componentInstance.historyGap).toBe(false);
+      expect(fixture.componentInstance.loadingGap).toBe(false);
+      fixture.componentInstance.recoverHistoryGap();
+      expect(loadOlderMessages).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it('apaga histórico acumulado quando a facade revoga a thread', () => {
     const timestamp = { seconds: 100, nanoseconds: 0 };
     threadState$.next({ chatId: 'c1', messages: [{ id: 'm1', timestamp }] });
