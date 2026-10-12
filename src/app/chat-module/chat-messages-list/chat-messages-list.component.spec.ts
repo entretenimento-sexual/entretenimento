@@ -277,6 +277,24 @@ describe('ChatMessagesListComponent', () => {
     ]);
   });
 
+  it('não acumula duas cópias da mesma expulsão após janela realtime oscilar', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    const original = Array.from({ length: 60 }, (_, i) => ({
+      id: `m-${i}`, timestamp: stamp(i + 1), senderId: 'other-user',
+    }));
+    const shifted = [...original.slice(1), {
+      id: 'm-60', timestamp: stamp(61), senderId: 'other-user',
+    }];
+    threadState$.next({ chatId: 'c1', messages: original });
+    threadState$.next({ chatId: 'c1', messages: shifted });
+    threadState$.next({ chatId: 'c1', messages: original });
+    threadState$.next({ chatId: 'c1', messages: shifted });
+
+    const accumulated = (fixture.componentInstance as any).olderMessages as any[];
+    expect(accumulated.filter(message => message.id === 'm-0')).toHaveLength(1);
+    expect(fixture.componentInstance.messages.filter(message => message.id === 'm-0')).toHaveLength(1);
+  });
+
   it('preserva mensagem expulsa da janela de 60 sem confundi-la com exclusão', () => {
     const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     const initial = Array.from({ length: 60 }, (_, i) => ({
