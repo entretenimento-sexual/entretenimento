@@ -135,6 +135,27 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.historyGap).toBe(true);
   });
 
+  it('marca erro sem avançar cursor quando a página completa não progride', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'previous', timestamp: stamp(10) },
+    ] });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'recent', timestamp: stamp(100) },
+    ] });
+    const repeated = Array.from({ length: 20 }, (_, i) => ({
+      id: `repeat-${i}`, timestamp: stamp(110 + i),
+    }));
+    loadOlderMessages.mockReturnValue(of(repeated));
+
+    fixture.componentInstance.recoverHistoryGap();
+    expect(fixture.componentInstance.historyGap).toBe(true);
+    expect(fixture.componentInstance.gapLoadError).toBe(true);
+    expect(fixture.componentInstance.loadingGap).toBe(false);
+    fixture.componentInstance.recoverHistoryGap();
+    expect(loadOlderMessages).toHaveBeenCalledTimes(2);
+  });
+
   it('deduplica IDs repetidos em uma página de recuperação de lacuna', () => {
     const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     threadState$.next({ chatId: 'c1', messages: [
