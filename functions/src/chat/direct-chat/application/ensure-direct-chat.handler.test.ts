@@ -292,6 +292,33 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
     }
   });
 
+  it('restaura a mesma conversa canônica após desfazer e refazer amizade', async () => {
+    const friendRef = db.doc(`users/${targetUid}/friends/${actorUid}`);
+    const initial = await ensure();
+    assert.equal(initial.chatId, canonicalRef.id);
+    const initialChat = await canonicalRef.get();
+    const originalRegistry = await registryRef.get();
+    assert.equal(originalRegistry.data()?.chatId, initial.chatId);
+
+    await friendRef.delete();
+    try {
+      await assert.rejects(ensure(), (error: any) =>
+        String(error?.code ?? '').includes('failed-precondition'));
+      assert.equal((await registryRef.get()).data()?.chatId, initial.chatId);
+      assert.equal((await canonicalRef.get()).exists, true);
+    } finally {
+      await friendRef.set({ accepted: true });
+    }
+
+    const reopened = await ensure();
+    assert.equal(reopened.chatId, initial.chatId);
+    assert.equal(reopened.created, false);
+    assert.equal(reopened.resolution, 'registered');
+    assert.deepEqual((await canonicalRef.get()).data()?.participants,
+      initialChat.data()?.participants);
+    assert.equal((await registryRef.get()).data()?.chatId, initial.chatId);
+  });
+
   it('revogação da amizade impede recuperar chat existente', async () => {
     const friendRef = db.doc(`users/${targetUid}/friends/${actorUid}`);
     await friendRef.delete();
