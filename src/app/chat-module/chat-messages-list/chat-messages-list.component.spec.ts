@@ -188,6 +188,43 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.messages[0].id).toBe('x00');
   });
 
+  it('detecta nova mensagem recebida mesmo quando a janela continua com 60 documentos', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    const initial = Array.from({ length: 60 }, (_, i) => ({
+      id: `m-${i}`, timestamp: stamp(i + 1), senderId: 'other-user',
+    }));
+    threadState$.next({ chatId: 'c1', messages: initial });
+    threadState$.next({ chatId: 'c1', messages: [
+      ...initial.slice(1), { id: 'm-new', timestamp: stamp(61), senderId: 'other-user' },
+    ] });
+    expect(fixture.componentInstance.messages.at(-1)?.id).toBe('m-new');
+    expect(fixture.componentInstance.messages).toHaveLength(60);
+  });
+
+  it('não ressuscita histórico removido dentro do intervalo realtime autoritativo', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    const initial = [
+      { id: 'oldest', timestamp: stamp(10) },
+      { id: 'overlap', timestamp: stamp(20) },
+      { id: 'latest', timestamp: stamp(30) },
+    ];
+    threadState$.next({ chatId: 'c1', messages: initial });
+    loadOlderMessages.mockReturnValue(of([
+      { id: 'historical', timestamp: stamp(5) },
+      { id: 'overlap', timestamp: stamp(20) },
+    ]));
+    fixture.componentInstance.loadOlderMessages();
+    expect(fixture.componentInstance.messages.map(m => m.id)).toContain('overlap');
+
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'oldest', timestamp: stamp(10) },
+      { id: 'latest', timestamp: stamp(30) },
+    ] });
+    expect(fixture.componentInstance.messages.map(m => m.id)).toEqual([
+      'historical', 'oldest', 'latest',
+    ]);
+  });
+
   it('should create', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
