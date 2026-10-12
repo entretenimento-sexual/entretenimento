@@ -135,6 +135,30 @@ describe('Firestore Rules / user blocks', () => {
     await assertFails(deleteDoc(blockRef));
   });
 
+  it('permite apenas get da própria projeção de acesso bilateral', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(
+        doc(context.firestore(), 'direct_chat_access', OWNER_UID, 'peers', TARGET_UID),
+        { available: false, version: 1, updatedAt: serverTimestamp() }
+      );
+    });
+    const ownerRef = doc(
+      authenticatedDb(OWNER_UID), 'direct_chat_access', OWNER_UID, 'peers', TARGET_UID
+    );
+    const outsiderRef = doc(
+      authenticatedDb(OUTSIDER_UID), 'direct_chat_access', OWNER_UID, 'peers', TARGET_UID
+    );
+
+    await assertSucceeds(getDoc(ownerRef));
+    await assertFails(getDoc(outsiderRef));
+    await assertFails(updateDoc(ownerRef, { available: true }));
+    await assertFails(deleteDoc(ownerRef));
+    await assertFails(setDoc(
+      doc(authenticatedDb(OWNER_UID), 'direct_chat_access', OWNER_UID, 'peers', OUTSIDER_UID),
+      { available: true, version: 1 }
+    ));
+  });
+
   it('nega qualquer escrita de evento diretamente pelo cliente', async () => {
     await seedBlockWithEvent();
     const db = authenticatedDb(OWNER_UID);
