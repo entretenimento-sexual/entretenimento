@@ -131,6 +131,31 @@ describe('Firestore Rules / direct chat receipts', () => {
     await assertFails(updateDoc(existingSession, { status: 'delivered' }));
   });
 
+  it('revoga leitura de mensagens após suspensão sem trocar a sessão', async () => {
+    const existingSession = message(RECIPIENT);
+    await assertSucceeds(getDoc(existingSession));
+    await env.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), 'users', RECIPIENT), {
+        accountStatus: 'suspended', loginAllowed: false,
+      });
+    });
+    await assertFails(getDoc(existingSession));
+    await assertFails(updateDoc(existingSession, { status: 'delivered' }));
+  });
+
+  it('revoga leitura e escrita quando participante sai da conversa', async () => {
+    const existingSession = message(RECIPIENT);
+    await assertSucceeds(getDoc(existingSession));
+    await env.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), 'chats', CHAT_ID), {
+        participants: [SENDER],
+      });
+    });
+    await assertFails(getDoc(existingSession));
+    await assertFails(updateDoc(existingSession, { status: 'delivered' }));
+    await assertSucceeds(getDoc(message(SENDER)));
+  });
+
   it('permite avanço sequencial sent -> delivered -> read', async () => {
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'delivered' }));
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'read' }));
