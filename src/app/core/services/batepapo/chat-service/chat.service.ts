@@ -99,17 +99,16 @@ export class ChatService implements OnDestroy {
    * - Regras “cliente” para habilitar listeners.
    * - A decisão final sempre deve ser reforçada em Rules/CF.
    */
-  private readonly canListen$ = combineLatest([
+  private readonly listeningUid$ = combineLatest([
     this.authSession.ready$,
     this.authSession.authUser$,
+    this.authSession.uid$,
     this.appBlock.reason$,
   ]).pipe(
-    map(([ready, user, blocked]) => {
-      if (!ready) return false;
-      if (!user?.uid) return false;
-      if (blocked) return false;
-      if (user.emailVerified !== true) return false;
-      return true;
+    map(([ready, user, uid, blocked]): string | null => {
+      if (!ready || blocked || !uid || user?.uid !== uid) return null;
+      if (user.emailVerified !== true) return null;
+      return uid;
     }),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -251,9 +250,9 @@ export class ChatService implements OnDestroy {
     const cid = (chatId ?? '').toString().trim();
     if (!cid) return of([]);
 
-    return this.canListen$.pipe(
-      switchMap(canListen => {
-        if (!canListen) return of([] as Message[]);
+    return this.listeningUid$.pipe(
+      switchMap(listeningUid => {
+        if (!listeningUid) return of([] as Message[]);
         return this.msgsRepo.watchMessages$(cid, 200);
       }),
       catchError(err => this.reportSilent('monitorChat', err))
@@ -290,8 +289,8 @@ export class ChatService implements OnDestroy {
     if (!id) return of([]);
 
     return this.canListen$.pipe(
-      switchMap(canListen => {
-        if (!canListen) return of([] as IChat[]);
+      switchMap(listeningUid => {
+        if (listeningUid !== id) return of([] as IChat[]);
         return this.chatsRepo.watchChats$(id, limit);
       }),
       catchError(err => this.reportSilent('watchChats$', err))
@@ -317,8 +316,8 @@ export class ChatService implements OnDestroy {
 
         return this.canListen$.pipe(
           take(1),
-          switchMap(canListen => {
-            if (!lastChatTimestamp && canListen) {
+          switchMap(listeningUid => {
+            if (!lastChatTimestamp && listeningUid === uid) {
               return this.chatsRepo.watchChats$(uid, 10).pipe(
                 tap(list => this.cache.set(cacheKey, list))
               );
