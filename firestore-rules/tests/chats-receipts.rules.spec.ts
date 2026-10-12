@@ -156,7 +156,9 @@ describe('Firestore Rules / direct chat receipts', () => {
     await assertSucceeds(getDoc(message(SENDER)));
   });
 
-  it('impede nova página de mensagens após remoção de participante', async () => {
+  it.each(['remoção', 'suspensão', 'bloqueio do remetente', 'bloqueio do destinatário'])(
+    'impede página seguinte após %s',
+    async (revocation) => {
     const currentSession = env.authenticatedContext(
       RECIPIENT, { email_verified: true }
     ).firestore();
@@ -176,9 +178,21 @@ describe('Firestore Rules / direct chat receipts', () => {
     )));
     expect(first.docs).toHaveLength(1);
     await env.withSecurityRulesDisabled(async (context) => {
-      await updateDoc(doc(context.firestore(), 'chats', CHAT_ID), {
-        participants: [SENDER],
-      });
+      const admin = context.firestore();
+      if (revocation === 'remoção') {
+        await updateDoc(doc(admin, 'chats', CHAT_ID), { participants: [SENDER] });
+      } else if (revocation === 'suspensão') {
+        await updateDoc(doc(admin, 'users', RECIPIENT), {
+          accountStatus: 'suspended', loginAllowed: false,
+        });
+      } else {
+        const owner = revocation === 'bloqueio do remetente' ? SENDER : RECIPIENT;
+        const target = owner === SENDER ? RECIPIENT : SENDER;
+        await setDoc(doc(admin, 'users', owner, 'blocks', target), {
+          uid: target, isBlocked: true, actorUid: owner,
+          blockedAt: new Date(), updatedAt: new Date(),
+        });
+      }
     });
     await assertFails(getDocs(query(
       messages, orderBy('timestamp', 'desc'), startAfter(first.docs[0]), limit(1)
