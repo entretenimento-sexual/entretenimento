@@ -27,9 +27,9 @@ export class DirectChatAvailabilityService {
       const reference = doc(this.firestore, 'direct_chat_access', owner, 'peers', peer);
       return docData(reference) as Observable<DirectChatAccessProjection | undefined>;
     })).pipe(
-      // Registros legados ainda podem não possuir projeção. O snapshot ausente
-      // não concede autorização: a leitura da thread continua protegida nas Rules.
-      map(projection => projection?.available !== false),
+      // Projeção ausente ou sem versão reconhecida permanece indisponível.
+      // O backend/Rules continuam sendo a autoridade de autorização.
+      map(projection => projection?.version === 1 && projection.available === true),
       // Falha na observação não deve deixar dados privados em tela.
       catchError(() => of(false))
     );
