@@ -465,6 +465,23 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.messages.some(m => m.id === 'stale')).toBe(false);
   });
 
+  it('revogação da thread cancela recuperação pendente e limpa dados privados', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'recent', timestamp: stamp(100) }] });
+    const pending = new Subject<any[]>();
+    loadOlderMessages.mockReturnValue(pending.asObservable());
+    fixture.componentInstance.recoverHistoryGap();
+    expect(pending.observed).toBe(true);
+
+    threadState$.next({ chatId: '', messages: [] });
+    expect(pending.observed).toBe(false);
+    pending.next([{ id: 'private', timestamp: stamp(50) }]);
+    expect(fixture.componentInstance.messages).toEqual([]);
+    expect(fixture.componentInstance.historyGap).toBe(false);
+    expect(fixture.componentInstance.loadingGap).toBe(false);
+  });
+
   it('cancela recuperação da lacuna ao encerrar sessão', () => {
     const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
