@@ -203,6 +203,38 @@ describe('DirectThreadService', () => {
     sub.unsubscribe();
   });
 
+  it('reconexão reabre stream, descarta snapshots antigos e entrega estado atualizado', () => {
+    const beforeOffline = new Subject<any[]>();
+    const afterReconnect = new Subject<any[]>();
+    chatServiceMock.monitorChat
+      .mockReturnValueOnce(beforeOffline.asObservable())
+      .mockReturnValueOnce(afterReconnect.asObservable());
+    const received: any[][] = [];
+    const subscription = service.observeMessages$('chat-1')
+      .subscribe((messages: any[]) => received.push(messages));
+
+    beforeOffline.next([{ id: 'old', status: 'sent' }]);
+    expect(received.at(-1)).toEqual([{ id: 'old', status: 'sent' }]);
+
+    canListenRealtime$.next(false);
+    expect(beforeOffline.observers.length).toBe(0);
+    expect(received.at(-1)).toEqual([]);
+
+    beforeOffline.next([{ id: 'stale', status: 'sent' }]);
+    expect(received.some(items => items.some(item => item.id === 'stale'))).toBe(false);
+
+    canListenRealtime$.next(true);
+    expect(chatServiceMock.monitorChat).toHaveBeenCalledTimes(2);
+    afterReconnect.next([{ id: 'old', status: 'read' }, { id: 'latest', status: 'delivered' }]);
+    expect(received.at(-1)).toEqual([
+      { id: 'old', status: 'read' },
+      { id: 'latest', status: 'delivered' },
+    ]);
+    expect(afterReconnect.observers.length).toBe(1);
+    subscription.unsubscribe();
+    expect(afterReconnect.observers.length).toBe(0);
+  });
+
   it('descarta falha tardia da callable após troca de conta sem snackbar', async () => {
     let rejectPending!: (reason: unknown) => void;
     sendCallableMock.mockImplementationOnce(() => new Promise((_resolve, reject) => {
