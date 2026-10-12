@@ -122,10 +122,9 @@ export class DirectThreadService {
           return of([] as Message[]);
         }
 
-        return this.chatService.monitorChat(safeChatId).pipe(
-          // ChatService já diagnosticou a falha do transporte antes do rethrow.
-          catchError(() => of([] as Message[]))
-        );
+        // A camada legada já registra a falha técnica. A facade é responsável
+        // pelo estado seguro da thread, sem converter erro em snapshot vazio aqui.
+        return this.chatService.monitorChat(safeChatId);
       }),
       tap((messages) => {
         this.dbg('observeMessages$', {
