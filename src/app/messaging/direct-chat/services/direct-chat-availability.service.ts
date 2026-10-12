@@ -12,6 +12,37 @@ interface DirectChatAccessProjection {
 
 @Injectable({ providedIn: 'root' })
 export class DirectChatAvailabilityService {
+  private readonly inFlight = new Map<string, Promise<unknown>>();
+  private readonly lastAttempt = new Map<string, number>();
+  private static readonly RETRY_AFTER_MS = 60_000;
+
+  private reconcile$(owner: string, peer: string): Observable<boolean> {
+    const key = JSON.stringify([owner, peer]);
+    return defer(() => {
+      let pending = this.inFlight.get(key);
+      if (!pending) {
+        const now = Date.now();
+        if (now - (this.lastAttempt.get(key) ?? -Infinity) < DirectChatAvailabilityService.RETRY_AFTER_MS) {
+          return of(false);
+        }
+        this.lastAttempt.set(key, now);
+        const reconcile = runInInjectionContext(this.injector, () =>
+          httpsCallable<{ peerUid: string }, { reconciled: boolean }>(
+            this.functions, 'reconcileDirectChatAccess'
+          )
+        );
+        pending = Promise.resolve().then(() => reconcile({ peerUid: peer })).then(
+          () => undefined,
+          () => undefined
+        );
+        this.inFlight.set(key, pending);
+        void pending.finally(() => {
+          if (this.inFlight.get(key) === pending) this.inFlight.delete(key);
+        });
+      }
+      return from(pending).pipe(switchMap(() => of(false)));
+    });
+  }
   constructor(
     private readonly firestore: Firestore,
     private readonly injector: EnvironmentInjector,
@@ -35,17 +66,7 @@ export class DirectChatAvailabilityService {
         }
         // Apenas a ausência ou formato legado solicita reconciliação.
         // A chamada não libera acesso; aguardamos o novo snapshot validado.
-        return defer(() => {
-          const reconcile = runInInjectionContext(this.injector, () =>
-            httpsCallable<{ peerUid: string }, { reconciled: boolean }>(
-              this.functions, 'reconcileDirectChatAccess'
-            )
-          );
-          return from(reconcile({ peerUid: peer }));
-        }).pipe(
-          switchMap(() => of(false)),
-          catchError(() => of(false))
-        );
+        return this.reconcile$(owner, peer);
       }),
       catchError(() => of(false))
     );
