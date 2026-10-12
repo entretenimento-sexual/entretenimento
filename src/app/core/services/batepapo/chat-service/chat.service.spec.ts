@@ -37,6 +37,7 @@ function createHarness() {
     updateMessageStatus$: vi.fn(),
     setMessageReaction$: vi.fn(),
     watchMessages$: vi.fn(),
+    getMessagesPageOnce$: vi.fn(),
   };
 
   const applicationError = {
@@ -56,6 +57,22 @@ function createHarness() {
 }
 
 describe('ChatService canonical errors', () => {
+  it('encaminha cursor composto e mantém carregamento inicial compatível', async () => {
+    const { service, msgsRepo } = createHarness();
+    const timestamp = { seconds: 100, nanoseconds: 0 } as any;
+    msgsRepo.getMessagesPageOnce$.mockReturnValue(of([{ id: 'older-1' }]));
+    const page = await firstValueFrom(service.getMessages('chat-1', timestamp, 'older-2'));
+    expect(page).toEqual([{ id: 'older-1' }]);
+    expect(msgsRepo.getMessagesPageOnce$).toHaveBeenCalledWith(
+      'chat-1', timestamp, 20, 'older-2'
+    );
+    await firstValueFrom(service.getMessages('chat-1'));
+    expect(msgsRepo.getMessagesPageOnce$).toHaveBeenLastCalledWith(
+      'chat-1', undefined, 20, undefined
+    );
+  });
+
+
   it('reporta erro técnico uma única vez e o mantém silencioso', async () => {
     const { service, applicationError } = createHarness();
     const error = new Error('repository failed');
