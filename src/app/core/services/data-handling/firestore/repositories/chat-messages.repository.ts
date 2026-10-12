@@ -217,7 +217,7 @@ export class ChatMessagesRepository {
     );
   }
 
-  watchMessages$(chatId: string, pageSize = 200): Observable<Message[]> {
+  watchMessages$(chatId: string, pageSize = 60): Observable<Message[]> {
     const cid = this.normChatId(chatId);
     if (!cid) return of([]);
 
@@ -233,8 +233,14 @@ export class ChatMessagesRepository {
       // cronológica crescente, sem alterar o contrato de monitorChat.
       map((arr) => [...(arr ?? [])].reverse() as Message[]),
       catchError((err) => {
-        this.reportSilent('watchMessages$', err);
-        return of([]);
+        this.reportSilent('watchMessages
+    );
+  }
+}
+, err);
+        // Não disfarçar perda de permissão ou erro de transporte como chat vazio.
+        // O chamador controla a limpeza da thread e eventual feedback ao usuário.
+        return throwError(() => err);
       })
     );
   }
