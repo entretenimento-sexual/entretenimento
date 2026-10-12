@@ -85,6 +85,7 @@ const expectedDeploymentExports = [
   'endFriendship',
   'ensureCurrentLegalNotice',
   'ensureDirectChat',
+  'reconcileDirectChatAccess',
   'expireAgeEligibilityAtBoundary',
   'expireAgeEligibilityRecords',
   'findCommunityInviteCandidate',
