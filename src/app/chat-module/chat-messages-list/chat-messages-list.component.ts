@@ -79,6 +79,13 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
   loadingOlderMessages = false;
   hasMoreHistory = true;
   historyLoadError = false;
+  historyGap = false;
+  private gapCursor: Message | null = null;
+  private gapTarget: Message | null = null;
+  private gapRequestSub?: Subscription;
+  private gapRequestId = 0;
+  loadingGap = false;
+  gapLoadError = false;
   private olderMessages: Message[] = [];
   private latestRealtimeMessages: Message[] = [];
   private historyRequestSub?: Subscription;
@@ -128,6 +135,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     this.activeThreadSub?.unsubscribe();
     this.activeThreadSub = undefined;
     this.cancelHistoryRequest();
+    this.cancelGapRequest();
     this.detachScrollWatcher();
     this.cancelScheduledScroll();
   }
@@ -148,6 +156,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
         this.activeThreadSub?.unsubscribe();
         this.activeThreadSub = undefined;
         this.cancelHistoryRequest();
+        this.cancelGapRequest();
         this.detachScrollWatcher();
         this.resetThreadState();
         // Uma thread escolhida pela sessão anterior nunca pode ser reaberta
@@ -191,6 +200,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
       this.latestRealtimeMessages = [];
       this.hasMoreHistory = true;
       this.historyLoadError = false;
+      this.resetGap();
     }
 
     const source$ =
@@ -207,8 +217,16 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
             // Um snapshot vazio não é prova de expulsão por limite;
             // nunca retenha mensagens privadas sem uma janela válida.
             this.olderMessages = [];
+            this.resetGap();
           } else if (this.latestRealtimeMessages.length) {
             const floor = incoming[0];
+            const previousLatest = this.latestRealtimeMessages[this.latestRealtimeMessages.length - 1];
+            if (!this.historyGap && this.compareMessages(previousLatest, floor) < 0) {
+              this.gapTarget = previousLatest;
+              this.gapCursor = floor;
+              this.historyGap = true;
+              this.gapLoadError = false;
+            }
             const currentIds = new Set(incoming.map(message => message.id));
             // Uma mensagem que passou para antes do novo limite inferior
             // continua disponível na leitura local; ausência dentro da
@@ -241,6 +259,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
           this.latestRealtimeMessages = [];
           this.hasMoreHistory = true;
           this.historyLoadError = false;
+          this.resetGap();
           return [] as Message[];
         }
 
@@ -356,6 +375,75 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
         this.cdRef.detectChanges();
       },
     });
+  }
+
+  /** Recupera apenas uma página da lacuna detectada após reconexão. */
+  recoverHistoryGap(): void {
+    const cursor = this.gapCursor;
+    const target = this.gapTarget;
+    const chatId = this.chatId;
+    const uid = this.currentUserUid;
+    if (!this.historyGap || !cursor || !target || !chatId || !uid ||
+        this.loadingGap || this.type !== 'chat') return;
+
+    const request = ++this.gapRequestId;
+    this.loadingGap = true;
+    this.gapLoadError = false;
+    this.gapRequestSub = this.directThreadFacade.loadOlderMessages$(
+      chatId, cursor.timestamp as Timestamp, String(cursor.id)
+    ).pipe(take(1)).subscribe({
+      next: page => {
+        if (request !== this.gapRequestId || chatId !== this.chatId ||
+            uid !== this.currentUserUid || this.activeThreadKey !== `chat:${chatId}`) return;
+        const sorted = [...(page ?? [])].sort((a, b) => this.compareMessages(a, b));
+        const recovered = sorted.filter(message => this.compareMessages(message, target) > 0);
+        const knownIds = new Set(this.messages.map(message => message.id));
+        this.olderMessages = [
+          ...recovered.filter(message => !!message.id && !knownIds.has(message.id)),
+          ...this.olderMessages,
+        ];
+        if (!sorted.length || sorted.some(message => this.compareMessages(message, target) <= 0)) {
+          this.historyGap = false;
+        } else {
+          const nextCursor = sorted[0];
+          if (this.compareMessages(nextCursor, cursor) >= 0) {
+            this.gapLoadError = true;
+          } else {
+            this.gapCursor = nextCursor;
+          }
+        }
+        this.loadingGap = false;
+        this.renderMessages(this.combineHistoryAndRealtime(), true);
+      },
+      error: error => {
+        if (request !== this.gapRequestId) return;
+        this.loadingGap = false;
+        this.gapLoadError = true;
+        this.reportError('Não foi possível recuperar o intervalo de mensagens.', error,
+          { op: 'recoverHistoryGap', chatId });
+        this.cdRef.detectChanges();
+      },
+      complete: () => {
+        if (request !== this.gapRequestId) return;
+        this.loadingGap = false;
+        this.cdRef.detectChanges();
+      },
+    });
+  }
+
+  private cancelGapRequest(): void {
+    ++this.gapRequestId;
+    this.gapRequestSub?.unsubscribe();
+    this.gapRequestSub = undefined;
+    this.loadingGap = false;
+  }
+
+  private resetGap(): void {
+    this.cancelGapRequest();
+    this.historyGap = false;
+    this.gapCursor = null;
+    this.gapTarget = null;
+    this.gapLoadError = false;
   }
 
   private compareMessages(a: Message, b: Message): number {
@@ -691,6 +779,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
 
   private resetThreadState(): void {
     this.cancelHistoryRequest();
+    this.resetGap();
     this.activeThreadKey = '';
     this.olderMessages = [];
     this.latestRealtimeMessages = [];
