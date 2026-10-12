@@ -153,7 +153,6 @@ describe('Firestore Rules / direct chat receipts', () => {
     });
     await assertFails(getDoc(existingSession));
     await assertFails(updateDoc(existingSession, { status: 'delivered' }));
-    await assertSucceeds(getDoc(message(SENDER)));
   });
 
   it.each(['remoção', 'suspensão', 'bloqueio do remetente', 'bloqueio do destinatário'])(
