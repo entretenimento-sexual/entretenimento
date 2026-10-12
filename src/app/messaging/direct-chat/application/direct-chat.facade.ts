@@ -200,7 +200,7 @@ export class DirectChatFacade {
       const participants = chat?.participants ?? [];
       if (
         !chat ||
-        chat.isRoom === true ||
+        Boolean((chat as { isRoom?: boolean }).isRoom) ||
         !session.uid ||
         participants.length !== 2 ||
         participants[0] === participants[1] ||
