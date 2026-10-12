@@ -350,6 +350,51 @@ describe('ChatMessagesListComponent', () => {
     expect(container.scrollTop).toBe(240);
   });
 
+  it('mescla chegada realtime durante recuperação pendente sem duplicar nem perder mensagens', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'recent', timestamp: stamp(100) }] });
+    const pending = new Subject<any[]>();
+    loadOlderMessages.mockReturnValue(pending.asObservable());
+
+    fixture.componentInstance.recoverHistoryGap();
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'recent', timestamp: stamp(100) },
+      { id: 'incoming', timestamp: stamp(101), senderId: 'other-user' },
+    ] });
+    pending.next([
+      { id: 'bridge', timestamp: stamp(50) },
+      { id: 'recent', timestamp: stamp(100) },
+    ]);
+    pending.complete();
+
+    const ids = fixture.componentInstance.messages.map(m => m.id);
+    expect(ids).toEqual(['old', 'bridge', 'recent', 'incoming']);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('não restaura mensagem excluída do intervalo realtime durante recuperação', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'recent', timestamp: stamp(100) },
+      { id: 'removed', timestamp: stamp(101) },
+    ] });
+    const pending = new Subject<any[]>();
+    loadOlderMessages.mockReturnValue(pending.asObservable());
+    fixture.componentInstance.recoverHistoryGap();
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'recent', timestamp: stamp(100) }] });
+    pending.next([
+      { id: 'bridge', timestamp: stamp(50) },
+      { id: 'removed', timestamp: stamp(101) },
+    ]);
+    pending.complete();
+
+    const ids = fixture.componentInstance.messages.map(m => m.id);
+    expect(ids).toContain('bridge');
+    expect(ids).not.toContain('removed');
+  });
+
   it('cancela recuperação da lacuna ao encerrar sessão', () => {
     const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
