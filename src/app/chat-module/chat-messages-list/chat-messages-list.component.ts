@@ -133,8 +133,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
   ngOnDestroy(): void {
     this.activeThreadSub?.unsubscribe();
     this.activeThreadSub = undefined;
-    this.cancelHistoryRequest();
-    this.cancelGapRequest();
+    this.cancelPendingReads();
     this.detachScrollWatcher();
     this.cancelScheduledScroll();
   }
@@ -154,8 +153,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
         this.currentUserUid = nextUid;
         this.activeThreadSub?.unsubscribe();
         this.activeThreadSub = undefined;
-        this.cancelHistoryRequest();
-        this.cancelGapRequest();
+        this.cancelPendingReads();
         this.detachScrollWatcher();
         this.resetThreadState();
         // Uma thread escolhida pela sessão anterior nunca pode ser reaberta
@@ -180,8 +178,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
 
     this.activeThreadSub?.unsubscribe();
     this.activeThreadSub = undefined;
-    this.cancelHistoryRequest();
-    this.cancelGapRequest();
+    this.cancelPendingReads();
     this.detachScrollWatcher();
 
     if (this.requiresFreshThreadSelection || !this.currentUserUid || !safeChatId || (safeType !== 'chat' && safeType !== 'room')) {
@@ -450,6 +447,11 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
         this.cdRef.detectChanges();
       },
     });
+  }
+
+  private cancelPendingReads(): void {
+    this.cancelHistoryRequest();
+    this.cancelGapRequest();
   }
 
   private cancelGapRequest(): void {
@@ -799,7 +801,6 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private resetThreadState(): void {
-    this.cancelHistoryRequest();
     this.resetGap();
     this.activeThreadKey = '';
     this.olderMessages = [];
