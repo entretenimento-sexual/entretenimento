@@ -16,3 +16,13 @@ match /users/{ownerUid}/blocks/{targetUid} {
     allow create, update, delete: if false;
   }
 }
+
+
+// Projeção privada e derivada da disponibilidade bilateral da conversa.
+// Cliente consulta somente seu próprio estado, sem identificar bloqueador.
+// Criação e mutação são estritamente backend-only. A ausência da projeção
+// não autoriza interações: Rules e Cloud Functions mantêm a autoridade.
+match /direct_chat_access/{ownerUid}/peers/{peerUid} {
+  allow get: if isSelf(ownerUid);
+  allow list, create, update, delete: if false;
+}
