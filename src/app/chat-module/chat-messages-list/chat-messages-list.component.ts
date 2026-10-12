@@ -412,10 +412,12 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
         const sorted = [...(page ?? [])].sort((a, b) => this.compareMessages(a, b));
         const recovered = sorted.filter(message => this.compareMessages(message, target) > 0);
         const knownIds = new Set(this.messages.map(message => message.id));
-        this.olderMessages = [
-          ...recovered.filter(message => !!message.id && !knownIds.has(message.id)),
-          ...this.olderMessages,
-        ];
+        const uniqueRecovered = recovered.filter(message => {
+          if (!message.id || knownIds.has(message.id)) return false;
+          knownIds.add(message.id);
+          return true;
+        });
+        this.olderMessages = [...uniqueRecovered, ...this.olderMessages];
         if (sorted.length < 20 || sorted.some(message => this.compareMessages(message, target) <= 0)) {
           this.historyGap = false;
         } else {
