@@ -203,6 +203,22 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
       .subscribe((messages) => {
         const incoming = Array.isArray(messages) ? messages : [];
         if (safeType === 'chat') {
+          if (!incoming.length) {
+            // Um snapshot vazio não é prova de expulsão por limite;
+            // nunca retenha mensagens privadas sem uma janela válida.
+            this.olderMessages = [];
+          } else if (this.latestRealtimeMessages.length) {
+            const floor = incoming[0];
+            const currentIds = new Set(incoming.map(message => message.id));
+            // Uma mensagem que passou para antes do novo limite inferior
+            // continua disponível na leitura local; ausência dentro da
+            // janela observada indica remoção ou perda de autorização.
+            const evicted = this.latestRealtimeMessages.filter(message =>
+              !!message.id && !currentIds.has(message.id) &&
+              this.compareMessages(message, floor) < 0
+            );
+            this.olderMessages = [...evicted, ...this.olderMessages];
+          }
           this.latestRealtimeMessages = incoming;
           this.renderMessages(this.combineHistoryAndRealtime());
         } else {
@@ -342,32 +358,24 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     });
   }
 
+  private compareMessages(a: Message, b: Message): number {
+    const left = a.timestamp as Timestamp | undefined;
+    const right = b.timestamp as Timestamp | undefined;
+    return ((left?.seconds ?? 0) - (right?.seconds ?? 0)) ||
+      ((left?.nanoseconds ?? 0) - (right?.nanoseconds ?? 0)) ||
+      String(a.id).localeCompare(String(b.id), 'en');
+  }
+
   private combineHistoryAndRealtime(): Message[] {
-    // A janela realtime é autoritativa para o intervalo que cobre.
-    // Histórico em sobreposição não pode ressuscitar mensagens excluídas.
-    const firstRealtime = this.latestRealtimeMessages[0];
-    const compare = (a: Message, b: Message): number => {
-      const left = a.timestamp as Timestamp | undefined;
-      const right = b.timestamp as Timestamp | undefined;
-      return ((left?.seconds ?? 0) - (right?.seconds ?? 0)) ||
-        ((left?.nanoseconds ?? 0) - (right?.nanoseconds ?? 0)) ||
-        String(a.id).localeCompare(String(b.id), 'en');
-    };
-    const historical = firstRealtime
-      ? this.olderMessages.filter(message => compare(message, firstRealtime) < 0)
-      : this.olderMessages;
+    const floor = this.latestRealtimeMessages[0];
+    const historical = floor
+      ? this.olderMessages.filter(message => this.compareMessages(message, floor) < 0)
+      : [];
     const messages = new Map<string, Message>();
     for (const message of [...historical, ...this.latestRealtimeMessages]) {
       if (message.id) messages.set(message.id, message);
     }
-    return [...messages.values()].sort((a, b) => {
-      const left = a.timestamp as Timestamp | undefined;
-      const right = b.timestamp as Timestamp | undefined;
-      const seconds = (left?.seconds ?? 0) - (right?.seconds ?? 0);
-      if (seconds) return seconds;
-      const nanos = (left?.nanoseconds ?? 0) - (right?.nanoseconds ?? 0);
-      return nanos || String(a.id).localeCompare(String(b.id), 'en');
-    });
+    return [...messages.values()].sort((a, b) => this.compareMessages(a, b));
   }
 
   private cancelHistoryRequest(): void {
