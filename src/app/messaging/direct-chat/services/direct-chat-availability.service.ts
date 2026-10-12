@@ -1,8 +1,9 @@
 // Projeção privada derivada. Nunca substitui Rules ou Cloud Functions.
 import { EnvironmentInjector, Injectable, runInInjectionContext } from '@angular/core';
 import { doc, docData, Firestore } from '@angular/fire/firestore';
-import { defer, Observable, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { Functions, httpsCallable } from '@angular/fire/functions';
+import { defer, from, Observable, of } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
 
 interface DirectChatAccessProjection {
   available?: unknown;
@@ -13,7 +14,8 @@ interface DirectChatAccessProjection {
 export class DirectChatAvailabilityService {
   constructor(
     private readonly firestore: Firestore,
-    private readonly injector: EnvironmentInjector
+    private readonly injector: EnvironmentInjector,
+    private readonly functions: Functions
   ) {}
 
   observe$(ownerUid: string, peerUid: string): Observable<boolean> {
@@ -27,10 +29,24 @@ export class DirectChatAvailabilityService {
       const reference = doc(this.firestore, 'direct_chat_access', owner, 'peers', peer);
       return docData(reference) as Observable<DirectChatAccessProjection | undefined>;
     })).pipe(
-      // Projeção ausente ou sem versão reconhecida permanece indisponível.
-      // O backend/Rules continuam sendo a autoridade de autorização.
-      map(projection => projection?.version === 1 && projection.available === true),
-      // Falha na observação não deve deixar dados privados em tela.
+      switchMap((projection) => {
+        if (projection?.version === 1 && typeof projection.available === 'boolean') {
+          return of(projection.available);
+        }
+        // Apenas a ausência ou formato legado solicita reconciliação.
+        // A chamada não libera acesso; aguardamos o novo snapshot validado.
+        return defer(() => {
+          const reconcile = runInInjectionContext(this.injector, () =>
+            httpsCallable<{ peerUid: string }, { reconciled: boolean }>(
+              this.functions, 'reconcileDirectChatAccess'
+            )
+          );
+          return from(reconcile({ peerUid: peer }));
+        }).pipe(
+          switchMap(() => of(false)),
+          catchError(() => of(false))
+        );
+      }),
       catchError(() => of(false))
     );
   }
