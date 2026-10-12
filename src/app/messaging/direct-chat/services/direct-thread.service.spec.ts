@@ -148,33 +148,19 @@ describe('DirectThreadService', () => {
       throwError(() => new Error('firestore down'))
     );
 
-    const result = await firstValueFrom(service.observeMessages$('chat-1'));
-
-    expect(result).toEqual([]);
+    await expect(firstValueFrom(service.observeMessages$('chat-1')))
+      .rejects.toThrow('firestore down');
     expect(applicationErrorMock.report).not.toHaveBeenCalled();
     expect(errorNotifierMock.showError).not.toHaveBeenCalled();
   });
 
-  it('observeMessages$ diagnostica silenciosamente falha originada no gate', async () => {
+  it('observeMessages$ repassa falha do gate para diagnóstico da facade', async () => {
     const error = new Error('gate failed');
     canListenRealtime$.error(error);
 
-    const result = await firstValueFrom(service.observeMessages$('chat-1'));
-
-    expect(result).toEqual([]);
-    expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
-    expect(applicationErrorMock.report).toHaveBeenCalledWith(error, {
-      feature: 'direct-thread',
-      operation: 'DirectThreadService.observeMessages$',
-      fallbackMessage:
-        'Não foi possível concluir uma operação interna da conversa direta.',
-      presentation: { surface: 'none', severity: 'error' },
-      metadata: {
-        scope: 'DirectThreadService',
-        context: 'DirectThreadService.observeMessages$',
-        chatId: 'chat-1',
-      },
-    });
+    await expect(firstValueFrom(service.observeMessages$('chat-1')))
+      .rejects.toBe(error);
+    expect(applicationErrorMock.report).not.toHaveBeenCalled();
   });
 
   it('não recria listener quando UID e permissão emitem valores idênticos', () => {
