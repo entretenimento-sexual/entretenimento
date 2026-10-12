@@ -134,6 +134,28 @@ describe('DirectThreadFacade', () => {
     };
   }
 
+  it('não rediagnostica falha realtime já registrada pelo ChatService', async () => {
+    const { facade, directThreadService, applicationError } = setup();
+    const error = Object.assign(new Error('transport failed'), {
+      chatApplicationErrorReported: true,
+    });
+    directThreadService.observeMessages$.mockReturnValue(throwError(() => error));
+
+    const state = await firstValueFrom(facade.state$);
+    expect(state.messages).toEqual([]);
+    expect(applicationError.report).not.toHaveBeenCalled();
+  });
+
+  it('diagnostica falha nova do listener uma única vez', async () => {
+    const { facade, directThreadService, applicationError } = setup();
+    const error = new Error('unexpected gate error');
+    directThreadService.observeMessages$.mockReturnValue(throwError(() => error));
+
+    const state = await firstValueFrom(facade.state$);
+    expect(state.messages).toEqual([]);
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
+  });
+
   it('não associa mensagens da thread anterior ao novo chat ou à nova sessão', () => {
     const selectedChatId$ = new BehaviorSubject<string | null>('chat-1');
     const uid$ = new BehaviorSubject<string | null>('user-a');
