@@ -359,7 +359,13 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
         const oldHeight = scroll?.scrollHeight ?? 0;
         const oldTop = scroll?.scrollTop ?? 0;
         const knownIds = new Set(this.messages.map(message => message.id));
-        const unique = (page ?? []).filter(message => !!message.id && !knownIds.has(message.id));
+        // Uma página sobreposta ou com IDs repetidos não deve duplicar
+        // referências privadas retidas na memória da thread.
+        const unique = (page ?? []).filter(message => {
+          if (!message.id || knownIds.has(message.id)) return false;
+          knownIds.add(message.id);
+          return true;
+        });
         this.olderMessages = [...unique, ...this.olderMessages];
         this.hasMoreHistory = (page ?? []).length === 20 && unique.length > 0;
         this.loadingOlderMessages = false;
