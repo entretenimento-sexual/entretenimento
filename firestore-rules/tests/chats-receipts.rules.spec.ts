@@ -113,6 +113,24 @@ describe('Firestore Rules / direct chat receipts', () => {
     await assertFails(updateDoc(currentSession, { status: 'delivered' }));
   });
 
+  it.each([
+    [SENDER, RECIPIENT],
+    [RECIPIENT, SENDER],
+  ])('revoga leitura e recibos após bloqueio de %s para %s', async (owner, target) => {
+    const existingSession = message(RECIPIENT);
+    await assertSucceeds(getDoc(existingSession));
+
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users', owner, 'blocks', target), {
+        uid: target, isBlocked: true, actorUid: owner,
+        blockedAt: new Date(), updatedAt: new Date(),
+      });
+    });
+
+    await assertFails(getDoc(existingSession));
+    await assertFails(updateDoc(existingSession, { status: 'delivered' }));
+  });
+
   it('permite avanço sequencial sent -> delivered -> read', async () => {
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'delivered' }));
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'read' }));
