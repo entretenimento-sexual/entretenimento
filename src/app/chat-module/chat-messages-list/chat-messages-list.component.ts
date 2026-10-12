@@ -397,6 +397,14 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     const uid = this.currentUserUid;
     if (!this.historyGap || !cursor || !target || !chatId || !uid ||
         this.loadingGap || this.type !== 'chat') return;
+    // Cursor inválido é um erro determinístico: não repetir leitura paga.
+    const cursorId = String(cursor.id ?? '').trim();
+    const stamp = cursor.timestamp as Timestamp | undefined;
+    if (!cursorId || typeof stamp?.seconds !== 'number') {
+      this.gapLoadError = true;
+      this.cdRef.detectChanges();
+      return;
+    }
 
     const request = ++this.gapRequestId;
     // Uma recuperação manual não deve executar um auto-scroll pendente.
@@ -404,7 +412,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     this.loadingGap = true;
     this.gapLoadError = false;
     this.gapRequestSub = this.directThreadFacade.loadOlderMessages$(
-      chatId, cursor.timestamp as Timestamp, String(cursor.id)
+      chatId, stamp, cursorId
     ).pipe(take(1)).subscribe({
       next: page => {
         if (request !== this.gapRequestId || chatId !== this.chatId ||
