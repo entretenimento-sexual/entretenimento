@@ -295,6 +295,16 @@ describe('DirectReceiptsService', () => {
     expect(updateMessageStatus).toHaveBeenCalledTimes(2);
   });
 
+  it('limpa confirmação no logout mesmo sem operação durante a sessão encerrada', async () => {
+    const { service, updateMessageStatus, uid } = setup();
+    const messages = [{ id: 'logout-msg', senderId: 'peer', status: 'sent' }] as any;
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', messages))).toBe(1);
+    uid.next(null);
+    uid.next('me');
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', messages))).toBe(1);
+    expect(updateMessageStatus).toHaveBeenCalledTimes(2);
+  });
+
   it('falha de escrita não ativa deduplicação temporal', async () => {
     const { service, updateMessageStatus } = setup();
     updateMessageStatus.mockImplementationOnce(() => throwError(() => new Error('offline')));
