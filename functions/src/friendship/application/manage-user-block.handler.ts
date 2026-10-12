@@ -174,6 +174,8 @@ async function manageUserBlock(input: {
   const targetRef = db.collection('users').doc(input.targetUid);
   const blockRef = actorRef.collection('blocks').doc(input.targetUid);
   const reverseBlockRef = targetRef.collection('blocks').doc(input.actorUid);
+  const actorFriendRef = actorRef.collection('friends').doc(input.targetUid);
+  const targetFriendRef = targetRef.collection('friends').doc(input.actorUid);
   const actorAccessRef = db.doc(`direct_chat_access/${input.actorUid}/peers/${input.targetUid}`);
   const targetAccessRef = db.doc(`direct_chat_access/${input.targetUid}/peers/${input.actorUid}`);
 
@@ -187,6 +189,8 @@ async function manageUserBlock(input: {
       reverseBlockSnapshot,
       actorAccessSnapshot,
       targetAccessSnapshot,
+      actorFriendSnapshot,
+      targetFriendSnapshot,
     ] = await Promise.all([
       transaction.get(actorRef),
       transaction.get(targetRef),
@@ -194,6 +198,8 @@ async function manageUserBlock(input: {
       transaction.get(reverseBlockRef),
       transaction.get(actorAccessRef),
       transaction.get(targetAccessRef),
+      transaction.get(actorFriendRef),
+      transaction.get(targetFriendRef),
     ]);
 
     const actor = actorSnapshot.data() as FriendshipUserDoc | undefined;
@@ -211,15 +217,19 @@ async function manageUserBlock(input: {
       input.action
     );
 
+    const hasBilateralFriendship = actorFriendSnapshot.exists && targetFriendSnapshot.exists;
+
     if (!transition.changed) {
       // Compatibilidade com bloqueios anteriores à projeção: uma repetição
       // idempotente repara snapshots ausentes/desatualizados sem nova auditoria.
-      const available = isBilateralChatAvailable(
+      const available = hasBilateralFriendship && isBilateralChatAvailable(
         transition.nextIsBlocked,
         reverseBlockSnapshot.data()?.isBlocked
       );
       if (actorAccessSnapshot.data()?.available !== available ||
-          targetAccessSnapshot.data()?.available !== available) {
+          targetAccessSnapshot.data()?.available !== available ||
+          actorAccessSnapshot.data()?.version !== 1 ||
+          targetAccessSnapshot.data()?.version !== 1) {
         const projection = {
           available,
           version: 1,
@@ -271,7 +281,7 @@ async function manageUserBlock(input: {
     // Projeção privada derivada, não autoridade de autorização.
     // A revogação em qualquer sentido prevalece mesmo durante desbloqueio.
     const accessProjection = {
-      available: isBilateralChatAvailable(
+      available: hasBilateralFriendship && isBilateralChatAvailable(
         transition.nextIsBlocked,
         reverseBlockSnapshot.data()?.isBlocked
       ),
