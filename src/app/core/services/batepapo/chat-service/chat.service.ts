@@ -95,7 +95,7 @@ export class ChatService implements OnDestroy {
   }
 
   /**
-   * canListen$:
+   * listeningUid$:
    * - Regras “cliente” para habilitar listeners.
    * - A decisão final sempre deve ser reforçada em Rules/CF.
    */
@@ -288,7 +288,7 @@ export class ChatService implements OnDestroy {
     const id = (uid ?? '').toString().trim();
     if (!id) return of([]);
 
-    return this.canListen$.pipe(
+    return this.listeningUid$.pipe(
       switchMap(listeningUid => {
         if (listeningUid !== id) return of([] as IChat[]);
         return this.chatsRepo.watchChats$(id, limit);
