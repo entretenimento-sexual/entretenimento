@@ -273,6 +273,37 @@ describe('DirectReceiptsService', () => {
     subscription.unsubscribe();
   });
 
+  it('deduplica confirmação em snapshots antigos e mantém avanço para read', async () => {
+    const { service, updateMessageStatus } = setup();
+    const sent = [{ id: 'repeat', senderId: 'peer', status: 'sent' }] as any;
+    const delivered = [{ id: 'repeat', senderId: 'peer', status: 'delivered' }] as any;
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', sent))).toBe(1);
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', sent))).toBe(0);
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', delivered))).toBe(1);
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', delivered))).toBe(0);
+    expect(updateMessageStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it('não reutiliza confirmação depois de troca de UID', async () => {
+    const { service, updateMessageStatus, uid } = setup();
+    const messages = [{ id: 'session-msg', senderId: 'peer', status: 'sent' }] as any;
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', messages))).toBe(1);
+    uid.next(null);
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', messages))).toBe(0);
+    uid.next('me');
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', messages))).toBe(1);
+    expect(updateMessageStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it('falha de escrita não ativa deduplicação temporal', async () => {
+    const { service, updateMessageStatus } = setup();
+    updateMessageStatus.mockImplementationOnce(() => throwError(() => new Error('offline')));
+    const messages = [{ id: 'retry-msg', senderId: 'peer', status: 'sent' }] as any;
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', messages))).toBe(0);
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', messages))).toBe(1);
+    expect(updateMessageStatus).toHaveBeenCalledTimes(2);
+  });
+
   it('ignora input inválido sem tocar no adapter', async () => {
     const { service, updateMessageStatus, report } = setup();
 
