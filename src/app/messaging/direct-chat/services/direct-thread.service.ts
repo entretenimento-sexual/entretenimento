@@ -23,6 +23,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, combineLatest, defer, from, of, throwError } from 'rxjs';
 import {
   catchError,
+  distinctUntilChanged,
   filter,
   map,
   switchMap,
@@ -111,6 +112,10 @@ export class DirectThreadService {
       this.accessControl.authUid$,
       this.accessControl.canListenRealtime$,
     ]).pipe(
+      distinctUntilChanged(
+        ([previousUid, previousCanListen], [uid, canListen]) =>
+          previousUid === uid && previousCanListen === canListen
+      ),
       switchMap(([uid, canListen]) => {
         if (!uid || !canListen) {
           this.dbg('observeMessages$ blocked', { chatId: safeChatId });
