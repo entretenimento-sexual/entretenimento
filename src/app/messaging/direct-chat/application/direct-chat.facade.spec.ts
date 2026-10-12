@@ -175,6 +175,38 @@ describe('DirectChatFacade session isolation', () => {
     subscription.unsubscribe();
   });
 
+  it('rejeita chat malformado sem consultar projeção de disponibilidade', () => {
+    const uid$ = new BehaviorSubject<string | null>('user-a');
+    const chats$ = new BehaviorSubject<IChat[]>([buildChat('invalid', ['peer-b', 'peer-c'])]);
+    const observe$ = vi.fn(() => of(true));
+    const facade = new DirectChatFacade(
+      { getMyDirectChats$: () => chats$.asObservable() } as unknown as DirectChatService,
+      buildAuthSession(uid$),
+      { getUsersPublicMap$: () => of({}) } as unknown as FirestoreUserQueryService,
+      buildApplicationError().service,
+      buildDestroyRef(),
+      { observe$ } as any
+    );
+    const observed: boolean[] = [];
+    const sub = facade.selectedChatCanOpen$.subscribe(value => observed.push(value));
+    facade.selectChat('invalid');
+    expect(observed.at(-1)).toBe(false);
+    expect(observe$).not.toHaveBeenCalled();
+
+    chats$.next([buildChat('invalid', ['user-a', 'peer-b', 'peer-c'])]);
+    expect(observed.at(-1)).toBe(false);
+    chats$.next([buildChat('invalid', ['user-a', 'user-a'])]);
+    expect(observed.at(-1)).toBe(false);
+    chats$.next([{ ...buildChat('invalid', ['user-a', 'peer-b']), isRoom: true }]);
+    expect(observed.at(-1)).toBe(false);
+    expect(observe$).not.toHaveBeenCalled();
+
+    chats$.next([buildChat('invalid', ['user-a', 'peer-b'])]);
+    expect(observed.at(-1)).toBe(true);
+    expect(observe$).toHaveBeenCalledWith('user-a', 'peer-b');
+    sub.unsubscribe();
+  });
+
   it('enriquece o chat com identidade e prévia públicas e deriva aliases legados', () => {
     const uidSubject = new BehaviorSubject<string | null>('user-a');
     const chats = new BehaviorSubject<IChat[]>([
