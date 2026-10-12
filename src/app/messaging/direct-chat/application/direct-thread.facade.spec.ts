@@ -103,6 +103,47 @@ describe('DirectThreadFacade', () => {
     subscription.unsubscribe();
   });
 
+  it('revogação de acesso esvazia histórico, cancela listener e bloqueia envio até reautorização', () => {
+    const selectedChatId$ = new BehaviorSubject<string | null>('chat-1');
+    const canOpen$ = new BehaviorSubject(true);
+    const messages$ = new Subject<any[]>();
+    const sendMessage$ = vi.fn(() => of('message-new'));
+    const observeMessages$ = vi.fn(() => messages$);
+    const facade = new DirectThreadFacade(
+      { selectedChatId$, selectedChatCanOpen$: canOpen$ } as any,
+      { observeMessages$, sendMessage$ } as any,
+      { markDeliveredAsRead$: vi.fn(() => of(0)) } as any,
+      { uid$: of('user-a') } as any,
+      { canListenRealtime$: of(true) } as any,
+      { report: vi.fn() } as any,
+      { log: vi.fn() } as any,
+    );
+    const states: Array<{ chatId: string | null; messages: any[] }> = [];
+    const subscription = facade.state$.subscribe(state => states.push(state));
+    const canSend: boolean[] = [];
+    const sending = facade.canSend$.subscribe(value => canSend.push(value));
+
+    messages$.next([{ id: 'private-before-block' }]);
+    expect(states.at(-1)?.messages).toEqual([{ id: 'private-before-block' }]);
+
+    canOpen$.next(false);
+    expect(states.at(-1)).toMatchObject({ chatId: null, messages: [] });
+    expect(messages$.observers.length).toBe(0);
+    expect(canSend.at(-1)).toBe(false);
+
+    messages$.next([{ id: 'stale-during-block' }]);
+    expect(states.at(-1)?.messages).toEqual([]);
+
+    canOpen$.next(true);
+    expect(states.at(-1)).toMatchObject({ chatId: 'chat-1', messages: [] });
+    expect(messages$.observers.length).toBe(1);
+    expect(canSend.at(-1)).toBe(true);
+    expect(observeMessages$).toHaveBeenCalledTimes(2);
+
+    subscription.unsubscribe();
+    sending.unsubscribe();
+  });
+
   it('descarta respostas tardias de envio, exclusão e leitura após troca de sessão', () => {
     const selectedChatId$ = new BehaviorSubject<string | null>('chat-1');
     const uid$ = new BehaviorSubject<string | null>('user-a');
