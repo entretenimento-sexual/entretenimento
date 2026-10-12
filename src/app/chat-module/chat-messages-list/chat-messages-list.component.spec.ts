@@ -422,6 +422,29 @@ describe('ChatMessagesListComponent', () => {
     expect(new Set(messages.map(m => m.id)).size).toBe(messages.length);
   });
 
+  it('descarta página atrasada da conversa anterior após trocar de thread na mesma sessão', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'old-a', timestamp: stamp(1) }] });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'recent-a', timestamp: stamp(100) }] });
+    const pending = new Subject<any[]>();
+    loadOlderMessages.mockReturnValue(pending.asObservable());
+    fixture.componentInstance.recoverHistoryGap();
+    expect(fixture.componentInstance.loadingGap).toBe(true);
+
+    fixture.componentRef.setInput('chatId', 'c2');
+    threadState$.next({ chatId: 'c2', messages: [
+      { id: 'message-b', timestamp: stamp(200) },
+    ] });
+    fixture.detectChanges();
+
+    pending.next([{ id: 'private-a', timestamp: stamp(50) }]);
+    pending.complete();
+    expect(pending.observed).toBe(false);
+    expect(fixture.componentInstance.messages.map(m => m.id)).toEqual(['message-b']);
+    expect(fixture.componentInstance.historyGap).toBe(false);
+    expect(fixture.componentInstance.loadingGap).toBe(false);
+  });
+
   it('cancela recuperação da lacuna ao encerrar sessão', () => {
     const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
