@@ -1,5 +1,5 @@
 import { EnvironmentInjector } from '@angular/core';
-import { BehaviorSubject, firstValueFrom, take, toArray } from 'rxjs';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
