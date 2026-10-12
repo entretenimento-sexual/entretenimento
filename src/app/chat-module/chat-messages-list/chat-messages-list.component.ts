@@ -181,6 +181,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     this.activeThreadSub?.unsubscribe();
     this.activeThreadSub = undefined;
     this.cancelHistoryRequest();
+    this.cancelGapRequest();
     this.detachScrollWatcher();
 
     if (this.requiresFreshThreadSelection || !this.currentUserUid || !safeChatId || (safeType !== 'chat' && safeType !== 'room')) {
