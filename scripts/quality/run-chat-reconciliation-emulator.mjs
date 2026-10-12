@@ -44,7 +44,7 @@ try {
     'firebase emulators:exec --only firestore',
     '--project demo-entretenimento',
     `--config "${config}"`,
-    '"node --test functions/lib/chat/direct-chat/application/direct-chat-reconciliation.reader.emulator.test.js"',
+    '"node --test functions/lib/chat/direct-chat/application/direct-chat-reconciliation.reader.emulator.test.js functions/lib/chat/direct-chat/application/reconcile-direct-chat-access.handler.test.js"',
   ].join(' ');
   const child = spawn(command, {
     cwd: process.cwd(),
