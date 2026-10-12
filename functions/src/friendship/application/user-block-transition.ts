@@ -25,3 +25,15 @@ export function resolveUserBlockTransition(
       : 'unblocked',
   };
 }
+
+
+/**
+ * Apenas projeção de UI; a autoridade continua nos documentos de bloqueio.
+ * Desbloquear A não reabre a conversa se B ainda bloqueia A.
+ */
+export function isBilateralChatAvailable(
+  nextActorBlocksTarget: unknown,
+  targetBlocksActor: unknown
+): boolean {
+  return nextActorBlocksTarget !== true && targetBlocksActor !== true;
+}
