@@ -91,6 +91,20 @@ describe('ChatMessagesListComponent', () => {
     fixture.detectChanges();
   });
 
+  it('mostra erro canônico em vez de estado vazio e limpa após recuperação', () => {
+    const errorMessage = 'Não foi possível carregar as mensagens. Verifique sua conexão.';
+    threadState$.next({ chatId: 'c1', messages: [], errorMessage } as any);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.threadErrorMessage).toBe(errorMessage);
+    expect(fixture.nativeElement.textContent).toContain(errorMessage);
+    expect(fixture.nativeElement.textContent).not.toContain('Ainda não há mensagens');
+
+    threadState$.next({ chatId: 'c1', messages: [] });
+    fixture.detectChanges();
+    expect(fixture.componentInstance.threadErrorMessage).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Ainda não há mensagens');
+  });
+
   it('acumula a página histórica sem duplicar mensagens e preserva a janela realtime', () => {
     const timestamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     const incoming = Array.from({ length: 20 }, (_, index) => ({
