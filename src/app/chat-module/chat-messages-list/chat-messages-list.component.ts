@@ -79,6 +79,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
   loadingOlderMessages = false;
   hasMoreHistory = true;
   historyLoadError = false;
+  threadErrorMessage: string | null = null;
   historyGap = false;
   private gapCursor: Message | null = null;
   private stalledGapCursorKey: string | null = null;
@@ -198,6 +199,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
       this.latestRealtimeMessages = [];
       this.hasMoreHistory = true;
       this.historyLoadError = false;
+      this.threadErrorMessage = null;
       this.resetGap();
     }
 
@@ -253,6 +255,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
 
     return this.directThreadFacade.state$.pipe(
       map((state) => {
+        this.threadErrorMessage = state.chatId === chatId ? (state.errorMessage ?? null) : null;
         if (state.chatId !== chatId) {
           // Acesso revogado ou thread trocada: dados históricos privados
           // também devem desaparecer, não apenas a janela realtime.
@@ -856,6 +859,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     this.latestRealtimeMessages = [];
     this.hasMoreHistory = true;
     this.historyLoadError = false;
+    this.threadErrorMessage = null;
     this.messages = [];
     this.threadItems = [];
     this.pendingIncomingCount = 0;
