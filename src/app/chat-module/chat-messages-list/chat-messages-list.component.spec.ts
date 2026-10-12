@@ -153,7 +153,8 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.gapLoadError).toBe(true);
     expect(fixture.componentInstance.loadingGap).toBe(false);
     fixture.componentInstance.recoverHistoryGap();
-    expect(loadOlderMessages).toHaveBeenCalledTimes(2);
+    expect(loadOlderMessages).toHaveBeenCalledTimes(1);
+    expect(fixture.componentInstance.gapLoadError).toBe(true);
   });
 
   it('deduplica IDs repetidos em uma página de recuperação de lacuna', () => {
