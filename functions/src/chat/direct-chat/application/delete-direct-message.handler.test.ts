@@ -58,6 +58,25 @@ run('deleteDirectMessage — Firestore Emulator integration', () => {
     assert.equal((await chatRef.get()).data()?.lastMessage?.messageId, latestId);
   });
 
+  it('autor pode apagar a própria mensagem após bloqueio, mas o outro participante não', async () => {
+    const id = randomUUID();
+    const blockRef = db.doc(`users/${peer}/blocks/${actor}`);
+    await message(id).set({ senderId: actor, content: 'mensagem anterior', status: 'sent' });
+    await blockRef.set({ isBlocked: true });
+    try {
+      await assert.rejects(call(peer, id), (error: any) =>
+        String(error?.code ?? '').includes('permission-denied')
+      );
+      assert.equal((await message(id).get()).data()?.deleted, undefined);
+      await call(actor, id);
+      const deleted = (await message(id).get()).data();
+      assert.equal(deleted?.deleted, true);
+      assert.equal(deleted?.content, 'Mensagem apagada');
+    } finally {
+      await blockRef.delete();
+    }
+  });
+
   it('preserva preview legado sem messageId e bloqueia exclusão por terceiro', async () => {
     const id = randomUUID();
     await message(id).set({ senderId: actor, content: 'legado' });
