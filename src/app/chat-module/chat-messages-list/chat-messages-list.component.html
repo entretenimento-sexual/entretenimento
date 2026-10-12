@@ -12,6 +12,19 @@
       @if (historyLoadError) {
         <p role="alert">Não foi possível recuperar o histórico. Tente novamente.</p>
       }
+      @if (safeType === 'chat' && historyGap) {
+        <div role="status" aria-live="polite">
+          <span>Existem mensagens anteriores à janela atual que ainda não foram recuperadas.</span>
+          <button type="button" class="app-action app-action--ghost"
+            [disabled]="loadingGap" [attr.aria-busy]="loadingGap"
+            (click)="recoverHistoryGap()">
+            {{ loadingGap ? 'Recuperando mensagens…' : 'Recuperar mensagens pendentes' }}
+          </button>
+          @if (gapLoadError) {
+            <p role="alert">Falha na recuperação. Você pode tentar novamente.</p>
+          }
+        </div>
+      }
       <div class="thread-shell__stack">
         @for (item of threadItems; track item.id) {
           @if (item.kind === 'date-separator') {
