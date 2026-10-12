@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { Timestamp } from 'firebase-admin/firestore';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
@@ -184,4 +185,57 @@ run('direct chat reconciliation — Firestore emulator', () => {
       await Promise.all([first.delete(), second.delete()]);
     }
   });
+  it('pagina histórico real por timestamp e ID sem pular mensagens empatadas', async () => {
+    const suffix = randomUUID();
+    const chat = db.collection('chats').doc(`paging-${suffix}`);
+    const messages = chat.collection('messages');
+    const stamp = Timestamp.fromMillis(1_700_000_000_000);
+    const ids = Array.from({ length: 45 }, (_, index) =>
+      `message-${String(index).padStart(3, '0')}`);
+    try {
+      const batch = db.batch();
+      for (const id of ids) {
+        batch.set(messages.doc(id), { timestamp: stamp, senderId: 'paging-test' });
+      }
+      await batch.commit();
+
+      const base = messages.orderBy('timestamp', 'desc')
+        .orderBy('__name__', 'desc');
+      const first = await base.limit(20).get();
+      const lastFirst = first.docs[first.docs.length - 1];
+      const second = await base.startAfter(
+        lastFirst.get('timestamp'), lastFirst.id
+      ).limit(20).get();
+      const lastSecond = second.docs[second.docs.length - 1];
+      const third = await base.startAfter(
+        lastSecond.get('timestamp'), lastSecond.id
+      ).limit(20).get();
+
+      assert.equal(first.size, 20);
+      assert.equal(second.size, 20);
+      assert.equal(third.size, 5);
+      const actual = [...first.docs, ...second.docs, ...third.docs]
+        .map(doc => doc.id);
+      assert.deepEqual(actual, [...ids].reverse());
+      assert.equal(new Set(actual).size, 45);
+
+      // Mensagem nova não deve alterar o cursor já capturado do histórico.
+      await messages.doc('message-999').set({
+        timestamp: Timestamp.fromMillis(stamp.toMillis() + 1),
+        senderId: 'paging-test',
+      });
+      const repeatSecond = await base.startAfter(
+        lastFirst.get('timestamp'), lastFirst.id
+      ).limit(20).get();
+      assert.deepEqual(repeatSecond.docs.map(doc => doc.id),
+        second.docs.map(doc => doc.id));
+    } finally {
+      const snapshot = await messages.get();
+      const cleanup = db.batch();
+      for (const document of snapshot.docs) cleanup.delete(document.ref);
+      cleanup.delete(chat);
+      await cleanup.commit();
+    }
+  });
+
 });
