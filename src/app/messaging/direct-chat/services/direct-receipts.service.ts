@@ -16,8 +16,8 @@
 
 import { Injectable } from '@angular/core';
 
-import { combineLatest, defer, forkJoin, Observable, of } from 'rxjs';
-import { catchError, filter, finalize, map, switchMap, take, takeUntil, tap } from 'rxjs/operators';
+import { combineLatest, defer, from, Observable, of } from 'rxjs';
+import { catchError, filter, finalize, map, mergeMap, switchMap, take, takeUntil, tap, toArray } from 'rxjs/operators';
 
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
@@ -36,6 +36,7 @@ type ReceiptTransition = {
 @Injectable({ providedIn: 'root' })
 export class DirectReceiptsService {
   private readonly maxUpdatesPerTick = 50;
+  private readonly maxConcurrentUpdates = 5;
   private readonly pendingTransitions = new Set<string>();
 
   constructor(
@@ -88,8 +89,8 @@ export class DirectReceiptsService {
       switchMap(([uid, canListen]) => {
         if (uid !== safeUid || !canListen) return of(0);
 
-        return forkJoin(
-          transitions.map((transition) =>
+        return from(transitions.map((transition, index) => ({ transition, index }))).pipe(
+          mergeMap(({ transition, index }) =>
             defer(() => {
               // Coalesce apenas a MESMA transição. delivered -> read deve
               // continuar possível quando o snapshot local avançar de status.
@@ -97,7 +98,7 @@ export class DirectReceiptsService {
                 safeUid, safeChatId, transition.messageId, transition.nextStatus,
               ]);
               if (this.pendingTransitions.has(key)) {
-                return of(false);
+                return of({ index, confirmed: false });
               }
               this.pendingTransitions.add(key);
 
@@ -108,7 +109,7 @@ export class DirectReceiptsService {
                   transition.nextStatus
                 )
               ).pipe(
-                map(() => true),
+                map(() => ({ index, confirmed: true })),
                 catchError((error) => {
                   this.reportIfUnreported(
                     error,
@@ -119,18 +120,19 @@ export class DirectReceiptsService {
                       nextStatus: transition.nextStatus,
                     }
                   );
-                  return of(false);
+                  return of({ index, confirmed: false });
                 }),
                 finalize(() => this.pendingTransitions.delete(key))
               );
-            })
-          )
-        ).pipe(
+            }), this.maxConcurrentUpdates),
+          toArray(),
           takeUntil(access$.pipe(
             filter(([activeUid, allowed]) => activeUid !== safeUid || !allowed)
           )),
           tap((results) => {
-            const confirmed = transitions.filter((_, index) => results[index]);
+            const confirmed = results
+              .filter((result) => result.confirmed)
+              .map((result) => transitions[result.index]);
             this.dbg('markDeliveredAsRead$', {
               chatId: safeChatId,
               attemptedCount: transitions.length,
@@ -143,7 +145,7 @@ export class DirectReceiptsService {
               ).length,
             });
           }),
-          map((results) => results.filter(Boolean).length),
+          map((results) => results.filter((result) => result.confirmed).length),
           catchError((error) => {
             this.reportIfUnreported(
               error,
