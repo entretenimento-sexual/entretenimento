@@ -51,10 +51,10 @@ export const reconcileDirectChatAccess = onCall<{ peerUid?: unknown }>(
         ]);
       // Nunca materializar projeção disponível para conta sem acesso ou vínculo bilateral.
       assertMessagingAccountOperational(actor.data() as MessagingUserDoc | undefined, {
-        operation: 'reconcile-direct-chat-access', perspective: 'actor',
+        operation: 'ensure-direct-chat', perspective: 'actor',
       });
       assertMessagingAccountOperational(peer.data() as MessagingUserDoc | undefined, {
-        operation: 'reconcile-direct-chat-access', perspective: 'target',
+        operation: 'ensure-direct-chat', perspective: 'target',
       });
       assertPlatformAccountAccessData(actor.data());
       assertPlatformAccountAccessData(peer.data());
