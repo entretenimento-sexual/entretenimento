@@ -14,7 +14,8 @@
 // - falha de receipts é best-effort e não deve quebrar a thread.
 // ============================================================================
 
-import { Injectable } from '@angular/core';
+import { DestroyRef, Injectable } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { combineLatest, defer, from, Observable, of } from 'rxjs';
 import { catchError, filter, finalize, map, mergeMap, switchMap, take, takeUntil, tap, toArray } from 'rxjs/operators';
@@ -60,13 +61,14 @@ export class DirectReceiptsService {
     private readonly chatService: ChatService,
     private readonly applicationError: ApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService,
-    private readonly accessControl: AccessControlService
+    private readonly accessControl: AccessControlService,
+    destroyRef: DestroyRef
   ) {
     // Limpa confirmações mesmo sem novas chamadas após logout/revogação.
     combineLatest([
       this.accessControl.authUid$,
       this.accessControl.canListenRealtime$,
-    ]).subscribe(([uid, allowed]) => {
+    ]).pipe(takeUntilDestroyed(destroyRef)).subscribe(([uid, allowed]) => {
       if (this.receiptSessionUid !== uid || !allowed) {
         this.confirmedTransitions.clear();
         this.receiptSessionUid = uid;
