@@ -81,6 +81,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
   historyLoadError = false;
   historyGap = false;
   private gapCursor: Message | null = null;
+  private stalledGapCursorKey: string | null = null;
   private gapTarget: Message | null = null;
   private gapRequestSub?: Subscription;
   private gapRequestId = 0;
@@ -406,6 +407,13 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
       return;
     }
 
+    const cursorKey = `${cursorId}:${stamp.seconds}:${stamp.nanoseconds ?? 0}`;
+    if (this.stalledGapCursorKey === cursorKey) {
+      this.gapLoadError = true;
+      this.cdRef.detectChanges();
+      return;
+    }
+
     const request = ++this.gapRequestId;
     // Uma recuperação manual não deve executar um auto-scroll pendente.
     this.cancelScheduledScroll();
@@ -431,8 +439,10 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
         } else {
           const nextCursor = sorted[0];
           if (this.compareMessages(nextCursor, cursor) >= 0) {
+            this.stalledGapCursorKey = cursorKey;
             this.gapLoadError = true;
           } else {
+            this.stalledGapCursorKey = null;
             this.gapCursor = nextCursor;
           }
         }
@@ -501,6 +511,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
 
   private resetGap(): void {
     this.cancelGapRequest();
+    this.stalledGapCursorKey = null;
     this.historyGap = false;
     this.gapCursor = null;
     this.gapTarget = null;
