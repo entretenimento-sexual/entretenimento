@@ -364,6 +364,14 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
       },
       error: (error) => {
         if (requestId !== this.historyRequestId) return;
+        if (String((error as { code?: string })?.code ?? '').includes('permission-denied')) {
+          this.requiresFreshThreadSelection = true;
+          this.activeThreadSub?.unsubscribe();
+          this.activeThreadSub = undefined;
+          this.cancelPendingReads();
+          this.resetThreadState();
+          return;
+        }
         this.loadingOlderMessages = false;
         this.historyLoadError = true;
         this.reportError('Não foi possível carregar mensagens anteriores.', error,
