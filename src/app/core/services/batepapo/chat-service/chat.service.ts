@@ -253,7 +253,8 @@ export class ChatService implements OnDestroy {
     return this.listeningUid$.pipe(
       switchMap(listeningUid => {
         if (!listeningUid) return of([] as Message[]);
-        return this.msgsRepo.watchMessages$(cid, 200);
+        // Janela recente limitada; histórico anterior é recuperado por cursor em páginas de 20.
+        return this.msgsRepo.watchMessages$(cid, 60);
       }),
       catchError(err => this.reportSilent('monitorChat', err))
     );
