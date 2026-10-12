@@ -64,6 +64,14 @@
           <span aria-hidden="true">↓</span>
         </button>
       }
+    } @else if (safeType === 'chat' && threadErrorMessage) {
+      <app-content-state
+        class="thread-shell__empty"
+        state="error"
+        title="Não foi possível abrir a conversa"
+        [message]="threadErrorMessage"
+        [compact]="true"
+      />
     } @else {
       <app-content-state
         class="thread-shell__empty"
