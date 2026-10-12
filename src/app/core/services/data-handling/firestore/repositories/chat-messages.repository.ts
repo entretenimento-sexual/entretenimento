@@ -74,11 +74,11 @@ export class ChatMessagesRepository {
     );
   }
 
-  private buildAscQuery(chatId: string, pageSize: number) {
+  private buildLatestQuery(chatId: string, pageSize: number) {
     return this.ctx.run(() =>
       query(
         this.messagesCol(chatId),
-        orderBy('timestamp', 'asc'),
+        orderBy('timestamp', 'desc'),
         limit(pageSize)
       )
     );
@@ -206,12 +206,16 @@ export class ChatMessagesRepository {
     if (!cid) return of([]);
 
     return defer(() => {
-      const q = this.buildAscQuery(cid, pageSize);
+      // A janela realtime precisa acompanhar as mensagens MAIS RECENTES, inclusive
+      // depois de um intervalo offline; não a primeira página histórica.
+      const q = this.buildLatestQuery(cid, pageSize);
       return this.ctx.run(() =>
         collectionData(q as any, { idField: 'id' })
       ) as Observable<Message[]>;
     }).pipe(
-      map((arr) => (arr ?? []) as Message[]),
+      // A consulta limita pelos últimos timestamps; a UI continua em ordem
+      // cronológica crescente, sem alterar o contrato de monitorChat.
+      map((arr) => [...(arr ?? [])].reverse() as Message[]),
       catchError((err) => {
         this.reportSilent('watchMessages$', err);
         return of([]);
