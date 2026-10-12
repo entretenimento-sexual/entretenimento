@@ -160,6 +160,32 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.threadItems).toEqual([]);
   });
 
+  it('encadeia páginas completas com timestamps iguais e cursor de ID estável', () => {
+    const timestamp = { seconds: 100, nanoseconds: 0 };
+    const initial = Array.from({ length: 20 }, (_, i) => ({
+      id: `z${String(i).padStart(2, '0')}`, timestamp,
+    }));
+    threadState$.next({ chatId: 'c1', messages: initial });
+    const firstPage = Array.from({ length: 20 }, (_, i) => ({
+      id: `y${String(i).padStart(2, '0')}`, timestamp,
+    }));
+    const secondPage = Array.from({ length: 20 }, (_, i) => ({
+      id: `x${String(i).padStart(2, '0')}`, timestamp,
+    }));
+    loadOlderMessages.mockReturnValueOnce(of(firstPage))
+      .mockReturnValueOnce(of(secondPage));
+
+    fixture.componentInstance.loadOlderMessages();
+    expect(loadOlderMessages).toHaveBeenNthCalledWith(1, 'c1', timestamp, 'z00');
+    expect(fixture.componentInstance.hasMoreHistory).toBe(true);
+
+    fixture.componentInstance.loadOlderMessages();
+    expect(loadOlderMessages).toHaveBeenNthCalledWith(2, 'c1', timestamp, 'y00');
+    expect(fixture.componentInstance.messages).toHaveLength(60);
+    expect(new Set(fixture.componentInstance.messages.map(m => m.id)).size).toBe(60);
+    expect(fixture.componentInstance.messages[0].id).toBe('x00');
+  });
+
   it('should create', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
