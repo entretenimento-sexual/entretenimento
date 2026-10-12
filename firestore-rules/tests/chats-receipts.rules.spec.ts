@@ -4,7 +4,7 @@ import {
   assertFails, assertSucceeds, initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, limit, orderBy, query, setDoc, startAfter, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, setDoc, startAfter, updateDoc } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const PROJECT_ID = 'demo-entretenimento-rules';
@@ -239,12 +239,10 @@ describe('Firestore Rules / direct chat receipts', () => {
     await assertSucceeds(getDoc(recipientMessage));
     await env.withSecurityRulesDisabled(async (context) => {
       const admin = context.firestore();
-      await import('firebase/firestore').then(({ deleteDoc }) =>
-        Promise.all([
-          deleteDoc(doc(admin, 'users', SENDER, 'friends', RECIPIENT)),
-          deleteDoc(doc(admin, 'users', RECIPIENT, 'friends', SENDER)),
-        ])
-      );
+      await Promise.all([
+        deleteDoc(doc(admin, 'users', SENDER, 'friends', RECIPIENT)),
+        deleteDoc(doc(admin, 'users', RECIPIENT, 'friends', SENDER)),
+      ]);
     });
     await assertSucceeds(getDoc(recipientMessage));
     await assertSucceeds(getDoc(message(SENDER)));
