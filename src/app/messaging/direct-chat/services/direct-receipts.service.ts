@@ -61,7 +61,18 @@ export class DirectReceiptsService {
     private readonly applicationError: ApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService,
     private readonly accessControl: AccessControlService
-  ) {}
+  ) {
+    // Limpa confirmações mesmo sem novas chamadas após logout/revogação.
+    combineLatest([
+      this.accessControl.authUid$,
+      this.accessControl.canListenRealtime$,
+    ]).subscribe(([uid, allowed]) => {
+      if (this.receiptSessionUid !== uid || !allowed) {
+        this.confirmedTransitions.clear();
+        this.receiptSessionUid = uid;
+      }
+    });
+  }
 
   /**
    * Avança recibos das mensagens recebidas.
