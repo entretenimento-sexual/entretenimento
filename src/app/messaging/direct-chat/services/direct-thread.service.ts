@@ -32,6 +32,7 @@ import {
 } from 'rxjs/operators';
 
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
+import { Timestamp } from 'firebase/firestore';
 
 import { ChatService } from '@core/services/batepapo/chat-service/chat.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
@@ -134,6 +135,35 @@ export class DirectThreadService {
         return of([] as Message[]);
       })
     );
+  }
+
+  /** Página histórica única; acesso e sessão são verificados antes e durante a leitura. */
+  loadOlderMessages$(
+    chatId: string,
+    lastMessageTimestamp: Timestamp,
+    lastMessageId: string
+  ): Observable<Message[]> {
+    const safeChatId = String(chatId ?? '').trim();
+    const safeMessageId = String(lastMessageId ?? '').trim();
+    if (!safeChatId || !lastMessageTimestamp || !safeMessageId) {
+      return throwError(() => new Error('Cursor histórico inválido.'));
+    }
+
+    return defer(() => combineLatest([
+      this.accessControl.authUid$,
+      this.accessControl.canListenRealtime$,
+    ]).pipe(
+      take(1),
+      switchMap(([ownerUid, allowed]) => {
+        if (!ownerUid || !allowed) return of([] as Message[]);
+        return this.chatService.getMessages(safeChatId, lastMessageTimestamp, safeMessageId).pipe(
+          takeUntil(combineLatest([
+            this.accessControl.authUid$,
+            this.accessControl.canListenRealtime$,
+          ]).pipe(filter(([uid, canListen]) => uid !== ownerUid || !canListen)))
+        );
+      })
+    ));
   }
 
   // ---------------------------------------------------------------------------
