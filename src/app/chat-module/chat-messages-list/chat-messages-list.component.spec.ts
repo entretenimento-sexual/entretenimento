@@ -445,6 +445,26 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.loadingGap).toBe(false);
   });
 
+  it('cancela recuperação pendente ao reabrir a mesma conversa', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'recent', timestamp: stamp(100) }] });
+    const pending = new Subject<any[]>();
+    loadOlderMessages.mockReturnValue(pending.asObservable());
+    fixture.componentInstance.recoverHistoryGap();
+    expect(pending.observed).toBe(true);
+
+    fixture.componentInstance.ngOnChanges({
+      chatId: {
+        previousValue: 'c1', currentValue: 'c1',
+        firstChange: false, isFirstChange: () => false,
+      },
+    });
+    expect(pending.observed).toBe(false);
+    pending.next([{ id: 'stale', timestamp: stamp(50) }]);
+    expect(fixture.componentInstance.messages.some(m => m.id === 'stale')).toBe(false);
+  });
+
   it('cancela recuperação da lacuna ao encerrar sessão', () => {
     const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
