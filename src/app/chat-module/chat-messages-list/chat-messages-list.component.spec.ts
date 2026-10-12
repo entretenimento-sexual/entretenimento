@@ -323,6 +323,32 @@ describe('ChatMessagesListComponent', () => {
     expect(component.messages.map((message: any) => message.id)).toContain('bridge');
   });
 
+  it('compensa deslocamento visual de mensagem após inserir conteúdo de altura variável', () => {
+    const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
+    threadState$.next({ chatId: 'c1', messages: [{ id: 'recent', timestamp: stamp(100) }] });
+    const component = fixture.componentInstance as any;
+    let anchorPosition = 180;
+    const element = {
+      getAttribute: () => 'recent',
+      getBoundingClientRect: () => ({ top: anchorPosition, bottom: anchorPosition + 80 }),
+    };
+    const container = {
+      scrollTop: 100,
+      getBoundingClientRect: () => ({ top: 0 }),
+      querySelectorAll: () => [element],
+    };
+    vi.spyOn(component, 'getScrollContainer').mockReturnValue(container);
+    vi.spyOn(component, 'renderMessages').mockImplementation(() => {
+      anchorPosition = 320;
+    });
+    loadOlderMessages.mockReturnValue(of([{ id: 'bridge', timestamp: stamp(50) }]));
+
+    component.recoverHistoryGap();
+
+    expect(container.scrollTop).toBe(240);
+  });
+
   it('cancela recuperação da lacuna ao encerrar sessão', () => {
     const stamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
     threadState$.next({ chatId: 'c1', messages: [{ id: 'old', timestamp: stamp(1) }] });
