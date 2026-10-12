@@ -117,6 +117,24 @@ describe('ChatMessagesListComponent', () => {
     expect(fixture.componentInstance.messages[21].id).toBe('newest');
   });
 
+  it('não retém IDs duplicados dentro da mesma página histórica', () => {
+    const timestamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    threadState$.next({ chatId: 'c1', messages: [
+      { id: 'recent', timestamp: timestamp(100) },
+    ] });
+    loadOlderMessages.mockReturnValue(of([
+      { id: 'older', timestamp: timestamp(50), content: 'original' },
+      { id: 'older', timestamp: timestamp(50), content: 'duplicada' },
+      { id: 'recent', timestamp: timestamp(100) },
+    ]));
+
+    fixture.componentInstance.loadOlderMessages();
+
+    expect((fixture.componentInstance as any).olderMessages).toHaveLength(1);
+    expect(fixture.componentInstance.messages.map(message => message.id))
+      .toEqual(['older', 'recent']);
+  });
+
   it('descarta página pendente quando a sessão é encerrada', () => {
     const timestamp = { seconds: 100, nanoseconds: 0 };
     const pending = new Subject<any[]>();
