@@ -1,9 +1,4 @@
 // src/app/chat-module/chat-message/chat-message.component.spec.ts
-vi.mock('firebase/firestore', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('firebase/firestore')>();
-  return { ...actual, doc: vi.fn(), updateDoc: vi.fn() };
-});
-
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
