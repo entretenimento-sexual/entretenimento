@@ -12,7 +12,10 @@ import { assertPlatformAccountAccessData } from '../../../account_lifecycle/inte
 function uid(value: unknown): string {
   return typeof value === 'string' && value.trim() === value
     && value.length > 0 && value.length <= 128 && !value.includes('/')
-    && !/[\x00-\x1F\x7F]/.test(value) ? value : '';
+    && ![...value].some((char) => {
+      const code = char.charCodeAt(0);
+      return code <= 31 || code === 127;
+    }) ? value : '';
 }
 
 export const reconcileDirectChatAccess = onCall<{ peerUid?: unknown }>(
