@@ -4,7 +4,7 @@ import {
   assertFails, assertSucceeds, initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, orderBy, query, setDoc, startAfter, updateDoc } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const PROJECT_ID = 'demo-entretenimento-rules';
@@ -154,6 +154,35 @@ describe('Firestore Rules / direct chat receipts', () => {
     await assertFails(getDoc(existingSession));
     await assertFails(updateDoc(existingSession, { status: 'delivered' }));
     await assertSucceeds(getDoc(message(SENDER)));
+  });
+
+  it('impede nova página de mensagens após remoção de participante', async () => {
+    const currentSession = env.authenticatedContext(
+      RECIPIENT, { email_verified: true }
+    ).firestore();
+    await env.withSecurityRulesDisabled(async (context) => {
+      const admin = context.firestore();
+      await setDoc(doc(admin, 'chats', CHAT_ID, 'messages', 'older-page'), {
+        senderId: SENDER, content: 'anterior', status: 'sent',
+        deleted: false, timestamp: new Date(1000),
+      });
+      await updateDoc(doc(admin, 'chats', CHAT_ID, 'messages', MESSAGE_ID), {
+        timestamp: new Date(2000),
+      });
+    });
+    const messages = collection(currentSession, 'chats', CHAT_ID, 'messages');
+    const first = await assertSucceeds(getDocs(query(
+      messages, orderBy('timestamp', 'desc'), limit(1)
+    )));
+    expect(first.docs).toHaveLength(1);
+    await env.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), 'chats', CHAT_ID), {
+        participants: [SENDER],
+      });
+    });
+    await assertFails(getDocs(query(
+      messages, orderBy('timestamp', 'desc'), startAfter(first.docs[0]), limit(1)
+    )));
   });
 
   it('permite avanço sequencial sent -> delivered -> read', async () => {
