@@ -201,6 +201,29 @@ describe('Firestore Rules / direct chat receipts', () => {
     )));
   });
 
+  it('desbloqueio não reabre mensagens enquanto a conta permanece suspensa', async () => {
+    const session = message(RECIPIENT);
+    await assertSucceeds(getDoc(session));
+    await env.withSecurityRulesDisabled(async (context) => {
+      const admin = context.firestore();
+      await setDoc(doc(admin, 'users', SENDER, 'blocks', RECIPIENT), {
+        uid: RECIPIENT, isBlocked: true, actorUid: SENDER,
+        blockedAt: new Date(), updatedAt: new Date(),
+      });
+      await updateDoc(doc(admin, 'users', RECIPIENT), {
+        accountStatus: 'suspended', loginAllowed: false,
+      });
+    });
+    await assertFails(getDoc(session));
+    await env.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), 'users', SENDER, 'blocks', RECIPIENT), {
+        isBlocked: false, updatedAt: new Date(),
+      });
+    });
+    await assertFails(getDoc(session));
+    await assertFails(updateDoc(session, { status: 'delivered' }));
+  });
+
   it('permite avanço sequencial sent -> delivered -> read', async () => {
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'delivered' }));
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'read' }));
