@@ -248,6 +248,22 @@ describe('Firestore Rules / direct chat receipts', () => {
     await assertSucceeds(getDoc(message(SENDER)));
   });
 
+  it('preserva leitura de histórico com vínculo de amizade unilateral', async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      const admin = context.firestore();
+      await setDoc(doc(admin, 'users', SENDER, 'friends', RECIPIENT), {
+        accepted: true,
+      });
+    });
+    await assertSucceeds(getDoc(message(SENDER)));
+    await assertSucceeds(getDoc(message(RECIPIENT)));
+    await env.withSecurityRulesDisabled(async (context) => {
+      await deleteDoc(doc(context.firestore(), 'users', SENDER, 'friends', RECIPIENT));
+    });
+    await assertSucceeds(getDoc(message(SENDER)));
+    await assertSucceeds(getDoc(message(RECIPIENT)));
+  });
+
   it('permite avanço sequencial sent -> delivered -> read', async () => {
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'delivered' }));
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'read' }));
