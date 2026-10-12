@@ -143,6 +143,37 @@ describe('DirectChatFacade session isolation', () => {
     selectedSubscription.unsubscribe();
   });
 
+  it('bloqueio remoto revoga abertura reativamente e desbloqueio restaura após snapshot', () => {
+    const uid$ = new BehaviorSubject<string | null>('user-a');
+    const chats$ = new BehaviorSubject<IChat[]>([
+      buildChat('chat-live', ['user-a', 'peer-b']),
+    ]);
+    const available$ = new BehaviorSubject(true);
+    const observe$ = vi.fn(() => available$.asObservable());
+    const facade = new DirectChatFacade(
+      {
+        getMyDirectChats$: () => chats$.asObservable(),
+      } as unknown as DirectChatService,
+      buildAuthSession(uid$),
+      { getUsersPublicMap$: () => of({}) } as unknown as FirestoreUserQueryService,
+      buildApplicationError().service,
+      buildDestroyRef(),
+      { observe$ } as any
+    );
+    const access: boolean[] = [];
+    const subscription = facade.selectedChatCanOpen$.subscribe(value => access.push(value));
+    facade.selectChat('chat-live');
+    expect(access.at(-1)).toBe(true);
+    expect(observe$).toHaveBeenCalledWith('user-a', 'peer-b');
+
+    available$.next(false);
+    expect(access.at(-1)).toBe(false);
+
+    available$.next(true);
+    expect(access.at(-1)).toBe(true);
+    subscription.unsubscribe();
+  });
+
   it('enriquece o chat com identidade e prévia públicas e deriva aliases legados', () => {
     const uidSubject = new BehaviorSubject<string | null>('user-a');
     const chats = new BehaviorSubject<IChat[]>([
