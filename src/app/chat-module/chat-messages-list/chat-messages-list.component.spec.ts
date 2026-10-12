@@ -19,11 +19,13 @@ describe('ChatMessagesListComponent', () => {
   let uid$: BehaviorSubject<string | null>;
   let threadState$: BehaviorSubject<{ chatId: string; messages: any[] }>;
   let selectChat: ReturnType<typeof vi.fn>;
+  let loadOlderMessages: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     uid$ = new BehaviorSubject<string | null>('test-uid');
     threadState$ = new BehaviorSubject({ chatId: 'c1', messages: [] as any[] });
     selectChat = vi.fn();
+    loadOlderMessages = vi.fn(() => of([]));
     await TestBed.configureTestingModule({
       declarations: [ChatMessagesListComponent],
       schemas: [NO_ERRORS_SCHEMA],
@@ -39,6 +41,7 @@ describe('ChatMessagesListComponent', () => {
           useValue: {
             state$: threadState$,
             markVisibleMessagesAsRead$: vi.fn(() => of(void 0)),
+            loadOlderMessages$: loadOlderMessages,
           },
         },
         {
@@ -84,6 +87,32 @@ describe('ChatMessagesListComponent', () => {
     fixture.componentRef.setInput('chatId', 'c1');
     fixture.componentRef.setInput('type', 'chat');
     fixture.detectChanges();
+  });
+
+  it('acumula a página histórica sem duplicar mensagens e preserva a janela realtime', () => {
+    const timestamp = (seconds: number) => ({ seconds, nanoseconds: 0 });
+    const incoming = Array.from({ length: 20 }, (_, index) => ({
+      id: `new-${index}`, timestamp: timestamp(100 + index), content: 'recente',
+    }));
+    threadState$.next({ chatId: 'c1', messages: incoming });
+    loadOlderMessages.mockReturnValue(of([
+      { id: 'older', timestamp: timestamp(90), content: 'antiga' },
+      { ...incoming[0] },
+    ]));
+
+    fixture.componentInstance.loadOlderMessages();
+
+    expect(loadOlderMessages).toHaveBeenCalledWith('c1', incoming[0].timestamp, incoming[0].id);
+    expect(fixture.componentInstance.messages[0].id).toBe('older');
+    expect(fixture.componentInstance.messages).toHaveLength(21);
+    expect(fixture.componentInstance.hasMoreHistory).toBe(false);
+
+    threadState$.next({ chatId: 'c1', messages: [
+      ...incoming, { id: 'newest', timestamp: timestamp(121), content: 'última' },
+    ] });
+    expect(fixture.componentInstance.messages).toHaveLength(22);
+    expect(fixture.componentInstance.messages[0].id).toBe('older');
+    expect(fixture.componentInstance.messages[21].id).toBe('newest');
   });
 
   it('should create', () => {
