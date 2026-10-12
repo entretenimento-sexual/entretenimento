@@ -208,7 +208,446 @@ export class DirectChatFacade {
     }),
     distinctUntilChanged(),
     catchError((error) => {
-      this.reportSilent(error, 'DirectChatFacade.selectedChatCanOpen
+      this.reportSilent(error, 'DirectChatFacade.selectedChatCanOpen  readonly state$: Observable<DirectChatListState> = combineLatest([
+    this.items$,
+    this.selectedChatId$,
+  ]).pipe(
+    map(([items, selectedChatId]) => ({
+      items,
+      selectedChatId,
+      loading: false,
+      loaded: true,
+      errorMessage: null,
+    })),
+    catchError((error) => {
+      this.reportSilent(error, 'DirectChatFacade.state$');
+      return of({
+        items: [],
+        selectedChatId: null,
+        loading: false,
+        loaded: false,
+        errorMessage: 'Não foi possível carregar os chats diretos.',
+      } as DirectChatListState);
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  constructor(
+    private readonly directChatService: DirectChatService,
+    private readonly authSession: AuthSessionService,
+    private readonly firestoreUserQuery: FirestoreUserQueryService,
+    private readonly applicationError: ApplicationErrorService,
+    destroyRef: DestroyRef,
+    private readonly availabilityService?: DirectChatAvailabilityService
+  ) {
+    this.authSession.uid$
+      .pipe(
+        map((uid) => String(uid ?? '').trim() || null),
+        distinctUntilChanged(),
+        takeUntilDestroyed(destroyRef)
+      )
+      .subscribe((uid) => {
+        const epoch = this.sessionIdentitySubject.value.epoch + 1;
+        const identity = { uid, epoch };
+
+        this.sessionIdentitySubject.next(identity);
+        this.selectedChatRequestSubject.next({
+          ownerUid: uid,
+          sessionEpoch: epoch,
+          chatId: null,
+        });
+      });
+  }
+
+  selectChat(chatId: string | null | undefined): void {
+    const safeChatId = String(chatId ?? '').trim() || null;
+    const session = this.sessionIdentitySubject.value;
+
+    this.selectedChatRequestSubject.next({
+      ownerUid: session.uid,
+      sessionEpoch: session.epoch,
+      chatId: safeChatId && session.uid ? safeChatId : null,
+    });
+  }
+
+  /**
+   * Recebe UID do outro perfil, resolve/cria a conversa e seleciona o chat real.
+   */
+  openChatWithUser$(otherUserUid: string): Observable<string | null> {
+    const session = this.sessionIdentitySubject.value;
+    if (!session.uid) return of(null);
+
+    return this.directChatService.ensureDirectChatIdWithUser$(otherUserUid).pipe(
+      takeUntil(this.sessionIdentity$.pipe(
+        filter((current) =>
+          current.uid !== session.uid || current.epoch !== session.epoch
+        )
+      )),
+      tap((chatId) => {
+        if (chatId) {
+          this.selectChat(chatId);
+        }
+      }),
+      catchError((error) => {
+        this.reportSilent(error, 'DirectChatFacade.openChatWithUser$');
+        return of(null);
+      }),
+      take(1)
+    );
+  }
+
+  clearSelection(): void {
+    const session = this.sessionIdentitySubject.value;
+
+    this.selectedChatRequestSubject.next({
+      ownerUid: session.uid,
+      sessionEpoch: session.epoch,
+      chatId: null,
+    });
+  }
+
+  /**
+   * Resolve somente informações públicas necessárias à apresentação da lista.
+   *
+   * Segurança:
+   * - não consulta o documento privado /users do participante;
+   * - não grava snapshot do perfil dentro do documento de chat;
+   * - mantém fallback somente de leitura para conversas legadas já existentes;
+   * - normaliza identidade e prévia pelo contrato universal do perfil público;
+   * - UID localiza o participante, mas nunca substitui o profileId público.
+   */
+  private enrichListItemsWithPublicProfiles$(
+    items: DirectChatListItem[]
+  ): Observable<DirectChatListItem[]> {
+    const participantUids = Array.from(
+      new Set(
+        items
+          .map((item) => String(item.otherParticipantUid ?? '').trim())
+          .filter((uid) => uid.length > 0)
+      )
+    );
+
+    if (!participantUids.length) {
+      return of(items);
+    }
+
+    return this.firestoreUserQuery.getUsersPublicMap$(participantUids).pipe(
+      map((publicProfiles) =>
+        items.map((item) => {
+          const participantUid = String(
+            item.otherParticipantUid ?? ''
+          ).trim();
+
+          const publicProfile = participantUid
+            ? publicProfiles[participantUid]
+            : undefined;
+          const preview = publicProfile
+            ? normalizePublicUserPreview(publicProfile)
+            : null;
+          const identity = preview?.identity
+            ?? (publicProfile
+              ? normalizePublicUserIdentity(publicProfile)
+              : null);
+
+          return {
+            ...item,
+            otherParticipantIdentity: identity,
+            otherParticipantPreview: preview,
+            // Aliases legados permanecem derivados da mesma identidade, evitando
+            // duas fontes de verdade durante a migração do Chat.
+            otherParticipantNickname: identity?.nickname ?? null,
+            otherParticipantPhotoURL: identity?.avatarUrl ?? null,
+          };
+        })
+      ),
+      catchError((error) => {
+        this.reportSilent(
+          error,
+          'DirectChatFacade.enrichListItemsWithPublicProfiles$'
+        );
+
+        return of(items);
+      })
+    );
+  }
+
+  private toListItem(
+    chat: IChat,
+    currentUid: string | null
+  ): DirectChatListItem {
+    const safeCurrentUid = String(currentUid ?? '').trim() || null;
+
+    const otherParticipantUid =
+      (chat?.participants ?? []).find(
+        (uid: string) => uid !== safeCurrentUid
+      ) ?? null;
+
+    const lastMessagePreview =
+      (chat?.lastMessage?.content ?? '').trim() || null;
+
+    return {
+      id: (chat?.id ?? '').trim(),
+      chat,
+      otherParticipantUid,
+      otherParticipantIdentity: null,
+      otherParticipantPreview: null,
+      otherParticipantNickname: null,
+      otherParticipantPhotoURL: null,
+      unreadCount: Number((chat as any)?.unreadCount ?? 0),
+      lastMessagePreview,
+      lastMessageAt:
+        chat?.lastMessage?.timestamp?.toDate?.()?.getTime?.() ?? null,
+      canOpen: !!chat?.id,
+      availability: 'open',
+      blockedReason: null,
+      compatibilityLabel: null,
+      isDesiredProfileMatch: null,
+    };
+  }
+
+  private reportSilent(error: unknown, context: string): void {
+    try {
+      this.applicationError.report(error, {
+        feature: 'direct-chat',
+        operation: context,
+        fallbackMessage:
+          'Não foi possível concluir uma operação interna do chat direto.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'DirectChatFacade',
+          context,
+        },
+      });
+    } catch {
+      // Diagnóstico secundário nunca interrompe os fallbacks reativos da facade.
+    }
+  }
+}
+);
+      return of(false);
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly state$: Observable<DirectChatListState> = combineLatest([
+    this.items$,
+    this.selectedChatId$,
+  ]).pipe(
+    map(([items, selectedChatId]) => ({
+      items,
+      selectedChatId,
+      loading: false,
+      loaded: true,
+      errorMessage: null,
+    })),
+    catchError((error) => {
+      this.reportSilent(error, 'DirectChatFacade.state$');
+      return of({
+        items: [],
+        selectedChatId: null,
+        loading: false,
+        loaded: false,
+        errorMessage: 'Não foi possível carregar os chats diretos.',
+      } as DirectChatListState);
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  constructor(
+    private readonly directChatService: DirectChatService,
+    private readonly authSession: AuthSessionService,
+    private readonly firestoreUserQuery: FirestoreUserQueryService,
+    private readonly applicationError: ApplicationErrorService,
+    destroyRef: DestroyRef
+  ) {
+    this.authSession.uid$
+      .pipe(
+        map((uid) => String(uid ?? '').trim() || null),
+        distinctUntilChanged(),
+        takeUntilDestroyed(destroyRef)
+      )
+      .subscribe((uid) => {
+        const epoch = this.sessionIdentitySubject.value.epoch + 1;
+        const identity = { uid, epoch };
+
+        this.sessionIdentitySubject.next(identity);
+        this.selectedChatRequestSubject.next({
+          ownerUid: uid,
+          sessionEpoch: epoch,
+          chatId: null,
+        });
+      });
+  }
+
+  selectChat(chatId: string | null | undefined): void {
+    const safeChatId = String(chatId ?? '').trim() || null;
+    const session = this.sessionIdentitySubject.value;
+
+    this.selectedChatRequestSubject.next({
+      ownerUid: session.uid,
+      sessionEpoch: session.epoch,
+      chatId: safeChatId && session.uid ? safeChatId : null,
+    });
+  }
+
+  /**
+   * Recebe UID do outro perfil, resolve/cria a conversa e seleciona o chat real.
+   */
+  openChatWithUser$(otherUserUid: string): Observable<string | null> {
+    const session = this.sessionIdentitySubject.value;
+    if (!session.uid) return of(null);
+
+    return this.directChatService.ensureDirectChatIdWithUser$(otherUserUid).pipe(
+      takeUntil(this.sessionIdentity$.pipe(
+        filter((current) =>
+          current.uid !== session.uid || current.epoch !== session.epoch
+        )
+      )),
+      tap((chatId) => {
+        if (chatId) {
+          this.selectChat(chatId);
+        }
+      }),
+      catchError((error) => {
+        this.reportSilent(error, 'DirectChatFacade.openChatWithUser$');
+        return of(null);
+      }),
+      take(1)
+    );
+  }
+
+  clearSelection(): void {
+    const session = this.sessionIdentitySubject.value;
+
+    this.selectedChatRequestSubject.next({
+      ownerUid: session.uid,
+      sessionEpoch: session.epoch,
+      chatId: null,
+    });
+  }
+
+  /**
+   * Resolve somente informações públicas necessárias à apresentação da lista.
+   *
+   * Segurança:
+   * - não consulta o documento privado /users do participante;
+   * - não grava snapshot do perfil dentro do documento de chat;
+   * - mantém fallback somente de leitura para conversas legadas já existentes;
+   * - normaliza identidade e prévia pelo contrato universal do perfil público;
+   * - UID localiza o participante, mas nunca substitui o profileId público.
+   */
+  private enrichListItemsWithPublicProfiles$(
+    items: DirectChatListItem[]
+  ): Observable<DirectChatListItem[]> {
+    const participantUids = Array.from(
+      new Set(
+        items
+          .map((item) => String(item.otherParticipantUid ?? '').trim())
+          .filter((uid) => uid.length > 0)
+      )
+    );
+
+    if (!participantUids.length) {
+      return of(items);
+    }
+
+    return this.firestoreUserQuery.getUsersPublicMap$(participantUids).pipe(
+      map((publicProfiles) =>
+        items.map((item) => {
+          const participantUid = String(
+            item.otherParticipantUid ?? ''
+          ).trim();
+
+          const publicProfile = participantUid
+            ? publicProfiles[participantUid]
+            : undefined;
+          const preview = publicProfile
+            ? normalizePublicUserPreview(publicProfile)
+            : null;
+          const identity = preview?.identity
+            ?? (publicProfile
+              ? normalizePublicUserIdentity(publicProfile)
+              : null);
+
+          return {
+            ...item,
+            otherParticipantIdentity: identity,
+            otherParticipantPreview: preview,
+            // Aliases legados permanecem derivados da mesma identidade, evitando
+            // duas fontes de verdade durante a migração do Chat.
+            otherParticipantNickname: identity?.nickname ?? null,
+            otherParticipantPhotoURL: identity?.avatarUrl ?? null,
+          };
+        })
+      ),
+      catchError((error) => {
+        this.reportSilent(
+          error,
+          'DirectChatFacade.enrichListItemsWithPublicProfiles$'
+        );
+
+        return of(items);
+      })
+    );
+  }
+
+  private toListItem(
+    chat: IChat,
+    currentUid: string | null
+  ): DirectChatListItem {
+    const safeCurrentUid = String(currentUid ?? '').trim() || null;
+
+    const otherParticipantUid =
+      (chat?.participants ?? []).find(
+        (uid: string) => uid !== safeCurrentUid
+      ) ?? null;
+
+    const lastMessagePreview =
+      (chat?.lastMessage?.content ?? '').trim() || null;
+
+    return {
+      id: (chat?.id ?? '').trim(),
+      chat,
+      otherParticipantUid,
+      otherParticipantIdentity: null,
+      otherParticipantPreview: null,
+      otherParticipantNickname: null,
+      otherParticipantPhotoURL: null,
+      unreadCount: Number((chat as any)?.unreadCount ?? 0),
+      lastMessagePreview,
+      lastMessageAt:
+        chat?.lastMessage?.timestamp?.toDate?.()?.getTime?.() ?? null,
+      canOpen: !!chat?.id,
+      availability: 'open',
+      blockedReason: null,
+      compatibilityLabel: null,
+      isDesiredProfileMatch: null,
+    };
+  }
+
+  private reportSilent(error: unknown, context: string): void {
+    try {
+      this.applicationError.report(error, {
+        feature: 'direct-chat',
+        operation: context,
+        fallbackMessage:
+          'Não foi possível concluir uma operação interna do chat direto.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'DirectChatFacade',
+          context,
+        },
+      });
+    } catch {
+      // Diagnóstico secundário nunca interrompe os fallbacks reativos da facade.
+    }
+  }
+}
+);
+      return of(false);
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   readonly state$: Observable<DirectChatListState> = combineLatest([
     this.items$,
