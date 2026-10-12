@@ -313,6 +313,29 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     );
   });
 
+  it('retoma envio na mesma conversa após restaurar amizade bilateral', async () => {
+    const friendRef = db.doc(`users/${targetUid}/friends/${actorUid}`);
+    const chatRef = db.doc(`chats/${chatId}`);
+    const before = await send('antes de desfazer amizade', randomUUID());
+    const rejectedRequestId = randomUUID();
+    await friendRef.delete();
+    try {
+      await assert.rejects(send('envio após desfazer amizade', rejectedRequestId),
+        (error: any) => String(error?.code ?? '').includes('failed-precondition'));
+      assert.equal((await chatRef.get()).exists, true);
+      assert.equal((await db.doc(`chats/${chatId}/messages/${before.messageId}`).get()).exists, true);
+      assert.equal((await db.collection(`chats/${chatId}/messages`)
+        .where('clientRequestId', '==', rejectedRequestId).get()).empty, true);
+    } finally {
+      await friendRef.set({ accepted: true });
+    }
+    const after = await send('depois de restaurar amizade', randomUUID());
+    assert.equal(after.chatId, chatId);
+    assert.notEqual(after.messageId, before.messageId);
+    assert.equal((await db.doc(`chats/${chatId}/messages/${before.messageId}`).get()).exists, true);
+    assert.equal((await db.doc(`chats/${chatId}/messages/${after.messageId}`).get()).exists, true);
+  });
+
   it('nega envio quando a amizade bilateral é removida', async () => {
     await db.doc(`users/${targetUid}/friends/${actorUid}`).delete();
     await assert.rejects(send('não autorizado', randomUUID()), (error: any) =>
