@@ -203,8 +203,34 @@ export class ChatMessagesRepository {
           .reverse()
       ),
       catchError((err) => {
-        this.reportSilent('getMessagesPageOnce$', err);
+        this.reportSilent('getMessagesPageOnce
+    );
+  }
+
+  watchMessages$(chatId: string, pageSize = 200): Observable<Message[]> {
+    const cid = this.normChatId(chatId);
+    if (!cid) return of([]);
+
+    return defer(() => {
+      // A janela realtime precisa acompanhar as mensagens MAIS RECENTES, inclusive
+      // depois de um intervalo offline; não a primeira página histórica.
+      const q = this.buildLatestQuery(cid, pageSize);
+      return this.ctx.run(() =>
+        collectionData(q as any, { idField: 'id' })
+      ) as Observable<Message[]>;
+    }).pipe(
+      // A consulta limita pelos últimos timestamps; a UI continua em ordem
+      // cronológica crescente, sem alterar o contrato de monitorChat.
+      map((arr) => [...(arr ?? [])].reverse() as Message[]),
+      catchError((err) => {
+        this.reportSilent('watchMessages$', err);
         return of([]);
+      })
+    );
+  }
+}
+, err);
+        return throwError(() => err);
       })
     );
   }
