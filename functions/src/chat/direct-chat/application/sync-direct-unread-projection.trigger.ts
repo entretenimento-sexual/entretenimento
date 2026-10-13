@@ -31,55 +31,55 @@ export async function reconcileDirectUnreadMessage(
   chatId: string,
   messageId: string
 ): Promise<void> {
-    const chatRef = db.collection('chats').doc(chatId);
-    const messageRef = chatRef.collection('messages').doc(messageId);
+  const chatRef = db.collection('chats').doc(chatId);
+  const messageRef = chatRef.collection('messages').doc(messageId);
 
-    await db.runTransaction(async (tx) => {
-      const [chat, message] = await Promise.all([tx.get(chatRef), tx.get(messageRef)]);
-      const participants: unknown = chat.data()?.participants;
-      if (!Array.isArray(participants) || participants.length !== 2 ||
-          participants.some((uid) => typeof uid !== 'string' || !uid.trim()) ||
-          participants[0] === participants[1]) return;
-      const current = readMessage(messageId, message.data());
-      if (current && !participants.includes(current.senderUid)) return;
+  await db.runTransaction(async (tx) => {
+    const [chat, message] = await Promise.all([tx.get(chatRef), tx.get(messageRef)]);
+    const participants: unknown = chat.data()?.participants;
+    if (!Array.isArray(participants) || participants.length !== 2 ||
+        participants.some((uid) => typeof uid !== 'string' || !uid.trim()) ||
+        participants[0] === participants[1]) return;
+    const current = readMessage(messageId, message.data());
+    if (current && !participants.includes(current.senderUid)) return;
 
-      // Keep projections per participant. Reads precede all writes.
-      const entries = (participants as string[]).map((uid) => {
-        const projectionRef = db.collection('direct_chat_unread_projections')
-          .doc(uid).collection('chats').doc(chatId);
-        const checkpointRef = projectionRef.collection('messages').doc(messageId);
-        return { uid, projectionRef, checkpointRef };
-      });
-      const snapshots = await Promise.all(entries.map(async (entry) => ({
-        projection: await tx.get(entry.projectionRef),
-        checkpoint: await tx.get(entry.checkpointRef),
-      })));
-
-      entries.forEach((entry, index) => {
-        const snapshotsForUser = snapshots[index];
-        const previous = readMessage(messageId, snapshotsForUser.checkpoint.data());
-        const priorCount = snapshotsForUser.projection.exists
-          ? snapshotsForUser.projection.data()?.unreadCount : 0;
-        // Invalid projection is not silently repaired by a delta.
-        if (!Number.isSafeInteger(priorCount) || priorCount < 0) {
-          throw new Error('Invalid direct unread projection count');
-        }
-        const nextCount = applyDirectUnreadTransition(priorCount, previous, current, entry.uid);
-        const previousState = previous ? JSON.stringify(previous) : null;
-        const currentState = current ? JSON.stringify(current) : null;
-        if (previousState === currentState) return;
-
-        tx.set(entry.projectionRef, {
-          version: 1, chatId, participantUid: entry.uid, unreadCount: nextCount,
-          updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
-        if (current) {
-          tx.set(entry.checkpointRef, current);
-        } else {
-          tx.delete(entry.checkpointRef);
-        }
-      });
+    // Keep projections per participant. Reads precede all writes.
+    const entries = (participants as string[]).map((uid) => {
+      const projectionRef = db.collection('direct_chat_unread_projections')
+        .doc(uid).collection('chats').doc(chatId);
+      const checkpointRef = projectionRef.collection('messages').doc(messageId);
+      return { uid, projectionRef, checkpointRef };
     });
+    const snapshots = await Promise.all(entries.map(async (entry) => ({
+      projection: await tx.get(entry.projectionRef),
+      checkpoint: await tx.get(entry.checkpointRef),
+    })));
+
+    entries.forEach((entry, index) => {
+      const snapshotsForUser = snapshots[index];
+      const previous = readMessage(messageId, snapshotsForUser.checkpoint.data());
+      const priorCount = snapshotsForUser.projection.exists
+        ? snapshotsForUser.projection.data()?.unreadCount : 0;
+      // Invalid projection is not silently repaired by a delta.
+      if (!Number.isSafeInteger(priorCount) || priorCount < 0) {
+        throw new Error('Invalid direct unread projection count');
+      }
+      const nextCount = applyDirectUnreadTransition(priorCount, previous, current, entry.uid);
+      const previousState = previous ? JSON.stringify(previous) : null;
+      const currentState = current ? JSON.stringify(current) : null;
+      if (previousState === currentState) return;
+
+      tx.set(entry.projectionRef, {
+        version: 1, chatId, participantUid: entry.uid, unreadCount: nextCount,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      if (current) {
+        tx.set(entry.checkpointRef, current);
+      } else {
+        tx.delete(entry.checkpointRef);
+      }
+    });
+  });
 }
 
 export const syncDirectUnreadProjection = onDocumentWritten(
