@@ -31,7 +31,8 @@ export async function reconcileDirectUnreadMessage(
   chatId: string,
   messageId: string,
   expectedParticipants?: readonly string[],
-  expectedMessageIds?: readonly string[]
+  expectedMessageIds?: readonly string[],
+  onReadForEmulatorTest?: () => Promise<void>
 ): Promise<void> {
   const chatRef = db.collection('chats').doc(chatId);
   const messageRef = chatRef.collection('messages').doc(messageId);
@@ -68,6 +69,11 @@ export async function reconcileDirectUnreadMessage(
       projection: await tx.get(entry.projectionRef),
       checkpoint: await tx.get(entry.checkpointRef),
     })));
+
+    if (onReadForEmulatorTest) {
+      if (!process.env.FIRESTORE_EMULATOR_HOST) throw new Error('Test hook requires emulator');
+      await onReadForEmulatorTest();
+    }
 
     entries.forEach((entry, index) => {
       const snapshotsForUser = snapshots[index];
