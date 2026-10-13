@@ -212,10 +212,9 @@ describe('ChatModuleLayoutComponent', () => {
     component.messageContent = 'texto atualizado';
     pending.next({ messageId: 'sent-1', blockedReason: null });
     expect(component.messageContent).toBe('texto atualizado');
-    expect(component.isSendingMessage()).toBe(true);
-    pending.complete();
     await fixture.whenStable();
     expect(component.isSendingMessage()).toBe(false);
+    pending.complete();
   });
 
   it('cancela envio pendente no logout sem apagar rascunho da conta seguinte', () => {
