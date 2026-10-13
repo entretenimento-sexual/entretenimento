@@ -21,10 +21,12 @@ import { DirectChatSelectionContextFacade } from '../application/direct-chat-sel
 describe('ChatModuleLayoutComponent', () => {
   let component: ChatModuleLayoutComponent;
   let fixture: ComponentFixture<ChatModuleLayoutComponent>;
+  let authUid$: BehaviorSubject<string | null>;
   let selectedChatId$: BehaviorSubject<string | null>;
   let selectedType$: BehaviorSubject<'chat' | null>;
 
   beforeEach(async () => {
+    authUid$ = new BehaviorSubject<string | null>('u1');
     selectedChatId$ = new BehaviorSubject<string | null>(null);
     selectedType$ = new BehaviorSubject<'chat' | null>(null);
     await TestBed.configureTestingModule({
@@ -34,7 +36,7 @@ describe('ChatModuleLayoutComponent', () => {
         {
           provide: AuthSessionService,
           useValue: {
-            uid$: of('u1'),
+            uid$: authUid$.asObservable(),
             authUser$: of({ uid: 'u1' }),
             ready$: of(true),
             whenReady: vi.fn(() => Promise.resolve()),
@@ -210,6 +212,48 @@ describe('ChatModuleLayoutComponent', () => {
     expect(component.isSendingMessage()).toBe(true);
     pending.complete();
     expect(component.isSendingMessage()).toBe(false);
+  });
+
+  it('cancela envio pendente no logout sem apagar rascunho da conta seguinte', () => {
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
+    const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
+    const pending = new Subject<{ messageId: string; blockedReason: string | null }>();
+    orchestrator.send$.mockReturnValueOnce(pending.asObservable());
+    selection.selectedChatId.mockReturnValue('chat-1');
+    selection.selectedType.mockReturnValue('chat');
+    selectedChatId$.next('chat-1');
+    selectedType$.next('chat');
+    component.canSendCurrentMessage.set(true);
+    component.messageContent = 'rascunho de A';
+    component.sendMessage();
+    expect(component.isSendingMessage()).toBe(true);
+
+    authUid$.next(null);
+    expect(component.isSendingMessage()).toBe(false);
+    authUid$.next('u2');
+    component.messageContent = 'rascunho de B';
+    pending.next({ messageId: 'envio-A', blockedReason: null });
+    expect(component.messageContent).toBe('rascunho de B');
+    expect(component.directMessageBlockedReason()).toBeNull();
+  });
+
+  it('mantém o rascunho quando o envio falha e encerra o indicador', () => {
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
+    const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
+    const pending = new Subject<{ messageId: string | null; blockedReason: string | null }>();
+    orchestrator.send$.mockReturnValueOnce(pending.asObservable());
+    selection.selectedChatId.mockReturnValue('chat-1');
+    selection.selectedType.mockReturnValue('chat');
+    selectedChatId$.next('chat-1');
+    selectedType$.next('chat');
+    component.canSendCurrentMessage.set(true);
+    component.messageContent = 'não perder este texto';
+    component.sendMessage();
+    pending.next({ messageId: null, blockedReason: 'Falha de envio' });
+    pending.complete();
+    expect(component.isSendingMessage()).toBe(false);
+    expect(component.messageContent).toBe('não perder este texto');
+    expect(component.directMessageBlockedReason()).toBe('Falha de envio');
   });
 
   it('mantém apenas atalhos do chat direto no estado vazio', () => {
