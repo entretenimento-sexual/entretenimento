@@ -135,6 +135,29 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     assert.equal(targetDoc.data()?.senderId, targetUid);
   });
 
+  it('retry confirmado não altera timestamps nem cria novos efeitos persistidos', async () => {
+    const id = randomUUID();
+    const first = await send('enviado uma única vez', id);
+    const chatRef = db.doc(`chats/${chatId}`);
+    const messageRef = db.doc(`chats/${chatId}/messages/${first.messageId}`);
+    const [chatBefore, messageBefore] = await Promise.all([
+      chatRef.get(), messageRef.get(),
+    ]);
+    const repeated = await send('enviado uma única vez', id);
+    const [chatAfter, messageAfter] = await Promise.all([
+      chatRef.get(), messageRef.get(),
+    ]);
+
+    assert.equal(repeated.deduplicated, true);
+    assert.equal(repeated.messageId, first.messageId);
+    assert.equal(chatAfter.updateTime?.toMillis(), chatBefore.updateTime?.toMillis());
+    assert.equal(messageAfter.updateTime?.toMillis(), messageBefore.updateTime?.toMillis());
+    assert.deepEqual(chatAfter.data()?.lastMessage, chatBefore.data()?.lastMessage);
+    const occurrences = await chatRef.collection('messages')
+      .where('clientRequestId', '==', id).get();
+    assert.equal(occurrences.size, 1);
+  });
+
   it('rejeita reutilização do requestId com conteúdo divergente', async () => {
     const id = randomUUID();
     await send('conteúdo original', id);
