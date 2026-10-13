@@ -212,7 +212,8 @@ export class ChatNotificationService {
       const messagesRef = collection(this.db, `chats/${chatId}/messages`);
       unreadMessagesQuery = query(
         messagesRef,
-        where('status', '==', 'sent'),
+        // Entregue não significa lida: só 'read' retira a mensagem do badge.
+        where('status', 'in', ['sent', 'delivered']),
         where('senderId', '!=', userId)
       );
     } catch (err) {
