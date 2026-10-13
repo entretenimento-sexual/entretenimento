@@ -445,6 +445,8 @@ const functionsOperationalArtifacts = new Set([
     'chat/direct-chat/application/direct-unread-backfill.audit.ts',
     'chat/direct-chat/application/sync-direct-unread-projection.trigger.ts',
     'chat/direct-chat/domain/direct-unread-projection.policy.ts',
+    'chat/direct-chat/domain/direct-unread-backfill-budget.policy.ts',
+    'chat/direct-chat/domain/direct-unread-backfill-journal.policy.ts',
   ].map((relativePath) => posix(path.join(functionsSourceRoot, relativePath))),
 
   posix(path.join(
