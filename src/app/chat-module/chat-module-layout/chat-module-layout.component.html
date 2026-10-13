@@ -82,8 +82,8 @@
               aria-label="Digite sua mensagem. Pressione Enter para enviar ou Shift mais Enter para quebrar linha."
               [attr.aria-describedby]="shouldShowComposerHelp ? 'chat-composer-help' : null"
               rows="1"
-              [readOnly]="isSendingMessage()"
-              [attr.aria-readonly]="isSendingMessage()"
+              [readOnly]="isSendingMessage() || !canSendMessageNow"
+              [attr.aria-readonly]="isSendingMessage() || !canSendMessageNow"
               [attr.aria-invalid]="isMessageTooLong"
               [attr.maxlength]="maxMessageLength + 1"
             ></textarea>
