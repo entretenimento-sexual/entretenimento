@@ -451,17 +451,20 @@ if (this.isMessageTooLong) {
     if (!sendingUid) return;
 
     this.isSendingMessage.set(true);
+    const sendingContent = this.messageContent;
 
     this.sendOrchestrator
       .send$(selectedChatId, content)
       .pipe(
         tap((result) => {
+          // Resposta antiga não pode modificar o editor da próxima conversa.
+          if (this.activeSessionUid !== sendingUid || this.selectedChatId !== selectedChatId || this.selectedType !== selectedType) return;
           if (result.blockedReason) {
             this.directMessageBlockedReason.set(result.blockedReason);
           }
 
           if (result.messageId) {
-            this.messageContent = '';
+            if (this.messageContent === sendingContent) this.messageContent = '';
             this.directMessageBlockedReason.set(null);
 
             this.dbg('sendMessage() -> direct orchestrator ok', {
@@ -474,6 +477,8 @@ if (this.isMessageTooLong) {
           this.isSendingMessage.set(false);
         }),
         takeUntil(this.currentUid$.pipe(filter((uid) => uid !== sendingUid))),
+        takeUntil(this.selectedChatId$.pipe(filter((id) => id !== selectedChatId))),
+        takeUntil(this.selectedType$.pipe(filter((type) => type !== selectedType))),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
