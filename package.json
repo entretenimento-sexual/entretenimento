@@ -56,6 +56,7 @@
     "maintenance:media-age-legacy-cleanup": "node scripts/maintenance/cleanup-legacy-media-age-projections-admin.mjs",
     "emu:save": "node scripts/dev/save-emulator-data.mjs --require-running",
     "emu:firestore:snapshots:compare": "node scripts/dev/compare-firestore-snapshots.mjs",
+    "emu:snapshot:preflight:test": "node --test scripts/tests/emulator-snapshot-preflight.test.mjs",
     "emu:pre": "node scripts/dev/safe-emulator-pre.mjs",
     "preemu:start": "npm run functions:prepare",
     "preemu:noui:start": "npm run functions:prepare",

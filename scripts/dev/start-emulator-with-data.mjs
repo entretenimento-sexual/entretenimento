@@ -29,6 +29,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import { validateEmulatorSnapshotImport } from './emulator-snapshot-preflight.mjs';
 
 const projectId = process.env.FIREBASE_PROJECT_ID || 'entretenimento-sexual';
 const storageBucket =
@@ -40,7 +41,6 @@ const skipBackup = process.env.FIREBASE_EMULATOR_SKIP_BACKUP === '1';
 const skipPortCheck = process.env.FIREBASE_EMULATOR_SKIP_PORT_CHECK === '1';
 const root = process.cwd();
 const dataPath = path.resolve(root, dataDir);
-const metadataPath = path.join(dataPath, 'firebase-export-metadata.json');
 const backupRootPath = path.resolve(root, backupRootDir);
 const rulesBuildScript = path.resolve(
   root,
@@ -213,43 +213,24 @@ function backupExistingData() {
 }
 
 function validateImportMetadata(backupPath) {
-  if (!fs.existsSync(metadataPath)) {
-    return false;
-  }
-
-  let rawMetadata = '';
   try {
-    rawMetadata = fs.readFileSync(metadataPath, 'utf8');
+    const hasImport = validateEmulatorSnapshotImport(
+      dataPath,
+      parseRequestedEmulators(only)
+    );
+    if (hasImport) {
+      console.log('[emu:safe] Manifesto e exports de Auth/Firestore/Storage verificados.');
+    }
+    return hasImport;
   } catch (error) {
-    console.error('[emu:safe] Não foi possível ler firebase-export-metadata.json:', error);
-    process.exit(1);
-  }
-
-  if (!rawMetadata.trim()) {
-    console.error('[emu:safe] Importação abortada: firebase-export-metadata.json está vazio.');
+    console.error('[emu:safe] Snapshot inválido: importação abortada antes de iniciar Firebase.');
+    console.error('[emu:safe] ' + (error instanceof Error ? error.message : String(error)));
     if (backupPath) {
-      console.error(`[emu:safe] Snapshot preservado em ${path.relative(root, backupPath)}.`);
+      console.error('[emu:safe] Snapshot anterior preservado em ' + path.relative(root, backupPath));
     }
-    console.error('[emu:safe] Recupere um export válido antes de iniciar os emuladores.');
+    console.error('[emu:safe] Corrija o snapshot ou use uma pasta de dados vazia e distinta explicitamente.');
     process.exit(1);
   }
-
-  try {
-    const parsed = JSON.parse(rawMetadata);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new TypeError('metadata root must be an object');
-    }
-  } catch (error) {
-    console.error('[emu:safe] Importação abortada: firebase-export-metadata.json contém JSON inválido.');
-    if (backupPath) {
-      console.error(`[emu:safe] Snapshot preservado em ${path.relative(root, backupPath)}.`);
-    }
-    console.error(`[emu:safe] Detalhe: ${error instanceof Error ? error.message : String(error)}`);
-    console.error('[emu:safe] Recupere um export válido antes de iniciar os emuladores.');
-    process.exit(1);
-  }
-
-  return true;
 }
 
 function spawnFirebaseEmulator(args, env) {
