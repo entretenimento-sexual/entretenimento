@@ -23,13 +23,15 @@ async function main(): Promise<void> {
     }
   }
   const input = process.argv.slice(2);
+  const conversation = input[0] === '--conversation';
   const consistent = input[0] === '--consistent';
-  const args = consistent ? input.slice(1) : input;
-  if (consistent ? args.length !== 2 : ![2, 4, 6].includes(args.length)) {
-    throw new Error('Usage: --consistent CHAT_ID UID | CHAT_ID UID [CURSOR PAGE_SIZE [SCANNED UNREAD]]');
+  const args = consistent || conversation ? input.slice(1) : input;
+  if (conversation ? args.length !== 1 : consistent ? args.length !== 2 :
+    ![2, 4, 6].includes(args.length)) {
+    throw new Error('Usage: --conversation CHAT_ID | --consistent CHAT_ID UID | CHAT_ID UID [CURSOR PAGE_SIZE [SCANNED UNREAD]]');
   }
   const [chatId, uid, cursorArg = '-', sizeArg = '100', scannedArg = '0', unreadArg = '0'] = args;
-  if ([chatId, uid].some((id) => !id || id.length > 128 ||
+  if ([chatId, ...(conversation ? [] : [uid])].some((id) => !id || id.length > 128 ||
       !/^[A-Za-z0-9_-]+$/.test(id))) throw new Error('Invalid scope');
   const pageSize = Number(sizeArg);
   if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100) {
@@ -47,14 +49,14 @@ async function main(): Promise<void> {
   // Admin SDK is loaded only after validating emulator environment.
   const audit = require('./direct-unread-backfill.audit') as
     typeof import('./direct-unread-backfill.audit');
-  const result = consistent ?
+  const result = conversation ? await audit.auditDirectUnreadConversation(chatId) : consistent ?
     await audit.auditDirectUnreadConsistent(chatId, uid) :
     await audit.auditDirectUnreadPage(
       chatId, uid, cursorArg === '-' ? null : cursorArg, pageSize,
       previousScanned, previousUnread
     );
   process.stdout.write(`${JSON.stringify({
-    mode: 'DRY_RUN', auditMode: consistent ? 'CONSISTENT' : 'PAGINATED',
+    mode: 'DRY_RUN', auditMode: conversation ? 'CONVERSATION' : consistent ? 'CONSISTENT' : 'PAGINATED',
     mutationCount: 0, ...result,
   }, null, 2)}\n`);
 }
