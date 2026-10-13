@@ -68,7 +68,8 @@ export class ChatDraftDirective implements OnChanges, OnDestroy, OnInit {
     // Não levar texto da conversa/conta anterior para a nova chave.
     this.elementRef.nativeElement.value = '';
     this.ngModel?.control.setValue('', {
-      emitEvent: true,
+      // Limpar UI não pode remover um rascunho salvo da nova conversa.
+      emitEvent: false,
       emitModelToViewChange: true,
       emitViewToModelChange: true,
     });
