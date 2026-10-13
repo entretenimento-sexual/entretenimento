@@ -30,7 +30,9 @@ The deliberately conservative model is:
 | --- | --- | ---: |
 | Estimated document reads, no retry | `n² + 11n + 11` | 11,111 |
 | Estimated document reads, up to 3 transaction attempts | `3n² + 27n + 23` | 32,723 |
-| Maximum checkpoint/projection writes committed by one pass | `4n` | 400 |
+| Maximum checkpoint/projection writes in one pass | `4n` | 400 |
+| Journal writes (start, ten-message progress, terminal) | `ceil(n/10) + 2` | 12 |
+| Maximum writes including the journal | `4n + ceil(n/10) + 2` | 412 |
 
 The second estimate includes repeated reads by the two transactional audits
 and each per-message reconciliation. Failed transaction writes are not counted
@@ -53,6 +55,8 @@ Cloud Firestore billing report:
   observed by the instrumented reconciler, including Firestore retries.
 - `documentReadUnitsApprox`: documents obtained or expected by SDK operations
   (including minimums for empty queries), not index reads or billed units.
+- `journalWrites`: confirmed journal writes for the successful invocation;
+  separate from projection/checkpoint writes.
 - `stagedDocumentWrites`: writes queued by transaction callbacks, including
   aborted callbacks; these are **not** necessarily committed writes.
 - `committedDocumentWrites`: writes staged in transactions that returned
@@ -72,12 +76,23 @@ produce durable metrics, so they must not be treated as zero-cost operations.
   missing or inconclusive projection must not be silently declared healthy.
 - The emulator initialization returns before/after classifications, processed
   message count and estimated workload. It does not expose message contents.
+- Each invocation persists a separate record in
+  `direct_chat_unread_backfill_emulator_runs/{runId}`. RUNNING is saved before
+  preflight, progress is recorded every ten committed message reconciliations,
+  and SUCCEEDED/FAILED is recorded on normal termination. Records contain
+  counts, identifiers, status and timestamps, never message content or raw errors.
+- A process crash can leave RUNNING indefinitely, and the recorded progress
+  can lag up to nine messages. Inspect checkpoint integrity before retrying;
+  journal progress is NOT the source of truth and is not a concurrency lock.
+- The journal itself adds Firestore Emulator writes; these are included in the
+  workload model. Journal update failures abort processing. If terminal writing
+  also fails, RUNNING must be treated as unknown, not successful.
 - On conflict or unexpected state, stop and investigate; a failed run does
   not mean its earlier committed transactions were rolled back.
 - A successful run requires `MATCH` for both participants in the final audit.
-- Operational logging, durable attempt journals, throughput limiting, alerts,
-  authorization for operators, and fail-safe production rollback are **not**
-  implemented.
+- A local durable attempt journal is available for emulator diagnostics.
+  Production-grade logging, throughput limiting, alerts, authorization for
+  operators, journal retention, and fail-safe rollback are **not** implemented.
 
 ## Release gates (all currently blocking)
 
