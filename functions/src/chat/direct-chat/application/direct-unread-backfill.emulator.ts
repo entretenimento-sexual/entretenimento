@@ -7,12 +7,16 @@ import { db } from '../../../firebaseApp';
 import { auditDirectUnreadConversation } from './direct-unread-backfill.audit';
 import { reconcileDirectUnreadMessageMeasuredOnEmulator } from './sync-direct-unread-projection.trigger';
 import { isDirectMessageUnread, type DirectUnreadMessage } from '../domain/direct-unread-projection.policy';
-import { estimateDirectUnreadBackfillBudget } from '../domain/direct-unread-backfill-budget.policy';
+import {
+  DIRECT_UNREAD_JOURNAL_PROGRESS_INTERVAL, estimateDirectUnreadBackfillBudget,
+} from '../domain/direct-unread-backfill-budget.policy';
 import {
   startDirectUnreadEmulatorJournal, type DirectUnreadBackfillStage,
 } from './direct-unread-backfill.journal.emulator';
 
-export async function initializeDirectUnreadOnEmulator(chatId: string) {
+async function initializeDirectUnreadInternal(
+  chatId: string, afterCheckpointForEmulatorTest?: (completed: number) => Promise<void>
+) {
   const host = process.env.FIRESTORE_EMULATOR_HOST;
   const projects = [
     process.env.GCLOUD_PROJECT, process.env.GOOGLE_CLOUD_PROJECT, process.env.GCP_PROJECT,
@@ -102,9 +106,11 @@ export async function initializeDirectUnreadOnEmulator(chatId: string) {
       stagedDocumentWrites += metrics.stagedDocumentWrites;
       committedDocumentWrites += metrics.committedDocumentWrites;
       completedMessages += 1;
-      if (completedMessages % 10 === 0 || completedMessages === documents.size) {
+      if (completedMessages % DIRECT_UNREAD_JOURNAL_PROGRESS_INTERVAL === 0 ||
+          completedMessages === documents.size) {
         await journal.progress(completedMessages, transactionAttempts, committedDocumentWrites);
       }
+      if (afterCheckpointForEmulatorTest) await afterCheckpointForEmulatorTest(completedMessages);
     }
     stage = 'VERIFY';
     const after = await auditDirectUnreadConversation(chatId);
@@ -138,4 +144,16 @@ export async function initializeDirectUnreadOnEmulator(chatId: string) {
     }
     throw error;
   }
+}
+
+export async function initializeDirectUnreadOnEmulator(chatId: string) {
+  return initializeDirectUnreadInternal(chatId);
+}
+
+/** Failure injection for local emulator integration tests only. */
+export async function initializeDirectUnreadForEmulatorTest(
+  chatId: string, afterCheckpoint: (completed: number) => Promise<void>
+) {
+  if (!process.env.FIRESTORE_EMULATOR_HOST) throw new Error('Emulator required');
+  return initializeDirectUnreadInternal(chatId, afterCheckpoint);
 }
