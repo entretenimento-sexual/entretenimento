@@ -46,4 +46,64 @@ describe('ChatDraftDirective', () => {
     expect(fixture.componentInstance.draft).toBe('texto de B');
     expect(sessionStorage.getItem('chat-draft:user-a:chat:chat-1')).toBe('texto de A');
   });
+  it('limpa rascunho enviado e não restaura texto após alternar de conta', async () => {
+    await TestBed.configureTestingModule({
+      imports: [FormsModule],
+      declarations: [DraftHostComponent, ChatDraftDirective],
+    }).compileComponents();
+    fixture = TestBed.createComponent(DraftHostComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const host = fixture.componentInstance;
+    const textarea = fixture.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
+    textarea.value = 'mensagem enviada';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+    expect(sessionStorage.getItem('chat-draft:user-a:chat:chat-1')).toBe('mensagem enviada');
+
+    host.draft = '';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(sessionStorage.getItem('chat-draft:user-a:chat:chat-1')).toBeNull();
+
+    host.key = 'user-b:chat:chat-1';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(textarea.value).toBe('');
+    host.key = 'user-a:chat:chat-1';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(textarea.value).toBe('');
+    expect(host.draft).toBe('');
+  });
+
+  it('não transfere texto para a próxima conta ao perder o contexto de sessão', async () => {
+    await TestBed.configureTestingModule({
+      imports: [FormsModule],
+      declarations: [DraftHostComponent, ChatDraftDirective],
+    }).compileComponents();
+    fixture = TestBed.createComponent(DraftHostComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const host = fixture.componentInstance;
+    const textarea = fixture.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
+    textarea.value = 'rascunho privado';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+
+    host.key = '';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(textarea.value).toBe('');
+
+    host.key = 'user-b:chat:chat-1';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(textarea.value).toBe('');
+    expect(sessionStorage.getItem('chat-draft:user-a:chat:chat-1')).toBe('rascunho privado');
+    expect(sessionStorage.getItem('chat-draft:user-b:chat:chat-1')).toBeNull();
+  });
+
 });
