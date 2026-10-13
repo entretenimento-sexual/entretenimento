@@ -364,7 +364,10 @@ describe('ChatModuleLayoutComponent', () => {
     try {
       await component.sendMessage();
       const originalId = orchestrator.send$.mock.calls.at(-1)[2];
-      expect(JSON.parse(sessionStorage.getItem(key) ?? '{}').requestId).toBe(originalId);
+      const persisted = JSON.parse(sessionStorage.getItem(key) ?? '{}');
+      expect(persisted.requestId).toBe(originalId);
+      expect(persisted).not.toHaveProperty('content');
+      expect(persisted.contentHash).toMatch(/^[a-f0-9]{64}$/);
 
       // Simula o descarte do estado em memória provocado por recarregamento.
       (component as any).pendingSend = null;
