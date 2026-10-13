@@ -129,7 +129,7 @@ export class ChatModuleLayoutComponent implements OnInit {
   // ---------------------------------------------------------------------------
 
   messageContent = '';
-  private activeSessionUid: string | null = null;
+  activeSessionUid: string | null = null;
 
   readonly maxMessageLength = DIRECT_CHAT_MAX_MESSAGE_LENGTH;
 
