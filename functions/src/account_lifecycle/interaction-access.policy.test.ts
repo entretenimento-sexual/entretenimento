@@ -43,6 +43,18 @@ describe('interaction access policy', () => {
     assert.throws(() => assertPlatformAccountAccessData(withoutStatus));
   });
 
+  it('nega uso da plataforma para accountLocked ou loginAllowed false', () => {
+    for (const blocked of [
+      { accountLocked: true },
+      { loginAllowed: false },
+      { accountLocked: true, loginAllowed: false },
+    ]) {
+      assert.throws(() => assertPlatformAccountAccessData({
+        ...validUser, ...blocked,
+      }));
+    }
+  });
+
   it('bloqueia conta com interactionBlocked', () => {
     assert.throws(() =>
       assertPlatformAccountAccessData({
