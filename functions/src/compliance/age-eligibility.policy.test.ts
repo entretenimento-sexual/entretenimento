@@ -5,6 +5,7 @@ import {
   AGE_ELIGIBILITY_POLICY_VERSION,
   evaluateCanonicalAgeEligibility,
   isTrustedAdultAgeDecision,
+  isAdultAccountAdmissionDecision,
 } from './age-eligibility.policy';
 
 const NOW = 1_800_000_000_000;
@@ -70,6 +71,43 @@ describe('age-eligibility.policy', () => {
     assert.equal(isTrustedAdultAgeDecision(allowed), false);
     assert.equal(mismatched.allowed, false);
     assert.equal(mismatched.denialReason, 'record_mismatch');
+  });
+
+  it('admite 18+ autodeclarado e verificado sem equiparar os níveis de assurance', () => {
+    const selfDeclaration = evaluateCanonicalAgeEligibility({
+      uid: 'user-1', nowMs: NOW,
+      rawRecord: {
+        uid: 'user-1', status: 'SELF_DECLARED_ADULT', policyVersion: 1,
+        source: 'SELF_DECLARATION', method: 'SELF_DECLARATION',
+        decidedAtMs: NOW - 1_000, verifiedAtMs: null, expiresAtMs: null,
+      },
+    });
+    const trusted = evaluateCanonicalAgeEligibility({
+      uid: 'user-1', nowMs: NOW,
+      rawRecord: {
+        uid: 'user-1', status: 'VERIFIED_ADULT', policyVersion: 1,
+        source: 'INITIAL_VERIFICATION', method: 'EXTERNAL_PROVIDER',
+        verifiedAtMs: NOW - 1_000, expiresAtMs: null,
+      },
+    });
+    assert.equal(isAdultAccountAdmissionDecision(selfDeclaration), true);
+    assert.equal(isTrustedAdultAgeDecision(selfDeclaration), false);
+    assert.equal(isAdultAccountAdmissionDecision(trusted), true);
+    assert.equal(isTrustedAdultAgeDecision(trusted), true);
+    for (const [status, source, method] of [
+      ['DENIED_UNDERAGE', 'AGE_REVERIFICATION', 'MANUAL_REVIEW'],
+      ['REVIEW_REQUIRED', 'INITIAL_VERIFICATION', 'MANUAL_REVIEW'],
+      ['VERIFIED_ADULT', 'SELF_DECLARATION', 'SELF_DECLARATION'],
+    ]) {
+      const decision = evaluateCanonicalAgeEligibility({
+        uid: 'user-1', nowMs: NOW,
+        rawRecord: {
+          uid: 'user-1', status, source, method,
+          policyVersion: 1, verifiedAtMs: NOW - 1_000, expiresAtMs: null,
+        },
+      });
+      assert.equal(isAdultAccountAdmissionDecision(decision), false);
+    }
   });
 
   it('não permite TTL na autodeclaração 18+', () => {
