@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { BehaviorSubject, of, Subject } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatModuleLayoutComponent } from './chat-module-layout.component';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
@@ -27,6 +27,12 @@ describe('ChatModuleLayoutComponent', () => {
   let authUid$: BehaviorSubject<string | null>;
   let selectedChatId$: BehaviorSubject<string | null>;
   let selectedType$: BehaviorSubject<'chat' | null>;
+  afterEach(() => {
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const key = sessionStorage.key(i);
+      if (key?.startsWith('chat-send-intent:')) sessionStorage.removeItem(key);
+    }
+  });
 
   beforeEach(async () => {
     authUid$ = new BehaviorSubject<string | null>('u1');
