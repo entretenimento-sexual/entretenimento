@@ -1,4 +1,4 @@
-import { NO_ERRORS_SCHEMA } from '@angular/core';
+import { Directive, NO_ERRORS_SCHEMA } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
@@ -18,6 +18,9 @@ import { DirectChatComposeAccessFacade } from '../application/direct-chat-compos
 import { DirectChatSendOrchestrator } from '../application/direct-chat-send.orchestrator';
 import { DirectChatSelectionContextFacade } from '../application/direct-chat-selection-context.facade';
 
+@Directive({ selector: 'textarea[appChatEmojiComposer]', exportAs: 'chatEmojiComposer', standalone: false })
+class MockChatEmojiComposerDirective {}
+
 describe('ChatModuleLayoutComponent', () => {
   let component: ChatModuleLayoutComponent;
   let fixture: ComponentFixture<ChatModuleLayoutComponent>;
@@ -30,7 +33,7 @@ describe('ChatModuleLayoutComponent', () => {
     selectedChatId$ = new BehaviorSubject<string | null>(null);
     selectedType$ = new BehaviorSubject<'chat' | null>(null);
     await TestBed.configureTestingModule({
-      declarations: [ChatModuleLayoutComponent],
+      declarations: [ChatModuleLayoutComponent, MockChatEmojiComposerDirective],
       imports: [CommonModule, RouterTestingModule],
       providers: [
         {
@@ -195,7 +198,7 @@ describe('ChatModuleLayoutComponent', () => {
     expect(component.directMessageBlockedReason()).toBeNull();
   });
 
-  it('não apaga texto atualizado enquanto o envio antigo está pendente', () => {
+  it('não apaga texto atualizado enquanto o envio antigo está pendente', async () => {
     const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
     const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
     const pending = new Subject<{ messageId: string; blockedReason: null }>();
@@ -211,6 +214,7 @@ describe('ChatModuleLayoutComponent', () => {
     expect(component.messageContent).toBe('texto atualizado');
     expect(component.isSendingMessage()).toBe(true);
     pending.complete();
+    await fixture.whenStable();
     expect(component.isSendingMessage()).toBe(false);
   });
 
