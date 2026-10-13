@@ -467,6 +467,29 @@ async function enforceDiscoveryOwnerLifecycle(
   };
 }
 
+/** Preserve the cursor of the last delivered result, not the scan-ahead. */
+export function selectVisibleDiscoveryBatch(
+  candidates: readonly {
+    card: Record<string, unknown>;
+    position: { uid: string; updatedAtMs: number };
+  }[],
+  visibleUids: ReadonlySet<unknown>,
+  capacity: number
+): {
+  items: Record<string, unknown>[];
+  filledAt: { uid: string; updatedAtMs: number } | null;
+} {
+  const items: Record<string, unknown>[] = [];
+  for (const entry of candidates) {
+    if (!visibleUids.has(entry.card['uid'])) continue;
+    items.push(entry.card);
+    if (items.length >= capacity) {
+      return { items, filledAt: entry.position };
+    }
+  }
+  return { items, filledAt: null };
+}
+
 async function getNearbyProfiles(
   nearby: DiscoveryNearby,
   pageSize: number,
@@ -760,19 +783,12 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
         fetchedAt: nowMs, scanned,
       });
       const allowedUids = new Set(visibleBatch.items.map((item) => item['uid']));
-      let pageFull = false;
-      for (const candidate of candidates) {
-        if (!allowedUids.has(candidate.card['uid'])) continue;
-        items.push(candidate.card);
-        if (items.length === pageSize) {
-          // Resume at the last returned result, not the end of a prefetched
-          // batch; otherwise valid profiles could be skipped on the next page.
-          cursor = candidate.position;
-          pageFull = true;
-          break;
-        }
-      }
-      if (!pageFull) cursor = batchCursor;
+      const selected = selectVisibleDiscoveryBatch(
+        candidates, allowedUids, pageSize - items.length
+      );
+      items.push(...selected.items);
+      const pageFull = selected.filledAt !== null;
+      cursor = selected.filledAt ?? batchCursor;
       if (!pageFull && snapshot.size < currentBatchSize) {
         reachedEnd = true;
       }
