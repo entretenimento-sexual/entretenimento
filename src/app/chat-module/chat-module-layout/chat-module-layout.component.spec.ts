@@ -163,7 +163,7 @@ describe('ChatModuleLayoutComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('mantém editor somente leitura quando envio não está autorizado e libera após autorização', () => {
+  it('mantém editor somente leitura quando envio não está autorizado e libera após autorização', async () => {
     const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
     selection.selectedChatId.mockReturnValue('chat-1');
     selection.selectedType.mockReturnValue('chat');
@@ -184,7 +184,7 @@ describe('ChatModuleLayoutComponent', () => {
     expect(button.disabled).toBe(false);
   });
 
-  it('não limpa rascunho da nova conversa após resposta atrasada de envio', () => {
+  it('não limpa rascunho da nova conversa após resposta atrasada de envio', async () => {
     const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
     const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
     const pending = new Subject<{ messageId: string; blockedReason: null }>();
@@ -193,7 +193,7 @@ describe('ChatModuleLayoutComponent', () => {
     selection.selectedType.mockReturnValue('chat');
     component.canSendCurrentMessage.set(true);
     component.messageContent = 'texto para A';
-    component.sendMessage();
+    await component.sendMessage();
     expect(orchestrator.send$).toHaveBeenCalledWith('chat-1', 'texto para A', expect.any(String));
 
     selection.selectedChatId.mockReturnValue('chat-2');
@@ -213,7 +213,7 @@ describe('ChatModuleLayoutComponent', () => {
     selection.selectedType.mockReturnValue('chat');
     component.canSendCurrentMessage.set(true);
     component.messageContent = 'texto original';
-    component.sendMessage();
+    await component.sendMessage();
 
     component.messageContent = 'texto atualizado';
     pending.next({ messageId: 'sent-1', blockedReason: null });
@@ -223,7 +223,7 @@ describe('ChatModuleLayoutComponent', () => {
     pending.complete();
   });
 
-  it('cancela envio pendente no logout sem apagar rascunho da conta seguinte', () => {
+  it('cancela envio pendente no logout sem apagar rascunho da conta seguinte', async () => {
     const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
     const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
     const pending = new Subject<{ messageId: string; blockedReason: string | null }>();
@@ -234,7 +234,7 @@ describe('ChatModuleLayoutComponent', () => {
     selectedType$.next('chat');
     component.canSendCurrentMessage.set(true);
     component.messageContent = 'rascunho de A';
-    component.sendMessage();
+    await component.sendMessage();
     expect(component.isSendingMessage()).toBe(true);
 
     authUid$.next(null);
@@ -246,7 +246,7 @@ describe('ChatModuleLayoutComponent', () => {
     expect(component.directMessageBlockedReason()).toBeNull();
   });
 
-  it('mantém o rascunho quando o envio falha e encerra o indicador', () => {
+  it('mantém o rascunho quando o envio falha e encerra o indicador', async () => {
     const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
     const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
     const pending = new Subject<{ messageId: string | null; blockedReason: string | null }>();
@@ -257,7 +257,7 @@ describe('ChatModuleLayoutComponent', () => {
     selectedType$.next('chat');
     component.canSendCurrentMessage.set(true);
     component.messageContent = 'não perder este texto';
-    component.sendMessage();
+    await component.sendMessage();
     pending.next({ messageId: null, blockedReason: 'Falha de envio' });
     pending.complete();
     expect(component.isSendingMessage()).toBe(false);
@@ -265,7 +265,7 @@ describe('ChatModuleLayoutComponent', () => {
     expect(component.directMessageBlockedReason()).toBe('Falha de envio');
   });
 
-  it('informa envio não confirmado sem apagar o rascunho nem sugerir retry cego', () => {
+  it('informa envio não confirmado sem apagar o rascunho nem sugerir retry cego', async () => {
     const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
     const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
     const notifier = TestBed.inject(ErrorNotificationService) as any;
@@ -277,7 +277,7 @@ describe('ChatModuleLayoutComponent', () => {
     selectedType$.next('chat');
     component.canSendCurrentMessage.set(true);
     component.messageContent = 'não perder';
-    component.sendMessage();
+    await component.sendMessage();
 
     pending.next({ messageId: null, blockedReason: null });
     pending.complete();
@@ -298,18 +298,18 @@ describe('ChatModuleLayoutComponent', () => {
     component.canSendCurrentMessage.set(true);
     component.messageContent = 'mesma intenção';
     orchestrator.send$.mockReturnValue(of({ messageId: null, blockedReason: null }));
-    component.sendMessage();
+    await component.sendMessage();
     const firstKey = orchestrator.send$.mock.calls.at(-1)[2];
-    component.sendMessage();
+    await component.sendMessage();
     const retryKey = orchestrator.send$.mock.calls.at(-1)[2];
     expect(retryKey).toBe(firstKey);
 
     component.messageContent = 'outra mensagem';
-    component.sendMessage();
+    await component.sendMessage();
     expect(orchestrator.send$.mock.calls.at(-1)[2]).not.toBe(firstKey);
   });
 
-  it('gera nova intenção ao enviar novamente texto idêntico após confirmação', () => {
+  it('gera nova intenção ao enviar novamente texto idêntico após confirmação', async () => {
     const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
     const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
     selection.selectedChatId.mockReturnValue('chat-1');
@@ -320,16 +320,16 @@ describe('ChatModuleLayoutComponent', () => {
     orchestrator.send$.mockReturnValue(of({ messageId: 'confirmado', blockedReason: null }));
 
     component.messageContent = 'mesmo texto';
-    component.sendMessage();
+    await component.sendMessage();
     const firstKey = orchestrator.send$.mock.calls.at(-1)[2];
     expect(component.messageContent).toBe('');
 
     component.messageContent = 'mesmo texto';
-    component.sendMessage();
+    await component.sendMessage();
     expect(orchestrator.send$.mock.calls.at(-1)[2]).not.toBe(firstKey);
   });
 
-  it('não reutiliza chave de outra conversa mesmo com texto idêntico', () => {
+  it('não reutiliza chave de outra conversa mesmo com texto idêntico', async () => {
     const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
     const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
     orchestrator.send$.mockReturnValue(of({ messageId: null, blockedReason: null }));
@@ -340,17 +340,17 @@ describe('ChatModuleLayoutComponent', () => {
 
     selection.selectedChatId.mockReturnValue('chat-A');
     selectedChatId$.next('chat-A');
-    component.sendMessage();
+    await component.sendMessage();
     const firstKey = orchestrator.send$.mock.calls.at(-1)[2];
 
     selection.selectedChatId.mockReturnValue('chat-B');
     selectedChatId$.next('chat-B');
-    component.sendMessage();
+    await component.sendMessage();
     const secondKey = orchestrator.send$.mock.calls.at(-1)[2];
     expect(secondKey).not.toBe(firstKey);
   });
 
-  it('restaura chave persistida após perder estado em memória sem reenviar automaticamente', () => {
+  it('restaura chave persistida após perder estado em memória sem reenviar automaticamente', async () => {
     const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
     const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
     const key = 'chat-send-intent:u1:chat-1';
@@ -362,7 +362,7 @@ describe('ChatModuleLayoutComponent', () => {
     orchestrator.send$.mockReturnValue(of({ messageId: null, blockedReason: null }));
     component.messageContent = 'pendente';
     try {
-      component.sendMessage();
+      await component.sendMessage();
       const originalId = orchestrator.send$.mock.calls.at(-1)[2];
       expect(JSON.parse(sessionStorage.getItem(key) ?? '{}').requestId).toBe(originalId);
 
@@ -370,18 +370,18 @@ describe('ChatModuleLayoutComponent', () => {
       (component as any).pendingSend = null;
       const calls = orchestrator.send$.mock.calls.length;
       expect(orchestrator.send$.mock.calls.length).toBe(calls);
-      component.sendMessage();
+      await component.sendMessage();
       expect(orchestrator.send$.mock.calls.at(-1)[2]).toBe(originalId);
 
       orchestrator.send$.mockReturnValue(of({ messageId: 'confirmado', blockedReason: null }));
-      component.sendMessage();
+      await component.sendMessage();
       expect(sessionStorage.getItem(key)).toBeNull();
     } finally {
       sessionStorage.removeItem(key);
     }
   });
 
-  it('descarta intenção expirada antes de reutilizar chave', () => {
+  it('descarta intenção expirada antes de reutilizar chave', async () => {
     const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
     const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
     const key = 'chat-send-intent:u1:chat-1';
@@ -397,13 +397,13 @@ describe('ChatModuleLayoutComponent', () => {
     component.messageContent = 'mensagem';
     orchestrator.send$.mockReturnValue(of({ messageId: null, blockedReason: null }));
 
-    component.sendMessage();
+    await component.sendMessage();
     const requestId = orchestrator.send$.mock.calls.at(-1)[2];
     expect(requestId).not.toBe('old-id');
     expect(JSON.parse(sessionStorage.getItem(key) ?? '{}').requestId).toBe(requestId);
   });
 
-  it('apaga intenções da conta anterior no logout', () => {
+  it('apaga intenções da conta anterior no logout', async () => {
     const key = 'chat-send-intent:u1:chat-1';
     sessionStorage.setItem(key, JSON.stringify({
       uid: 'u1', chatId: 'chat-1', content: 'mensagem', requestId: 'old-id',
