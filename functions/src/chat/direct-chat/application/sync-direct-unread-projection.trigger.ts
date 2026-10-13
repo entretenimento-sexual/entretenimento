@@ -99,7 +99,7 @@ async function reconcileDirectUnreadMessageInternal(
         tx.delete(entry.checkpointRef);
       }
     });
-  });
+  }, { maxAttempts: 3 });
 }
 
 export async function reconcileDirectUnreadMessage(
