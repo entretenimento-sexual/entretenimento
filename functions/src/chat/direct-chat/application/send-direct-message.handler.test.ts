@@ -95,6 +95,46 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     assert.equal(messages.size, 1);
   });
 
+  it('retry antigo não substitui o preview de mensagem posterior', async () => {
+    const oldId = randomUUID();
+    const newId = randomUUID();
+    const original = await send('mensagem anterior', oldId);
+    const newer = await send('mensagem posterior', newId);
+    const previewBefore = (await db.doc(`chats/${chatId}`).get()).data()?.lastMessage;
+    const retry = await send('mensagem anterior', oldId);
+    const previewAfter = (await db.doc(`chats/${chatId}`).get()).data()?.lastMessage;
+
+    assert.equal(retry.deduplicated, true);
+    assert.equal(retry.messageId, original.messageId);
+    assert.notEqual(retry.messageId, newer.messageId);
+    assert.deepEqual(previewAfter, previewBefore);
+    assert.equal(previewAfter?.messageId, newer.messageId);
+    const messages = await db.collection(`chats/${chatId}/messages`)
+      .where('clientRequestId', '==', oldId).get();
+    assert.equal(messages.size, 1);
+  });
+
+  it('isola o mesmo requestId por remetente dentro da mesma conversa', async () => {
+    const id = randomUUID();
+    const fromTarget = (content: string) => invoke({
+      data: { chatId, content, clientRequestId: id },
+      auth: { uid: targetUid, token: { email_verified: true } },
+    }, {});
+    const [actor, target] = await Promise.all([
+      send('enviado pelo primeiro participante', id),
+      fromTarget('enviado pelo segundo participante'),
+    ]);
+    assert.notEqual(actor.messageId, target.messageId);
+    assert.equal(actor.deduplicated, false);
+    assert.equal(target.deduplicated, false);
+    const [actorDoc, targetDoc] = await Promise.all([
+      db.doc(`chats/${chatId}/messages/${actor.messageId}`).get(),
+      db.doc(`chats/${chatId}/messages/${target.messageId}`).get(),
+    ]);
+    assert.equal(actorDoc.data()?.senderId, actorUid);
+    assert.equal(targetDoc.data()?.senderId, targetUid);
+  });
+
   it('rejeita reutilização do requestId com conteúdo divergente', async () => {
     const id = randomUUID();
     await send('conteúdo original', id);
