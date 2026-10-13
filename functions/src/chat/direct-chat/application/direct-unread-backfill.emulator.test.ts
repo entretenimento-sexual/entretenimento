@@ -185,4 +185,30 @@ run('unread initial backfill — local emulator only', () => {
     }
   });
 
+  it('rejects inserted and deleted message sets inside the reconciliation transaction', async () => {
+    const chatId = `unread-set-guard-${randomUUID()}`;
+    const chat = db.collection('chats').doc(chatId);
+    const projections = ['sender', 'recipient'].map((uid) =>
+      db.collection('direct_chat_unread_projections').doc(uid)
+        .collection('chats').doc(chatId));
+    const first = chat.collection('messages').doc('001');
+    const second = chat.collection('messages').doc('002');
+    try {
+      await chat.set({ participants: ['sender', 'recipient'] });
+      await first.set({ senderId: 'sender', status: 'sent' });
+      await second.set({ senderId: 'sender', status: 'delivered' });
+      await assert.rejects(reconcileDirectUnreadMessage(
+        chatId, '001', ['sender', 'recipient'], ['001']
+      ));
+      await first.delete();
+      await assert.rejects(reconcileDirectUnreadMessage(
+        chatId, '002', ['sender', 'recipient'], ['001', '002']
+      ));
+      assert.equal((await projections[1].get()).exists, false);
+    } finally {
+      await db.recursiveDelete(chat);
+      await Promise.all(projections.map((ref) => db.recursiveDelete(ref)));
+    }
+  });
+
 });
