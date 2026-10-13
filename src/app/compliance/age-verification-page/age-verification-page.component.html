@@ -117,15 +117,6 @@
           {{ processing() ? 'Registrando confirmação...' : 'Confirmo que tenho 18 anos ou mais' }}
         </button>
 
-        <button
-          type="button"
-          class="app-action app-action--ghost"
-          [disabled]="processing()"
-          (click)="requestVerification()"
-        >
-          Solicitar verificação adicional
-        </button>
-
         <div class="age-verification__safety-note">
           <strong>Privacidade</strong>
           <p>
