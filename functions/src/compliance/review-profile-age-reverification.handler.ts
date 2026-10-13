@@ -8,6 +8,7 @@ import {
 import {
   buildAgeReviewRestorePatch,
   buildConfirmedUnderageSuspensionPatch,
+  resolveAgeReviewRestoration,
 } from '../account_lifecycle/account-age-review-lifecycle.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
@@ -172,13 +173,12 @@ export const reviewProfileAgeReverification = onCall<
         );
       }
 
-      const accountStatus = String(user.accountStatus ?? 'active').trim();
-      const ageDecisionOwnsSuspension =
-        cleanComplianceId(user.ageReverificationSuspensionCaseId) === caseId;
-      const canRestoreAccess = decision === 'VERIFY' && (
-        (accountStatus === 'active' && user.suspended !== true) ||
-        ageDecisionOwnsSuspension
-      );
+      const restoration = resolveAgeReviewRestoration({
+        caseId,
+        account: user,
+      });
+      const ageDecisionOwnsSuspension = restoration.ownsSuspension;
+      const canRestoreAccess = decision === 'VERIFY' && restoration.canRestore;
       const timestamp = FieldValue.serverTimestamp();
       const publicProfileRef = db
         .collection('public_profiles')
