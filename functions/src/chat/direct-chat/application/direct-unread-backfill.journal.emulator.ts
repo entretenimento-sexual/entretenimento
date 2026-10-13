@@ -80,6 +80,25 @@ function journalDecision(data: FirebaseFirestore.DocumentData | undefined, nowMs
   );
 }
 
+/** Bounded discovery for runs whose process terminated before reporting runId. */
+export async function listDirectUnreadEmulatorJournals(chatId: string) {
+  ensureEmulator();
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(chatId)) throw new Error('Invalid journal scope');
+  const snapshot = await db.collection('direct_chat_unread_backfill_emulator_runs')
+    .where('chatId', '==', chatId).limit(21).get();
+  const records = snapshot.docs.slice(0, 20).map((doc) => {
+    const decision = journalDecision(doc.data(), Date.now());
+    return {
+      runId: doc.id, classification: decision.classification,
+      eligibleForPurge: decision.eligibleForPurge,
+    };
+  });
+  return {
+    mode: 'DRY_RUN' as const, chatId, mutationCount: 0,
+    records, truncated: snapshot.size > 20,
+  };
+}
+
 /** Read-only single-run inspection, with no private messages or exception payloads. */
 export async function inspectDirectUnreadEmulatorJournal(runId: string) {
   const snapshot = await journalRef(runId).get();
@@ -92,7 +111,7 @@ export async function inspectDirectUnreadEmulatorJournal(runId: string) {
     eligibleForPurge: decision.eligibleForPurge,
     completedMessagesRecorded: data?.completedMessagesRecorded ?? null,
     transactionAttemptsRecorded: data?.transactionAttemptsRecorded ?? null,
-    status: data?.status ?? null, stage: data?.stage ?? null,
+    stage: ['PREFLIGHT', 'RECONCILE', 'VERIFY'].includes(data?.stage) ? data?.stage : 'UNKNOWN',
   };
 }
 
