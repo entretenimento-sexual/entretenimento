@@ -154,6 +154,17 @@ for (const metricPath of [
   ], metricPath + ' deve revogar métrica quando lifecycle do owner mudar');
 }
 
+const playbackSessionIssuer = read(
+  'functions/src/media/application/start-public-video-playback-session.handler.ts'
+);
+requireIncludes(playbackSessionIssuer, [
+  'assertPublicMediaConsumptionAccess',
+  'assertCurrentPublicMediaOwnerLifecycle',
+  'transaction.get(ownerAccountRef)',
+  'transaction.get(publicVideoRef)',
+  'transaction.set(playbackSessionRef',
+], 'sessão de playback deve validar owner e ativo no mesmo commit');
+
 const metricOwnerPolicy = read(
   'functions/src/media/application/public-media-transaction-owner-access.policy.ts'
 );
