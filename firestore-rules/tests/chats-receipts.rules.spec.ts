@@ -4,7 +4,7 @@ import {
   assertFails, assertSucceeds, initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, setDoc, startAfter, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, where, setDoc, startAfter, updateDoc } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const PROJECT_ID = 'demo-entretenimento-rules';
@@ -307,6 +307,26 @@ describe('Firestore Rules / direct chat receipts', () => {
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'delivered' }));
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'read' }));
     expect((await getDoc(message(RECIPIENT))).data()?.['status']).toBe('read');
+  });
+
+  it('mantém delivered como não lida até confirmação de read', async () => {
+    const recipientDb = env.authenticatedContext(
+      RECIPIENT, { email_verified: true }
+    ).firestore();
+    const messages = collection(recipientDb, 'chats', CHAT_ID, 'messages');
+    const unread = () => getDocs(query(
+      messages,
+      // Mesma semântica do badge: sent e delivered ainda são não lidas.
+      // Filtra o remetente para não contar mensagens próprias.
+      where('status', 'in', ['sent', 'delivered']),
+      where('senderId', '!=', RECIPIENT)
+    ));
+
+    expect((await assertSucceeds(unread())).size).toBe(1);
+    await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'delivered' }));
+    expect((await assertSucceeds(unread())).size).toBe(1);
+    await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'read' }));
+    expect((await assertSucceeds(unread())).size).toBe(0);
   });
 
   it('nega saltos, retrocessos e atualização pelo remetente', async () => {
