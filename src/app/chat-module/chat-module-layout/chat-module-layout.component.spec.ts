@@ -416,6 +416,50 @@ describe('ChatModuleLayoutComponent', () => {
     expect(sessionStorage.getItem(key)).toBeNull();
   });
 
+  it('não reutiliza intenção expirada que ainda está em memória', async () => {
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
+    const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
+    selection.selectedChatId.mockReturnValue('chat-1');
+    selection.selectedType.mockReturnValue('chat');
+    selectedChatId$.next('chat-1');
+    selectedType$.next('chat');
+    component.canSendCurrentMessage.set(true);
+    component.messageContent = 'mensagem pendente';
+    orchestrator.send$.mockReturnValue(of({ messageId: null, blockedReason: null }));
+    await component.sendMessage();
+    const originalId = orchestrator.send$.mock.calls.at(-1)[2];
+    (component as any).pendingSend.createdAt = Date.now() - 25 * 60 * 60 * 1000;
+    const key = 'chat-send-intent:u1:chat-1';
+    const record = JSON.parse(sessionStorage.getItem(key) ?? '{}');
+    sessionStorage.setItem(key, JSON.stringify({ ...record, createdAt: Date.now() - 25 * 60 * 60 * 1000 }));
+    await component.sendMessage();
+    expect(orchestrator.send$.mock.calls.at(-1)[2]).not.toBe(originalId);
+    sessionStorage.removeItem(key);
+  });
+
+  it('descarta registros legados com texto integral sem reutilizar identificador', async () => {
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
+    const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
+    const key = 'chat-send-intent:u1:chat-1';
+    sessionStorage.setItem(key, JSON.stringify({
+      uid: 'u1', chatId: 'chat-1', content: 'mensagem privada',
+      requestId: 'legacy-id', createdAt: Date.now(),
+    }));
+    selection.selectedChatId.mockReturnValue('chat-1');
+    selection.selectedType.mockReturnValue('chat');
+    selectedChatId$.next('chat-1');
+    selectedType$.next('chat');
+    component.canSendCurrentMessage.set(true);
+    component.messageContent = 'mensagem privada';
+    orchestrator.send$.mockReturnValue(of({ messageId: null, blockedReason: null }));
+    await component.sendMessage();
+    const stored = JSON.parse(sessionStorage.getItem(key) ?? '{}');
+    expect(orchestrator.send$.mock.calls.at(-1)[2]).not.toBe('legacy-id');
+    expect(stored).not.toHaveProperty('content');
+    expect(stored.contentHash).toMatch(/^[a-f0-9]{64}$/);
+    sessionStorage.removeItem(key);
+  });
+
   it('mantém apenas atalhos do chat direto no estado vazio', () => {
     const text = fixture.nativeElement.textContent as string;
     const hrefs = Array.from(
