@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   isCurrentUserIntentStatusExposure,
+  filterUserIntentStatusesByOwnerLifecycle,
   serializeUserIntentStatusForDiscovery,
   userIntentStatusReadRateLimitCost,
 } from './get-user-intent-statuses.handler';
@@ -92,6 +93,31 @@ describe('get-user-intent-statuses backend-time boundary', () => {
       'active'
     );
     assert.equal('ageEligibilityValidUntil' in serialized, false);
+  });
+
+  it('não retorna status ativo de proprietário sob revisão ou menor confirmado', () => {
+    const items = [
+      { uid: 'active', id: 'a' },
+      { uid: 'review', id: 'b' },
+      { uid: 'underage', id: 'c' },
+      { uid: 'missing', id: 'd' },
+    ];
+    const owners = new Map<string, Record<string, unknown> | null>([
+      ['active', { accountStatus: 'active', publicVisibility: 'visible' }],
+      ['review', {
+        accountStatus: 'active', publicVisibility: 'hidden',
+        interactionBlocked: true,
+      }],
+      ['underage', {
+        accountStatus: 'moderation_suspended',
+        suspended: true, publicVisibility: 'hidden',
+      }],
+      ['missing', null],
+    ]);
+    assert.deepEqual(
+      filterUserIntentStatusesByOwnerLifecycle(items, owners),
+      [{ uid: 'active', id: 'a' }]
+    );
   });
 
   it('pondera a quota pela quantidade máxima de itens solicitados', () => {
