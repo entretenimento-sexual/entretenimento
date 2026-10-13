@@ -16,6 +16,14 @@ import {
 } from '../domain/direct-unread-projection.policy';
 import { DIRECT_UNREAD_MAX_TRANSACTION_ATTEMPTS } from '../domain/direct-unread-backfill-budget.policy';
 
+/** Counts SDK-level operations in the local emulator, not billed Firestore units. */
+export interface DirectUnreadTransactionMetrics {
+  attempts: number;
+  attemptedDocumentReads: number;
+  stagedDocumentWrites: number;
+  committedDocumentWrites: number;
+}
+
 const validStatuses = new Set<DirectReceiptStatus>(['sent', 'delivered', 'read']);
 
 function readMessage(id: string, data: FirebaseFirestore.DocumentData | undefined):
@@ -33,13 +41,18 @@ async function reconcileDirectUnreadMessageInternal(
   messageId: string,
   expectedParticipants?: readonly string[],
   expectedMessageIds?: readonly string[],
-  onReadForEmulatorTest?: () => Promise<void>
+  onReadForEmulatorTest?: () => Promise<void>,
+  metrics?: DirectUnreadTransactionMetrics
 ): Promise<void> {
   const chatRef = db.collection('chats').doc(chatId);
   const messageRef = chatRef.collection('messages').doc(messageId);
 
+  let lastAttemptWrites = 0;
   await db.runTransaction(async (tx) => {
+    if (metrics) metrics.attempts += 1;
+    let stagedWrites = 0;
     const [chat, message] = await Promise.all([tx.get(chatRef), tx.get(messageRef)]);
+    if (metrics) metrics.attemptedDocumentReads += 2;
     const participants: unknown = chat.data()?.participants;
     if (!Array.isArray(participants) || participants.length !== 2 ||
         participants.some((uid) => typeof uid !== 'string' || !uid.trim()) ||
@@ -51,6 +64,7 @@ async function reconcileDirectUnreadMessageInternal(
     if (expectedMessageIds) {
       const messages = await tx.get(chatRef.collection('messages')
         .orderBy('__name__').limit(101));
+      if (metrics) metrics.attemptedDocumentReads += Math.max(1, messages.size);
       if (messages.size !== expectedMessageIds.length ||
           messages.docs.some((doc, index) => doc.id !== expectedMessageIds[index])) {
         throw new Error('Unread backfill message set changed in transaction');
@@ -70,6 +84,7 @@ async function reconcileDirectUnreadMessageInternal(
       projection: await tx.get(entry.projectionRef),
       checkpoint: await tx.get(entry.checkpointRef),
     })));
+    if (metrics) metrics.attemptedDocumentReads += entries.length * 2;
 
     if (onReadForEmulatorTest) {
       if (!process.env.FIRESTORE_EMULATOR_HOST) throw new Error('Test hook requires emulator');
@@ -90,17 +105,22 @@ async function reconcileDirectUnreadMessageInternal(
       const currentState = current ? JSON.stringify(current) : null;
       if (previousState === currentState) return;
 
+      stagedWrites += 1;
       tx.set(entry.projectionRef, {
         version: 1, chatId, participantUid: entry.uid, unreadCount: nextCount,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
+      stagedWrites += 1;
       if (current) {
         tx.set(entry.checkpointRef, current);
       } else {
         tx.delete(entry.checkpointRef);
       }
     });
+    lastAttemptWrites = stagedWrites;
+    if (metrics) metrics.stagedDocumentWrites += stagedWrites;
   }, { maxAttempts: DIRECT_UNREAD_MAX_TRANSACTION_ATTEMPTS });
+  if (metrics) metrics.committedDocumentWrites = lastAttemptWrites;
 }
 
 export async function reconcileDirectUnreadMessage(
@@ -110,6 +130,24 @@ export async function reconcileDirectUnreadMessage(
   expectedMessageIds?: readonly string[]
 ): Promise<void> {
   return reconcileDirectUnreadMessageInternal(chatId, messageId, expectedParticipants, expectedMessageIds);
+}
+
+/** Measured reconciliation is available only to the local emulator backfill. */
+export async function reconcileDirectUnreadMessageMeasuredOnEmulator(
+  chatId: string,
+  messageId: string,
+  expectedParticipants: readonly string[],
+  expectedMessageIds: readonly string[]
+): Promise<DirectUnreadTransactionMetrics> {
+  if (!process.env.FIRESTORE_EMULATOR_HOST) throw new Error('Emulator required');
+  const metrics: DirectUnreadTransactionMetrics = {
+    attempts: 0, attemptedDocumentReads: 0,
+    stagedDocumentWrites: 0, committedDocumentWrites: 0,
+  };
+  await reconcileDirectUnreadMessageInternal(
+    chatId, messageId, expectedParticipants, expectedMessageIds, undefined, metrics
+  );
+  return metrics;
 }
 
 /** Test-only seam, never included in the deployed Functions export graph. */
