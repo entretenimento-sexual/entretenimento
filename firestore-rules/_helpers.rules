@@ -54,6 +54,12 @@ service cloud.firestore {
       let suspended = owner is map
         ? mapFieldOrNull(owner, "suspended")
         : null;
+      let interactionBlocked = owner is map
+        ? mapFieldOrNull(owner, "interactionBlocked")
+        : null;
+      let accountLocked = owner is map
+        ? mapFieldOrNull(owner, "accountLocked")
+        : null;
       let publicVisibility = owner is map
         ? mapFieldOrNull(owner, "publicVisibility")
         : null;
@@ -64,6 +70,8 @@ service cloud.firestore {
       return owner is map
         && (accountStatus == null || accountStatus == "active")
         && suspended != true
+        && interactionBlocked != true
+        && accountLocked != true
         && (publicVisibility == null || publicVisibility == "visible")
         && loginAllowed != false;
     }
