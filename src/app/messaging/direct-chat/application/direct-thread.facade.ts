@@ -244,7 +244,7 @@ export class DirectThreadFacade {
     ));
   }
 
-  sendMessage$(content: string): Observable<string | null> {
+  sendMessage$(content: string, clientRequestId?: string): Observable<string | null> {
     const safeContent = (content ?? '').trim();
     if (!safeContent) return of(null);
 
@@ -255,7 +255,7 @@ export class DirectThreadFacade {
           return of(null);
         }
         return this.withinCommandContext$(
-          this.directThreadService.sendMessage$(context.chatId, safeContent),
+          this.directThreadService.sendMessage$(context.chatId, safeContent, clientRequestId),
           context
         );
       })
