@@ -71,6 +71,18 @@ describe('account lifecycle shared guards', () => {
 
   it('só restaura projeção pública com todas as evidências necessárias', () => {
     assert.equal(isUserEligibleForPublicProjection(eligibleUser()), true);
+    for (const restricted of [
+      { accountLocked: true },
+      { interactionBlocked: true },
+      { loginAllowed: false },
+      { suspended: true },
+      { accountStatus: 'moderation_suspended' },
+    ] as const) {
+      assert.equal(
+        isUserEligibleForPublicProjection(eligibleUser(restricted)),
+        false
+      );
+    }
     assert.equal(
       isUserEligibleForPublicProjection(
         eligibleUser({ emailVerified: false })
