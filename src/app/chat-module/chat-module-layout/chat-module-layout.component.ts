@@ -132,6 +132,7 @@ export class ChatModuleLayoutComponent implements OnInit {
   messageContent = '';
   activeSessionUid: string | null = null;
   private pendingSend: { uid: string; chatId: string; content: string; requestId: string } | null = null;
+  private readonly sendIntentMaxAgeMs = 24 * 60 * 60 * 1000;
 
   readonly maxMessageLength = DIRECT_CHAT_MAX_MESSAGE_LENGTH;
 
@@ -260,6 +261,8 @@ get shouldShowComposerHelp(): boolean {
       .pipe(
         tap((uid) => {
           if (uid !== this.activeSessionUid) {
+            const previousUid = this.activeSessionUid;
+            if (previousUid && previousUid !== uid) this.clearPersistedSendIntents(previousUid);
             this.activeSessionUid = uid;
             this.pendingSend = null;
             this.messageContent = '';
@@ -519,6 +522,12 @@ if (this.isMessageTooLong) {
       const value: unknown = JSON.parse(raw);
       if (!value || typeof value !== 'object') return null;
       const record = value as Record<string, unknown>;
+      if (typeof record['createdAt'] !== 'number' ||
+          !Number.isFinite(record['createdAt']) || record['createdAt'] > Date.now() ||
+          Date.now() - record['createdAt'] > this.sendIntentMaxAgeMs) {
+        sessionStorage.removeItem(this.pendingSendStorageKey(uid, chatId));
+        return null;
+      }
       if (record['uid'] !== uid || record['chatId'] !== chatId ||
           typeof record['content'] !== 'string' || typeof record['requestId'] !== 'string' ||
           !record['requestId'] || record['content'].length > this.maxMessageLength) return null;
@@ -530,7 +539,13 @@ if (this.isMessageTooLong) {
 
   private savePendingSend(intent: { uid: string; chatId: string; content: string; requestId: string }): void {
     try {
-      sessionStorage.setItem(this.pendingSendStorageKey(intent.uid, intent.chatId), JSON.stringify(intent));
+      const storageKey = this.pendingSendStorageKey(intent.uid, intent.chatId);
+      const current = this.readPendingSend(intent.uid, intent.chatId);
+      const raw = current?.requestId === intent.requestId ? sessionStorage.getItem(storageKey) : null;
+      const previousCreatedAt = raw ? (JSON.parse(raw) as { createdAt: number }).createdAt : null;
+      sessionStorage.setItem(storageKey, JSON.stringify({ ...intent,
+        createdAt: previousCreatedAt ?? Date.now(),
+      }));
     } catch {
       // Armazenamento indisponível: o envio continua com idempotência em memória.
     }
@@ -543,6 +558,18 @@ if (this.isMessageTooLong) {
       }
     } catch {
       // Falha no storage não pode invalidar uma confirmação do backend.
+    }
+  }
+
+  private clearPersistedSendIntents(uid: string): void {
+    try {
+      const prefix = `chat-send-intent:${uid}:`;
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const key = sessionStorage.key(i);
+        if (key?.startsWith(prefix)) sessionStorage.removeItem(key);
+      }
+    } catch {
+      // Limpeza local é best effort; o backend mantém a autorização canônica.
     }
   }
 
