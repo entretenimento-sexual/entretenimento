@@ -92,4 +92,33 @@ run('unread initial backfill — local emulator only', () => {
     }
   });
 
+  it('converges when two emulator backfills run concurrently', async () => {
+    const chatId = `unread-concurrent-${randomUUID()}`;
+    const chat = db.collection('chats').doc(chatId);
+    const projections = ['sender', 'recipient'].map((uid) =>
+      db.collection('direct_chat_unread_projections').doc(uid)
+        .collection('chats').doc(chatId));
+    try {
+      await chat.set({ participants: ['sender', 'recipient'] });
+      await chat.collection('messages').doc('001').set({
+        senderId: 'sender', status: 'sent',
+      });
+      await chat.collection('messages').doc('002').set({
+        senderId: 'sender', status: 'delivered',
+      });
+      const results = await Promise.allSettled([
+        initializeDirectUnreadOnEmulator(chatId),
+        initializeDirectUnreadOnEmulator(chatId),
+      ]);
+      assert.ok(results.some((result) => result.status === 'fulfilled'));
+      const verified = await initializeDirectUnreadOnEmulator(chatId);
+      assert.equal(verified.after.MATCH, 2);
+      assert.equal((await projections[1].get()).data()?.unreadCount, 2);
+      assert.equal((await projections[1].collection('messages').get()).size, 2);
+    } finally {
+      await db.recursiveDelete(chat);
+      await Promise.all(projections.map((ref) => db.recursiveDelete(ref)));
+    }
+  });
+
 });
