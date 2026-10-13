@@ -24,7 +24,16 @@ describe('interaction access policy', () => {
   });
 
   it('não reinterpreta assurance etário dentro do gate de produto', () => {
-    assert.doesNotThrow(() => assertPlatformAccountAccessData(validUser));
+    for (const ageEligibility of [
+      { status: 'SELF_DECLARED_ADULT', policyVersion: 1 },
+      { status: 'VERIFIED_ADULT', policyVersion: 1 },
+      { status: 'EXPIRED', policyVersion: 1 },
+      null,
+    ]) {
+      assert.doesNotThrow(() =>
+        assertPlatformAccountAccessData({ ...validUser, ageEligibility })
+      );
+    }
   });
 
   it('falha fechado quando accountStatus não está active', () => {
