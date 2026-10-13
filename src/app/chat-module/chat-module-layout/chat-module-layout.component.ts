@@ -47,6 +47,7 @@ import {
   finalize,
   filter,
   takeUntil,
+  take,
   map,
   shareReplay,
   tap,
@@ -456,6 +457,7 @@ if (this.isMessageTooLong) {
     this.sendOrchestrator
       .send$(selectedChatId, content)
       .pipe(
+        take(1),
         tap((result) => {
           // Resposta antiga não pode modificar o editor da próxima conversa.
           if (this.activeSessionUid !== sendingUid || this.selectedChatId !== selectedChatId || this.selectedType !== selectedType) return;
