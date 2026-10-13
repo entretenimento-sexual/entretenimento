@@ -105,6 +105,31 @@ describe('public media exposure policy', () => {
     );
   });
 
+  it('não converte assurance do autor em autoridade de exposição de mídia', () => {
+    const legacyAssurances = [
+      { ageEligibilityVerifiedAdult: false, ageEligibilityAssurance: 'SELF_DECLARED_ADULT',
+        ageEligibilityValidUntil: 0 },
+      { ageEligibilityVerifiedAdult: true, ageEligibilityAssurance: 'VERIFIED_ADULT',
+        ageEligibilityValidUntil: NOW - 1 },
+      { ageEligibilityVerifiedAdult: false, ageEligibilityAssurance: 'EXPIRED',
+        ageEligibilityValidUntil: null },
+    ];
+    for (const legacyFields of legacyAssurances) {
+      const publicMedia = publicProjection(legacyFields);
+      const published = publication(legacyFields);
+      assert.equal(isCurrentPublicMediaProjectionExposure(publicMedia, NOW), true);
+      assert.equal(isCurrentPublicMediaAssetExposure({
+        publicMedia, publication: published, ownerExposureAllowed: true,
+        nowMs: NOW, allowedVisibilities: ['PUBLIC'],
+      }), true);
+      const denied = evaluatePublicMediaOwnerExposure({
+        publicProfile: { uid: 'owner-1', ...legacyFields },
+        canonicalOwnerLifecycleAllowed: false, viewerBlocked: false, nowMs: NOW,
+      });
+      assert.equal(denied.allowed, false);
+    }
+  });
+
   it('URL assinada revalida publicação autoritativa e moderação', () => {
     assert.equal(
       isCurrentPublicMediaAssetExposure({
