@@ -15,6 +15,7 @@ export interface DirectUnreadAuditPage {
   complete: boolean;
   storedUnreadCount: number | null;
   comparison: 'INCOMPLETE' | 'MATCH' | 'MISMATCH' | 'NO_PROJECTION';
+  readBudgetUsed: number;
 }
 
 export async function auditDirectUnreadPage(
@@ -25,9 +26,13 @@ export async function auditDirectUnreadPage(
   previousScanned = 0,
   previousUnread = 0
 ): Promise<DirectUnreadAuditPage> {
+  const maxScanned = 1000;
   if (!chatId || !participantUid || !Number.isSafeInteger(pageSize) ||
       pageSize < 1 || pageSize > 100 || !Number.isSafeInteger(previousScanned) ||
-      previousScanned < 0 || !Number.isSafeInteger(previousUnread) || previousUnread < 0) {
+      previousScanned < 0 || previousScanned + pageSize > maxScanned ||
+      !Number.isSafeInteger(previousUnread) || previousUnread < 0 ||
+      previousUnread > previousScanned || (previousScanned > 0 && !cursor) ||
+      (cursor !== null && previousScanned === 0)) {
     throw new Error('Invalid unread audit parameters');
   }
   const chatRef = db.collection('chats').doc(chatId);
@@ -37,7 +42,11 @@ export async function auditDirectUnreadPage(
       !participants.includes(participantUid)) throw new Error('Invalid chat participant');
 
   let query = chatRef.collection('messages').orderBy('__name__').limit(pageSize + 1);
-  if (cursor) query = query.startAfter(cursor);
+  if (cursor) {
+    const cursorDoc = await chatRef.collection('messages').doc(cursor).get();
+    if (!cursorDoc.exists) throw new Error('Unread audit cursor no longer exists');
+    query = query.startAfter(cursorDoc);
+  }
   const page = await query.get();
   const docs = page.docs.slice(0, pageSize);
   const hasMore = page.docs.length > pageSize;
@@ -62,6 +71,7 @@ export async function auditDirectUnreadPage(
     chatId, participantUid, scanned, unreadInPage: count,
     nextCursor: hasMore ? docs[docs.length - 1].id : null,
     complete, storedUnreadCount,
+    readBudgetUsed: 2 + page.docs.length + Number(Boolean(cursor)),
     comparison: !complete ? 'INCOMPLETE' : !projection.exists ? 'NO_PROJECTION' :
       storedUnreadCount === count ? 'MATCH' : 'MISMATCH',
   };
