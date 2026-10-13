@@ -245,12 +245,16 @@ async function run() {
     assert.equal((await videoRef.get()).data().viewsCount, 1);
     console.log('[media-callables:e2e] PASS qualified authenticated video view');
 
+    // recordVideoView already persists the first qualified retention sample.
+    // A later retention update only improves totals for genuinely MORE playback.
+    const initialRetentionBasisPoints = (await videoRef.get()).data().retentionBasisPointsTotal;
+    assert.ok(initialRetentionBasisPoints > 0);
     const retentionPayload = {
       ...videoPayload,
       retentionToken: approvedView.retentionToken,
       evidence: {
         sessionId: randomUUID().replaceAll('-', ''),
-        playbackMs: allowedSession.requiredPlaybackMs,
+        playbackMs: Math.min(DURATION_MS, allowedSession.requiredPlaybackMs + 1_000),
         durationMs: DURATION_MS,
         qualifiedAt: Date.now(),
       },
@@ -259,7 +263,7 @@ async function run() {
     assert.equal(acceptedRetention.ok, true);
     assert.equal(acceptedRetention.improved, true);
     const retentionBefore = (await videoRef.get()).data().retentionBasisPointsTotal;
-    assert.ok(retentionBefore > 0);
+    assert.ok(retentionBefore > initialRetentionBasisPoints);
     console.log('[media-callables:e2e] PASS qualified video retention');
 
     await viewerRef.update({ suspended: true });
