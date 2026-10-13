@@ -56,6 +56,7 @@ try {
     'functions/lib/chat/direct-chat/application/direct-unread-backfill.audit.emulator.test.js',
     'functions/lib/chat/direct-chat/application/direct-unread-backfill.emulator.test.js',
     'functions/lib/chat/direct-chat/application/direct-unread-backfill.metrics.emulator.test.js',
+    'functions/lib/chat/direct-chat/application/direct-unread-backfill.journal.emulator.test.js',
   ].join(' ');
   const args = [
     'emulators:exec',
