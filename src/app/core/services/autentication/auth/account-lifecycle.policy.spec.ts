@@ -67,6 +67,12 @@ describe('account lifecycle policy', () => {
 
     expect(
       normalizeUserAccountLifecycleStatus(
+        user({ accountStatus: 'active', loginAllowed: false })
+      )
+    ).toBe('locked');
+
+    expect(
+      normalizeUserAccountLifecycleStatus(
         user({ accountStatus: 'active', suspended: true, suspensionSource: 'moderator' })
       )
     ).toBe('moderation_suspended');
