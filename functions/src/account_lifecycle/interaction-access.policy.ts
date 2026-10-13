@@ -9,6 +9,8 @@ import { db } from '../firebaseApp';
 
 interface InteractionAccessUserDocument {
   accountStatus?: unknown;
+  accountLocked?: unknown;
+  loginAllowed?: unknown;
   suspended?: unknown;
   interactionBlocked?: unknown;
   moderationAutomationHold?: {
@@ -63,6 +65,8 @@ export function assertPlatformAccountAccessData(
 
   if (
     accountStatus !== 'active' ||
+    user.accountLocked === true ||
+    user.loginAllowed === false ||
     user.suspended === true ||
     user.interactionBlocked === true ||
     automationHoldActive
