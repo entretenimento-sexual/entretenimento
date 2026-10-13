@@ -42,6 +42,30 @@ Emulator execution itself does not incur production Firestore billing.
 The implementation checks the model before any backfill writes. These are
 per-execution limits, **not** global concurrency limits or billing guarantees.
 
+## Emulator instrumentation
+
+The `--initialize-emulator` result includes an `observations` object.
+This is an **application-level measurement for a successful call**, not a
+Cloud Firestore billing report:
+
+- `durationMs`: wall-clock duration of auditing, preflight and reconciliation.
+- `transactionAttempts` / `retryAttempts`: transaction callback executions
+  observed by the instrumented reconciler, including Firestore retries.
+- `documentReadUnitsApprox`: documents obtained or expected by SDK operations
+  (including minimums for empty queries), not index reads or billed units.
+- `stagedDocumentWrites`: writes queued by transaction callbacks, including
+  aborted callbacks; these are **not** necessarily committed writes.
+- `committedDocumentWrites`: writes staged in transactions that returned
+  successfully. No writes are included for failed transactions.
+- `firestoreBillingVerified: false`: explicit indicator that the numbers have
+  not been reconciled against billing data.
+
+The isolated emulator Quality Gate exercises fresh histories of 1, 50 and
+100 messages, comparing the observations against the conservative workload
+model and verifying idempotent reruns. Fixture creation and cleanup are
+excluded from the reported numbers. Failed invocations do not currently
+produce durable metrics, so they must not be treated as zero-cost operations.
+
 ## Recovery and monitoring
 
 - Review the dry-run consolidated conversation audit first. A mismatched,
