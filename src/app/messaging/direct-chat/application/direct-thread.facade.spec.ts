@@ -168,9 +168,11 @@ describe('DirectThreadFacade', () => {
     const error = new Error('unexpected gate error');
     directThreadService.observeMessages$.mockReturnValue(throwError(() => error));
 
-    const state = await firstValueFrom(facade.state$);
-    expect(state.messages).toEqual([]);
+    const states: any[] = [];
+    const sub = facade.state$.subscribe(state => states.push(state));
+    expect(states.at(-1)?.messages).toEqual([]);
     expect(applicationError.report).toHaveBeenCalledTimes(1);
+    sub.unsubscribe();
   });
 
   it('não associa mensagens da thread anterior ao novo chat ou à nova sessão', () => {
