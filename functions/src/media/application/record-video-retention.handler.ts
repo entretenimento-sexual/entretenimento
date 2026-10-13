@@ -4,6 +4,7 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import { buildMediaEngagementScore } from './media-engagement-score';
 import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
+import { assertCurrentPublicMediaOwnerLifecycle } from './public-media-transaction-owner-access.policy';
 import { normalizeVideoAudienceScore } from './video-audience-score';
 import { buildVideoRetentionAggregate } from './video-retention-score';
 import {
@@ -98,6 +99,7 @@ export const recordVideoRetention = onCall<RecordVideoRetentionRequest>(
 
     await assertPublicMediaConsumptionAccess(viewerUid);
 
+    const ownerAccountRef = db.doc(`users/${ownerUid}`);
     const publicVideoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
@@ -106,11 +108,13 @@ export const recordVideoRetention = onCall<RecordVideoRetentionRequest>(
     const expectedTokenHash = hashVideoRetentionToken(retentionToken);
 
     return db.runTransaction(async (transaction) => {
-      const [videoSnap, viewerSnap] = await Promise.all([
+      const [ownerAccountSnap, videoSnap, viewerSnap] = await Promise.all([
+        transaction.get(ownerAccountRef),
         transaction.get(publicVideoRef),
         transaction.get(viewerRef),
       ]);
 
+      assertCurrentPublicMediaOwnerLifecycle(ownerAccountSnap.data());
       assertPublicApprovedVideo(videoSnap.exists, videoSnap.data());
 
       if (!viewerSnap.exists) {
