@@ -17,6 +17,48 @@ export function buildAgeReviewRestrictionPatch(input: {
   });
 }
 
+/**
+ * Restore only a restriction demonstrably owned by this age-review case.
+ * Independent lifecycle locks and active automation holds take precedence.
+ * Historical records without the ownership marker remain restricted.
+ */
+export function resolveAgeReviewRestoration(input: {
+  caseId: string;
+  account: {
+    accountStatus?: unknown;
+    suspended?: unknown;
+    suspensionSource?: unknown;
+    ageReverificationSuspensionCaseId?: unknown;
+    ageReverificationRestrictedAt?: unknown;
+    accountLocked?: unknown;
+    loginAllowed?: unknown;
+    interactionBlocked?: unknown;
+    publicVisibility?: unknown;
+    moderationAutomationHold?: { active?: unknown } | null;
+  };
+}): { canRestore: boolean; ownsSuspension: boolean } {
+  const user = input.account;
+  const ownsSuspension = !!input.caseId &&
+    user.ageReverificationSuspensionCaseId === input.caseId;
+  const restrictedAt = Number(user.ageReverificationRestrictedAt);
+  const hasAgeRestriction = Number.isFinite(restrictedAt) && restrictedAt > 0 &&
+    user.interactionBlocked === true &&
+    user.publicVisibility === 'hidden';
+  const independentlyRestricted = user.accountLocked === true ||
+    user.loginAllowed === false ||
+    user.moderationAutomationHold?.active === true;
+  const status = String(user.accountStatus ?? 'active').trim().toLowerCase();
+  const correctSuspension = ownsSuspension
+    ? status === 'moderation_suspended' && user.suspended === true &&
+      user.suspensionSource === 'moderator'
+    : status === 'active' && user.suspended !== true;
+
+  return {
+    canRestore: hasAgeRestriction && !independentlyRestricted && correctSuspension,
+    ownsSuspension,
+  };
+}
+
 export function buildAgeReviewRestorePatch(input: {
   reviewedAt: number;
   reviewedBy: string;
