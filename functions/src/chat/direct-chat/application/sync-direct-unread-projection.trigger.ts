@@ -30,7 +30,8 @@ function readMessage(id: string, data: FirebaseFirestore.DocumentData | undefine
 export async function reconcileDirectUnreadMessage(
   chatId: string,
   messageId: string,
-  expectedParticipants?: readonly string[]
+  expectedParticipants?: readonly string[],
+  expectedMessageIds?: readonly string[]
 ): Promise<void> {
   const chatRef = db.collection('chats').doc(chatId);
   const messageRef = chatRef.collection('messages').doc(messageId);
@@ -45,6 +46,14 @@ export async function reconcileDirectUnreadMessage(
       participants.length !== expectedParticipants.length ||
       participants.some((uid) => !expectedParticipants.includes(uid))
     )) throw new Error('Unread backfill participants changed');
+    if (expectedMessageIds) {
+      const messages = await tx.get(chatRef.collection('messages')
+        .orderBy('__name__').limit(101));
+      if (messages.size !== expectedMessageIds.length ||
+          messages.docs.some((doc, index) => doc.id !== expectedMessageIds[index])) {
+        throw new Error('Unread backfill message set changed in transaction');
+      }
+    }
     const current = readMessage(messageId, message.data());
     if (current && !participants.includes(current.senderUid)) return;
 
