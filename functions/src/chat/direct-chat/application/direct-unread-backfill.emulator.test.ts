@@ -39,6 +39,20 @@ run('unread initial backfill — local emulator only', () => {
       await Promise.all(projections.map((ref) => db.recursiveDelete(ref)));
     }
   });
+  it('rejects an empty conversation without creating projections', async () => {
+    const chatId = `unread-empty-${randomUUID()}`;
+    const chat = db.collection('chats').doc(chatId);
+    const recipient = db.collection('direct_chat_unread_projections')
+      .doc('recipient').collection('chats').doc(chatId);
+    try {
+      await chat.set({ participants: ['sender', 'recipient'] });
+      await assert.rejects(initializeDirectUnreadOnEmulator(chatId));
+      assert.equal((await recipient.get()).exists, false);
+    } finally {
+      await db.recursiveDelete(chat);
+    }
+  });
+
   it('refuses corrupted checkpoint totals without mutating the projection', async () => {
     const chatId = `unread-corrupt-${randomUUID()}`;
     const chat = db.collection('chats').doc(chatId);
