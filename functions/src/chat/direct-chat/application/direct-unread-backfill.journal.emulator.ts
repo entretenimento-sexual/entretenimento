@@ -5,6 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { db, FieldValue } from '../../../firebaseApp';
+import { classifyDirectUnreadJournal } from '../domain/direct-unread-backfill-journal.policy';
 
 export type DirectUnreadBackfillStage = 'PREFLIGHT' | 'RECONCILE' | 'VERIFY';
 
@@ -61,4 +62,52 @@ export async function startDirectUnreadEmulatorJournal(chatId: string) {
       writes += 1;
     },
   };
+}
+
+function journalRef(runId: string) {
+  ensureEmulator();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(runId)) {
+    throw new Error('Invalid unread journal run ID');
+  }
+  return db.collection('direct_chat_unread_backfill_emulator_runs').doc(runId);
+}
+
+function journalDecision(data: FirebaseFirestore.DocumentData | undefined, nowMs: number) {
+  const updated = data?.updatedAt as FirebaseFirestore.Timestamp | undefined;
+  const finished = data?.finishedAt as FirebaseFirestore.Timestamp | undefined;
+  return classifyDirectUnreadJournal(
+    data?.status, updated?.toMillis?.() ?? null, finished?.toMillis?.() ?? null, nowMs
+  );
+}
+
+/** Read-only single-run inspection, with no private messages or exception payloads. */
+export async function inspectDirectUnreadEmulatorJournal(runId: string) {
+  const snapshot = await journalRef(runId).get();
+  if (!snapshot.exists) throw new Error('Unread journal run not found');
+  const data = snapshot.data();
+  const decision = journalDecision(data, Date.now());
+  return {
+    mode: 'DRY_RUN' as const, runId, mutationCount: 0,
+    classification: decision.classification,
+    eligibleForPurge: decision.eligibleForPurge,
+    completedMessagesRecorded: data?.completedMessagesRecorded ?? null,
+    transactionAttemptsRecorded: data?.transactionAttemptsRecorded ?? null,
+    status: data?.status ?? null, stage: data?.stage ?? null,
+  };
+}
+
+/** One explicit, transactional purge; never removes RUNNING or recent attempts. */
+export async function purgeDirectUnreadEmulatorJournal(runId: string, confirmation: string) {
+  if (confirmation !== 'CONFIRM_TERMINAL_JOURNAL_PURGE') {
+    throw new Error('Explicit journal purge confirmation required');
+  }
+  const ref = journalRef(runId);
+  await db.runTransaction(async (tx) => {
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists || !journalDecision(snapshot.data(), Date.now()).eligibleForPurge) {
+      throw new Error('Journal is active, unknown, malformed, or inside retention window');
+    }
+    tx.delete(ref);
+  }, { maxAttempts: 3 });
+  return { mode: 'EMULATOR_JOURNAL_PURGE' as const, runId, mutationCount: 1 };
 }
