@@ -29,7 +29,7 @@ describe('DirectChatSendOrchestrator', () => {
     });
 
     expect(selectChat).toHaveBeenCalledWith('chat-1');
-    expect(sendMessage$).toHaveBeenCalledWith('olá');
+    expect(sendMessage$).toHaveBeenCalledWith('olá', undefined);
   });
 
   it('repassa clientRequestId explícito para a facade', async () => {
