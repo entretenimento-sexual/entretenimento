@@ -27,7 +27,7 @@ function readMessage(id: string, data: FirebaseFirestore.DocumentData | undefine
 }
 
 /** Callable internally by emulator tests and future bounded backfill. */
-export async function reconcileDirectUnreadMessage(
+async function reconcileDirectUnreadMessageInternal(
   chatId: string,
   messageId: string,
   expectedParticipants?: readonly string[],
@@ -100,6 +100,29 @@ export async function reconcileDirectUnreadMessage(
       }
     });
   });
+}
+
+export async function reconcileDirectUnreadMessage(
+  chatId: string,
+  messageId: string,
+  expectedParticipants?: readonly string[],
+  expectedMessageIds?: readonly string[]
+): Promise<void> {
+  return reconcileDirectUnreadMessageInternal(chatId, messageId, expectedParticipants, expectedMessageIds);
+}
+
+/** Test-only seam, never included in the deployed Functions export graph. */
+export async function reconcileDirectUnreadMessageForEmulatorTest(
+  chatId: string,
+  messageId: string,
+  expectedParticipants: readonly string[],
+  expectedMessageIds: readonly string[],
+  afterReads: () => Promise<void>
+): Promise<void> {
+  if (!process.env.FIRESTORE_EMULATOR_HOST) throw new Error('Emulator required');
+  return reconcileDirectUnreadMessageInternal(
+    chatId, messageId, expectedParticipants, expectedMessageIds, afterReads
+  );
 }
 
 export const syncDirectUnreadProjection = onDocumentWritten(
