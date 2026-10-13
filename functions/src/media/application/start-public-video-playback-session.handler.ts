@@ -10,6 +10,7 @@ import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
 import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
+import { assertCurrentPublicMediaOwnerLifecycle } from './public-media-transaction-owner-access.policy';
 import { resolvePublicMediaOwnerExposure } from './public-media-owner-exposure.service';
 import {
   consumePublicVideoPlaybackSessionStartQuota,
@@ -161,19 +162,40 @@ export const startPublicVideoPlaybackSession = onCall<
       .collection(PUBLIC_VIDEO_PLAYBACK_SESSION_COLLECTION)
       .doc(viewerUid);
 
-    await playbackSessionRef.set({
-      schemaVersion: PUBLIC_VIDEO_PLAYBACK_SESSION_SCHEMA_VERSION,
-      viewerUid,
-      ownerUid,
-      videoId,
-      tokenHash,
-      issuedAt,
-      earliestQualifiedAt,
-      expiresAt,
-      requiredPlaybackMs,
-      videoVersion,
-      consumedAt: null,
-    });
+    // The owner can be restricted between the public read and issuing a
+    // session. Read the canonical owner and current asset in the same
+    // transaction that persists the token.
+    const ownerAccountRef = db.doc(`users/${ownerUid}`);
+    await db.runTransaction(async (transaction) => {
+      const [ownerAccountSnap, currentVideoSnap] = await Promise.all([
+        transaction.get(ownerAccountRef),
+        transaction.get(publicVideoRef),
+      ]);
+      assertCurrentPublicMediaOwnerLifecycle(ownerAccountSnap.data());
+      const currentVideo = currentVideoSnap.data() ?? {};
+      const currentVersion = safePositiveInteger(
+        currentVideo.assetVersion ?? currentVideo.publishedAt
+      );
+      if (!currentVideoSnap.exists ||
+          currentVideo.visibility !== 'PUBLIC' ||
+          currentVideo.moderationStatus !== 'APPROVED' ||
+          currentVersion !== videoVersion) {
+        throw new HttpsError('not-found', 'Vídeo público não encontrado.');
+      }
+      transaction.set(playbackSessionRef, {
+        schemaVersion: PUBLIC_VIDEO_PLAYBACK_SESSION_SCHEMA_VERSION,
+        viewerUid,
+        ownerUid,
+        videoId,
+        tokenHash,
+        issuedAt,
+        earliestQualifiedAt,
+        expiresAt,
+        requiredPlaybackMs,
+        videoVersion,
+        consumedAt: null,
+      });
+    }, { maxAttempts: 3 });
 
     return {
       ownerUid,
