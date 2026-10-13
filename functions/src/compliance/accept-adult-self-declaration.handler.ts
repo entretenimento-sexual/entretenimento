@@ -38,8 +38,10 @@ import {
 
 const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== 'true';
 
+// Self declaration is the account-level admission basis in the default mode.
+// A compliance operator may explicitly require trusted verification instead.
 const AGE_ADMISSION_MODE =
-  String(process.env.AGE_ADMISSION_MODE ?? 'VERIFIED_REQUIRED')
+  String(process.env.AGE_ADMISSION_MODE ?? 'SELF_DECLARATION')
     .trim()
     .toUpperCase() === 'VERIFIED_REQUIRED'
     ? 'VERIFIED_REQUIRED'
