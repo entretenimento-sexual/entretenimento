@@ -79,7 +79,7 @@ export async function auditDirectUnreadPage(
     readBudgetUsed: 2 + page.docs.length + Number(Boolean(cursor)),
     comparison: !complete ? 'INCOMPLETE' : multiPage ? 'INCONCLUSIVE' :
       !projection.exists ? 'NO_PROJECTION' :
-      storedUnreadCount === count ? 'MATCH' : 'MISMATCH',
+        storedUnreadCount === count ? 'MATCH' : 'MISMATCH',
   };
 }
 
