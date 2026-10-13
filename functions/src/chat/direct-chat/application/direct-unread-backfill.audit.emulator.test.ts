@@ -38,7 +38,8 @@ run('unread projection audit — read only', () => {
       chatId, 'recipient', first.nextCursor, 2, first.scanned, first.unreadInPage
     );
     assert.equal(second.complete, true);
-    assert.equal(second.comparison, 'MATCH');
+    assert.equal(second.comparison, 'INCONCLUSIVE');
+    assert.equal(second.consistency, 'UNVERIFIED_MULTI_PAGE');
     assert.equal(second.scanned, 4);
     assert.equal(second.unreadInPage, 2);
     assert.equal((await projection.get()).data()?.unreadCount, 2);
@@ -50,6 +51,12 @@ run('unread projection audit — read only', () => {
     await assert.rejects(auditDirectUnreadPage(chatId, 'recipient', null, 2, 2, 1));
     await assert.rejects(auditDirectUnreadPage(chatId, 'recipient', 'missing', 2, 2, 1));
     await assert.rejects(auditDirectUnreadPage(chatId, 'recipient', '002', 100, 950, 1));
+  });
+
+  it('confirms a single-query baseline before comparing counts', async () => {
+    const result = await auditDirectUnreadPage(chatId, 'recipient', null, 100);
+    assert.equal(result.consistency, 'SINGLE_QUERY');
+    assert.equal(result.comparison, 'MATCH');
   });
 
   it('detects divergence and rejects nonparticipant scans', async () => {
