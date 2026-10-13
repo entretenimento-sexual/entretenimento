@@ -1,8 +1,5 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import {
-  assertInteractionAccess,
-} from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import {
   assertNoActiveBilateralBlock,
@@ -11,6 +8,7 @@ import {
   assertPublicMediaCallableAppCheck,
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
+import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
 import {
   consumePublicVideoRetentionQuota,
 } from './public-video-retention-rate-limit.service';
@@ -34,7 +32,7 @@ export const recordVideoRetention = onCall(
     }
 
     await consumePublicVideoRetentionQuota(viewerUid);
-    await assertInteractionAccess(viewerUid);
+    await assertPublicMediaConsumptionAccess(viewerUid);
 
     if (ownerUid && ownerUid !== viewerUid) {
       await assertNoActiveBilateralBlock(

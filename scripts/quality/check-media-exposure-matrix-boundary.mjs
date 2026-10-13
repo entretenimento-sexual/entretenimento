@@ -173,6 +173,29 @@ for (const metricPath of [
   }
 }
 
+// Public metric CALLABLE exports use orchestrators. Denial reasons must be
+// normalized in Media BEFORE entering the core handler, not leaked directly
+// from Account Access. Core handlers still revalidate inside transactions.
+for (const orchestratorPath of [
+  'functions/src/media/application/record-photo-view-orchestrator.handler.ts',
+  'functions/src/media/application/record-video-view-orchestrator.handler.ts',
+  'functions/src/media/application/record-video-retention-orchestrator.handler.ts',
+]) {
+  const source = read(orchestratorPath);
+  requireIncludes(source, [
+    'assertPublicMediaConsumptionAccess(viewerUid)',
+    'assertNoActiveBilateralBlock(',
+    'consumePublic',
+    'Core.run(request as any)',
+  ], orchestratorPath + ' deve aplicar guarda publica antes do handler');
+  if (/\bassertInteractionAccess\s*\(/.test(source)) {
+    throw new Error(
+      '[media-exposure-matrix] orchestrator vazou erro cru de Account: ' +
+      orchestratorPath
+    );
+  }
+}
+
 const playbackSessionIssuer = read(
   'functions/src/media/application/start-public-video-playback-session.handler.ts'
 );
