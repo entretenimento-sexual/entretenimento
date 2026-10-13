@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, NgModule } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -14,6 +14,12 @@ class DraftHostComponent {
   key = 'user-a:chat:chat-1';
 }
 
+@NgModule({
+  declarations: [DraftHostComponent, ChatDraftDirective],
+  imports: [FormsModule],
+})
+class DraftTestModule {}
+
 describe('ChatDraftDirective', () => {
   let fixture: ComponentFixture<DraftHostComponent>;
 
@@ -26,8 +32,7 @@ describe('ChatDraftDirective', () => {
   it('isola rascunhos por UID e restaura somente o texto da chave atual', async () => {
     sessionStorage.setItem('chat-draft:user-b:chat:chat-1', 'texto de B');
     await TestBed.configureTestingModule({
-      imports: [FormsModule],
-      declarations: [DraftHostComponent, ChatDraftDirective],
+      imports: [DraftTestModule],
     }).compileComponents();
     fixture = TestBed.createComponent(DraftHostComponent);
     fixture.detectChanges();
@@ -48,8 +53,7 @@ describe('ChatDraftDirective', () => {
   });
   it('limpa rascunho enviado e não restaura texto após alternar de conta', async () => {
     await TestBed.configureTestingModule({
-      imports: [FormsModule],
-      declarations: [DraftHostComponent, ChatDraftDirective],
+      imports: [DraftTestModule],
     }).compileComponents();
     fixture = TestBed.createComponent(DraftHostComponent);
     fixture.detectChanges();
@@ -80,8 +84,7 @@ describe('ChatDraftDirective', () => {
 
   it('não transfere texto para a próxima conta ao perder o contexto de sessão', async () => {
     await TestBed.configureTestingModule({
-      imports: [FormsModule],
-      declarations: [DraftHostComponent, ChatDraftDirective],
+      imports: [DraftTestModule],
     }).compileComponents();
     fixture = TestBed.createComponent(DraftHostComponent);
     fixture.detectChanges();
