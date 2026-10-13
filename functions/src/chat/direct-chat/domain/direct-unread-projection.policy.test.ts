@@ -27,7 +27,9 @@ describe('direct unread projection policy (inactive contract)', () => {
 
   it('ignores the sender and removes unread messages on deletion', () => {
     assert.equal(applyDirectUnreadTransition(0, null, message('sent'), 'sender'), 0);
-    assert.equal(applyDirectUnreadTransition(1, message('sent'), { ...message('sent'), deleted: true }, 'recipient'), 0);
+    assert.equal(applyDirectUnreadTransition(
+      1, message('sent'), { ...message('sent'), deleted: true }, 'recipient'
+    ), 0);
     assert.equal(applyDirectUnreadTransition(1, message('read'), null, 'recipient'), 1);
   });
 
