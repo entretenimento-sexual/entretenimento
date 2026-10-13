@@ -141,3 +141,60 @@ export async function auditDirectUnreadConsistent(
     };
   }, { maxAttempts: 3 });
 }
+
+/**
+ * Diagnóstico único dos dois participantes, na mesma transação de leitura.
+ * Um histórico maior que 100 mensagens recebe INCONCLUSIVE para ambos.
+ * Não processa nem divulga conteúdo privado ou checkpoints de mensagens.
+ */
+export async function auditDirectUnreadConversation(chatId: string) {
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(chatId)) throw new Error('Invalid audit scope');
+  const chatRef = db.collection('chats').doc(chatId);
+  return db.runTransaction(async (tx) => {
+    const chat = await tx.get(chatRef);
+    const participants: unknown = chat.data()?.participants;
+    if (!Array.isArray(participants) || participants.length !== 2 ||
+        participants.some((uid) => typeof uid !== 'string' ||
+          !/^[A-Za-z0-9_-]{1,128}$/.test(uid)) ||
+        participants[0] === participants[1]) throw new Error('Invalid chat participants');
+    const uids = participants as string[];
+    const messages = await tx.get(chatRef.collection('messages').orderBy('__name__').limit(101));
+    const refs = uids.map((uid) => db.collection('direct_chat_unread_projections')
+      .doc(uid).collection('chats').doc(chatId));
+    const projections = await Promise.all(refs.map((ref) => tx.get(ref)));
+    const oversized = messages.size > 100;
+    const rows = uids.map((uid, index) => {
+      const stored = projections[index].data()?.unreadCount;
+      const storedUnreadCount = Number.isSafeInteger(stored) && stored >= 0 ? stored : null;
+      if (oversized) return {
+        participantUid: uid, comparison: 'INCONCLUSIVE' as const,
+        actualUnreadCount: null, storedUnreadCount,
+      };
+      const actualUnreadCount = messages.docs.reduce((total, doc) => {
+        const data = doc.data();
+        const senderUid = data.senderId ?? data.senderUid;
+        if (!uids.includes(senderUid) || !['sent', 'delivered', 'read'].includes(data.status)) return total;
+        return total + Number(isDirectMessageUnread({
+          messageId: doc.id, senderUid, status: data.status,
+          deleted: data.deleted === true,
+        }, uid));
+      }, 0);
+      const comparison = !projections[index].exists ? 'NO_PROJECTION' :
+        actualUnreadCount === storedUnreadCount ? 'MATCH' : 'MISMATCH';
+      return { participantUid: uid, comparison, actualUnreadCount, storedUnreadCount };
+    });
+    const summary = {
+      MATCH: rows.filter((row) => row.comparison === 'MATCH').length,
+      MISMATCH: rows.filter((row) => row.comparison === 'MISMATCH').length,
+      NO_PROJECTION: rows.filter((row) => row.comparison === 'NO_PROJECTION').length,
+      INCONCLUSIVE: rows.filter((row) => row.comparison === 'INCONCLUSIVE').length,
+    };
+    return {
+      mode: 'DRY_RUN' as const, chatId, mutationCount: 0,
+      scanned: Math.min(messages.size, 100),
+      complete: !oversized, readBudgetUsed: messages.size + 3,
+      participants: rows, summary,
+      requiresReconciliation: summary.MISMATCH > 0 || summary.NO_PROJECTION > 0,
+    };
+  }, { maxAttempts: 3 });
+}
