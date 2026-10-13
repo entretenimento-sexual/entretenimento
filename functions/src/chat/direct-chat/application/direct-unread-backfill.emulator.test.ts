@@ -246,4 +246,31 @@ run('unread initial backfill — local emulator only', () => {
     }
   });
 
+  it('retries a transaction when a receipt changes after its reads', async () => {
+    const chatId = `unread-read-conflict-${randomUUID()}`;
+    const chat = db.collection('chats').doc(chatId);
+    const message = chat.collection('messages').doc('001');
+    const recipient = db.collection('direct_chat_unread_projections')
+      .doc('recipient').collection('chats').doc(chatId);
+    const sender = db.collection('direct_chat_unread_projections')
+      .doc('sender').collection('chats').doc(chatId);
+    let injected = false;
+    try {
+      await chat.set({ participants: ['sender', 'recipient'] });
+      await message.set({ senderId: 'sender', status: 'sent' });
+      await reconcileDirectUnreadMessage(chatId, '001',
+        ['sender', 'recipient'], ['001'], async () => {
+          if (injected) return;
+          injected = true;
+          await message.update({ status: 'read' });
+        });
+      assert.equal(injected, true);
+      assert.equal((await recipient.get()).data()?.unreadCount ?? 0, 0);
+      assert.equal((await recipient.collection('messages').doc('001').get()).data()?.status, 'read');
+    } finally {
+      await db.recursiveDelete(chat);
+      await Promise.all([db.recursiveDelete(recipient), db.recursiveDelete(sender)]);
+    }
+  });
+
 });
