@@ -577,6 +577,29 @@ describe('Firestore Rules / public media account and content visibility', () => 
     );
   });
 
+  it.each([
+    { flag: 'interactionBlocked', value: true },
+    { flag: 'accountLocked', value: true },
+    { flag: 'loginAllowed', value: false },
+    { flag: 'publicVisibility', value: 'hidden' },
+  ])('bloqueia perfil e mídia após restrição de lifecycle $flag', async ({ flag, value }) => {
+    const db = viewerDb();
+    await assertSucceeds(getDoc(doc(db, 'public_profiles', OWNER_UID)));
+    await setOwnerLifecycle({ [flag]: value });
+    await assertPublicSurfaceDeepLinksFail();
+  });
+
+  it.each([
+    { flag: 'interactionBlocked', value: true },
+    { flag: 'accountLocked', value: true },
+    { flag: 'loginAllowed', value: false },
+  ])('bloqueia consumo do viewer com lifecycle restrito $flag', async ({ flag, value }) => {
+    const db = viewerDb();
+    await assertSucceeds(getDoc(dbRefVideo(db)));
+    await setViewerCompliance({ [flag]: value });
+    await assertFails(getDoc(dbRefVideo(db)));
+  });
+
   it('mantém mídia em quarentena fora de deep link para foto e vídeo', async () => {
     const db = viewerDb();
 
