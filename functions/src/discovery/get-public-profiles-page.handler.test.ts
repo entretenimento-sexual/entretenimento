@@ -5,6 +5,7 @@ import {
   discoveryReadRateLimitCost,
   serializePublicProfileForDiscovery,
   filterDiscoveryCardsByOwnerLifecycle,
+  selectVisibleDiscoveryBatch,
 } from './get-public-profiles-page.handler';
 
 const NOW = 1_800_000_000_000;
@@ -91,6 +92,24 @@ describe('get-public-profiles-page boundary', () => {
       filterDiscoveryCardsByOwnerLifecycle(cards, owners),
       [{ uid: 'active', nickname: 'Ativa' }]
     );
+  });
+
+  it('repõe perfis válidos e mantém cursor sem perder candidatos pré-carregados', () => {
+    const candidates = Array.from({ length: 8 }, (_, index) => ({
+      card: { uid: `owner-${index + 1}` },
+      position: { uid: `owner-${index + 1}`, updatedAtMs: NOW - index },
+    }));
+    const visibleUids = new Set(['owner-3', 'owner-5', 'owner-7', 'owner-8']);
+    const first = selectVisibleDiscoveryBatch(candidates, visibleUids, 2);
+    assert.deepEqual(first.items.map((item) => item['uid']), ['owner-3', 'owner-5']);
+    assert.deepEqual(first.filledAt, candidates[4].position);
+    const remaining = candidates.slice(5);
+    const next = selectVisibleDiscoveryBatch(remaining, visibleUids, 2);
+    assert.deepEqual(next.items.map((item) => item['uid']), ['owner-7', 'owner-8']);
+    assert.deepEqual(next.filledAt, candidates[7].position);
+    const partial = selectVisibleDiscoveryBatch(candidates, new Set(['owner-8']), 2);
+    assert.equal(partial.filledAt, null);
+    assert.deepEqual(partial.items.map((item) => item['uid']), ['owner-8']);
   });
 
   it('dimensiona a quota de leitura proporcionalmente ao custo da consulta', () => {
