@@ -41,7 +41,7 @@ async function reconcileDirectUnreadMessageInternal(
   messageId: string,
   expectedParticipants?: readonly string[],
   expectedMessageIds?: readonly string[],
-  onReadForEmulatorTest?: () => Promise<void>,
+  beforeReadsForEmulatorTest?: () => Promise<void>,
   metrics?: DirectUnreadTransactionMetrics
 ): Promise<void> {
   const chatRef = db.collection('chats').doc(chatId);
@@ -51,6 +51,12 @@ async function reconcileDirectUnreadMessageInternal(
   await db.runTransaction(async (tx) => {
     if (metrics) metrics.attempts += 1;
     let stagedWrites = 0;
+    // Emulator race tests mutate BEFORE transactional reads, never while
+    // holding a read lock on the same document (which waits ~60s to time out).
+    if (beforeReadsForEmulatorTest) {
+      if (!process.env.FIRESTORE_EMULATOR_HOST) throw new Error('Test hook requires emulator');
+      await beforeReadsForEmulatorTest();
+    }
     const [chat, message] = await Promise.all([tx.get(chatRef), tx.get(messageRef)]);
     if (metrics) metrics.attemptedDocumentReads += 2;
     const participants: unknown = chat.data()?.participants;
@@ -85,11 +91,6 @@ async function reconcileDirectUnreadMessageInternal(
       checkpoint: await tx.get(entry.checkpointRef),
     })));
     if (metrics) metrics.attemptedDocumentReads += entries.length * 2;
-
-    if (onReadForEmulatorTest) {
-      if (!process.env.FIRESTORE_EMULATOR_HOST) throw new Error('Test hook requires emulator');
-      await onReadForEmulatorTest();
-    }
 
     entries.forEach((entry, index) => {
       const snapshotsForUser = snapshots[index];
@@ -150,17 +151,17 @@ export async function reconcileDirectUnreadMessageMeasuredOnEmulator(
   return metrics;
 }
 
-/** Test-only seam, never included in the deployed Functions export graph. */
-export async function reconcileDirectUnreadMessageForEmulatorTest(
+/** Test-only seam before the first read; never exposed through Functions index.ts. */
+export async function reconcileDirectUnreadMessageBeforeReadForEmulatorTest(
   chatId: string,
   messageId: string,
   expectedParticipants: readonly string[],
   expectedMessageIds: readonly string[],
-  afterReads: () => Promise<void>
+  beforeReads: () => Promise<void>
 ): Promise<void> {
   if (!process.env.FIRESTORE_EMULATOR_HOST) throw new Error('Emulator required');
   return reconcileDirectUnreadMessageInternal(
-    chatId, messageId, expectedParticipants, expectedMessageIds, afterReads
+    chatId, messageId, expectedParticipants, expectedMessageIds, beforeReads
   );
 }
 
