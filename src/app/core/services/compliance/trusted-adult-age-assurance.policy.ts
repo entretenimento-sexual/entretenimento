@@ -66,3 +66,22 @@ export function isCurrentTrustedAdultAgeProjection(
 ): boolean {
   return resolveTrustedAdultAgeProjection(state, nowMs).allowed;
 }
+
+/**
+ * UX mirror of account 18+ admission. Not an authorization decision:
+ * server-side age_eligibility_records and Firestore Rules remain authoritative.
+ */
+export function isCurrentAdultAccountAdmissionProjection(
+  state: IUserAgeEligibility | null | undefined,
+  nowMs = Date.now()
+): boolean {
+  if (!state || Number(state.policyVersion) !== TRUSTED_ADULT_AGE_POLICY_VERSION) {
+    return false;
+  }
+  if (state.status === 'SELF_DECLARED_ADULT') {
+    return state.source === 'SELF_DECLARATION' &&
+      state.method === 'SELF_DECLARATION' &&
+      state.verifiedAtMs == null && state.expiresAtMs == null;
+  }
+  return isCurrentTrustedAdultAgeProjection(state, nowMs);
+}
