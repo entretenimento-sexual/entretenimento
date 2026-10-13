@@ -166,12 +166,18 @@ export const startPublicVideoPlaybackSession = onCall<
     // session. Read the canonical owner and current asset in the same
     // transaction that persists the token.
     const ownerAccountRef = db.doc(`users/${ownerUid}`);
+    const ownerPublicProfileRef = db.doc(`public_profiles/${ownerUid}`);
     await db.runTransaction(async (transaction) => {
-      const [ownerAccountSnap, currentVideoSnap] = await Promise.all([
-        transaction.get(ownerAccountRef),
-        transaction.get(publicVideoRef),
-      ]);
+      const [ownerAccountSnap, ownerPublicProfileSnap, currentVideoSnap] =
+        await Promise.all([
+          transaction.get(ownerAccountRef),
+          transaction.get(ownerPublicProfileRef),
+          transaction.get(publicVideoRef),
+        ]);
       assertCurrentPublicMediaOwnerLifecycle(ownerAccountSnap.data());
+      if (!ownerPublicProfileSnap.exists) {
+        throw new HttpsError('not-found', 'Vídeo público não encontrado.');
+      }
       const currentVideo = currentVideoSnap.data() ?? {};
       const currentVersion = safePositiveInteger(
         currentVideo.assetVersion ?? currentVideo.publishedAt
