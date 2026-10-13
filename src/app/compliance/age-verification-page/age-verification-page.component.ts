@@ -132,58 +132,6 @@ export class AgeVerificationPageComponent implements OnInit {
     });
   }
 
-  requestVerification(): void {
-    if (this.processing()) return;
-
-    this.processing.set(true);
-    this.feedback.set({
-      tone: 'info',
-      title: 'Solicitando verificação',
-      message:
-        'Estamos abrindo a verificação confiável de maioridade da sua conta.',
-    });
-
-    this.ageEligibility.requestInitialReview$()
-      .pipe(
-        take(1),
-        switchMap((result) => {
-          if (result.status !== 'VERIFIED_ADULT') return of(result);
-
-          return this.ageEligibility.refreshTrustedSources$().pipe(
-            map(() => result),
-            catchError(() => of(result))
-          );
-        }),
-        catchError(() => {
-          this.feedback.set({
-            tone: 'error',
-            title: 'Não foi possível solicitar a verificação',
-            message:
-              'Tente novamente em alguns instantes ou consulte o status da conta.',
-          });
-          return EMPTY;
-        }),
-        finalize(() => this.processing.set(false))
-      )
-      .subscribe((result) => {
-        if (result.status === 'VERIFIED_ADULT') {
-          this.feedback.set({
-            tone: 'success',
-            title: 'Maioridade verificada',
-            message: 'A próxima etapa será aberta automaticamente.',
-          });
-          return;
-        }
-
-        this.feedback.set({
-          tone: 'warning',
-          title: 'Verificação em análise',
-          message:
-            'A solicitação foi registrada. Não é necessário repetir sua declaração de maioridade.',
-        });
-      });
-  }
-
   goToNotifications(): void {
     void this.router.navigate(['/notificacoes']);
   }
