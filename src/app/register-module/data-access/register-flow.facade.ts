@@ -16,7 +16,7 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { AdultConsentService } from 'src/app/core/services/compliance/adult-consent.service';
 import { AgeEligibilityService } from 'src/app/core/services/compliance/age-eligibility.service';
 import {
-  isCurrentTrustedAdultAgeProjection,
+  isCurrentAdultAccountAdmissionProjection,
 } from 'src/app/core/services/compliance/trusted-adult-age-assurance.policy';
 import { isCurrentLegalAcceptanceSatisfied } from 'src/app/core/services/compliance/terms-acceptance.service';
 
@@ -79,10 +79,10 @@ export class RegisterFlowFacade {
 
       return this.ageEligibility.reconcileTrustedStateOncePerSession$().pipe(
         map((ageState) =>
-          resolve(isCurrentTrustedAdultAgeProjection(ageState))
+          resolve(isCurrentAdultAccountAdmissionProjection(ageState))
         ),
         catchError(() =>
-          of(resolve(isCurrentTrustedAdultAgeProjection(user?.ageEligibility)))
+          of(resolve(isCurrentAdultAccountAdmissionProjection(user?.ageEligibility)))
         )
       );
     }),
