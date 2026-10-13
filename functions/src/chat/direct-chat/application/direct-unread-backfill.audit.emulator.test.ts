@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 import { db } from '../../../firebaseApp';
-import { auditDirectUnreadPage } from './direct-unread-backfill.audit';
+import { auditDirectUnreadPage, auditDirectUnreadConsistent } from './direct-unread-backfill.audit';
 
 const run = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip;
 
@@ -44,6 +44,18 @@ run('unread projection audit — read only', () => {
     assert.equal(second.unreadInPage, 2);
     assert.equal((await projection.get()).data()?.unreadCount, 2);
     assert.equal((await projection.collection('messages').get()).size, 0);
+  });
+
+  it('compares message count and projection inside one read-only transaction', async () => {
+    const before = await auditDirectUnreadConsistent(chatId, 'recipient');
+    assert.equal(before.comparison, 'MATCH');
+    assert.equal(before.unreadInPage, 2);
+    await projection.update({ unreadCount: 9 });
+    const after = await auditDirectUnreadConsistent(chatId, 'recipient');
+    assert.equal(after.comparison, 'MISMATCH');
+    assert.equal(after.storedUnreadCount, 9);
+    await projection.update({ unreadCount: 2 });
+    await assert.rejects(auditDirectUnreadConsistent(chatId, 'outsider'));
   });
 
   it('rejects invalid resume state and exceeding the global scan budget', async () => {
