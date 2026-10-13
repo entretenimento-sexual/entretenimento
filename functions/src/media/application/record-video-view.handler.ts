@@ -4,6 +4,7 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
 import { buildMediaEngagementScore } from './media-engagement-score';
 import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
+import { assertCurrentPublicMediaOwnerLifecycle } from './public-media-transaction-owner-access.policy';
 import {
   PUBLIC_VIDEO_PLAYBACK_SESSION_COLLECTION,
   normalizePublicVideoPlaybackToken,
@@ -192,6 +193,7 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
       };
     }
 
+    const ownerAccountRef = db.doc(`users/${ownerUid}`);
     const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
     const publicVideoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
@@ -199,11 +201,13 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
     const playbackSessionRef = publicVideoRef
       .collection(PUBLIC_VIDEO_PLAYBACK_SESSION_COLLECTION)
       .doc(viewerUid);
-    const [preflightVideoSnapshot, preflightPlaybackSessionSnapshot] =
-      await Promise.all([
-        publicVideoRef.get(),
-        playbackSessionRef.get(),
-      ]);
+    const [preflightOwnerSnapshot, preflightVideoSnapshot,
+      preflightPlaybackSessionSnapshot] = await Promise.all([
+      ownerAccountRef.get(),
+      publicVideoRef.get(),
+      playbackSessionRef.get(),
+    ]);
+    assertCurrentPublicMediaOwnerLifecycle(preflightOwnerSnapshot.data());
     const preflightVideo = preflightVideoSnapshot.data();
     const now = Date.now();
 
@@ -247,6 +251,8 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
     const retentionTokenExpiresAt = now + VIDEO_RETENTION_TOKEN_TTL_MS;
 
     const outcome = await db.runTransaction(async (transaction) => {
+      const ownerAccountSnap = await transaction.get(ownerAccountRef);
+      assertCurrentPublicMediaOwnerLifecycle(ownerAccountSnap.data());
       const publicProfileSnap = await transaction.get(publicProfileRef);
       const publicVideoSnap = await transaction.get(publicVideoRef);
       const playbackSessionSnap = await transaction.get(playbackSessionRef);
