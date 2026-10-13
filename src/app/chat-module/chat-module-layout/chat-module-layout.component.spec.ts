@@ -381,6 +381,38 @@ describe('ChatModuleLayoutComponent', () => {
     }
   });
 
+  it('descarta intenção expirada antes de reutilizar chave', () => {
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
+    const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
+    const key = 'chat-send-intent:u1:chat-1';
+    sessionStorage.setItem(key, JSON.stringify({
+      uid: 'u1', chatId: 'chat-1', content: 'mensagem', requestId: 'old-id',
+      createdAt: Date.now() - 25 * 60 * 60 * 1000,
+    }));
+    selection.selectedChatId.mockReturnValue('chat-1');
+    selection.selectedType.mockReturnValue('chat');
+    selectedChatId$.next('chat-1');
+    selectedType$.next('chat');
+    component.canSendCurrentMessage.set(true);
+    component.messageContent = 'mensagem';
+    orchestrator.send$.mockReturnValue(of({ messageId: null, blockedReason: null }));
+
+    component.sendMessage();
+    const requestId = orchestrator.send$.mock.calls.at(-1)[2];
+    expect(requestId).not.toBe('old-id');
+    expect(JSON.parse(sessionStorage.getItem(key) ?? '{}').requestId).toBe(requestId);
+  });
+
+  it('apaga intenções da conta anterior no logout', () => {
+    const key = 'chat-send-intent:u1:chat-1';
+    sessionStorage.setItem(key, JSON.stringify({
+      uid: 'u1', chatId: 'chat-1', content: 'mensagem', requestId: 'old-id',
+      createdAt: Date.now(),
+    }));
+    authUid$.next(null);
+    expect(sessionStorage.getItem(key)).toBeNull();
+  });
+
   it('mantém apenas atalhos do chat direto no estado vazio', () => {
     const text = fixture.nativeElement.textContent as string;
     const hrefs = Array.from(
