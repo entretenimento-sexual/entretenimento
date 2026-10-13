@@ -112,6 +112,8 @@ export const requestProfileAgeReverification = onCall<
         accountStatus !== 'active' ||
         user.suspended === true ||
         user.interactionBlocked === true ||
+        (user as { accountLocked?: boolean }).accountLocked === true ||
+        user.loginAllowed === false ||
         publicVisibility !== 'visible'
       ) {
         throw new HttpsError(
