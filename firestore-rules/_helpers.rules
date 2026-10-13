@@ -167,12 +167,23 @@ service cloud.firestore {
     }
 
     function canonicalAgeEligibilityAllowsRegistration(userId) {
-      return canonicalAgeEligibilityAllowsTrustedAdultAccess(userId);
+      let eligibility = signedIn() ? get(canonicalAgeEligibilityPath(userId)).data : null;
+      let selfDeclared = eligibility is map
+        && eligibility.uid == userId
+        && eligibility.policyVersion == 1
+        && mapFieldOrNull(eligibility, "status") == "SELF_DECLARED_ADULT"
+        && mapFieldOrNull(eligibility, "source") == "SELF_DECLARATION"
+        && mapFieldOrNull(eligibility, "method") == "SELF_DECLARATION"
+        && mapFieldOrNull(eligibility, "verifiedAt") == null
+        && mapFieldOrNull(eligibility, "expiresAt") == null
+        && mapFieldOrNull(eligibility, "decidedAt") is timestamp
+        && eligibility.decidedAt <= request.time;
+      return selfDeclared || canonicalAgeEligibilityAllowsTrustedAdultAccess(userId);
     }
 
     function currentUserHasRegistrationAgeEligibility() {
       return signedIn()
-        && canonicalAgeEligibilityAllowsTrustedAdultAccess(uid());
+        && canonicalAgeEligibilityAllowsRegistration(uid());
     }
 
     function currentUserCanUseAdultSocialPlatform() {
