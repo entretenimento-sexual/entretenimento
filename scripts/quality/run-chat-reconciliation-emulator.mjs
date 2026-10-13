@@ -45,7 +45,7 @@ try {
   // Node executa o CLI diretamente: preserva o comando do emulators:exec
   // como argumento único em Windows e Linux, sem expansão pelo cmd.exe.
   const testCommand = [
-    'node --test',
+    'node --test --test-concurrency=1',
     'functions/lib/chat/direct-chat/application/direct-chat-reconciliation.reader.emulator.test.js',
     'functions/lib/chat/direct-chat/application/reconcile-direct-chat-access.handler.test.js',
     'functions/lib/chat/direct-chat/application/ensure-direct-chat.handler.test.js',
