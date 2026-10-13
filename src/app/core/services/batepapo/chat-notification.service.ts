@@ -51,6 +51,7 @@ export class ChatNotificationService {
   private unsubChats: (() => void) | null = null;
   private recountSub: Subscription | null = null;
   private runToken = 0;
+  private recountVersion = 0;
 
   constructor(
     private readonly db: Firestore,
@@ -98,7 +99,8 @@ export class ChatNotificationService {
   stopUnreadMessagesMonitoring(reason?: string): void {
     this.dbg('STOP', { reason, currentUid: this.currentUid });
 
-    this.runToken++; // invalida resultados async antigos
+    this.runToken++; // invalida listeners de sessões anteriores
+    this.recountVersion++; // invalida contagens assíncronas anteriores
 
     if (this.unsubChats) {
       this.unsubChats();
@@ -159,6 +161,13 @@ export class ChatNotificationService {
     userId: string,
     token: number
   ): void {
+    // Cancelar antes do caso vazio; uma resposta anterior não deve reverter o zero.
+    this.recountVersion++;
+    const version = this.recountVersion;
+    if (this.recountSub) {
+      this.recountSub.unsubscribe();
+      this.recountSub = null;
+    }
     const chatIds: string[] = (snapshot?.docs ?? [])
       .map(d => String(d.id))
       .filter((chatId) => this.shouldCountChat(chatId));
@@ -171,13 +180,8 @@ export class ChatNotificationService {
     });
 
     if (!chatIds.length) {
-      if (token === this.runToken) this.updateUnreadMessagesForUser(0);
+      if (token === this.runToken && version === this.recountVersion) this.updateUnreadMessagesForUser(0);
       return;
-    }
-
-    if (this.recountSub) {
-      this.recountSub.unsubscribe();
-      this.recountSub = null;
     }
 
     this.recountSub = from(chatIds).pipe(
@@ -188,8 +192,8 @@ export class ChatNotificationService {
         return of(0);
       })
     ).subscribe((total) => {
-      if (token !== this.runToken) return;
-      this.dbg('TOTAL', { token, total });
+      if (token !== this.runToken || version !== this.recountVersion) return;
+      this.dbg('TOTAL', { token, version, total });
       this.updateUnreadMessagesForUser(total);
     });
   }
@@ -269,10 +273,14 @@ export class ChatNotificationService {
       return;
     }
 
-    const token = ++this.runToken;
+    // Atualização pontual não deve invalidar o listener onSnapshot existente.
+    const token = this.runToken;
 
     getDocs(userChatsQuery)
-      .then((snapshot) => this.recountUnreadFromSnapshot(snapshot as any, uid, token))
+      .then((snapshot) => {
+        if (token !== this.runToken || uid !== this.currentUid) return;
+        this.recountUnreadFromSnapshot(snapshot, uid, token);
+      })
       .catch((err) => this.handleRealtimeError('Erro ao atualizar contagem de não lidas', err, 'refreshUnreadCountOnce:getDocs'));
   }
 
