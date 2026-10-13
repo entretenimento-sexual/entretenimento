@@ -23,6 +23,8 @@ describe('owner-lifecycle-exposure.policy', () => {
       { accountStatus: 'active', suspended: true },
       { accountStatus: 'active', publicVisibility: 'hidden' },
       { accountStatus: 'active', loginAllowed: false },
+      { accountStatus: 'active', interactionBlocked: true },
+      { accountStatus: 'active', accountLocked: true },
     ]) {
       assert.equal(evaluateCanonicalOwnerLifecycle(user).allowed, false);
     }
