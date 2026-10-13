@@ -22,9 +22,11 @@ async function main(): Promise<void> {
       throw new Error('Invalid Firebase project');
     }
   }
-  const args = process.argv.slice(2);
-  if (args.length < 2 || args.length !== 2 && args.length !== 4 && args.length !== 6) {
-    throw new Error('Usage: CHAT_ID PARTICIPANT_UID [CURSOR|- PAGE_SIZE [SCANNED UNREAD]]');
+  const input = process.argv.slice(2);
+  const consistent = input[0] === '--consistent';
+  const args = consistent ? input.slice(1) : input;
+  if (consistent ? args.length !== 2 : ![2, 4, 6].includes(args.length)) {
+    throw new Error('Usage: --consistent CHAT_ID UID | CHAT_ID UID [CURSOR PAGE_SIZE [SCANNED UNREAD]]');
   }
   const [chatId, uid, cursorArg = '-', sizeArg = '100', scannedArg = '0', unreadArg = '0'] = args;
   if ([chatId, uid].some((id) => !id || id.length > 128 ||
@@ -43,14 +45,17 @@ async function main(): Promise<void> {
     throw new Error('Cursor requires cumulative scanned/unread counts');
   }
   // Admin SDK is loaded only after validating emulator environment.
-  const { auditDirectUnreadPage } = require('./direct-unread-backfill.audit') as
+  const audit = require('./direct-unread-backfill.audit') as
     typeof import('./direct-unread-backfill.audit');
-  const result = await auditDirectUnreadPage(
-    chatId, uid, cursorArg === '-' ? null : cursorArg, pageSize,
-    previousScanned, previousUnread
-  );
+  const result = consistent ?
+    await audit.auditDirectUnreadConsistent(chatId, uid) :
+    await audit.auditDirectUnreadPage(
+      chatId, uid, cursorArg === '-' ? null : cursorArg, pageSize,
+      previousScanned, previousUnread
+    );
   process.stdout.write(`${JSON.stringify({
-    mode: 'DRY_RUN', mutationCount: 0, ...result,
+    mode: 'DRY_RUN', auditMode: consistent ? 'CONSISTENT' : 'PAGINATED',
+    mutationCount: 0, ...result,
   }, null, 2)}\n`);
 }
 if (require.main === module) {
