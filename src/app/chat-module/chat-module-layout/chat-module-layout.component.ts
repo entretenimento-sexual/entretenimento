@@ -454,12 +454,15 @@ if (this.isMessageTooLong) {
     if (!sendingUid) return;
 
     // Repetições da mesma intenção reutilizam a chave; texto ou contexto novo recebe outra.
-    const previous = this.pendingSend;
-    const requestId = previous?.uid === sendingUid &&
-      previous.chatId === selectedChatId && previous.content === content
+    const previous = this.pendingSend?.uid === sendingUid &&
+      this.pendingSend.chatId === selectedChatId
+      ? this.pendingSend
+      : this.readPendingSend(sendingUid, selectedChatId);
+    const requestId = previous?.content === content
       ? previous.requestId
       : this.createSendRequestId();
     this.pendingSend = { uid: sendingUid, chatId: selectedChatId, content, requestId };
+    this.savePendingSend(this.pendingSend);
     this.isSendingMessage.set(true);
     const sendingContent = this.messageContent;
 
@@ -476,6 +479,7 @@ if (this.isMessageTooLong) {
 
           if (result.messageId) {
             if (this.pendingSend?.requestId === requestId) this.pendingSend = null;
+            this.clearPendingSend(sendingUid, selectedChatId, requestId);
             if (this.messageContent === sendingContent) this.messageContent = '';
             this.directMessageBlockedReason.set(null);
 
@@ -500,6 +504,46 @@ if (this.isMessageTooLong) {
         })
       )
       .subscribe();
+  }
+
+  /** Apenas a intenção de retry; não dispara envio durante restauração. */
+  private pendingSendStorageKey(uid: string, chatId: string): string {
+    return `chat-send-intent:${uid}:${chatId}`;
+  }
+
+  private readPendingSend(uid: string, chatId: string):
+    { uid: string; chatId: string; content: string; requestId: string } | null {
+    try {
+      const raw = sessionStorage.getItem(this.pendingSendStorageKey(uid, chatId));
+      if (!raw) return null;
+      const value: unknown = JSON.parse(raw);
+      if (!value || typeof value !== 'object') return null;
+      const record = value as Record<string, unknown>;
+      if (record['uid'] !== uid || record['chatId'] !== chatId ||
+          typeof record['content'] !== 'string' || typeof record['requestId'] !== 'string' ||
+          !record['requestId'] || record['content'].length > this.maxMessageLength) return null;
+      return { uid, chatId, content: record['content'], requestId: record['requestId'] };
+    } catch {
+      return null;
+    }
+  }
+
+  private savePendingSend(intent: { uid: string; chatId: string; content: string; requestId: string }): void {
+    try {
+      sessionStorage.setItem(this.pendingSendStorageKey(intent.uid, intent.chatId), JSON.stringify(intent));
+    } catch {
+      // Armazenamento indisponível: o envio continua com idempotência em memória.
+    }
+  }
+
+  private clearPendingSend(uid: string, chatId: string, requestId: string): void {
+    try {
+      if (this.readPendingSend(uid, chatId)?.requestId === requestId) {
+        sessionStorage.removeItem(this.pendingSendStorageKey(uid, chatId));
+      }
+    } catch {
+      // Falha no storage não pode invalidar uma confirmação do backend.
+    }
   }
 
   private createSendRequestId(): string {
