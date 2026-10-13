@@ -34,4 +34,32 @@ run('unread initial backfill — local emulator only', () => {
       await Promise.all(projections.map((ref) => db.recursiveDelete(ref)));
     }
   });
+  it('refuses corrupted checkpoint totals without mutating the projection', async () => {
+    const chatId = `unread-corrupt-${randomUUID()}`;
+    const chat = db.collection('chats').doc(chatId);
+    const recipientRef = db.collection('direct_chat_unread_projections')
+      .doc('recipient').collection('chats').doc(chatId);
+    const senderRef = db.collection('direct_chat_unread_projections')
+      .doc('sender').collection('chats').doc(chatId);
+    try {
+      await chat.set({ participants: ['sender', 'recipient'] });
+      await chat.collection('messages').doc('first').set({
+        senderId: 'sender', status: 'sent',
+      });
+      await recipientRef.set({ unreadCount: 99, version: 1 });
+      await recipientRef.collection('messages').doc('first').set({
+        messageId: 'first', senderUid: 'sender', status: 'sent',
+      });
+      await senderRef.set({ unreadCount: 0, version: 1 });
+      await senderRef.collection('messages').doc('first').set({
+        messageId: 'first', senderUid: 'sender', status: 'sent',
+      });
+      await assert.rejects(initializeDirectUnreadOnEmulator(chatId));
+      assert.equal((await recipientRef.get()).data()?.unreadCount, 99);
+    } finally {
+      await db.recursiveDelete(chat);
+      await Promise.all([db.recursiveDelete(recipientRef), db.recursiveDelete(senderRef)]);
+    }
+  });
+
 });
