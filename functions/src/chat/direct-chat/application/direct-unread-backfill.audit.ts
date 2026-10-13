@@ -14,8 +14,9 @@ export interface DirectUnreadAuditPage {
   nextCursor: string | null;
   complete: boolean;
   storedUnreadCount: number | null;
-  comparison: 'INCOMPLETE' | 'MATCH' | 'MISMATCH' | 'NO_PROJECTION';
+  comparison: 'INCOMPLETE' | 'MATCH' | 'MISMATCH' | 'NO_PROJECTION' | 'INCONCLUSIVE';
   readBudgetUsed: number;
+  consistency: 'SINGLE_QUERY' | 'UNVERIFIED_MULTI_PAGE';
 }
 
 export async function auditDirectUnreadPage(
@@ -67,12 +68,17 @@ export async function auditDirectUnreadPage(
   const value = projection.data()?.unreadCount;
   const storedUnreadCount = Number.isSafeInteger(value) && value >= 0 ? value : null;
   const complete = !hasMore;
+  // Consultas sucessivas não compartilham um snapshot consistente. Nunca
+  // certificar MATCH/MISMATCH com totais acumulados de páginas independentes.
+  const multiPage = previousScanned > 0;
   return {
     chatId, participantUid, scanned, unreadInPage: count,
     nextCursor: hasMore ? docs[docs.length - 1].id : null,
     complete, storedUnreadCount,
+    consistency: multiPage ? 'UNVERIFIED_MULTI_PAGE' : 'SINGLE_QUERY',
     readBudgetUsed: 2 + page.docs.length + Number(Boolean(cursor)),
-    comparison: !complete ? 'INCOMPLETE' : !projection.exists ? 'NO_PROJECTION' :
+    comparison: !complete ? 'INCOMPLETE' : multiPage ? 'INCONCLUSIVE' :
+      !projection.exists ? 'NO_PROJECTION' :
       storedUnreadCount === count ? 'MATCH' : 'MISMATCH',
   };
 }
