@@ -27,6 +27,7 @@ import {
   AgeEligibilityService,
 } from 'src/app/core/services/compliance/age-eligibility.service';
 import {
+  isCurrentAdultAccountAdmissionProjection,
   isCurrentTrustedAdultAgeProjection,
 } from 'src/app/core/services/compliance/trusted-adult-age-assurance.policy';
 import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
@@ -71,7 +72,7 @@ export class AgeVerificationPageComponent implements OnInit {
     this.ageEligibility.current$.pipe(
       map((state) => ({
         state,
-        accessAllowed: isCurrentTrustedAdultAgeProjection(state),
+        accessAllowed: isCurrentAdultAccountAdmissionProjection(state),
         verified: isCurrentTrustedAdultAgeProjection(state),
         selfDeclared: state.status === 'SELF_DECLARED_ADULT',
         expired: state.status === 'EXPIRED',
@@ -92,7 +93,7 @@ export class AgeVerificationPageComponent implements OnInit {
 
     this.ageEligibility.current$
       .pipe(
-        map((state) => isCurrentTrustedAdultAgeProjection(state)),
+        map((state) => isCurrentAdultAccountAdmissionProjection(state)),
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -102,6 +103,33 @@ export class AgeVerificationPageComponent implements OnInit {
           this.continueAfterAgeStep();
         }
       });
+  }
+
+  confirmAdult(): void {
+    if (this.processing()) return;
+    this.processing.set(true);
+    this.feedback.set(null);
+    this.ageEligibility.acceptSelfDeclaration$().pipe(
+      take(1),
+      switchMap(() => this.ageEligibility.getCurrentOnce$()),
+      catchError(() => {
+        this.feedback.set({
+          tone: 'error',
+          title: 'Não foi possível registrar a confirmação 18+',
+          message: 'Confira sua conexão e o estado da conta antes de tentar novamente.',
+        });
+        return EMPTY;
+      }),
+      finalize(() => this.processing.set(false))
+    ).subscribe((state) => {
+      if (isCurrentAdultAccountAdmissionProjection(state)) {
+        this.feedback.set({
+          tone: 'success',
+          title: 'Maioridade registrada',
+          message: 'Sua confirmação foi vinculada à conta.',
+        });
+      }
+    });
   }
 
   requestVerification(): void {
