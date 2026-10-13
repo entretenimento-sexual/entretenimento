@@ -344,6 +344,37 @@ describe('ChatModuleLayoutComponent', () => {
     expect(secondKey).not.toBe(firstKey);
   });
 
+  it('restaura chave persistida após perder estado em memória sem reenviar automaticamente', () => {
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
+    const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
+    const key = 'chat-send-intent:u1:chat-1';
+    selection.selectedChatId.mockReturnValue('chat-1');
+    selection.selectedType.mockReturnValue('chat');
+    selectedChatId$.next('chat-1');
+    selectedType$.next('chat');
+    component.canSendCurrentMessage.set(true);
+    orchestrator.send$.mockReturnValue(of({ messageId: null, blockedReason: null }));
+    component.messageContent = 'pendente';
+    try {
+      component.sendMessage();
+      const originalId = orchestrator.send$.mock.calls.at(-1)[2];
+      expect(JSON.parse(sessionStorage.getItem(key) ?? '{}').requestId).toBe(originalId);
+
+      // Simula o descarte do estado em memória provocado por recarregamento.
+      (component as any).pendingSend = null;
+      const calls = orchestrator.send$.mock.calls.length;
+      expect(orchestrator.send$.mock.calls.length).toBe(calls);
+      component.sendMessage();
+      expect(orchestrator.send$.mock.calls.at(-1)[2]).toBe(originalId);
+
+      orchestrator.send$.mockReturnValue(of({ messageId: 'confirmado', blockedReason: null }));
+      component.sendMessage();
+      expect(sessionStorage.getItem(key)).toBeNull();
+    } finally {
+      sessionStorage.removeItem(key);
+    }
+  });
+
   it('mantém apenas atalhos do chat direto no estado vazio', () => {
     const text = fixture.nativeElement.textContent as string;
     const hrefs = Array.from(
