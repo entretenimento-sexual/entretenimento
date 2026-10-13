@@ -138,6 +138,30 @@ for (const accessPath of [
   ], accessPath + ' deve revalidar viewer/owner/ativo antes de URL');
 }
 
+// Previously issued playback/retention tokens never override a new
+// lifecycle restriction. Metric writes must read users/{ownerUid} atomically.
+for (const metricPath of [
+  'functions/src/media/application/record-photo-view.handler.ts',
+  'functions/src/media/application/record-video-view.handler.ts',
+  'functions/src/media/application/record-video-retention.handler.ts',
+]) {
+  const source = read(metricPath);
+  requireIncludes(source, [
+    'assertPublicMediaConsumptionAccess',
+    'assertCurrentPublicMediaOwnerLifecycle',
+    'ownerAccountRef',
+    'transaction.get(ownerAccountRef)',
+  ], metricPath + ' deve revogar métrica quando lifecycle do owner mudar');
+}
+
+const metricOwnerPolicy = read(
+  'functions/src/media/application/public-media-transaction-owner-access.policy.ts'
+);
+requireIncludes(metricOwnerPolicy, [
+  'evaluateCanonicalOwnerLifecycle',
+  "throw new HttpsError('not-found'",
+], 'métricas reutilizam lifecycle canônico da conta sem assurance etário');
+
 const videoShare = read(
   'src/app/core/services/media/public-video-share.service.ts'
 );
