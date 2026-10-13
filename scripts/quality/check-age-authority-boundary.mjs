@@ -361,6 +361,15 @@ requireAll(
   'discovery deve revalidar lifecycle de cada proprietário'
 );
 requireAll(
+  'functions/src/discovery/get-user-intent-statuses.handler.ts',
+  [
+    'filterUserIntentStatusesByOwnerLifecycle',
+    'evaluateCanonicalOwnerLifecycle',
+    'db.getAll',
+  ],
+  'Status de Hoje precisa revalidar lifecycle canônico do autor'
+);
+requireAll(
   'functions/src/account_lifecycle/public-owner-exposure.policy.ts',
   ['accountLocked', 'interactionBlocked', 'loginAllowed', 'suspended'],
   'conta deve possuir autoridade canônica de exposição pública'
