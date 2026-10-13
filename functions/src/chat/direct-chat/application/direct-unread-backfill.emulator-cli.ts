@@ -25,21 +25,23 @@ async function main(): Promise<void> {
   const input = process.argv.slice(2);
   const writeEmulator = input[0] === '--initialize-emulator';
   const inspectJournal = input[0] === '--inspect-journal';
+  const listJournals = input[0] === '--list-journals';
   const purgeJournal = input[0] === '--purge-journal';
   const conversation = input[0] === '--conversation';
   const consistent = input[0] === '--consistent';
-  const args = consistent || conversation || writeEmulator || inspectJournal || purgeJournal ?
+  const args = consistent || conversation || writeEmulator || inspectJournal || listJournals || purgeJournal ?
     input.slice(1) : input;
-  if (inspectJournal || writeEmulator || conversation ? args.length !== 1 :
+  if (inspectJournal || listJournals || writeEmulator || conversation ? args.length !== 1 :
     purgeJournal || consistent ? args.length !== 2 : ![2, 4, 6].includes(args.length)) {
     throw new Error(
       'Usage: --initialize-emulator CHAT_ID | --conversation CHAT_ID | --consistent CHAT_ID UID | ' +
-      '--inspect-journal RUN_ID | --purge-journal RUN_ID CONFIRM_TERMINAL_JOURNAL_PURGE | ' +
+      '--list-journals CHAT_ID | --inspect-journal RUN_ID | ' +
+      '--purge-journal RUN_ID CONFIRM_TERMINAL_JOURNAL_PURGE | ' +
       'CHAT_ID UID [CURSOR PAGE_SIZE [SCANNED UNREAD]]'
     );
   }
   const [chatId, uid, cursorArg = '-', sizeArg = '100', scannedArg = '0', unreadArg = '0'] = args;
-  const singleScope = conversation || writeEmulator || inspectJournal || purgeJournal;
+  const singleScope = conversation || writeEmulator || inspectJournal || listJournals || purgeJournal;
   const scopedIds = singleScope ? [chatId] : [chatId, uid];
   if (scopedIds.some((id) => !id || id.length > 128 ||
       !/^[A-Za-z0-9_-]+$/.test(id))) throw new Error('Invalid scope');
@@ -57,12 +59,13 @@ async function main(): Promise<void> {
     throw new Error('Cursor requires cumulative scanned/unread counts');
   }
   // The journal is only inspected or pruned after validating emulator safety.
-  if (inspectJournal || purgeJournal) {
+  if (inspectJournal || listJournals || purgeJournal) {
     const journal = require('./direct-unread-backfill.journal.emulator') as
       typeof import('./direct-unread-backfill.journal.emulator');
     const result = inspectJournal ?
-      await journal.inspectDirectUnreadEmulatorJournal(chatId) :
-      await journal.purgeDirectUnreadEmulatorJournal(chatId, uid);
+      await journal.inspectDirectUnreadEmulatorJournal(chatId) : listJournals ?
+        await journal.listDirectUnreadEmulatorJournals(chatId) :
+        await journal.purgeDirectUnreadEmulatorJournal(chatId, uid);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return;
   }
