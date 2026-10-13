@@ -6,6 +6,7 @@ import { evaluateCanonicalOwnerLifecycle } from '../media/application/owner-life
 import {
   buildAgeReviewRestrictionPatch,
   buildAgeReviewRestorePatch,
+  resolveAgeReviewRestoration,
   buildConfirmedUnderageSuspensionPatch,
 } from './account-age-review-lifecycle.policy';
 
@@ -59,6 +60,56 @@ describe('account age review lifecycle policy', () => {
         ageReverificationSuspensionCaseId: null,
       }
     );
+  });
+
+  it('não restaura suspensão ou lock pertencente a outra autoridade', () => {
+    const restricted = {
+      accountStatus: 'active',
+      suspended: false,
+      publicVisibility: 'hidden',
+      interactionBlocked: true,
+      ageReverificationRestrictedAt: 100,
+      loginAllowed: true,
+      accountLocked: false,
+    };
+    assert.deepEqual(resolveAgeReviewRestoration({
+      caseId: 'review-1', account: restricted,
+    }), { canRestore: true, ownsSuspension: false });
+
+    for (const independent of [
+      { accountLocked: true },
+      { loginAllowed: false },
+      { moderationAutomationHold: { active: true } },
+      { accountStatus: 'self_suspended', suspended: true },
+      { accountStatus: 'moderation_suspended', suspended: true,
+        suspensionSource: 'moderator', ageReverificationSuspensionCaseId: 'other-case' },
+      { ageReverificationRestrictedAt: null },
+      { publicVisibility: 'visible' },
+      { interactionBlocked: false },
+    ]) {
+      assert.equal(resolveAgeReviewRestoration({
+        caseId: 'review-1', account: { ...restricted, ...independent },
+      }).canRestore, false);
+    }
+  });
+
+  it('restaura suspensão etária somente quando o caso é seu proprietário', () => {
+    const account = {
+      accountStatus: 'moderation_suspended',
+      suspended: true,
+      suspensionSource: 'moderator',
+      ageReverificationSuspensionCaseId: 'review-1',
+      ageReverificationRestrictedAt: 100,
+      publicVisibility: 'hidden',
+      interactionBlocked: true,
+      loginAllowed: true,
+    };
+    assert.deepEqual(resolveAgeReviewRestoration({
+      caseId: 'review-1', account,
+    }), { canRestore: true, ownsSuspension: true });
+    assert.equal(resolveAgeReviewRestoration({
+      caseId: 'review-2', account,
+    }).canRestore, false);
   });
 
   it('prova que suspeita e confirmação de menoridade bloqueiam produtos via lifecycle', () => {
