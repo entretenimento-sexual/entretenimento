@@ -188,7 +188,7 @@ describe('ChatModuleLayoutComponent', () => {
     component.canSendCurrentMessage.set(true);
     component.messageContent = 'texto para A';
     component.sendMessage();
-    expect(orchestrator.send$).toHaveBeenCalledWith('chat-1', 'texto para A');
+    expect(orchestrator.send$).toHaveBeenCalledWith('chat-1', 'texto para A', expect.any(String));
 
     selection.selectedChatId.mockReturnValue('chat-2');
     selectedChatId$.next('chat-2');
@@ -280,6 +280,27 @@ describe('ChatModuleLayoutComponent', () => {
     expect(notifier.showWarning).toHaveBeenCalledWith(
       'Não foi possível confirmar o envio. Verifique a conversa antes de tentar novamente.'
     );
+  });
+
+  it('reutiliza chave somente após envio não confirmado da mesma intenção', async () => {
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
+    const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
+    selection.selectedChatId.mockReturnValue('chat-1');
+    selection.selectedType.mockReturnValue('chat');
+    selectedChatId$.next('chat-1');
+    selectedType$.next('chat');
+    component.canSendCurrentMessage.set(true);
+    component.messageContent = 'mesma intenção';
+    orchestrator.send$.mockReturnValue(of({ messageId: null, blockedReason: null }));
+    component.sendMessage();
+    const firstKey = orchestrator.send$.mock.calls.at(-1)[2];
+    component.sendMessage();
+    const retryKey = orchestrator.send$.mock.calls.at(-1)[2];
+    expect(retryKey).toBe(firstKey);
+
+    component.messageContent = 'outra mensagem';
+    component.sendMessage();
+    expect(orchestrator.send$.mock.calls.at(-1)[2]).not.toBe(firstKey);
   });
 
   it('mantém apenas atalhos do chat direto no estado vazio', () => {
