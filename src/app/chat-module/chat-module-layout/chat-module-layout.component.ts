@@ -261,6 +261,7 @@ get shouldShowComposerHelp(): boolean {
         tap((uid) => {
           if (uid !== this.activeSessionUid) {
             this.activeSessionUid = uid;
+            this.pendingSend = null;
             this.messageContent = '';
             this.selectionContext.clear();
             this.directMessageBlockedReason.set(null);
