@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { assertPlatformAccountAccessData } from './interaction-access.policy';
+import { evaluateCanonicalOwnerLifecycle } from '../media/application/owner-lifecycle-exposure.policy';
 
 import {
   buildAgeReviewRestrictionPatch,
@@ -57,6 +59,41 @@ describe('account age review lifecycle policy', () => {
         ageReverificationSuspensionCaseId: null,
       }
     );
+  });
+
+  it('prova que suspeita e confirmação de menoridade bloqueiam produtos via lifecycle', () => {
+    const baseAccount = {
+      accountStatus: 'active',
+      suspended: false,
+      interactionBlocked: false,
+      accountLocked: false,
+      publicVisibility: 'visible',
+      loginAllowed: true,
+      acceptedTerms: {
+        accepted: true, version: 'v3',
+        acknowledgedPrivacyNotice: true,
+      },
+      adultConsent: { accepted: true, version: 'v1' },
+    };
+    assert.doesNotThrow(() => assertPlatformAccountAccessData(baseAccount));
+    assert.equal(evaluateCanonicalOwnerLifecycle(baseAccount).allowed, true);
+
+    const pendingReview = {
+      ...baseAccount,
+      ...buildAgeReviewRestrictionPatch({ restrictedAt: 100 }),
+    };
+    assert.throws(() => assertPlatformAccountAccessData(pendingReview));
+    assert.equal(evaluateCanonicalOwnerLifecycle(pendingReview).allowed, false);
+
+    const confirmedUnderage = {
+      ...baseAccount,
+      ...buildConfirmedUnderageSuspensionPatch({
+        reviewedAt: 200, reviewedBy: 'compliance-1',
+        reason: 'evidência confiável', caseId: 'case-1',
+      }),
+    };
+    assert.throws(() => assertPlatformAccountAccessData(confirmedUnderage));
+    assert.equal(evaluateCanonicalOwnerLifecycle(confirmedUnderage).allowed, false);
   });
 
   it('suspende a conta quando menoridade é confirmada', () => {
