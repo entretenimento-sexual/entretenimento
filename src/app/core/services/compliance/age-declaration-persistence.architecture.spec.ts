@@ -9,7 +9,7 @@ function source(path: string): string {
   return readFileSync(resolve(ROOT, path), 'utf8');
 }
 
-describe('Adult age assurance boundary', () => {
+describe('Account 18+ admission and age assurance boundary', () => {
   it('preserva autodeclaração histórica sem transformá-la em autorização', () => {
     const refresh = source(
       'functions/src/compliance/refresh-my-age-eligibility.handler.ts'
@@ -40,10 +40,13 @@ describe('Adult age assurance boundary', () => {
       'reconcileTrustedStateOncePerSession$()'
     );
     expect(registerFlow).toContain(
-      'isCurrentTrustedAdultAgeProjection(ageState)'
+      'isCurrentAdultAccountAdmissionProjection(ageState)'
     );
     expect(registerFlow).not.toContain(
-      "state.status === 'SELF_DECLARED_ADULT'"
+      'isCurrentTrustedAdultAgeProjection(ageState)'
+    );
+    expect(registerFlow).toContain(
+      'if (user?.profileCompleted === true)'
     );
   });
 
@@ -55,13 +58,18 @@ describe('Adult age assurance boundary', () => {
       'src/app/compliance/age-verification-page/age-verification-page.component.html'
     );
 
-    expect(component).toContain('requestInitialReview$()');
-    expect(component).not.toContain('acceptSelfDeclaration$()');
-    expect(template).toContain(
-      'Sua declaração anterior continua registrada'
-    );
-    expect(template).toContain('Você não precisa declará-la novamente');
-    expect(template).not.toContain('(click)="confirmAdult()"');
+    // A declaração válida já registrada avança automaticamente.
+    // A primeira declaração só é oferecida a quem ainda não foi admitido.
+    // Revisão forte não pode ser uma exigência implícita do onboarding.
+    expect(component).toContain('isCurrentAdultAccountAdmissionProjection(state)');
+    expect(component).toContain('this.continued = true');
+    expect(component).toContain('acceptSelfDeclaration$()');
+    expect(component).not.toContain('requestInitialReview$()');
+    expect(template).toContain('@if (vm.accessAllowed)');
+    expect(template).toContain('@else if (vm.deniedUnderage)');
+    expect(template).toContain('@else if (vm.reviewRequired)');
+    expect(template).toContain('(click)="confirmAdult()"');
+    expect(template).not.toContain('(click)="requestInitialReview()"');
   });
 
   it('mantém rotas sem age guard duplicado por feature', () => {
