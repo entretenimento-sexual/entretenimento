@@ -71,6 +71,38 @@ run('unread projection audit — read only', () => {
     assert.equal(result.comparison, 'MATCH');
   });
 
+  it('returns NO_PROJECTION with no writes for a missing projection', async () => {
+    await projection.delete();
+    const report = await auditDirectUnreadConsistent(chatId, 'recipient');
+    assert.equal(report.comparison, 'NO_PROJECTION');
+    assert.equal(report.storedUnreadCount, null);
+    assert.equal((await projection.get()).exists, false);
+    await projection.set({ unreadCount: 2, version: 1 });
+  });
+
+  it('marks histories over 100 messages inconclusive without changing projection', async () => {
+    const bulk = chat.collection('messages');
+    const batch = db.batch();
+    for (let index = 0; index < 101; index += 1) {
+      batch.set(bulk.doc(`extra-${String(index).padStart(3, '0')}`), {
+        senderId: 'sender', status: 'sent',
+      });
+    }
+    await batch.commit();
+    const before = (await projection.get()).data();
+    const report = await auditDirectUnreadConsistent(chatId, 'recipient');
+    assert.equal(report.comparison, 'INCONCLUSIVE');
+    assert.equal(report.complete, false);
+    assert.equal(report.scanned, 100);
+    assert.deepEqual((await projection.get()).data(), before);
+    assert.equal((await projection.collection('messages').get()).size, 0);
+    const cleanup = db.batch();
+    for (let index = 0; index < 101; index += 1) {
+      cleanup.delete(bulk.doc(`extra-${String(index).padStart(3, '0')}`));
+    }
+    await cleanup.commit();
+  });
+
   it('detects divergence and rejects nonparticipant scans', async () => {
     await projection.update({ unreadCount: 7 });
     const report = await auditDirectUnreadPage(chatId, 'recipient', null, 100);
