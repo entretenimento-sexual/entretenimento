@@ -20,6 +20,8 @@ import {
 } from '../../friendship/application/social-connection-access.policy';
 import { calculateMediaViewScore } from './media-audience-score';
 import { logPhotoOperation } from './photo-operation-telemetry';
+import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
+import { assertCurrentPublicMediaOwnerLifecycle } from './public-media-transaction-owner-access.policy';
 import {
   canReadPublishedPhotoAudience,
   resolvePhotoAudienceAccessInTransaction,
@@ -146,6 +148,8 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
       };
     }
 
+    await assertPublicMediaConsumptionAccess(viewerUid);
+    const ownerAccountRef = db.doc(`users/${ownerUid}`);
     const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
     const publicPhotoRef = db.doc(
       `public_profiles/${ownerUid}/public_photos/${photoId}`
@@ -156,7 +160,11 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
      * autorizada acione o backfill histórico do perfil. A transação revalida a
      * audiência novamente imediatamente antes de contabilizar a visualização.
      */
-    const preflightPhotoSnapshot = await publicPhotoRef.get();
+    const [preflightOwnerSnapshot, preflightPhotoSnapshot] = await Promise.all([
+      ownerAccountRef.get(),
+      publicPhotoRef.get(),
+    ]);
+    assertCurrentPublicMediaOwnerLifecycle(preflightOwnerSnapshot.data());
     const preflightPhoto = preflightPhotoSnapshot.data();
     assertApprovedPhoto(preflightPhotoSnapshot.exists, preflightPhoto);
     await assertPreflightPhotoAudience({
@@ -178,6 +186,8 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
       .doc(viewerUid);
 
     const outcome = await db.runTransaction(async (transaction) => {
+      const ownerAccountSnap = await transaction.get(ownerAccountRef);
+      assertCurrentPublicMediaOwnerLifecycle(ownerAccountSnap.data());
       const publicProfileSnap = await transaction.get(publicProfileRef);
       const publicPhotoSnap = await transaction.get(publicPhotoRef);
       const photoViewerSnap = await transaction.get(photoViewerRef);
