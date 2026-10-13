@@ -20,7 +20,8 @@ export class DirectChatSendOrchestrator {
 
   send$(
     chatId: string,
-    content: string
+    content: string,
+    clientRequestId?: string
   ): Observable<DirectChatSendResult> {
     const safeChatId = String(chatId ?? '').trim();
     const safeContent = String(content ?? '').trim();
@@ -34,7 +35,7 @@ export class DirectChatSendOrchestrator {
 
     this.directChatFacade.selectChat(safeChatId);
 
-    return this.directThreadFacade.sendMessage$(safeContent).pipe(
+    return this.directThreadFacade.sendMessage$(safeContent, clientRequestId).pipe(
       map((messageId) => ({
         messageId: messageId ?? null,
         blockedReason: null,
