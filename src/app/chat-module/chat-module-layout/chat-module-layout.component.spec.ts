@@ -148,6 +148,25 @@ describe('ChatModuleLayoutComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  it('mantém editor somente leitura quando envio não está autorizado e libera após autorização', () => {
+    const selection = TestBed.inject(DirectChatSelectionContextFacade) as any;
+    selection.selectedChatId.mockReturnValue('chat-1');
+    selection.selectedType.mockReturnValue('chat');
+    component.messageContent = 'rascunho';
+    component.canSendCurrentMessage.set(false);
+    fixture.detectChanges();
+
+    const textarea = fixture.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
+    const button = fixture.nativeElement.querySelector('.chat-shell__send') as HTMLButtonElement;
+    expect(textarea.readOnly).toBe(true);
+    expect(button.disabled).toBe(true);
+
+    component.canSendCurrentMessage.set(true);
+    fixture.detectChanges();
+    expect(textarea.readOnly).toBe(false);
+    expect(button.disabled).toBe(false);
+  });
+
   it('mantém apenas atalhos do chat direto no estado vazio', () => {
     const text = fixture.nativeElement.textContent as string;
     const hrefs = Array.from(
