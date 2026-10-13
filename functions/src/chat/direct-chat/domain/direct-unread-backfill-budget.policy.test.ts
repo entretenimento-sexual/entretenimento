@@ -11,10 +11,14 @@ describe('direct unread backfill workload budget', () => {
     const one = estimateDirectUnreadBackfillBudget(1);
     assert.equal(one.estimatedReadsNoRetry, 23);
     assert.equal(one.estimatedReadsWithRetries, 53);
-    assert.equal(one.maxCommittedWrites, 4);
+    assert.equal(one.maxCheckpointProjectionWrites, 4);
+    assert.equal(one.maxJournalWrites, 3);
+    assert.equal(one.maxCommittedWrites, 7);
     const hundred = estimateDirectUnreadBackfillBudget(100);
     assert.equal(hundred.estimatedReadsNoRetry, 11111);
     assert.equal(hundred.estimatedReadsWithRetries, 32723);
+    assert.equal(hundred.maxCheckpointProjectionWrites, 400);
+    assert.equal(hundred.maxJournalWrites, 12);
     assert.equal(hundred.maxCommittedWrites, DIRECT_UNREAD_MAX_COMMITTED_WRITES);
     assert.ok(hundred.estimatedReadsWithRetries < DIRECT_UNREAD_MAX_ESTIMATED_READS);
     assert.equal(hundred.billingEstimateOnly, true);
