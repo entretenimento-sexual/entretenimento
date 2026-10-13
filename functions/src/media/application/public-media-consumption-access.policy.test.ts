@@ -42,6 +42,25 @@ describe('public media consumption access policy', () => {
     );
   }
 
+
+  it('normaliza HttpsError estrutural recebido com outra identidade de classe', () => {
+    const separateRuntimeError = Object.assign(new Error('Conta suspensa.'), {
+      code: 'failed-precondition',
+      details: { reason: 'account_interaction_blocked' },
+    });
+    assert.throws(
+      () => remapAccountAccessError(separateRuntimeError),
+      (error: unknown) => {
+        assert.ok(error instanceof HttpsError);
+        assert.equal(
+          (error.details as { reason?: string })?.reason,
+          'ACCOUNT_UNAVAILABLE'
+        );
+        return true;
+      }
+    );
+  });
+
   it('permite conta ativa com termos e consentimento vigentes', () => {
     assert.doesNotThrow(() =>
       assertPublicMediaConsumptionAccessData(eligibleUser)

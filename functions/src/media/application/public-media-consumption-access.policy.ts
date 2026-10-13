@@ -50,10 +50,22 @@ function consumptionAccessError(
   );
 }
 
-function remapAccountAccessError(error: unknown): never {
-  if (!(error instanceof HttpsError)) throw error;
+export function remapAccountAccessError(error: unknown): never {
+  // Error classes may differ across an emulator/Functions runtime boundary.
+  // Account's code/details are the stable contract, not instanceof identity.
+  const candidate = error as Partial<HttpsError> | null;
+  const code = candidate?.code;
+  if (
+    !(error instanceof HttpsError) &&
+    code !== 'failed-precondition' &&
+    code !== 'permission-denied' &&
+    code !== 'not-found'
+  ) {
+    throw error;
+  }
 
-  const reason = mapAccountReason(error);
+  const accountError = candidate as HttpsError;
+  const reason = mapAccountReason(accountError);
   throw consumptionAccessError(
     reason === 'TERMS_REQUIRED'
       ? 'Aceite os termos vigentes antes de acessar este conteúdo.'
@@ -61,7 +73,7 @@ function remapAccountAccessError(error: unknown): never {
         ? 'Aceite o acesso à experiência adulta antes de continuar.'
         : 'Esta conta não pode acessar conteúdo público no momento.',
     reason,
-    error
+    accountError
   );
 }
 
