@@ -13,6 +13,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   assertInteractionAccess,
 } from '../account_lifecycle/interaction-access.policy';
+import { evaluateCanonicalOwnerLifecycle } from '../account_lifecycle/public-owner-exposure.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { resolvePublicProfileAge } from './public-profile-discovery-projection';
@@ -428,6 +429,41 @@ export function serializePublicProfileForDiscovery(
   };
 }
 
+/**
+ * Public profile projection is not a lifecycle authority. All response paths
+ * must be filtered through users/{uid}; stale indexed cards cannot be leaked.
+ */
+export function filterDiscoveryCardsByOwnerLifecycle(
+  cards: readonly Record<string, unknown>[],
+  owners: ReadonlyMap<string, Record<string, unknown> | null>
+): Record<string, unknown>[] {
+  return cards.filter((card) => {
+    const uid = cleanUid(card['uid']);
+    return !!uid && evaluateCanonicalOwnerLifecycle(owners.get(uid) ?? null).allowed;
+  });
+}
+
+async function enforceDiscoveryOwnerLifecycle(
+  page: DiscoveryPageResponse
+): Promise<DiscoveryPageResponse> {
+  const uids = Array.from(new Set(page.items
+    .map((card) => cleanUid(card['uid']))
+    .filter(Boolean)));
+  if (!uids.length) return { ...page, items: [] };
+
+  // All response branches cap items to <=120. Bounded additional read cost.
+  const snapshots = await db.getAll(...uids.map((uid) => db.doc(`users/${uid}`)));
+  const owners = new Map<string, Record<string, unknown> | null>();
+  snapshots.forEach((snapshot, index) => {
+    owners.set(uids[index],
+      snapshot.exists ? snapshot.data() as Record<string, unknown> : null);
+  });
+  return {
+    ...page,
+    items: filterDiscoveryCardsByOwnerLifecycle(page.items, owners),
+  };
+}
+
 async function getNearbyProfiles(
   nearby: DiscoveryNearby,
   pageSize: number,
@@ -583,7 +619,9 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
         now: nowMs,
       });
 
-      return getProfilesByUids(requestedUids, nowMs);
+      return enforceDiscoveryOwnerLifecycle(
+        await getProfilesByUids(requestedUids, nowMs)
+      );
     }
 
     const pageSize = normalizePageSize(request.data?.pageSize);
@@ -601,7 +639,9 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
     const filters = normalizeFilters(request.data?.filters);
 
     if (nearby) {
-      return getNearbyProfiles(nearby, pageSize, filters, nowMs);
+      return enforceDiscoveryOwnerLifecycle(
+        await getNearbyProfiles(nearby, pageSize, filters, nowMs)
+      );
     }
 
     const initialCursor = normalizeCursor(request.data?.cursor);
@@ -639,13 +679,13 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
         }
       }
 
-      return {
+      return enforceDiscoveryOwnerLifecycle({
         items: searchItems,
         nextCursor: null,
         reachedEnd: true,
         fetchedAt: nowMs,
         scanned: searchSnapshot.size,
-      };
+      });
     }
 
     let cursor = initialCursor;
@@ -720,12 +760,12 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
       }
     }
 
-    return {
+    return enforceDiscoveryOwnerLifecycle({
       items,
       nextCursor: reachedEnd ? null : cursor,
       reachedEnd,
       fetchedAt: nowMs,
       scanned,
-    };
+    });
   }
 );
