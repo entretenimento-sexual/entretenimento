@@ -480,13 +480,14 @@ if (this.isMessageTooLong) {
             );
           }
         }),
-        finalize(() => {
-          this.isSendingMessage.set(false);
-        }),
         takeUntil(this.currentUid$.pipe(filter((uid) => uid !== sendingUid))),
         takeUntil(this.selectedChatId$.pipe(filter((id) => id !== selectedChatId))),
         takeUntil(this.selectedType$.pipe(filter((type) => type !== selectedType))),
-        takeUntilDestroyed(this.destroyRef)
+        takeUntilDestroyed(this.destroyRef),
+        // Deve executar até quando um takeUntil cancela antes de assinar a callable.
+        finalize(() => {
+          this.isSendingMessage.set(false);
+        })
       )
       .subscribe();
   }
