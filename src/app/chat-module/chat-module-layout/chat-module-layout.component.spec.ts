@@ -256,6 +256,29 @@ describe('ChatModuleLayoutComponent', () => {
     expect(component.directMessageBlockedReason()).toBe('Falha de envio');
   });
 
+  it('informa envio não confirmado sem apagar o rascunho nem sugerir retry cego', () => {
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
+    const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
+    const notifier = TestBed.inject(ErrorNotificationService) as any;
+    const pending = new Subject<{ messageId: string | null; blockedReason: string | null }>();
+    orchestrator.send$.mockReturnValueOnce(pending.asObservable());
+    selection.selectedChatId.mockReturnValue('chat-1');
+    selection.selectedType.mockReturnValue('chat');
+    selectedChatId$.next('chat-1');
+    selectedType$.next('chat');
+    component.canSendCurrentMessage.set(true);
+    component.messageContent = 'não perder';
+    component.sendMessage();
+
+    pending.next({ messageId: null, blockedReason: null });
+    pending.complete();
+    expect(component.messageContent).toBe('não perder');
+    expect(component.isSendingMessage()).toBe(false);
+    expect(notifier.showWarning).toHaveBeenCalledWith(
+      'Não foi possível confirmar o envio. Verifique a conversa antes de tentar novamente.'
+    );
+  });
+
   it('mantém apenas atalhos do chat direto no estado vazio', () => {
     const text = fixture.nativeElement.textContent as string;
     const hrefs = Array.from(
