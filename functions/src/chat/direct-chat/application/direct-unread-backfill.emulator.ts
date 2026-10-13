@@ -5,7 +5,7 @@
  */
 import { db } from '../../../firebaseApp';
 import { auditDirectUnreadConversation } from './direct-unread-backfill.audit';
-import { reconcileDirectUnreadMessage } from './sync-direct-unread-projection.trigger';
+import { reconcileDirectUnreadMessageMeasuredOnEmulator } from './sync-direct-unread-projection.trigger';
 import { isDirectMessageUnread, type DirectUnreadMessage } from '../domain/direct-unread-projection.policy';
 import { estimateDirectUnreadBackfillBudget } from '../domain/direct-unread-backfill-budget.policy';
 
@@ -19,6 +19,7 @@ export async function initializeDirectUnreadOnEmulator(chatId: string) {
       process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     throw new Error('Unread backfill requires isolated local demo emulator');
   }
+  const startedAt = Date.now();
   const before = await auditDirectUnreadConversation(chatId);
   if (!before.complete) {
     throw new Error('Unread backfill requires a complete bounded chat');
@@ -41,6 +42,9 @@ export async function initializeDirectUnreadOnEmulator(chatId: string) {
   const currentProjections = await Promise.all(projections.map((ref) => ref.get()));
   const checkpoints = await Promise.all(projections.map((ref) =>
     ref.collection('messages').limit(101).get()));
+  // SDK document count estimate (not Firestore billing or index-entry reads).
+  const preflightReadUnits = documents.size + 3 +
+    checkpoints.reduce((sum, snapshot) => sum + Math.max(1, snapshot.size), 0);
   for (let index = 0; index < participants.length; index += 1) {
     const projection = currentProjections[index];
     const checkpoint = checkpoints[index];
@@ -77,8 +81,18 @@ export async function initializeDirectUnreadOnEmulator(chatId: string) {
   // A transaction validates the whole message set before writing each checkpoint.
   // Do not repeat the same collection scan outside that transaction.
   const expectedMessageIds = documents.docs.map((message) => message.id);
+  let transactionAttempts = 0;
+  let attemptedTransactionReads = 0;
+  let stagedDocumentWrites = 0;
+  let committedDocumentWrites = 0;
   for (const messageId of expectedMessageIds) {
-    await reconcileDirectUnreadMessage(chatId, messageId, participants, expectedMessageIds);
+    const metrics = await reconcileDirectUnreadMessageMeasuredOnEmulator(
+      chatId, messageId, participants, expectedMessageIds
+    );
+    transactionAttempts += metrics.attempts;
+    attemptedTransactionReads += metrics.attemptedDocumentReads;
+    stagedDocumentWrites += metrics.stagedDocumentWrites;
+    committedDocumentWrites += metrics.committedDocumentWrites;
   }
   const after = await auditDirectUnreadConversation(chatId);
   if (!after.complete || after.summary.MATCH !== 2) {
@@ -88,5 +102,15 @@ export async function initializeDirectUnreadOnEmulator(chatId: string) {
     mode: 'EMULATOR_WRITE', chatId,
     processedMessages: documents.size, before: before.summary, after: after.summary,
     budget,
+    observations: {
+      durationMs: Date.now() - startedAt,
+      transactionAttempts,
+      retryAttempts: transactionAttempts - documents.size,
+      documentReadUnitsApprox:
+        before.readBudgetUsed + preflightReadUnits + attemptedTransactionReads + after.readBudgetUsed,
+      stagedDocumentWrites,
+      committedDocumentWrites,
+      firestoreBillingVerified: false,
+    },
   };
 }
