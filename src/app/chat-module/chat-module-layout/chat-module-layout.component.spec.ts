@@ -303,6 +303,26 @@ describe('ChatModuleLayoutComponent', () => {
     expect(orchestrator.send$.mock.calls.at(-1)[2]).not.toBe(firstKey);
   });
 
+  it('gera nova intenção ao enviar novamente texto idêntico após confirmação', () => {
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
+    const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
+    selection.selectedChatId.mockReturnValue('chat-1');
+    selection.selectedType.mockReturnValue('chat');
+    selectedChatId$.next('chat-1');
+    selectedType$.next('chat');
+    component.canSendCurrentMessage.set(true);
+    orchestrator.send$.mockReturnValue(of({ messageId: 'confirmado', blockedReason: null }));
+
+    component.messageContent = 'mesmo texto';
+    component.sendMessage();
+    const firstKey = orchestrator.send$.mock.calls.at(-1)[2];
+    expect(component.messageContent).toBe('');
+
+    component.messageContent = 'mesmo texto';
+    component.sendMessage();
+    expect(orchestrator.send$.mock.calls.at(-1)[2]).not.toBe(firstKey);
+  });
+
   it('mantém apenas atalhos do chat direto no estado vazio', () => {
     const text = fixture.nativeElement.textContent as string;
     const hrefs = Array.from(
