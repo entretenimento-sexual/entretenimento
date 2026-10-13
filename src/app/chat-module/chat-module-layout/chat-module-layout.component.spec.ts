@@ -2,7 +2,7 @@ import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatModuleLayoutComponent } from './chat-module-layout.component';
@@ -165,6 +165,25 @@ describe('ChatModuleLayoutComponent', () => {
     fixture.detectChanges();
     expect(textarea.readOnly).toBe(false);
     expect(button.disabled).toBe(false);
+  });
+
+  it('não limpa rascunho da nova conversa após resposta atrasada de envio', () => {
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
+    const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
+    const pending = new Subject<{ messageId: string; blockedReason: null }>();
+    orchestrator.send$.mockReturnValueOnce(pending.asObservable());
+    selection.selectedChatId.mockReturnValue('chat-1');
+    selection.selectedType.mockReturnValue('chat');
+    component.canSendCurrentMessage.set(true);
+    component.messageContent = 'texto para A';
+    component.sendMessage();
+    expect(orchestrator.send$).toHaveBeenCalledWith('chat-1', 'texto para A');
+
+    selection.selectedChatId.mockReturnValue('chat-2');
+    component.messageContent = 'rascunho para B';
+    pending.next({ messageId: 'sent-A', blockedReason: null });
+    expect(component.messageContent).toBe('rascunho para B');
+    expect(component.directMessageBlockedReason()).toBeNull();
   });
 
   it('mantém apenas atalhos do chat direto no estado vazio', () => {
