@@ -14,6 +14,7 @@ import {
   type DirectUnreadMessage,
   type DirectReceiptStatus,
 } from '../domain/direct-unread-projection.policy';
+import { DIRECT_UNREAD_MAX_TRANSACTION_ATTEMPTS } from '../domain/direct-unread-backfill-budget.policy';
 
 const validStatuses = new Set<DirectReceiptStatus>(['sent', 'delivered', 'read']);
 
@@ -99,7 +100,7 @@ async function reconcileDirectUnreadMessageInternal(
         tx.delete(entry.checkpointRef);
       }
     });
-  }, { maxAttempts: 3 });
+  }, { maxAttempts: DIRECT_UNREAD_MAX_TRANSACTION_ATTEMPTS });
 }
 
 export async function reconcileDirectUnreadMessage(
