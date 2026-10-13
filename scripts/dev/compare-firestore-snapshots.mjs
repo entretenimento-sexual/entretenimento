@@ -2,8 +2,8 @@
 /*
  * Read-only logical comparison of TWO local Firestore Emulator exports.
  * Run from the repository root: node scripts/dev/compare-firestore-snapshots.mjs <suite-dir> <backup-dir>
- * Uses localhost:28080 / websocket:29150, does not modify source exports,
- * does not contact real Firebase, and does not print document fields or IDs.
+ * Uses Firebase Admin SDK against localhost:28080 (websocket:29150).
+ * No production access, mutations, personal field values or document IDs in output.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,6 +11,7 @@ import os from 'node:os';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 
 const root = process.cwd();
 const port = 28080;
@@ -33,7 +34,7 @@ const java = javaFromHome && fs.existsSync(javaFromHome)
   : 'C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.12.8-hotspot\\bin\\java.exe';
 const rules = path.join(root, 'firestore.rules');
 
-for (const item of [...exportsToCompare.map(x => x.metadata), jar, java, rules]) {
+for (const item of [...exportsToCompare.map(x => x.metadata), jar, java, rules, path.join(root, 'functions', 'node_modules', 'firebase-admin')]) {
   if (!fs.existsSync(item)) throw new Error(`Arquivo necessário ausente: ${item}`);
 }
 
@@ -45,85 +46,80 @@ async function portIsFree(p) {
   });
 }
 
+const requireFunctions = createRequire(path.join(root, 'functions', 'package.json'));
+const { initializeApp, deleteApp } = requireFunctions('firebase-admin/app');
+const { getFirestore } = requireFunctions('firebase-admin/firestore');
+
 function canonical(value) {
+  if (typeof value === 'number' && !Number.isFinite(value)) return { specialNumber: String(value) };
+  if (typeof value === 'bigint') return { bigint: String(value) };
+  if (value === null || typeof value !== 'object') return value;
   if (Array.isArray(value)) return value.map(canonical);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])]));
+  if (value instanceof Date) return { date: value.toISOString() };
+  if (Buffer.isBuffer(value) || value instanceof Uint8Array) {
+    return { bytes: Buffer.from(value).toString('base64') };
   }
-  return value;
+  if (typeof value.seconds === 'number' && typeof value.nanoseconds === 'number') {
+    return { timestamp: [value.seconds, value.nanoseconds] };
+  }
+  if (typeof value.latitude === 'number' && typeof value.longitude === 'number') {
+    return { geopoint: [value.latitude, value.longitude] };
+  }
+  if (typeof value.path === 'string' && value.firestore && typeof value.get === 'function') {
+    return { reference: value.path };
+  }
+  if (typeof value.toArray === 'function') return { vector: value.toArray().map(canonical) };
+  return Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])]));
 }
 function digest(value) {
   return createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex');
 }
-function enc(docOrColPath) {
-  return docOrColPath.split('/').map(encodeURIComponent).join('/');
+function snapshotTime(value) {
+  return value ? [value.seconds, value.nanoseconds] : null;
 }
-async function request(url, method = 'GET', body) {
-  const response = await fetch(url, {
-    method,
-    headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-    signal: AbortSignal.timeout(15000),
-  });
-  const text = await response.text();
-  if (!response.ok) throw new Error(`Firestore HTTP ${response.status}: ${text.slice(0, 350)}`);
-  return text ? JSON.parse(text) : {};
-}
-async function pages(url, method, buildBody, outputKey) {
-  const results = [];
-  const tokens = new Set();
-  let token = '';
-  do {
-    const data = method === 'POST'
-      ? await request(url, 'POST', buildBody(token))
-      : await request(url + (url.includes('?') ? '&' : '?') +
-          new URLSearchParams({ pageSize: '1000', showMissing: 'true', ...(token ? { pageToken: token } : {}) }));
-    results.push(...(data[outputKey] ?? []));
-    token = data.nextPageToken ?? '';
-    if (token && tokens.has(token)) throw new Error('Paginação repetida: abortando para evitar loop');
-    if (token) tokens.add(token);
-  } while (token);
-  return results;
-}
-async function collectionIds(parentDocumentPath = '') {
-  const url = parentDocumentPath ? `${base}/${enc(parentDocumentPath)}:listCollectionIds` : `${base}:listCollectionIds`;
-  return pages(url, 'POST', token => ({ pageSize: 1000, ...(token ? { pageToken: token } : {}) }), 'collectionIds');
-}
-async function listDocuments(collectionPath) {
-  return pages(`${base}/${enc(collectionPath)}`, 'GET', null, 'documents');
-}
-async function collect() {
+
+async function collect(db) {
   const result = new Map();
   const seenCollections = new Set();
-  const queue = (await collectionIds()).map(id => id);
+  const queue = await db.listCollections();
   let visited = 0;
   while (queue.length) {
-    const colPath = queue.shift();
-    if (seenCollections.has(colPath)) continue;
-    seenCollections.add(colPath);
+    const col = queue.shift();
+    if (seenCollections.has(col.path)) continue;
+    seenCollections.add(col.path);
     visited++;
-    const documents = await listDocuments(colPath);
-    for (const doc of documents) {
-      const marker = '/documents/';
-      const idx = doc.name?.indexOf(marker) ?? -1;
-      if (idx < 0) throw new Error('Documento sem caminho REST esperado');
-      const docPath = doc.name.slice(idx + marker.length);
-      // Missing parent documents can still have subcollections.
-      if (doc.fields !== undefined || doc.createTime || doc.updateTime) {
-        result.set(docPath, {
-          fields: digest(doc.fields ?? {}),
-          metadata: digest({ createTime: doc.createTime ?? null, updateTime: doc.updateTime ?? null }),
-        });
+
+    // listDocuments includes references to nonexistent parent documents,
+    // ensuring their descendant collections can still be traversed.
+    const docRefs = await col.listDocuments();
+    for (let offset = 0; offset < docRefs.length; offset += 50) {
+      const chunk = docRefs.slice(offset, offset + 50);
+      const snapshots = await db.getAll(...chunk);
+      for (const snapshot of snapshots) {
+        if (snapshot.exists) {
+          result.set(snapshot.ref.path, {
+            fields: digest(snapshot.data()),
+            metadata: digest({
+              createTime: snapshotTime(snapshot.createTime),
+              updateTime: snapshotTime(snapshot.updateTime),
+            }),
+          });
+        }
       }
-      for (const id of await collectionIds(docPath)) queue.push(`${docPath}/${id}`);
+      for (const docRef of chunk) {
+        queue.push(...await docRef.listCollections());
+      }
+      if (result.size > 100000 || queue.length > 20000) {
+        throw new Error('Limite de segurança atingido; comparação interrompida.');
+      }
     }
-    if (visited % 25 === 0) console.log(`  ...${visited} coleções varridas, ${result.size} documentos`);
-    if (visited > 20000 || result.size > 100000) throw new Error('Limite de segurança atingido');
+    if (visited % 25 === 0) console.log('  ...' + visited + ' coleções varridas, ' + result.size + ' documentos');
+    if (visited > 20000) throw new Error('Limite de coleções atingido');
   }
   return { docs: result, collections: seenCollections.size };
 }
 
-async function withTemporaryEmulator(snapshot) {
+async function withTemporaryEmulator(snapshot, sequence) {
   if (!(await portIsFree(port)) || !(await portIsFree(websocketPort))) {
     throw new Error('Porta 28080 ou 29150 ocupada. Nada foi iniciado ou encerrado.');
   }
@@ -144,31 +140,41 @@ async function withTemporaryEmulator(snapshot) {
   for (const stream of [child.stdout, child.stderr]) {
     stream.on('data', part => { logs = (logs + part.toString()).slice(-12000); });
   }
+
+  const previousHost = process.env.FIRESTORE_EMULATOR_HOST;
+  process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:' + port;
+  let app;
+  let db;
   try {
     let ready = false;
     for (let i = 0; i < 50; i++) {
       if (spawnFailure) throw spawnFailure;
       if (exited) throw new Error('Java encerrou na inicialização');
+      if (!(await portIsFree(port))) { ready = true; break; }
       await new Promise(r => setTimeout(r, 1000));
-      try { await collectionIds(); ready = true; break; }
-      catch (e) {
-        // Connection refused/503 during startup is expected; other errors aren't.
-        if (/Firestore HTTP (403|500)/.test(String(e))) throw e;
-      }
     }
-    if (!ready) throw new Error('Emulador não respondeu à consulta administrativa');
-    return await collect();
+    if (!ready) throw new Error('Porta do emulador não respondeu em 50 segundos');
+
+    app = initializeApp({ projectId }, 'firestore-snapshot-compare-' + sequence);
+    db = getFirestore(app);
+    return await collect(db);
   } catch (err) {
-    console.error(`Erro ao ler ${snapshot.label}: ${err.message}`);
-    console.error(`Trecho final do log Java:\n${logs.slice(-3500)}`);
+    console.error('Erro ao ler ' + snapshot.label + ': ' + err.message);
+    console.error('Trecho final do log Java:\n' + logs.slice(-3500));
     throw err;
   } finally {
+    if (db) { try { await db.terminate(); } catch {} }
+    if (app) { try { await deleteApp(app); } catch {} }
+    if (previousHost === undefined) delete process.env.FIRESTORE_EMULATOR_HOST;
+    else process.env.FIRESTORE_EMULATOR_HOST = previousHost;
     if (!exited && child.pid) {
-      try { await fetch(`http://127.0.0.1:${port}/shutdown`, { method: 'POST', signal: AbortSignal.timeout(3000) }); } catch {}
-      // Only the exact PID created by THIS script; never touch other Java processes.
-      if (!exited) { try { child.kill(); } catch {} }
+      try { child.kill(); } catch {}
+      await Promise.race([
+        new Promise(r => child.once('exit', r)),
+        new Promise(r => setTimeout(r, 8000)),
+      ]);
+      if (!exited) console.warn('Processo temporário ' + child.pid + ' não confirmou encerramento; verifique as portas antes de repetir.');
     }
-    await new Promise(r => setTimeout(r, 1500));
   }
 }
 
@@ -210,8 +216,8 @@ if (!(await portIsFree(port)) || !(await portIsFree(websocketPort))) {
   throw new Error('Uma das portas de teste está ocupada; não prossiga até verificar o processo.');
 }
 console.log('Comparação local, isolada e somente de leitura.');
-const principal = await withTemporaryEmulator(exportsToCompare[0]);
+const principal = await withTemporaryEmulator(exportsToCompare[0], 1);
 console.log(`Principal: ${principal.docs.size} documentos em ${principal.collections} coleções.`);
-const recuperado = await withTemporaryEmulator(exportsToCompare[1]);
+const recuperado = await withTemporaryEmulator(exportsToCompare[1], 2);
 console.log(`Recuperado: ${recuperado.docs.size} documentos em ${recuperado.collections} coleções.`);
 compare(principal, recuperado);
