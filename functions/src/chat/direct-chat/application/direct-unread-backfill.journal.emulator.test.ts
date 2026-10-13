@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { Timestamp } from 'firebase-admin/firestore';
 import { describe, it } from 'node:test';
 import { db } from '../../../firebaseApp';
 import {
   initializeDirectUnreadForEmulatorTest, initializeDirectUnreadOnEmulator,
 } from './direct-unread-backfill.emulator';
-import { startDirectUnreadEmulatorJournal } from './direct-unread-backfill.journal.emulator';
+import {
+  startDirectUnreadEmulatorJournal, inspectDirectUnreadEmulatorJournal,
+  purgeDirectUnreadEmulatorJournal,
+} from './direct-unread-backfill.journal.emulator';
 
 const run = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip;
 
@@ -21,6 +25,55 @@ run('durable unread backfill journal — isolated emulator', () => {
       assert.equal(snapshot.data()?.finishedAt, undefined);
     } finally {
       await journal.doc(started.runId).delete();
+    }
+  });
+
+  it('flags stale RUNNING without deleting it, then purges an expired terminal record', async () => {
+    const journal = db.collection('direct_chat_unread_backfill_emulator_runs');
+    const started = await startDirectUnreadEmulatorJournal(`unread-retention-${randomUUID()}`);
+    const ref = journal.doc(started.runId);
+    const old = Timestamp.fromMillis(Date.now() - 31 * 24 * 60 * 60 * 1000);
+    try {
+      await ref.update({ updatedAt: old });
+      const stale = await inspectDirectUnreadEmulatorJournal(started.runId);
+      assert.equal(stale.classification, 'RUNNING_STALE_UNKNOWN');
+      assert.equal(stale.eligibleForPurge, false);
+      await assert.rejects(purgeDirectUnreadEmulatorJournal(
+        started.runId, 'CONFIRM_TERMINAL_JOURNAL_PURGE'
+      ));
+      assert.equal((await ref.get()).exists, true);
+      await ref.update({ status: 'FAILED', updatedAt: old, finishedAt: old });
+      const expired = await inspectDirectUnreadEmulatorJournal(started.runId);
+      assert.equal(expired.classification, 'FAILED');
+      assert.equal(expired.eligibleForPurge, true);
+      await assert.rejects(purgeDirectUnreadEmulatorJournal(started.runId, 'WRONG'));
+      const purged = await purgeDirectUnreadEmulatorJournal(
+        started.runId, 'CONFIRM_TERMINAL_JOURNAL_PURGE'
+      );
+      assert.equal(purged.mutationCount, 1);
+      assert.equal((await ref.get()).exists, false);
+    } finally {
+      await ref.delete();
+    }
+  });
+
+  it('protects recently finished journals and incomplete timestamps', async () => {
+    const started = await startDirectUnreadEmulatorJournal(`unread-recent-${randomUUID()}`);
+    const ref = db.collection('direct_chat_unread_backfill_emulator_runs').doc(started.runId);
+    try {
+      await started.succeeded(1, 12);
+      assert.equal((await inspectDirectUnreadEmulatorJournal(started.runId)).eligibleForPurge, false);
+      await assert.rejects(purgeDirectUnreadEmulatorJournal(
+        started.runId, 'CONFIRM_TERMINAL_JOURNAL_PURGE'
+      ));
+      await ref.update({ finishedAt: null });
+      assert.equal((await inspectDirectUnreadEmulatorJournal(started.runId)).classification,
+        'INVALID');
+      await assert.rejects(purgeDirectUnreadEmulatorJournal(
+        started.runId, 'CONFIRM_TERMINAL_JOURNAL_PURGE'
+      ));
+    } finally {
+      await ref.delete();
     }
   });
 
