@@ -346,6 +346,36 @@ requireAll(
   'segurança de menores em conteúdo é independente de assurance'
 );
 
+// A projeção pública pode ficar residual após suspensão; buscar owners atuais
+// no backend antes de retornar qualquer página, busca, mapa ou lote de IDs.
+requireAll(
+  'functions/src/discovery/get-public-profiles-page.handler.ts',
+  [
+    'enforceDiscoveryOwnerLifecycle',
+    'filterDiscoveryCardsByOwnerLifecycle',
+    'evaluateCanonicalOwnerLifecycle',
+    'getProfilesByUids',
+    'getNearbyProfiles',
+    'searchItems',
+  ],
+  'discovery deve revalidar lifecycle de cada proprietário'
+);
+requireAll(
+  'functions/src/account_lifecycle/public-owner-exposure.policy.ts',
+  ['accountLocked', 'interactionBlocked', 'loginAllowed', 'suspended'],
+  'conta deve possuir autoridade canônica de exposição pública'
+);
+requireAll(
+  'functions/src/media/application/owner-lifecycle-exposure.policy.ts',
+  ['public-owner-exposure.policy'],
+  'Media deve delegar à autoridade de lifecycle da conta'
+);
+requireAll(
+  'firestore-rules/_helpers.rules',
+  ['canonicalOwnerLifecycleAllowsPublicMediaExposure', 'interactionBlocked', 'accountLocked'],
+  'Rules devem revogar mídia e perfil pelo lifecycle do owner'
+);
+
 // -----------------------------------------------------------------------------
 // Frontend: onboarding pode reconciliar idade; produto ativo usa lifecycle
 // -----------------------------------------------------------------------------
