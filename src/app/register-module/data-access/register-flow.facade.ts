@@ -66,6 +66,13 @@ export class RegisterFlowFacade {
         return this.navigation.resolveVm(state);
       };
 
+      // Registration completion is a one-way, backend-authorized admission.
+      // A later assurance expiry must not restart onboarding for that account.
+      // Lifecycle/account guards handle any subsequent restriction separately.
+      if (user?.profileCompleted === true) {
+        return of(resolve(true));
+      }
+
       const shouldReconcile =
         authReady === true &&
         !!uid &&
