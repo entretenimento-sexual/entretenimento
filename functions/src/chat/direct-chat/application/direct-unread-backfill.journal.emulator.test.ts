@@ -8,6 +8,7 @@ import {
 } from './direct-unread-backfill.emulator';
 import {
   startDirectUnreadEmulatorJournal, inspectDirectUnreadEmulatorJournal,
+  listDirectUnreadEmulatorJournals,
   purgeDirectUnreadEmulatorJournal,
 } from './direct-unread-backfill.journal.emulator';
 
@@ -38,6 +39,12 @@ run('durable unread backfill journal — isolated emulator', () => {
       const stale = await inspectDirectUnreadEmulatorJournal(started.runId);
       assert.equal(stale.classification, 'RUNNING_STALE_UNKNOWN');
       assert.equal(stale.eligibleForPurge, false);
+      const listing = await listDirectUnreadEmulatorJournals(
+        (await ref.get()).data()?.chatId as string
+      );
+      assert.equal(listing.mutationCount, 0);
+      assert.equal(listing.records.find((record) => record.runId === started.runId)?.classification,
+        'RUNNING_STALE_UNKNOWN');
       await assert.rejects(purgeDirectUnreadEmulatorJournal(
         started.runId, 'CONFIRM_TERMINAL_JOURNAL_PURGE'
       ));
