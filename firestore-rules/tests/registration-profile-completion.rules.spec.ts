@@ -248,6 +248,78 @@ describe('Firestore Rules / registration and profile completion', () => {
     await assertSucceeds(batch.commit());
   });
 
+  it('admite autodeclaração 18+ canônica no cadastro sem exigir VERIFIED_ADULT', async () => {
+    await seedReadyPrivateUser();
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'age_eligibility_records', UID), {
+        uid: UID, status: 'SELF_DECLARED_ADULT', policyVersion: 1,
+        source: 'SELF_DECLARATION', method: 'SELF_DECLARATION',
+        decidedAt: new Date(Date.now() - 1_000), verifiedAt: null, expiresAt: null,
+      });
+    });
+    const db = authenticatedDb(true);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'users', UID), {
+      nickname: 'Pessoa Segura', gender: 'mulher',
+      declaredIdentityCode: 'mulher',
+      identityCatalogVersion: IDENTITY_CATALOG_VERSION,
+      orientation: 'bissexual', estado: 'RJ', municipio: 'Rio de Janeiro',
+      profileCompleted: true, publicVisibility: 'visible',
+      interactionBlocked: false, registrationCompletedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(), updatedAtMs: Date.now(),
+    });
+    batch.set(doc(db, 'public_profiles', UID), publicProfilePayload());
+    await assertSucceeds(batch.commit());
+  });
+
+  it.each([
+    {
+      name: 'menoridade confirmada',
+      status: 'DENIED_UNDERAGE',
+      source: 'AGE_REVERIFICATION', method: 'MANUAL_REVIEW',
+      decidedAt: new Date(Date.now() - 1_000),
+    },
+    {
+      name: 'revisão pendente',
+      status: 'REVIEW_REQUIRED',
+      source: 'INITIAL_VERIFICATION', method: 'MANUAL_REVIEW',
+      decidedAt: new Date(Date.now() - 1_000),
+    },
+    {
+      name: 'declaração sem timestamp',
+      status: 'SELF_DECLARED_ADULT',
+      source: 'SELF_DECLARATION', method: 'SELF_DECLARATION',
+      decidedAt: null,
+    },
+    {
+      name: 'declaração com fonte adulterada',
+      status: 'SELF_DECLARED_ADULT',
+      source: 'MIGRATION', method: 'MIGRATED_REVIEW',
+      decidedAt: new Date(Date.now() - 1_000),
+    },
+  ])('não libera registro com $name', async (eligibility) => {
+    await seedReadyPrivateUser();
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'age_eligibility_records', UID), {
+        uid: UID, policyVersion: 1, verifiedAt: null, expiresAt: null,
+        ...eligibility,
+      });
+    });
+    const db = authenticatedDb(true);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'users', UID), {
+      nickname: 'Pessoa Segura', gender: 'mulher',
+      declaredIdentityCode: 'mulher',
+      identityCatalogVersion: IDENTITY_CATALOG_VERSION,
+      orientation: 'bissexual', estado: 'RJ', municipio: 'Rio de Janeiro',
+      profileCompleted: true, publicVisibility: 'visible',
+      interactionBlocked: false, registrationCompletedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(), updatedAtMs: Date.now(),
+    });
+    batch.set(doc(db, 'public_profiles', UID), publicProfilePayload());
+    await assertFails(batch.commit());
+  });
+
   it('nega conclusão quando a projeção pública diverge da declaração privada', async () => {
     await seedReadyPrivateUser();
     const db = authenticatedDb(true);
