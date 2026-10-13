@@ -72,7 +72,11 @@ async function main(): Promise<void> {
 }
 if (require.main === module) {
   main().catch(() => {
-    process.stderr.write('Unread dry-run failed; no writes attempted.\n');
+    // O modo --initialize-emulator pode ter confirmado etapas parciais.
+    const writing = process.argv.includes('--initialize-emulator');
+    process.stderr.write(writing ?
+      'Unread emulator initialization failed; inspect partial checkpoints.\n' :
+      'Unread dry-run failed; no writes attempted.\n');
     process.exitCode = 1;
   });
 }
