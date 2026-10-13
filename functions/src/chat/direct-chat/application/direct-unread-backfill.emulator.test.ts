@@ -26,7 +26,8 @@ run('unread initial backfill — local emulator only', () => {
       assert.equal(result.after.MATCH, 2);
       assert.equal((await projections[0].get()).data()?.unreadCount, 0);
       assert.equal((await projections[1].get()).data()?.unreadCount, 1);
-      await assert.rejects(initializeDirectUnreadOnEmulator(chatId));
+      const retry = await initializeDirectUnreadOnEmulator(chatId);
+      assert.equal(retry.after.MATCH, 2);
       assert.equal((await projections[1].get()).data()?.unreadCount, 1);
     } finally {
       await db.recursiveDelete(chat);
