@@ -121,4 +121,46 @@ run('unread initial backfill — local emulator only', () => {
     }
   });
 
+  it('rejects a physically deleted message with an existing checkpoint', async () => {
+    const chatId = `unread-deleted-${randomUUID()}`;
+    const chat = db.collection('chats').doc(chatId);
+    const projections = ['sender', 'recipient'].map((uid) =>
+      db.collection('direct_chat_unread_projections').doc(uid)
+        .collection('chats').doc(chatId));
+    try {
+      await chat.set({ participants: ['sender', 'recipient'] });
+      const message = chat.collection('messages').doc('001');
+      await message.set({ senderId: 'sender', status: 'sent' });
+      await reconcileDirectUnreadMessage(chatId, '001');
+      await message.delete();
+      await assert.rejects(initializeDirectUnreadOnEmulator(chatId));
+      assert.equal((await projections[1].get()).data()?.unreadCount, 1);
+    } finally {
+      await db.recursiveDelete(chat);
+      await Promise.all(projections.map((ref) => db.recursiveDelete(ref)));
+    }
+  });
+
+  it('rejects changed chat participants before resuming existing checkpoints', async () => {
+    const chatId = `unread-participants-${randomUUID()}`;
+    const chat = db.collection('chats').doc(chatId);
+    const projections = ['sender', 'recipient', 'replacement'].map((uid) =>
+      db.collection('direct_chat_unread_projections').doc(uid)
+        .collection('chats').doc(chatId));
+    try {
+      await chat.set({ participants: ['sender', 'recipient'] });
+      await chat.collection('messages').doc('001').set({
+        senderId: 'sender', status: 'sent',
+      });
+      await reconcileDirectUnreadMessage(chatId, '001');
+      await chat.update({ participants: ['sender', 'replacement'] });
+      await assert.rejects(initializeDirectUnreadOnEmulator(chatId));
+      assert.equal((await projections[1].get()).data()?.unreadCount, 1);
+      assert.equal((await projections[2].get()).exists, false);
+    } finally {
+      await db.recursiveDelete(chat);
+      await Promise.all(projections.map((ref) => db.recursiveDelete(ref)));
+    }
+  });
+
 });
