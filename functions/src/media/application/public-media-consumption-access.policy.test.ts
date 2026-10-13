@@ -6,6 +6,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import {
   assertPublicMediaConsumptionAccessData,
   assertPublicMediaConsumptionAccessInTransaction,
+  remapAccountAccessError,
   type PublicMediaConsumptionAccessReason,
 } from './public-media-consumption-access.policy';
 
@@ -41,7 +42,6 @@ describe('public media consumption access policy', () => {
       }
     );
   }
-
 
   it('normaliza HttpsError estrutural recebido com outra identidade de classe', () => {
     const separateRuntimeError = Object.assign(new Error('Conta suspensa.'), {
