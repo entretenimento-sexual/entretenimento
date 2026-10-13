@@ -259,6 +259,42 @@ describe('DirectThreadFacade', () => {
     sending.unsubscribe();
   });
 
+  it('bloqueia envio, exclusão e recibos após revogação e reabilita apenas com acesso canônico', async () => {
+    const canOpen$ = new BehaviorSubject(true);
+    const sendMessage$ = vi.fn(() => of('sent'));
+    const deleteMessage$ = vi.fn(() => of(void 0));
+    const markDeliveredAsRead$ = vi.fn(() => of(1));
+    const facade = new DirectThreadFacade(
+      { selectedChatId$: of('chat-1'), selectedChatCanOpen$: canOpen$ } as any,
+      { observeMessages$: vi.fn(() => of([])), sendMessage$, deleteMessage$ } as any,
+      { markDeliveredAsRead$ } as any,
+      { uid$: of('user-a') } as any,
+      { canListenRealtime$: of(true) } as any,
+      { report: vi.fn() } as any,
+      { log: vi.fn() } as any,
+    );
+    const canSend: boolean[] = [];
+    const sub = facade.canSend$.subscribe(value => canSend.push(value));
+    canOpen$.next(false);
+    expect(canSend.at(-1)).toBe(false);
+    expect(await firstValueFrom(facade.sendMessage$('oi'))).toBeNull();
+    await firstValueFrom(facade.deleteMessage$('message-1'));
+    expect(await firstValueFrom(facade.markVisibleMessagesAsRead$([{ id: 'message-1' }] as any))).toBe(0);
+    expect(sendMessage$).not.toHaveBeenCalled();
+    expect(deleteMessage$).not.toHaveBeenCalled();
+    expect(markDeliveredAsRead$).not.toHaveBeenCalled();
+
+    canOpen$.next(true);
+    expect(canSend.at(-1)).toBe(true);
+    expect(await firstValueFrom(facade.sendMessage$('oi'))).toBe('sent');
+    await firstValueFrom(facade.deleteMessage$('message-1'));
+    expect(await firstValueFrom(facade.markVisibleMessagesAsRead$([{ id: 'message-1' }] as any))).toBe(1);
+    expect(sendMessage$).toHaveBeenCalledTimes(1);
+    expect(deleteMessage$).toHaveBeenCalledTimes(1);
+    expect(markDeliveredAsRead$).toHaveBeenCalledTimes(1);
+    sub.unsubscribe();
+  });
+
   it('descarta respostas tardias de envio, exclusão e leitura após troca de sessão', () => {
     const selectedChatId$ = new BehaviorSubject<string | null>('chat-1');
     const uid$ = new BehaviorSubject<string | null>('user-a');
