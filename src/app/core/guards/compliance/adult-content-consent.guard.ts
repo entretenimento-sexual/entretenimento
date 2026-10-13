@@ -15,7 +15,7 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { AdultConsentService } from 'src/app/core/services/compliance/adult-consent.service';
 import { AgeEligibilityService } from 'src/app/core/services/compliance/age-eligibility.service';
 import {
-  isCurrentTrustedAdultAgeProjection,
+  isCurrentAdultAccountAdmissionProjection,
 } from 'src/app/core/services/compliance/trusted-adult-age-assurance.policy';
 import { isCurrentLegalAcceptanceSatisfied } from 'src/app/core/services/compliance/terms-acceptance.service';
 import { buildRedirectTree, guardLog } from '../_shared-guard/guard-utils';
@@ -103,7 +103,7 @@ export const adultContentConsentGuard: CanActivateFn = (
 
       return ageEligibility.reconcileTrustedStateOncePerSession$().pipe(
         map((ageState): GuardResult => {
-          if (!isCurrentTrustedAdultAgeProjection(ageState)) {
+          if (!isCurrentAdultAccountAdmissionProjection(ageState)) {
             return redirectToAgeVerification();
           }
 
@@ -119,7 +119,7 @@ export const adultContentConsentGuard: CanActivateFn = (
         catchError(() => {
           const persistedAgeState = appUser?.ageEligibility;
 
-          if (isCurrentTrustedAdultAgeProjection(persistedAgeState)) {
+          if (isCurrentAdultAccountAdmissionProjection(persistedAgeState)) {
             const initialConsentRequired =
               appUser?.initialAdultConsentRequired !== false;
 
