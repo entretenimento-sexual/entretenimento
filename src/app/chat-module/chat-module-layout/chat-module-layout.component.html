@@ -76,7 +76,7 @@
               appChatEmojiComposer
               appChatComposerAutosize
               [(ngModel)]="messageContent"
-              [appChatDraftKey]="selectedType + ':' + selectedChatId"
+              [appChatDraftKey]="activeSessionUid ? activeSessionUid + ':' + selectedType + ':' + selectedChatId : null"
               (keydown)="onComposerKeydown($event)"
               placeholder="Escreva uma mensagem..."
               aria-label="Digite sua mensagem. Pressione Enter para enviar ou Shift mais Enter para quebrar linha."
