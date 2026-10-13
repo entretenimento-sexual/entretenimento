@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 import { db } from '../../../firebaseApp';
-import { auditDirectUnreadPage, auditDirectUnreadConsistent } from './direct-unread-backfill.audit';
+import { auditDirectUnreadPage, auditDirectUnreadConsistent, auditDirectUnreadConversation } from './direct-unread-backfill.audit';
 
 const run = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip;
 
@@ -58,6 +58,20 @@ run('unread projection audit — read only', () => {
     await assert.rejects(auditDirectUnreadConsistent(chatId, 'outsider'));
   });
 
+  it('consolidates both participants in one read-only audit', async () => {
+    const senderRef = db.collection('direct_chat_unread_projections')
+      .doc('sender').collection('chats').doc(chatId);
+    await senderRef.set({ unreadCount: 0, version: 1 });
+    try {
+      const report = await auditDirectUnreadConversation(chatId);
+      assert.equal(report.summary.MATCH, 2);
+      assert.equal(report.scanned, 4);
+      assert.equal(report.mutationCount, 0);
+      assert.equal(report.requiresReconciliation, false);
+    } finally {
+      await senderRef.delete();
+    }
+  });
   it('rejects invalid resume state and exceeding the global scan budget', async () => {
     await assert.rejects(auditDirectUnreadPage(chatId, 'recipient', '001', 2));
     await assert.rejects(auditDirectUnreadPage(chatId, 'recipient', null, 2, 2, 1));
