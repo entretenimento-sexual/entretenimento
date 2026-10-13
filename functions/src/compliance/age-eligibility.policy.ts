@@ -3,8 +3,8 @@
 // CANONICAL AGE ELIGIBILITY POLICY
 // -----------------------------------------------------------------------------
 // Decide o estado etário canônico da conta. SELF_DECLARED_ADULT permanece
-// como evidência histórica válida, mas acesso adulto exige VERIFIED_ADULT
-// proveniente de método confiável. Produtos consultam somente Account Access.
+// como base canônica de admissão 18+; VERIFIED_ADULT eleva assurance da
+// conta sem criar uma segunda autorização de Media. Produto usa Account Access.
 // -----------------------------------------------------------------------------
 
 export const AGE_ELIGIBILITY_POLICY_VERSION = 1;
@@ -91,6 +91,25 @@ export function isTrustedAdultAgeDecision(
     TRUSTED_ADULT_METHODS.has(decision.method) &&
     decision.verifiedAtMs !== null
   );
+}
+
+/**
+ * Admission authority for an 18+ account. A saved, canonical self declaration
+ * permits initial registration; trusted verification increases assurance.
+ * Neither result bypasses an account lifecycle restriction.
+ */
+export function isAdultAccountAdmissionDecision(
+  decision: Readonly<AgeEligibilityDecision>
+): boolean {
+  if (!decision.allowed || decision.policyVersion !== AGE_ELIGIBILITY_POLICY_VERSION) {
+    return false;
+  }
+  if (decision.status === 'SELF_DECLARED_ADULT') {
+    return decision.source === 'SELF_DECLARATION' &&
+      decision.method === 'SELF_DECLARATION' &&
+      decision.verifiedAtMs === null && decision.expiresAtMs === null;
+  }
+  return isTrustedAdultAgeDecision(decision);
 }
 
 function cleanUid(value: unknown): string {
