@@ -39,7 +39,9 @@ async function main(): Promise<void> {
     );
   }
   const [chatId, uid, cursorArg = '-', sizeArg = '100', scannedArg = '0', unreadArg = '0'] = args;
-  if ([chatId, ...((conversation || writeEmulator || inspectJournal || purgeJournal) ? [] : [uid])].some((id) => !id || id.length > 128 ||
+  const singleScope = conversation || writeEmulator || inspectJournal || purgeJournal;
+  const scopedIds = singleScope ? [chatId] : [chatId, uid];
+  if (scopedIds.some((id) => !id || id.length > 128 ||
       !/^[A-Za-z0-9_-]+$/.test(id))) throw new Error('Invalid scope');
   const pageSize = Number(sizeArg);
   if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100) {
