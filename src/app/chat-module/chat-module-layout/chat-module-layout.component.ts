@@ -457,9 +457,21 @@ if (this.isMessageTooLong) {
     if (!sendingUid) return;
 
     // Repetições da mesma intenção reutilizam a chave; texto ou contexto novo recebe outra.
-    const digest = await this.hashSendContent(content);
+    // Reserva o envio antes do SHA-256 assíncrono para evitar cliques duplicados.
+    this.isSendingMessage.set(true);
+    let digest: string;
+    try {
+      digest = await this.hashSendContent(content);
+    } catch {
+      this.isSendingMessage.set(false);
+      this.errorNotifier.showWarning('Não foi possível preparar o envio seguro desta mensagem.');
+      return;
+    }
     if (this.activeSessionUid !== sendingUid || this.selectedChatId !== selectedChatId ||
-        this.selectedType !== selectedType || this.trimmedMessageContent !== content || this.isSendingMessage()) return;
+        this.selectedType !== selectedType || this.trimmedMessageContent !== content) {
+      this.isSendingMessage.set(false);
+      return;
+    }
     const previous = this.pendingSend?.uid === sendingUid &&
       this.pendingSend.chatId === selectedChatId
       ? this.pendingSend
