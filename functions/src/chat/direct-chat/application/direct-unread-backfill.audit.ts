@@ -82,3 +82,62 @@ export async function auditDirectUnreadPage(
       storedUnreadCount === count ? 'MATCH' : 'MISMATCH',
   };
 }
+
+/**
+ * Auditoria consistente de um chat pequeno, sob uma transação read-only.
+ * O limite de 100 mensagens é aplicado pelo banco; uma mensagem adicional
+ * apenas sinaliza que o histórico exige estratégia de auditoria maior.
+ * Não lê conteúdo de mensagens no relatório e não realiza escritas.
+ */
+export async function auditDirectUnreadConsistent(
+  chatId: string,
+  participantUid: string
+): Promise<DirectUnreadAuditPage> {
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(chatId) ||
+      !/^[A-Za-z0-9_-]{1,128}$/.test(participantUid)) {
+    throw new Error('Invalid consistent audit scope');
+  }
+  const chatRef = db.collection('chats').doc(chatId);
+  const projectionRef = db.collection('direct_chat_unread_projections')
+    .doc(participantUid).collection('chats').doc(chatId);
+  return db.runTransaction(async (tx) => {
+    const chat = await tx.get(chatRef);
+    const participants = chat.data()?.participants;
+    if (!Array.isArray(participants) || participants.length !== 2 ||
+        participants[0] === participants[1] ||
+        !participants.includes(participantUid)) {
+      throw new Error('Invalid chat participant');
+    }
+    const messages = await tx.get(chatRef.collection('messages')
+      .orderBy('__name__').limit(101));
+    const projection = await tx.get(projectionRef);
+    if (messages.size > 100) {
+      return {
+        chatId, participantUid, scanned: 100, unreadInPage: 0,
+        nextCursor: messages.docs[99]?.id ?? null, complete: false,
+        storedUnreadCount: null, comparison: 'INCONCLUSIVE',
+        consistency: 'UNVERIFIED_MULTI_PAGE', readBudgetUsed: 103,
+      };
+    }
+    const unread = messages.docs.reduce((total, doc) => {
+      const value = doc.data();
+      const senderUid = value.senderId ?? value.senderUid;
+      if (!participants.includes(senderUid) ||
+          !['sent', 'delivered', 'read'].includes(value.status)) return total;
+      return total + Number(isDirectMessageUnread({
+        messageId: doc.id, senderUid, status: value.status,
+        deleted: value.deleted === true,
+      }, participantUid));
+    }, 0);
+    const stored = projection.data()?.unreadCount;
+    const validStored = Number.isSafeInteger(stored) && stored >= 0 ? stored : null;
+    return {
+      chatId, participantUid, scanned: messages.size, unreadInPage: unread,
+      nextCursor: null, complete: true,
+      storedUnreadCount: validStored, consistency: 'SINGLE_QUERY',
+      readBudgetUsed: messages.size + 2,
+      comparison: !projection.exists ? 'NO_PROJECTION' :
+        validStored === unread ? 'MATCH' : 'MISMATCH',
+    };
+  }, { maxAttempts: 3 });
+}
