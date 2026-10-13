@@ -130,6 +130,35 @@ preserve their own ownership and cannot rely on age-review approval to clear
 them. Before production rollout, include end-to-end tests for concurrent
 independent restrictions and audited manual recovery of ambiguous histories.
 
+## Signed media URLs, cached access and playback revocation
+
+Account lifecycle controls **new authorization decisions**, not the validity
+of a previously minted cloud-storage signature. Public photo/video access
+Functions re-check requester account access, owner lifecycle, bilateral blocks,
+publication and moderation on each **new** signed URL request. Their current
+technical URL lifetime is **five minutes**, further constrained by applicable
+account access deadlines. A URL already delivered can remain independently
+usable until cryptographic expiry even if the owner is suspended.
+
+Video playback-session tokens are now persisted only after a Firestore
+transaction re-reads the owner account lifecycle and video publication state.
+Metrics for photo views, video views and video retention also re-check the
+canonical owner account inside their write transactions. A previously issued
+session token therefore cannot authorize **new metrics** on restricted content.
+Photo view metrics also validate the viewer account access before writing.
+
+The browser's signed URL cache is session-scoped and expiry-bounded, but it
+does not cryptographically revoke already downloaded content or signed links.
+For genuinely immediate binary revocation, investigate short-lived
+authorization through a revocable backend/CDN delivery boundary; do not
+misrepresent clearing browser state or stopping new signatures as retroactive
+URL revocation. Such a delivery system is **not implemented**.
+
+Media must not independently check `SELF_DECLARED_ADULT` or
+`VERIFIED_ADULT`. All account restrictions are lifecycle decisions, while
+suspected minors in media files are handled by the independent content-safety
+moderation authority.
+
 ## Release and operational cautions
 
 The admission policy has changed in source control, not in production. Before
