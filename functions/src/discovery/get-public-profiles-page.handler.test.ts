@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   discoveryReadRateLimitCost,
   serializePublicProfileForDiscovery,
+  filterDiscoveryCardsByOwnerLifecycle,
 } from './get-public-profiles-page.handler';
 
 const NOW = 1_800_000_000_000;
@@ -60,6 +61,35 @@ describe('get-public-profiles-page boundary', () => {
         NOW
       ),
       null
+    );
+  });
+
+  it('descarta projeção pública residual após restrição da conta dona', () => {
+    const cards = [
+      { uid: 'active', nickname: 'Ativa' },
+      { uid: 'age-review', nickname: 'Sob revisão' },
+      { uid: 'minor-confirmed', nickname: 'Suspensa' },
+      { uid: 'locked', nickname: 'Bloqueada' },
+      { uid: 'missing', nickname: 'Sem conta' },
+    ];
+    const owners = new Map<string, Record<string, unknown> | null>([
+      ['active', { accountStatus: 'active', publicVisibility: 'visible' }],
+      ['age-review', {
+        accountStatus: 'active', publicVisibility: 'hidden',
+        interactionBlocked: true,
+      }],
+      ['minor-confirmed', {
+        accountStatus: 'moderation_suspended', suspended: true,
+        publicVisibility: 'hidden',
+      }],
+      ['locked', {
+        accountStatus: 'active', accountLocked: true,
+      }],
+      ['missing', null],
+    ]);
+    assert.deepEqual(
+      filterDiscoveryCardsByOwnerLifecycle(cards, owners),
+      [{ uid: 'active', nickname: 'Ativa' }]
     );
   });
 
