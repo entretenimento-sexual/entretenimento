@@ -440,6 +440,7 @@ const functionsOperationalArtifacts = new Set([
     // Projeção unread em fase de auditoria, NÃO exportar trigger antes do gate.
     // CLI só aceita Firestore Emulator; estes módulos são usados fora do index.ts.
     'chat/direct-chat/application/direct-unread-backfill.emulator-cli.ts',
+    'chat/direct-chat/application/direct-unread-backfill.emulator.ts',
     'chat/direct-chat/application/direct-unread-backfill.audit.ts',
     'chat/direct-chat/application/sync-direct-unread-projection.trigger.ts',
     'chat/direct-chat/domain/direct-unread-projection.policy.ts',
