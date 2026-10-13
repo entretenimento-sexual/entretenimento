@@ -53,6 +53,7 @@ export type UserDoc = {
   accountStatus?: AccountStatus | string | null;
   publicVisibility?: 'visible' | 'hidden' | null;
   interactionBlocked?: boolean | null;
+  accountLocked?: boolean | null;
   loginAllowed?: boolean | null;
   suspended?: boolean | null;
 
@@ -197,6 +198,7 @@ export function isUserEligibleForPublicProjection(user: UserDoc): boolean {
     accountActive &&
     user.suspended !== true &&
     user.interactionBlocked !== true &&
+    user.accountLocked !== true &&
     user.publicVisibility !== 'hidden' &&
     user.loginAllowed !== false &&
     user.emailVerified === true &&
