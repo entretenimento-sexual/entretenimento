@@ -96,13 +96,12 @@ describe('ChatMessagesListComponent', () => {
     threadState$.next({ chatId: 'c1', messages: [], errorMessage } as any);
     fixture.detectChanges();
     expect(fixture.componentInstance.threadErrorMessage).toBe(errorMessage);
-    expect(fixture.nativeElement.textContent).toContain(errorMessage);
-    expect(fixture.nativeElement.textContent).not.toContain('Ainda não há mensagens');
+    expect(fixture.nativeElement.querySelector('app-content-state')?.getAttribute('state')).toBe('error');
 
     threadState$.next({ chatId: 'c1', messages: [] });
     fixture.detectChanges();
     expect(fixture.componentInstance.threadErrorMessage).toBeNull();
-    expect(fixture.nativeElement.textContent).toContain('Ainda não há mensagens');
+    expect(fixture.nativeElement.querySelector('app-content-state')?.getAttribute('state')).toBe('empty');
   });
 
   it('acumula a página histórica sem duplicar mensagens e preserva a janela realtime', () => {
