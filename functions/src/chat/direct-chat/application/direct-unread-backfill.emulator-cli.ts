@@ -1,4 +1,4 @@
-// Dry-run bounded to one chat and one participant; no production access.
+// Emulator-only CLI: read-only audits and explicit bounded initialization.
 async function main(): Promise<void> {
   const host = process.env.FIRESTORE_EMULATOR_HOST;
   if (!host || !/^(?:127\.0\.0\.1|localhost):[0-9]{1,5}$/.test(host)) {
@@ -30,7 +30,8 @@ async function main(): Promise<void> {
   if (writeEmulator || conversation ? args.length !== 1 : consistent ? args.length !== 2 :
     ![2, 4, 6].includes(args.length)) {
     throw new Error(
-      'Usage: --conversation CHAT_ID | --consistent CHAT_ID UID | CHAT_ID UID [CURSOR PAGE_SIZE [SCANNED UNREAD]]'
+      'Usage: --initialize-emulator CHAT_ID | --conversation CHAT_ID | --consistent CHAT_ID UID | ' +
+      'CHAT_ID UID [CURSOR PAGE_SIZE [SCANNED UNREAD]]'
     );
   }
   const [chatId, uid, cursorArg = '-', sizeArg = '100', scannedArg = '0', unreadArg = '0'] = args;
