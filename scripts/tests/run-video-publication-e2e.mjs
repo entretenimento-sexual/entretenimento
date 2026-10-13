@@ -279,6 +279,7 @@ const child = spawn(
   nodeRuntime.executable,
   [
     firebaseCli,
+    '--debug',
     'emulators:exec',
     '--config',
     'firebase.media-e2e.json',
