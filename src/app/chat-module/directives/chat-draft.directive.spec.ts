@@ -1,112 +1,99 @@
-import { Component, NgModule } from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { FormsModule } from '@angular/forms';
-import { afterEach, describe, expect, it } from 'vitest';
+import { ElementRef, SimpleChange } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { NgModel } from '@angular/forms';
+import { Subject } from 'rxjs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatDraftDirective } from './chat-draft.directive';
 
-@Component({
-  template: '<textarea [(ngModel)]="draft" [appChatDraftKey]="key"></textarea>',
-  standalone: false,
-})
-class DraftHostComponent {
-  draft = '';
-  key = 'user-a:chat:chat-1';
-}
-
-@NgModule({
-  declarations: [DraftHostComponent, ChatDraftDirective],
-  imports: [FormsModule],
-})
-class DraftTestModule {}
-
 describe('ChatDraftDirective', () => {
-  let fixture: ComponentFixture<DraftHostComponent>;
+  const storageKeys = [
+    'chat-draft:user-a:chat:chat-1',
+    'chat-draft:user-b:chat:chat-1',
+  ];
 
   afterEach(() => {
-    fixture?.destroy();
-    sessionStorage.removeItem('chat-draft:user-a:chat:chat-1');
-    sessionStorage.removeItem('chat-draft:user-b:chat:chat-1');
+    storageKeys.forEach(key => sessionStorage.removeItem(key));
+    TestBed.resetTestingModule();
   });
 
-  it('isola rascunhos por UID e restaura somente o texto da chave atual', async () => {
-    sessionStorage.setItem('chat-draft:user-b:chat:chat-1', 'texto de B');
-    await TestBed.configureTestingModule({
-      imports: [DraftTestModule],
-    }).compileComponents();
-    fixture = TestBed.createComponent(DraftHostComponent);
-    fixture.detectChanges();
-    await fixture.whenStable();
+  function setup() {
+    const textarea = document.createElement('textarea');
+    const changes$ = new Subject<string>();
+    let modelValue = '';
+    const model = {
+      valueChanges: changes$.asObservable(),
+      control: {
+        setValue: vi.fn((value: string, options?: { emitEvent?: boolean }) => {
+          modelValue = value;
+          textarea.value = value;
+          if (options?.emitEvent !== false) changes$.next(value);
+        }),
+      },
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ElementRef, useValue: new ElementRef(textarea) },
+        { provide: NgModel, useValue: model },
+      ],
+    });
+    const directive = TestBed.runInInjectionContext(() => new ChatDraftDirective());
+    directive.ngOnInit();
+    function switchTo(key: string | null) {
+      const previous = directive.appChatDraftKey;
+      directive.appChatDraftKey = key;
+      directive.ngOnChanges({
+        appChatDraftKey: new SimpleChange(previous, key, previous === undefined),
+      });
+    }
+    function type(value: string) {
+      textarea.value = value;
+      modelValue = value;
+      directive.onInput();
+    }
+    return { directive, textarea, switchTo, type, model, get modelValue() { return modelValue; } };
+  }
 
-    const textarea = fixture.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
-    textarea.value = 'texto de A';
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    fixture.detectChanges();
-    expect(sessionStorage.getItem('chat-draft:user-a:chat:chat-1')).toBe('texto de A');
+  it('isola rascunhos por UID e restaura o texto da chave atual', () => {
+    sessionStorage.setItem(storageKeys[1], 'texto de B');
+    const state = setup();
+    state.switchTo('user-a:chat:chat-1');
+    state.type('texto de A');
+    expect(sessionStorage.getItem(storageKeys[0])).toBe('texto de A');
 
-    fixture.componentInstance.key = 'user-b:chat:chat-1';
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(textarea.value).toBe('texto de B');
-    expect(fixture.componentInstance.draft).toBe('texto de B');
-    expect(sessionStorage.getItem('chat-draft:user-a:chat:chat-1')).toBe('texto de A');
-  });
-  it('limpa rascunho enviado e não restaura texto após alternar de conta', async () => {
-    await TestBed.configureTestingModule({
-      imports: [DraftTestModule],
-    }).compileComponents();
-    fixture = TestBed.createComponent(DraftHostComponent);
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    const host = fixture.componentInstance;
-    const textarea = fixture.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
-    textarea.value = 'mensagem enviada';
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    fixture.detectChanges();
-    expect(sessionStorage.getItem('chat-draft:user-a:chat:chat-1')).toBe('mensagem enviada');
-
-    host.draft = '';
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(sessionStorage.getItem('chat-draft:user-a:chat:chat-1')).toBeNull();
-
-    host.key = 'user-b:chat:chat-1';
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(textarea.value).toBe('');
-    host.key = 'user-a:chat:chat-1';
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(textarea.value).toBe('');
-    expect(host.draft).toBe('');
+    state.switchTo('user-b:chat:chat-1');
+    expect(state.textarea.value).toBe('texto de B');
+    expect(state.modelValue).toBe('texto de B');
+    expect(sessionStorage.getItem(storageKeys[0])).toBe('texto de A');
+    state.directive.ngOnDestroy();
   });
 
-  it('não transfere texto para a próxima conta ao perder o contexto de sessão', async () => {
-    await TestBed.configureTestingModule({
-      imports: [DraftTestModule],
-    }).compileComponents();
-    fixture = TestBed.createComponent(DraftHostComponent);
-    fixture.detectChanges();
-    await fixture.whenStable();
+  it('remove rascunho após envio e não restaura ao alternar de conta', () => {
+    const state = setup();
+    state.switchTo('user-a:chat:chat-1');
+    state.type('mensagem enviada');
+    expect(sessionStorage.getItem(storageKeys[0])).toBe('mensagem enviada');
 
-    const host = fixture.componentInstance;
-    const textarea = fixture.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
-    textarea.value = 'rascunho privado';
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    fixture.detectChanges();
-
-    host.key = '';
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(textarea.value).toBe('');
-
-    host.key = 'user-b:chat:chat-1';
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(textarea.value).toBe('');
-    expect(sessionStorage.getItem('chat-draft:user-a:chat:chat-1')).toBe('rascunho privado');
-    expect(sessionStorage.getItem('chat-draft:user-b:chat:chat-1')).toBeNull();
+    state.model.control.setValue('', { emitEvent: true });
+    expect(sessionStorage.getItem(storageKeys[0])).toBeNull();
+    state.switchTo('user-b:chat:chat-1');
+    expect(state.textarea.value).toBe('');
+    state.switchTo('user-a:chat:chat-1');
+    expect(state.textarea.value).toBe('');
+    state.directive.ngOnDestroy();
   });
 
+  it('não transfere texto após perda do contexto autenticado', () => {
+    const state = setup();
+    state.switchTo('user-a:chat:chat-1');
+    state.type('rascunho privado');
+    state.switchTo(null);
+    expect(state.textarea.value).toBe('');
+
+    state.switchTo('user-b:chat:chat-1');
+    expect(state.textarea.value).toBe('');
+    expect(sessionStorage.getItem(storageKeys[0])).toBe('rascunho privado');
+    expect(sessionStorage.getItem(storageKeys[1])).toBeNull();
+    state.directive.ngOnDestroy();
+  });
 });
