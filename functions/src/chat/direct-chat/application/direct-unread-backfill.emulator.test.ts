@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import { db } from '../../../firebaseApp';
 import { initializeDirectUnreadOnEmulator } from './direct-unread-backfill.emulator';
 import {
-  reconcileDirectUnreadMessage, reconcileDirectUnreadMessageForEmulatorTest,
+  reconcileDirectUnreadMessage, reconcileDirectUnreadMessageBeforeReadForEmulatorTest,
 } from './sync-direct-unread-projection.trigger';
 
 const run = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip;
@@ -266,7 +266,7 @@ run('unread initial backfill — local emulator only', () => {
     }
   });
 
-  it('retries a transaction when a receipt changes after its reads', async () => {
+  it('reads updated receipt without waiting on a transaction lock', async () => {
     const chatId = `unread-read-conflict-${randomUUID()}`;
     const chat = db.collection('chats').doc(chatId);
     const message = chat.collection('messages').doc('001');
@@ -278,7 +278,7 @@ run('unread initial backfill — local emulator only', () => {
     try {
       await chat.set({ participants: ['sender', 'recipient'] });
       await message.set({ senderId: 'sender', status: 'sent' });
-      await reconcileDirectUnreadMessageForEmulatorTest(chatId, '001',
+      await reconcileDirectUnreadMessageBeforeReadForEmulatorTest(chatId, '001',
         ['sender', 'recipient'], ['001'], async () => {
           if (injected) return;
           injected = true;
@@ -293,7 +293,7 @@ run('unread initial backfill — local emulator only', () => {
     }
   });
 
-  it('rejects deletion committed after transaction reads', async () => {
+  it('rejects deletion made before transactional reads', async () => {
     const chatId = `unread-delete-conflict-${randomUUID()}`;
     const chat = db.collection('chats').doc(chatId);
     const message = chat.collection('messages').doc('001');
@@ -305,7 +305,7 @@ run('unread initial backfill — local emulator only', () => {
     try {
       await chat.set({ participants: ['sender', 'recipient'] });
       await message.set({ senderId: 'sender', status: 'sent' });
-      await assert.rejects(reconcileDirectUnreadMessageForEmulatorTest(chatId, '001',
+      await assert.rejects(reconcileDirectUnreadMessageBeforeReadForEmulatorTest(chatId, '001',
         ['sender', 'recipient'], ['001'], async () => {
           if (injected) return;
           injected = true;
@@ -319,7 +319,7 @@ run('unread initial backfill — local emulator only', () => {
     }
   });
 
-  it('rejects participant replacement committed after transaction reads', async () => {
+  it('rejects participant replacement before transactional reads', async () => {
     const chatId = `unread-participant-conflict-${randomUUID()}`;
     const chat = db.collection('chats').doc(chatId);
     const projections = ['sender', 'recipient', 'replacement'].map((uid) =>
@@ -331,7 +331,7 @@ run('unread initial backfill — local emulator only', () => {
       await chat.collection('messages').doc('001').set({
         senderId: 'sender', status: 'sent',
       });
-      await assert.rejects(reconcileDirectUnreadMessageForEmulatorTest(chatId, '001',
+      await assert.rejects(reconcileDirectUnreadMessageBeforeReadForEmulatorTest(chatId, '001',
         ['sender', 'recipient'], ['001'], async () => {
           if (injected) return;
           injected = true;
