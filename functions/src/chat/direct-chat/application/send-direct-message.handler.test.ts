@@ -79,6 +79,22 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     assert.equal(chat.data()?.lastMessage?.messageId, results[0].messageId);
   });
 
+  it('deduplica retry sequencial da mesma intenção sem alterar preview', async () => {
+    const id = randomUUID();
+    const first = await send('mensagem com confirmação perdida', id);
+    const before = (await db.doc(`chats/${chatId}`).get()).data()?.lastMessage;
+    const second = await send('mensagem com confirmação perdida', id);
+    const after = (await db.doc(`chats/${chatId}`).get()).data()?.lastMessage;
+
+    assert.equal(first.deduplicated, false);
+    assert.equal(second.deduplicated, true);
+    assert.equal(first.messageId, second.messageId);
+    assert.deepEqual(after, before);
+    const messages = await db.collection(`chats/${chatId}/messages`)
+      .where('clientRequestId', '==', id).get();
+    assert.equal(messages.size, 1);
+  });
+
   it('rejeita reutilização do requestId com conteúdo divergente', async () => {
     const id = randomUUID();
     await send('conteúdo original', id);
