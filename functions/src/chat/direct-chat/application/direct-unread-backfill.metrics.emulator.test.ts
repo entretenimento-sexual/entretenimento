@@ -34,6 +34,15 @@ run('direct unread backfill — measured emulator workloads', () => {
         assert.ok(report.observations.documentReadUnitsApprox <= report.budget.estimatedReadsNoRetry);
         assert.ok(report.observations.durationMs >= 0);
         assert.equal(report.observations.firestoreBillingVerified, false);
+        process.stdout.write(`UNREAD_EMULATOR_BENCH ${JSON.stringify({
+          messages: messageCount,
+          durationMs: report.observations.durationMs,
+          documentReadUnitsApprox: report.observations.documentReadUnitsApprox,
+          committedProjectionWrites: report.observations.committedDocumentWrites,
+          journalWrites: report.observations.journalWrites,
+          transactionAttempts: report.observations.transactionAttempts,
+          billingVerified: false,
+        })}\n`);
         assert.equal((await projections[1].get()).data()?.unreadCount, messageCount);
         if (messageCount === 50) {
           const repeated = await initializeDirectUnreadOnEmulator(chatId);
