@@ -8,6 +8,9 @@ import { auditDirectUnreadConversation } from './direct-unread-backfill.audit';
 import { reconcileDirectUnreadMessageMeasuredOnEmulator } from './sync-direct-unread-projection.trigger';
 import { isDirectMessageUnread, type DirectUnreadMessage } from '../domain/direct-unread-projection.policy';
 import { estimateDirectUnreadBackfillBudget } from '../domain/direct-unread-backfill-budget.policy';
+import {
+  startDirectUnreadEmulatorJournal, type DirectUnreadBackfillStage,
+} from './direct-unread-backfill.journal.emulator';
 
 export async function initializeDirectUnreadOnEmulator(chatId: string) {
   const host = process.env.FIRESTORE_EMULATOR_HOST;
@@ -20,6 +23,9 @@ export async function initializeDirectUnreadOnEmulator(chatId: string) {
     throw new Error('Unread backfill requires isolated local demo emulator');
   }
   const startedAt = Date.now();
+  const journal = await startDirectUnreadEmulatorJournal(chatId);
+  let stage: DirectUnreadBackfillStage = 'PREFLIGHT';
+  try {
   const before = await auditDirectUnreadConversation(chatId);
   if (!before.complete) {
     throw new Error('Unread backfill requires a complete bounded chat');
@@ -85,6 +91,8 @@ export async function initializeDirectUnreadOnEmulator(chatId: string) {
   let attemptedTransactionReads = 0;
   let stagedDocumentWrites = 0;
   let committedDocumentWrites = 0;
+  stage = 'RECONCILE';
+  let completedMessages = 0;
   for (const messageId of expectedMessageIds) {
     const metrics = await reconcileDirectUnreadMessageMeasuredOnEmulator(
       chatId, messageId, participants, expectedMessageIds
@@ -93,17 +101,26 @@ export async function initializeDirectUnreadOnEmulator(chatId: string) {
     attemptedTransactionReads += metrics.attemptedDocumentReads;
     stagedDocumentWrites += metrics.stagedDocumentWrites;
     committedDocumentWrites += metrics.committedDocumentWrites;
+    completedMessages += 1;
+    if (completedMessages % 10 === 0 || completedMessages === documents.size) {
+      await journal.progress(completedMessages, transactionAttempts, committedDocumentWrites);
+    }
   }
+  stage = 'VERIFY';
   const after = await auditDirectUnreadConversation(chatId);
   if (!after.complete || after.summary.MATCH !== 2) {
     throw new Error('Unread backfill requires manual review after reconciliation');
   }
+  const durationMs = Date.now() - startedAt;
+  await journal.succeeded(completedMessages, durationMs);
   return {
-    mode: 'EMULATOR_WRITE', chatId,
+    mode: 'EMULATOR_WRITE', chatId, runId: journal.runId,
     processedMessages: documents.size, before: before.summary, after: after.summary,
     budget,
     observations: {
-      durationMs: Date.now() - startedAt,
+      durationMs,
+      journalWrites: journal.writes,
+      journalWritesIncludedInBudget: true,
       transactionAttempts,
       retryAttempts: transactionAttempts - documents.size,
       documentReadUnitsApprox:
@@ -113,4 +130,12 @@ export async function initializeDirectUnreadOnEmulator(chatId: string) {
       firestoreBillingVerified: false,
     },
   };
+  } catch (error) {
+    try {
+      await journal.failed(stage);
+    } catch {
+      // Preserve the original failure; an incomplete RUNNING journal is not success.
+    }
+    throw error;
+  }
 }
