@@ -54,7 +54,7 @@ export const adultContentConsentGuard: CanActivateFn = (
       router,
       '/adulto/verificar-idade',
       state.url,
-      { reason: 'trusted_age_verification_required' }
+      { reason: 'adult_account_admission_required' }
     );
 
   const redirectToConsent = (): GuardResult =>
