@@ -44,7 +44,7 @@ run('durable unread backfill journal — isolated emulator', () => {
       const complete = records.docs.find((doc) => doc.id === recovered.runId);
       assert.equal(complete?.data().status, 'SUCCEEDED');
       assert.equal(complete?.data().completedMessagesRecorded, 12);
-      assert.equal(complete?.data().committedProjectionWritesRecorded, 8);
+      assert.equal(complete?.data().committedProjectionCheckpointWritesRecorded, 8);
       assert.ok(!JSON.stringify(complete?.data()).includes('never-copy-this'));
     } finally {
       await db.recursiveDelete(chat);
