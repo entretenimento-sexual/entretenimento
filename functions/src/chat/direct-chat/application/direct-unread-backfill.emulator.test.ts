@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
 import { db } from '../../../firebaseApp';
 import { initializeDirectUnreadOnEmulator } from './direct-unread-backfill.emulator';
+import { reconcileDirectUnreadMessage } from './sync-direct-unread-projection.trigger';
 
 const run = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip;
 
@@ -59,6 +60,35 @@ run('unread initial backfill — local emulator only', () => {
     } finally {
       await db.recursiveDelete(chat);
       await Promise.all([db.recursiveDelete(recipientRef), db.recursiveDelete(senderRef)]);
+    }
+  });
+
+  it('resumes partial checkpoints after receipt and deletion changes', async () => {
+    const chatId = `unread-resume-${randomUUID()}`;
+    const chat = db.collection('chats').doc(chatId);
+    const projections = ['sender', 'recipient'].map((uid) =>
+      db.collection('direct_chat_unread_projections').doc(uid)
+        .collection('chats').doc(chatId));
+    const first = chat.collection('messages').doc('001');
+    const second = chat.collection('messages').doc('002');
+    try {
+      await chat.set({ participants: ['sender', 'recipient'] });
+      await first.set({ senderId: 'sender', status: 'sent' });
+      await second.set({ senderId: 'sender', status: 'sent' });
+      // Simulate interruption after the first transactional checkpoint.
+      await reconcileDirectUnreadMessage(chatId, '001');
+      assert.equal((await projections[1].get()).data()?.unreadCount, 1);
+      await first.update({ status: 'read' });
+      await second.update({ deleted: true });
+      const resumed = await initializeDirectUnreadOnEmulator(chatId);
+      assert.equal(resumed.after.MATCH, 2);
+      assert.equal((await projections[1].get()).data()?.unreadCount, 0);
+      const repeated = await initializeDirectUnreadOnEmulator(chatId);
+      assert.equal(repeated.after.MATCH, 2);
+      assert.equal((await projections[1].get()).data()?.unreadCount, 0);
+    } finally {
+      await db.recursiveDelete(chat);
+      await Promise.all(projections.map((ref) => db.recursiveDelete(ref)));
     }
   });
 
