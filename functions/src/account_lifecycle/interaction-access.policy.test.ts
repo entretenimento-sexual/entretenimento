@@ -31,7 +31,9 @@ describe('interaction access policy', () => {
       null,
     ]) {
       assert.doesNotThrow(() =>
-        assertPlatformAccountAccessData({ ...validUser, ageEligibility })
+        assertPlatformAccountAccessData({
+          ...validUser, ...{ ageEligibility },
+        } as typeof validUser)
       );
     }
   });
