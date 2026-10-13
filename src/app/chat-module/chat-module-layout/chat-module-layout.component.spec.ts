@@ -323,6 +323,27 @@ describe('ChatModuleLayoutComponent', () => {
     expect(orchestrator.send$.mock.calls.at(-1)[2]).not.toBe(firstKey);
   });
 
+  it('não reutiliza chave de outra conversa mesmo com texto idêntico', () => {
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
+    const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
+    orchestrator.send$.mockReturnValue(of({ messageId: null, blockedReason: null }));
+    selection.selectedType.mockReturnValue('chat');
+    selectedType$.next('chat');
+    component.canSendCurrentMessage.set(true);
+    component.messageContent = 'texto repetido';
+
+    selection.selectedChatId.mockReturnValue('chat-A');
+    selectedChatId$.next('chat-A');
+    component.sendMessage();
+    const firstKey = orchestrator.send$.mock.calls.at(-1)[2];
+
+    selection.selectedChatId.mockReturnValue('chat-B');
+    selectedChatId$.next('chat-B');
+    component.sendMessage();
+    const secondKey = orchestrator.send$.mock.calls.at(-1)[2];
+    expect(secondKey).not.toBe(firstKey);
+  });
+
   it('mantém apenas atalhos do chat direto no estado vazio', () => {
     const text = fixture.nativeElement.textContent as string;
     const hrefs = Array.from(
