@@ -1,6 +1,6 @@
 # Account age authority and Media boundary
 
-Status: **target architecture accepted; admission migration pending** (2026-10-13).
+Status: **18+ admission implementation on main; CI verification pending** (2026-10-13).
 
 ## Canonical split
 
@@ -39,26 +39,49 @@ Status: **target architecture accepted; admission migration pending** (2026-10-1
   against future regressions; unit tests cover account-authoring and
   public-exposure behavior with conflicting legacy age fields.
 
-## Admission mismatch still to migrate
+## Account admission implementation
 
-Current account-admission machinery still requires **trusted VERIFIED_ADULT**:
-`accept-adult-self-declaration.handler.ts` defaults to
-`AGE_ADMISSION_MODE=VERIFIED_REQUIRED`;
-`adult-consent.handler.ts` checks `isTrustedAdultAgeDecision`;
-`firestore-rules/_helpers.rules` uses
-`canonicalAgeEligibilityAllowsTrustedAdultAccess` for registration; and
-`register-flow.facade.ts` / `adult-content-consent.guard.ts` use the trusted
-adult predicate during onboarding. This differs from the proposed model in
-which a valid initial 18+ self declaration is an account-level admission basis
-and stronger verification adds assurance later.
+The following registration gates now use a canonical **adult admission**
+decision instead of equating permission to join with strong verification:
 
-**Do not selectively relax only one gate:** a safe follow-up must align the
-backend acceptance policy, immutable declaration evidence, registration rules,
-registration UI/guard, consent, account lifecycle on underage evidence, emulator
-rules tests, onboarding tests and the current `check-age-authority-boundary.mjs`
-contract **in one coherent migration**. Incomplete/malformed records and
-confirmed underage must remain fail-closed. Any release must document legal
-and provider requirements and not accidentally admit known underage accounts.
+- `age-eligibility.policy.ts` exposes `isAdultAccountAdmissionDecision`.
+  It recognizes a valid `SELF_DECLARED_ADULT` or a truly trusted
+  `VERIFIED_ADULT`, but never `DENIED_UNDERAGE`, `REVIEW_REQUIRED`,
+  expired states or a forged/untrusted verified claim.
+- `accept-adult-self-declaration.handler.ts` defaults to preserving a
+  one-time backend-created adult declaration. An explicit
+  `AGE_ADMISSION_MODE=VERIFIED_REQUIRED` remains an operational override.
+- `adult-consent.handler.ts` checks account adult admission rather than
+  strong assurance.
+- `firestore-rules/_helpers.rules` accepts only a backend-created,
+  correctly typed, dated 18+ declaration or trusted proof during the
+  one-way registration completion. Client updates to the canonical record
+  are still forbidden.
+- `register-flow.facade.ts`, `adult-content-consent.guard.ts` and the
+  age declaration screen advance valid self-declared accounts without
+  repeatedly requesting strong verification. Already admitted accounts
+  continue to depend on account lifecycle/legal/consent, not assurance.
+- Rules tests verify valid declaration admission and rejection of underage,
+  open review, missing timestamp and mismatched declaration evidence.
 
-No change in this document or the associated Media tests deploys a new
-admission policy or alters live user eligibility.
+The optional strong-verification workflow is **not** a registration
+prerequisite. The initial admission screen does not expose the review
+request action, because opening a review there could transition the
+canonical record into `REVIEW_REQUIRED` before admission. Follow-up
+assurance/KYC must be surfaced in an account-level workflow with explicit
+policy about whether a genuine safety concern requires a lifecycle hold.
+
+No publication/distribution entitlement is derived from owner age-assurance
+fields, and `media-content-safety-assessment.policy.ts` remains the separate
+content-minor safety authority.
+
+## Release and operational cautions
+
+The admission policy has changed in source control, not in production. Before
+deploying, obtain a successful aggregate CI (including emulator Rules and
+onboarding tests), review explicit legal/compliance constraints for the
+platform jurisdiction, test registration with valid and malformed historical
+records and confirm trusted underage evidence is enforced through account
+lifecycle. Do not treat self declaration as equivalent to independently
+verified age, and do not roll out an admission-policy change by deploying a
+subset of backend, Rules and UI.
