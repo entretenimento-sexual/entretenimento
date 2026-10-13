@@ -88,7 +88,7 @@
               [attr.maxlength]="maxMessageLength + 1"
             ></textarea>
 
-            <app-chat-emoji-picker [composer]="emojiComposer"></app-chat-emoji-picker>
+            <app-chat-emoji-picker [composer]="emojiComposer" [disabled]="isSendingMessage() || !canSendMessageNow"></app-chat-emoji-picker>
 
             <button
               type="button"
