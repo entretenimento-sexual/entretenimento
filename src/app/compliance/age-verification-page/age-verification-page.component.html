@@ -26,8 +26,8 @@
         <div>
           <strong>Verificando o estado já salvo da sua conta</strong>
           <p>
-            A consulta é silenciosa. Se sua maioridade já estiver verificada,
-            você não precisará repetir nenhuma confirmação.
+            A consulta é silenciosa. Se a maioridade já estiver registrada,
+            você não precisará repetir sua confirmação.
           </p>
         </div>
       </section>
@@ -36,7 +36,7 @@
         <section class="age-verification__status age-verification__status--success" role="status">
           <span class="age-verification__status-icon" aria-hidden="true">✓</span>
           <div>
-            <strong>Maioridade verificada</strong>
+            <strong>Maioridade registrada na conta</strong>
             <p>Estamos preparando a próxima etapa.</p>
           </div>
         </section>
@@ -85,8 +85,8 @@
           <section class="age-verification__migration-note" role="status">
             <strong>Sua declaração anterior continua registrada</strong>
             <p>
-              Você não precisa declará-la novamente. Para acessar a plataforma
-              adulta, falta apenas a verificação por uma fonte confiável.
+              Você não precisa declará-la novamente. A verificação mais forte
+              pode ser solicitada futuramente como assurance da conta.
             </p>
           </section>
         } @else if (vm.expired) {
@@ -100,10 +100,11 @@
         }
 
         <section class="age-verification__declaration">
-          <strong>Verificação confiável necessária</strong>
+          <strong>Confirmação de maioridade 18+</strong>
           <p>
-            A verificação é feita no nível da conta. Depois de aprovada, o app
-            consulta esse estado silenciosamente nas áreas protegidas.
+            Ao confirmar, declaro ter 18 anos ou mais. Esta confirmação fica
+            registrada na minha conta. A plataforma poderá solicitar uma
+            verificação adicional quando houver justificativa de segurança.
           </p>
         </section>
 
@@ -111,11 +112,18 @@
           type="button"
           class="app-action app-action--primary"
           [disabled]="processing()"
+          (click)="confirmAdult()"
+        >
+          {{ processing() ? 'Registrando confirmação...' : 'Confirmo que tenho 18 anos ou mais' }}
+        </button>
+
+        <button
+          type="button"
+          class="app-action app-action--ghost"
+          [disabled]="processing()"
           (click)="requestVerification()"
         >
-          {{ processing()
-            ? 'Solicitando verificação...'
-            : 'Solicitar verificação de maioridade' }}
+          Solicitar verificação adicional
         </button>
 
         <div class="age-verification__safety-note">
