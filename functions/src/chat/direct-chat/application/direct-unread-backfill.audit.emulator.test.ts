@@ -63,7 +63,7 @@ run('unread projection audit — read only', () => {
   it('consolidates both participants in one read-only audit', async () => {
     const senderRef = db.collection('direct_chat_unread_projections')
       .doc('sender').collection('chats').doc(chatId);
-    await senderRef.set({ unreadCount: 0, version: 1 });
+    await senderRef.set({ unreadCount: 1, version: 1 });
     try {
       const report = await auditDirectUnreadConversation(chatId);
       assert.equal(report.summary.MATCH, 2);
