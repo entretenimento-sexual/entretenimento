@@ -124,29 +124,15 @@ describe('AgeVerificationPageComponent', () => {
     ));
   });
 
-  it('abre verificação confiável sem criar segunda declaração', () => {
-    component.requestVerification();
-
-    expect(ageEligibilityMock.requestInitialReview$).toHaveBeenCalledTimes(1);
-    expect(component.feedback()).toEqual(
-      expect.objectContaining({
-        tone: 'warning',
-        title: 'Verificação em análise',
-      })
-    );
-  });
-
-  it('mantém erro operacional como feedback persistente', () => {
-    ageEligibilityMock.requestInitialReview$.mockReturnValueOnce(
+  it('mantém feedback quando a confirmação de maioridade falha', () => {
+    ageEligibilityMock.acceptSelfDeclaration$.mockReturnValueOnce(
       throwError(() => new Error('network unavailable'))
     );
-
-    component.requestVerification();
-
+    component.confirmAdult();
     expect(component.feedback()).toEqual(
       expect.objectContaining({
         tone: 'error',
-        title: 'Não foi possível solicitar a verificação',
+        title: 'Não foi possível registrar a confirmação 18+',
       })
     );
     expect(component.processing()).toBe(false);
