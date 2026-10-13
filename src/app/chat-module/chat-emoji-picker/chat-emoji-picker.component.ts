@@ -41,6 +41,7 @@ type ChatEmojiGroup = {
 })
 export class ChatEmojiPickerComponent {
   @Input() composer: ChatEmojiComposerDirective | null = null;
+  @Input() disabled = false;
 
   recentEmojis: ChatEmojiItem[] = this.readRecentEmojis();
 
@@ -116,6 +117,7 @@ export class ChatEmojiPickerComponent {
   ];
 
   insertEmoji(item: ChatEmojiItem, picker: HTMLDetailsElement): void {
+    if (this.disabled) return;
     const inserted = this.composer?.insert(item.emoji) === true;
 
     if (!inserted) {
