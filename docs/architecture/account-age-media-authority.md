@@ -95,17 +95,40 @@ age-assurance records in product domains:
 | Public profile discovery (UID, nickname, nearby, cursor) | Batch-check `users/{uid}` before returning any candidate |
 | Public "Status de Hoje" discovery | Batch-check status owner account before returning public status |
 
-These batch checks add bounded reads: up to 120 account documents per
-public-profile response or 60 per intent-status response, in addition to
-existing profile/status queries. This is extra read cost, not a billing
-guarantee. Candidate filtering occurs after the response's scan window;
-a page can contain fewer visible results if restricted candidates were
-scanned. Pagination fill-rate optimization can follow without weakening the
-revocation boundary.
+The lifecycle checks consume additional Firestore reads, independent of
+assurance. Public-profile discovery now examines **at most 480** candidate
+profiles per call (at most four times a 120-item page), and revalidates
+candidate owners in batches of at most 120. UID lookups remain bounded to
+50 and public intent-status results to 60 owner lookups. This raises
+read costs during heavily filtered searches; actual billing must be measured.
+
+Cursor-based discovery accumulates visible items across bounded batches and
+sets the next cursor to the **last item actually returned**, rather than the
+last prefetched candidate. Nickname-prefix and nearby searches can also
+replace excluded candidates within the same bounded scan, but do not yet
+offer cursors. Results may legitimately remain underfilled when the scan
+budget is exhausted. Lifecycle data is authoritative; stale public projections
+never override it.
 
 Account flags, rather than `SELF_DECLARED_ADULT` or `VERIFIED_ADULT`,
 control access once a valid account has been admitted. Content-minor
 safety still uses an independent Media assessment/moderation authority.
+
+## Restoring access after successful age review
+
+Review approval is not a universal unsuspend operation. The canonical
+`resolveAgeReviewRestoration` requires the age-review restriction marker,
+hidden profile and blocked interactions, plus a currently compatible account
+status and **no unrelated account lock, disabled login or active automation
+hold**. An age-owned suspension must also match the exact review case and
+moderator suspension source. The review decision can update account assurance
+without automatically restoring exposure where this proof is absent.
+
+Case ownership is represented by existing markers, not by a complete per-flag
+provenance ledger. Operations that introduce independent restrictions must
+preserve their own ownership and cannot rely on age-review approval to clear
+them. Before production rollout, include end-to-end tests for concurrent
+independent restrictions and audited manual recovery of ambiguous histories.
 
 ## Release and operational cautions
 
