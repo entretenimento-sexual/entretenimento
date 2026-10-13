@@ -5,10 +5,25 @@ import { db } from '../../../firebaseApp';
 import {
   initializeDirectUnreadForEmulatorTest, initializeDirectUnreadOnEmulator,
 } from './direct-unread-backfill.emulator';
+import { startDirectUnreadEmulatorJournal } from './direct-unread-backfill.journal.emulator';
 
 const run = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip;
 
 run('durable unread backfill journal — isolated emulator', () => {
+  it('leaves an unfinished attempt RUNNING until explicitly terminated', async () => {
+    const chatId = `unread-abandoned-${randomUUID()}`;
+    const journal = db.collection('direct_chat_unread_backfill_emulator_runs');
+    const started = await startDirectUnreadEmulatorJournal(chatId);
+    try {
+      const snapshot = await journal.doc(started.runId).get();
+      assert.equal(snapshot.data()?.status, 'RUNNING');
+      assert.equal(snapshot.data()?.completedMessagesRecorded, 0);
+      assert.equal(snapshot.data()?.finishedAt, undefined);
+    } finally {
+      await journal.doc(started.runId).delete();
+    }
+  });
+
   it('records an interruption and permits checkpoint-safe recovery', async () => {
     const chatId = `unread-journal-${randomUUID()}`;
     const chat = db.collection('chats').doc(chatId);
