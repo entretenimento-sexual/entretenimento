@@ -41,7 +41,7 @@ export function normalizeUserAccountLifecycleStatus(
 ): RuntimeAccountLifecycleStatus {
   if (!user) return 'unknown';
 
-  if (user.accountLocked === true) {
+  if (user.accountLocked === true || user.loginAllowed === false) {
     return 'locked';
   }
 
