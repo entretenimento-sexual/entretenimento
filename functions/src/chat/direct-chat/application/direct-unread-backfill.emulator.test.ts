@@ -273,4 +273,56 @@ run('unread initial backfill — local emulator only', () => {
     }
   });
 
+  it('rejects deletion committed after transaction reads', async () => {
+    const chatId = `unread-delete-conflict-${randomUUID()}`;
+    const chat = db.collection('chats').doc(chatId);
+    const message = chat.collection('messages').doc('001');
+    const recipient = db.collection('direct_chat_unread_projections')
+      .doc('recipient').collection('chats').doc(chatId);
+    const sender = db.collection('direct_chat_unread_projections')
+      .doc('sender').collection('chats').doc(chatId);
+    let injected = false;
+    try {
+      await chat.set({ participants: ['sender', 'recipient'] });
+      await message.set({ senderId: 'sender', status: 'sent' });
+      await assert.rejects(reconcileDirectUnreadMessage(chatId, '001',
+        ['sender', 'recipient'], ['001'], async () => {
+          if (injected) return;
+          injected = true;
+          await message.delete();
+        }));
+      assert.equal(injected, true);
+      assert.equal((await recipient.get()).exists, false);
+    } finally {
+      await db.recursiveDelete(chat);
+      await Promise.all([db.recursiveDelete(recipient), db.recursiveDelete(sender)]);
+    }
+  });
+
+  it('rejects participant replacement committed after transaction reads', async () => {
+    const chatId = `unread-participant-conflict-${randomUUID()}`;
+    const chat = db.collection('chats').doc(chatId);
+    const projections = ['sender', 'recipient', 'replacement'].map((uid) =>
+      db.collection('direct_chat_unread_projections').doc(uid)
+        .collection('chats').doc(chatId));
+    let injected = false;
+    try {
+      await chat.set({ participants: ['sender', 'recipient'] });
+      await chat.collection('messages').doc('001').set({
+        senderId: 'sender', status: 'sent',
+      });
+      await assert.rejects(reconcileDirectUnreadMessage(chatId, '001',
+        ['sender', 'recipient'], ['001'], async () => {
+          if (injected) return;
+          injected = true;
+          await chat.update({ participants: ['sender', 'replacement'] });
+        }));
+      assert.equal(injected, true);
+      for (const ref of projections) assert.equal((await ref.get()).exists, false);
+    } finally {
+      await db.recursiveDelete(chat);
+      await Promise.all(projections.map((ref) => db.recursiveDelete(ref)));
+    }
+  });
+
 });
