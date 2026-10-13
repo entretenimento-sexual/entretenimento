@@ -76,7 +76,13 @@ export async function initializeDirectUnreadOnEmulator(chatId: string) {
   // Each message reconciliation is a Firestore transaction with per-message checkpoints.
   // Safe resume is restricted to validated checkpoint totals.
   for (const doc of documents.docs) {
-    await reconcileDirectUnreadMessage(chatId, doc.id);
+    const current = await db.collection('chats').doc(chatId).collection('messages')
+      .orderBy('__name__').limit(101).get();
+    if (current.size !== documents.size ||
+        current.docs.some((item, index) => item.id !== documents.docs[index].id)) {
+      throw new Error('Unread backfill message set changed');
+    }
+    await reconcileDirectUnreadMessage(chatId, doc.id, participants);
   }
   const after = await auditDirectUnreadConversation(chatId);
   if (!after.complete || after.summary.MATCH !== 2) {
