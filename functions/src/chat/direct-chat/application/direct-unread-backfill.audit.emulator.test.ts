@@ -74,6 +74,48 @@ run('unread projection audit — read only', () => {
       await senderRef.delete();
     }
   });
+  it('separates a missing projection from a participant-specific mismatch', async () => {
+    const senderRef = db.collection('direct_chat_unread_projections')
+      .doc('sender').collection('chats').doc(chatId);
+    await projection.set({ unreadCount: 8, version: 1 });
+    try {
+      const report = await auditDirectUnreadConversation(chatId);
+      assert.equal(report.summary.MISMATCH, 1);
+      assert.equal(report.summary.NO_PROJECTION, 1);
+      assert.equal(report.summary.MATCH, 0);
+      assert.equal(report.requiresReconciliation, true);
+      assert.equal((await senderRef.get()).exists, false);
+      assert.equal((await projection.get()).data()?.unreadCount, 8);
+    } finally {
+      await projection.set({ unreadCount: 2, version: 1 });
+    }
+  });
+
+  it('does not classify oversized conversations as definitive discrepancies', async () => {
+    const bulk = chat.collection('messages');
+    const batch = db.batch();
+    for (let index = 0; index < 101; index += 1) {
+      batch.set(bulk.doc(`oversized-${String(index).padStart(3, '0')}`), {
+        senderId: 'sender', status: 'sent',
+      });
+    }
+    await batch.commit();
+    try {
+      const report = await auditDirectUnreadConversation(chatId);
+      assert.equal(report.complete, false);
+      assert.equal(report.summary.INCONCLUSIVE, 2);
+      assert.equal(report.summary.MISMATCH, 0);
+      assert.equal(report.requiresReconciliation, false);
+      assert.equal(report.mutationCount, 0);
+    } finally {
+      const cleanup = db.batch();
+      for (let index = 0; index < 101; index += 1) {
+        cleanup.delete(bulk.doc(`oversized-${String(index).padStart(3, '0')}`));
+      }
+      await cleanup.commit();
+    }
+  });
+
   it('rejects invalid resume state and exceeding the global scan budget', async () => {
     await assert.rejects(auditDirectUnreadPage(chatId, 'recipient', '001', 2));
     await assert.rejects(auditDirectUnreadPage(chatId, 'recipient', null, 2, 2, 1));
