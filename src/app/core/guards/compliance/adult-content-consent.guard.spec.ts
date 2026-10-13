@@ -108,7 +108,7 @@ describe('adultContentConsentGuard / account adult boundary', () => {
     await expect(firstValueFrom(result as never)).resolves.toBe(true);
   });
 
-  it('redireciona para verificação confiável antes do consentimento', async () => {
+  it('admite autodeclaração 18+ e segue ao consentimento da conta', async () => {
     ageState = {
       status: 'SELF_DECLARED_ADULT',
       policyVersion: 1,
@@ -129,13 +129,28 @@ describe('adultContentConsentGuard / account adult boundary', () => {
     await firstValueFrom(result as never);
 
     expect(createUrlTree).toHaveBeenCalledWith(
-      ['/adulto/verificar-idade'],
+      ['/adulto/confirmar'],
       {
         queryParams: {
-          reason: 'trusted_age_verification_required',
+          reason: 'initial_adult_consent_required',
           redirectTo: '/chat',
         },
       }
+    );
+  });
+
+  it('rejeita estado sem admissão 18+ antes do consentimento', async () => {
+    ageState = {
+      status: 'DENIED_UNDERAGE', policyVersion: 1,
+      source: 'AGE_REVERIFICATION', method: 'MANUAL_REVIEW',
+      verifiedAtMs: null, expiresAtMs: null, updatedAtMs: 2,
+    };
+    const result = TestBed.runInInjectionContext(() =>
+      adultContentConsentGuard({} as never, { url: '/chat' } as never)
+    );
+    await firstValueFrom(result as never);
+    expect(createUrlTree).toHaveBeenCalledWith(
+      ['/adulto/verificar-idade'], expect.any(Object)
     );
   });
 
