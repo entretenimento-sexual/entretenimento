@@ -6,7 +6,8 @@
 export const DIRECT_UNREAD_MAX_MESSAGES = 100;
 export const DIRECT_UNREAD_MAX_TRANSACTION_ATTEMPTS = 3;
 export const DIRECT_UNREAD_MAX_ESTIMATED_READS = 33_000;
-export const DIRECT_UNREAD_MAX_COMMITTED_WRITES = 400;
+export const DIRECT_UNREAD_MAX_COMMITTED_WRITES = 412;
+export const DIRECT_UNREAD_JOURNAL_PROGRESS_INTERVAL = 10;
 
 export function estimateDirectUnreadBackfillBudget(messageCount: number) {
   if (!Number.isSafeInteger(messageCount) ||
@@ -21,7 +22,10 @@ export function estimateDirectUnreadBackfillBudget(messageCount: number) {
   // two projections and two per-message checkpoints = n+6 reads.
   const estimatedReadsNoRetry = n * n + 11 * n + 11;
   const estimatedReadsWithRetries = 3 * n * n + 27 * n + 23;
-  const maxCommittedWrites = 4 * n;
+  const maxCheckpointProjectionWrites = 4 * n;
+  // One RUNNING journal, ceil(n/10) progress updates and one terminal update.
+  const maxJournalWrites = Math.ceil(n / DIRECT_UNREAD_JOURNAL_PROGRESS_INTERVAL) + 2;
+  const maxCommittedWrites = maxCheckpointProjectionWrites + maxJournalWrites;
   if (estimatedReadsWithRetries > DIRECT_UNREAD_MAX_ESTIMATED_READS ||
       maxCommittedWrites > DIRECT_UNREAD_MAX_COMMITTED_WRITES) {
     throw new Error('Unread backfill estimated budget exceeded');
@@ -31,6 +35,8 @@ export function estimateDirectUnreadBackfillBudget(messageCount: number) {
     estimatedReadsNoRetry,
     estimatedReadsWithRetries,
     maxCommittedWrites,
+    maxCheckpointProjectionWrites,
+    maxJournalWrites,
     maxTransactionAttempts: DIRECT_UNREAD_MAX_TRANSACTION_ATTEMPTS,
     billingEstimateOnly: true,
   };
