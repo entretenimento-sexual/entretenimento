@@ -437,6 +437,12 @@ const functionsOperationalArtifacts = new Set([
     'chat/direct-chat/application/direct-chat-reconciliation.emulator-cli.ts',
     'chat/direct-chat/application/direct-chat-reconciliation.reader.ts',
     'chat/direct-chat/domain/direct-chat-reconciliation.audit.ts',
+    // Projeção unread em fase de auditoria, NÃO exportar trigger antes do gate.
+    // CLI só aceita Firestore Emulator; estes módulos são usados fora do index.ts.
+    'chat/direct-chat/application/direct-unread-backfill.emulator-cli.ts',
+    'chat/direct-chat/application/direct-unread-backfill.audit.ts',
+    'chat/direct-chat/application/sync-direct-unread-projection.trigger.ts',
+    'chat/direct-chat/domain/direct-unread-projection.policy.ts',
   ].map((relativePath) => posix(path.join(functionsSourceRoot, relativePath))),
 
   posix(path.join(
