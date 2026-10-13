@@ -5,7 +5,7 @@
 // Observa a projeção sanitizada de users/{uid}.ageEligibility.
 // A projeção nunca é autoridade de segurança. Ela serve à UX e é reconciliada
 // silenciosamente com o backend. SELF_DECLARED_ADULT pode existir como evidência,
-// mas somente VERIFIED_ADULT confiável libera a experiência adulta.
+// a admissão 18+ permite autodeclaração canônica; VERIFIED_ADULT eleva assurance.
 // -----------------------------------------------------------------------------
 
 import {
