@@ -131,7 +131,7 @@ export class ChatModuleLayoutComponent implements OnInit {
 
   messageContent = '';
   activeSessionUid: string | null = null;
-  private pendingSend: { uid: string; chatId: string; content: string; requestId: string } | null = null;
+  private pendingSend: { uid: string; chatId: string; content: string; requestId: string; createdAt: number } | null = null;
   private readonly sendIntentMaxAgeMs = 24 * 60 * 60 * 1000;
 
   readonly maxMessageLength = DIRECT_CHAT_MAX_MESSAGE_LENGTH;
@@ -472,14 +472,16 @@ if (this.isMessageTooLong) {
       this.isSendingMessage.set(false);
       return;
     }
-    const previous = this.pendingSend?.uid === sendingUid &&
-      this.pendingSend.chatId === selectedChatId
-      ? this.pendingSend
-      : this.readPendingSend(sendingUid, selectedChatId, digest);
-    const sameContent = previous && ('content' in previous
-      ? previous.content === content : previous.contentHash === digest);
-    const requestId = sameContent ? previous.requestId : this.createSendRequestId();
-    this.pendingSend = { uid: sendingUid, chatId: selectedChatId, content, requestId };
+    // Validate persisted data even when an in-memory retry exists; purge legacy plaintext.
+    const persisted = this.readPendingSend(sendingUid, selectedChatId, digest);
+    const memory = this.pendingSend;
+    const validMemory = memory?.uid === sendingUid && memory.chatId === selectedChatId &&
+      memory.content === content && Number.isFinite(memory.createdAt) &&
+      memory.createdAt <= Date.now() && Date.now() - memory.createdAt <= this.sendIntentMaxAgeMs;
+    const previous = validMemory ? memory : persisted;
+    const requestId = previous?.requestId ?? this.createSendRequestId();
+    const createdAt = previous?.createdAt ?? Date.now();
+    this.pendingSend = { uid: sendingUid, chatId: selectedChatId, content, requestId, createdAt };
     this.savePendingSend(this.pendingSend, digest);
     this.isSendingMessage.set(true);
     const sendingContent = this.messageContent;
@@ -536,13 +538,16 @@ if (this.isMessageTooLong) {
   }
 
   private readPendingSend(uid: string, chatId: string, contentHash: string):
-    { uid: string; chatId: string; contentHash: string; requestId: string } | null {
+    { uid: string; chatId: string; contentHash: string; requestId: string; createdAt: number } | null {
     const key = this.pendingSendStorageKey(uid, chatId);
     try {
       const raw = sessionStorage.getItem(key);
       if (!raw) return null;
       const value: unknown = JSON.parse(raw);
-      if (!value || typeof value !== 'object') return null;
+      if (!value || typeof value !== 'object') {
+        sessionStorage.removeItem(key);
+        return null;
+      }
       const record = value as Record<string, unknown>;
       if (typeof record['createdAt'] !== 'number' ||
           !Number.isFinite(record['createdAt']) || record['createdAt'] > Date.now() ||
@@ -552,24 +557,23 @@ if (this.isMessageTooLong) {
       }
       if (record['uid'] !== uid || record['chatId'] !== chatId ||
           record['contentHash'] !== contentHash || !/^[a-f0-9]{64}$/.test(contentHash) ||
-          typeof record['requestId'] !== 'string' || !record['requestId']) return null;
-      return { uid, chatId, contentHash, requestId: record['requestId'] };
+          typeof record['requestId'] !== 'string' || !record['requestId']) {
+        sessionStorage.removeItem(key);
+        return null;
+      }
+      return { uid, chatId, contentHash, requestId: record['requestId'], createdAt: record['createdAt'] };
     } catch {
       sessionStorage.removeItem(key);
       return null;
     }
   }
 
-  private savePendingSend(intent: { uid: string; chatId: string; content: string; requestId: string }, contentHash: string): void {
+  private savePendingSend(intent: { uid: string; chatId: string; content: string; requestId: string; createdAt: number }, contentHash: string): void {
     try {
       const key = this.pendingSendStorageKey(intent.uid, intent.chatId);
-      const raw = sessionStorage.getItem(key);
-      const stored = raw ? JSON.parse(raw) as { requestId?: string; createdAt?: number } : null;
-      const existing = this.readPendingSend(intent.uid, intent.chatId, contentHash);
-      const createdAt = existing?.requestId === intent.requestId && stored?.createdAt
-        ? stored.createdAt : Date.now();
+      this.readPendingSend(intent.uid, intent.chatId, contentHash);
       sessionStorage.setItem(key, JSON.stringify({
-        uid: intent.uid, chatId: intent.chatId, contentHash, requestId: intent.requestId, createdAt,
+        uid: intent.uid, chatId: intent.chatId, contentHash, requestId: intent.requestId, createdAt: intent.createdAt,
       }));
     } catch {
       // Armazenamento indisponível não impede o envio.
