@@ -211,4 +211,39 @@ run('unread initial backfill — local emulator only', () => {
     }
   });
 
+  it('converges after an insertion races with a bounded reconciliation', async () => {
+    const chatId = `unread-insert-race-${randomUUID()}`;
+    const chat = db.collection('chats').doc(chatId);
+    const recipient = db.collection('direct_chat_unread_projections')
+      .doc('recipient').collection('chats').doc(chatId);
+    const sender = db.collection('direct_chat_unread_projections')
+      .doc('sender').collection('chats').doc(chatId);
+    try {
+      await chat.set({ participants: ['sender', 'recipient'] });
+      await chat.collection('messages').doc('001').set({
+        senderId: 'sender', status: 'sent',
+      });
+      const results = await Promise.allSettled([
+        reconcileDirectUnreadMessage(chatId, '001', ['sender', 'recipient'], ['001']),
+        chat.collection('messages').doc('002').set({
+          senderId: 'sender', status: 'delivered',
+        }),
+      ]);
+      assert.equal(results[1].status, 'fulfilled');
+      // The transaction either preceded the insertion or rejected its snapshot.
+      // Reconcile both under the new canonical set and verify idempotency.
+      await reconcileDirectUnreadMessage(chatId, '001',
+        ['sender', 'recipient'], ['001', '002']);
+      await reconcileDirectUnreadMessage(chatId, '002',
+        ['sender', 'recipient'], ['001', '002']);
+      await reconcileDirectUnreadMessage(chatId, '001',
+        ['sender', 'recipient'], ['001', '002']);
+      assert.equal((await recipient.get()).data()?.unreadCount, 2);
+      assert.equal((await recipient.collection('messages').get()).size, 2);
+    } finally {
+      await db.recursiveDelete(chat);
+      await Promise.all([db.recursiveDelete(recipient), db.recursiveDelete(sender)]);
+    }
+  });
+
 });
