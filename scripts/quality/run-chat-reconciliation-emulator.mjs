@@ -51,6 +51,9 @@ try {
     'functions/lib/chat/direct-chat/application/ensure-direct-chat.handler.test.js',
     'functions/lib/chat/direct-chat/application/send-direct-message.handler.test.js',
     'functions/lib/chat/direct-chat/application/delete-direct-message.handler.test.js',
+    // Reconciliador e auditoria unread precisam rodar com emulador real.
+    'functions/lib/chat/direct-chat/application/sync-direct-unread-projection.emulator.test.js',
+    'functions/lib/chat/direct-chat/application/direct-unread-backfill.audit.emulator.test.js',
   ].join(' ');
   const args = [
     'emulators:exec',
