@@ -28,7 +28,9 @@ async function main(): Promise<void> {
   const args = consistent || conversation ? input.slice(1) : input;
   if (conversation ? args.length !== 1 : consistent ? args.length !== 2 :
     ![2, 4, 6].includes(args.length)) {
-    throw new Error('Usage: --conversation CHAT_ID | --consistent CHAT_ID UID | CHAT_ID UID [CURSOR PAGE_SIZE [SCANNED UNREAD]]');
+    throw new Error(
+      'Usage: --conversation CHAT_ID | --consistent CHAT_ID UID | CHAT_ID UID [CURSOR PAGE_SIZE [SCANNED UNREAD]]'
+    );
   }
   const [chatId, uid, cursorArg = '-', sizeArg = '100', scannedArg = '0', unreadArg = '0'] = args;
   if ([chatId, ...(conversation ? [] : [uid])].some((id) => !id || id.length > 128 ||
