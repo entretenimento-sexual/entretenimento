@@ -28,7 +28,7 @@ export async function startDirectUnreadEmulatorJournal(chatId: string) {
   await ref.create({
     chatId, status: 'RUNNING', stage: 'PREFLIGHT', version: 1,
     completedMessagesRecorded: 0, transactionAttemptsRecorded: 0,
-    committedProjectionWritesRecorded: 0,
+    committedProjectionCheckpointWritesRecorded: 0,
     startedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
   });
   let writes = 1;
@@ -36,11 +36,11 @@ export async function startDirectUnreadEmulatorJournal(chatId: string) {
     runId,
     get writes() { return writes; },
     async progress(completedMessages: number, transactionAttempts: number,
-      committedProjectionWrites: number) {
+      committedProjectionCheckpointWrites: number) {
       await ref.update({
         stage: 'RECONCILE', completedMessagesRecorded: completedMessages,
         transactionAttemptsRecorded: transactionAttempts,
-        committedProjectionWritesRecorded: committedProjectionWrites,
+        committedProjectionCheckpointWritesRecorded: committedProjectionCheckpointWrites,
         updatedAt: FieldValue.serverTimestamp(),
       });
       writes += 1;
