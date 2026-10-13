@@ -14,6 +14,8 @@ export interface CanonicalOwnerLifecycleDecision {
 type OwnerLifecycleUserDocument = {
   accountStatus?: unknown;
   suspended?: unknown;
+  interactionBlocked?: unknown;
+  accountLocked?: unknown;
   publicVisibility?: unknown;
   loginAllowed?: unknown;
 };
@@ -39,7 +41,8 @@ export function evaluateCanonicalOwnerLifecycle(
     .toLowerCase();
 
   if (accountStatus !== 'active') return denied('OWNER_ACCOUNT_INACTIVE');
-  if (user.suspended === true) return denied('OWNER_ACCOUNT_SUSPENDED');
+  if (user.suspended === true || user.accountLocked === true ||
+      user.interactionBlocked === true) return denied('OWNER_ACCOUNT_SUSPENDED');
 
   if (
     String(user.publicVisibility ?? 'visible')
