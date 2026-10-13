@@ -186,6 +186,25 @@ describe('ChatModuleLayoutComponent', () => {
     expect(component.directMessageBlockedReason()).toBeNull();
   });
 
+  it('não apaga texto atualizado enquanto o envio antigo está pendente', () => {
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
+    const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
+    const pending = new Subject<{ messageId: string; blockedReason: null }>();
+    orchestrator.send$.mockReturnValueOnce(pending.asObservable());
+    selection.selectedChatId.mockReturnValue('chat-1');
+    selection.selectedType.mockReturnValue('chat');
+    component.canSendCurrentMessage.set(true);
+    component.messageContent = 'texto original';
+    component.sendMessage();
+
+    component.messageContent = 'texto atualizado';
+    pending.next({ messageId: 'sent-1', blockedReason: null });
+    expect(component.messageContent).toBe('texto atualizado');
+    expect(component.isSendingMessage()).toBe(true);
+    pending.complete();
+    expect(component.isSendingMessage()).toBe(false);
+  });
+
   it('mantém apenas atalhos do chat direto no estado vazio', () => {
     const text = fixture.nativeElement.textContent as string;
     const hrefs = Array.from(
