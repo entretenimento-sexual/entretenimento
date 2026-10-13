@@ -26,11 +26,11 @@ function readMessage(id: string, data: FirebaseFirestore.DocumentData | undefine
   return { messageId: id, senderUid, status: status as DirectReceiptStatus, deleted: data.deleted === true };
 }
 
-export const syncDirectUnreadProjection = onDocumentWritten(
-  { document: 'chats/{chatId}/messages/{messageId}', region: FUNCTIONS_REGION },
-  async (event) => {
-    const chatId = event.params.chatId;
-    const messageId = event.params.messageId;
+/** Callable internally by emulator tests and future bounded backfill. */
+export async function reconcileDirectUnreadMessage(
+  chatId: string,
+  messageId: string
+): Promise<void> {
     const chatRef = db.collection('chats').doc(chatId);
     const messageRef = chatRef.collection('messages').doc(messageId);
 
@@ -80,5 +80,9 @@ export const syncDirectUnreadProjection = onDocumentWritten(
         }
       });
     });
-  }
+}
+
+export const syncDirectUnreadProjection = onDocumentWritten(
+  { document: 'chats/{chatId}/messages/{messageId}', region: FUNCTIONS_REGION },
+  async (event) => reconcileDirectUnreadMessage(event.params.chatId, event.params.messageId)
 );
