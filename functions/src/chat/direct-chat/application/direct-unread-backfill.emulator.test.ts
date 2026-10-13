@@ -266,7 +266,39 @@ run('unread initial backfill — local emulator only', () => {
     }
   });
 
-  it('reads updated receipt without waiting on a transaction lock', async () => {
+  it('converges when a receipt update races with reconciliation', { timeout: 20_000 },
+    async () => {
+      const chatId = `unread-receipt-race-${randomUUID()}`;
+      const chat = db.collection('chats').doc(chatId);
+      const message = chat.collection('messages').doc('001');
+      const recipient = db.collection('direct_chat_unread_projections')
+        .doc('recipient').collection('chats').doc(chatId);
+      const sender = db.collection('direct_chat_unread_projections')
+        .doc('sender').collection('chats').doc(chatId);
+      try {
+        await chat.set({ participants: ['sender', 'recipient'] });
+        await message.set({ senderId: 'sender', status: 'sent' });
+        // Concurrent operations are launched independently: no waiting for a
+        // competing write inside an already-locked Firestore transaction.
+        const results = await Promise.allSettled([
+          reconcileDirectUnreadMessage(chatId, '001', ['sender', 'recipient'], ['001']),
+          message.update({ status: 'read' }),
+        ]);
+        assert.equal(results[1].status, 'fulfilled');
+        await reconcileDirectUnreadMessage(chatId, '001',
+          ['sender', 'recipient'], ['001']);
+        await reconcileDirectUnreadMessage(chatId, '001',
+          ['sender', 'recipient'], ['001']);
+        assert.equal((await recipient.get()).data()?.unreadCount ?? 0, 0);
+        assert.equal((await recipient.collection('messages').doc('001').get())
+          .data()?.status, 'read');
+      } finally {
+        await db.recursiveDelete(chat);
+        await Promise.all([db.recursiveDelete(recipient), db.recursiveDelete(sender)]);
+      }
+    });
+
+  it('reads updated receipt without waiting on a transaction lock', { timeout: 20_000 }, async () => {
     const chatId = `unread-read-conflict-${randomUUID()}`;
     const chat = db.collection('chats').doc(chatId);
     const message = chat.collection('messages').doc('001');
@@ -293,7 +325,7 @@ run('unread initial backfill — local emulator only', () => {
     }
   });
 
-  it('rejects deletion made before transactional reads', async () => {
+  it('rejects deletion made before transactional reads', { timeout: 20_000 }, async () => {
     const chatId = `unread-delete-conflict-${randomUUID()}`;
     const chat = db.collection('chats').doc(chatId);
     const message = chat.collection('messages').doc('001');
@@ -319,7 +351,7 @@ run('unread initial backfill — local emulator only', () => {
     }
   });
 
-  it('rejects participant replacement before transactional reads', async () => {
+  it('rejects participant replacement before transactional reads', { timeout: 20_000 }, async () => {
     const chatId = `unread-participant-conflict-${randomUUID()}`;
     const chat = db.collection('chats').doc(chatId);
     const projections = ['sender', 'recipient', 'replacement'].map((uid) =>
