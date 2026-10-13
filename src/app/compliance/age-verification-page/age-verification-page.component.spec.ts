@@ -41,6 +41,8 @@ describe('AgeVerificationPageComponent', () => {
     reconcileTrustedStateOncePerSession$: MockFn;
     requestInitialReview$: MockFn;
     refreshTrustedSources$: MockFn;
+    acceptSelfDeclaration$: MockFn;
+    getCurrentOnce$: MockFn;
   };
 
   beforeEach(async () => {
@@ -55,6 +57,8 @@ describe('AgeVerificationPageComponent', () => {
         of({ reportId: 'age_initial_1', status: 'REVIEW_REQUIRED' })
       ),
       refreshTrustedSources$: vi.fn(() => of('VERIFIED_ADULT')),
+      acceptSelfDeclaration$: vi.fn(() => of('SELF_DECLARED_ADULT')),
+      getCurrentOnce$: vi.fn(() => of(current$.value)),
     };
 
     await TestBed.configureTestingModule({
@@ -103,7 +107,7 @@ describe('AgeVerificationPageComponent', () => {
     expect(ageEligibilityMock.requestInitialReview$).not.toHaveBeenCalled();
   });
 
-  it('não pede autodeclaração novamente quando ela já existe', () => {
+  it('reconhece a declaração já existente sem solicitá-la novamente', async () => {
     current$.next({
       ...UNVERIFIED,
       status: 'SELF_DECLARED_ADULT',
@@ -113,12 +117,11 @@ describe('AgeVerificationPageComponent', () => {
     });
     fixture.detectChanges();
 
-    const text = String(fixture.nativeElement.textContent ?? '');
-
-    expect(text).toContain('Sua declaração anterior continua registrada');
-    expect(text).toContain('Você não precisa declará-la novamente');
-    expect(text).not.toContain('Confirmo que tenho 18 anos ou mais');
-    expect(router.navigate).not.toHaveBeenCalled();
+    expect(ageEligibilityMock.acceptSelfDeclaration$).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(router.navigate).toHaveBeenCalledWith(
+      ['/adulto/confirmar'],
+      expect.objectContaining({ replaceUrl: true })
+    ));
   });
 
   it('abre verificação confiável sem criar segunda declaração', () => {
@@ -191,16 +194,22 @@ describe('AgeVerificationPageComponent', () => {
     });
   });
 
-  it('não avança para SELF_DECLARED_ADULT', async () => {
-    current$.next({
-      ...UNVERIFIED,
-      status: 'SELF_DECLARED_ADULT',
-      source: 'SELF_DECLARATION',
-      method: 'SELF_DECLARATION',
-      updatedAtMs: 2,
+  it('permite a autodeclaração uma única vez no onboarding', async () => {
+    ageEligibilityMock.acceptSelfDeclaration$.mockImplementationOnce(() => {
+      current$.next({
+        ...UNVERIFIED,
+        status: 'SELF_DECLARED_ADULT',
+        source: 'SELF_DECLARATION',
+        method: 'SELF_DECLARATION',
+        updatedAtMs: 2,
+      });
+      return of('SELF_DECLARED_ADULT');
     });
-
-    await Promise.resolve();
-    expect(router.navigate).not.toHaveBeenCalled();
+    component.confirmAdult();
+    expect(ageEligibilityMock.acceptSelfDeclaration$).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(router.navigate).toHaveBeenCalledWith(
+      ['/adulto/confirmar'],
+      expect.objectContaining({ replaceUrl: true })
+    ));
   });
 });
