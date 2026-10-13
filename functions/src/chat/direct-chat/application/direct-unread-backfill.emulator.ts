@@ -82,7 +82,8 @@ export async function initializeDirectUnreadOnEmulator(chatId: string) {
         current.docs.some((item, index) => item.id !== documents.docs[index].id)) {
       throw new Error('Unread backfill message set changed');
     }
-    await reconcileDirectUnreadMessage(chatId, doc.id, participants);
+    await reconcileDirectUnreadMessage(chatId, doc.id, participants,
+      documents.docs.map((message) => message.id));
   }
   const after = await auditDirectUnreadConversation(chatId);
   if (!after.complete || after.summary.MATCH !== 2) {
