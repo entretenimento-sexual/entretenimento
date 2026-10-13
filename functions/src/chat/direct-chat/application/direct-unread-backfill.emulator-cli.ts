@@ -23,17 +23,18 @@ async function main(): Promise<void> {
     }
   }
   const input = process.argv.slice(2);
+  const writeEmulator = input[0] === '--initialize-emulator';
   const conversation = input[0] === '--conversation';
   const consistent = input[0] === '--consistent';
-  const args = consistent || conversation ? input.slice(1) : input;
-  if (conversation ? args.length !== 1 : consistent ? args.length !== 2 :
+  const args = consistent || conversation || writeEmulator ? input.slice(1) : input;
+  if (writeEmulator || conversation ? args.length !== 1 : consistent ? args.length !== 2 :
     ![2, 4, 6].includes(args.length)) {
     throw new Error(
       'Usage: --conversation CHAT_ID | --consistent CHAT_ID UID | CHAT_ID UID [CURSOR PAGE_SIZE [SCANNED UNREAD]]'
     );
   }
   const [chatId, uid, cursorArg = '-', sizeArg = '100', scannedArg = '0', unreadArg = '0'] = args;
-  if ([chatId, ...(conversation ? [] : [uid])].some((id) => !id || id.length > 128 ||
+  if ([chatId, ...((conversation || writeEmulator) ? [] : [uid])].some((id) => !id || id.length > 128 ||
       !/^[A-Za-z0-9_-]+$/.test(id))) throw new Error('Invalid scope');
   const pageSize = Number(sizeArg);
   if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100) {
@@ -51,6 +52,13 @@ async function main(): Promise<void> {
   // Admin SDK is loaded only after validating emulator environment.
   const audit = require('./direct-unread-backfill.audit') as
     typeof import('./direct-unread-backfill.audit');
+  if (writeEmulator) {
+    const backfill = require('./direct-unread-backfill.emulator') as
+      typeof import('./direct-unread-backfill.emulator');
+    const result = await backfill.initializeDirectUnreadOnEmulator(chatId);
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
   const result = conversation ? await audit.auditDirectUnreadConversation(chatId) : consistent ?
     await audit.auditDirectUnreadConsistent(chatId, uid) :
     await audit.auditDirectUnreadPage(
