@@ -471,6 +471,11 @@ if (this.isMessageTooLong) {
               selectedChatId,
               messageId: result.messageId,
             });
+          } else if (!result.blockedReason) {
+            // Falha técnica sem motivo de bloqueio: manter o rascunho para retry.
+            this.errorNotifier.showWarning(
+              'Não foi possível confirmar o envio. Verifique a conversa antes de tentar novamente.'
+            );
           }
         }),
         finalize(() => {
