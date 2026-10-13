@@ -149,7 +149,7 @@ describe('ChatModuleLayoutComponent', () => {
   });
 
   it('mantém editor somente leitura quando envio não está autorizado e libera após autorização', () => {
-    const selection = TestBed.inject(DirectChatSelectionContextFacade) as any;
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
     selection.selectedChatId.mockReturnValue('chat-1');
     selection.selectedType.mockReturnValue('chat');
     component.messageContent = 'rascunho';
