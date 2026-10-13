@@ -12,6 +12,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   assertInteractionAccess,
 } from '../account_lifecycle/interaction-access.policy';
+import { evaluateCanonicalOwnerLifecycle } from '../account_lifecycle/public-owner-exposure.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
@@ -236,6 +237,17 @@ export function serializeUserIntentStatusForDiscovery(
   };
 }
 
+/** An active status never overrides an inactive or restricted owner account. */
+export function filterUserIntentStatusesByOwnerLifecycle(
+  items: readonly Record<string, unknown>[],
+  owners: ReadonlyMap<string, Record<string, unknown> | null>
+): Record<string, unknown>[] {
+  return items.filter((item) => {
+    const uid = cleanUid(item['uid']);
+    return !!uid && evaluateCanonicalOwnerLifecycle(owners.get(uid) ?? null).allowed;
+  });
+}
+
 export const getUserIntentStatuses = onCall<UserIntentStatusesReadRequest>(
   {
     region: FUNCTIONS_REGION,
@@ -315,8 +327,20 @@ export const getUserIntentStatuses = onCall<UserIntentStatusesReadRequest>(
       }
     }
 
+    const uids = Array.from(new Set(items.map((item) => cleanUid(item['uid']))
+      .filter(Boolean)));
+    // At most 60 owner reads; never trust an orphaned public status projection.
+    const owners = new Map<string, Record<string, unknown> | null>();
+    if (uids.length) {
+      const snapshots = await db.getAll(...uids.map((uid) => db.doc(`users/${uid}`)));
+      snapshots.forEach((owner, index) => {
+        owners.set(uids[index],
+          owner.exists ? owner.data() as Record<string, unknown> : null);
+      });
+    }
+
     return {
-      items,
+      items: filterUserIntentStatusesByOwnerLifecycle(items, owners),
       fetchedAt: nowMs,
       scanned: snapshot.size,
     };
