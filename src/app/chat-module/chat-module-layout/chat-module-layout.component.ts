@@ -131,6 +131,7 @@ export class ChatModuleLayoutComponent implements OnInit {
 
   messageContent = '';
   activeSessionUid: string | null = null;
+  private pendingSend: { uid: string; chatId: string; content: string; requestId: string } | null = null;
 
   readonly maxMessageLength = DIRECT_CHAT_MAX_MESSAGE_LENGTH;
 
@@ -451,11 +452,18 @@ if (this.isMessageTooLong) {
     const sendingUid = this.activeSessionUid;
     if (!sendingUid) return;
 
+    // Repetições da mesma intenção reutilizam a chave; texto ou contexto novo recebe outra.
+    const previous = this.pendingSend;
+    const requestId = previous?.uid === sendingUid &&
+      previous.chatId === selectedChatId && previous.content === content
+      ? previous.requestId
+      : this.createSendRequestId();
+    this.pendingSend = { uid: sendingUid, chatId: selectedChatId, content, requestId };
     this.isSendingMessage.set(true);
     const sendingContent = this.messageContent;
 
     this.sendOrchestrator
-      .send$(selectedChatId, content)
+      .send$(selectedChatId, content, requestId)
       .pipe(
         take(1),
         tap((result) => {
@@ -466,6 +474,7 @@ if (this.isMessageTooLong) {
           }
 
           if (result.messageId) {
+            if (this.pendingSend?.requestId === requestId) this.pendingSend = null;
             if (this.messageContent === sendingContent) this.messageContent = '';
             this.directMessageBlockedReason.set(null);
 
@@ -490,6 +499,15 @@ if (this.isMessageTooLong) {
         })
       )
       .subscribe();
+  }
+
+  private createSendRequestId(): string {
+    if (typeof globalThis.crypto?.randomUUID === 'function') {
+      return globalThis.crypto.randomUUID();
+    }
+    return ['dm', Date.now().toString(36),
+      Math.random().toString(36).slice(2),
+      Math.random().toString(36).slice(2)].join('_');
   }
 
   onComposerKeydown(event: KeyboardEvent): void {
