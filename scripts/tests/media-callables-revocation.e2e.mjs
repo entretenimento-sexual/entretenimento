@@ -86,7 +86,7 @@ async function expectError(call, data, code, reason) {
   assert.equal(failure.code, 'functions/' + code, String(failure.message));
   if (reason) {
     assert.equal(
-      failure.customData?.reason,
+      failure.details?.reason,
       reason,
       'Callable deve preservar o reason canônico.'
     );
