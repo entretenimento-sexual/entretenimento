@@ -32,6 +32,12 @@ describe('DirectChatSendOrchestrator', () => {
     expect(sendMessage$).toHaveBeenCalledWith('olá');
   });
 
+  it('repassa clientRequestId explícito para a facade', async () => {
+    const { orchestrator, sendMessage$ } = setup(of('msg-1'));
+    await firstValueFrom(orchestrator.send$('chat-1', 'olá', 'retry-stable-1'));
+    expect(sendMessage$).toHaveBeenCalledWith('olá', 'retry-stable-1');
+  });
+
   it('traduz bloqueio conhecido sem lançar para o shell', async () => {
     const { orchestrator } = setup(
       throwError(() => ({
