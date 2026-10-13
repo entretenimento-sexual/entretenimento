@@ -1,13 +1,13 @@
 /**
- * Initial unread backfill restricted to the local Firestore Emulator.
- * Only chats with NO projections can be initialized. Existing partial
- * projections are deliberately rejected; reconciliation of those requires
- * a separate recovery protocol.
+ * Bounded unread backfill restricted to the local Firestore Emulator.
+ * Existing checkpoints can be resumed only after integrity verification.
+ * Production use, empty chats and histories above 100 messages are blocked.
  */
 import { db } from '../../../firebaseApp';
 import { auditDirectUnreadConversation } from './direct-unread-backfill.audit';
 import { reconcileDirectUnreadMessage } from './sync-direct-unread-projection.trigger';
 import { isDirectMessageUnread, type DirectUnreadMessage } from '../domain/direct-unread-projection.policy';
+import { estimateDirectUnreadBackfillBudget } from '../domain/direct-unread-backfill-budget.policy';
 
 export async function initializeDirectUnreadOnEmulator(chatId: string) {
   const host = process.env.FIRESTORE_EMULATOR_HOST;
@@ -28,6 +28,7 @@ export async function initializeDirectUnreadOnEmulator(chatId: string) {
   if (documents.size > 100 || documents.size !== before.scanned) {
     throw new Error('Unread backfill preflight changed');
   }
+  const budget = estimateDirectUnreadBackfillBudget(documents.size);
   // Every recorded contribution must be represented by a checkpoint on
   // BOTH sides. Otherwise a retry could silently double-count older writes.
   const chat = await db.collection('chats').doc(chatId).get();
@@ -86,5 +87,6 @@ export async function initializeDirectUnreadOnEmulator(chatId: string) {
   return {
     mode: 'EMULATOR_WRITE', chatId,
     processedMessages: documents.size, before: before.summary, after: after.summary,
+    budget,
   };
 }
