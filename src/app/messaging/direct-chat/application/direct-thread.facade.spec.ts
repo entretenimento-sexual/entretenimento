@@ -259,6 +259,40 @@ describe('DirectThreadFacade', () => {
     sending.unsubscribe();
   });
 
+  it('não confunde falha de leitura com revogação da autorização canônica', () => {
+    const canOpen$ = new BehaviorSubject(true);
+    const listen$ = new BehaviorSubject(true);
+    const observerError = Object.assign(new Error('offline'), { code: 'unavailable' });
+    const sendMessage$ = vi.fn(() => of('sent'));
+    const facade = new DirectThreadFacade(
+      { selectedChatId$: of('chat-1'), selectedChatCanOpen$: canOpen$ } as any,
+      {
+        observeMessages$: vi.fn(() => throwError(() => observerError)),
+        sendMessage$,
+      } as any,
+      {} as any,
+      { uid$: of('user-a') } as any,
+      { canListenRealtime$: listen$ } as any,
+      { report: vi.fn() } as any,
+      { log: vi.fn() } as any,
+    );
+    const states: any[] = [];
+    const permissions: boolean[] = [];
+    const stateSub = facade.state$.subscribe(state => states.push(state));
+    const permissionSub = facade.canSend$.subscribe(canSend => permissions.push(canSend));
+
+    expect(states.at(-1)?.errorMessage).toContain('Verifique sua conexão');
+    expect(permissions.at(-1)).toBe(true);
+    expect(sendMessage$).not.toHaveBeenCalled();
+
+    canOpen$.next(false);
+    expect(permissions.at(-1)).toBe(false);
+    expect(states.at(-1)).toMatchObject({ chatId: null, messages: [] });
+
+    stateSub.unsubscribe();
+    permissionSub.unsubscribe();
+  });
+
   it('bloqueia envio, exclusão e recibos após revogação e reabilita apenas com acesso canônico', async () => {
     const canOpen$ = new BehaviorSubject(true);
     const sendMessage$ = vi.fn(() => of('sent'));
