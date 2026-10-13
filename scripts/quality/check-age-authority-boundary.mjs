@@ -291,6 +291,39 @@ forbidAll(
 );
 
 // -----------------------------------------------------------------------------
+// Media: distribuição e segurança de conteúdo não recebem assurance do autor
+// -----------------------------------------------------------------------------
+
+for (const relativePath of [
+  'functions/src/media/application/public-media-exposure.policy.ts',
+  'functions/src/media/application/public-media-owner-exposure.service.ts',
+  'functions/src/media/application/media-authoring-eligibility.service.ts',
+  'functions/src/media/application/public-media-consumption-access.policy.ts',
+  'functions/src/media/application/media-content-safety-assessment.policy.ts',
+]) {
+  forbidAll(relativePath, [
+    'ageEligibilityVerifiedAdult',
+    'ageEligibilityAssurance',
+    'ageEligibilityValidUntil',
+    'isTrustedAdultAgeDecision',
+    'SELF_DECLARED_ADULT',
+    'VERIFIED_ADULT',
+  ], 'Media não pode decidir autoria, exposição ou segurança com assurance da conta');
+}
+
+requireAll(
+  'functions/src/media/application/public-media-exposure.policy.ts',
+  ['canonicalOwnerLifecycleAllowed', 'moderationStatus', 'viewerBlocked'],
+  'distribuição de Media usa lifecycle, audiência e moderação'
+);
+
+requireAll(
+  'functions/src/media/application/media-content-safety-assessment.policy.ts',
+  ['POSSIBLE_MINOR', 'CONFIRMED_MINOR', 'UNASSESSED'],
+  'segurança de menor no conteúdo tem autoridade independente'
+);
+
+// -----------------------------------------------------------------------------
 // Frontend: onboarding pode reconciliar idade; produto ativo usa lifecycle
 // -----------------------------------------------------------------------------
 
