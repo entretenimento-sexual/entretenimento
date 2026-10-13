@@ -464,9 +464,9 @@ if (this.isMessageTooLong) {
       this.pendingSend.chatId === selectedChatId
       ? this.pendingSend
       : this.readPendingSend(sendingUid, selectedChatId, digest);
-    const requestId = previous?.content === content
-      ? previous.requestId
-      : this.createSendRequestId();
+    const sameContent = previous && ('content' in previous
+      ? previous.content === content : previous.contentHash === digest);
+    const requestId = sameContent ? previous.requestId : this.createSendRequestId();
     this.pendingSend = { uid: sendingUid, chatId: selectedChatId, content, requestId };
     this.savePendingSend(this.pendingSend, digest);
     this.isSendingMessage.set(true);
