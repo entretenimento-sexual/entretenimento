@@ -26,7 +26,9 @@ run('unread initial backfill — local emulator only', () => {
       });
       const result = await initializeDirectUnreadOnEmulator(chatId);
       assert.equal(result.processedMessages, 2);
-      assert.equal(result.budget.maxCommittedWrites, 8);
+      assert.equal(result.budget.maxCommittedWrites, 11);
+      assert.equal(result.budget.maxJournalWrites, 3);
+      assert.equal(result.observations.journalWrites, 3);
       assert.equal(result.budget.estimatedReadsWithRetries, 89);
       assert.equal(result.after.MATCH, 2);
       assert.equal((await projections[0].get()).data()?.unreadCount, 0);
