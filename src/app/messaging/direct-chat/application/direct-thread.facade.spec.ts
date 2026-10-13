@@ -392,7 +392,8 @@ describe('DirectThreadFacade', () => {
 
     expect(directThreadService.sendMessage$).toHaveBeenCalledWith(
       'chat-1',
-      'oi'
+      'oi',
+      undefined
     );
     expect(applicationError.report).not.toHaveBeenCalled();
   });
