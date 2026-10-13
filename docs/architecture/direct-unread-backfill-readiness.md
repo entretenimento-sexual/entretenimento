@@ -100,6 +100,8 @@ interpreted as zero-cost operations.
 CLI commands available after setting the approved local-demo emulator
 environment and compiling Functions:
 
+- `--list-journals CHAT_ID`: read-only, bounded discovery of up to 20 run IDs;
+  the `truncated` flag warns when additional records exist (no pagination yet).
 - `--inspect-journal RUN_ID`: one-document, read-only classification.
 - `--purge-journal RUN_ID CONFIRM_TERMINAL_JOURNAL_PURGE`: explicit single-run
   deletion using a Firestore transaction that rechecks the record before
