@@ -45,6 +45,13 @@ run('unread projection audit — read only', () => {
     assert.equal((await projection.collection('messages').get()).size, 0);
   });
 
+  it('rejects invalid resume state and exceeding the global scan budget', async () => {
+    await assert.rejects(auditDirectUnreadPage(chatId, 'recipient', '001', 2));
+    await assert.rejects(auditDirectUnreadPage(chatId, 'recipient', null, 2, 2, 1));
+    await assert.rejects(auditDirectUnreadPage(chatId, 'recipient', 'missing', 2, 2, 1));
+    await assert.rejects(auditDirectUnreadPage(chatId, 'recipient', '002', 100, 950, 1));
+  });
+
   it('detects divergence and rejects nonparticipant scans', async () => {
     await projection.update({ unreadCount: 7 });
     const report = await auditDirectUnreadPage(chatId, 'recipient', null, 100);
