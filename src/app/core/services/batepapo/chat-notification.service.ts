@@ -17,7 +17,7 @@
 // - a persistência correta exige migração de contrato, rules e Cloud Functions.
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, Subscription, from, of } from 'rxjs';
-import { catchError, map, mergeMap, reduce } from 'rxjs/operators';
+import { catchError, map, mergeMap, reduce, switchMap, take } from 'rxjs/operators';
 
 // ✅ Injeta a instância correta via AngularFire
 import { Firestore } from '@angular/fire/firestore';
@@ -29,12 +29,14 @@ import {
   where,
   onSnapshot,
   getDocs,
-  writeBatch,
   type QuerySnapshot,
   type DocumentData,
 } from 'firebase/firestore';
 
 import { ApplicationErrorService } from '../error-handler/application-error.service';
+import { AccessControlService } from '../autentication/auth/access-control.service';
+import { DirectReceiptsService } from 'src/app/messaging/direct-chat/services/direct-receipts.service';
+import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
 @Injectable({ providedIn: 'root' })
 export class ChatNotificationService {
@@ -55,7 +57,9 @@ export class ChatNotificationService {
 
   constructor(
     private readonly db: Firestore,
-    private readonly applicationError: ApplicationErrorService
+    private readonly applicationError: ApplicationErrorService,
+    private readonly accessControl: AccessControlService,
+    private readonly directReceipts: DirectReceiptsService
   ) { }
 
   private dbg(tag: string, data?: any): void {
@@ -225,35 +229,33 @@ export class ChatNotificationService {
     );
   }
 
-  /** Reseta mensagens não lidas para um chat específico */
+  /**
+   * Mantém a assinatura legada, delegando toda mutação de recibos à autoridade
+   * DirectReceiptsService. Nunca grava sent -> read diretamente.
+   * O segundo avanço depende do snapshot atualizado da thread.
+   */
   resetUnreadMessagesForChat(chatId: string): void {
     const id = (chatId ?? '').trim();
     if (!id) return;
 
-    let qSent;
-    try {
-      const messagesRef = collection(this.db, `chats/${id}/messages`);
-      qSent = query(messagesRef, where('status', '==', 'sent'));
-    } catch (err) {
-      this.handleRealtimeError('Erro ao preparar reset de mensagens', err, 'resetUnreadMessagesForChat:buildQuery');
-      return;
-    }
-
-    // Mantém assinatura void, mas usa fluxo Rx internamente
-    from(getDocs(qSent)).pipe(
-      mergeMap((snap) => {
-        // batch (melhor que Promise.all / setDoc individual)
-        const batch = writeBatch(this.db);
-
-        for (const d of snap.docs) {
-          batch.update(d.ref, { status: 'read' });
-        }
-
-        return from(batch.commit());
+    this.accessControl.authUid$.pipe(
+      take(1),
+      switchMap((uid) => {
+        if (!uid || uid !== this.currentUid) return of(0);
+        const messagesRef = collection(this.db, `chats/${id}/messages`);
+        return from(getDocs(query(messagesRef, where('senderId', '!=', uid)))).pipe(
+          switchMap((snapshot) => {
+            if (uid !== this.currentUid) return of(0);
+            const messages = snapshot.docs
+              .filter((doc) => ['sent', 'delivered'].includes(doc.data()?.['status']))
+              .map((doc) => ({ id: doc.id, ...doc.data() }) as Message);
+            return this.directReceipts.markDeliveredAsRead$(id, uid, messages);
+          })
+        );
       }),
-      catchError((err) => {
-        this.handleRealtimeError('Erro ao resetar mensagens', err, 'resetUnreadMessagesForChat:commit');
-        return of(void 0);
+      catchError((error) => {
+        this.handleRealtimeError('Erro ao atualizar recibos', error, 'resetUnreadMessagesForChat');
+        return of(0);
       })
     ).subscribe(() => {
       if (this.currentUid) this.refreshUnreadCountOnce(this.currentUid);
