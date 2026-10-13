@@ -60,8 +60,18 @@ export class ChatDraftDirective implements OnChanges, OnDestroy, OnInit {
       return;
     }
 
+    const nextKey = this.resolveStorageKey();
+    if (this.lastStorageKey === nextKey) return;
+
     this.persistCurrentDraft(this.lastStorageKey);
-    this.lastStorageKey = this.resolveStorageKey();
+    this.lastStorageKey = nextKey;
+    // Não levar texto da conversa/conta anterior para a nova chave.
+    this.elementRef.nativeElement.value = '';
+    this.ngModel?.control.setValue('', {
+      emitEvent: true,
+      emitModelToViewChange: true,
+      emitViewToModelChange: true,
+    });
     this.restoreDraftForCurrentKey();
   }
 
