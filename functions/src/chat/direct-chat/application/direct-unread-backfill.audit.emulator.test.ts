@@ -116,6 +116,30 @@ run('unread projection audit — read only', () => {
     }
   });
 
+  it('does not mix receipt and projection states during a concurrent transaction', async () => {
+    const messageRef = chat.collection('messages').doc('001');
+    // The receipt and its projection are committed together in this scenario.
+    // The audit may observe before or after, never half of the update.
+    const [report] = await Promise.all([
+      auditDirectUnreadConversation(chatId),
+      db.runTransaction(async (tx) => {
+        const current = await tx.get(messageRef);
+        assert.equal(current.data()?.status, 'sent');
+        tx.update(messageRef, { status: 'read' });
+        tx.update(projection, { unreadCount: 1 });
+      }),
+    ]);
+    const recipient = report.participants.find((row) => row.participantUid === 'recipient');
+    assert.ok(recipient);
+    assert.equal(recipient.comparison, 'MATCH');
+    assert.ok(
+      (recipient.actualUnreadCount === 2 && recipient.storedUnreadCount === 2) ||
+      (recipient.actualUnreadCount === 1 && recipient.storedUnreadCount === 1)
+    );
+    await messageRef.update({ status: 'sent' });
+    await projection.update({ unreadCount: 2 });
+  });
+
   it('rejects invalid resume state and exceeding the global scan budget', async () => {
     await assert.rejects(auditDirectUnreadPage(chatId, 'recipient', '001', 2));
     await assert.rejects(auditDirectUnreadPage(chatId, 'recipient', null, 2, 2, 1));
