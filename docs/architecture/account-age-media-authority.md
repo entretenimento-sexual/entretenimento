@@ -75,6 +75,38 @@ No publication/distribution entitlement is derived from owner age-assurance
 fields, and `media-content-safety-assessment.policy.ts` remains the separate
 content-minor safety authority.
 
+## Lifecycle revocation contract (backend and Rules)
+
+Account lifecycle is the authority for a restricted owner, whether a public
+projection has already been deleted or is still present. A newly discovered
+safety concern can first set `interactionBlocked=true` and
+`publicVisibility=hidden`; trusted confirmation sets
+`accountStatus=moderation_suspended`, `suspended=true`, and preserves
+account-level status/review access.
+
+The following paths now reject or omit restricted accounts without querying
+age-assurance records in product domains:
+
+| Path | Lifecycle enforcement |
+| --- | --- |
+| Chat, Media consumption and publishing, discovery requester | Canonical `assertInteractionAccess`, including `accountLocked` and `loginAllowed` |
+| Public photo and video owner eligibility | Shared `account_lifecycle/public-owner-exposure.policy.ts` |
+| Firestore profile/photo/video direct reads | `canonicalOwnerLifecycleAllowsPublicMediaExposure` checks suspension, visibility and account/interactions locks |
+| Public profile discovery (UID, nickname, nearby, cursor) | Batch-check `users/{uid}` before returning any candidate |
+| Public "Status de Hoje" discovery | Batch-check status owner account before returning public status |
+
+These batch checks add bounded reads: up to 120 account documents per
+public-profile response or 60 per intent-status response, in addition to
+existing profile/status queries. This is extra read cost, not a billing
+guarantee. Candidate filtering occurs after the response's scan window;
+a page can contain fewer visible results if restricted candidates were
+scanned. Pagination fill-rate optimization can follow without weakening the
+revocation boundary.
+
+Account flags, rather than `SELF_DECLARED_ADULT` or `VERIFIED_ADULT`,
+control access once a valid account has been admitted. Content-minor
+safety still uses an independent Media assessment/moderation authority.
+
 ## Release and operational cautions
 
 The admission policy has changed in source control, not in production. Before
