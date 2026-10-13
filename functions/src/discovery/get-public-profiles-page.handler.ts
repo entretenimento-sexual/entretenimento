@@ -451,13 +451,16 @@ async function enforceDiscoveryOwnerLifecycle(
     .filter(Boolean)));
   if (!uids.length) return { ...page, items: [] };
 
-  // All response branches cap items to <=120. Bounded additional read cost.
-  const snapshots = await db.getAll(...uids.map((uid) => db.doc(`users/${uid}`)));
+  // Bounded candidate scan: never issue an unbounded getAll.
   const owners = new Map<string, Record<string, unknown> | null>();
-  snapshots.forEach((snapshot, index) => {
-    owners.set(uids[index],
-      snapshot.exists ? snapshot.data() as Record<string, unknown> : null);
-  });
+  for (let offset = 0; offset < uids.length; offset += 120) {
+    const chunk = uids.slice(offset, offset + 120);
+    const snapshots = await db.getAll(...chunk.map((uid) => db.doc(`users/${uid}`)));
+    snapshots.forEach((snapshot, index) => {
+      owners.set(chunk[index],
+        snapshot.exists ? snapshot.data() as Record<string, unknown> : null);
+    });
+  }
   return {
     ...page,
     items: filterDiscoveryCardsByOwnerLifecycle(page.items, owners),
@@ -537,7 +540,7 @@ async function getNearbyProfiles(
       Number(left['distanciaKm'] ?? Number.POSITIVE_INFINITY)
       - Number(right['distanciaKm'] ?? Number.POSITIVE_INFINITY)
     )
-    .slice(0, pageSize);
+    .slice(0, maxScanned);
 
   return {
     items,
@@ -639,9 +642,10 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
     const filters = normalizeFilters(request.data?.filters);
 
     if (nearby) {
-      return enforceDiscoveryOwnerLifecycle(
+      const nearbyPage = await enforceDiscoveryOwnerLifecycle(
         await getNearbyProfiles(nearby, pageSize, filters, nowMs)
       );
+      return { ...nearbyPage, items: nearbyPage.items.slice(0, pageSize) };
     }
 
     const initialCursor = normalizeCursor(request.data?.cursor);
@@ -674,18 +678,16 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
           searchItems.push(card);
         }
 
-        if (searchItems.length >= pageSize) {
-          break;
-        }
       }
 
-      return enforceDiscoveryOwnerLifecycle({
+      const visiblePage = await enforceDiscoveryOwnerLifecycle({
         items: searchItems,
         nextCursor: null,
         reachedEnd: true,
         fetchedAt: nowMs,
         scanned: searchSnapshot.size,
       });
+      return { ...visiblePage, items: visiblePage.items.slice(0, pageSize) };
     }
 
     let cursor = initialCursor;
@@ -728,44 +730,60 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
         break;
       }
 
+      const candidates: Array<{
+        card: Record<string, unknown>;
+        position: DiscoveryPageCursor;
+      }> = [];
+      let batchCursor = cursor;
       for (const document of snapshot.docs) {
-        const updatedAtMs =
-          timestampToMillis(document.data()['updatedAt']);
-
-        if (updatedAtMs === null) continue;
-
-        cursor = { uid: document.id, updatedAtMs };
         scanned += 1;
-
-        const card = serializePublicProfileForDiscovery(
-          document.id,
-          document.data() as Record<string, unknown>,
-          nowMs
-        );
-
-        if (card && matchesDiscoveryFilters(card, filters)) {
-          items.push(card);
+        const updatedAtMs = timestampToMillis(document.data()['updatedAt']);
+        if (updatedAtMs === null) {
+          // Cannot safely construct a client cursor for an invalid record.
+          reachedEnd = true;
+          break;
         }
+        const position = { uid: document.id, updatedAtMs };
+        batchCursor = position;
+        const card = serializePublicProfileForDiscovery(
+          document.id, document.data() as Record<string, unknown>, nowMs
+        );
+        if (card && matchesDiscoveryFilters(card, filters)) {
+          candidates.push({ card, position });
+        }
+        if (scanned >= maxScanned) break;
+      }
 
-        if (
-          items.length >= pageSize
-          || scanned >= maxScanned
-        ) {
+      const visibleBatch = await enforceDiscoveryOwnerLifecycle({
+        items: candidates.map((entry) => entry.card),
+        nextCursor: null, reachedEnd: true,
+        fetchedAt: nowMs, scanned,
+      });
+      const allowedUids = new Set(visibleBatch.items.map((item) => item['uid']));
+      let pageFull = false;
+      for (const candidate of candidates) {
+        if (!allowedUids.has(candidate.card['uid'])) continue;
+        items.push(candidate.card);
+        if (items.length === pageSize) {
+          // Resume at the last returned result, not the end of a prefetched
+          // batch; otherwise valid profiles could be skipped on the next page.
+          cursor = candidate.position;
+          pageFull = true;
           break;
         }
       }
-
-      if (snapshot.size < currentBatchSize) {
+      if (!pageFull) cursor = batchCursor;
+      if (!pageFull && snapshot.size < currentBatchSize) {
         reachedEnd = true;
       }
     }
 
-    return enforceDiscoveryOwnerLifecycle({
+    return {
       items,
       nextCursor: reachedEnd ? null : cursor,
       reachedEnd,
       fetchedAt: nowMs,
       scanned,
-    });
+    };
   }
 );
