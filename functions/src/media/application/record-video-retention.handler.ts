@@ -2,8 +2,14 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
+import {
+  assertNoActiveBilateralBlockInTransaction,
+} from '../../friendship/application/bilateral-block-access.policy';
 import { buildMediaEngagementScore } from './media-engagement-score';
-import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
+import {
+  assertPublicMediaConsumptionAccess,
+  assertPublicMediaConsumptionAccessInTransaction,
+} from './public-media-consumption-access.policy';
 import { assertCurrentPublicMediaOwnerLifecycle } from './public-media-transaction-owner-access.policy';
 import { normalizeVideoAudienceScore } from './video-audience-score';
 import { buildVideoRetentionAggregate } from './video-retention-score';
@@ -108,6 +114,13 @@ export const recordVideoRetention = onCall<RecordVideoRetentionRequest>(
     const expectedTokenHash = hashVideoRetentionToken(retentionToken);
 
     return db.runTransaction(async (transaction) => {
+      // Old retention tokens cannot override a new account restriction/block.
+      await Promise.all([
+        assertPublicMediaConsumptionAccessInTransaction(transaction, viewerUid),
+        assertNoActiveBilateralBlockInTransaction(
+          transaction, viewerUid, ownerUid, 'Vídeo público não encontrado.'
+        ),
+      ]);
       const [ownerAccountSnap, videoSnap, viewerSnap] = await Promise.all([
         transaction.get(ownerAccountRef),
         transaction.get(publicVideoRef),

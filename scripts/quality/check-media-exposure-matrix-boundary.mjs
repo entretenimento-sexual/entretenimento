@@ -35,6 +35,13 @@ function requireIncludes(source, fragments, label) {
   }
 }
 
+function requireTransactionIncludes(source, fragments, label) {
+  const marker = 'db.runTransaction(async (transaction) => {';
+  const index = source.indexOf(marker);
+  if (index < 0) throw new Error('[media-exposure-matrix] ' + label + ': sem transação');
+  requireIncludes(source.slice(index), fragments, label);
+}
+
 const storageRules = read('storage.rules');
 requireIncludes(storageRules, [
   'function mayReadPublishedAvatar(uid)',
@@ -152,6 +159,18 @@ for (const metricPath of [
     'ownerAccountRef',
     'transaction.get(ownerAccountRef)',
   ], metricPath + ' deve revogar métrica quando lifecycle do owner mudar');
+  requireTransactionIncludes(source, [
+    'assertPublicMediaConsumptionAccessInTransaction(transaction, viewerUid)',
+  ], metricPath + ' deve revalidar lifecycle do visitante');
+  if (metricPath.endsWith('record-photo-view.handler.ts')) {
+    requireTransactionIncludes(source, [
+      'resolvePhotoAudienceAccessInTransaction(',
+    ], 'foto deve manter audiência e bloqueio transacionais');
+  } else {
+    requireTransactionIncludes(source, [
+      'assertNoActiveBilateralBlockInTransaction(',
+    ], metricPath + ' revoga após bloqueio bilateral');
+  }
 }
 
 const playbackSessionIssuer = read(
@@ -164,6 +183,10 @@ requireIncludes(playbackSessionIssuer, [
   'transaction.get(publicVideoRef)',
   'transaction.set(playbackSessionRef',
 ], 'sessão de playback deve validar owner e ativo no mesmo commit');
+requireTransactionIncludes(playbackSessionIssuer, [
+  'assertPublicMediaConsumptionAccessInTransaction(transaction, viewerUid)',
+  'assertNoActiveBilateralBlockInTransaction(',
+], 'playback deve revalidar visitante e bloqueios na transação');
 
 const metricOwnerPolicy = read(
   'functions/src/media/application/public-media-transaction-owner-access.policy.ts'

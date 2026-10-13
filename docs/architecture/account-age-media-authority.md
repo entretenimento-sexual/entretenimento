@@ -143,9 +143,15 @@ usable until cryptographic expiry even if the owner is suspended.
 Video playback-session tokens are now persisted only after a Firestore
 transaction re-reads the owner account lifecycle and video publication state.
 Metrics for photo views, video views and video retention also re-check the
-canonical owner account inside their write transactions. A previously issued
-session token therefore cannot authorize **new metrics** on restricted content.
-Photo view metrics also validate the viewer account access before writing.
+canonical owner account inside their write transactions. Their transactions now
+also revalidate the viewer's canonical Account Access, including terms/consent
+and lifecycle, without inspecting age assurance. Photo views already validate
+friend audience and bilateral block atomically; video playback issuance, video
+views and retention also re-check blocks in both directions before writing.
+A token already issued cannot authorize **new metric writes** after a committed
+restriction or block. This does not revoke downloaded bytes or signed URLs.
+Expect one extra viewer read per metric transaction and two block reads per
+video transaction attempt. Track billing and retries before lifting quotas.
 
 The browser's signed URL cache is session-scoped and expiry-bounded, but it
 does not cryptographically revoke already downloaded content or signed links.

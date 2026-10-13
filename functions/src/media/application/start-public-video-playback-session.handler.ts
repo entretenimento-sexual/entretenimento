@@ -4,12 +4,16 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
   assertNoActiveBilateralBlock,
+  assertNoActiveBilateralBlockInTransaction,
 } from '../../friendship/application/bilateral-block-access.policy';
 import {
   assertPublicMediaCallableAppCheck,
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
-import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
+import {
+  assertPublicMediaConsumptionAccess,
+  assertPublicMediaConsumptionAccessInTransaction,
+} from './public-media-consumption-access.policy';
 import { assertCurrentPublicMediaOwnerLifecycle } from './public-media-transaction-owner-access.policy';
 import { resolvePublicMediaOwnerExposure } from './public-media-owner-exposure.service';
 import {
@@ -162,12 +166,17 @@ export const startPublicVideoPlaybackSession = onCall<
       .collection(PUBLIC_VIDEO_PLAYBACK_SESSION_COLLECTION)
       .doc(viewerUid);
 
-    // The owner can be restricted between the public read and issuing a
-    // session. Read the canonical owner and current asset in the same
-    // transaction that persists the token.
+    // Canonical owner, viewer, bilateral blocks and asset must all be current
+    // when the playback token is persisted, not only during preflight.
     const ownerAccountRef = db.doc(`users/${ownerUid}`);
     const ownerPublicProfileRef = db.doc(`public_profiles/${ownerUid}`);
     await db.runTransaction(async (transaction) => {
+      await Promise.all([
+        assertPublicMediaConsumptionAccessInTransaction(transaction, viewerUid),
+        assertNoActiveBilateralBlockInTransaction(
+          transaction, viewerUid, ownerUid, 'Vídeo público não encontrado.'
+        ),
+      ]);
       const [ownerAccountSnap, ownerPublicProfileSnap, currentVideoSnap] =
         await Promise.all([
           transaction.get(ownerAccountRef),

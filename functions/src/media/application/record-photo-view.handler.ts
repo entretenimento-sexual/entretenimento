@@ -20,7 +20,10 @@ import {
 } from '../../friendship/application/social-connection-access.policy';
 import { calculateMediaViewScore } from './media-audience-score';
 import { logPhotoOperation } from './photo-operation-telemetry';
-import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
+import {
+  assertPublicMediaConsumptionAccess,
+  assertPublicMediaConsumptionAccessInTransaction,
+} from './public-media-consumption-access.policy';
 import { assertCurrentPublicMediaOwnerLifecycle } from './public-media-transaction-owner-access.policy';
 import {
   canReadPublishedPhotoAudience,
@@ -186,6 +189,7 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
       .doc(viewerUid);
 
     const outcome = await db.runTransaction(async (transaction) => {
+      await assertPublicMediaConsumptionAccessInTransaction(transaction, viewerUid);
       const ownerAccountSnap = await transaction.get(ownerAccountRef);
       assertCurrentPublicMediaOwnerLifecycle(ownerAccountSnap.data());
       const publicProfileSnap = await transaction.get(publicProfileRef);

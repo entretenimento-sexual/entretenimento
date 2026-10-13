@@ -2,8 +2,14 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
+import {
+  assertNoActiveBilateralBlockInTransaction,
+} from '../../friendship/application/bilateral-block-access.policy';
 import { buildMediaEngagementScore } from './media-engagement-score';
-import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
+import {
+  assertPublicMediaConsumptionAccess,
+  assertPublicMediaConsumptionAccessInTransaction,
+} from './public-media-consumption-access.policy';
 import { assertCurrentPublicMediaOwnerLifecycle } from './public-media-transaction-owner-access.policy';
 import {
   PUBLIC_VIDEO_PLAYBACK_SESSION_COLLECTION,
@@ -251,6 +257,13 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
     const retentionTokenExpiresAt = now + VIDEO_RETENTION_TOKEN_TTL_MS;
 
     const outcome = await db.runTransaction(async (transaction) => {
+      // A token issued before a suspension or block is not an ongoing grant.
+      await Promise.all([
+        assertPublicMediaConsumptionAccessInTransaction(transaction, viewerUid),
+        assertNoActiveBilateralBlockInTransaction(
+          transaction, viewerUid, ownerUid, 'Vídeo público não encontrado.'
+        ),
+      ]);
       const ownerAccountSnap = await transaction.get(ownerAccountRef);
       assertCurrentPublicMediaOwnerLifecycle(ownerAccountSnap.data());
       const publicProfileSnap = await transaction.get(publicProfileRef);

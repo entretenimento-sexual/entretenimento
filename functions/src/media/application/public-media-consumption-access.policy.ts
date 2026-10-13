@@ -1,7 +1,9 @@
+import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import {
   assertInteractionAccess,
+  assertInteractionAccessInTransaction,
   assertPlatformAccountAccessData,
   type PlatformAccountAccessContext,
 } from '../../account_lifecycle/interaction-access.policy';
@@ -78,6 +80,20 @@ export async function assertPublicMediaConsumptionAccess(
 ): Promise<PlatformAccountAccessContext> {
   try {
     return await assertInteractionAccess(uid);
+  } catch (error) {
+    return remapAccountAccessError(error);
+  }
+}
+
+/** Read canonical Account Access in the same transaction as a Media mutation.
+ * Keep the same public Media error reasons used by the preflight check.
+ */
+export async function assertPublicMediaConsumptionAccessInTransaction(
+  transaction: Transaction,
+  uid: string
+): Promise<PlatformAccountAccessContext> {
+  try {
+    return await assertInteractionAccessInTransaction(transaction, uid);
   } catch (error) {
     return remapAccountAccessError(error);
   }

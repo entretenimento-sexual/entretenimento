@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import {
   assertPublicMediaConsumptionAccessData,
+  assertPublicMediaConsumptionAccessInTransaction,
   type PublicMediaConsumptionAccessReason,
 } from './public-media-consumption-access.policy';
 
@@ -103,5 +105,71 @@ describe('public media consumption access policy', () => {
       },
       'ADULT_CONSENT_REQUIRED'
     );
+  });
+
+  it('revalida a conta na mesma transação mesmo após token anterior', async () => {
+    const states = [
+      null,
+      { ...eligibleUser, suspended: true },
+      { ...eligibleUser, accountStatus: 'moderation_suspended' },
+      { ...eligibleUser, accountLocked: true },
+      { ...eligibleUser, loginAllowed: false },
+      { ...eligibleUser, interactionBlocked: true },
+      { ...eligibleUser, moderationAutomationHold: {
+        active: true, expiresAtMs: Date.now() + 60_000,
+      } },
+    ];
+    for (const state of states) {
+      const reads: string[] = [];
+      const transaction = {
+        get: async (ref: { path: string }) => {
+          reads.push(ref.path);
+          return { exists: state !== null, data: () => state };
+        },
+      } as unknown as Transaction;
+      await assert.rejects(
+        assertPublicMediaConsumptionAccessInTransaction(transaction, 'viewer-media'),
+        (error: unknown) => {
+          assert.ok(error instanceof HttpsError);
+          assert.equal((error.details as { reason?: string })?.reason, 'ACCOUNT_UNAVAILABLE');
+          return true;
+        }
+      );
+      assert.deepEqual(reads, ['users/viewer-media']);
+    }
+  });
+
+  it('não exige verified assurance do visitante na transação', async () => {
+    for (const assurance of ['SELF_DECLARED_ADULT', 'VERIFIED_ADULT', undefined]) {
+      const transaction = {
+        get: async () => ({
+          exists: true,
+          data: () => ({ ...eligibleUser, ageEligibilityAssurance: assurance }),
+        }),
+      } as unknown as Transaction;
+      const context = await assertPublicMediaConsumptionAccessInTransaction(
+        transaction, 'viewer-media'
+      );
+      assert.equal(context.accessExpiresAtMs, null);
+    }
+  });
+
+  it('mantém erros canônicos de termos e consentimento na transação', async () => {
+    for (const [state, reason] of [
+      [{ ...eligibleUser, acceptedTerms: null }, 'TERMS_REQUIRED'],
+      [{ ...eligibleUser, adultConsent: null }, 'ADULT_CONSENT_REQUIRED'],
+    ] as const) {
+      const transaction = {
+        get: async () => ({ exists: true, data: () => state }),
+      } as unknown as Transaction;
+      await assert.rejects(
+        assertPublicMediaConsumptionAccessInTransaction(transaction, 'viewer-media'),
+        (error: unknown) => {
+          assert.ok(error instanceof HttpsError);
+          assert.equal((error.details as { reason?: string })?.reason, reason);
+          return true;
+        }
+      );
+    }
   });
 });
