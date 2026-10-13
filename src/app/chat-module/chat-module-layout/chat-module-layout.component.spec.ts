@@ -2,7 +2,7 @@ import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
-import { of, Subject } from 'rxjs';
+import { BehaviorSubject, of, Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatModuleLayoutComponent } from './chat-module-layout.component';
@@ -21,8 +21,12 @@ import { DirectChatSelectionContextFacade } from '../application/direct-chat-sel
 describe('ChatModuleLayoutComponent', () => {
   let component: ChatModuleLayoutComponent;
   let fixture: ComponentFixture<ChatModuleLayoutComponent>;
+  let selectedChatId$: BehaviorSubject<string | null>;
+  let selectedType$: BehaviorSubject<'chat' | null>;
 
   beforeEach(async () => {
+    selectedChatId$ = new BehaviorSubject<string | null>(null);
+    selectedType$ = new BehaviorSubject<'chat' | null>(null);
     await TestBed.configureTestingModule({
       declarations: [ChatModuleLayoutComponent],
       imports: [CommonModule, RouterTestingModule],
@@ -118,8 +122,8 @@ describe('ChatModuleLayoutComponent', () => {
             {
               provide: DirectChatSelectionContextFacade,
               useValue: {
-                selectedChatId$: of(null),
-                selectedType$: of(null),
+                selectedChatId$,
+                selectedType$,
                 selectedDirectPeerUid$: vi.fn(() => of(null)),
                 syncPeerContext$: vi.fn(() => of(void 0)),
                 selectedChatId: vi.fn(() => null),
@@ -152,6 +156,8 @@ describe('ChatModuleLayoutComponent', () => {
     const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
     selection.selectedChatId.mockReturnValue('chat-1');
     selection.selectedType.mockReturnValue('chat');
+    selectedChatId$.next('chat-1');
+    selectedType$.next('chat');
     component.messageContent = 'rascunho';
     component.canSendCurrentMessage.set(false);
     fixture.detectChanges();
@@ -180,6 +186,7 @@ describe('ChatModuleLayoutComponent', () => {
     expect(orchestrator.send$).toHaveBeenCalledWith('chat-1', 'texto para A');
 
     selection.selectedChatId.mockReturnValue('chat-2');
+    selectedChatId$.next('chat-2');
     component.messageContent = 'rascunho para B';
     pending.next({ messageId: 'sent-A', blockedReason: null });
     expect(component.messageContent).toBe('rascunho para B');
