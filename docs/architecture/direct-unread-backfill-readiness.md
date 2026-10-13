@@ -67,8 +67,9 @@ Cloud Firestore billing report:
 The isolated emulator Quality Gate exercises fresh histories of 1, 50 and
 100 messages, comparing the observations against the conservative workload
 model and verifying idempotent reruns. Fixture creation and cleanup are
-excluded from the reported numbers. Failed invocations do not currently
-produce durable metrics, so they must not be treated as zero-cost operations.
+excluded from the reported numbers. Failed invocations retain only checkpoint-periodic progress and some attempt
+counts; incomplete records are not complete cost reports and must not be
+interpreted as zero-cost operations.
 
 ## Recovery and monitoring
 
@@ -92,7 +93,31 @@ produce durable metrics, so they must not be treated as zero-cost operations.
 - A successful run requires `MATCH` for both participants in the final audit.
 - A local durable attempt journal is available for emulator diagnostics.
   Production-grade logging, throughput limiting, alerts, authorization for
-  operators, journal retention, and fail-safe rollback are **not** implemented.
+  operators, automatic retention enforcement, and fail-safe rollback are **not** implemented.
+
+## Journal diagnosis and bounded retention (emulator only)
+
+CLI commands available after setting the approved local-demo emulator
+environment and compiling Functions:
+
+- `--inspect-journal RUN_ID`: one-document, read-only classification.
+- `--purge-journal RUN_ID CONFIRM_TERMINAL_JOURNAL_PURGE`: explicit single-run
+  deletion using a Firestore transaction that rechecks the record before
+  deleting it. There is **no** automatic or bulk purge.
+
+The classifier uses server timestamps from the journal:
+`RUNNING_RECENT` means the last update was within **2 hours**;
+`RUNNING_STALE_UNKNOWN` means it is older than 2 hours. Neither proves the
+process is alive or dead, and **neither can be purged**. `SUCCEEDED` and
+`FAILED` are eligible only when a valid terminal timestamp is at least
+**30 days** old. Malformed, absent or future timestamps and unknown statuses
+are classified `INVALID` and preserved. The retention action never touches
+the chat, projections or checkpoints.
+
+These controls are intentionally manual. A periodic heartbeat, process lease,
+operator authentication, external archival policy and actual active-process
+detection remain unimplemented. Treat stale or ambiguous records as requiring
+manual investigation rather than triggering retries automatically.
 
 ## Release gates (all currently blocking)
 
