@@ -10,6 +10,10 @@ const scheduler = readFileSync(
   resolve(__dirname, '../../../src/media/application/video-processing.handler.ts'),
   'utf8'
 );
+const firestoreCore = readFileSync(
+  resolve(__dirname, '../../../src/media/application/video-processing-reconciliation.firestore.ts'),
+  'utf8'
+);
 const indexConfig = JSON.parse(readFileSync(
   resolve(__dirname, '../../../../firestore.indexes.json'),
   'utf8'
@@ -62,9 +66,9 @@ test('processing query only claims due jobs with a composite index', () => {
     String.raw`\.orderBy\('nextAttemptAt', 'asc'\)`,
     String.raw`\.limit\(RECONCILIATION_BATCH_SIZE\)`,
   ];
-  assert.match(scheduler, new RegExp(parts.join(String.raw`\s*`)));
-  assert.ok(scheduler.includes('nextVideoProcessingPollAt(job, now)'));
-  assert.ok(scheduler.includes('claimProcessingJob(jobDoc.ref, now)'));
+  assert.match(firestoreCore, new RegExp(parts.join(String.raw`\s*`)));
+  assert.ok(firestoreCore.includes('nextVideoProcessingPollAt(job, now)'));
+  assert.ok(scheduler.includes('claimProcessingJob(db, jobDoc.ref, now, normalizeJob)'));
   assertCompositeIndex('nextAttemptAt');
 });
 
@@ -101,9 +105,11 @@ test('cancelled job cleanup does not delete or resurrect a newer attempt', () =>
   const body = scheduler.slice(start, end);
 
   assert.ok(start >= 0 && end > start);
-  assert.ok(body.includes('isCurrentVideoCancellation(current, job)'));
-  assert.ok(body.includes('transaction.delete(jobRef)'));
-  assert.ok(body.includes('transaction.update(jobRef, {'));
+  assert.ok(body.includes('deleteCancelledJobIfCurrent(db, jobRef, job, normalizeJob)'));
+  assert.ok(body.includes('recordCancellationErrorIfCurrent('));
+  assert.ok(firestoreCore.includes('isCurrentVideoCancellation(current, started)'));
+  assert.ok(firestoreCore.includes('transaction.delete(jobRef)'));
+  assert.ok(firestoreCore.includes('transaction.update(jobRef, {'));
   assert.ok(!body.includes('await jobRef.delete()'));
   assert.ok(!body.includes('await jobRef.set('));
 });

@@ -18,11 +18,15 @@ import {
 } from './video-processing-job';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 import {
-  nextVideoProcessingPollAt,
   providerObservationChanged,
   isCurrentVideoProcessingAttempt,
-  isCurrentVideoCancellation,
 } from './video-processing-poll.policy';
+import {
+  claimProcessingJob,
+  queryDueProcessingJobs,
+  deleteCancelledJobIfCurrent,
+  recordCancellationErrorIfCurrent,
+} from './video-processing-reconciliation.firestore';
 
 interface ProcessedVideoCandidate {
   storagePath: string;
@@ -803,25 +807,6 @@ async function markProviderFailure(
   });
 }
 
-async function claimProcessingJob(
-  jobRef: DocumentReference,
-  now: number
-): Promise<VideoProcessingJob | null> {
-  return db.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(jobRef);
-    const job = snapshot.exists ? normalizeJob(snapshot.data()) : null;
-
-    if (!job || job.state !== 'PROCESSING' || job.nextAttemptAt > now) {
-      return null;
-    }
-
-    transaction.update(jobRef, {
-      nextAttemptAt: nextVideoProcessingPollAt(job, now),
-    });
-    return job;
-  });
-}
-
 async function reconcileProcessingJob(
   jobRef: DocumentReference,
   job: VideoProcessingJob
@@ -930,33 +915,18 @@ async function processCancellation(
     }
 
     await deleteOutputPrefix(job.outputPrefix);
-    await db.runTransaction(async (transaction) => {
-      const snapshot = await transaction.get(jobRef);
-      const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
-
-      if (!isCurrentVideoCancellation(current, job)) {
-        return;
-      }
-
-      transaction.delete(jobRef);
-    });
+    await deleteCancelledJobIfCurrent(db, jobRef, job, normalizeJob);
   } catch (error) {
     const normalized = normalizeGoogleTranscoderError(error);
 
-    await db.runTransaction(async (transaction) => {
-      const snapshot = await transaction.get(jobRef);
-      const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
-
-      if (!isCurrentVideoCancellation(current, job)) {
-        return;
-      }
-
-      transaction.update(jobRef, {
-        updatedAt: Date.now(),
-        lastErrorCode: normalized.code,
-        lastError: normalized.message,
-      });
-    });
+    await recordCancellationErrorIfCurrent(
+      db,
+      jobRef,
+      job,
+      normalizeJob,
+      { code: normalized.code, message: normalized.message },
+      Date.now()
+    );
 
     logger.warn('[videoProcessing] Cancelamento pendente.', {
       ownerUid: job.ownerUid,
@@ -1038,17 +1008,13 @@ export const reconcileVideoProcessing = onSchedule(
   },
   async () => {
     const now = Date.now();
-    const snapshot = await db
-      .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
-      .where('state', '==', 'PROCESSING')
-      .where('nextAttemptAt', '<=', now)
-      .orderBy('nextAttemptAt', 'asc')
-      .limit(RECONCILIATION_BATCH_SIZE)
-      .get();
+    const snapshot = await queryDueProcessingJobs(
+      db, now, RECONCILIATION_BATCH_SIZE
+    ).get();
     const tasks: Array<() => Promise<void>> = [];
 
     for (const jobDoc of snapshot.docs) {
-      const claimedJob = await claimProcessingJob(jobDoc.ref, now);
+      const claimedJob = await claimProcessingJob(db, jobDoc.ref, now, normalizeJob);
 
       if (claimedJob) {
         tasks.push(() => reconcileProcessingJob(jobDoc.ref, claimedJob));
