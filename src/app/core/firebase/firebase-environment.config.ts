@@ -61,15 +61,29 @@ export function normalizeFirebaseEmulatorEndpoint(
   return { host, port };
 }
 
+/**
+ * An enabled emulator suite must never silently fall through to Cloud Firebase.
+ * Require a configured loopback endpoint for every requested service.
+ */
+export function requireLocalFirebaseEmulatorEndpoint(
+  kind: FirebaseEmulatorKind,
+  config: EmulatorsConfig | undefined
+): EmulatorEndpoint {
+  const endpoint = normalizeFirebaseEmulatorEndpoint(kind, config?.[kind]);
+  if (!endpoint) {
+    throw new Error(`[Firebase Emulator] Endpoint obrigatório ausente para ${kind}.`);
+  }
+  if (!['127.0.0.1', 'localhost', '::1', '[::1]'].includes(endpoint.host)) {
+    throw new Error(`[Firebase Emulator] Host não local para ${kind}.`);
+  }
+  return endpoint;
+}
+
 export function getFirebaseEmulatorEndpoint(
   kind: FirebaseEmulatorKind
 ): EmulatorEndpoint | null {
   if (!isFirebaseEmulatorSuiteEnabled()) return null;
-
-  return normalizeFirebaseEmulatorEndpoint(
-    kind,
-    environment.emulators?.[kind]
-  );
+  return requireLocalFirebaseEmulatorEndpoint(kind, environment.emulators);
 }
 
 export function isFirebaseAppCheckEnabled(): boolean {

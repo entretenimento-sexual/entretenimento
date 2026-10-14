@@ -3,6 +3,10 @@ import { getApps, getApp, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
+import { assertFirebaseEmulatorDependenciesConfigured } from './shared/runtime/functions-runtime.guard';
+
+// Fail closed before constructing any Admin SDK clients in the emulator.
+assertFirebaseEmulatorDependenciesConfigured();
 
 export const adminApp = getApps().length ? getApp() : initializeApp();
 export const db = getFirestore(adminApp);

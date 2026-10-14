@@ -19,3 +19,30 @@ export function assertExternalPaymentEgressAllowed(): void {
     throw new Error('external_payment_egress_blocked_in_emulator');
   }
 }
+
+/**
+ * Functions Emulator must never instantiate Admin SDK clients with missing
+ * emulator endpoints: that would send real-project operations to Cloud APIs.
+ */
+export function assertFirebaseEmulatorDependenciesConfigured(
+  env: Record<string, string | undefined> = process.env
+): void {
+  if (env['FUNCTIONS_EMULATOR'] !== 'true') return;
+
+  const required = [
+    'FIREBASE_AUTH_EMULATOR_HOST',
+    'FIRESTORE_EMULATOR_HOST',
+    'FIREBASE_STORAGE_EMULATOR_HOST',
+  ] as const;
+
+  for (const name of required) {
+    const endpoint = String(env[name] ?? '').trim();
+    if (!/^(?:localhost|127\.0\.0\.1|\[::1\]):[0-9]{1,5}$/.test(endpoint)) {
+      throw new Error('[functions:emulator] ' + name + ' precisa apontar para localhost.');
+    }
+    const port = Number(endpoint.slice(endpoint.lastIndexOf(':') + 1));
+    if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
+      throw new Error('[functions:emulator] Porta inválida em ' + name + '.');
+    }
+  }
+}

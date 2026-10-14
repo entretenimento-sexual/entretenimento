@@ -39,6 +39,7 @@ import {
   firebaseDebugLog,
   getFirebaseEmulatorEndpoint,
   isBrowserRuntime,
+  isFirebaseEmulatorSuiteEnabled,
   isFirebaseAppCheckEnabled,
   resolveFirebaseAppCheckSiteKey,
   resolveFirebaseAuthEmulatorPersistenceMode,
@@ -217,7 +218,15 @@ function provideApplicationFunctions(): EnvironmentProviders {
 export const FIREBASE_APPLICATION_PROVIDERS: Array<
   Provider | EnvironmentProviders
 > = [
-  provideFirebaseApp(() => initializeApp(environment.firebase)),
+  provideFirebaseApp(() => {
+    if (isFirebaseEmulatorSuiteEnabled()) {
+      // Validate the complete core emulator topology before any SDK is created.
+      for (const kind of ['auth', 'firestore', 'storage', 'functions'] as const) {
+        getFirebaseEmulatorEndpoint(kind);
+      }
+    }
+    return initializeApp(environment.firebase);
+  }),
 
   ...(isFirebaseAppCheckEnabled()
     ? [
