@@ -709,6 +709,9 @@ async function mutateExistingJob(command: {
       nextState = 'CANCEL_REQUESTED';
       jobPatch['state'] = nextState;
       jobPatch['cancelRequestedAt'] = now;
+      jobPatch['nextAttemptAt'] = now;
+      jobPatch['cancellationCleanupAttempts'] = 0;
+      jobPatch['cancellationReviewRequired'] = false;
       jobPatch['leaseUntil'] = null;
       jobPatch['lastErrorCode'] = 'ADMIN_CANCELLED';
       jobPatch['lastError'] = command.reason;
