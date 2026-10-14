@@ -202,7 +202,9 @@ test('malformed cancellation tracking documents are retained for review', () => 
   assert.ok(start >= 0);
   assert.ok(!scheduler.includes('async function removeInvalidJob('));
   assert.ok(cleanup.includes('invalidCancellationCount += 1'));
-  assert.ok(cleanup.includes('Cancelamentos inválidos preservados.'));
+  assert.ok(cleanup.includes('summarizeCancellationCycle('));
+  assert.ok(cleanup.includes('invalidCancellationCount'));
+  assert.ok(cleanup.includes('VIDEO_CANCELLATION_CYCLE_FINISHED'));
   assert.ok(!cleanup.includes('jobDoc.ref.delete('));
   assert.ok(!cleanup.includes('removeInvalidJob('));
 });

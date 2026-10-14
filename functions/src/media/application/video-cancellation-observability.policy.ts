@@ -45,18 +45,18 @@ export function summarizeCancellationCycle(
     }
 
     switch (result.value.status) {
-      case 'COMPLETED':
-        metrics.completed += 1;
-        break;
-      case 'RETRY_SCHEDULED':
-        metrics.retryScheduled += 1;
-        break;
-      case 'UNCONFIRMED':
-        metrics.unconfirmed += 1;
-        break;
-      case 'REPLACED':
-        metrics.replaced += 1;
-        break;
+    case 'COMPLETED':
+      metrics.completed += 1;
+      break;
+    case 'RETRY_SCHEDULED':
+      metrics.retryScheduled += 1;
+      break;
+    case 'UNCONFIRMED':
+      metrics.unconfirmed += 1;
+      break;
+    case 'REPLACED':
+      metrics.replaced += 1;
+      break;
     }
   }
 
