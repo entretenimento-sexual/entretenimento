@@ -28,6 +28,8 @@ import {
 import {
   claimProcessingJob,
   queryDueProcessingJobs,
+  claimDueCancellation,
+  queryDueCancelledJobs,
   deleteCancelledJobIfCurrent,
   recordCancellationErrorIfCurrent,
   bindCancelledProviderJobIfCurrent,
@@ -193,6 +195,10 @@ function normalizeJob(data: unknown): VideoProcessingJob | null {
     state: normalizeState(job.state),
     attempts: normalizeNonNegativeInteger(job.attempts),
     submissionLookupMisses: normalizeNonNegativeInteger(job.submissionLookupMisses),
+    cancellationCleanupAttempts: normalizeNonNegativeInteger(
+      job.cancellationCleanupAttempts
+    ),
+    cancellationReviewRequired: job.cancellationReviewRequired === true,
     nextAttemptAt: normalizeNonNegativeInteger(job.nextAttemptAt),
     leaseUntil: normalizeOptionalNonNegativeInteger(job.leaseUntil),
     externalJobName: String(job.externalJobName ?? '').trim() || null,
@@ -248,6 +254,7 @@ async function claimQueuedJob(
       transaction.update(jobRef, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: now,
+        nextAttemptAt: now,
         leaseUntil: null,
         updatedAt: now,
         lastErrorCode: 'PRIVATE_VIDEO_DELETED',
@@ -265,6 +272,7 @@ async function claimQueuedJob(
       transaction.update(jobRef, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: now,
+        nextAttemptAt: now,
         leaseUntil: null,
         updatedAt: now,
         lastErrorCode: 'SOURCE_CHANGED',
@@ -365,6 +373,9 @@ async function persistSubmittedJob(
         externalJobName,
         providerState,
         cancelRequestedAt: currentJob.cancelRequestedAt ?? now,
+        nextAttemptAt: currentJob.state === 'CANCEL_REQUESTED'
+          ? currentJob.nextAttemptAt
+          : now,
         leaseUntil: null,
         updatedAt: now,
       });
@@ -662,6 +673,7 @@ async function finalizeSucceededJob(
       transaction.update(jobRef, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: currentJob.cancelRequestedAt ?? now,
+        nextAttemptAt: now,
         leaseUntil: null,
         updatedAt: now,
       });
@@ -677,6 +689,7 @@ async function finalizeSucceededJob(
       transaction.update(jobRef, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: now,
+        nextAttemptAt: now,
         leaseUntil: null,
         updatedAt: now,
         lastErrorCode: 'SOURCE_CHANGED',
@@ -753,6 +766,7 @@ async function markProviderFailure(
       transaction.update(jobRef, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: now,
+        nextAttemptAt: now,
         leaseUntil: null,
         updatedAt: now,
       });
@@ -1033,11 +1047,10 @@ export const cleanupCancelledVideoProcessing = onSchedule(
     memory: '512MiB',
   },
   async () => {
-    const snapshot = await db
-      .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
-      .where('state', '==', 'CANCEL_REQUESTED')
-      .limit(CANCELLATION_BATCH_SIZE)
-      .get();
+    const now = Date.now();
+    const snapshot = await queryDueCancelledJobs(
+      db, now, CANCELLATION_BATCH_SIZE
+    ).get();
     const tasks: Array<() => Promise<void>> = [];
 
     for (const jobDoc of snapshot.docs) {
@@ -1048,7 +1061,12 @@ export const cleanupCancelledVideoProcessing = onSchedule(
         continue;
       }
 
-      tasks.push(() => processCancellation(jobDoc.ref, job));
+      const claimed = await claimDueCancellation(
+        db, jobDoc.ref, now, normalizeJob
+      );
+      if (claimed) {
+        tasks.push(() => processCancellation(jobDoc.ref, claimed));
+      }
     }
 
     await runBatch(tasks, 'cancel');
