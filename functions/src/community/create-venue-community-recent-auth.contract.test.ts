@@ -6,7 +6,12 @@ import {
   TERMS_ACCEPTANCE_VERSION,
 } from '../compliance/platform-legal.constants';
 
+// Contract tests simulate the Functions Emulator and stub Firestore writes.
+// The Admin SDK boot guard still requires all Firebase clients to target loopback.
 process.env.FUNCTIONS_EMULATOR = 'true';
+process.env.FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099';
+process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080';
+process.env.FIREBASE_STORAGE_EMULATOR_HOST = '127.0.0.1:9199';
 
 const REQUEST_ID = '4b7fb4a1-91e5-4dbf-9cc7-42fd4d77f779';
 const VENUE_ID = `venue-${REQUEST_ID}`;
