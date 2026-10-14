@@ -194,6 +194,39 @@ nova tentativa), identificador externo inválido (falha fechada), resposta
 incerta de submissão (não apaga nem reenvia) e mudança de versão (não altera
 a tentativa nova). O transporte simulado não possui saída de rede real.
 
+### Logs de execução do scheduler
+
+Cada execução agendada produz dois eventos estruturados correlacionados pelo
+`cycleId`, sem gravar documentos novos no Firestore:
+
+- `VIDEO_CANCELLATION_CYCLE_STARTED`: tentativa iniciada, mesmo quando a
+  consulta ao Firestore falha;
+- `VIDEO_CANCELLATION_CYCLE_FINISHED`: execução terminada, com `selected`,
+  `claimed`, `invalid`, `claimSkipped`, `batchLimitReached`,
+  `completed`, `retryScheduled`, `unconfirmed`, `replaced`,
+  `taskRejected` e `durationMs`;
+- `VIDEO_CANCELLATION_CYCLE_FAILED`: falha de consulta ou reserva, com a
+  fase `QUERY`, `CLAIM` ou `EXECUTE`; a exceção é relançada para o
+  agendador, não convertida em execução bem-sucedida.
+
+Os logs não incluem UID, ID do vídeo, prefixo do Storage, nome externo do job
+nem mensagens brutas de erro. `ATTENTION` significa falha registrada,
+submissão não confirmada ou documento inválido, **não** falha de todos os
+cancelamentos do lote. `batchLimitReached` sinaliza lote cheio, sem
+significar que houve erro. A contagem de `taskRejected` identifica falhas
+que escaparam à rotina individual de retry.
+
+Para investigar em ambiente cloud, filtrar os logs da Function
+`cleanupCancelledVideoProcessing` pelos eventos acima e conferir a
+periodicidade esperada de 30 minutos e os pares de `cycleId`. Ausência de
+um evento não comprova que a API externa foi ou não chamada: conferir também
+Cloud Scheduler, implantação efetiva e retenção do Cloud Logging.
+
+No Firestore Emulator da porta `8080`, nenhuma rotina Cloud Scheduler dispara
+automaticamente. Portanto, o documento cancelado no snapshot pode permanecer
+vencido até uma execução explicitamente preparada e segura. Não usar os logs
+do GitHub Actions como substituto da execução em cloud.
+
 Se um documento `CANCEL_REQUESTED` não puder ser validado, o scheduler
 **preserva o registro** e gera alerta agregado, sem exclusão automática.
 Igualmente, o nome de um job externo malformado causa erro de limpeza:

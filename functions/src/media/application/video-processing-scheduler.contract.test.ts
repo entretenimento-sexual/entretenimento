@@ -228,3 +228,19 @@ test('provider deletion uses the injectable idempotent-404 transport', () => {
   assert.ok(transcoderService.includes('const authorization = await authorizationHeader()'));
   assert.ok(scheduler.includes('executeVideoCancellation(job, {'));
 });
+
+test('scheduler emits identifier-free cancellation cycle start and completion logs', () => {
+  const cancel = scheduler.slice(
+    scheduler.indexOf('export const cleanupCancelledVideoProcessing')
+  );
+  assert.ok(cancel.includes('VIDEO_CANCELLATION_CYCLE_STARTED'));
+  assert.ok(cancel.includes('VIDEO_CANCELLATION_CYCLE_FINISHED'));
+  assert.ok(cancel.includes('VIDEO_CANCELLATION_CYCLE_FAILED'));
+  assert.ok(cancel.includes('summarizeCancellationCycle('));
+  assert.ok(cancel.includes('await Promise.allSettled('));
+  assert.ok(cancel.includes('cycleId'));
+  assert.ok(cancel.includes('throw error;'));
+  assert.ok(!cancel.includes('ownerUid:'));
+  assert.ok(!cancel.includes('videoId:'));
+  assert.ok(!cancel.includes("await runBatch(tasks, 'cancel')"));
+});

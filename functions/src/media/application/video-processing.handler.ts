@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { DocumentReference } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -17,7 +18,14 @@ import {
   type VideoProcessingJob,
 } from './video-processing-job';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
-import { executeVideoCancellation } from './video-cancellation-execution';
+import {
+  executeVideoCancellation,
+  type VideoCancellationResult,
+} from './video-cancellation-execution';
+import {
+  cancellationCycleNeedsAttention,
+  summarizeCancellationCycle,
+} from './video-cancellation-observability.policy';
 import {
   decideMissingVideoSubmission,
   canAttachSubmittedProviderJob,
@@ -897,8 +905,8 @@ async function deleteOutputPrefix(outputPrefix: string): Promise<void> {
 async function processCancellation(
   jobRef: DocumentReference,
   job: VideoProcessingJob
-): Promise<void> {
-  const result = await executeVideoCancellation(job, {
+): Promise<VideoCancellationResult> {
+  return executeVideoCancellation(job, {
     findProviderJob: findGoogleVideoTranscoderJob,
     bindProviderJob: (started, providerName) =>
       bindCancelledProviderJobIfCurrent(
@@ -915,15 +923,6 @@ async function processCancellation(
     normalizeError: normalizeGoogleTranscoderError,
     now: Date.now,
   });
-
-  if (result.status === 'RETRY_SCHEDULED') {
-    logger.warn('[videoProcessing] Cancelamento pendente.', {
-      ownerUid: job.ownerUid,
-      videoId: job.videoId,
-      errorCode: result.error.code,
-      error: result.error.message,
-    });
-  }
 }
 
 async function runBatch(
@@ -1017,37 +1016,71 @@ export const cleanupCancelledVideoProcessing = onSchedule(
     memory: '512MiB',
   },
   async () => {
-    const now = Date.now();
-    const snapshot = await queryDueCancelledJobs(
-      db, now, CANCELLATION_BATCH_SIZE
-    ).get();
-    const tasks: Array<() => Promise<void>> = [];
-    let invalidCancellationCount = 0;
+    const cycleId = randomUUID();
+    const startedAt = Date.now();
+    let phase: 'QUERY' | 'CLAIM' | 'EXECUTE' = 'QUERY';
 
-    for (const jobDoc of snapshot.docs) {
-      const job = normalizeJob(jobDoc.data());
+    logger.info('[videoProcessing] Ciclo de cancelamentos iniciado.', {
+      event: 'VIDEO_CANCELLATION_CYCLE_STARTED',
+      cycleId,
+      startedAt,
+    });
 
-      if (!job) {
-        // Preserve the only tracking record. Even a malformed document
-        // may refer to a provider job that still exists and costs money.
-        invalidCancellationCount += 1;
-        continue;
+    try {
+      const snapshot = await queryDueCancelledJobs(
+        db, startedAt, CANCELLATION_BATCH_SIZE
+      ).get();
+      phase = 'CLAIM';
+      const tasks: Array<() => Promise<VideoCancellationResult>> = [];
+      let invalidCancellationCount = 0;
+
+      for (const jobDoc of snapshot.docs) {
+        const job = normalizeJob(jobDoc.data());
+
+        if (!job) {
+          // Preserve malformed tracking, even if the remote job still exists.
+          invalidCancellationCount += 1;
+          continue;
+        }
+
+        const claimed = await claimDueCancellation(
+          db, jobDoc.ref, startedAt, normalizeJob
+        );
+        if (claimed) {
+          tasks.push(() => processCancellation(jobDoc.ref, claimed));
+        }
       }
 
-      const claimed = await claimDueCancellation(
-        db, jobDoc.ref, now, normalizeJob
+      phase = 'EXECUTE';
+      const results = await Promise.allSettled(
+        tasks.map((task) => task())
       );
-      if (claimed) {
-        tasks.push(() => processCancellation(jobDoc.ref, claimed));
+      const metrics = summarizeCancellationCycle(
+        snapshot.size, tasks.length, invalidCancellationCount,
+        CANCELLATION_BATCH_SIZE, results, Date.now() - startedAt
+      );
+      const needsAttention = cancellationCycleNeedsAttention(metrics);
+
+      const details = {
+        event: 'VIDEO_CANCELLATION_CYCLE_FINISHED',
+        cycleId,
+        status: needsAttention ? 'ATTENTION' : 'OK',
+        ...metrics,
+      };
+      if (needsAttention) {
+        logger.warn('[videoProcessing] Ciclo de cancelamentos concluído.', details);
+      } else {
+        logger.info('[videoProcessing] Ciclo de cancelamentos concluído.', details);
       }
-    }
-
-    if (invalidCancellationCount > 0) {
-      logger.error('[videoProcessing] Cancelamentos inválidos preservados.', {
-        count: invalidCancellationCount,
+    } catch (error) {
+      logger.error('[videoProcessing] Falha no ciclo de cancelamentos.', {
+        event: 'VIDEO_CANCELLATION_CYCLE_FAILED',
+        cycleId,
+        phase,
+        durationMs: Date.now() - startedAt,
       });
+      // Let the scheduler report and retry the failed invocation.
+      throw error;
     }
-
-    await runBatch(tasks, 'cancel');
   }
 );
