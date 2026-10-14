@@ -30,6 +30,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { validateEmulatorSnapshotImport } from './emulator-snapshot-preflight.mjs';
+import { assertEmulatorCredentialsIsolated } from './emulator-credential-preflight.mjs';
 
 const projectId = process.env.FIREBASE_PROJECT_ID || 'entretenimento-sexual';
 const storageBucket =
@@ -251,6 +252,14 @@ function spawnFirebaseEmulator(args, env) {
     env,
     shell: false,
   });
+}
+
+try {
+  assertEmulatorCredentialsIsolated();
+  console.log('[emu:safe] Credenciais externas: nenhuma fonte ADC/token detectada.');
+} catch (error) {
+  console.error('[emu:safe] Segurança: ' + (error instanceof Error ? error.message : String(error)));
+  process.exit(1);
 }
 
 buildFirestoreRules();

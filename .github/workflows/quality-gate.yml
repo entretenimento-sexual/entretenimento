@@ -61,6 +61,9 @@ jobs:
           set -o pipefail
           npm --prefix functions ci 2>&1 | tee logs/functions-install.log
 
+      - name: Test emulator credential isolation
+        run: npm run emu:credentials:preflight:test
+
       - name: Test safe emulator snapshot import
         run: npm run emu:snapshot:preflight:test
 
