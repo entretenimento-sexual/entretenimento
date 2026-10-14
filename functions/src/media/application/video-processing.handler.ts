@@ -572,6 +572,8 @@ async function recoverExpiredSubmissionLeases(): Promise<void> {
   const snapshot = await db
     .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
     .where('state', '==', 'SUBMITTING')
+    .where('leaseUntil', '<=', now)
+    .orderBy('leaseUntil', 'asc')
     .limit(SUBMISSION_BATCH_SIZE)
     .get();
 
@@ -896,6 +898,8 @@ export const submitQueuedVideoProcessing = onSchedule(
     const snapshot = await db
       .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
       .where('state', '==', 'QUEUED')
+      .where('nextAttemptAt', '<=', now)
+      .orderBy('nextAttemptAt', 'asc')
       .limit(SUBMISSION_BATCH_SIZE)
       .get();
     const tasks: Array<() => Promise<void>> = [];
