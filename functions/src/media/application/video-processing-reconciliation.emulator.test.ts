@@ -3,10 +3,18 @@ import { randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 
 import { deleteApp, initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, type DocumentReference } from 'firebase-admin/firestore';
+import axios, { AxiosError, type AxiosResponse } from 'axios';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
 import { decideMissingVideoSubmission } from './video-submission-confirmation.policy';
+import {
+  executeVideoCancellation,
+  type VideoCancellationPorts,
+} from './video-cancellation-execution';
+import {
+  deleteVideoTranscoderJobWithTransport,
+} from './video-transcoder-delete.transport';
 import {
   backfillLegacyProcessingDueAt,
   claimProcessingJob,
@@ -474,4 +482,182 @@ test('concurrent cancellation claims fence stale cleanup and back off failures',
   assert.equal((await ref.get()).get('nextAttemptAt'),
     thirdTime + 24 * 60 * 60_000);
   assert.equal((await ref.get()).get('cancellationReviewRequired'), true);
+});
+
+function fakeProviderError(status: number): AxiosError {
+  return new AxiosError(
+    'HTTP ' + status, 'ERR_BAD_RESPONSE', undefined, undefined,
+    { status } as AxiosResponse
+  );
+}
+
+/** All ports are local fakes or writes to this disposable demo emulator. */
+function fakeCancellationPorts(
+  ref: DocumentReference,
+  events: string[],
+  deleteRequest: (name: string) => Promise<unknown> = async () => undefined
+): VideoCancellationPorts {
+  return {
+    findProviderJob: async () => {
+      events.push('provider-lookup');
+      return null;
+    },
+    bindProviderJob: (started, name) =>
+      bindCancelledProviderJobIfCurrent(
+        firestore, ref, started, name, parseJob, now
+      ),
+    deleteProviderJob: async (name) => {
+      events.push('provider-delete');
+      await deleteVideoTranscoderJobWithTransport(name, deleteRequest);
+    },
+    deleteOutputPrefix: async () => {
+      events.push('storage-delete');
+    },
+    deleteCancelledJob: (started) => {
+      events.push('firestore-delete');
+      return deleteCancelledJobIfCurrent(
+        firestore, ref, started, parseJob
+      );
+    },
+    recordFailure: (started, error, clock) => {
+      events.push('error:' + error.code);
+      return recordCancellationErrorIfCurrent(
+        firestore, ref, started, parseJob, error, clock
+      );
+    },
+    normalizeError: (error) => ({
+      code: axios.isAxiosError(error)
+        ? 'HTTP_' + String(error.response?.status ?? 'UNKNOWN')
+        : 'TRANSCODER_CLIENT_ERROR',
+      message: error instanceof Error ? error.message : String(error),
+    }),
+    now: () => now,
+  };
+}
+
+async function makeClaimedCancellation(
+  externalJobName: string | null,
+  attempts = 1
+) {
+  const ref = jobs.doc('cancel-end-to-end-' + randomUUID());
+  const initial = {
+    ...fixture('PENDING'),
+    state: 'CANCEL_REQUESTED' as const,
+    attempts,
+    externalJobName,
+    nextAttemptAt: now - 1_000,
+    cancellationCleanupAttempts: 0,
+  };
+  await ref.set(initial);
+  const claimed = await claimDueCancellation(firestore, ref, now, parseJob);
+  assert.ok(claimed);
+  return { ref, claimed };
+}
+
+test('mocked HTTP 200 completes cancellation and removes only its tracking job', async () => {
+  const providerName = 'projects/demo/locations/us-central1/jobs/' + randomUUID();
+  const { ref, claimed } = await makeClaimedCancellation(providerName);
+  const events: string[] = [];
+
+  const result = await executeVideoCancellation(
+    claimed, fakeCancellationPorts(ref, events)
+  );
+
+  assert.equal(result.status, 'COMPLETED');
+  assert.deepEqual(events, [
+    'provider-delete', 'storage-delete', 'firestore-delete',
+  ]);
+  assert.equal((await ref.get()).exists, false);
+});
+
+test('mocked HTTP 404 is idempotent and completes the same cleanup transaction', async () => {
+  const providerName = 'projects/demo/locations/us-central1/jobs/' + randomUUID();
+  const { ref, claimed } = await makeClaimedCancellation(providerName);
+  const events: string[] = [];
+  const result = await executeVideoCancellation(
+    claimed, fakeCancellationPorts(ref, events, async () => {
+      throw fakeProviderError(404);
+    })
+  );
+
+  assert.equal(result.status, 'COMPLETED');
+  assert.deepEqual(events, [
+    'provider-delete', 'storage-delete', 'firestore-delete',
+  ]);
+  assert.equal((await ref.get()).exists, false);
+});
+
+test('mocked HTTP 503 preserves cancellation and schedules retry without storage work', async () => {
+  const providerName = 'projects/demo/locations/us-central1/jobs/' + randomUUID();
+  const { ref, claimed } = await makeClaimedCancellation(providerName);
+  const events: string[] = [];
+  const result = await executeVideoCancellation(
+    claimed, fakeCancellationPorts(ref, events, async () => {
+      throw fakeProviderError(503);
+    })
+  );
+
+  assert.equal(result.status, 'RETRY_SCHEDULED');
+  assert.deepEqual(events, ['provider-delete', 'error:HTTP_503']);
+  const snapshot = await ref.get();
+  assert.equal(snapshot.exists, true);
+  assert.equal(snapshot.get('state'), 'CANCEL_REQUESTED');
+  assert.equal(snapshot.get('lastErrorCode'), 'HTTP_503');
+  assert.equal(snapshot.get('cancellationCleanupAttempts'), 1);
+  assert.equal(snapshot.get('nextAttemptAt'), now + 30 * 60_000);
+});
+
+test('malformed provider ID never reaches HTTP and cannot delete stored output', async () => {
+  const { ref, claimed } = await makeClaimedCancellation('invalid-job-name');
+  const events: string[] = [];
+  let requests = 0;
+  const result = await executeVideoCancellation(
+    claimed, fakeCancellationPorts(ref, events, async () => {
+      requests += 1;
+    })
+  );
+
+  assert.equal(result.status, 'RETRY_SCHEDULED');
+  assert.equal(requests, 0);
+  assert.deepEqual(events, [
+    'provider-delete', 'error:TRANSCODER_CLIENT_ERROR',
+  ]);
+  assert.equal((await ref.get()).get('state'), 'CANCEL_REQUESTED');
+  assert.equal((await ref.get()).get('cancellationCleanupAttempts'), 1);
+});
+
+test('unknown remote submission remains tracked and does not delete output', async () => {
+  const { ref, claimed } = await makeClaimedCancellation(null);
+  const events: string[] = [];
+  const result = await executeVideoCancellation(
+    claimed, fakeCancellationPorts(ref, events)
+  );
+
+  assert.equal(result.status, 'UNCONFIRMED');
+  assert.deepEqual(events, [
+    'provider-lookup', 'error:CANCELLATION_UNCONFIRMED',
+  ]);
+  assert.equal((await ref.get()).get('state'), 'CANCEL_REQUESTED');
+  assert.equal((await ref.get()).get('cancellationReviewRequired'), true);
+  assert.equal((await ref.get()).get('externalJobName'), null);
+});
+
+test('a superseding job is never deleted by a late mocked provider response', async () => {
+  const providerName = 'projects/demo/locations/us-central1/jobs/' + randomUUID();
+  const { ref, claimed } = await makeClaimedCancellation(providerName);
+  const replacement = { ...fixture('PENDING'), state: 'QUEUED' as const };
+  const events: string[] = [];
+
+  const result = await executeVideoCancellation(
+    claimed, fakeCancellationPorts(ref, events, async () => {
+      await ref.set(replacement);
+    })
+  );
+
+  assert.equal(result.status, 'REPLACED');
+  assert.deepEqual(events, [
+    'provider-delete', 'storage-delete', 'firestore-delete',
+  ]);
+  assert.equal((await ref.get()).get('state'), 'QUEUED');
+  assert.equal((await ref.get()).get('processingVersion'), replacement.processingVersion);
 });

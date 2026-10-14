@@ -28,8 +28,10 @@ function job() {
   };
 }
 
-function ports(events: string[], overrides: Partial<VideoCancellationPorts> = {})
-: VideoCancellationPorts {
+function ports(
+  events: string[],
+  overrides: Partial<VideoCancellationPorts> = {}
+): VideoCancellationPorts {
   return {
     findProviderJob: async () => { events.push('lookup'); return null; },
     bindProviderJob: async () => { events.push('bind'); return true; },
