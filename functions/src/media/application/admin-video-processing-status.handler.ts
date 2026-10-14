@@ -4,6 +4,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
+  summarizeCancellationBacklogSample,
+  type CancellationBacklogDiagnostic,
+} from './video-cancellation-backlog-diagnostic.policy';
+import {
   assertCallableAppCheck,
   REQUIRE_CALLABLE_APP_CHECK,
 } from '../../shared/security/callable-app-check';
@@ -30,6 +34,7 @@ interface VideoProcessingQueueSnapshot {
   oldestActiveAgeMs: number | null;
   staleSampledJobs: number;
   sampleCapped: boolean;
+  cancellation: CancellationBacklogDiagnostic;
 }
 
 interface AdminVideoProcessingStatusResponse {
@@ -43,6 +48,8 @@ interface ProcessingJobSnapshot {
   state?: unknown;
   createdAt?: unknown;
   updatedAt?: unknown;
+  cancelRequestedAt?: unknown;
+  nextAttemptAt?: unknown;
 }
 
 const JOB_STATES: VideoProcessingJobState[] = [
@@ -178,6 +185,7 @@ async function readActiveSample(
     .get();
   let oldestActiveAgeMs: number | null = null;
   let staleSampledJobs = 0;
+  const cancellationSample: ProcessingJobSnapshot[] = [];
 
   for (const document of snapshot.docs) {
     const job = document.data() as ProcessingJobSnapshot;
@@ -185,6 +193,9 @@ async function readActiveSample(
 
     if (!state || !ACTIVE_JOB_STATES.includes(state)) {
       continue;
+    }
+    if (state === 'CANCEL_REQUESTED') {
+      cancellationSample.push(job);
     }
 
     const timestamp = toMillis(job.updatedAt) ?? toMillis(job.createdAt);
@@ -214,6 +225,9 @@ async function readActiveSample(
     oldestActiveAgeMs,
     staleSampledJobs,
     sampleCapped: activeTotal > snapshot.size,
+    cancellation: summarizeCancellationBacklogSample(
+      cancellationSample, checkedAt, counts.CANCEL_REQUESTED
+    ),
   };
 }
 

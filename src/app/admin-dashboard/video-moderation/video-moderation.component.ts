@@ -147,7 +147,7 @@ export class VideoModerationComponent {
 
   processingStateLabel(status: IAdminVideoProcessingStatus): string {
     if (status.state === 'READY') {
-      return 'Operacional';
+      return 'Transcoder acessível';
     }
 
     if (status.state === 'EMULATOR') {
@@ -159,7 +159,7 @@ export class VideoModerationComponent {
 
   processingStateDescription(status: IAdminVideoProcessingStatus): string {
     if (status.state === 'READY') {
-      return 'A API respondeu com a identidade usada pelas Functions.';
+      return 'A API do Transcoder respondeu com a identidade usada pelas Functions.';
     }
 
     if (status.state === 'EMULATOR') {

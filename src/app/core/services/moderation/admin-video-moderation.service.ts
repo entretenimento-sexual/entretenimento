@@ -41,6 +41,16 @@ export interface IAdminVideoProcessingProviderStatus {
   errorMessage: string | null;
 }
 
+export interface IAdminVideoCancellationBacklog {
+  verification: 'UNVERIFIED';
+  scheduleMinutes: number;
+  sampled: number;
+  due: number;
+  overdue24h: number;
+  missingOrInvalidDue: number;
+  samplePartial: boolean;
+}
+
 export interface IAdminVideoProcessingQueueStatus {
   counts: AdminVideoProcessingJobCounts;
   activeTotal: number;
@@ -48,6 +58,7 @@ export interface IAdminVideoProcessingQueueStatus {
   oldestActiveAgeMs: number | null;
   staleSampledJobs: number;
   sampleCapped: boolean;
+  cancellation: IAdminVideoCancellationBacklog | null;
 }
 
 export interface IAdminVideoProcessingStatus {
@@ -159,6 +170,25 @@ export class AdminVideoModerationService {
           value?.queue?.staleSampledJobs
         ),
         sampleCapped: value?.queue?.sampleCapped === true,
+        cancellation: value?.queue?.cancellation?.verification === 'UNVERIFIED'
+          ? {
+              verification: 'UNVERIFIED',
+              scheduleMinutes: 30,
+              sampled: this.normalizeNonNegativeInteger(
+                value.queue.cancellation.sampled
+              ),
+              due: this.normalizeNonNegativeInteger(
+                value.queue.cancellation.due
+              ),
+              overdue24h: this.normalizeNonNegativeInteger(
+                value.queue.cancellation.overdue24h
+              ),
+              missingOrInvalidDue: this.normalizeNonNegativeInteger(
+                value.queue.cancellation.missingOrInvalidDue
+              ),
+              samplePartial: value.queue.cancellation.samplePartial === true,
+            }
+          : null,
       },
     };
   }

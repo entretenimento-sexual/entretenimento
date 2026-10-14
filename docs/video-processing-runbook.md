@@ -194,6 +194,16 @@ nova tentativa), identificador externo inválido (falha fechada), resposta
 incerta de submissão (não apaga nem reenvia) e mudança de versão (não altera
 a tentativa nova). O transporte simulado não possui saída de rede real.
 
+A interface administrativa deve distinguir explicitamente conectividade
+com a API do Transcoder de execução efetiva do scheduler. O badge
+`Transcoder acessível` **não** equivale a saúde do processamento.
+O card de cancelamentos utiliza apenas a amostra ativa já consultada pelo
+diagnóstico: mostra vencidos, atrasados mais de 24 horas, campos de agenda
+ausentes/inválidos e cobertura parcial. Não acrescenta leituras nem gravações
+de documentos. O estado do scheduler permanece `UNVERIFIED` até que exista
+evidência de execução verificada por outro mecanismo; contadores zerados,
+inclusive de amostra parcial, não provam saúde operacional.
+
 ### Logs de execução do scheduler
 
 Cada execução agendada produz dois eventos estruturados correlacionados pelo

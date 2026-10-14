@@ -96,12 +96,39 @@
             <small>{{ diagnostic.queue.counts.FAILED }} falha(s)</small>
           </article>
 
+          @if (diagnostic.queue.cancellation; as cancellation) {
+            <article class="video-moderation__metric">
+              <span>Cancelamentos vencidos (amostra)</span>
+              <strong>{{ cancellation.due }}</strong>
+              <small>
+                {{ cancellation.overdue24h }} há mais de 24 h;
+                {{ cancellation.missingOrInvalidDue }} sem agendamento válido.
+                @if (cancellation.samplePartial) {
+                  Amostra parcial.
+                }
+              </small>
+            </article>
+          }
+
           <article class="video-moderation__metric">
             <span>Última verificação</span>
             <strong>{{ diagnostic.checkedAt | date:'HH:mm:ss' }}</strong>
             <small>{{ diagnostic.checkedAt | date:'dd/MM/yyyy' }}</small>
           </article>
         </div>
+
+        <p class="video-moderation__operations-summary" role="status">
+          <strong>Execução do scheduler não verificada.</strong>
+          A conectividade com o Transcoder e os dados da fila não comprovam
+          que a limpeza agendada foi executada. Confira os eventos estruturados
+          do Cloud Logging e o Cloud Scheduler no ambiente implantado.
+          @if (diagnostic.queue.cancellation; as cancellation) {
+            Frequência configurada: a cada {{ cancellation.scheduleMinutes }} minutos.
+            @if (cancellation.samplePartial) {
+              Os contadores de cancelamento representam apenas uma amostra.
+            }
+          }
+        </p>
 
         <dl class="video-moderation__configuration">
           <div>
