@@ -153,7 +153,8 @@
     "emu:stop:test": "node --test scripts/tests/emulator-suite-stop.test.mjs",
     "test:auth:revocation:e2e": "npm run rules:build && npm run rules:check && npm run functions:build && firebase emulators:exec --config firebase.media-e2e.json --only auth,firestore,functions --project demo-entretenimento-media-e2e \"node scripts/tests/admin-revocation.e2e.mjs\"",
     "test:media:transaction:e2e": "npm run functions:build && firebase emulators:exec --config firebase.media-e2e.json --only firestore --project demo-entretenimento-media-e2e \"node scripts/tests/media-transaction-revocation.e2e.mjs\"",
-    "test:media:callables:e2e": "npm run rules:build && npm run rules:check && npm run functions:build && firebase emulators:exec --config firebase.media-e2e.json --only auth,firestore,storage,functions --project demo-entretenimento-media-e2e \"node scripts/tests/media-callables-revocation.e2e.mjs\""
+    "test:media:callables:e2e": "npm run rules:build && npm run rules:check && npm run functions:build && firebase emulators:exec --config firebase.media-e2e.json --only auth,firestore,storage,functions --project demo-entretenimento-media-e2e \"node scripts/tests/media-callables-revocation.e2e.mjs\"",
+    "inspect:video-jobs:emu": "node scripts/dev/inspect-video-processing-jobs-emulator.mjs"
   },
   "private": true,
   "dependencies": {

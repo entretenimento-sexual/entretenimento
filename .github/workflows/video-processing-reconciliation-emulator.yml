@@ -38,6 +38,8 @@ jobs:
         run: |
           npm ci
           npm --prefix functions ci
+      - name: Verify read-only video inventory classification
+        run: node --test scripts/tests/video-processing-job-inventory.test.mjs
       - name: Compile Functions
         run: npm --prefix functions run build
       - name: Test transactions in disposable demo Firestore
