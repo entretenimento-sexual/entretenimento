@@ -15,7 +15,7 @@
     "clean": "node -e \"require('fs').rmSync('lib',{recursive:true,force:true})\"",
     "build": "npm run clean && node ./node_modules/typescript/bin/tsc --project tsconfig.json && node ../scripts/quality/check-functions-emit.mjs",
     "build:watch": "tsc --watch",
-    "test": "npm run build && node --test \"lib/**/*.test.js\"",
+    "test": "npm run build && node ../scripts/quality/run-functions-tests.mjs",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
