@@ -89,3 +89,30 @@ test('late submission response cannot overwrite a cancellation provider ID', () 
     ...cancelling, state: 'FAILED',
   }, observed, 'jobs/already-confirmed'), false);
 });
+
+test('recovery binds a provider ID only to the same PROCESSING attempt', () => {
+  const observed = {
+    processingVersion: 'version-processing',
+    attempts: 1,
+    sourceStoragePath: 'users/u/uploads/videos/video-source.mp4',
+    leaseUntil: null,
+  };
+  const processing = {
+    ...observed,
+    state: 'PROCESSING' as const,
+    externalJobName: null,
+  };
+
+  assert.equal(canAttachSubmittedProviderJob(
+    processing, observed, 'jobs/recovered'
+  ), true);
+  assert.equal(canAttachSubmittedProviderJob({
+    ...processing, externalJobName: 'jobs/existing',
+  }, observed, 'jobs/recovered'), false);
+  assert.equal(canAttachSubmittedProviderJob({
+    ...processing, state: 'FAILED',
+  }, observed, 'jobs/recovered'), false);
+  assert.equal(canAttachSubmittedProviderJob({
+    ...processing, processingVersion: 'version-replaced',
+  }, observed, 'jobs/recovered'), false);
+});
