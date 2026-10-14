@@ -107,10 +107,10 @@ test('provider submission recovery supports processing jobs without external IDs
     "return current.state === 'PROCESSING' &&"
   ));
   assert.ok(submissionConfirmationPolicy.includes(
-    "current.nextAttemptAt === observed.nextAttemptAt;"
+    'current.nextAttemptAt === observed.nextAttemptAt;'
   ));
   assert.ok(firestoreCore.includes(
-    "current.nextAttemptAt === observed.nextAttemptAt;"
+    'current.nextAttemptAt === observed.nextAttemptAt;'
   ));
 });
 
