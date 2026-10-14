@@ -8,6 +8,7 @@ import axios, { AxiosError, type AxiosResponse } from 'axios';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
 import { decideMissingVideoSubmission } from './video-submission-confirmation.policy';
+import { isCurrentVideoProcessingAttempt } from './video-processing-poll.policy';
 import {
   executeVideoCancellation,
   type VideoCancellationPorts,
@@ -105,6 +106,69 @@ test('due query selects earliest 20 and second batch after atomic claims', async
   const second = await queryDueProcessingJobs(firestore, now, 20).get();
   assert.equal(second.size, 5);
   assert.ok(second.docs.every(doc => doc.id !== futureRef.id));
+});
+
+
+test('terminal provider results are fenced to the newest PROCESSING poll claim', async () => {
+  for (const [obsolete, latest] of [
+    ['FAILED', 'SUCCEEDED'],
+    ['SUCCEEDED', 'FAILED'],
+  ] as const) {
+    const jobRef = jobs.doc('processing-terminal-fence-' + randomUUID());
+    const initial = fixture('RUNNING');
+    const videoRef = firestore.doc(
+      `users/${initial.ownerUid}/videos/${initial.videoId}`
+    );
+    await jobRef.set(initial);
+    await videoRef.set({
+      path: initial.sourceStoragePath,
+      status: 'processing',
+      processingStage: 'processing',
+    });
+
+    const first = await claimProcessingJob(firestore, jobRef, now, parseJob);
+    assert.ok(first);
+    const later = first.nextAttemptAt + 1_000;
+    const second = await claimProcessingJob(firestore, jobRef, later, parseJob);
+    assert.ok(second);
+    assert.notEqual(first.nextAttemptAt, second.nextAttemptAt);
+
+    // Same transactional predicate used by both production terminal writers.
+    async function applyTerminalResult(
+      observed: VideoProcessingJob,
+      state: 'FAILED' | 'SUCCEEDED'
+    ): Promise<boolean> {
+      return firestore.runTransaction(async (transaction) => {
+        const [jobSnapshot, videoSnapshot] = await Promise.all([
+          transaction.get(jobRef),
+          transaction.get(videoRef),
+        ]);
+        const current = jobSnapshot.exists
+          ? parseJob(jobSnapshot.data())
+          : null;
+        if (!current || !videoSnapshot.exists ||
+          !isCurrentVideoProcessingAttempt(current, observed)) {
+          return false;
+        }
+        const status = state === 'SUCCEEDED' ? 'ready' : 'failed';
+        transaction.update(jobRef, { state, providerState: state });
+        transaction.update(videoRef, { status, processingStage: status });
+        return true;
+      });
+    }
+
+    assert.equal(await applyTerminalResult(first, obsolete), false);
+    assert.equal((await jobRef.get()).get('state'), 'PROCESSING');
+    assert.equal((await videoRef.get()).get('status'), 'processing');
+
+    assert.equal(await applyTerminalResult(second, latest), true);
+    assert.equal((await jobRef.get()).get('state'), latest);
+    const finalStatus = latest === 'SUCCEEDED' ? 'ready' : 'failed';
+    assert.equal((await videoRef.get()).get('status'), finalStatus);
+    assert.equal((await videoRef.get()).get('processingStage'), finalStatus);
+    assert.equal(await applyTerminalResult(first, obsolete), false);
+    assert.equal((await videoRef.get()).get('status'), finalStatus);
+  }
 });
 
 test('PROCESSING recovery rejects obsolete polling claims without a provider ID', async () => {

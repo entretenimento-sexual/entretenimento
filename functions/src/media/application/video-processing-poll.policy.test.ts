@@ -42,6 +42,7 @@ test('stale video-provider responses cannot override cancellation or newer jobs'
   const observed = {
     processingVersion: 'original',
     externalJobName: 'projects/demo/jobs/original',
+    nextAttemptAt: 1_800_000_540_000,
   };
   const current = { ...observed, state: 'PROCESSING' as const };
   assert.equal(isCurrentVideoProcessingAttempt(current, observed), true);
@@ -53,6 +54,12 @@ test('stale video-provider responses cannot override cancellation or newer jobs'
   }, observed), false);
   assert.equal(isCurrentVideoProcessingAttempt({
     ...current, externalJobName: 'projects/demo/jobs/other',
+  }, observed), false);
+  assert.equal(isCurrentVideoProcessingAttempt({
+    ...current, nextAttemptAt: observed.nextAttemptAt + 60_000,
+  }, observed), false);
+  assert.equal(isCurrentVideoProcessingAttempt({
+    ...current, nextAttemptAt: observed.nextAttemptAt - 60_000,
   }, observed), false);
 });
 

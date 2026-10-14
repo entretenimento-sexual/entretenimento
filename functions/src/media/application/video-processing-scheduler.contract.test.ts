@@ -77,6 +77,7 @@ test('processing query only claims due jobs with a composite index', () => {
   assert.match(firestoreCore, new RegExp(parts.join(String.raw`\s*`)));
   assert.ok(scheduler.includes('db, now, RECONCILIATION_BATCH_SIZE'));
   assert.ok(firestoreCore.includes('nextVideoProcessingPollAt(job, now)'));
+  assert.ok(firestoreCore.includes('return { ...job, nextAttemptAt: reservedUntil };'));
   assert.ok(scheduler.includes('claimProcessingJob(db, jobDoc.ref, now, normalizeJob)'));
   assertCompositeIndex('nextAttemptAt');
 });
@@ -90,6 +91,12 @@ test('stale transcoder results cannot finalize or fail another processing attemp
   assert.ok(scheduler.includes('!isCurrentVideoProcessingAttempt(currentJob, job)'));
   assert.ok(scheduler.includes('!isCurrentVideoProcessingAttempt(current, job)'));
   assert.ok(scheduler.includes("state: 'CANCEL_REQUESTED'"));
+  assert.ok(firestoreCore.includes('return { ...job, nextAttemptAt: reservedUntil };'));
+  const policy = readFileSync(
+    resolve(__dirname, '../../../src/media/application/video-processing-poll.policy.ts'),
+    'utf8'
+  );
+  assert.ok(policy.includes('current.nextAttemptAt === observed.nextAttemptAt'));
 });
 
 test('transient provider errors cannot mutate cancelled or replaced jobs', () => {

@@ -29,13 +29,23 @@ export function providerObservationChanged(
     job.lastError !== null;
 }
 
+/**
+ * A poll result belongs to one atomic nextAttemptAt reservation. Another
+ * scheduler may reserve the same processing version before the response
+ * arrives, so version and provider ID alone are not sufficient fencing.
+ */
 export function isCurrentVideoProcessingAttempt(
-  current: Pick<VideoProcessingJob, 'state' | 'processingVersion' | 'externalJobName'>,
-  observed: Pick<VideoProcessingJob, 'processingVersion' | 'externalJobName'>
+  current: Pick<VideoProcessingJob,
+    'state' | 'processingVersion' | 'externalJobName' | 'nextAttemptAt'
+  >,
+  observed: Pick<VideoProcessingJob,
+    'processingVersion' | 'externalJobName' | 'nextAttemptAt'
+  >
 ): boolean {
   return current.state === 'PROCESSING' &&
     current.processingVersion === observed.processingVersion &&
-    current.externalJobName === observed.externalJobName;
+    current.externalJobName === observed.externalJobName &&
+    current.nextAttemptAt === observed.nextAttemptAt;
 }
 
 /**
