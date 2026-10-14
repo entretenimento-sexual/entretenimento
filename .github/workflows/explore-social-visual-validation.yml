@@ -412,11 +412,12 @@ jobs:
             await page.waitForSelector('.feed-empty', { state: 'visible' });
             const metrics = await page.evaluate(() => {
               const state = document.querySelector('.feed-empty');
-              const action = document.querySelector('.feed-empty .feed-pagination button');
+              const action = document.querySelector('.feed-empty .content-state__action');
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
                 text: state?.textContent?.replace(/\\s+/g, ' ').trim() ?? '',
+                actionPresent: !!action,
                 actionHeight: action?.getBoundingClientRect().height ?? 0,
                 ariaBusy: action?.getAttribute('aria-busy') ?? null,
               };
@@ -426,6 +427,7 @@ jobs:
             if (!metrics.text.includes('Ainda há conexões para verificar')) throw new Error('Explore owner-more title is missing');
             if (!metrics.text.includes('Buscar mais atualizações')) throw new Error('Explore owner-more action is missing');
             if (metrics.text.includes('Seu feed começa com conexões')) throw new Error('Explore owner-more incorrectly rendered terminal empty state');
+            if (!metrics.actionPresent) throw new Error('Explore owner-more button was not rendered');
             if (metrics.actionHeight < 44) throw new Error('Explore owner-more action is below 44px');
             return metrics;
           }"
