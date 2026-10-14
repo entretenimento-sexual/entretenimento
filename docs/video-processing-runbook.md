@@ -150,6 +150,28 @@ Procedimento para revisão manual:
 Cancelamentos com `CANCELLATION_UNCONFIRMED` também preservam o rastreamento
 até que a identidade do recurso externo seja confirmada.
 
+### Fila técnica de cancelamentos
+
+O scheduler `cleanupCancelledVideoProcessing` executa a cada 30 minutos e
+seleciona apenas `CANCEL_REQUESTED` com `nextAttemptAt <= now`, ordenando
+pelo menor vencimento antes de limitar o lote a 20 documentos. Usa o índice
+composto canônico `state + nextAttemptAt`, sem varrer a coleção inteira.
+
+Cada documento recebe uma reserva transacional de 25 minutos antes das
+chamadas externas. Outra execução não deve assumir a mesma reserva. Falhas de
+limpeza são reagendadas para 30 minutos, 2 horas e, a partir da terceira,
+24 horas. `cancellationCleanupAttempts` é independente das tentativas
+de criação de jobs, e `cancellationReviewRequired` é ativado após três
+falhas ou imediatamente quando o job externo não puder ser confirmado.
+O alerta permanece marcado durante falhas posteriores e **não autoriza**
+uma nova submissão.
+
+O inventário somente de leitura `npm run inspect:video-jobs:emu` informa
+cancelamentos vencidos, adiados, sem data válida e com revisão necessária.
+Um documento legado sem `nextAttemptAt` pode ficar fora da consulta;
+qualquer reparo requer verificação versionada e execução separada.
+Não excluir manualmente cancelamentos com identidade externa incerta.
+
 Não alterar manualmente `state`, `leaseUntil`, `externalJobName` ou
 `outputPrefix` no Firestore. Em jobs `SUBMITTING`, a revalidação não cria outro
 job imediatamente: o reconciliador procura primeiro o job existente pela label
