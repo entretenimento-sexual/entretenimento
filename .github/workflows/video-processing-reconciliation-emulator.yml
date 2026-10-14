@@ -5,6 +5,8 @@ on:
   push:
     paths:
       - 'functions/src/media/application/video-processing*'
+      - 'functions/src/media/application/video-cancellation*'
+      - 'functions/src/media/application/video-transcoder-delete*'
       - 'functions/src/media/application/admin-video-processing-recovery.*'
       - 'scripts/quality/run-video-processing-reconciliation-emulator.mjs'
       - 'firestore.indexes.json'

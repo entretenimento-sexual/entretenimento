@@ -17,6 +17,7 @@ import {
   type VideoProcessingJob,
 } from './video-processing-job';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
+import { executeVideoCancellation } from './video-cancellation-execution';
 import {
   decideMissingVideoSubmission,
   canAttachSubmittedProviderJob,
@@ -897,55 +898,30 @@ async function processCancellation(
   jobRef: DocumentReference,
   job: VideoProcessingJob
 ): Promise<void> {
-  try {
-    let externalJobName = job.externalJobName;
+  const result = await executeVideoCancellation(job, {
+    findProviderJob: findGoogleVideoTranscoderJob,
+    bindProviderJob: (started, providerName) =>
+      bindCancelledProviderJobIfCurrent(
+        db, jobRef, started, providerName, normalizeJob, Date.now()
+      ),
+    deleteProviderJob: deleteGoogleVideoTranscoderJob,
+    deleteOutputPrefix,
+    deleteCancelledJob: (started) =>
+      deleteCancelledJobIfCurrent(db, jobRef, started, normalizeJob),
+    recordFailure: (started, error, now) =>
+      recordCancellationErrorIfCurrent(
+        db, jobRef, started, normalizeJob, error, now
+      ),
+    normalizeError: normalizeGoogleTranscoderError,
+    now: Date.now,
+  });
 
-    // A cancellation can race with a successful POST whose response was lost.
-    // Never remove the only local tracking record after an ambiguous POST.
-    if (!externalJobName && job.attempts > 0) {
-      const recovered = await findGoogleVideoTranscoderJob(
-        job.processingVersion
-      );
-      if (!recovered) {
-        await recordCancellationErrorIfCurrent(
-          db, jobRef, job, normalizeJob, {
-            code: 'CANCELLATION_UNCONFIRMED',
-            message: 'Job externo não confirmado; limpeza aguarda revisão.',
-          }, Date.now()
-        );
-        return;
-      }
-
-      const bound = await bindCancelledProviderJobIfCurrent(
-        db, jobRef, job, recovered.name, normalizeJob, Date.now()
-      );
-      if (!bound) return;
-      externalJobName = recovered.name;
-    }
-
-    if (externalJobName) {
-      await deleteGoogleVideoTranscoderJob(externalJobName);
-    }
-
-    await deleteOutputPrefix(job.outputPrefix);
-    await deleteCancelledJobIfCurrent(db, jobRef, job, normalizeJob);
-  } catch (error) {
-    const normalized = normalizeGoogleTranscoderError(error);
-
-    await recordCancellationErrorIfCurrent(
-      db,
-      jobRef,
-      job,
-      normalizeJob,
-      { code: normalized.code, message: normalized.message },
-      Date.now()
-    );
-
+  if (result.status === 'RETRY_SCHEDULED') {
     logger.warn('[videoProcessing] Cancelamento pendente.', {
       ownerUid: job.ownerUid,
       videoId: job.videoId,
-      errorCode: normalized.code,
-      error: normalized.message,
+      errorCode: result.error.code,
+      error: result.error.message,
     });
   }
 }

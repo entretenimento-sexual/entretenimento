@@ -16,6 +16,7 @@ import {
 } from './video-processing-job';
 import { prepareVideoSourceForTranscoder } from './video-rotation-worker.service';
 import { lookupUniqueTranscoderJob } from './google-video-transcoder-lookup.policy';
+import { deleteVideoTranscoderJobWithTransport } from './video-transcoder-delete.transport';
 
 interface GoogleTranscoderErrorStatus {
   code?: number;
@@ -394,25 +395,17 @@ export async function deleteGoogleVideoTranscoderJob(
   externalJobName: string
 ): Promise<void> {
   const name = normalizeJobName(externalJobName);
-
   if (!name) {
     throw new Error('Identificador do job de transcodificação inválido.');
   }
 
   const authorization = await authorizationHeader();
-
-  try {
-    await axios.delete(`${TRANSCODER_API_BASE_URL}/${name}`, {
+  await deleteVideoTranscoderJobWithTransport(name, (validatedName) =>
+    axios.delete(`${TRANSCODER_API_BASE_URL}/${validatedName}`, {
       headers: { Authorization: authorization },
       timeout: 30_000,
-    });
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
-      return;
-    }
-
-    throw error;
-  }
+    })
+  );
 }
 
 export function normalizeGoogleTranscoderError(

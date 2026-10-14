@@ -187,6 +187,13 @@ Um documento legado sem `nextAttemptAt` pode ficar fora da consulta;
 qualquer reparo requer verificação versionada e execução separada.
 Não excluir manualmente cancelamentos com identidade externa incerta.
 
+O cancelamento usa um núcleo testável com portas injetadas. O teste isolado
+simula resposta de exclusão bem-sucedida e HTTP 404 (ambas permitem concluir
+a limpeza), erro HTTP 503 ou perda de conexão (preserva o registro e agenda
+nova tentativa), identificador externo inválido (falha fechada), resposta
+incerta de submissão (não apaga nem reenvia) e mudança de versão (não altera
+a tentativa nova). O transporte simulado não possui saída de rede real.
+
 Se um documento `CANCEL_REQUESTED` não puder ser validado, o scheduler
 **preserva o registro** e gera alerta agregado, sem exclusão automática.
 Igualmente, o nome de um job externo malformado causa erro de limpeza:

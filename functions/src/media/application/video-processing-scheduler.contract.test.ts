@@ -114,11 +114,11 @@ test('cancelled job cleanup does not delete or resurrect a newer attempt', () =>
   const body = scheduler.slice(start, end);
 
   assert.ok(start >= 0 && end > start);
-  assert.ok(body.includes('deleteCancelledJobIfCurrent(db, jobRef, job, normalizeJob)'));
+  assert.ok(body.includes('executeVideoCancellation(job, {'));
+  assert.ok(body.includes('deleteCancelledJobIfCurrent('));
   assert.ok(body.includes('recordCancellationErrorIfCurrent('));
   assert.ok(firestoreCore.includes('isCurrentCancellationClaim(current, started)'));
   assert.ok(firestoreCore.includes('transaction.delete(jobRef)'));
-  assert.ok(firestoreCore.includes('transaction.update(jobRef, {'));
   assert.ok(!body.includes('await jobRef.delete()'));
   assert.ok(!body.includes('await jobRef.set('));
 });
@@ -153,18 +153,16 @@ test('missing external submission never automatically returns a job to QUEUED', 
   assert.ok(!recovery.includes("state: 'QUEUED'"));
 });
 
-test('unknown provider cancellation remains tracked until confirmation', () => {
+test('unknown provider cancellation uses the guarded execution core', () => {
   const start = scheduler.indexOf('async function processCancellation(');
   const end = scheduler.indexOf('async function runBatch(', start);
   const body = scheduler.slice(start, end);
 
   assert.ok(start >= 0 && end > start);
-  assert.ok(body.includes('job.attempts > 0'));
-  assert.ok(body.includes('findGoogleVideoTranscoderJob('));
+  assert.ok(body.includes('findProviderJob: findGoogleVideoTranscoderJob'));
   assert.ok(body.includes('bindCancelledProviderJobIfCurrent('));
-  assert.ok(body.includes("code: 'CANCELLATION_UNCONFIRMED'"));
-  assert.ok(body.indexOf('bindCancelledProviderJobIfCurrent(') <
-    body.indexOf('deleteOutputPrefix(job.outputPrefix)'));
+  assert.ok(body.includes('deleteCancelledJobIfCurrent('));
+  assert.ok(body.includes('executeVideoCancellation(job, {'));
 });
 
 test('successful POST without provider ID remains an ambiguous submission', () => {
@@ -223,4 +221,10 @@ test('invalid persisted provider ID never masquerades as a successful delete', (
   ));
   assert.ok(deletion.indexOf('throw new Error(') <
     deletion.indexOf('const authorization = await authorizationHeader()'));
+});
+
+test('provider deletion uses the injectable idempotent-404 transport', () => {
+  assert.ok(transcoderService.includes('deleteVideoTranscoderJobWithTransport('));
+  assert.ok(transcoderService.includes('const authorization = await authorizationHeader()'));
+  assert.ok(scheduler.includes('executeVideoCancellation(job, {'));
 });
