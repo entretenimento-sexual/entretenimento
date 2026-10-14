@@ -32,16 +32,25 @@ function assertCompositeIndex(dueField: string): void {
   ), 'Missing composite index for state + ' + dueField);
 }
 
+function assertDueQuery(
+  state: 'QUEUED' | 'SUBMITTING',
+  dueField: 'nextAttemptAt' | 'leaseUntil'
+): void {
+  const parts = [
+    String.raw`\.where\('state', '==', '${state}'\)`,
+    String.raw`\.where\('${dueField}', '<=', now\)`,
+    String.raw`\.orderBy\('${dueField}', 'asc'\)`,
+    String.raw`\.limit\(SUBMISSION_BATCH_SIZE\)`,
+  ];
+  assert.match(scheduler, new RegExp(parts.join(String.raw`\s*`)));
+}
+
 test('queued video jobs query due timestamps before applying the batch limit', () => {
-  assert.match(scheduler,
-    /\.where\('state', '==', 'QUEUED'\)\s*\.where\('nextAttemptAt', '<=', now\)\s*\.orderBy\('nextAttemptAt', 'asc'\)\s*\.limit\(SUBMISSION_BATCH_SIZE\)/
-  );
+  assertDueQuery('QUEUED', 'nextAttemptAt');
   assertCompositeIndex('nextAttemptAt');
 });
 
 test('submission recovery only selects expired leases before the batch limit', () => {
-  assert.match(scheduler,
-    /\.where\('state', '==', 'SUBMITTING'\)\s*\.where\('leaseUntil', '<=', now\)\s*\.orderBy\('leaseUntil', 'asc'\)\s*\.limit\(SUBMISSION_BATCH_SIZE\)/
-  );
+  assertDueQuery('SUBMITTING', 'leaseUntil');
   assertCompositeIndex('leaseUntil');
 });
