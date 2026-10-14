@@ -130,10 +130,25 @@ novas verificações automáticas. A administração pode solicitar
 `RECHECK_UNCONFIRMED` com justificativa; isso consulta o provedor e **nunca
 cria outro job**. A operação é auditada em `admin_logs`.
 Jobs legados `FAILED` com `SUBMISSION_NOT_FOUND` ou código de submissão
-não confirmada não oferecem `RETRY_FAILED`. O responsável deve confirmar
-a inexistência do job externo antes de decidir por uma estratégia de reparo
-separada e autorizada. Cancelamentos com `CANCELLATION_UNCONFIRMED`
-também preservam o rastreamento até a confirmação externa.
+não confirmada não oferecem `RETRY_FAILED`. Um resultado vazio de `jobs.list`
+não comprova a inexistência de um job remoto: a API pode ter recebido a
+requisição anterior e ainda não estar refletindo esse recurso nas buscas.
+
+Procedimento para revisão manual:
+1. Conferir projeto, região, versão de processamento e filtros utilizados.
+2. Consultar o Transcoder novamente, com paginação completa, sem criar jobs.
+3. Tratar retorno vazio, erro, paginação incompleta ou duplicidade como
+   `NÃO CONFIRMADO`, jamais como autorização automática de reenvio.
+4. Se houver job identificado, preservar seu nome no registro correto da
+   versão e seguir o fluxo de reconciliação ou cancelamento.
+5. Sem confirmação suficiente, manter o job bloqueado e registrar a análise,
+   sem alterar diretamente `state` ou `externalJobName`.
+6. Uma eventual autorização de nova tentativa exige procedimento separado,
+   com avaliação de custo e evidência independente, transação versionada,
+   justificativa e histórico; **esse desbloqueio ainda não foi habilitado**.
+
+Cancelamentos com `CANCELLATION_UNCONFIRMED` também preservam o rastreamento
+até que a identidade do recurso externo seja confirmada.
 
 Não alterar manualmente `state`, `leaseUntil`, `externalJobName` ou
 `outputPrefix` no Firestore. Em jobs `SUBMITTING`, a revalidação não cria outro

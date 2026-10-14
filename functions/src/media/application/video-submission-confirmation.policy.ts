@@ -38,3 +38,47 @@ export function decideMissingVideoSubmission(
       : 'Submissão externa ainda não localizada; nova consulta agendada.',
   };
 }
+
+/**
+ * Authorize attaching a provider response to the original submission only.
+ * This prevents late results from replacing a provider ID already recorded
+ * by a cancellation worker or by a different attempt.
+ */
+export function canAttachSubmittedProviderJob(
+  current: Pick<VideoProcessingJob,
+    | 'state'
+    | 'processingVersion'
+    | 'attempts'
+    | 'sourceStoragePath'
+    | 'leaseUntil'
+    | 'externalJobName'
+  > | null,
+  observed: Pick<VideoProcessingJob,
+    'processingVersion' | 'attempts' | 'sourceStoragePath' | 'leaseUntil'
+  >,
+  providerJobName: string
+): boolean {
+  if (
+    !current ||
+    !providerJobName ||
+    current.processingVersion !== observed.processingVersion ||
+    current.attempts !== observed.attempts ||
+    current.sourceStoragePath !== observed.sourceStoragePath ||
+    (current.externalJobName !== null &&
+      current.externalJobName !== providerJobName)
+  ) {
+    return false;
+  }
+
+  if (current.state === 'SUBMITTING') {
+    return current.leaseUntil === observed.leaseUntil;
+  }
+
+  if (current.state === 'CANCEL_REQUESTED') {
+    return true;
+  }
+
+  // A PROCESSING record without its external ID may be repaired only for
+  // the exact same version/source. Once bound, late responses cannot replace it.
+  return current.state === 'PROCESSING' && !current.externalJobName;
+}

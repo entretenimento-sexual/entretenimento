@@ -17,7 +17,10 @@ import {
   type VideoProcessingJob,
 } from './video-processing-job';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
-import { decideMissingVideoSubmission } from './video-submission-confirmation.policy';
+import {
+  decideMissingVideoSubmission,
+  canAttachSubmittedProviderJob,
+} from './video-submission-confirmation.policy';
 import {
   providerObservationChanged,
   isCurrentVideoProcessingAttempt,
@@ -347,17 +350,9 @@ async function persistSubmittedJob(
       ? normalizeJob(jobSnapshot.data())
       : null;
 
-    if (
-      !currentJob ||
-      currentJob.processingVersion !== job.processingVersion ||
-      currentJob.attempts !== job.attempts ||
-      (currentJob.state === 'SUBMITTING' &&
-        currentJob.leaseUntil !== job.leaseUntil) ||
-      (currentJob.state !== 'SUBMITTING' &&
-        currentJob.state !== 'CANCEL_REQUESTED' &&
-        !(currentJob.state === 'PROCESSING' &&
-          !currentJob.externalJobName))
-    ) {
+    if (!canAttachSubmittedProviderJob(
+      currentJob, job, externalJobName
+    )) {
       return;
     }
 
