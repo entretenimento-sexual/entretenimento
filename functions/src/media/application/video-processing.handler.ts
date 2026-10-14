@@ -49,7 +49,6 @@ const RECONCILIATION_BATCH_SIZE = 20;
 const CANCELLATION_BATCH_SIZE = 20;
 const SUBMISSION_LEASE_MS = 10 * 60 * 1000;
 const AMBIGUOUS_SUBMISSION_LEASE_MS = 5 * 60 * 1000;
-const MAX_RETRY_DELAY_MS = 6 * 60 * 60 * 1000;
 const SCHEDULE_TIME_ZONE = 'America/Sao_Paulo';
 
 function containsControlCharacter(value: string): boolean {
@@ -207,11 +206,6 @@ function normalizeJob(data: unknown): VideoProcessingJob | null {
     lastErrorCode: String(job.lastErrorCode ?? '').trim() || null,
     lastError: String(job.lastError ?? '').trim() || null,
   };
-}
-
-function retryDelayMs(attempts: number): number {
-  const exponent = Math.max(0, Math.min(6, attempts - 1));
-  return Math.min(MAX_RETRY_DELAY_MS, 60_000 * 2 ** exponent);
 }
 
 function privateSourcePath(
