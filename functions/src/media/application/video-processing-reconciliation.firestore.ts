@@ -44,10 +44,9 @@ export async function claimProcessingJob(
       return null;
     }
 
-    transaction.update(jobRef, {
-      nextAttemptAt: nextVideoProcessingPollAt(job, now),
-    });
-    return job;
+    const reservedUntil = nextVideoProcessingPollAt(job, now);
+    transaction.update(jobRef, { nextAttemptAt: reservedUntil });
+    return { ...job, nextAttemptAt: reservedUntil };
   });
 }
 
@@ -221,7 +220,8 @@ export function isCurrentSubmissionRecovery(
   // function, but its polling reservation uses nextAttemptAt, not a lease.
   return observed.state === 'PROCESSING' &&
     current.state === 'PROCESSING' &&
-    !current.externalJobName;
+    !current.externalJobName &&
+    current.nextAttemptAt === observed.nextAttemptAt;
 }
 
 interface RecoveredSubmissionUpdate {

@@ -51,10 +51,11 @@ export function canAttachSubmittedProviderJob(
     | 'attempts'
     | 'sourceStoragePath'
     | 'leaseUntil'
+    | 'nextAttemptAt'
     | 'externalJobName'
   > | null,
   observed: Pick<VideoProcessingJob,
-    'processingVersion' | 'attempts' | 'sourceStoragePath' | 'leaseUntil'
+    'processingVersion' | 'attempts' | 'sourceStoragePath' | 'leaseUntil' | 'nextAttemptAt'
   >,
   providerJobName: string
 ): boolean {
@@ -80,5 +81,7 @@ export function canAttachSubmittedProviderJob(
 
   // A PROCESSING record without its external ID may be repaired only for
   // the exact same version/source. Once bound, late responses cannot replace it.
-  return current.state === 'PROCESSING' && !current.externalJobName;
+  return current.state === 'PROCESSING' &&
+    !current.externalJobName &&
+    current.nextAttemptAt === observed.nextAttemptAt;
 }

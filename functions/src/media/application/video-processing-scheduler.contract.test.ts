@@ -104,7 +104,13 @@ test('transient provider errors cannot mutate cancelled or replaced jobs', () =>
 test('provider submission recovery supports processing jobs without external IDs', () => {
   assert.ok(scheduler.includes('canAttachSubmittedProviderJob('));
   assert.ok(submissionConfirmationPolicy.includes(
-    "return current.state === 'PROCESSING' && !current.externalJobName;"
+    "return current.state === 'PROCESSING' &&"
+  ));
+  assert.ok(submissionConfirmationPolicy.includes(
+    "current.nextAttemptAt === observed.nextAttemptAt;"
+  ));
+  assert.ok(firestoreCore.includes(
+    "current.nextAttemptAt === observed.nextAttemptAt;"
   ));
 });
 

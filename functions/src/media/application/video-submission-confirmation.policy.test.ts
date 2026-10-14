@@ -42,6 +42,7 @@ test('provider job binding refuses stale versions, replaced IDs and lease races'
     attempts: 1,
     sourceStoragePath: 'users/u/uploads/videos/video-source.mp4',
     leaseUntil: 900,
+    nextAttemptAt: 1_000,
   };
   const base = {
     ...observed,
@@ -72,6 +73,7 @@ test('late submission response cannot overwrite a cancellation provider ID', () 
     attempts: 1,
     sourceStoragePath: 'users/u/uploads/videos/video-source.mp4',
     leaseUntil: 900,
+    nextAttemptAt: 1_000,
   };
   const cancelling = {
     ...observed,
@@ -96,6 +98,7 @@ test('recovery binds a provider ID only to the same PROCESSING attempt', () => {
     attempts: 1,
     sourceStoragePath: 'users/u/uploads/videos/video-source.mp4',
     leaseUntil: null,
+    nextAttemptAt: 1_000,
   };
   const processing = {
     ...observed,
@@ -106,6 +109,9 @@ test('recovery binds a provider ID only to the same PROCESSING attempt', () => {
   assert.equal(canAttachSubmittedProviderJob(
     processing, observed, 'jobs/recovered'
   ), true);
+  assert.equal(canAttachSubmittedProviderJob({
+    ...processing, nextAttemptAt: 1_001,
+  }, observed, 'jobs/recovered'), false);
   assert.equal(canAttachSubmittedProviderJob({
     ...processing, externalJobName: 'jobs/existing',
   }, observed, 'jobs/recovered'), false);

@@ -107,6 +107,50 @@ test('due query selects earliest 20 and second batch after atomic claims', async
   assert.ok(second.docs.every(doc => doc.id !== futureRef.id));
 });
 
+test('PROCESSING recovery rejects obsolete polling claims without a provider ID', async () => {
+  const ref = jobs.doc('recover-processing-fence-' + randomUUID());
+  const initial = {
+    ...fixture('PENDING'),
+    externalJobName: null,
+    nextAttemptAt: now - 1_000,
+  };
+  await ref.set(initial);
+
+  const first = await claimProcessingJob(firestore, ref, now, parseJob);
+  assert.ok(first);
+  assert.equal((await ref.get()).get('nextAttemptAt'), first.nextAttemptAt);
+  assert.ok(first.nextAttemptAt > now);
+
+  // A pre-claim or delayed lookup cannot write into the reserved slot.
+  assert.equal(await updateRecoveredSubmissionIfCurrent(
+    firestore, ref, { ...first, nextAttemptAt: initial.nextAttemptAt },
+    parseJob, {
+      now,
+      jobPatch: { lastErrorCode: 'STALE_RECOVERY' },
+    }
+  ), false);
+  assert.equal((await ref.get()).get('lastErrorCode'), null);
+
+  // A later scheduler invocation takes the same version's polling slot.
+  const later = first.nextAttemptAt + 1_000;
+  const second = await claimProcessingJob(firestore, ref, later, parseJob);
+  assert.ok(second);
+  assert.notEqual(first.nextAttemptAt, second.nextAttemptAt);
+  assert.equal(await updateRecoveredSubmissionIfCurrent(
+    firestore, ref, first, parseJob, {
+      now: later,
+      jobPatch: { lastErrorCode: 'STALE_RECOVERY' },
+    }
+  ), false);
+  assert.equal(await updateRecoveredSubmissionIfCurrent(
+    firestore, ref, second, parseJob, {
+      now: later,
+      jobPatch: { lastErrorCode: 'CURRENT_RECOVERY' },
+    }
+  ), true);
+  assert.equal((await ref.get()).get('lastErrorCode'), 'CURRENT_RECOVERY');
+});
+
 test('legacy PROCESSING job requires an explicit version-checked backfill', async () => {
   const ref = jobs.doc('legacy-' + randomUUID());
   const original = fixture('RUNNING');
