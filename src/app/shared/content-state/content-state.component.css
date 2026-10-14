@@ -48,6 +48,10 @@
   min-width: 0;
 }
 
+.content-state__action {
+  min-height: var(--tap-target, 44px);
+}
+
 .content-state__copy h3,
 .content-state__copy p {
   margin: 0;
