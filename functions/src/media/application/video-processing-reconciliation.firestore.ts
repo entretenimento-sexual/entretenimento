@@ -263,6 +263,7 @@ export async function updateRecoveredSubmissionIfCurrent(
         transaction.update(jobRef, {
           state: 'CANCEL_REQUESTED',
           cancelRequestedAt: update.now,
+          nextAttemptAt: update.now,
           leaseUntil: null,
           updatedAt: update.now,
           lastErrorCode: 'SOURCE_CHANGED',
