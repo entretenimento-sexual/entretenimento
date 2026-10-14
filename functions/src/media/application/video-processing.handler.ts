@@ -17,6 +17,10 @@ import {
   type VideoProcessingJob,
 } from './video-processing-job';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
+import {
+  nextVideoProcessingPollAt,
+  providerObservationChanged,
+} from './video-processing-poll.policy';
 
 interface ProcessedVideoCandidate {
   storagePath: string;
@@ -402,6 +406,7 @@ async function persistSubmittedJob(
       externalJobName,
       providerState,
       submittedAt: currentJob.submittedAt ?? now,
+      nextAttemptAt: now,
       leaseUntil: null,
       updatedAt: now,
       lastErrorCode: null,
@@ -760,6 +765,25 @@ async function markProviderFailure(
   });
 }
 
+async function claimProcessingJob(
+  jobRef: DocumentReference,
+  now: number
+): Promise<VideoProcessingJob | null> {
+  return db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(jobRef);
+    const job = snapshot.exists ? normalizeJob(snapshot.data()) : null;
+
+    if (!job || job.state !== 'PROCESSING' || job.nextAttemptAt > now) {
+      return null;
+    }
+
+    transaction.update(jobRef, {
+      nextAttemptAt: nextVideoProcessingPollAt(job, now),
+    });
+    return job;
+  });
+}
+
 async function reconcileProcessingJob(
   jobRef: DocumentReference,
   job: VideoProcessingJob
@@ -788,12 +812,31 @@ async function reconcileProcessingJob(
       return;
     }
 
-    await jobRef.update({
-      providerState: providerJob.state,
-      updatedAt: now,
-      lastErrorCode: null,
-      lastError: null,
-    });
+    if (providerObservationChanged(job, providerJob.state)) {
+      await db.runTransaction(async (transaction) => {
+        const snapshot = await transaction.get(jobRef);
+        const current = snapshot.exists
+          ? normalizeJob(snapshot.data())
+          : null;
+
+        if (
+          !current ||
+          current.state !== 'PROCESSING' ||
+          current.processingVersion !== job.processingVersion ||
+          current.externalJobName !== job.externalJobName ||
+          !providerObservationChanged(current, providerJob.state)
+        ) {
+          return;
+        }
+
+        transaction.update(jobRef, {
+          providerState: providerJob.state,
+          updatedAt: now,
+          lastErrorCode: null,
+          lastError: null,
+        });
+      });
+    }
   } catch (error) {
     const normalized = normalizeGoogleTranscoderError(error);
 
@@ -926,22 +969,22 @@ export const reconcileVideoProcessing = onSchedule(
     memory: '512MiB',
   },
   async () => {
+    const now = Date.now();
     const snapshot = await db
       .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
       .where('state', '==', 'PROCESSING')
+      .where('nextAttemptAt', '<=', now)
+      .orderBy('nextAttemptAt', 'asc')
       .limit(RECONCILIATION_BATCH_SIZE)
       .get();
     const tasks: Array<() => Promise<void>> = [];
 
     for (const jobDoc of snapshot.docs) {
-      const job = normalizeJob(jobDoc.data());
+      const claimedJob = await claimProcessingJob(jobDoc.ref, now);
 
-      if (!job) {
-        tasks.push(() => removeInvalidJob(jobDoc.ref));
-        continue;
+      if (claimedJob) {
+        tasks.push(() => reconcileProcessingJob(jobDoc.ref, claimedJob));
       }
-
-      tasks.push(() => reconcileProcessingJob(jobDoc.ref, job));
     }
 
     await runBatch(tasks, 'reconcile');

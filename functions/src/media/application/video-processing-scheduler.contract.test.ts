@@ -54,3 +54,21 @@ test('submission recovery only selects expired leases before the batch limit', (
   assertDueQuery('SUBMITTING', 'leaseUntil');
   assertCompositeIndex('leaseUntil');
 });
+
+test('processing query only claims due jobs with a composite index', () => {
+  const parts = [
+    String.raw`\.where\('state', '==', 'PROCESSING'\)`,
+    String.raw`\.where\('nextAttemptAt', '<=', now\)`,
+    String.raw`\.orderBy\('nextAttemptAt', 'asc'\)`,
+    String.raw`\.limit\(RECONCILIATION_BATCH_SIZE\)`,
+  ];
+  assert.match(scheduler, new RegExp(parts.join(String.raw`\s*`)));
+  assert.ok(scheduler.includes('nextVideoProcessingPollAt(job, now)'));
+  assert.ok(scheduler.includes('claimProcessingJob(jobDoc.ref, now)'));
+  assertCompositeIndex('nextAttemptAt');
+});
+
+test('reconciliation only persists meaningful provider status changes', () => {
+  assert.ok(scheduler.includes('providerObservationChanged(job, providerJob.state)'));
+  assert.ok(scheduler.includes('current.processingVersion !== job.processingVersion'));
+});
