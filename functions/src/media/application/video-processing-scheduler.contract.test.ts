@@ -122,3 +122,15 @@ test('expired submission lookup uses a transactional lease claim', () => {
   assert.ok(firestoreCore.includes('current.leaseUntil === observed.leaseUntil'));
   assert.ok(!scheduler.includes('await jobRef.update({\n        state: \'QUEUED\''));
 });
+
+test('submission failures use the same guarded transaction as recovery', () => {
+  const start = scheduler.indexOf('async function handleSubmissionFailure(');
+  const end = scheduler.indexOf('async function submitClaimedJob(', start);
+  const body = scheduler.slice(start, end);
+
+  assert.ok(start >= 0 && end > start);
+  assert.ok(body.includes('updateRecoveredSubmissionIfCurrent('));
+  assert.ok(!body.includes('await jobRef.update('));
+  assert.ok(!body.includes('updatePrivateVideoIfPresent('));
+  assert.ok(!scheduler.includes('async function updatePrivateVideoIfPresent('));
+});

@@ -223,29 +223,6 @@ function privateSourcePath(
   );
 }
 
-async function updatePrivateVideoIfPresent(
-  job: VideoProcessingJob,
-  patch: Record<string, unknown>
-): Promise<void> {
-  const videoRef = db.doc(`users/${job.ownerUid}/videos/${job.videoId}`);
-  const snapshot = await videoRef.get();
-
-  if (!snapshot.exists) {
-    return;
-  }
-
-  const video = snapshot.data() as PrivateVideoDocument;
-
-  if (
-    privateSourcePath(job.ownerUid, job.videoId, video) !==
-    job.sourceStoragePath
-  ) {
-    return;
-  }
-
-  await videoRef.set(patch, { merge: true });
-}
-
 async function claimQueuedJob(
   jobRef: DocumentReference,
   now: number
@@ -448,46 +425,48 @@ async function handleSubmissionFailure(
 ): Promise<void> {
   const normalized = normalizeGoogleTranscoderError(error);
   const now = Date.now();
+  const retryable = normalized.retryable;
 
-  if (normalized.retryable) {
-    await jobRef.update({
-      state: 'SUBMITTING',
-      leaseUntil: now + AMBIGUOUS_SUBMISSION_LEASE_MS,
-      updatedAt: now,
-      lastErrorCode: normalized.code,
-      lastError: normalized.message,
-    });
-    await updatePrivateVideoIfPresent(job, {
-      status: 'processing',
-      processingStage: 'confirming_submission',
-      processingErrorCode: null,
-      processingErrorMessage: null,
-      updatedAt: now,
-    });
-  } else {
-    await jobRef.update({
-      state: 'FAILED',
-      leaseUntil: null,
-      completedAt: now,
-      updatedAt: now,
-      lastErrorCode: normalized.code,
-      lastError: normalized.message,
-    });
-    await updatePrivateVideoIfPresent(job, {
-      status: 'failed',
-      processingStage: 'failed',
-      processingErrorCode: normalized.code,
-      processingErrorMessage:
-        'Não foi possível iniciar o processamento deste vídeo.',
-      updatedAt: now,
-    });
-  }
+  // A late POST failure cannot resurrect cancellation, overwrite a newer
+  // processingVersion, or roll back a successful provider submission.
+  const applied = await updateRecoveredSubmissionIfCurrent(
+    db, jobRef, job, normalizeJob, {
+      now,
+      jobPatch: {
+        state: retryable ? 'SUBMITTING' : 'FAILED',
+        leaseUntil: retryable
+          ? now + AMBIGUOUS_SUBMISSION_LEASE_MS
+          : null,
+        ...(retryable ? {} : { completedAt: now }),
+        updatedAt: now,
+        lastErrorCode: normalized.code,
+        lastError: normalized.message,
+      },
+      videoPatch: retryable
+        ? {
+          status: 'processing',
+          processingStage: 'confirming_submission',
+          processingErrorCode: null,
+          processingErrorMessage: null,
+          updatedAt: now,
+        }
+        : {
+          status: 'failed',
+          processingStage: 'failed',
+          processingErrorCode: normalized.code,
+          processingErrorMessage:
+            'Não foi possível iniciar o processamento deste vídeo.',
+          updatedAt: now,
+        },
+    }
+  );
 
   logger.warn('[videoProcessing] Falha ao enviar job.', {
     ownerUid: job.ownerUid,
     videoId: job.videoId,
     attempts: job.attempts,
-    retryable: normalized.retryable,
+    retryable,
+    applied,
     errorCode: normalized.code,
     error: normalized.message,
   });

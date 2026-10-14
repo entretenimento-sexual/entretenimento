@@ -271,3 +271,56 @@ test('a confirmed missing submission transitions job and video atomically', asyn
   assert.equal((await jobRef.get()).get('state'), 'CANCEL_REQUESTED');
   assert.equal((await videoRef.get()).get('status'), 'queued');
 });
+
+test('late submit failure cannot override cancellation, retry or a new lease', async () => {
+  const ref = jobs.doc('submit-error-' + randomUUID());
+  const original = {
+    ...fixture('PENDING'),
+    state: 'SUBMITTING' as const,
+    leaseUntil: now + 600_000,
+  };
+  const videoRef = firestore.doc(
+    `users/${original.ownerUid}/videos/${original.videoId}`
+  );
+  await ref.set(original);
+  await videoRef.set({
+    path: original.sourceStoragePath,
+    status: 'processing',
+  });
+
+  const update = {
+    now,
+    jobPatch: { state: 'FAILED', leaseUntil: null, lastErrorCode: 'HTTP_400' },
+    videoPatch: { status: 'failed' },
+  };
+
+  // Cancelled during the original provider request.
+  await ref.update({ state: 'CANCEL_REQUESTED' });
+  assert.equal(await updateRecoveredSubmissionIfCurrent(
+    firestore, ref, original, parseJob, update
+  ), false);
+  assert.equal((await ref.get()).get('state'), 'CANCEL_REQUESTED');
+  assert.equal((await videoRef.get()).get('status'), 'processing');
+
+  // A recovery worker takes over an expired submission before POST finishes.
+  await ref.set({ ...original, leaseUntil: now + 900_000 });
+  assert.equal(await updateRecoveredSubmissionIfCurrent(
+    firestore, ref, original, parseJob, update
+  ), false);
+  assert.equal((await ref.get()).get('state'), 'SUBMITTING');
+
+  // The last observed submit error belongs to an obsolete processing version.
+  await ref.set({ ...original, processingVersion: 'new-attempt' });
+  assert.equal(await updateRecoveredSubmissionIfCurrent(
+    firestore, ref, original, parseJob, update
+  ), false);
+  assert.equal((await ref.get()).get('processingVersion'), 'new-attempt');
+
+  // Only the live attempt may transition job and video in one transaction.
+  await ref.set(original);
+  assert.equal(await updateRecoveredSubmissionIfCurrent(
+    firestore, ref, original, parseJob, update
+  ), true);
+  assert.equal((await ref.get()).get('state'), 'FAILED');
+  assert.equal((await videoRef.get()).get('status'), 'failed');
+});
