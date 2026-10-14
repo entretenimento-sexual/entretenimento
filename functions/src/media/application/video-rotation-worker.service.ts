@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 import { storage } from '../../firebaseApp';
+import { assertExternalVideoEgressAllowed } from '../../shared/runtime/functions-runtime.guard';
 import {
   withoutVideoRotation,
   type VideoEditRecipe,
@@ -40,14 +41,15 @@ function workerBaseUrl(): string | null {
     return null;
   }
 
-  if (/^https:\/\//i.test(value)) {
-    return value;
-  }
-
   if (
     process.env.FUNCTIONS_EMULATOR === 'true' &&
     /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(value)
   ) {
+    return value;
+  }
+
+  if (/^https:\/\//i.test(value)) {
+    assertExternalVideoEgressAllowed();
     return value;
   }
 

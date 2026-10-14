@@ -8,6 +8,9 @@ const guard = read('functions/src/shared/runtime/functions-runtime.guard.ts');
 const payment = read('functions/src/payments/infrastructure/providers/asaas.provider.ts');
 const push = read('functions/src/notifications/sendNotification.ts');
 const admin = read('functions/src/firebaseApp.ts');
+const cloudTask = read('functions/src/compliance/expire-age-eligibility.task.ts');
+const transcoder = read('functions/src/media/application/google-video-transcoder.service.ts');
+const rotationWorker = read('functions/src/media/application/video-rotation-worker.service.ts');
 const frontendConfig = read('src/app/core/firebase/firebase-environment.config.ts');
 const frontendProviders = read('src/app/core/firebase/firebase.providers.ts');
 
@@ -19,6 +22,12 @@ for (const [ok, label] of [
   [push.includes('getMessaging().sendEachForMulticast'), 'FCM outbound boundary'],
   [guard.includes('assertFirebaseEmulatorDependenciesConfigured'), 'required Admin SDK emulator endpoints'],
   [admin.includes('assertFirebaseEmulatorDependenciesConfigured();'), 'Admin SDK startup guard'],
+  [guard.includes('assertCloudTasksEmulatorConfigured'), 'Cloud Tasks loopback guard'],
+  [cloudTask.includes('assertCloudTasksEmulatorConfigured();'), 'Cloud Tasks enqueue guard'],
+  [guard.includes('assertExternalVideoEgressAllowed'), 'external video egress guard'],
+  [transcoder.includes('assertExternalVideoEgressAllowed();'), 'Transcoder network guard'],
+  [!transcoder.includes('VIDEO_TRANSCODER_ALLOW_LIVE_PROBE'), 'no live Transcoder probe in emulator'],
+  [rotationWorker.includes('assertExternalVideoEgressAllowed();'), 'rotation worker HTTPS guard'],
   [frontendConfig.includes('requireLocalFirebaseEmulatorEndpoint'), 'frontend local endpoint requirement'],
   [frontendProviders.includes("for (const kind of ['auth', 'firestore', 'storage', 'functions'] as const)"), 'frontend bootstrap topology'],
 ]) {
@@ -29,4 +38,4 @@ const delivery = push.indexOf('getMessaging().sendEachForMulticast');
 if (firstGuard >= delivery) {
   throw new Error('[external-egress] FCM guard must precede FCM network delivery');
 }
-console.log('[external-egress] OK: Asaas/FCM egress guarded; Admin SDK and Angular enforce local emulator endpoints.');
+console.log('[external-egress] OK: Asaas/FCM/Transcoder/rotation egress guarded; Cloud Tasks and Admin SDK require local emulator endpoints.');

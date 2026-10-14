@@ -3,6 +3,7 @@ import { applicationDefault } from 'firebase-admin/app';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { adminApp, db, storage } from '../../firebaseApp';
+import { assertExternalVideoEgressAllowed } from '../../shared/runtime/functions-runtime.guard';
 import { buildEditedTranscoderJobConfig } from './google-video-transcoder-edit-config';
 import {
   normalizeVideoEditRecipe,
@@ -72,8 +73,6 @@ const TRANSCODER_TEMPLATE_ID =
   process.env.VIDEO_TRANSCODER_TEMPLATE_ID?.trim() || 'preset/web-hd';
 const TRANSCODER_LOCATION =
   process.env.VIDEO_TRANSCODER_LOCATION?.trim() || FUNCTIONS_REGION;
-const ALLOW_LIVE_PROBE_IN_EMULATOR =
-  process.env.VIDEO_TRANSCODER_ALLOW_LIVE_PROBE === 'true';
 const credential = applicationDefault();
 
 function projectId(): string {
@@ -120,6 +119,7 @@ function normalizePositiveInteger(value: unknown): number | null {
 }
 
 async function authorizationHeader(): Promise<string> {
+  assertExternalVideoEgressAllowed();
   const accessToken = await credential.getAccessToken();
   const token = String(accessToken.access_token ?? '').trim();
 
@@ -200,10 +200,7 @@ export async function probeGoogleVideoTranscoder(): Promise<GoogleVideoTranscode
     };
   }
 
-  if (
-    process.env.FUNCTIONS_EMULATOR === 'true' &&
-    !ALLOW_LIVE_PROBE_IN_EMULATOR
-  ) {
+  if (process.env.FUNCTIONS_EMULATOR === 'true') {
     return {
       status: 'EMULATOR_SKIPPED',
       reachable: false,

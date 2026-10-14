@@ -21,6 +21,35 @@ export function assertExternalPaymentEgressAllowed(): void {
 }
 
 /**
+ * Any Google Video Transcoder network request must be blocked in Functions Emulator.
+ * The local MP4/WebM processor is a separate, emulator-only path.
+ */
+export function assertExternalVideoEgressAllowed(): void {
+  if (isFunctionsEmulatorRuntime()) {
+    throw new Error('external_video_egress_blocked_in_emulator');
+  }
+}
+
+/**
+ * The Admin SDK enqueues Cloud Tasks remotely if CLOUD_TASKS_EMULATOR_HOST is
+ * missing. Require an explicit loopback endpoint at the enqueue boundary.
+ */
+export function assertCloudTasksEmulatorConfigured(
+  env: Record<string, string | undefined> = process.env
+): void {
+  if (env['FUNCTIONS_EMULATOR'] !== 'true') return;
+
+  const endpoint = String(env['CLOUD_TASKS_EMULATOR_HOST'] ?? '').trim();
+  const match = /^(?:localhost|127\.0\.0\.1|\[::1\]):([0-9]{1,5})$/.exec(endpoint);
+  const port = match ? Number(match[1]) : 0;
+  if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
+    throw new Error(
+      '[functions:emulator] CLOUD_TASKS_EMULATOR_HOST precisa apontar para localhost.'
+    );
+  }
+}
+
+/**
  * Functions Emulator must never instantiate Admin SDK clients with missing
  * emulator endpoints: that would send real-project operations to Cloud APIs.
  */

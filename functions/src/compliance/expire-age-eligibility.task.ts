@@ -18,6 +18,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import { assertCloudTasksEmulatorConfigured } from '../shared/runtime/functions-runtime.guard';
 import {
   evaluateCanonicalAgeEligibility,
 } from './age-eligibility.policy';
@@ -108,6 +109,7 @@ function isAlreadyExistsError(error: unknown): boolean {
 async function enqueueExpirationTask(
   payload: AgeEligibilityExpirationTaskPayload
 ): Promise<void> {
+  assertCloudTasksEmulatorConfigured();
   const queue = getFunctions().taskQueue<AgeEligibilityExpirationTaskPayload>(
     `locations/${FUNCTIONS_REGION}/functions/expireAgeEligibilityAtBoundary`
   );

@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import {
   assertExternalPaymentEgressAllowed,
+  assertExternalVideoEgressAllowed,
+  assertCloudTasksEmulatorConfigured,
   assertFirebaseEmulatorDependenciesConfigured,
   isFunctionsEmulatorRuntime,
 } from './functions-runtime.guard';
@@ -76,5 +78,42 @@ test('Functions Emulator rejects nonlocal hosts and invalid ports', () => {
       ...base,
       FIRESTORE_EMULATOR_HOST: endpoint,
     }), /FIRESTORE_EMULATOR_HOST/);
+  }
+});
+
+test('Cloud Tasks egress requires a loopback emulator endpoint only in local runtime', () => {
+  assert.doesNotThrow(() => assertCloudTasksEmulatorConfigured({}));
+  assert.doesNotThrow(() => assertCloudTasksEmulatorConfigured({
+    FUNCTIONS_EMULATOR: 'false',
+  }));
+  for (const host of ['127.0.0.1:9499', 'localhost:9499', '[::1]:9499']) {
+    assert.doesNotThrow(() => assertCloudTasksEmulatorConfigured({
+      FUNCTIONS_EMULATOR: 'true',
+      CLOUD_TASKS_EMULATOR_HOST: host,
+    }));
+  }
+  for (const host of ['', 'cloudtasks.googleapis.com:443', '0.0.0.0:9499',
+    'localhost:0', 'localhost:65536', 'localhost:9499/path',
+    'https://localhost:9499']) {
+    assert.throws(() => assertCloudTasksEmulatorConfigured({
+      FUNCTIONS_EMULATOR: 'true',
+      CLOUD_TASKS_EMULATOR_HOST: host,
+    }), /CLOUD_TASKS_EMULATOR_HOST/);
+  }
+});
+
+test('Google Video Transcoder egress is blocked locally even with credentials', () => {
+  const before = process.env.FUNCTIONS_EMULATOR;
+  try {
+    process.env.FUNCTIONS_EMULATOR = 'true';
+    assert.throws(
+      () => assertExternalVideoEgressAllowed(),
+      /external_video_egress_blocked_in_emulator/
+    );
+    process.env.FUNCTIONS_EMULATOR = 'false';
+    assert.doesNotThrow(() => assertExternalVideoEgressAllowed());
+  } finally {
+    if (before === undefined) delete process.env.FUNCTIONS_EMULATOR;
+    else process.env.FUNCTIONS_EMULATOR = before;
   }
 });
