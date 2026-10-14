@@ -18,7 +18,7 @@ function nonEmpty(value) {
 }
 
 function defaultAdcDirectory(env, platform) {
-  if (nonEmpty(env.CLOUDSDK_CONFIG)) return env.CLOUDSDK_CONFIG;
+  // Google Auth 9.x uses APPDATA/HOME for ADC, not CLOUDSDK_CONFIG.
   if (platform === 'win32') {
     if (nonEmpty(env.APPDATA)) return path.join(env.APPDATA, 'gcloud');
     if (nonEmpty(env.USERPROFILE)) return path.join(env.USERPROFILE, 'AppData', 'Roaming', 'gcloud');
@@ -63,9 +63,22 @@ export function assertEmulatorCredentialsIsolated(options) {
     throw new Error(
       `Credenciais utilizáveis fora dos emuladores detectadas: ${risks.join(', ')}. ` +
       'Inicialização bloqueada antes de acessar dados locais. ' +
-      'Execute com variáveis de credenciais removidas desta sessão e CLOUDSDK_CONFIG ' +
-      'apontando para uma pasta vazia e exclusiva do emulador. ' +
+      'Use uma sessão sem tokens e isole APPDATA (Windows) ou HOME (Linux/macOS) ' +
+      'no processo Firebase: CLOUDSDK_CONFIG sozinho não isola ADC. ' +
       'Não apague credenciais existentes nem use contas reais para contornar esta proteção.'
     );
   }
+}
+
+/** Make a Firebase CLI child environment with a fresh Windows APPDATA. */
+export function isolateWindowsFirebaseCliEnvironment(env, isolatedDirectory) {
+  if (typeof isolatedDirectory !== 'string' || !path.isAbsolute(isolatedDirectory)) {
+    throw new Error('APPDATA temporário absoluto é obrigatório para isolar Firebase CLI.');
+  }
+  return {
+    ...env,
+    APPDATA: isolatedDirectory,
+    CLOUDSDK_CONFIG: path.join(isolatedDirectory, 'gcloud-config'),
+    XDG_CONFIG_HOME: path.join(isolatedDirectory, '.config'),
+  };
 }

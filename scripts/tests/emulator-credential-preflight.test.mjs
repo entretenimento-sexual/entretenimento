@@ -6,6 +6,7 @@ import path from 'node:path';
 import {
   findEmulatorCredentialRisks,
   assertEmulatorCredentialsIsolated,
+  isolateWindowsFirebaseCliEnvironment,
 } from '../dev/emulator-credential-preflight.mjs';
 
 function temporary(run) {
@@ -58,20 +59,43 @@ test('uses Windows USERPROFILE fallback', () => temporary(root => {
     ['arquivo ADC local do gcloud']);
 }));
 
-test('an empty isolated CLOUDSDK_CONFIG shadows the usual ADC location', () => temporary(root => {
+test('CLOUDSDK_CONFIG does not shadow real ADC discovery', () => temporary(root => {
   adc(path.join(root, '.config', 'gcloud'));
-  const alternate = path.join(root, 'isolated');
-  fs.mkdirSync(alternate);
-  const opts = { env: { HOME: root, CLOUDSDK_CONFIG: alternate }, platform: 'linux' };
-  assert.deepEqual(findEmulatorCredentialRisks(opts), []);
+  const opts = { env: { HOME: root, CLOUDSDK_CONFIG: path.join(root, 'empty') }, platform: 'linux' };
+  assert.deepEqual(findEmulatorCredentialRisks(opts), ['arquivo ADC local do gcloud']);
 }));
 
-test('an ADC inside CLOUDSDK_CONFIG is blocked', () => temporary(root => {
-  adc(root);
+test('Windows ADC is detected even with an isolated CLOUDSDK_CONFIG', () => temporary(root => {
+  adc(path.join(root, 'gcloud'));
   assert.deepEqual(findEmulatorCredentialRisks({
-    env: { CLOUDSDK_CONFIG: root }, platform: 'win32',
+    env: { APPDATA: root, CLOUDSDK_CONFIG: path.join(root, 'empty') },
+    platform: 'win32',
   }), ['arquivo ADC local do gcloud']);
 }));
+
+test('child-only APPDATA isolates Firebase CLI without changing user files', () => temporary(root => {
+  const original = path.join(root, 'original');
+  const isolated = path.join(root, 'isolated');
+  adc(path.join(original, 'gcloud'));
+  fs.mkdirSync(isolated);
+  const parent = { APPDATA: original, PATH: 'untouched' };
+  const child = isolateWindowsFirebaseCliEnvironment(parent, isolated);
+  assert.equal(parent.APPDATA, original);
+  assert.equal(child.APPDATA, isolated);
+  assert.equal(child.PATH, 'untouched');
+  assert.equal(child.CLOUDSDK_CONFIG, path.join(isolated, 'gcloud-config'));
+  assert.deepEqual(findEmulatorCredentialRisks({ env: parent, platform: 'win32' }), ['arquivo ADC local do gcloud']);
+  assert.deepEqual(findEmulatorCredentialRisks({ env: child, platform: 'win32' }), []);
+}));
+
+test('isolation still rejects explicit inherited credentials', () => temporary(root => {
+  const env = isolateWindowsFirebaseCliEnvironment({ GOOGLE_APPLICATION_CREDENTIALS: 'secret' }, root);
+  assert.throws(() => assertEmulatorCredentialsIsolated({ env, platform: 'win32' }), /GOOGLE_APPLICATION_CREDENTIALS/);
+}));
+
+test('isolation rejects relative paths', () => {
+  assert.throws(() => isolateWindowsFirebaseCliEnvironment({}, 'relative'), /APPDATA temporário absoluto/);
+});
 
 test('failed ADC inspection fails closed without leaking paths', () => temporary(root => {
   assert.throws(() => assertEmulatorCredentialsIsolated({

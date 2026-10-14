@@ -26,11 +26,12 @@
 // -----------------------------------------------------------------------------
 
 import fs from 'node:fs';
+import os from 'node:os';
 import net from 'node:net';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { validateEmulatorSnapshotImport } from './emulator-snapshot-preflight.mjs';
-import { assertEmulatorCredentialsIsolated } from './emulator-credential-preflight.mjs';
+import { assertEmulatorCredentialsIsolated, isolateWindowsFirebaseCliEnvironment } from './emulator-credential-preflight.mjs';
 
 const projectId = process.env.FIREBASE_PROJECT_ID || 'entretenimento-sexual';
 const storageBucket =
@@ -254,13 +255,30 @@ function spawnFirebaseEmulator(args, env) {
   });
 }
 
+// google-auth-library and firebase-tools configstore read APPDATA on Windows.
+// Use an empty child-only APPDATA; never edit the user's real credential files.
+let temporaryFirebaseAppData = null;
+let firebaseCredentialEnv = process.env;
 try {
-  assertEmulatorCredentialsIsolated();
-  console.log('[emu:safe] Credenciais externas: nenhuma fonte ADC/token detectada.');
+  if (process.platform === 'win32') {
+    temporaryFirebaseAppData = fs.mkdtempSync(path.join(os.tmpdir(), 'entretenimento-firebase-cli-'));
+    firebaseCredentialEnv = isolateWindowsFirebaseCliEnvironment(process.env, temporaryFirebaseAppData);
+  }
+  assertEmulatorCredentialsIsolated({ env: firebaseCredentialEnv, platform: process.platform });
+  console.log(process.platform === 'win32'
+    ? '[emu:safe] Firebase CLI: APPDATA/cache de login isolados no subprocesso; preflight OK.'
+    : '[emu:safe] Firebase CLI: preflight de credenciais conhecidas OK.');
 } catch (error) {
   console.error('[emu:safe] Segurança: ' + (error instanceof Error ? error.message : String(error)));
   process.exit(1);
 }
+
+process.once('exit', () => {
+  if (temporaryFirebaseAppData) {
+    try { fs.rmSync(temporaryFirebaseAppData, { recursive: true, force: true }); }
+    catch { console.warn('[emu:safe] Não foi possível limpar APPDATA temporário do emulador.'); }
+  }
+});
 
 buildFirestoreRules();
 await assertPortsAvailable();
@@ -289,7 +307,7 @@ if (hasValidImportMetadata) {
 }
 
 const env = {
-  ...process.env,
+  ...firebaseCredentialEnv,
   FIREBASE_PROJECT_ID: projectId,
   FIREBASE_STORAGE_BUCKET: storageBucket,
 };
