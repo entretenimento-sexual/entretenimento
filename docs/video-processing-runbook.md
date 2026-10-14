@@ -168,6 +168,16 @@ uma nova submissão.
 
 O inventário somente de leitura `npm run inspect:video-jobs:emu` informa
 cancelamentos vencidos, adiados, sem data válida e com revisão necessária.
+O indicador `cancellationEvidence` resume apenas metadados persistidos:
+`providerTracking` distingue ausência de submissão registrada, submissão
+possivelmente externa e nome externo presente; `cleanupHistory` separa
+falhas contadas, contador zerado e documentos sem contador legado;
+`lastError` distingue consulta externa inconclusiva de outros estados.
+Nenhum desses contadores comprova execução do scheduler, existência do job no
+Transcoder ou exclusão de arquivos. O Firestore Emulator isolado não dispara
+Cloud Scheduler automaticamente. A ferramenta não consulta APIs externas e
+não revela nomes, caminhos ou identificadores privados.
+
 O contador `overdue24h` identifica cancelamentos há mais de 24 horas
 cujo `nextAttemptAt` já venceu. Ele é um **alerta operacional** independente
 de `reviewRequired`, que continua reservado a falha externa ou repetição

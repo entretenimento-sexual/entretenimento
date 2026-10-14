@@ -132,3 +132,85 @@ test('old due cancellation is operationally overdue without implying provider fa
     ...record, nextAttemptAt: now + 60_000,
   }, now).cancellationOverdue24h, false);
 });
+
+test('cancellation evidence distinguishes no submission, unknown provider and linked IDs', () => {
+  const now = 1_800_000_000_000;
+  const summary = createVideoProcessingInventory();
+  const examples = [
+    {
+      attempts: 0, cancellationCleanupAttempts: 0,
+      externalJobName: null, expectedProvider: 'NO_SUBMISSION_RECORDED',
+      expectedCleanup: 'NO_FAILURE_RECORDED',
+    },
+    {
+      attempts: 2, cancellationCleanupAttempts: 1,
+      externalJobName: null, expectedProvider: 'SUBMISSION_POSSIBLY_EXTERNAL',
+      expectedCleanup: 'FAILURES_RECORDED',
+    },
+    {
+      attempts: 1, externalJobName: 'projects/secret/jobs/secret',
+      expectedProvider: 'EXTERNAL_NAME_RECORDED',
+      expectedCleanup: 'NO_RETRY_COUNTER',
+    },
+    {
+      externalJobName: null, expectedProvider: 'UNKNOWN_SUBMISSION_HISTORY',
+      expectedCleanup: 'NO_RETRY_COUNTER',
+    },
+  ];
+  for (const e of examples) {
+    const record = {
+      ...e,
+      state: 'CANCEL_REQUESTED',
+      ownerUid: 'secret-owner',
+      outputPrefix: 'users/secret-owner/processed/secret',
+    };
+    const result = inspectVideoProcessingJob(record, now);
+    assert.equal(result.cancellationProviderTracking, e.expectedProvider);
+    assert.equal(result.cancellationCleanupEvidence, e.expectedCleanup);
+    addVideoProcessingJobToInventory(summary, record, now);
+  }
+  assert.deepEqual(summary.cancellationEvidence.providerTracking, {
+    EXTERNAL_NAME_RECORDED: 1,
+    NO_SUBMISSION_RECORDED: 1,
+    SUBMISSION_POSSIBLY_EXTERNAL: 1,
+    UNKNOWN_SUBMISSION_HISTORY: 1,
+  });
+  assert.deepEqual(summary.cancellationEvidence.cleanupHistory, {
+    NO_RETRY_COUNTER: 2,
+    NO_FAILURE_RECORDED: 1,
+    FAILURES_RECORDED: 1,
+  });
+  const output = JSON.stringify(summary);
+  assert.ok(!output.includes('secret-owner'));
+  assert.ok(!output.includes('projects/secret'));
+});
+
+test('provider uncertainty is not confused with a confirmed failed cancellation', () => {
+  const now = 1_800_000_000_000;
+  const cases = [
+    {
+      state: 'CANCEL_REQUESTED',
+      attempts: 2,
+      lastErrorCode: 'CANCELLATION_UNCONFIRMED',
+      cancellationCleanupAttempts: 2,
+    },
+    {
+      state: 'CANCEL_REQUESTED',
+      attempts: 0,
+      lastErrorCode: 'ADMIN_CANCELLED',
+      cancellationCleanupAttempts: 0,
+    },
+  ];
+  const summary = createVideoProcessingInventory();
+  for (const record of cases) {
+    addVideoProcessingJobToInventory(summary, record, now);
+  }
+  assert.deepEqual(summary.cancellationEvidence.lastError, {
+    PROVIDER_LOOKUP_UNCONFIRMED: 1,
+    CLEANUP_FAILURE_RECORDED: 0,
+    NO_CLEANUP_FAILURE_EVIDENCE: 1,
+  });
+  assert.equal(inspectVideoProcessingJob({
+    state: 'SUCCEEDED', attempts: 1, externalJobName: 'secret',
+  }, now).cancellationProviderTracking, null);
+});

@@ -81,6 +81,14 @@ try {
     truncated: hasMore, ...inventory,
   });
   console.log('[video:inventory] Nenhum documento foi modificado.');
+  if (inventory.cancellationScheduling.overdue24h > 0) {
+    console.warn(
+      '[video:inventory] Cancelamentos antigos não comprovam falha: ' +
+      'o Firestore Emulator não executa automaticamente um scheduler cloud. ' +
+      'As categorias abaixo são apenas evidências persistidas, ' +
+      'não consultas em tempo real ao Transcoder.'
+    );
+  }
   if (hasMore) {
     console.warn('[video:inventory] Contagem parcial: aumente o limite para inspecionar mais registros.');
   }

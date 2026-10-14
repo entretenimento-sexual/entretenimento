@@ -30,6 +30,29 @@ export function inspectVideoProcessingJob(record, now) {
   const cancellationReviewRequired = cancelled &&
     (job.cancellationReviewRequired === true ||
       job.lastErrorCode === 'CANCELLATION_UNCONFIRMED');
+  // Diagnostic signals only: none of these fields proves an external API call.
+  // Never print provider identifiers, user IDs, paths or raw provider errors.
+  const recordedExternalJob = typeof job.externalJobName === 'string' &&
+    job.externalJobName.trim().length > 0;
+  const validSubmissionAttempts = Number.isSafeInteger(job.attempts) &&
+    job.attempts >= 0;
+  const cancellationProviderTracking = !cancelled ? null
+    : recordedExternalJob ? 'EXTERNAL_NAME_RECORDED'
+      : !validSubmissionAttempts ? 'UNKNOWN_SUBMISSION_HISTORY'
+        : job.attempts === 0 ? 'NO_SUBMISSION_RECORDED'
+          : 'SUBMISSION_POSSIBLY_EXTERNAL';
+  const cleanupAttempts = job.cancellationCleanupAttempts;
+  const cancellationCleanupEvidence = !cancelled ? null
+    : !Number.isSafeInteger(cleanupAttempts) || cleanupAttempts < 0
+      ? 'NO_RETRY_COUNTER'
+      : cleanupAttempts === 0 ? 'NO_FAILURE_RECORDED'
+        : 'FAILURES_RECORDED';
+  const cancellationLastErrorEvidence = !cancelled ? null
+    : job.lastErrorCode === 'CANCELLATION_UNCONFIRMED'
+      ? 'PROVIDER_LOOKUP_UNCONFIRMED'
+      : Number.isSafeInteger(cleanupAttempts) && cleanupAttempts > 0
+        ? 'CLEANUP_FAILURE_RECORDED'
+        : 'NO_CLEANUP_FAILURE_EVIDENCE';
   const cancelledAt = job.cancelRequestedAt;
   const cancellationAgeMs = state === 'CANCEL_REQUESTED' &&
     validEpoch(cancelledAt) && cancelledAt <= now
@@ -56,6 +79,9 @@ export function inspectVideoProcessingJob(record, now) {
     submittingExpiredLease: expiredLease,
     processingMissingExternalJob: missingExternalJob,
     cancellationAgeBand,
+    cancellationProviderTracking,
+    cancellationCleanupEvidence,
+    cancellationLastErrorEvidence,
     cancellationOverdue24h: cancellationAgeBand === 'OVER_24_H' &&
       cancellationDue,
     cancellationDue,
@@ -84,6 +110,24 @@ export function createVideoProcessingInventory() {
       missingDue: 0,
       invalidDue: 0,
       reviewRequired: 0,
+    },
+    cancellationEvidence: {
+      providerTracking: {
+        EXTERNAL_NAME_RECORDED: 0,
+        NO_SUBMISSION_RECORDED: 0,
+        SUBMISSION_POSSIBLY_EXTERNAL: 0,
+        UNKNOWN_SUBMISSION_HISTORY: 0,
+      },
+      cleanupHistory: {
+        NO_RETRY_COUNTER: 0,
+        NO_FAILURE_RECORDED: 0,
+        FAILURES_RECORDED: 0,
+      },
+      lastError: {
+        PROVIDER_LOOKUP_UNCONFIRMED: 0,
+        CLEANUP_FAILURE_RECORDED: 0,
+        NO_CLEANUP_FAILURE_EVIDENCE: 0,
+      },
     },
     cancellationAgeBands: {
       UNDER_90_MIN: 0,
@@ -116,6 +160,15 @@ export function addVideoProcessingJobToInventory(inventory, data, now) {
   if (classification.processingMissingExternalJob) inventory.processingMissingExternalJob += 1;
   if (classification.cancellationAgeBand) {
     inventory.cancellationAgeBands[classification.cancellationAgeBand] += 1;
+    inventory.cancellationEvidence.providerTracking[
+      classification.cancellationProviderTracking
+    ] += 1;
+    inventory.cancellationEvidence.cleanupHistory[
+      classification.cancellationCleanupEvidence
+    ] += 1;
+    inventory.cancellationEvidence.lastError[
+      classification.cancellationLastErrorEvidence
+    ] += 1;
   }
   for (const [flag, metric] of [
     ['cancellationDue', 'due'],
