@@ -78,3 +78,19 @@ test('stale transcoder results cannot finalize or fail another processing attemp
   assert.ok(scheduler.includes('!isCurrentVideoProcessingAttempt(current, job)'));
   assert.ok(scheduler.includes("state: 'CANCEL_REQUESTED'"));
 });
+
+test('transient provider errors cannot mutate cancelled or replaced jobs', () => {
+  assert.ok(scheduler.includes(
+    'current.lastErrorCode === normalized.code'
+  ));
+  assert.ok(scheduler.includes(
+    '!isCurrentVideoProcessingAttempt(current, job)'
+  ));
+});
+
+test('provider submission recovery supports processing jobs without external IDs', () => {
+  assert.ok(scheduler.includes(
+    "currentJob.state === 'PROCESSING' &&"
+  ));
+  assert.ok(scheduler.includes('!currentJob.externalJobName'));
+});

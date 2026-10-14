@@ -368,7 +368,9 @@ async function persistSubmittedJob(
       !currentJob ||
       currentJob.processingVersion !== job.processingVersion ||
       (currentJob.state !== 'SUBMITTING' &&
-        currentJob.state !== 'CANCEL_REQUESTED')
+        currentJob.state !== 'CANCEL_REQUESTED' &&
+        !(currentJob.state === 'PROCESSING' &&
+          !currentJob.externalJobName))
     ) {
       return;
     }
@@ -874,10 +876,28 @@ async function reconcileProcessingJob(
     const normalized = normalizeGoogleTranscoderError(error);
 
     if (normalized.retryable) {
-      await jobRef.update({
-        updatedAt: Date.now(),
-        lastErrorCode: normalized.code,
-        lastError: normalized.message,
+      await db.runTransaction(async (transaction) => {
+        const snapshot = await transaction.get(jobRef);
+        const current = snapshot.exists
+          ? normalizeJob(snapshot.data())
+          : null;
+
+        if (!current || !isCurrentVideoProcessingAttempt(current, job)) {
+          return;
+        }
+
+        if (
+          current.lastErrorCode === normalized.code &&
+          current.lastError === normalized.message
+        ) {
+          return;
+        }
+
+        transaction.update(jobRef, {
+          updatedAt: Date.now(),
+          lastErrorCode: normalized.code,
+          lastError: normalized.message,
+        });
       });
       return;
     }
