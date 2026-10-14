@@ -42,7 +42,7 @@ function fixture(suffix: string): VideoProcessingJob {
     ...buildQueuedVideoProcessingJob({
       ownerUid: uid,
       videoId,
-      sourceStoragePath: `users/${uid}/private/videos/${videoId}/source.mp4`,
+      sourceStoragePath: `users/${uid}/uploads/videos/${videoId}-source.mp4`,
       sourcePosterStoragePath: null,
       sourceMimeType: 'video/mp4',
       sourceSizeBytes: 10_000,
