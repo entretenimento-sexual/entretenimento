@@ -22,6 +22,14 @@ export function inspectVideoProcessingJob(record, now) {
   const missingExternalJob = state === 'PROCESSING' &&
     (typeof job.externalJobName !== 'string' ||
       job.externalJobName.trim().length === 0);
+  const cancelled = state === 'CANCEL_REQUESTED';
+  const cancellationDue = cancelled && validEpoch(job.nextAttemptAt) &&
+    job.nextAttemptAt <= now;
+  const cancellationDeferred = cancelled && validEpoch(job.nextAttemptAt) &&
+    job.nextAttemptAt > now;
+  const cancellationReviewRequired = cancelled &&
+    (job.cancellationReviewRequired === true ||
+      job.lastErrorCode === 'CANCELLATION_UNCONFIRMED');
   const cancelledAt = job.cancelRequestedAt;
   const cancellationAgeMs = state === 'CANCEL_REQUESTED' &&
     validEpoch(cancelledAt) && cancelledAt <= now
@@ -48,6 +56,11 @@ export function inspectVideoProcessingJob(record, now) {
     submittingExpiredLease: expiredLease,
     processingMissingExternalJob: missingExternalJob,
     cancellationAgeBand,
+    cancellationDue,
+    cancellationDeferred,
+    cancellationReviewRequired,
+    cancellationMissingDue: cancelled && missingDue,
+    cancellationInvalidDue: cancelled && invalidDue,
   };
 }
 
@@ -62,6 +75,13 @@ export function createVideoProcessingInventory() {
     submittingMissingLease: 0,
     submittingExpiredLease: 0,
     processingMissingExternalJob: 0,
+    cancellationScheduling: {
+      due: 0,
+      deferred: 0,
+      missingDue: 0,
+      invalidDue: 0,
+      reviewRequired: 0,
+    },
     cancellationAgeBands: {
       UNDER_90_MIN: 0,
       '90_MIN_TO_24_H': 0,
@@ -93,6 +113,15 @@ export function addVideoProcessingJobToInventory(inventory, data, now) {
   if (classification.processingMissingExternalJob) inventory.processingMissingExternalJob += 1;
   if (classification.cancellationAgeBand) {
     inventory.cancellationAgeBands[classification.cancellationAgeBand] += 1;
+  }
+  for (const [flag, metric] of [
+    ['cancellationDue', 'due'],
+    ['cancellationDeferred', 'deferred'],
+    ['cancellationMissingDue', 'missingDue'],
+    ['cancellationInvalidDue', 'invalidDue'],
+    ['cancellationReviewRequired', 'reviewRequired'],
+  ]) {
+    if (classification[flag]) inventory.cancellationScheduling[metric] += 1;
   }
   return inventory;
 }

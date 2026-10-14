@@ -85,3 +85,26 @@ test('cancelled job age is counted without exposing any job identifiers', () => 
   });
   assert.ok(!JSON.stringify(inventory).includes('private-uid'));
 });
+
+test('read-only inventory distinguishes due, deferred, malformed and reviewed cancellations', () => {
+  const now = 1_800_000_000_000;
+  const summary = createVideoProcessingInventory();
+  const cases = [
+    { nextAttemptAt: now - 1, cancellationReviewRequired: false },
+    { nextAttemptAt: now + 1, cancellationReviewRequired: true },
+    { lastErrorCode: 'CANCELLATION_UNCONFIRMED' },
+    { nextAttemptAt: 'bad timestamp' },
+  ];
+  for (const record of cases) {
+    addVideoProcessingJobToInventory(
+      summary, { ...record, state: 'CANCEL_REQUESTED' }, now
+    );
+  }
+  assert.deepEqual(summary.cancellationScheduling, {
+    due: 1,
+    deferred: 1,
+    missingDue: 1,
+    invalidDue: 1,
+    reviewRequired: 2,
+  });
+});

@@ -55,3 +55,18 @@ test('normal queued, submitting and cancelled jobs retain safe existing actions'
     state: 'CANCEL_REQUESTED', lastErrorCode: 'CANCELLATION_UNCONFIRMED',
   }), true);
 });
+
+test('repeated cancellation cleanup failures require administrator attention', () => {
+  assert.equal(videoRecoveryRequiresProviderReview({
+    state: 'CANCEL_REQUESTED',
+    lastErrorCode: 'TRANSIENT',
+    cancellationCleanupAttempts: 3,
+    cancellationReviewRequired: true,
+  }), true);
+  assert.equal(videoRecoveryRequiresProviderReview({
+    state: 'CANCEL_REQUESTED',
+    lastErrorCode: 'TRANSIENT',
+    cancellationCleanupAttempts: 1,
+    cancellationReviewRequired: false,
+  }), false);
+});
