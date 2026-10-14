@@ -155,7 +155,7 @@ test('missing external submission never automatically returns a job to QUEUED', 
 
 test('unknown provider cancellation remains tracked until confirmation', () => {
   const start = scheduler.indexOf('async function processCancellation(');
-  const end = scheduler.indexOf('async function removeInvalidJob(', start);
+  const end = scheduler.indexOf('async function runBatch(', start);
   const body = scheduler.slice(start, end);
 
   assert.ok(start >= 0 && end > start);
@@ -195,4 +195,32 @@ test('cancelled jobs are claimed by due date before external cleanup', () => {
   ));
   assert.ok(firestoreCore.includes('isCurrentCancellationClaim(current, started)'));
   assertCompositeIndex('nextAttemptAt');
+});
+
+test('malformed cancellation tracking documents are retained for review', () => {
+  const start = scheduler.indexOf('export const cleanupCancelledVideoProcessing');
+  const cleanup = scheduler.slice(start);
+
+  assert.ok(start >= 0);
+  assert.ok(!scheduler.includes('async function removeInvalidJob('));
+  assert.ok(cleanup.includes('invalidCancellationCount += 1'));
+  assert.ok(cleanup.includes('Cancelamentos inválidos preservados.'));
+  assert.ok(!cleanup.includes('jobDoc.ref.delete('));
+  assert.ok(!cleanup.includes('removeInvalidJob('));
+});
+
+test('invalid persisted provider ID never masquerades as a successful delete', () => {
+  const start = transcoderService.indexOf(
+    'export async function deleteGoogleVideoTranscoderJob('
+  );
+  const end = transcoderService.indexOf(
+    'export function normalizeGoogleTranscoderError(', start
+  );
+  const deletion = transcoderService.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.ok(deletion.includes(
+    "throw new Error('Identificador do job de transcodificação inválido.')"
+  ));
+  assert.ok(deletion.indexOf('throw new Error(') <
+    deletion.indexOf('const authorization = await authorizationHeader()'));
 });

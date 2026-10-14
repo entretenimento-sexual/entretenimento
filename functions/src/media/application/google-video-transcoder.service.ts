@@ -396,7 +396,7 @@ export async function deleteGoogleVideoTranscoderJob(
   const name = normalizeJobName(externalJobName);
 
   if (!name) {
-    return;
+    throw new Error('Identificador do job de transcodificação inválido.');
   }
 
   const authorization = await authorizationHeader();

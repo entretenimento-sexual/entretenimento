@@ -950,13 +950,6 @@ async function processCancellation(
   }
 }
 
-async function removeInvalidJob(jobRef: DocumentReference): Promise<void> {
-  logger.error('[videoProcessing] Job inválido removido.', {
-    jobId: jobRef.id,
-  });
-  await jobRef.delete().catch(() => undefined);
-}
-
 async function runBatch(
   tasks: Array<() => Promise<void>>,
   operation: string
@@ -1053,12 +1046,15 @@ export const cleanupCancelledVideoProcessing = onSchedule(
       db, now, CANCELLATION_BATCH_SIZE
     ).get();
     const tasks: Array<() => Promise<void>> = [];
+    let invalidCancellationCount = 0;
 
     for (const jobDoc of snapshot.docs) {
       const job = normalizeJob(jobDoc.data());
 
       if (!job) {
-        tasks.push(() => removeInvalidJob(jobDoc.ref));
+        // Preserve the only tracking record. Even a malformed document
+        // may refer to a provider job that still exists and costs money.
+        invalidCancellationCount += 1;
         continue;
       }
 
@@ -1068,6 +1064,12 @@ export const cleanupCancelledVideoProcessing = onSchedule(
       if (claimed) {
         tasks.push(() => processCancellation(jobDoc.ref, claimed));
       }
+    }
+
+    if (invalidCancellationCount > 0) {
+      logger.error('[videoProcessing] Cancelamentos inválidos preservados.', {
+        count: invalidCancellationCount,
+      });
     }
 
     await runBatch(tasks, 'cancel');

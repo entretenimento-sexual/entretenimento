@@ -187,6 +187,12 @@ Um documento legado sem `nextAttemptAt` pode ficar fora da consulta;
 qualquer reparo requer verificação versionada e execução separada.
 Não excluir manualmente cancelamentos com identidade externa incerta.
 
+Se um documento `CANCEL_REQUESTED` não puder ser validado, o scheduler
+**preserva o registro** e gera alerta agregado, sem exclusão automática.
+Igualmente, o nome de um job externo malformado causa erro de limpeza:
+não deve ser interpretado como exclusão bem-sucedida. O retry permanece
+sujeito aos mesmos limites e à revisão administrativa.
+
 Não alterar manualmente `state`, `leaseUntil`, `externalJobName` ou
 `outputPrefix` no Firestore. Em jobs `SUBMITTING`, a revalidação não cria outro
 job imediatamente: o reconciliador procura primeiro o job existente pela label
