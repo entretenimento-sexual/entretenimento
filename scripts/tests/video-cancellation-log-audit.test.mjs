@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   summarizeExportedCancellationLogs,
 } from '../dev/video-cancellation-log-audit.policy.mjs';
@@ -81,4 +86,92 @@ test('malformed and excessive inputs are rejected', () => {
   assert.throws(() => summarizeExportedCancellationLogs(
     Array.from({ length: 2001 }, () => ({}))
   ));
+});
+
+const CLI = fileURLToPath(new URL('../dev/inspect-video-cancellation-logs.mjs', import.meta.url));
+
+function runCliWithFile(contents, fileName = 'export.json') {
+  const directory = mkdtempSync(join(tmpdir(), 'video-cancellation-audit-'));
+  const filePath = join(directory, fileName);
+  try {
+    writeFileSync(filePath, contents, 'utf8');
+    return spawnSync(process.execPath, [CLI, filePath], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+test('CLI accepts Cloud Logging object exports and redacts private fields', () => {
+  const privateValue = 'sensitive-video-owner-uid';
+  const input = JSON.stringify({
+    entries: [
+      log(a, 'STARTED', stamp, {
+        ownerUid: privateValue,
+        externalJobName: 'projects/private/jobs/private-job',
+      }),
+      log(a, 'FINISHED', '2026-10-14T18:01:00Z', {
+        status: 'OK',
+        selected: 1,
+        completed: 1,
+        durationMs: 60000,
+        ownerUid: privateValue,
+        lastError: 'secret-error-details',
+      }),
+    ],
+  });
+  const result = runCliWithFile(input);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /"evidence": "EXPORTED_LOGS_ONLY"/);
+  assert.match(result.stdout, /"schedulerHealth": "NOT_VERIFIED"/);
+  assert.match(result.stdout, /"observedCycles": 1/);
+  assert.match(result.stdout, /"finishedCycles": 1/);
+  for (const secret of [privateValue, a, 'private-job', 'secret-error-details']) {
+    assert.ok(!result.stdout.includes(secret));
+    assert.ok(!result.stderr.includes(secret));
+  }
+});
+
+test('CLI reads UTF-8 BOM JSON and never claims scheduler health', () => {
+  const result = runCliWithFile('\uFEFF' + JSON.stringify([log(a, 'STARTED')]));
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /"startedWithoutTerminal": 1/);
+  assert.match(result.stdout, /"schedulerHealth": "NOT_VERIFIED"/);
+});
+
+test('CLI rejects malformed and oversized exports without leaking input', () => {
+  const invalid = runCliWithFile('private-customer-id:not-json');
+  assert.equal(invalid.status, 1);
+  assert.match(invalid.stderr, /JSON inválido ou inacessível/);
+  assert.ok(!invalid.stderr.includes('private-customer-id'));
+  assert.ok(!invalid.stdout.includes('private-customer-id'));
+
+  const oversized = runCliWithFile(' '.repeat(8 * 1024 * 1024 + 1));
+  assert.equal(oversized.status, 1);
+  assert.match(oversized.stderr, /limite 8 MiB/);
+});
+
+test('CLI rejects more than 2000 entries and unsupported file extensions', () => {
+  const many = runCliWithFile(JSON.stringify(
+    Array.from({ length: 2001 }, () => ({}))
+  ));
+  assert.equal(many.status, 1);
+  assert.match(many.stderr, /JSON inválido ou inacessível/);
+
+  const wrongExtension = runCliWithFile('[]', 'export.txt');
+  assert.equal(wrongExtension.status, 1);
+  assert.match(wrongExtension.stderr, /Uso:/);
+});
+
+test('CLI requires exactly one file path argument', () => {
+  for (const args of [[], ['--help'], ['first.json', 'second.json']]) {
+    const result = spawnSync(process.execPath, [CLI, ...args], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Uso:/);
+  }
 });
