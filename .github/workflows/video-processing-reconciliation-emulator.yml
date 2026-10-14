@@ -7,6 +7,9 @@ on:
       - 'functions/src/media/application/video-processing*'
       - 'scripts/quality/run-video-processing-reconciliation-emulator.mjs'
       - 'firestore.indexes.json'
+      - 'scripts/dev/inspect-video-processing-jobs-emulator.mjs'
+      - 'scripts/dev/video-processing-job-inventory.policy.mjs'
+      - 'scripts/tests/video-processing-job-inventory.test.mjs'
       - '.github/workflows/video-processing-reconciliation-emulator.yml'
 
 permissions:

@@ -57,3 +57,31 @@ test('counters aggregate states without exposing any owner or video identifier',
   assert.equal(JSON.stringify(summary).includes('sensitive'), false);
   assert.equal(JSON.stringify(summary).includes('private'), false);
 });
+
+test('cancelled job age is counted without exposing any job identifiers', () => {
+  const now = 1_800_000_000_000;
+  const inventory = createVideoProcessingInventory();
+  const cases = [
+    { cancelledAt: now - 1_000, band: 'UNDER_90_MIN' },
+    { cancelledAt: now - 91 * 60_000, band: '90_MIN_TO_24_H' },
+    { cancelledAt: now - 25 * 60 * 60_000, band: 'OVER_24_H' },
+    { cancelledAt: null, band: 'UNKNOWN' },
+  ];
+  for (const item of cases) {
+    const job = {
+      state: 'CANCEL_REQUESTED',
+      cancelRequestedAt: item.cancelledAt,
+      ownerUid: 'private-uid',
+    };
+    const classified = inspectVideoProcessingJob(job, now);
+    assert.equal(classified.cancellationAgeBand, item.band);
+    addVideoProcessingJobToInventory(inventory, job, now);
+  }
+  assert.deepEqual(inventory.cancellationAgeBands, {
+    UNDER_90_MIN: 1,
+    '90_MIN_TO_24_H': 1,
+    OVER_24_H: 1,
+    UNKNOWN: 1,
+  });
+  assert.ok(!JSON.stringify(inventory).includes('private-uid'));
+});

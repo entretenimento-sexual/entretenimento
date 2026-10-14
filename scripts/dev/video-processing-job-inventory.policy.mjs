@@ -22,6 +22,20 @@ export function inspectVideoProcessingJob(record, now) {
   const missingExternalJob = state === 'PROCESSING' &&
     (typeof job.externalJobName !== 'string' ||
       job.externalJobName.trim().length === 0);
+  const cancelledAt = job.cancelRequestedAt;
+  const cancellationAgeMs = state === 'CANCEL_REQUESTED' &&
+    validEpoch(cancelledAt) && cancelledAt <= now
+    ? now - cancelledAt
+    : null;
+  const cancellationAgeBand = state !== 'CANCEL_REQUESTED'
+    ? null
+    : cancellationAgeMs === null
+      ? 'UNKNOWN'
+      : cancellationAgeMs < 90 * 60_000
+        ? 'UNDER_90_MIN'
+        : cancellationAgeMs < 24 * 60 * 60_000
+          ? '90_MIN_TO_24_H'
+          : 'OVER_24_H';
   const validVersion = typeof job.processingVersion === 'string' &&
     /^[a-zA-Z0-9:_-]{1,128}$/.test(job.processingVersion);
   return {
@@ -33,6 +47,7 @@ export function inspectVideoProcessingJob(record, now) {
     submittingMissingLease: missingLease,
     submittingExpiredLease: expiredLease,
     processingMissingExternalJob: missingExternalJob,
+    cancellationAgeBand,
   };
 }
 
@@ -47,6 +62,12 @@ export function createVideoProcessingInventory() {
     submittingMissingLease: 0,
     submittingExpiredLease: 0,
     processingMissingExternalJob: 0,
+    cancellationAgeBands: {
+      UNDER_90_MIN: 0,
+      '90_MIN_TO_24_H': 0,
+      OVER_24_H: 0,
+      UNKNOWN: 0,
+    },
   };
 }
 
@@ -70,5 +91,8 @@ export function addVideoProcessingJobToInventory(inventory, data, now) {
   if (classification.submittingMissingLease) inventory.submittingMissingLease += 1;
   if (classification.submittingExpiredLease) inventory.submittingExpiredLease += 1;
   if (classification.processingMissingExternalJob) inventory.processingMissingExternalJob += 1;
+  if (classification.cancellationAgeBand) {
+    inventory.cancellationAgeBands[classification.cancellationAgeBand] += 1;
+  }
   return inventory;
 }
