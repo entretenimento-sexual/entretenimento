@@ -4,7 +4,13 @@ import {
   VIDEO_PROCESSING_JOBS_COLLECTION,
   type VideoProcessingJob,
 } from './video-processing-job';
-import { nextVideoProcessingPollAt, isCurrentVideoCancellation } from './video-processing-poll.policy';
+import { nextVideoProcessingPollAt } from './video-processing-poll.policy';
+import {
+  CANCELLATION_RESERVATION_MS,
+  cancellationNeedsReview,
+  isCurrentCancellationClaim,
+  nextCancellationRetryAt,
+} from './video-cancellation-schedule.policy';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 
 type NormalizeJob = (data: unknown) => VideoProcessingJob | null;
@@ -74,6 +80,47 @@ export async function backfillLegacyProcessingDueAt(
   });
 }
 
+/** Range filter + sort prevent deferred cancellations from starving due jobs. */
+export function queryDueCancelledJobs(
+  firestore: Firestore,
+  now: number,
+  limit: number
+) {
+  return firestore
+    .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
+    .where('state', '==', 'CANCEL_REQUESTED')
+    .where('nextAttemptAt', '<=', now)
+    .orderBy('nextAttemptAt', 'asc')
+    .limit(limit);
+}
+
+/**
+ * Acquire a cancellation before any Transcoder or Storage call. The clock
+ * reservation also fences stale completions and concurrent schedulers.
+ */
+export async function claimDueCancellation(
+  firestore: Firestore,
+  jobRef: DocumentReference,
+  now: number,
+  normalizeJob: NormalizeJob
+): Promise<VideoProcessingJob | null> {
+  return firestore.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(jobRef);
+    const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
+    if (
+      !current ||
+      current.state !== 'CANCEL_REQUESTED' ||
+      current.nextAttemptAt > now
+    ) {
+      return null;
+    }
+
+    const reservedAt = now + CANCELLATION_RESERVATION_MS;
+    transaction.update(jobRef, { nextAttemptAt: reservedAt });
+    return { ...current, nextAttemptAt: reservedAt };
+  });
+}
+
 /** Only remove the precise cancellation that was cleaned externally. */
 export async function deleteCancelledJobIfCurrent(
   firestore: Firestore,
@@ -85,7 +132,7 @@ export async function deleteCancelledJobIfCurrent(
     const snapshot = await transaction.get(jobRef);
     const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
 
-    if (!isCurrentVideoCancellation(current, started)) return false;
+    if (!isCurrentCancellationClaim(current, started)) return false;
     transaction.delete(jobRef);
     return true;
   });
@@ -104,8 +151,12 @@ export async function recordCancellationErrorIfCurrent(
     const snapshot = await transaction.get(jobRef);
     const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
 
-    if (!isCurrentVideoCancellation(current, started)) return false;
+    if (!isCurrentCancellationClaim(current, started)) return false;
+    const attempts = (current?.cancellationCleanupAttempts ?? 0) + 1;
     transaction.update(jobRef, {
+      cancellationCleanupAttempts: attempts,
+      cancellationReviewRequired: cancellationNeedsReview(attempts, error.code),
+      nextAttemptAt: nextCancellationRetryAt(attempts, now),
       updatedAt: now,
       lastErrorCode: error.code,
       lastError: error.message,
@@ -246,7 +297,7 @@ export async function bindCancelledProviderJobIfCurrent(
     const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
 
     if (
-      !isCurrentVideoCancellation(current, started) ||
+      !isCurrentCancellationClaim(current, started) ||
       (current?.externalJobName && current.externalJobName !== providerJobName)
     ) {
       return false;
