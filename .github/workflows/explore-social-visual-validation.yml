@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'src/app/explore/**'
+      - 'src/app/shared/content-state/**'
       - 'src/app/core/services/discovery/user-intent-status.service.ts'
       - 'src/app/core/services/discovery/user-intent-status-time.utils.ts'
       - 'src/app/core/interfaces/discovery/user-intent-status.interface.ts'
