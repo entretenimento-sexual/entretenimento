@@ -94,3 +94,16 @@ test('provider submission recovery supports processing jobs without external IDs
   ));
   assert.ok(scheduler.includes('!currentJob.externalJobName'));
 });
+
+test('cancelled job cleanup does not delete or resurrect a newer attempt', () => {
+  const start = scheduler.indexOf('async function processCancellation(');
+  const end = scheduler.indexOf('async function removeInvalidJob(', start);
+  const body = scheduler.slice(start, end);
+
+  assert.ok(start >= 0 && end > start);
+  assert.ok(body.includes('isCurrentVideoCancellation(current, job)'));
+  assert.ok(body.includes('transaction.delete(jobRef)'));
+  assert.ok(body.includes('transaction.update(jobRef, {'));
+  assert.ok(!body.includes('await jobRef.delete()'));
+  assert.ok(!body.includes('await jobRef.set('));
+});

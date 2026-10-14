@@ -5,6 +5,7 @@ import {
   nextVideoProcessingPollAt,
   providerObservationChanged,
   isCurrentVideoProcessingAttempt,
+  isCurrentVideoCancellation,
 } from './video-processing-poll.policy';
 
 test('poll scheduling distinguishes recent and long-running processing', () => {
@@ -53,4 +54,21 @@ test('stale video-provider responses cannot override cancellation or newer jobs'
   assert.equal(isCurrentVideoProcessingAttempt({
     ...current, externalJobName: 'projects/demo/jobs/other',
   }, observed), false);
+});
+
+test('late video cleanup cannot delete a new job or non-cancelled state', () => {
+  const oldAttempt = { processingVersion: 'old-version' };
+  assert.equal(isCurrentVideoCancellation(null, oldAttempt), false);
+  assert.equal(isCurrentVideoCancellation({
+    state: 'CANCEL_REQUESTED',
+    processingVersion: 'old-version',
+  }, oldAttempt), true);
+  assert.equal(isCurrentVideoCancellation({
+    state: 'PROCESSING',
+    processingVersion: 'old-version',
+  }, oldAttempt), false);
+  assert.equal(isCurrentVideoCancellation({
+    state: 'CANCEL_REQUESTED',
+    processingVersion: 'new-version',
+  }, oldAttempt), false);
 });

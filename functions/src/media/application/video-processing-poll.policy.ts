@@ -37,3 +37,15 @@ export function isCurrentVideoProcessingAttempt(
     current.processingVersion === observed.processingVersion &&
     current.externalJobName === observed.externalJobName;
 }
+
+/**
+ * Cleanups may complete after the owner retries the video with a new
+ * processingVersion. Never delete the newer job with an older callback.
+ */
+export function isCurrentVideoCancellation(
+  current: Pick<VideoProcessingJob, 'state' | 'processingVersion'> | null,
+  started: Pick<VideoProcessingJob, 'processingVersion'>
+): boolean {
+  return current?.state === 'CANCEL_REQUESTED' &&
+    current.processingVersion === started.processingVersion;
+}

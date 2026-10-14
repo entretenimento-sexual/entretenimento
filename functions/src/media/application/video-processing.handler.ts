@@ -21,6 +21,7 @@ import {
   nextVideoProcessingPollAt,
   providerObservationChanged,
   isCurrentVideoProcessingAttempt,
+  isCurrentVideoCancellation,
 } from './video-processing-poll.policy';
 
 interface ProcessedVideoCandidate {
@@ -929,19 +930,33 @@ async function processCancellation(
     }
 
     await deleteOutputPrefix(job.outputPrefix);
-    await jobRef.delete();
+    await db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(jobRef);
+      const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
+
+      if (!isCurrentVideoCancellation(current, job)) {
+        return;
+      }
+
+      transaction.delete(jobRef);
+    });
   } catch (error) {
     const normalized = normalizeGoogleTranscoderError(error);
 
-    await jobRef.set(
-      {
-        state: 'CANCEL_REQUESTED',
+    await db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(jobRef);
+      const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
+
+      if (!isCurrentVideoCancellation(current, job)) {
+        return;
+      }
+
+      transaction.update(jobRef, {
         updatedAt: Date.now(),
         lastErrorCode: normalized.code,
         lastError: normalized.message,
-      },
-      { merge: true }
-    );
+      });
+    });
 
     logger.warn('[videoProcessing] Cancelamento pendente.', {
       ownerUid: job.ownerUid,
