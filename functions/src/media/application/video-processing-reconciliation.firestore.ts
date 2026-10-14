@@ -155,7 +155,8 @@ export async function recordCancellationErrorIfCurrent(
     const attempts = (current?.cancellationCleanupAttempts ?? 0) + 1;
     transaction.update(jobRef, {
       cancellationCleanupAttempts: attempts,
-      cancellationReviewRequired: cancellationNeedsReview(attempts, error.code),
+      cancellationReviewRequired: current?.cancellationReviewRequired === true ||
+        cancellationNeedsReview(attempts, error.code),
       nextAttemptAt: nextCancellationRetryAt(attempts, now),
       updatedAt: now,
       lastErrorCode: error.code,
