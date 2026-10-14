@@ -134,3 +134,13 @@ test('submission failures use the same guarded transaction as recovery', () => {
   assert.ok(!body.includes('updatePrivateVideoIfPresent('));
   assert.ok(!scheduler.includes('async function updatePrivateVideoIfPresent('));
 });
+
+test('missing external submission never automatically returns a job to QUEUED', () => {
+  const start = scheduler.indexOf('async function recoverExpiredSubmission(');
+  const end = scheduler.indexOf('async function recoverExpiredSubmissionLeases(', start);
+  const recovery = scheduler.slice(start, end);
+
+  assert.ok(recovery.includes('decideMissingVideoSubmission(job, now)'));
+  assert.ok(recovery.includes('confirming_submission'));
+  assert.ok(!recovery.includes("state: 'QUEUED'"));
+});

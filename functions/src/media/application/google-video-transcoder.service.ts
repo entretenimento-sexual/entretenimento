@@ -15,6 +15,7 @@ import {
   type VideoProcessingJob,
 } from './video-processing-job';
 import { prepareVideoSourceForTranscoder } from './video-rotation-worker.service';
+import { lookupUniqueTranscoderJob } from './google-video-transcoder-lookup.policy';
 
 interface GoogleTranscoderErrorStatus {
   code?: number;
@@ -25,11 +26,13 @@ interface GoogleTranscoderErrorStatus {
 interface GoogleTranscoderJobResponse {
   name?: string;
   state?: string;
+  labels?: Record<string, string>;
   error?: GoogleTranscoderErrorStatus | null;
 }
 
 interface GoogleTranscoderListJobsResponse {
   jobs?: GoogleTranscoderJobResponse[];
+  nextPageToken?: string;
 }
 
 interface PersistedVideoEditSnapshot {
@@ -332,27 +335,26 @@ export async function findGoogleVideoTranscoderJob(
   }
 
   const authorization = await authorizationHeader();
-  const response = await axios.get<GoogleTranscoderListJobsResponse>(
-    `${TRANSCODER_API_BASE_URL}/${parentName()}/jobs`,
-    {
-      headers: { Authorization: authorization },
-      params: {
-        pageSize: 10,
-        filter: `labels.processing_version="${processingVersion}"`,
-      },
-      timeout: 30_000,
+  const found = await lookupUniqueTranscoderJob(
+    processingVersion,
+    async pageToken => {
+      const response = await axios.get<GoogleTranscoderListJobsResponse>(
+        `${TRANSCODER_API_BASE_URL}/${parentName()}/jobs`,
+        {
+          headers: { Authorization: authorization },
+          params: {
+            pageSize: 100,
+            filter: `labels.processing_version="${processingVersion}"`,
+            ...(pageToken ? { pageToken } : {}),
+          },
+          timeout: 30_000,
+        }
+      );
+      return response.data;
     }
   );
 
-  for (const candidate of response.data?.jobs ?? []) {
-    const name = normalizeJobName(candidate.name);
-
-    if (name) {
-      return normalizeSnapshot({ ...candidate, name });
-    }
-  }
-
-  return null;
+  return found ? normalizeSnapshot(found) : null;
 }
 
 export async function getGoogleVideoTranscoderJob(
@@ -419,6 +421,7 @@ export function normalizeGoogleTranscoderError(
       .trim()
       .slice(0, 500);
     const retryable =
+      statusCode === 0 ||
       statusCode === 408 ||
       statusCode === 429 ||
       statusCode >= 500;

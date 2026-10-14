@@ -29,6 +29,8 @@ export interface VideoProcessingJob {
   provider: 'GOOGLE_TRANSCODER';
   state: VideoProcessingJobState;
   attempts: number;
+  /** Consecutive negative provider lookups for this submission. */
+  submissionLookupMisses?: number;
   nextAttemptAt: number;
   leaseUntil: number | null;
   externalJobName: string | null;
@@ -109,6 +111,7 @@ export function buildQueuedVideoProcessingJob(
     provider: 'GOOGLE_TRANSCODER',
     state: 'QUEUED',
     attempts: 0,
+    submissionLookupMisses: 0,
     nextAttemptAt: now,
     leaseUntil: null,
     externalJobName: null,

@@ -17,6 +17,7 @@ import {
   type VideoProcessingJob,
 } from './video-processing-job';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
+import { decideMissingVideoSubmission } from './video-submission-confirmation.policy';
 import {
   providerObservationChanged,
   isCurrentVideoProcessingAttempt,
@@ -188,6 +189,7 @@ function normalizeJob(data: unknown): VideoProcessingJob | null {
     provider: 'GOOGLE_TRANSCODER',
     state: normalizeState(job.state),
     attempts: normalizeNonNegativeInteger(job.attempts),
+    submissionLookupMisses: normalizeNonNegativeInteger(job.submissionLookupMisses),
     nextAttemptAt: normalizeNonNegativeInteger(job.nextAttemptAt),
     leaseUntil: normalizeOptionalNonNegativeInteger(job.leaseUntil),
     externalJobName: String(job.externalJobName ?? '').trim() || null,
@@ -301,6 +303,7 @@ async function claimQueuedJob(
       ...job,
       state: 'SUBMITTING',
       attempts: job.attempts + 1,
+      submissionLookupMisses: 0,
       leaseUntil: now + SUBMISSION_LEASE_MS,
       updatedAt: now,
       lastErrorCode: null,
@@ -310,6 +313,7 @@ async function claimQueuedJob(
     transaction.update(jobRef, {
       state: claimed.state,
       attempts: claimed.attempts,
+      submissionLookupMisses: 0,
       leaseUntil: claimed.leaseUntil,
       updatedAt: now,
       lastErrorCode: null,
@@ -351,6 +355,9 @@ async function persistSubmittedJob(
     if (
       !currentJob ||
       currentJob.processingVersion !== job.processingVersion ||
+      currentJob.attempts !== job.attempts ||
+      (currentJob.state === 'SUBMITTING' &&
+        currentJob.leaseUntil !== job.leaseUntil) ||
       (currentJob.state !== 'SUBMITTING' &&
         currentJob.state !== 'CANCEL_REQUESTED' &&
         !(currentJob.state === 'PROCESSING' &&
@@ -511,43 +518,24 @@ async function recoverExpiredSubmission(
     }
 
     const now = Date.now();
-    const canRetry = job.attempts < VIDEO_PROCESSING_MAX_ATTEMPTS;
-    const nextState = canRetry ? 'QUEUED' : 'FAILED';
-    const jobPatch: Record<string, unknown> = {
-      state: nextState,
-      leaseUntil: null,
-      updatedAt: now,
-      lastErrorCode: 'SUBMISSION_NOT_FOUND',
-      lastError: canRetry
-        ? 'Nenhum job externo foi localizado para a submissão.'
-        : 'O job externo não foi localizado após várias tentativas.',
-    };
-    if (canRetry) {
-      jobPatch['nextAttemptAt'] = now + retryDelayMs(job.attempts);
-    } else {
-      jobPatch['completedAt'] = now;
-    }
+    const decision = decideMissingVideoSubmission(job, now);
 
+    // A negative list response cannot prove the prior POST was rejected.
+    // Hold the job for further confirmation; never requeue automatically.
     await updateRecoveredSubmissionIfCurrent(
       db, jobRef, job, normalizeJob, {
         now,
-        jobPatch,
-        videoPatch: canRetry
-          ? {
-            status: 'queued',
-            processingStage: 'retry_wait',
-            processingErrorCode: null,
-            processingErrorMessage: null,
-            updatedAt: now,
-          }
-          : {
-            status: 'failed',
-            processingStage: 'failed',
-            processingErrorCode: 'SUBMISSION_NOT_FOUND',
-            processingErrorMessage:
-              'Não foi possível confirmar o envio do vídeo para processamento.',
-            updatedAt: now,
-          },
+        jobPatch: {
+          ...decision,
+          updatedAt: now,
+        },
+        videoPatch: {
+          status: 'processing',
+          processingStage: 'confirming_submission',
+          processingErrorCode: decision.lastErrorCode,
+          processingErrorMessage: decision.lastError,
+          updatedAt: now,
+        },
       }
     );
   } catch (error) {

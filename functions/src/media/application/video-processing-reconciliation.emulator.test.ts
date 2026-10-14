@@ -6,6 +6,7 @@ import { deleteApp, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
+import { decideMissingVideoSubmission } from './video-submission-confirmation.policy';
 import {
   backfillLegacyProcessingDueAt,
   claimProcessingJob,
@@ -323,4 +324,38 @@ test('late submit failure cannot override cancellation, retry or a new lease', a
   ), true);
   assert.equal((await ref.get()).get('state'), 'FAILED');
   assert.equal((await videoRef.get()).get('status'), 'failed');
+});
+
+test('negative provider lookup holds submission and never permits requeue', async () => {
+  const ref = jobs.doc('confirm-negative-' + randomUUID());
+  const current = {
+    ...fixture('PENDING'),
+    state: 'SUBMITTING' as const,
+    leaseUntil: now + 300_000,
+    submissionLookupMisses: 2,
+  };
+  const videoRef = firestore.doc(
+    `users/${current.ownerUid}/videos/${current.videoId}`
+  );
+  await ref.set(current);
+  await videoRef.set({ path: current.sourceStoragePath, status: 'processing' });
+  const decision = decideMissingVideoSubmission(current, now);
+  assert.equal(decision.leaseUntil, null);
+  assert.equal(await updateRecoveredSubmissionIfCurrent(
+    firestore, ref, current, parseJob, {
+      now,
+      jobPatch: { ...decision, updatedAt: now },
+      videoPatch: {
+        status: 'processing',
+        processingStage: 'confirming_submission',
+      },
+    }
+  ), true);
+  assert.equal((await ref.get()).get('state'), 'SUBMITTING');
+  assert.equal((await ref.get()).get('leaseUntil'), null);
+  assert.equal((await ref.get()).get('lastErrorCode'), 'SUBMISSION_UNCONFIRMED');
+  const due = await jobs.where('state', '==', 'SUBMITTING')
+    .where('leaseUntil', '<=', now)
+    .orderBy('leaseUntil', 'asc').get();
+  assert.ok(!due.docs.some(doc => doc.id === ref.id));
 });
