@@ -27,6 +27,7 @@ import {
   queryDueProcessingJobs,
   deleteCancelledJobIfCurrent,
   recordCancellationErrorIfCurrent,
+  bindCancelledProviderJobIfCurrent,
   claimExpiredSubmissionLease,
   updateRecoveredSubmissionIfCurrent,
 } from './video-processing-reconciliation.firestore';
@@ -887,8 +888,33 @@ async function processCancellation(
   job: VideoProcessingJob
 ): Promise<void> {
   try {
-    if (job.externalJobName) {
-      await deleteGoogleVideoTranscoderJob(job.externalJobName);
+    let externalJobName = job.externalJobName;
+
+    // A cancellation can race with a successful POST whose response was lost.
+    // Never remove the only local tracking record after an ambiguous POST.
+    if (!externalJobName && job.attempts > 0) {
+      const recovered = await findGoogleVideoTranscoderJob(
+        job.processingVersion
+      );
+      if (!recovered) {
+        await recordCancellationErrorIfCurrent(
+          db, jobRef, job, normalizeJob, {
+            code: 'CANCELLATION_UNCONFIRMED',
+            message: 'Job externo não confirmado; limpeza aguarda revisão.',
+          }, Date.now()
+        );
+        return;
+      }
+
+      const bound = await bindCancelledProviderJobIfCurrent(
+        db, jobRef, job, recovered.name, normalizeJob, Date.now()
+      );
+      if (!bound) return;
+      externalJobName = recovered.name;
+    }
+
+    if (externalJobName) {
+      await deleteGoogleVideoTranscoderJob(externalJobName);
     }
 
     await deleteOutputPrefix(job.outputPrefix);

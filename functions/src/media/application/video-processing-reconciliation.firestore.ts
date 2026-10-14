@@ -228,3 +228,36 @@ export async function updateRecoveredSubmissionIfCurrent(
     return true;
   });
 }
+
+/**
+ * Once a formerly unknown provider job is found, persist its identity before
+ * performing external deletion. A cleanup failure can then safely retry by ID.
+ */
+export async function bindCancelledProviderJobIfCurrent(
+  firestore: Firestore,
+  jobRef: DocumentReference,
+  started: VideoProcessingJob,
+  providerJobName: string,
+  normalizeJob: NormalizeJob,
+  now: number
+): Promise<boolean> {
+  return firestore.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(jobRef);
+    const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
+
+    if (
+      !isCurrentVideoCancellation(current, started) ||
+      (current?.externalJobName && current.externalJobName !== providerJobName)
+    ) {
+      return false;
+    }
+
+    transaction.update(jobRef, {
+      externalJobName: providerJobName,
+      updatedAt: now,
+      lastErrorCode: null,
+      lastError: null,
+    });
+    return true;
+  });
+}

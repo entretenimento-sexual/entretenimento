@@ -13,6 +13,7 @@ import {
   deleteCancelledJobIfCurrent,
   queryDueProcessingJobs,
   recordCancellationErrorIfCurrent,
+  bindCancelledProviderJobIfCurrent,
   claimExpiredSubmissionLease,
   updateRecoveredSubmissionIfCurrent,
 } from './video-processing-reconciliation.firestore';
@@ -358,4 +359,29 @@ test('negative provider lookup holds submission and never permits requeue', asyn
     .where('leaseUntil', '<=', now)
     .orderBy('leaseUntil', 'asc').get();
   assert.ok(!due.docs.some(doc => doc.id === ref.id));
+});
+
+test('unknown provider cancellation binds job name before permitting cleanup', async () => {
+  const jobRef = jobs.doc('cancel-unknown-' + randomUUID());
+  const old = {
+    ...fixture('PENDING'),
+    state: 'CANCEL_REQUESTED' as const,
+    externalJobName: null,
+    attempts: 1,
+  };
+  await jobRef.set(old);
+
+  assert.equal(await bindCancelledProviderJobIfCurrent(
+    firestore, jobRef, old, 'projects/demo/jobs/canonical',
+    parseJob, now
+  ), true);
+  assert.equal((await jobRef.get()).get('externalJobName'), 'projects/demo/jobs/canonical');
+
+  const replaced = { ...old, processingVersion: 'new-attempt' };
+  await jobRef.set(replaced);
+  assert.equal(await bindCancelledProviderJobIfCurrent(
+    firestore, jobRef, old, 'projects/demo/jobs/late',
+    parseJob, now
+  ), false);
+  assert.equal((await jobRef.get()).get('externalJobName'), null);
 });

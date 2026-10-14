@@ -144,3 +144,17 @@ test('missing external submission never automatically returns a job to QUEUED', 
   assert.ok(recovery.includes('confirming_submission'));
   assert.ok(!recovery.includes("state: 'QUEUED'"));
 });
+
+test('unknown provider cancellation remains tracked until confirmation', () => {
+  const start = scheduler.indexOf('async function processCancellation(');
+  const end = scheduler.indexOf('async function removeInvalidJob(', start);
+  const body = scheduler.slice(start, end);
+
+  assert.ok(start >= 0 && end > start);
+  assert.ok(body.includes('job.attempts > 0'));
+  assert.ok(body.includes('findGoogleVideoTranscoderJob('));
+  assert.ok(body.includes('bindCancelledProviderJobIfCurrent('));
+  assert.ok(body.includes("code: 'CANCELLATION_UNCONFIRMED'"));
+  assert.ok(body.indexOf('bindCancelledProviderJobIfCurrent(') <
+    body.indexOf('deleteOutputPrefix(job.outputPrefix)'));
+});
