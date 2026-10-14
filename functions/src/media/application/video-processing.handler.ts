@@ -350,7 +350,7 @@ async function persistSubmittedJob(
       ? normalizeJob(jobSnapshot.data())
       : null;
 
-    if (!canAttachSubmittedProviderJob(
+    if (!currentJob || !canAttachSubmittedProviderJob(
       currentJob, job, externalJobName
     )) {
       return;
