@@ -110,7 +110,7 @@ test('provider submission recovery supports processing jobs without external IDs
 
 test('cancelled job cleanup does not delete or resurrect a newer attempt', () => {
   const start = scheduler.indexOf('async function processCancellation(');
-  const end = scheduler.indexOf('async function removeInvalidJob(', start);
+  const end = scheduler.indexOf('async function runBatch(', start);
   const body = scheduler.slice(start, end);
 
   assert.ok(start >= 0 && end > start);
