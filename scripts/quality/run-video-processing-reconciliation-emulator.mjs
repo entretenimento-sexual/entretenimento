@@ -1,6 +1,6 @@
 // Isolated, ephemeral Firestore integration for video reconciliation.
 // Never import/export the developer's .emulator-data or use port 8080.
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtemp, rm, writeFile, access } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -33,6 +33,22 @@ try {
   const [firestore, hub, logging] = [...ports];
   if ([firestore, hub, logging].includes(8080)) {
     throw new Error('Refusing to reuse development Firestore port 8080.');
+  }
+
+  // firestore.rules is generated and is not present in clean checkouts.
+  const rulesBuilder = resolve(
+    root, 'firestore-rules/tools-rules/build-firestore-rules.mjs'
+  );
+  const rulesBuild = spawnSync(process.execPath, [rulesBuilder], {
+    cwd: root,
+    stdio: 'inherit',
+    shell: false,
+    env: process.env,
+  });
+  if (rulesBuild.error || rulesBuild.status !== 0) {
+    throw new Error(
+      'Cannot generate canonical Firestore Rules for isolated test.'
+    );
   }
 
   const rules = resolve(root, 'firestore.rules');
