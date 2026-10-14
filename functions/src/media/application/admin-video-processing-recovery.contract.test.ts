@@ -45,3 +45,11 @@ test('the admin frontend does not silently turn unknown actions into rechecks', 
   assert.ok(component.includes("case 'RECHECK_UNCONFIRMED':"));
   assert.ok(template.includes('item.requiresProviderReview'));
 });
+
+test('admin flags overdue cancellation separately from unconfirmed provider jobs', () => {
+  assert.ok(handler.includes('isOverdueVideoCancellation('));
+  assert.ok(handler.includes('requiresOperationalAttention:'));
+  assert.ok(client.includes('requiresOperationalAttention:'));
+  assert.ok(template.includes('item.requiresOperationalAttention'));
+  assert.ok(template.includes('Este alerta não confirma falha do Transcoder'));
+});

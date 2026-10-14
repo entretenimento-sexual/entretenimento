@@ -24,6 +24,7 @@ export interface IAdminVideoProcessingRecoveryJob {
   stale: boolean;
   hasExternalJob: boolean;
   requiresProviderReview: boolean;
+  requiresOperationalAttention: boolean;
   lastErrorCode: string | null;
   lastError: string | null;
   availableActions: AdminVideoProcessingRecoveryAction[];
@@ -201,6 +202,7 @@ export class AdminVideoProcessingRecoveryService {
       stale: value?.stale === true,
       hasExternalJob: value?.hasExternalJob === true,
       requiresProviderReview: value?.requiresProviderReview === true,
+      requiresOperationalAttention: value?.requiresOperationalAttention === true,
       lastErrorCode: this.normalizeOptionalText(value?.lastErrorCode, 160),
       lastError: this.normalizeOptionalText(value?.lastError, 500),
       availableActions: Array.isArray(value?.availableActions)

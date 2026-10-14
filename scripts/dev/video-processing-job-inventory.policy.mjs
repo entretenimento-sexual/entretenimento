@@ -56,6 +56,8 @@ export function inspectVideoProcessingJob(record, now) {
     submittingExpiredLease: expiredLease,
     processingMissingExternalJob: missingExternalJob,
     cancellationAgeBand,
+    cancellationOverdue24h: cancellationAgeBand === 'OVER_24_H' &&
+      cancellationDue,
     cancellationDue,
     cancellationDeferred,
     cancellationReviewRequired,
@@ -77,6 +79,7 @@ export function createVideoProcessingInventory() {
     processingMissingExternalJob: 0,
     cancellationScheduling: {
       due: 0,
+      overdue24h: 0,
       deferred: 0,
       missingDue: 0,
       invalidDue: 0,
@@ -116,6 +119,7 @@ export function addVideoProcessingJobToInventory(inventory, data, now) {
   }
   for (const [flag, metric] of [
     ['cancellationDue', 'due'],
+    ['cancellationOverdue24h', 'overdue24h'],
     ['cancellationDeferred', 'deferred'],
     ['cancellationMissingDue', 'missingDue'],
     ['cancellationInvalidDue', 'invalidDue'],

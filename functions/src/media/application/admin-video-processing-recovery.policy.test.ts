@@ -5,6 +5,7 @@ import {
   availableAdminVideoRecoveryActions,
   isUnconfirmedVideoSubmission,
   isUnsafeVideoProcessingRetry,
+  isOverdueVideoCancellation,
   videoRecoveryRequiresProviderReview,
 } from './admin-video-processing-recovery.policy';
 
@@ -69,4 +70,26 @@ test('repeated cancellation cleanup failures require administrator attention', (
     cancellationCleanupAttempts: 1,
     cancellationReviewRequired: false,
   }), false);
+});
+
+test('overdue cancellations are operational alerts, not verified provider failures', () => {
+  const now = 1_800_000_000_000;
+  const job = {
+    state: 'CANCEL_REQUESTED' as const,
+    cancelRequestedAt: now - 25 * 60 * 60_000,
+    nextAttemptAt: now - 60_000,
+    cancellationCleanupAttempts: 0,
+    cancellationReviewRequired: false,
+  };
+  assert.equal(isOverdueVideoCancellation(job, now), true);
+  assert.equal(videoRecoveryRequiresProviderReview(job), false);
+  assert.equal(isOverdueVideoCancellation({
+    ...job, nextAttemptAt: now + 60_000,
+  }, now), false);
+  assert.equal(isOverdueVideoCancellation({
+    ...job, cancelRequestedAt: now - 60_000,
+  }, now), false);
+  assert.equal(isOverdueVideoCancellation({
+    ...job, cancelRequestedAt: null,
+  }, now), false);
 });

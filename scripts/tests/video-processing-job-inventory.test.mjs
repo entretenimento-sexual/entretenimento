@@ -102,9 +102,33 @@ test('read-only inventory distinguishes due, deferred, malformed and reviewed ca
   }
   assert.deepEqual(summary.cancellationScheduling, {
     due: 1,
+    overdue24h: 0,
     deferred: 1,
     missingDue: 1,
     invalidDue: 1,
     reviewRequired: 2,
   });
+});
+
+test('old due cancellation is operationally overdue without implying provider failure', () => {
+  const now = 1_800_000_000_000;
+  const record = {
+    state: 'CANCEL_REQUESTED',
+    cancelRequestedAt: now - 25 * 60 * 60_000,
+    nextAttemptAt: now - 60_000,
+    cancellationReviewRequired: false,
+    lastErrorCode: null,
+  };
+  const classification = inspectVideoProcessingJob(record, now);
+  assert.equal(classification.cancellationOverdue24h, true);
+  assert.equal(classification.cancellationReviewRequired, false);
+  const summary = addVideoProcessingJobToInventory(
+    createVideoProcessingInventory(), record, now
+  );
+  assert.equal(summary.cancellationScheduling.overdue24h, 1);
+  assert.equal(summary.cancellationScheduling.reviewRequired, 0);
+
+  assert.equal(inspectVideoProcessingJob({
+    ...record, nextAttemptAt: now + 60_000,
+  }, now).cancellationOverdue24h, false);
 });

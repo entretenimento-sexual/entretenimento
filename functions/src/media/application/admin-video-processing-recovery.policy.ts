@@ -60,3 +60,24 @@ export function availableAdminVideoRecoveryActions(
   if (job.state === 'PROCESSING') return ['CANCEL_ACTIVE'];
   return [];
 }
+
+/**
+ * This is an operational backlog signal, not proof of provider failure.
+ * Do not use it to authorize retries, deletes, or external job mutations.
+ */
+export function isOverdueVideoCancellation(
+  job: Partial<VideoProcessingJob>,
+  now: number
+): boolean {
+  const requestedAt = job.cancelRequestedAt;
+  const nextAttemptAt = job.nextAttemptAt;
+
+  return job.state === 'CANCEL_REQUESTED' &&
+    typeof requestedAt === 'number' &&
+    Number.isSafeInteger(requestedAt) &&
+    requestedAt > 0 &&
+    requestedAt <= now - 24 * 60 * 60_000 &&
+    typeof nextAttemptAt === 'number' &&
+    Number.isSafeInteger(nextAttemptAt) &&
+    nextAttemptAt <= now;
+}

@@ -217,6 +217,17 @@
                 </div>
               </dl>
 
+              @if (item.requiresOperationalAttention) {
+                <div class="video-moderation__recovery-pending" role="status">
+                  <strong>Cancelamento vencido há mais de 24 horas.</strong>
+                  <span>
+                    Confira o agendamento e a execução da limpeza técnica.
+                    Este alerta não confirma falha do Transcoder e não autoriza
+                    reenvio ou exclusão manual do job.
+                  </span>
+                </div>
+              }
+
               @if (item.requiresProviderReview) {
                 <div class="video-moderation__recovery-pending" role="status">
                   <strong>Verificação externa necessária.</strong>
@@ -247,6 +258,9 @@
                   @if (item.requiresProviderReview) {
                     A intervenção automática está bloqueada. Verifique o job
                     diretamente no provedor antes de autorizar outra tentativa.
+                  } @else if (item.requiresOperationalAttention) {
+                    O cancelamento está atrasado e precisa de diagnóstico
+                    operacional. Não force um reprocessamento.
                   } @else {
                     A limpeza ou o cancelamento já está em andamento. Aguarde a
                     próxima reconciliação automática.

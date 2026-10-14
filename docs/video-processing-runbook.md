@@ -168,6 +168,11 @@ uma nova submissão.
 
 O inventário somente de leitura `npm run inspect:video-jobs:emu` informa
 cancelamentos vencidos, adiados, sem data válida e com revisão necessária.
+O contador `overdue24h` identifica cancelamentos há mais de 24 horas
+cujo `nextAttemptAt` já venceu. Ele é um **alerta operacional** independente
+de `reviewRequired`, que continua reservado a falha externa ou repetição
+de tentativas. O painel administrativo mantém essa distinção e não habilita
+reenvio nem exclusão por causa do atraso.
 Um documento legado sem `nextAttemptAt` pode ficar fora da consulta;
 qualquer reparo requer verificação versionada e execução separada.
 Não excluir manualmente cancelamentos com identidade externa incerta.

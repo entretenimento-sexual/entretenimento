@@ -22,6 +22,7 @@ import {
   availableAdminVideoRecoveryActions,
   isUnconfirmedVideoSubmission,
   isUnsafeVideoProcessingRetry,
+  isOverdueVideoCancellation,
   videoRecoveryRequiresProviderReview,
   type AdminVideoProcessingRecoveryAction,
 } from './admin-video-processing-recovery.policy';
@@ -47,6 +48,7 @@ interface RecoveryJobItem {
   stale: boolean;
   hasExternalJob: boolean;
   requiresProviderReview: boolean;
+  requiresOperationalAttention: boolean;
   lastErrorCode: string | null;
   lastError: string | null;
   availableActions: AdminVideoProcessingRecoveryAction[];
@@ -272,6 +274,9 @@ function normalizeRecoveryItem(
     stale,
     hasExternalJob: !!String(job.externalJobName ?? '').trim(),
     requiresProviderReview: videoRecoveryRequiresProviderReview({ ...job, state }),
+    requiresOperationalAttention: isOverdueVideoCancellation(
+      { ...job, state }, checkedAt
+    ),
     lastErrorCode: String(job.lastErrorCode ?? '').trim() || null,
     lastError: String(job.lastError ?? '').trim().slice(0, 500) || null,
     availableActions: availableAdminVideoRecoveryActions({ ...job, state }, stale),
