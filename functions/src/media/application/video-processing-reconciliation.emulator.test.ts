@@ -10,6 +10,8 @@ import { decideMissingVideoSubmission } from './video-submission-confirmation.po
 import {
   backfillLegacyProcessingDueAt,
   claimProcessingJob,
+  queryDueCancelledJobs,
+  claimDueCancellation,
   deleteCancelledJobIfCurrent,
   queryDueProcessingJobs,
   recordCancellationErrorIfCurrent,
@@ -384,4 +386,92 @@ test('unknown provider cancellation binds job name before permitting cleanup', a
     parseJob, now
   ), false);
   assert.equal((await jobRef.get()).get('externalJobName'), null);
+});
+
+test('cancelled jobs are selected by due time, excluding deferred retries', async () => {
+  const first = jobs.doc('cancel-due-a-' + randomUUID());
+  const second = jobs.doc('cancel-due-b-' + randomUUID());
+  const deferred = jobs.doc('cancel-later-' + randomUUID());
+
+  await first.set({
+    ...fixture('PENDING'),
+    state: 'CANCEL_REQUESTED',
+    nextAttemptAt: now - 120_000,
+  });
+  await second.set({
+    ...fixture('PENDING'),
+    state: 'CANCEL_REQUESTED',
+    nextAttemptAt: now - 119_000,
+  });
+  await deferred.set({
+    ...fixture('PENDING'),
+    state: 'CANCEL_REQUESTED',
+    nextAttemptAt: now + 60_000,
+  });
+
+  const due = await queryDueCancelledJobs(firestore, now, 20).get();
+  assert.equal(due.docs[0].id, first.id);
+  assert.equal(due.docs[1].id, second.id);
+  assert.ok(!due.docs.some(doc => doc.id === deferred.id));
+});
+
+test('concurrent cancellation claims fence stale cleanup and back off failures', async () => {
+  const ref = jobs.doc('cancel-claim-' + randomUUID());
+  await ref.set({
+    ...fixture('PENDING'),
+    state: 'CANCEL_REQUESTED',
+    nextAttemptAt: now - 1_000,
+    cancellationCleanupAttempts: 0,
+  });
+
+  const [a, b] = await Promise.all([
+    claimDueCancellation(firestore, ref, now, parseJob),
+    claimDueCancellation(firestore, ref, now, parseJob),
+  ]);
+  const claimed = [a, b].filter((job): job is VideoProcessingJob => !!job);
+  assert.equal(claimed.length, 1);
+
+  const original = { ...claimed[0], nextAttemptAt: now - 1_000 };
+  assert.equal(await recordCancellationErrorIfCurrent(
+    firestore, ref, original, parseJob,
+    { code: 'TRANSIENT', message: 'stale response' }, now
+  ), false);
+
+  assert.equal(await recordCancellationErrorIfCurrent(
+    firestore, ref, claimed[0], parseJob,
+    { code: 'TRANSIENT', message: 'first failure' }, now
+  ), true);
+  assert.equal((await ref.get()).get('cancellationCleanupAttempts'), 1);
+  assert.equal((await ref.get()).get('nextAttemptAt'), now + 30 * 60_000);
+  assert.equal((await ref.get()).get('cancellationReviewRequired'), false);
+
+  const deferred = await queryDueCancelledJobs(firestore, now, 100).get();
+  assert.ok(!deferred.docs.some(doc => doc.id === ref.id));
+
+  const later = now + 30 * 60_000;
+  const second = await claimDueCancellation(firestore, ref, later, parseJob);
+  assert.ok(second);
+  assert.equal(await recordCancellationErrorIfCurrent(
+    firestore, ref, claimed[0], parseJob,
+    { code: 'TRANSIENT', message: 'late callback' }, later
+  ), false);
+  assert.equal(await recordCancellationErrorIfCurrent(
+    firestore, ref, second, parseJob,
+    { code: 'CANCELLATION_UNCONFIRMED', message: 'provider not found' }, later
+  ), true);
+  assert.equal((await ref.get()).get('cancellationCleanupAttempts'), 2);
+  assert.equal((await ref.get()).get('nextAttemptAt'), later + 2 * 60 * 60_000);
+  assert.equal((await ref.get()).get('cancellationReviewRequired'), true);
+
+  const thirdTime = later + 2 * 60 * 60_000;
+  const third = await claimDueCancellation(firestore, ref, thirdTime, parseJob);
+  assert.ok(third);
+  assert.equal(await recordCancellationErrorIfCurrent(
+    firestore, ref, third, parseJob,
+    { code: 'TRANSIENT', message: 'third failure' }, thirdTime
+  ), true);
+  assert.equal((await ref.get()).get('cancellationCleanupAttempts'), 3);
+  assert.equal((await ref.get()).get('nextAttemptAt'),
+    thirdTime + 24 * 60 * 60_000);
+  assert.equal((await ref.get()).get('cancellationReviewRequired'), true);
 });
