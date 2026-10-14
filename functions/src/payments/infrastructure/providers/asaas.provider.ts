@@ -18,6 +18,7 @@ import {
 } from 'node:crypto';
 
 import { HttpsError } from 'firebase-functions/v2/https';
+import { assertExternalPaymentEgressAllowed } from '../../../shared/runtime/functions-runtime.guard';
 
 import {
   CreateCheckoutInput,
@@ -575,6 +576,8 @@ export class AsaasPaymentProvider extends PaymentProviderPort {
     init: RequestInit,
     apiKey: string
   ): Promise<T> {
+    // Defense in depth: do not call even the Asaas sandbox from local Functions.
+    assertExternalPaymentEgressAllowed();
     const runtime = this.requireRuntime();
     const response = await fetch(
       `${runtime.apiBaseUrl}${path}`,

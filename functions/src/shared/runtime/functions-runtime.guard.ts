@@ -9,3 +9,13 @@
 export function isFunctionsEmulatorRuntime(): boolean {
   return process.env.FUNCTIONS_EMULATOR === 'true';
 }
+
+/**
+ * Fail closed at the HTTP boundary of external payment providers.
+ * Local payments must use EmulatorPaymentProvider, not a live API or sandbox.
+ */
+export function assertExternalPaymentEgressAllowed(): void {
+  if (isFunctionsEmulatorRuntime()) {
+    throw new Error('external_payment_egress_blocked_in_emulator');
+  }
+}

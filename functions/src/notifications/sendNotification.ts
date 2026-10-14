@@ -3,6 +3,7 @@ import {logger} from 'firebase-functions';
 import {onDocumentCreated} from 'firebase-functions/v2/firestore';
 import {getMessaging} from 'firebase-admin/messaging';
 import {getFirestore, Timestamp} from 'firebase-admin/firestore';
+import {isFunctionsEmulatorRuntime} from '../shared/runtime/functions-runtime.guard';
 
 import {isCommunityNotificationMembershipCycleCurrent} from '../community/community-notification-membership.policy';
 import {isCommunityMuralActivityNotificationType} from '../community/community-notification.policy';
@@ -60,6 +61,16 @@ export const sendNotification = onDocumentCreated(
 
     if (!shouldAttemptExternalPush(notification?.pushMode)) {
       console.info('[sendNotification] push suprimido por política in-app only', {
+        notificationId,
+        notificationType,
+      });
+      return;
+    }
+
+    // Push FCM is an external service and has no local emulator.
+    // Keep the in-app notification document, but never deliver to real devices.
+    if (isFunctionsEmulatorRuntime()) {
+      console.info('[sendNotification] FCM externo suprimido no emulator', {
         notificationId,
         notificationType,
       });

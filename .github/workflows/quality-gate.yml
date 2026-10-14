@@ -64,6 +64,9 @@ jobs:
       - name: Test emulator credential isolation
         run: npm run emu:credentials:preflight:test
 
+      - name: Check local Functions external egress guards
+        run: node scripts/quality/check-functions-external-egress-boundary.mjs
+
       - name: Test safe emulator snapshot import
         run: npm run emu:snapshot:preflight:test
 

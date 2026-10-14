@@ -38,6 +38,7 @@ for (const fragment of [
 const provider = read(
   'functions/src/payments/infrastructure/providers/asaas.provider.ts'
 );
+requireIncludes(provider, 'assertExternalPaymentEgressAllowed();', 'Asaas emulator egress guard');
 for (const fragment of [
   "chargeTypes: ['RECURRENT']",
   "billingTypes: ['CREDIT_CARD']",

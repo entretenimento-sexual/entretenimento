@@ -311,3 +311,34 @@ test('atualiza somente valor recorrente futuro sem dados de cartão', async () =
     globalThis.fetch = originalFetch;
   }
 });
+
+test('Functions Emulator cannot contact external Asaas, even its sandbox', async () => {
+  const before = process.env.FUNCTIONS_EMULATOR;
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+
+  try {
+    process.env.FUNCTIONS_EMULATOR = 'true';
+    globalThis.fetch = (async () => {
+      calls += 1;
+      throw new Error('unexpected external request');
+    }) as typeof fetch;
+
+    const provider = new AsaasPaymentProvider({
+      runtime,
+      apiKey: '$aact_hmlg_example_key',
+    });
+
+    await assert.rejects(
+      provider.cancelRecurringSubscription('sub_test_123'),
+      (error: unknown) =>
+        error instanceof Error &&
+        error.message.includes('external_payment_egress_blocked_in_emulator')
+    );
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (before === undefined) delete process.env.FUNCTIONS_EMULATOR;
+    else process.env.FUNCTIONS_EMULATOR = before;
+  }
+});
