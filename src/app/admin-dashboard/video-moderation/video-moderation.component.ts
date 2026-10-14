@@ -195,6 +195,8 @@ export class VideoModerationComponent {
         return 'Reprocessar vídeo';
       case 'RECHECK_STALE':
         return 'Revalidar job atrasado';
+      case 'RECHECK_UNCONFIRMED':
+        return 'Conferir submissão externa';
       case 'CANCEL_ACTIVE':
         return 'Cancelar processamento';
     }
@@ -208,6 +210,8 @@ export class VideoModerationComponent {
         return 'Cria uma nova versão de processamento e preserva a fonte protegida.';
       case 'RECHECK_STALE':
         return 'Libera o lease para que o reconciliador confirme o job sem duplicá-lo.';
+      case 'RECHECK_UNCONFIRMED':
+        return 'Solicita nova consulta ao Transcoder. Não reenvia o vídeo e não libera novo processamento.';
       case 'CANCEL_ACTIVE':
         return 'Solicita cancelamento e limpeza técnica em segundo plano.';
     }
@@ -326,7 +330,9 @@ export class VideoModerationComponent {
                 : 'Novo processamento agendado.'
               : action === 'RECHECK_STALE'
                 ? 'Job liberado para nova reconciliação segura.'
-                : 'Cancelamento solicitado. A limpeza continuará em segundo plano.'
+                : action === 'RECHECK_UNCONFIRMED'
+                  ? 'Consulta externa solicitada. Nenhum novo envio foi autorizado.'
+                  : 'Cancelamento solicitado. A limpeza continuará em segundo plano.'
         );
         this.retry();
       },

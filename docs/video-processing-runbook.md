@@ -114,13 +114,26 @@ Ações disponíveis:
 
 ```text
 RETRY_FAILED    cria uma nova versão de processamento para um job FAILED
-RECHECK_STALE   libera fila ou lease expirado para reconciliação segura
-CANCEL_ACTIVE   solicita cancelamento e limpeza técnica assíncrona
+RECHECK_STALE       libera fila ou lease expirado para reconciliação segura
+RECHECK_UNCONFIRMED libera somente nova consulta para submissão sem confirmação
+CANCEL_ACTIVE       solicita cancelamento e limpeza técnica assíncrona
 ```
 
 `RETRY_FAILED` nunca reutiliza o mesmo prefixo de saída. A versão anterior entra
 na coleção técnica `media_video_processing_output_cleanup_jobs` e é removida
 pela rotina `cleanupRetriedVideoProcessingOutputs`.
+
+Uma submissão com `SUBMISSION_UNCONFIRMED` não é um job `FAILED`
+comprovado: a API pode ter criado o recurso mesmo que a resposta ao POST
+não tenha chegado. Após três consultas negativas, a fila deixa de autorizar
+novas verificações automáticas. A administração pode solicitar
+`RECHECK_UNCONFIRMED` com justificativa; isso consulta o provedor e **nunca
+cria outro job**. A operação é auditada em `admin_logs`.
+Jobs legados `FAILED` com `SUBMISSION_NOT_FOUND` ou código de submissão
+não confirmada não oferecem `RETRY_FAILED`. O responsável deve confirmar
+a inexistência do job externo antes de decidir por uma estratégia de reparo
+separada e autorizada. Cancelamentos com `CANCELLATION_UNCONFIRMED`
+também preservam o rastreamento até a confirmação externa.
 
 Não alterar manualmente `state`, `leaseUntil`, `externalJobName` ou
 `outputPrefix` no Firestore. Em jobs `SUBMITTING`, a revalidação não cria outro

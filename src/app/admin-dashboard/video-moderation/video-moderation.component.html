@@ -217,6 +217,16 @@
                 </div>
               </dl>
 
+              @if (item.requiresProviderReview) {
+                <div class="video-moderation__recovery-pending" role="status">
+                  <strong>Verificação externa necessária.</strong>
+                  <span>
+                    A plataforma não confirmou se o Transcoder criou o job.
+                    Não reenvie nem exclua o rastreamento sem verificar o provedor.
+                  </span>
+                </div>
+              }
+
               @if (item.lastErrorCode || item.lastError) {
                 <div class="video-moderation__recovery-error" role="status">
                   <strong>{{ item.lastErrorCode || 'PROCESSING_ERROR' }}</strong>
@@ -234,8 +244,13 @@
 
               @if (item.availableActions.length === 0) {
                 <p class="video-moderation__recovery-pending" role="status">
-                  A limpeza ou o cancelamento já está em andamento. Aguarde a
-                  próxima reconciliação automática.
+                  @if (item.requiresProviderReview) {
+                    A intervenção automática está bloqueada. Verifique o job
+                    diretamente no provedor antes de autorizar outra tentativa.
+                  } @else {
+                    A limpeza ou o cancelamento já está em andamento. Aguarde a
+                    próxima reconciliação automática.
+                  }
                 </p>
               } @else {
                 <div class="video-moderation__recovery-actions">

@@ -9,6 +9,7 @@ import { AdminVideoProcessingJobState } from './admin-video-moderation.service';
 export type AdminVideoProcessingRecoveryAction =
   | 'RETRY_FAILED'
   | 'RECHECK_STALE'
+  | 'RECHECK_UNCONFIRMED'
   | 'CANCEL_ACTIVE';
 
 export interface IAdminVideoProcessingRecoveryJob {
@@ -22,6 +23,7 @@ export interface IAdminVideoProcessingRecoveryJob {
   ageMs: number;
   stale: boolean;
   hasExternalJob: boolean;
+  requiresProviderReview: boolean;
   lastErrorCode: string | null;
   lastError: string | null;
   availableActions: AdminVideoProcessingRecoveryAction[];
@@ -74,6 +76,7 @@ const JOB_STATES: AdminVideoProcessingJobState[] = [
 const RECOVERY_ACTIONS: AdminVideoProcessingRecoveryAction[] = [
   'RETRY_FAILED',
   'RECHECK_STALE',
+  'RECHECK_UNCONFIRMED',
   'CANCEL_ACTIVE',
 ];
 
@@ -126,10 +129,15 @@ export class AdminVideoProcessingRecoveryService {
     reason: string;
     operationId: string;
   }): Observable<IAdminVideoProcessingRecoveryResult> {
+    const action = this.normalizeAction(command.action);
+    if (!action) {
+      return throwError(() => new Error('Ação administrativa desconhecida.'));
+    }
+
     const payload: RecoverVideoProcessingRequest = {
       ownerUid: this.normalizeId(command.ownerUid),
       videoId: this.normalizeId(command.videoId),
-      action: this.normalizeAction(command.action),
+      action,
       reason: String(command.reason ?? '').trim().slice(0, 900),
       operationId: this.normalizeOperationId(command.operationId),
     };
@@ -192,12 +200,13 @@ export class AdminVideoProcessingRecoveryService {
       ageMs: this.normalizeNonNegativeInteger(value?.ageMs),
       stale: value?.stale === true,
       hasExternalJob: value?.hasExternalJob === true,
+      requiresProviderReview: value?.requiresProviderReview === true,
       lastErrorCode: this.normalizeOptionalText(value?.lastErrorCode, 160),
       lastError: this.normalizeOptionalText(value?.lastError, 500),
       availableActions: Array.isArray(value?.availableActions)
         ? value.availableActions
             .map((action) => this.normalizeAction(action))
-            .filter((action) => !!action)
+            .filter((action): action is AdminVideoProcessingRecoveryAction => action !== null)
         : [],
     };
   }
@@ -205,12 +214,17 @@ export class AdminVideoProcessingRecoveryService {
   private normalizeResult(
     value: IAdminVideoProcessingRecoveryResult
   ): IAdminVideoProcessingRecoveryResult {
+    const action = this.normalizeAction(value?.action);
+    if (!action) {
+      throw new Error('Resposta administrativa com ação desconhecida.');
+    }
+
     return {
       ownerUid: this.normalizeId(value?.ownerUid),
       videoId: this.normalizeId(value?.videoId),
       previousState: this.normalizeState(value?.previousState),
       nextState: this.normalizeState(value?.nextState),
-      action: this.normalizeAction(value?.action),
+      action,
       alreadyApplied: value?.alreadyApplied === true,
       cleanupPending: value?.cleanupPending === true,
     };
@@ -223,13 +237,15 @@ export class AdminVideoProcessingRecoveryService {
       : 'FAILED';
   }
 
-  private normalizeAction(value: unknown): AdminVideoProcessingRecoveryAction {
+  private normalizeAction(
+    value: unknown
+  ): AdminVideoProcessingRecoveryAction | null {
     const normalized = String(value ?? '').trim().toUpperCase();
     return RECOVERY_ACTIONS.includes(
       normalized as AdminVideoProcessingRecoveryAction
     )
       ? normalized as AdminVideoProcessingRecoveryAction
-      : 'RECHECK_STALE';
+      : null;
   }
 
   private normalizeId(value: unknown): string {
