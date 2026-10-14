@@ -26,7 +26,7 @@ test('provider reconfirmation is explicit and guarded within the admin transacti
   assert.ok(handler.includes('!isUnconfirmedVideoSubmission({ ...job, state })'));
   assert.ok(handler.includes("jobPatch['leaseUntil'] = 0"));
   assert.ok(handler.includes("videoPatch['processingStage'] = 'confirming_submission'"));
-  assert.ok(handler.includes("action: command.action"));
+  assert.ok(handler.includes('action: command.action'));
 });
 
 test('legacy uncertain failed jobs cannot be retried before provider verification', () => {
