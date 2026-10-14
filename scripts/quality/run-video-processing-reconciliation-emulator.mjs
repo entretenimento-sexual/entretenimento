@@ -29,10 +29,13 @@ async function freePort() {
 const folder = await mkdtemp(join(tmpdir(), 'video-reconciliation-firestore-'));
 try {
   const ports = new Set();
-  while (ports.size < 3) ports.add(await freePort());
-  const [firestore, hub, logging] = [...ports];
-  if ([firestore, hub, logging].includes(8080)) {
-    throw new Error('Refusing to reuse development Firestore port 8080.');
+  // An isolated WebSocket port is required too: the developer suite uses 9150.
+  while (ports.size < 4) ports.add(await freePort());
+  const [firestore, hub, logging, websocket] = [...ports];
+  if ([firestore, hub, logging, websocket].some(port =>
+    [8080, 9150, 4000, 4400, 4500].includes(port)
+  )) {
+    throw new Error('Refusing to reuse development emulator ports.');
   }
 
   // firestore.rules is generated and is not present in clean checkouts.
@@ -59,7 +62,11 @@ try {
     firestore: { rules, indexes },
     emulators: {
       singleProjectMode: true,
-      firestore: { host: '127.0.0.1', port: firestore },
+      firestore: {
+        host: '127.0.0.1',
+        port: firestore,
+        websocketPort: websocket,
+      },
       hub: { host: '127.0.0.1', port: hub },
       logging: { host: '127.0.0.1', port: logging },
       ui: { enabled: false },
