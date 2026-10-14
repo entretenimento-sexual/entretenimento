@@ -18,6 +18,10 @@ const transcoderService = readFileSync(
   resolve(__dirname, '../../../src/media/application/google-video-transcoder.service.ts'),
   'utf8'
 );
+const submissionConfirmationPolicy = readFileSync(
+  resolve(__dirname, '../../../src/media/application/video-submission-confirmation.policy.ts'),
+  'utf8'
+);
 const indexConfig = JSON.parse(readFileSync(
   resolve(__dirname, '../../../../firestore.indexes.json'),
   'utf8'
@@ -98,10 +102,10 @@ test('transient provider errors cannot mutate cancelled or replaced jobs', () =>
 });
 
 test('provider submission recovery supports processing jobs without external IDs', () => {
-  assert.ok(scheduler.includes(
-    "currentJob.state === 'PROCESSING' &&"
+  assert.ok(scheduler.includes('canAttachSubmittedProviderJob('));
+  assert.ok(submissionConfirmationPolicy.includes(
+    "return current.state === 'PROCESSING' && !current.externalJobName;"
   ));
-  assert.ok(scheduler.includes('!currentJob.externalJobName'));
 });
 
 test('cancelled job cleanup does not delete or resurrect a newer attempt', () => {
