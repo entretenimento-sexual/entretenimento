@@ -64,6 +64,9 @@ jobs:
       - name: Test emulator credential isolation
         run: npm run emu:credentials:preflight:test
 
+      - name: Test safe orphan Firestore process matching
+        run: npm run emu:orphan:test
+
       - name: Check local Functions external egress guards
         run: node scripts/quality/check-functions-external-egress-boundary.mjs
 

@@ -186,7 +186,7 @@ async function assertPortsAvailable() {
     console.error(`  - ${item.label}: ${item.port}`);
   }
 
-  console.error('[emu:safe] Encerre o emulator atual com Ctrl+C para preservar dados.');
+  console.error('[emu:safe] Identifique os processos: npm run emu:diagnose. Se apenas o Firestore estiver orfao: npm run emu:orphan:diagnose.');
   console.error('[emu:safe] Use npm run emu:pre apenas se tiver certeza de que pode matar esses processos.');
   process.exit(1);
 }
