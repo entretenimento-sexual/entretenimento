@@ -114,3 +114,11 @@ test('cancelled job cleanup does not delete or resurrect a newer attempt', () =>
   assert.ok(!body.includes('await jobRef.delete()'));
   assert.ok(!body.includes('await jobRef.set('));
 });
+
+test('expired submission lookup uses a transactional lease claim', () => {
+  assert.ok(scheduler.includes('claimExpiredSubmissionLease('));
+  assert.ok(scheduler.includes('updateRecoveredSubmissionIfCurrent('));
+  assert.ok(firestoreCore.includes('current.leaseUntil > now'));
+  assert.ok(firestoreCore.includes('current.leaseUntil === observed.leaseUntil'));
+  assert.ok(!scheduler.includes('await jobRef.update({\n        state: \'QUEUED\''));
+});

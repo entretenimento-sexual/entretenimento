@@ -12,6 +12,8 @@ import {
   deleteCancelledJobIfCurrent,
   queryDueProcessingJobs,
   recordCancellationErrorIfCurrent,
+  claimExpiredSubmissionLease,
+  updateRecoveredSubmissionIfCurrent,
 } from './video-processing-reconciliation.firestore';
 
 const PROJECT_ID = 'demo-entretenimento-video-reconciliation';
@@ -174,4 +176,98 @@ test('submission lease query excludes future leases before the batch limit', asy
     .get();
   assert.ok(result.docs.some(doc => doc.id === expiredRef.id));
   assert.ok(!result.docs.some(doc => doc.id === futureRef.id));
+});
+
+test('two competing submission recoveries claim only one expired lease', async () => {
+  const ref = jobs.doc('recover-claim-' + randomUUID());
+  const original = {
+    ...fixture('PENDING'),
+    state: 'SUBMITTING' as const,
+    leaseUntil: now - 1_000,
+  };
+  await ref.set(original);
+  const attempts = await Promise.all([
+    claimExpiredSubmissionLease(firestore, ref, now, 300_000, parseJob),
+    claimExpiredSubmissionLease(firestore, ref, now, 300_000, parseJob),
+  ]);
+  const claimed = attempts.filter(Boolean);
+  assert.equal(claimed.length, 1);
+  assert.equal((await ref.get()).get('leaseUntil'), now + 300_000);
+
+  const late = { ...claimed[0]!, leaseUntil: now - 1_000 };
+  assert.equal(await updateRecoveredSubmissionIfCurrent(
+    firestore, ref, late, parseJob, {
+      now,
+      jobPatch: { state: 'QUEUED', nextAttemptAt: now },
+    }
+  ), false);
+  assert.equal((await ref.get()).get('state'), 'SUBMITTING');
+});
+
+test('recovery response cannot resurrect cancellation or overwrite new attempt', async () => {
+  const ref = jobs.doc('recover-late-' + randomUUID());
+  const old = {
+    ...fixture('PENDING'),
+    state: 'SUBMITTING' as const,
+    leaseUntil: now + 300_000,
+  };
+  await ref.set(old);
+
+  await ref.update({ state: 'CANCEL_REQUESTED', leaseUntil: null });
+  assert.equal(await updateRecoveredSubmissionIfCurrent(
+    firestore, ref, old, parseJob, {
+      now,
+      jobPatch: { state: 'QUEUED', nextAttemptAt: now },
+    }
+  ), false);
+  assert.equal((await ref.get()).get('state'), 'CANCEL_REQUESTED');
+
+  const newer = { ...fixture('RUNNING'), state: 'SUBMITTING' as const };
+  await ref.set(newer);
+  assert.equal(await updateRecoveredSubmissionIfCurrent(
+    firestore, ref, old, parseJob, {
+      now,
+      jobPatch: { state: 'FAILED' },
+    }
+  ), false);
+  assert.equal((await ref.get()).get('processingVersion'), newer.processingVersion);
+});
+
+test('a confirmed missing submission transitions job and video atomically', async () => {
+  const jobRef = jobs.doc('recover-missing-' + randomUUID());
+  const old = {
+    ...fixture('PENDING'),
+    state: 'SUBMITTING' as const,
+    leaseUntil: now + 300_000,
+  };
+  const videoRef = firestore.doc(`users/${old.ownerUid}/videos/${old.videoId}`);
+  await jobRef.set(old);
+  await videoRef.set({ path: old.sourceStoragePath, status: 'processing' });
+
+  assert.equal(await updateRecoveredSubmissionIfCurrent(
+    firestore, jobRef, old, parseJob, {
+      now,
+      jobPatch: {
+        state: 'QUEUED',
+        leaseUntil: null,
+        nextAttemptAt: now + 60_000,
+      },
+      videoPatch: { status: 'queued', processingStage: 'retry_wait' },
+    }
+  ), true);
+  assert.equal((await jobRef.get()).get('state'), 'QUEUED');
+  assert.equal((await videoRef.get()).get('processingStage'), 'retry_wait');
+
+  // If the source file changes while a lookup is in flight, fail closed.
+  await jobRef.set(old);
+  await videoRef.update({ path: 'users/other/private/videos/other/source.mp4' });
+  assert.equal(await updateRecoveredSubmissionIfCurrent(
+    firestore, jobRef, old, parseJob, {
+      now,
+      jobPatch: { state: 'QUEUED' },
+      videoPatch: { status: 'queued' },
+    }
+  ), false);
+  assert.equal((await jobRef.get()).get('state'), 'CANCEL_REQUESTED');
+  assert.equal((await videoRef.get()).get('status'), 'queued');
 });

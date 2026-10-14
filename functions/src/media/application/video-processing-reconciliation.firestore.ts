@@ -5,6 +5,7 @@ import {
   type VideoProcessingJob,
 } from './video-processing-job';
 import { nextVideoProcessingPollAt, isCurrentVideoCancellation } from './video-processing-poll.policy';
+import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 
 type NormalizeJob = (data: unknown) => VideoProcessingJob | null;
 
@@ -109,6 +110,121 @@ export async function recordCancellationErrorIfCurrent(
       lastErrorCode: error.code,
       lastError: error.message,
     });
+    return true;
+  });
+}
+
+/**
+ * Expired SUBMITTING jobs require an atomic lease claim before any external
+ * provider lookup. Returning the claimed lease provides a fencing token for
+ * the completion transaction, including when the external lookup is delayed.
+ */
+export async function claimExpiredSubmissionLease(
+  firestore: Firestore,
+  jobRef: DocumentReference,
+  now: number,
+  recoveryLeaseMs: number,
+  normalizeJob: NormalizeJob
+): Promise<VideoProcessingJob | null> {
+  return firestore.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(jobRef);
+    const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
+
+    if (
+      !current ||
+      current.state !== 'SUBMITTING' ||
+      current.leaseUntil === null ||
+      current.leaseUntil > now
+    ) {
+      return null;
+    }
+
+    const reservedUntil = now + recoveryLeaseMs;
+    transaction.update(jobRef, { leaseUntil: reservedUntil });
+    return { ...current, leaseUntil: reservedUntil };
+  });
+}
+
+/** A delayed provider result must not undo cancellation, retry, or new leases. */
+export function isCurrentSubmissionRecovery(
+  current: VideoProcessingJob | null,
+  observed: VideoProcessingJob
+): boolean {
+  if (
+    !current ||
+    current.processingVersion !== observed.processingVersion ||
+    current.attempts !== observed.attempts ||
+    current.sourceStoragePath !== observed.sourceStoragePath
+  ) {
+    return false;
+  }
+
+  if (observed.state === 'SUBMITTING') {
+    return current.state === 'SUBMITTING' &&
+      current.leaseUntil !== null &&
+      current.leaseUntil === observed.leaseUntil;
+  }
+
+  // Processing without an external job name is recovered through the same
+  // function, but its polling reservation uses nextAttemptAt, not a lease.
+  return observed.state === 'PROCESSING' &&
+    current.state === 'PROCESSING' &&
+    !current.externalJobName;
+}
+
+interface RecoveredSubmissionUpdate {
+  jobPatch: Record<string, unknown>;
+  videoPatch?: Record<string, unknown>;
+  now: number;
+}
+
+/** Apply the job and associated video transition together, or neither. */
+export async function updateRecoveredSubmissionIfCurrent(
+  firestore: Firestore,
+  jobRef: DocumentReference,
+  observed: VideoProcessingJob,
+  normalizeJob: NormalizeJob,
+  update: RecoveredSubmissionUpdate
+): Promise<boolean> {
+  const videoRef = firestore.doc(
+    `users/${observed.ownerUid}/videos/${observed.videoId}`
+  );
+  return firestore.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(jobRef);
+    const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
+    if (!isCurrentSubmissionRecovery(current, observed)) return false;
+
+    if (update.videoPatch) {
+      const videoSnapshot = await transaction.get(videoRef);
+      const video = videoSnapshot.exists ? videoSnapshot.data() ?? {} : null;
+      const source = video
+        ? (
+          extractOwnedPrivateVideoPathForId(
+            observed.ownerUid, observed.videoId, video['path']
+          ) ??
+          extractOwnedPrivateVideoPathForId(
+            observed.ownerUid, observed.videoId, video['url']
+          )
+        )
+        : null;
+
+      if (source !== observed.sourceStoragePath) {
+        transaction.update(jobRef, {
+          state: 'CANCEL_REQUESTED',
+          cancelRequestedAt: update.now,
+          leaseUntil: null,
+          updatedAt: update.now,
+          lastErrorCode: 'SOURCE_CHANGED',
+          lastError: 'A fonte privada mudou durante a recuperação.',
+        });
+        return false;
+      }
+    }
+
+    transaction.update(jobRef, update.jobPatch);
+    if (update.videoPatch) {
+      transaction.set(videoRef, update.videoPatch, { merge: true });
+    }
     return true;
   });
 }

@@ -26,6 +26,8 @@ import {
   queryDueProcessingJobs,
   deleteCancelledJobIfCurrent,
   recordCancellationErrorIfCurrent,
+  claimExpiredSubmissionLease,
+  updateRecoveredSubmissionIfCurrent,
 } from './video-processing-reconciliation.firestore';
 
 interface ProcessedVideoCandidate {
@@ -513,6 +515,8 @@ async function recoverExpiredSubmission(
   job: VideoProcessingJob
 ): Promise<void> {
   try {
+    // A provider lookup is mandatory before considering another submission.
+    // A null response is handled only by a fenced transaction below.
     const recovered = await findGoogleVideoTranscoderJob(
       job.processingVersion
     );
@@ -529,52 +533,63 @@ async function recoverExpiredSubmission(
 
     const now = Date.now();
     const canRetry = job.attempts < VIDEO_PROCESSING_MAX_ATTEMPTS;
-
-    if (canRetry) {
-      await jobRef.update({
-        state: 'QUEUED',
-        nextAttemptAt: now + retryDelayMs(job.attempts),
-        leaseUntil: null,
-        updatedAt: now,
-        lastErrorCode: 'SUBMISSION_NOT_FOUND',
-        lastError: 'Nenhum job externo foi localizado para a submissão.',
-      });
-      await updatePrivateVideoIfPresent(job, {
-        status: 'queued',
-        processingStage: 'retry_wait',
-        processingErrorCode: null,
-        processingErrorMessage: null,
-        updatedAt: now,
-      });
-      return;
-    }
-
-    await jobRef.update({
-      state: 'FAILED',
+    const nextState = canRetry ? 'QUEUED' : 'FAILED';
+    const jobPatch: Record<string, unknown> = {
+      state: nextState,
       leaseUntil: null,
-      completedAt: now,
       updatedAt: now,
       lastErrorCode: 'SUBMISSION_NOT_FOUND',
-      lastError: 'O job externo não foi localizado após várias tentativas.',
-    });
-    await updatePrivateVideoIfPresent(job, {
-      status: 'failed',
-      processingStage: 'failed',
-      processingErrorCode: 'SUBMISSION_NOT_FOUND',
-      processingErrorMessage:
-        'Não foi possível confirmar o envio do vídeo para processamento.',
-      updatedAt: now,
-    });
+      lastError: canRetry
+        ? 'Nenhum job externo foi localizado para a submissão.'
+        : 'O job externo não foi localizado após várias tentativas.',
+    };
+    if (canRetry) {
+      jobPatch['nextAttemptAt'] = now + retryDelayMs(job.attempts);
+    } else {
+      jobPatch['completedAt'] = now;
+    }
+
+    await updateRecoveredSubmissionIfCurrent(
+      db, jobRef, job, normalizeJob, {
+        now,
+        jobPatch,
+        videoPatch: canRetry
+          ? {
+            status: 'queued',
+            processingStage: 'retry_wait',
+            processingErrorCode: null,
+            processingErrorMessage: null,
+            updatedAt: now,
+          }
+          : {
+            status: 'failed',
+            processingStage: 'failed',
+            processingErrorCode: 'SUBMISSION_NOT_FOUND',
+            processingErrorMessage:
+              'Não foi possível confirmar o envio do vídeo para processamento.',
+            updatedAt: now,
+          },
+      }
+    );
   } catch (error) {
     const normalized = normalizeGoogleTranscoderError(error);
-
-    await jobRef.update({
-      state: 'SUBMITTING',
-      leaseUntil: Date.now() + AMBIGUOUS_SUBMISSION_LEASE_MS,
-      updatedAt: Date.now(),
-      lastErrorCode: normalized.code,
-      lastError: normalized.message,
-    });
+    const now = Date.now();
+    // When recovering PROCESSING without a provider name, preserve its state.
+    // A late exception must not regress a cancelled or completed attempt.
+    await updateRecoveredSubmissionIfCurrent(
+      db, jobRef, job, normalizeJob, {
+        now,
+        jobPatch: {
+          state: job.state,
+          ...(job.state === 'SUBMITTING'
+            ? { leaseUntil: now + AMBIGUOUS_SUBMISSION_LEASE_MS }
+            : {}),
+          updatedAt: now,
+          lastErrorCode: normalized.code,
+          lastError: normalized.message,
+        },
+      }
+    );
 
     logger.warn('[videoProcessing] Falha ao recuperar submissão.', {
       ownerUid: job.ownerUid,
@@ -595,15 +610,16 @@ async function recoverExpiredSubmissionLeases(): Promise<void> {
     .limit(SUBMISSION_BATCH_SIZE)
     .get();
 
-  await runBatch(
-    snapshot.docs
-      .map((jobDoc) => ({ jobDoc, job: normalizeJob(jobDoc.data()) }))
-      .filter(({ job }) => !!job && !!job.leaseUntil && job.leaseUntil <= now)
-      .map(({ jobDoc, job }) => () =>
-        recoverExpiredSubmission(jobDoc.ref, job as VideoProcessingJob)
-      ),
-    'recover-submissions'
-  );
+  const tasks: Array<() => Promise<void>> = [];
+  for (const jobDoc of snapshot.docs) {
+    const claimed = await claimExpiredSubmissionLease(
+      db, jobDoc.ref, now, AMBIGUOUS_SUBMISSION_LEASE_MS, normalizeJob
+    );
+    if (claimed) {
+      tasks.push(() => recoverExpiredSubmission(jobDoc.ref, claimed));
+    }
+  }
+  await runBatch(tasks, 'recover-submissions');
 }
 
 function inferVideoMimeType(fileName: string, contentType: unknown): string {
