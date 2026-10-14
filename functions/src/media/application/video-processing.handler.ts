@@ -393,6 +393,7 @@ async function persistSubmittedJob(
         externalJobName,
         providerState,
         cancelRequestedAt: now,
+        nextAttemptAt: now,
         leaseUntil: null,
         updatedAt: now,
         lastErrorCode: 'SOURCE_CHANGED',
