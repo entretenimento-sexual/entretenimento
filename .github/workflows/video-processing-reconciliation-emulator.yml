@@ -1,0 +1,44 @@
+name: Video Reconciliation Firestore Emulator
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'functions/src/media/application/video-processing*'
+      - 'scripts/quality/run-video-processing-reconciliation-emulator.mjs'
+      - 'firestore.indexes.json'
+      - '.github/workflows/video-processing-reconciliation-emulator.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: video-reconciliation-emulator-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: Isolated video reconciliation transactions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+      - name: Compile Functions
+        run: npm --prefix functions run build
+      - name: Test transactions in disposable demo Firestore
+        run: node scripts/quality/run-video-processing-reconciliation-emulator.mjs
