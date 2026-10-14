@@ -19,15 +19,17 @@ import {
   type VideoProcessingJobState,
 } from './video-processing-job';
 import {
+  availableAdminVideoRecoveryActions,
+  isUnconfirmedVideoSubmission,
+  isUnsafeVideoProcessingRetry,
+  videoRecoveryRequiresProviderReview,
+  type AdminVideoProcessingRecoveryAction,
+} from './admin-video-processing-recovery.policy';
+import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
   normalizeOwnedProcessedVideoPrefix,
 } from './video-storage-path';
-
-type AdminVideoProcessingRecoveryAction =
-  | 'RETRY_FAILED'
-  | 'RECHECK_STALE'
-  | 'CANCEL_ACTIVE';
 
 interface ListRecoveryJobsRequest {
   limit?: number;
@@ -44,6 +46,7 @@ interface RecoveryJobItem {
   ageMs: number;
   stale: boolean;
   hasExternalJob: boolean;
+  requiresProviderReview: boolean;
   lastErrorCode: string | null;
   lastError: string | null;
   availableActions: AdminVideoProcessingRecoveryAction[];
@@ -154,6 +157,7 @@ function normalizeAction(
   if (
     action === 'RETRY_FAILED' ||
     action === 'RECHECK_STALE' ||
+    action === 'RECHECK_UNCONFIRMED' ||
     action === 'CANCEL_ACTIVE'
   ) {
     return action;
@@ -231,27 +235,6 @@ function isStale(
   return threshold !== undefined && checkedAt - updatedAt > threshold;
 }
 
-function availableActions(
-  state: VideoProcessingJobState,
-  stale: boolean
-): AdminVideoProcessingRecoveryAction[] {
-  if (state === 'FAILED') {
-    return ['RETRY_FAILED'];
-  }
-
-  if (state === 'QUEUED' || state === 'SUBMITTING') {
-    return stale
-      ? ['RECHECK_STALE', 'CANCEL_ACTIVE']
-      : ['CANCEL_ACTIVE'];
-  }
-
-  if (state === 'PROCESSING') {
-    return ['CANCEL_ACTIVE'];
-  }
-
-  return [];
-}
-
 function normalizeRecoveryItem(
   jobId: string,
   data: unknown,
@@ -288,9 +271,10 @@ function normalizeRecoveryItem(
     ageMs,
     stale,
     hasExternalJob: !!String(job.externalJobName ?? '').trim(),
+    requiresProviderReview: videoRecoveryRequiresProviderReview({ ...job, state }),
     lastErrorCode: String(job.lastErrorCode ?? '').trim() || null,
     lastError: String(job.lastError ?? '').trim().slice(0, 500) || null,
-    availableActions: availableActions(state, stale),
+    availableActions: availableAdminVideoRecoveryActions({ ...job, state }, stale),
   };
 }
 
@@ -448,6 +432,12 @@ async function retryFailedJob(command: {
       'Somente jobs com falha podem ser reprocessados.'
     );
   }
+  if (isUnsafeVideoProcessingRetry({ ...previousJob, state: previousState })) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A submissão externa ainda não foi confirmada. Não reenvie este vídeo.'
+    );
+  }
 
   const retryJob = await buildRetryJob(
     command.ownerUid,
@@ -490,6 +480,12 @@ async function retryFailedJob(command: {
       throw new HttpsError(
         'failed-precondition',
         'O estado do job mudou antes da confirmação.'
+      );
+    }
+    if (isUnsafeVideoProcessingRetry({ ...currentJob, state: currentState })) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Job com submissão externa incerta: reprocessamento bloqueado.'
       );
     }
 
@@ -634,7 +630,27 @@ async function mutateExistingJob(command: {
     };
     const videoPatch: Record<string, unknown> = { updatedAt: now };
 
-    if (command.action === 'RECHECK_STALE') {
+    if (command.action === 'RECHECK_UNCONFIRMED') {
+      if (!isUnconfirmedVideoSubmission({ ...job, state })) {
+        throw new HttpsError(
+          'failed-precondition',
+          'A reconferência exige submissão sem confirmação externa e sem lease ativo.'
+        );
+      }
+
+      // Only schedule a provider lookup. The scheduler must never create a
+      // second Transcoder job from this administrative action.
+      jobPatch['leaseUntil'] = 0;
+      videoPatch['status'] = 'processing';
+      videoPatch['processingStage'] = 'confirming_submission';
+    } else if (command.action === 'RECHECK_STALE') {
+      if (state === 'SUBMITTING' &&
+        job.lastErrorCode === 'SUBMISSION_UNCONFIRMED') {
+        throw new HttpsError(
+          'failed-precondition',
+          'Utilize a reconferência explícita da submissão não confirmada.'
+        );
+      }
       if (state !== 'QUEUED' && state !== 'SUBMITTING') {
         throw new HttpsError(
           'failed-precondition',
