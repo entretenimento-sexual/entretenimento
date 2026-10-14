@@ -14,6 +14,10 @@ const firestoreCore = readFileSync(
   resolve(__dirname, '../../../src/media/application/video-processing-reconciliation.firestore.ts'),
   'utf8'
 );
+const transcoderService = readFileSync(
+  resolve(__dirname, '../../../src/media/application/google-video-transcoder.service.ts'),
+  'utf8'
+);
 const indexConfig = JSON.parse(readFileSync(
   resolve(__dirname, '../../../../firestore.indexes.json'),
   'utf8'
@@ -157,4 +161,13 @@ test('unknown provider cancellation remains tracked until confirmation', () => {
   assert.ok(body.includes("code: 'CANCELLATION_UNCONFIRMED'"));
   assert.ok(body.indexOf('bindCancelledProviderJobIfCurrent(') <
     body.indexOf('deleteOutputPrefix(job.outputPrefix)'));
+});
+
+test('successful POST without provider ID remains an ambiguous submission', () => {
+  assert.ok(transcoderService.includes('class AmbiguousTranscoderSubmissionError'));
+  assert.ok(transcoderService.includes(
+    'throw new AmbiguousTranscoderSubmissionError()'
+  ));
+  assert.ok(transcoderService.includes("code: 'TRANSCODER_SUBMISSION_UNCONFIRMED'"));
+  assert.ok(transcoderService.includes('retryable: true'));
 });

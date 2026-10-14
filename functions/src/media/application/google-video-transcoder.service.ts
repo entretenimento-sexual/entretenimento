@@ -40,6 +40,17 @@ interface PersistedVideoEditSnapshot {
   sourceDurationMs: number | null;
 }
 
+/**
+ * HTTP success without a valid job ID is ambiguous: the provider may have
+ * created a billable job. Never classify it as an ordinary retryable failure.
+ */
+export class AmbiguousTranscoderSubmissionError extends Error {
+  constructor() {
+    super('O Transcoder pode ter recebido o job, mas não devolveu um ID.');
+    this.name = 'AmbiguousTranscoderSubmissionError';
+  }
+}
+
 export interface GoogleTranscoderJobSnapshot {
   name: string;
   state: string;
@@ -312,9 +323,7 @@ export async function submitGoogleVideoTranscoderJob(
   const name = normalizeJobName(response.data?.name);
 
   if (!name) {
-    throw new Error(
-      'O Transcoder não retornou um identificador de job válido.'
-    );
+    throw new AmbiguousTranscoderSubmissionError();
   }
 
   return normalizeSnapshot({
@@ -409,6 +418,14 @@ export async function deleteGoogleVideoTranscoderJob(
 export function normalizeGoogleTranscoderError(
   error: unknown
 ): NormalizedTranscoderError {
+  if (error instanceof AmbiguousTranscoderSubmissionError) {
+    return {
+      code: 'TRANSCODER_SUBMISSION_UNCONFIRMED',
+      message: error.message,
+      retryable: true,
+    };
+  }
+
   if (axios.isAxiosError(error)) {
     const statusCode = Number(error.response?.status ?? 0);
     const responseData = error.response?.data as {
