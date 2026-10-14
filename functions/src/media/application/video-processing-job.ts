@@ -31,6 +31,10 @@ export interface VideoProcessingJob {
   attempts: number;
   /** Consecutive negative provider lookups for this submission. */
   submissionLookupMisses?: number;
+  /** Number of failed external cleanup attempts for this cancellation. */
+  cancellationCleanupAttempts?: number;
+  /** Exposes uncertain or repeated cancellation failures to administrators. */
+  cancellationReviewRequired?: boolean;
   nextAttemptAt: number;
   leaseUntil: number | null;
   externalJobName: string | null;
@@ -112,6 +116,8 @@ export function buildQueuedVideoProcessingJob(
     state: 'QUEUED',
     attempts: 0,
     submissionLookupMisses: 0,
+    cancellationCleanupAttempts: 0,
+    cancellationReviewRequired: false,
     nextAttemptAt: now,
     leaseUntil: null,
     externalJobName: null,
