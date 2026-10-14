@@ -28,3 +28,12 @@ export function providerObservationChanged(
     job.lastErrorCode !== null ||
     job.lastError !== null;
 }
+
+export function isCurrentVideoProcessingAttempt(
+  current: Pick<VideoProcessingJob, 'state' | 'processingVersion' | 'externalJobName'>,
+  observed: Pick<VideoProcessingJob, 'processingVersion' | 'externalJobName'>
+): boolean {
+  return current.state === 'PROCESSING' &&
+    current.processingVersion === observed.processingVersion &&
+    current.externalJobName === observed.externalJobName;
+}

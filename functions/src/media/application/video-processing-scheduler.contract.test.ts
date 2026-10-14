@@ -70,5 +70,11 @@ test('processing query only claims due jobs with a composite index', () => {
 
 test('reconciliation only persists meaningful provider status changes', () => {
   assert.ok(scheduler.includes('providerObservationChanged(job, providerJob.state)'));
-  assert.ok(scheduler.includes('current.processingVersion !== job.processingVersion'));
+  assert.ok(scheduler.includes('isCurrentVideoProcessingAttempt(current, job)'));
+});
+
+test('stale transcoder results cannot finalize or fail another processing attempt', () => {
+  assert.ok(scheduler.includes('!isCurrentVideoProcessingAttempt(currentJob, job)'));
+  assert.ok(scheduler.includes('!isCurrentVideoProcessingAttempt(current, job)'));
+  assert.ok(scheduler.includes("state: 'CANCEL_REQUESTED'"));
 });

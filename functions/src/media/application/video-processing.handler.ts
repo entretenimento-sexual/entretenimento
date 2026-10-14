@@ -20,6 +20,7 @@ import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 import {
   nextVideoProcessingPollAt,
   providerObservationChanged,
+  isCurrentVideoProcessingAttempt,
 } from './video-processing-poll.policy';
 
 interface ProcessedVideoCandidate {
@@ -363,7 +364,12 @@ async function persistSubmittedJob(
       ? normalizeJob(jobSnapshot.data())
       : null;
 
-    if (!currentJob) {
+    if (
+      !currentJob ||
+      currentJob.processingVersion !== job.processingVersion ||
+      (currentJob.state !== 'SUBMITTING' &&
+        currentJob.state !== 'CANCEL_REQUESTED')
+    ) {
       return;
     }
 
@@ -668,14 +674,11 @@ async function finalizeSucceededJob(
       ? normalizeJob(jobSnapshot.data())
       : null;
 
-    if (!currentJob) {
+    if (!currentJob || !isCurrentVideoProcessingAttempt(currentJob, job)) {
       return;
     }
 
-    if (
-      currentJob.state === 'CANCEL_REQUESTED' ||
-      !videoSnapshot.exists
-    ) {
+    if (!videoSnapshot.exists) {
       transaction.update(jobRef, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: currentJob.cancelRequestedAt ?? now,
@@ -745,23 +748,55 @@ async function markProviderFailure(
   errorMessage: string | null
 ): Promise<void> {
   const now = Date.now();
+  const videoRef = db.doc(`users/${job.ownerUid}/videos/${job.videoId}`);
 
-  await jobRef.update({
-    state: 'FAILED',
-    providerState: 'FAILED',
-    completedAt: now,
-    leaseUntil: null,
-    updatedAt: now,
-    lastErrorCode: errorCode || 'TRANSCODER_JOB_FAILED',
-    lastError: errorMessage || 'O job de transcodificação falhou.',
-  });
-  await updatePrivateVideoIfPresent(job, {
-    status: 'failed',
-    processingStage: 'failed',
-    processingErrorCode: errorCode || 'TRANSCODER_JOB_FAILED',
-    processingErrorMessage:
-      'Não foi possível preparar uma versão compatível deste vídeo.',
-    updatedAt: now,
+  await db.runTransaction(async (transaction) => {
+    const [jobSnapshot, videoSnapshot] = await Promise.all([
+      transaction.get(jobRef),
+      transaction.get(videoRef),
+    ]);
+    const current = jobSnapshot.exists
+      ? normalizeJob(jobSnapshot.data())
+      : null;
+
+    if (!current || !isCurrentVideoProcessingAttempt(current, job)) {
+      return;
+    }
+
+    const video = videoSnapshot.exists
+      ? videoSnapshot.data() as PrivateVideoDocument
+      : null;
+    if (
+      !video ||
+      privateSourcePath(job.ownerUid, job.videoId, video) !== job.sourceStoragePath
+    ) {
+      transaction.update(jobRef, {
+        state: 'CANCEL_REQUESTED',
+        cancelRequestedAt: now,
+        leaseUntil: null,
+        updatedAt: now,
+      });
+      return;
+    }
+
+    const failureCode = errorCode || 'TRANSCODER_JOB_FAILED';
+    transaction.update(jobRef, {
+      state: 'FAILED',
+      providerState: 'FAILED',
+      completedAt: now,
+      leaseUntil: null,
+      updatedAt: now,
+      lastErrorCode: failureCode,
+      lastError: errorMessage || 'O job de transcodificação falhou.',
+    });
+    transaction.set(videoRef, {
+      status: 'failed',
+      processingStage: 'failed',
+      processingErrorCode: failureCode,
+      processingErrorMessage:
+        'Não foi possível preparar uma versão compatível deste vídeo.',
+      updatedAt: now,
+    }, { merge: true });
   });
 }
 
@@ -821,9 +856,7 @@ async function reconcileProcessingJob(
 
         if (
           !current ||
-          current.state !== 'PROCESSING' ||
-          current.processingVersion !== job.processingVersion ||
-          current.externalJobName !== job.externalJobName ||
+          !isCurrentVideoProcessingAttempt(current, job) ||
           !providerObservationChanged(current, providerJob.state)
         ) {
           return;

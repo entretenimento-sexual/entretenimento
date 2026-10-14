@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   nextVideoProcessingPollAt,
   providerObservationChanged,
+  isCurrentVideoProcessingAttempt,
 } from './video-processing-poll.policy';
 
 test('poll scheduling distinguishes recent and long-running processing', () => {
@@ -34,4 +35,22 @@ test('unchanged provider status does not reset the stale-job clock', () => {
     ...job,
     lastError: 'Previous error',
   }, 'RUNNING'), true);
+});
+
+test('stale video-provider responses cannot override cancellation or newer jobs', () => {
+  const observed = {
+    processingVersion: 'original',
+    externalJobName: 'projects/demo/jobs/original',
+  };
+  const current = { ...observed, state: 'PROCESSING' as const };
+  assert.equal(isCurrentVideoProcessingAttempt(current, observed), true);
+  assert.equal(isCurrentVideoProcessingAttempt({
+    ...current, state: 'CANCEL_REQUESTED',
+  }, observed), false);
+  assert.equal(isCurrentVideoProcessingAttempt({
+    ...current, processingVersion: 'retry',
+  }, observed), false);
+  assert.equal(isCurrentVideoProcessingAttempt({
+    ...current, externalJobName: 'projects/demo/jobs/other',
+  }, observed), false);
 });
