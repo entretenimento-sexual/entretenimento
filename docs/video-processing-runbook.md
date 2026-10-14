@@ -204,6 +204,37 @@ de documentos. O estado do scheduler permanece `UNVERIFIED` até que exista
 evidência de execução verificada por outro mecanismo; contadores zerados,
 inclusive de amostra parcial, não provam saúde operacional.
 
+### Auditoria offline do scheduler por logs exportados
+
+A analise de logs pode ser feita sob demanda sem novas permissoes nas Functions,
+sem chamadas adicionais do painel e sem alterar o Firestore. Depois do deploy
+da versao que emite os eventos, exporte logs com permissao de leitura do projeto
+**explicitamente selecionado** no PowerShell:
+
+```powershell
+$filter = 'jsonPayload.event=("VIDEO_CANCELLATION_CYCLE_STARTED" OR "VIDEO_CANCELLATION_CYCLE_FINISHED" OR "VIDEO_CANCELLATION_CYCLE_FAILED")'
+$arquivo = Join-Path $env:TEMP 'video-cancellation-logs.json'
+gcloud logging read $filter --project=SEU_PROJECT_ID --freshness=48h --limit=500 --format=json |
+  Set-Content -Encoding UTF8 $arquivo
+if ($LASTEXITCODE -ne 0) { throw 'Leitura do Cloud Logging falhou' }
+node scripts/dev/inspect-video-cancellation-logs.mjs $arquivo
+```
+
+O comando Node analisa somente o arquivo JSON local (maximo 8 MiB e 2000
+entradas). Aceita exports JSON do Cloud Logging e emite exclusivamente
+contagens, datas, estados permitidos e duracao. Nao acessa a rede nem
+devolve identificadores, conteudo de erros ou nomes de jobs. Nao compartilhe
+a exportacao bruta, pois metadados externos podem conter informacoes privadas.
+
+O resultado `EXPORTED_LOGS_ONLY` e `NOT_VERIFIED` e deliberado: o par de
+eventos STARTED/FINISHED comprova que o codigo os emitiu, mas nao garante
+que o agendamento disparou em todos os horarios. Eventos faltantes podem
+decorrer de retencao do Cloud Logging, limites da consulta, filtros ou versao
+ainda nao implantada. Confira Cloud Scheduler e Cloud Run antes de atribuir
+uma falha de execucao ao scheduler. A ferramenta tambem identifica ciclos
+sem evento terminal, eventos terminais sem inicio e exportacoes possivelmente
+truncadas, sem classificacoes precipitadas.
+
 ### Logs de execução do scheduler
 
 Cada execução agendada produz dois eventos estruturados correlacionados pelo
