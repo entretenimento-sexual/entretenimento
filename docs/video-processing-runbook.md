@@ -52,15 +52,16 @@ agent apenas o acesso necessário ao bucket de mídia.
 ```text
 VIDEO_TRANSCODER_LOCATION=us-central1
 VIDEO_TRANSCODER_TEMPLATE_ID=preset/web-hd
-VIDEO_TRANSCODER_ALLOW_LIVE_PROBE=false
 ```
 
 Sem configuração explícita, o código utiliza a região canônica das Functions e
 o preset oficial `preset/web-hd`.
 
-`VIDEO_TRANSCODER_ALLOW_LIVE_PROBE` deve permanecer ausente ou `false` durante o
-uso normal dos Emulators. Quando estiver desabilitada, a tela administrativa
-não consulta o projeto real e apresenta o estado `Emulator`.
+O Functions Emulator nunca consulta a API real do Transcoder, mesmo se houver
+credenciais disponíveis ou flags legadas no ambiente. A tela administrativa
+apresenta o estado `Emulator`, e operações de criação, consulta e exclusão
+externas são recusadas pelo guard central antes de obter tokens.
+O processamento local de MP4/WebM permanece independente desse acesso.
 
 ## Diagnóstico administrativo
 
