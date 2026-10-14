@@ -64,9 +64,10 @@ test('processing query only claims due jobs with a composite index', () => {
     String.raw`\.where\('state', '==', 'PROCESSING'\)`,
     String.raw`\.where\('nextAttemptAt', '<=', now\)`,
     String.raw`\.orderBy\('nextAttemptAt', 'asc'\)`,
-    String.raw`\.limit\(RECONCILIATION_BATCH_SIZE\)`,
+    String.raw`\.limit\(limit\)`,
   ];
   assert.match(firestoreCore, new RegExp(parts.join(String.raw`\s*`)));
+  assert.ok(scheduler.includes('db, now, RECONCILIATION_BATCH_SIZE'));
   assert.ok(firestoreCore.includes('nextVideoProcessingPollAt(job, now)'));
   assert.ok(scheduler.includes('claimProcessingJob(db, jobDoc.ref, now, normalizeJob)'));
   assertCompositeIndex('nextAttemptAt');
