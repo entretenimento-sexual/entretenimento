@@ -35,7 +35,8 @@ export function videoRecoveryRequiresProviderReview(
   return isUnconfirmedVideoSubmission(job) ||
     isUnsafeVideoProcessingRetry(job) ||
     (job.state === 'CANCEL_REQUESTED' &&
-      job.lastErrorCode === 'CANCELLATION_UNCONFIRMED');
+      (job.lastErrorCode === 'CANCELLATION_UNCONFIRMED' ||
+        job.cancellationReviewRequired === true));
 }
 
 export function availableAdminVideoRecoveryActions(
