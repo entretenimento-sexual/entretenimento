@@ -116,7 +116,7 @@ test('cancelled job cleanup does not delete or resurrect a newer attempt', () =>
   assert.ok(start >= 0 && end > start);
   assert.ok(body.includes('deleteCancelledJobIfCurrent(db, jobRef, job, normalizeJob)'));
   assert.ok(body.includes('recordCancellationErrorIfCurrent('));
-  assert.ok(firestoreCore.includes('isCurrentVideoCancellation(current, started)'));
+  assert.ok(firestoreCore.includes('isCurrentCancellationClaim(current, started)'));
   assert.ok(firestoreCore.includes('transaction.delete(jobRef)'));
   assert.ok(firestoreCore.includes('transaction.update(jobRef, {'));
   assert.ok(!body.includes('await jobRef.delete()'));
@@ -174,4 +174,25 @@ test('successful POST without provider ID remains an ambiguous submission', () =
   ));
   assert.ok(transcoderService.includes("code: 'TRANSCODER_SUBMISSION_UNCONFIRMED'"));
   assert.ok(transcoderService.includes('retryable: true'));
+});
+
+test('cancelled jobs are claimed by due date before external cleanup', () => {
+  const dueQuery = [
+    String.raw`\.where\('state', '==', 'CANCEL_REQUESTED'\)`,
+    String.raw`\.where\('nextAttemptAt', '<=', now\)`,
+    String.raw`\.orderBy\('nextAttemptAt', 'asc'\)`,
+    String.raw`\.limit\(limit\)`,
+  ];
+  assert.match(firestoreCore, new RegExp(dueQuery.join(String.raw`\s*`)));
+  assert.ok(scheduler.includes(
+    'queryDueCancelledJobs('
+  ));
+  assert.ok(scheduler.includes(
+    'claimDueCancellation('
+  ));
+  assert.ok(firestoreCore.includes(
+    'nextAttemptAt: nextCancellationRetryAt(attempts, now)'
+  ));
+  assert.ok(firestoreCore.includes('isCurrentCancellationClaim(current, started)'));
+  assertCompositeIndex('nextAttemptAt');
 });
