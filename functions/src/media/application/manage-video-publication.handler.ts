@@ -24,10 +24,12 @@ import {
   isRestrictedVideoModerationStatus,
 } from './video-publication-moderation.policy';
 import {
-  extractOwnedPrivateVideoPath,
-  extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
 } from './video-storage-path';
+import {
+  resolveVideoPublicationPrivateSource,
+  isCurrentVideoPublicationSource,
+} from './video-publication-source-fence.policy';
 
 type VideoVisibility = AvailableMediaPublicationVisibility;
 type ModerationStatus = 'APPROVED';
@@ -46,6 +48,8 @@ type OwnerVideoDoc = {
   thumbnailUrl?: string;
   thumbnailPath?: string;
   status?: string;
+  processedStoragePath?: string;
+  playbackPath?: string;
   createdAt?: number;
   updatedAt?: number;
 };
@@ -327,11 +331,9 @@ export const publishVideo = onCall<PublishVideoRequest>(
     assertPublishableVideo(ownerVideo);
     assertPublicationCanStart(previousPublication);
 
-    const sourceVideoStoragePath =
-      extractOwnedPrivateVideoPathForId(ownerUid, videoId, ownerVideo.path) ??
-      extractOwnedPrivateVideoPathForId(ownerUid, videoId, ownerVideo.url) ??
-      extractOwnedPrivateVideoPath(ownerUid, ownerVideo.path) ??
-      extractOwnedPrivateVideoPath(ownerUid, ownerVideo.url);
+    const sourceVideoStoragePath = resolveVideoPublicationPrivateSource(
+      ownerUid, videoId, ownerVideo
+    );
 
     if (!sourceVideoStoragePath) {
       throw new HttpsError(
@@ -384,10 +386,40 @@ export const publishVideo = onCall<PublishVideoRequest>(
     const durationMs = normalizeOptionalPositiveInteger(
       ownerVideo.durationMs
     );
-    const batch = db.batch();
+    let committedPreviousPublication: VideoPublicationDoc | null = null;
 
-    batch.set(
-      publicationRef,
+    try {
+      committedPreviousPublication = await db.runTransaction(async (transaction) => {
+        const [currentOwnerSnap, currentPublicationSnap] = await Promise.all([
+          transaction.get(ownerVideoRef),
+          transaction.get(publicationRef),
+        ]);
+        if (!currentOwnerSnap.exists) {
+          throw new HttpsError(
+            'failed-precondition', 'O vídeo privado foi removido durante a publicação.'
+          );
+        }
+
+        const currentOwnerVideo = currentOwnerSnap.data() as OwnerVideoDoc;
+        const currentPublication = currentPublicationSnap.exists
+          ? currentPublicationSnap.data() as VideoPublicationDoc
+          : null;
+        assertPublishableVideo(currentOwnerVideo);
+        assertPublicationCanStart(currentPublication);
+        assertSourceWasNotRejected(currentPublication, sourceVideoStoragePath);
+
+        if (!isCurrentVideoPublicationSource(
+          ownerUid, videoId, currentOwnerVideo,
+          sourceVideoStoragePath, publishedAssets.sourceProcessedStoragePath
+        )) {
+          throw new HttpsError(
+            'failed-precondition',
+            'A origem ou a versão processada do vídeo mudou durante a publicação.'
+          );
+        }
+
+        transaction.set(
+          publicationRef,
       {
         ownerUid,
         videoId,
@@ -422,7 +454,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
       { merge: true }
     );
 
-    batch.set(
+        transaction.set(
       publicVideoRef,
       {
         id: videoId,
@@ -466,8 +498,8 @@ export const publishVideo = onCall<PublishVideoRequest>(
     );
 
 
-    try {
-      await batch.commit();
+        return currentPublication;
+      });
     } catch (error) {
       await rollbackPublishedAssets(ownerUid, videoId, publishedAssets);
       throw error;
@@ -476,7 +508,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
     await cleanupReplacedPublishedAssets(
       ownerUid,
       videoId,
-      previousPublication,
+      committedPreviousPublication,
       publishedAssets.videoStoragePath,
       publishedAssets.posterStoragePath
     );

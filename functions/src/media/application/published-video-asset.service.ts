@@ -45,6 +45,7 @@ interface PrivateVideoProcessingDocument {
 }
 
 interface PublishedVideoAssetResult {
+  sourceProcessedStoragePath: string;
   videoStoragePath: string;
   posterStoragePath: string | null;
   videoContentType: string;
@@ -278,6 +279,7 @@ export async function copyPrivateVideoToPublishedAsset(
     posterStoragePath = poster?.storagePath ?? null;
 
     return {
+      sourceProcessedStoragePath: processedStoragePath,
       videoStoragePath,
       posterStoragePath,
       videoContentType,
