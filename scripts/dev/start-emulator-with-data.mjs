@@ -186,7 +186,9 @@ async function assertPortsAvailable() {
     console.error(`  - ${item.label}: ${item.port}`);
   }
 
-  console.error('[emu:safe] Identifique os processos: npm run emu:diagnose. Se apenas o Firestore estiver orfao: npm run emu:orphan:diagnose.');
+  console.error('[emu:safe] Identifique os processos: npm run emu:diagnose.');
+  console.error('[emu:safe] Suite ativa: npm run emu:stop:diagnose; para salvar e encerrar: npm run emu:stop:win.');
+  console.error('[emu:safe] Apenas Firestore orfao: npm run emu:orphan:diagnose.');
   console.error('[emu:safe] Use npm run emu:pre apenas se tiver certeza de que pode matar esses processos.');
   process.exit(1);
 }
