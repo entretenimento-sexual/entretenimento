@@ -13,6 +13,9 @@ on:
       - 'scripts/dev/inspect-video-processing-jobs-emulator.mjs'
       - 'scripts/dev/video-processing-job-inventory.policy.mjs'
       - 'scripts/tests/video-processing-job-inventory.test.mjs'
+      - 'scripts/dev/video-cancellation-log-audit.policy.mjs'
+      - 'scripts/dev/inspect-video-cancellation-logs.mjs'
+      - 'scripts/tests/video-cancellation-log-audit.test.mjs'
       - '.github/workflows/video-processing-reconciliation-emulator.yml'
 
 permissions:
@@ -46,6 +49,8 @@ jobs:
           npm --prefix functions ci
       - name: Verify read-only video inventory classification
         run: node --test scripts/tests/video-processing-job-inventory.test.mjs
+      - name: Verify offline scheduler log audit
+        run: node --test scripts/tests/video-cancellation-log-audit.test.mjs
       - name: Compile Functions
         run: npm --prefix functions run build
       - name: Test transactions in disposable demo Firestore
