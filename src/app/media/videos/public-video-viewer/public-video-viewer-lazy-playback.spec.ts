@@ -14,6 +14,7 @@ import {
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
 import { MediaVideoCommentsService } from 'src/app/core/services/media/media-video-comments.service';
 import { MediaVideoRatingsService } from 'src/app/core/services/media/media-video-ratings.service';
@@ -122,6 +123,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     component: PublicVideoViewerComponent;
     hydratePublicVideoUrls$: ReturnType<typeof vi.fn>;
     invalidatePublicVideoAccess: ReturnType<typeof vi.fn>;
+    reportPlaybackError: ReturnType<typeof vi.fn>;
     viewer$: BehaviorSubject<{
       uid: string;
       accountStatus?: 'active' | 'moderation_suspended';
@@ -129,6 +131,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
   }> {
     const hydratePublicVideoUrls$ = vi.fn(input.hydrate);
     const invalidatePublicVideoAccess = vi.fn();
+    const reportPlaybackError = vi.fn();
     const viewer$ = new BehaviorSubject<{
       uid: string;
       accountStatus?: 'active' | 'moderation_suspended';
@@ -218,6 +221,10 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
             showError: vi.fn(),
           },
         },
+        {
+          provide: MediaApplicationErrorService,
+          useValue: { reportReason: reportPlaybackError },
+        },
       ],
     }).compileComponents();
 
@@ -230,6 +237,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
       component: fixture.componentInstance,
       hydratePublicVideoUrls$,
       invalidatePublicVideoAccess,
+      reportPlaybackError,
       viewer$,
     };
   }
@@ -586,8 +594,117 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
 
     expect(context.component.current?.url).toBeNull();
     expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(2);
+    expect(context.reportPlaybackError).toHaveBeenCalledWith(
+      'video_playback_access_failed',
+      expect.objectContaining({
+        operation: 'publicVideoViewer.refreshAccess',
+      })
+    );
     await flushMicrotasks();
     expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(2);
+  });
+
+
+  it('descarta hidratação agendada por troca de conta seguida de logout', async () => {
+    const initial = createVideo('video-1', null);
+    const context = await createFixture({
+      items: [initial],
+      hydrate: () => of([playbackVersion(initial)]),
+    });
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
+
+    context.viewer$.next({ uid: 'viewer-2' });
+    context.viewer$.next(null);
+    fixture!.detectChanges();
+    await flushMicrotasks();
+    fixture!.detectChanges();
+
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
+    expect(context.component.current?.url).toBeNull();
+    expect(fixture!.nativeElement.querySelector('video').getAttribute('src'))
+      .toBeNull();
+  });
+
+  it('não emite requisições duplicadas após duas trocas de conta no mesmo turno', async () => {
+    const initial = createVideo('video-1', null);
+    let hydrations = 0;
+    const context = await createFixture({
+      items: [initial],
+      hydrate: () => of([{
+        ...playbackVersion(initial),
+        url: `https://example.test/video-1.mp4?token=epoch-${++hydrations}`,
+      }]),
+    });
+
+    context.viewer$.next({ uid: 'viewer-2' });
+    context.viewer$.next({ uid: 'viewer-3' });
+    await flushMicrotasks();
+    fixture!.detectChanges();
+
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(2);
+    expect(context.component.current?.url).toContain('token=epoch-2');
+  });
+
+  it('revogação durante retomada bloqueia o token e só retoma após nova permissão', async () => {
+    const availability = new Subject<boolean>();
+    const oldVideo = createVideo('video-1', null);
+    const context = await createFixture({
+      items: [oldVideo],
+      hydrate: () => of([{
+        ...playbackVersion(oldVideo),
+        url: 'https://example.test/video-1.mp4?token=next',
+      }]),
+      watchExposure: () => availability.asObservable(),
+    });
+    availability.next(false);
+    availability.next(true);
+    availability.next(false);
+    await flushMicrotasks();
+    fixture!.detectChanges();
+
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
+    expect(context.component.current?.url).toBeNull();
+
+    availability.next(true);
+    await flushMicrotasks();
+    fixture!.detectChanges();
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(2);
+    expect(context.component.current?.url).toContain('token=next');
+  });
+
+  it('não solicita novo acesso para conta desativada por retry manual', async () => {
+    const availability = new Subject<boolean>();
+    const initial = createVideo('video-1', null);
+    const context = await createFixture({
+      items: [initial],
+      hydrate: () => of([playbackVersion(initial)]),
+      watchExposure: () => availability.asObservable(),
+    });
+
+    context.viewer$.next(null);
+    context.component.retryCurrentVideo();
+    context.component.onPublicVideoAccessError();
+    await flushMicrotasks();
+    fixture!.detectChanges();
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
+    expect(context.component.current?.url).toBeNull();
+  });
+
+  it('descarta navegação intermediária ao ir rapidamente A→B→A', async () => {
+    const a = createVideo('video-1', null);
+    const b = createVideo('video-2', null);
+    const context = await createFixture({
+      items: [a, b],
+      hydrate: (items) => of(items.map(playbackVersion)),
+    });
+
+    context.component.next();
+    context.component.previous();
+    await flushMicrotasks();
+    fixture!.detectChanges();
+
+    expect(context.component.current?.id).toBe('video-1');
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
   });
 
   it('interrompe o vídeo quando a conta atual é suspensa', async () => {

@@ -348,6 +348,7 @@ export class PublicVideoViewerComponent {
       : 0;
     this.syncCurrentVideoId();
     queueMicrotask(() => {
+      if (this.destroyRef.destroyed) return;
       this.ensureCurrentPlaybackAccess();
       this.prefetchContinuationIfNeeded();
     });
@@ -366,7 +367,7 @@ export class PublicVideoViewerComponent {
       takeUntilDestroyed(this.destroyRef)
     ).subscribe((user) => {
       const wasActive = this.viewerLifecycleActive;
-      this.viewerLifecycleActive = !!user &&
+      this.viewerLifecycleActive = !!user?.uid &&
         normalizeUserAccountLifecycleStatus(user) === 'active';
       if (!this.viewerLifecycleActive) {
         this.revokeCurrentVideoAccess();
@@ -916,7 +917,12 @@ export class PublicVideoViewerComponent {
     this.syncCurrentVideoId();
     this.announceCurrentVideo();
 
+    // Rapid navigation A→B→A cannot execute callbacks from earlier indices.
+    const revision = this.accessRevision;
     queueMicrotask(() => {
+      if (this.destroyRef.destroyed || this.accessRevision !== revision) {
+        return;
+      }
       this.ensureCurrentPlaybackAccess();
       this.prefetchContinuationIfNeeded();
     });
@@ -1136,7 +1142,8 @@ export class PublicVideoViewerComponent {
   private ensureCurrentPlaybackAccess(): void {
     const video = this.current;
 
-    if (!video || this.revokedVideoKeys.has(this.videoKey(video))) {
+    if (this.destroyRef.destroyed || !this.viewerLifecycleActive ||
+        !video || this.revokedVideoKeys.has(this.videoKey(video))) {
       return;
     }
 
@@ -1209,7 +1216,8 @@ export class PublicVideoViewerComponent {
   private refreshCurrentVideoAccess(reason: TAccessRefreshReason): void {
     const video = this.current;
 
-    if (!video || this.revokedVideoKeys.has(this.videoKey(video))) {
+    if (this.destroyRef.destroyed || !this.viewerLifecycleActive ||
+        !video || this.revokedVideoKeys.has(this.videoKey(video))) {
       return;
     }
 
@@ -1365,7 +1373,8 @@ export class PublicVideoViewerComponent {
   ): boolean {
     const current = this.current;
 
-    return this.accessRevision === revision &&
+    return !this.destroyRef.destroyed && this.viewerLifecycleActive &&
+      this.accessRevision === revision &&
       this.index === targetIndex &&
       current?.ownerUid === ownerUid &&
       current.id === videoId;
@@ -1516,8 +1525,10 @@ export class PublicVideoViewerComponent {
 
     // Defer rehydration so a same-turn restriction can revoke it before
     // issuing a request. Repeated true emissions cannot trigger another one.
+    const revision = this.accessRevision;
     queueMicrotask(() => {
       if (!this.destroyRef.destroyed &&
+          this.accessRevision === revision &&
           this.viewerLifecycleActive &&
           this.observedAvailableVideoKey === key &&
           !this.revokedVideoKeys.has(key) &&
@@ -1557,7 +1568,12 @@ export class PublicVideoViewerComponent {
     this.changeDetector.markForCheck();
 
     if (viewerUid) {
+      const revision = this.accessRevision;
       queueMicrotask(() => {
+        if (this.destroyRef.destroyed || this.accessRevision !== revision ||
+            !this.viewerLifecycleActive) {
+          return;
+        }
         this.ensureCurrentPlaybackAccess();
       });
     }
