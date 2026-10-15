@@ -26,3 +26,11 @@ match /direct_chat_access/{ownerUid}/peers/{peerUid} {
   allow get: if isSelf(ownerUid);
   allow list, create, update, delete: if false;
 }
+
+// Derived, symmetrical and intentionally reason-free. The caller can only
+// inspect their own availability; individual blockers remain private.
+// Missing/legacy documents do NOT confer authorization.
+match /public_media_access/{viewerUid}/owners/{ownerUid} {
+  allow get: if isSelf(viewerUid);
+  allow list, create, update, delete: if false;
+}

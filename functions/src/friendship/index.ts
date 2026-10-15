@@ -21,3 +21,4 @@ export {
 } from './application/manage-user-block.handler';
 
 export { getPendingFriendRequests } from './application/get-pending-friend-requests.handler';
+export { reconcilePublicMediaAccess } from './application/reconcile-public-media-access.handler';

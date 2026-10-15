@@ -37,3 +37,11 @@ export function isBilateralChatAvailable(
 ): boolean {
   return nextActorBlocksTarget !== true && targetBlocksActor !== true;
 }
+
+/** UI projection only; never incorporates friendship or entitlements. */
+export function isBilateralPublicMediaAvailable(
+  leftBlocksRight: unknown,
+  rightBlocksLeft: unknown
+): boolean {
+  return leftBlocksRight !== true && rightBlocksLeft !== true;
+}

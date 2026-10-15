@@ -159,6 +159,34 @@ describe('Firestore Rules / user blocks', () => {
     ));
   });
 
+  it('projeção de mídia permite somente get próprio, nunca mutação ou lista', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(
+        doc(context.firestore(), 'public_media_access', OWNER_UID, 'owners', TARGET_UID),
+        { available: false, version: 1, updatedAt: serverTimestamp() }
+      );
+    });
+    const ownerRef = doc(
+      authenticatedDb(OWNER_UID), 'public_media_access', OWNER_UID, 'owners', TARGET_UID
+    );
+    const outsiderRef = doc(
+      authenticatedDb(OUTSIDER_UID), 'public_media_access', OWNER_UID, 'owners', TARGET_UID
+    );
+    const reverseRef = doc(
+      authenticatedDb(TARGET_UID), 'public_media_access', OWNER_UID, 'owners', TARGET_UID
+    );
+
+    await assertSucceeds(getDoc(ownerRef));
+    await assertFails(getDoc(outsiderRef));
+    await assertFails(getDoc(reverseRef));
+    await assertFails(updateDoc(ownerRef, { available: true }));
+    await assertFails(deleteDoc(ownerRef));
+    await assertFails(setDoc(
+      doc(authenticatedDb(OWNER_UID), 'public_media_access', OWNER_UID, 'owners', OUTSIDER_UID),
+      { available: true, version: 1 }
+    ));
+  });
+
   it('nega qualquer escrita de evento diretamente pelo cliente', async () => {
     await seedBlockWithEvent();
     const db = authenticatedDb(OWNER_UID);

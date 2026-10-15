@@ -28,6 +28,7 @@ import {
 import {
   resolveUserBlockTransition,
   isBilateralChatAvailable,
+  isBilateralPublicMediaAvailable,
   type UserBlockAction,
 } from './user-block-transition';
 
@@ -178,6 +179,12 @@ async function manageUserBlock(input: {
   const targetFriendRef = targetRef.collection('friends').doc(input.actorUid);
   const actorAccessRef = db.doc(`direct_chat_access/${input.actorUid}/peers/${input.targetUid}`);
   const targetAccessRef = db.doc(`direct_chat_access/${input.targetUid}/peers/${input.actorUid}`);
+  const actorMediaRef = db.doc(
+    `public_media_access/${input.actorUid}/owners/${input.targetUid}`
+  );
+  const targetMediaRef = db.doc(
+    `public_media_access/${input.targetUid}/owners/${input.actorUid}`
+  );
 
   let response: UserBlockResponse | null = null;
 
@@ -191,6 +198,8 @@ async function manageUserBlock(input: {
       targetAccessSnapshot,
       actorFriendSnapshot,
       targetFriendSnapshot,
+      actorMediaSnapshot,
+      targetMediaSnapshot,
     ] = await Promise.all([
       transaction.get(actorRef),
       transaction.get(targetRef),
@@ -200,6 +209,8 @@ async function manageUserBlock(input: {
       transaction.get(targetAccessRef),
       transaction.get(actorFriendRef),
       transaction.get(targetFriendRef),
+      transaction.get(actorMediaRef),
+      transaction.get(targetMediaRef),
     ]);
 
     const actor = actorSnapshot.data() as FriendshipUserDoc | undefined;
@@ -218,6 +229,14 @@ async function manageUserBlock(input: {
     );
 
     const hasBilateralFriendship = actorFriendSnapshot.exists && targetFriendSnapshot.exists;
+    // Independent of friendship; available=false reveals neither direction.
+    const mediaAvailable = isBilateralPublicMediaAvailable(
+      transition.nextIsBlocked, reverseBlockSnapshot.data()?.isBlocked
+    );
+    const mediaProjectionMatches = (
+      snapshot: FirebaseFirestore.DocumentSnapshot
+    ) => snapshot.data()?.available === mediaAvailable &&
+      snapshot.data()?.version === 1;
 
     if (!transition.changed) {
       // Compatibilidade com bloqueios anteriores à projeção: uma repetição
@@ -237,6 +256,18 @@ async function manageUserBlock(input: {
         };
         transaction.set(actorAccessRef, projection);
         transaction.set(targetAccessRef, projection);
+      }
+      if (
+        !mediaProjectionMatches(actorMediaSnapshot) ||
+        !mediaProjectionMatches(targetMediaSnapshot)
+      ) {
+        const projection = {
+          available: mediaAvailable,
+          version: 1,
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        transaction.set(actorMediaRef, projection);
+        transaction.set(targetMediaRef, projection);
       }
       response = {
         actorUid: input.actorUid,
@@ -290,6 +321,16 @@ async function manageUserBlock(input: {
     };
     transaction.set(actorAccessRef, accessProjection);
     transaction.set(targetAccessRef, accessProjection);
+
+    // Private mirror for active media viewers. Authoritative block writes and
+    // both viewer-facing projections commit atomically in this transaction.
+    const mediaProjection = {
+      available: mediaAvailable,
+      version: 1,
+      updatedAt: now,
+    };
+    transaction.set(actorMediaRef, mediaProjection);
+    transaction.set(targetMediaRef, mediaProjection);
 
     transaction.create(eventRef, {
       type: input.action,

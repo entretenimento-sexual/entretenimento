@@ -1,23 +1,28 @@
 import { Injectable, inject } from '@angular/core';
 import { Firestore, doc, docSnapshots } from '@angular/fire/firestore';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, combineLatest, of } from 'rxjs';
-import { catchError, distinctUntilChanged, map } from 'rxjs/operators';
+import {
+  catchError, distinctUntilChanged, ignoreElements, map, switchMap,
+} from 'rxjs/operators';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
+import { resolvePublicMediaAvailability } from './public-media-availability.policy';
 
 /**
  * One short-lived read listener for the current public projection, plus the
- * viewer's own outgoing block against its owner. No global polling and no
- * per-card subscriptions. Signed URL issuance remains backend-authoritative.
+ * private bilateral projection for this viewer/owner pair. No global polling
+ * and no per-card subscriptions. Signed URL issuance remains backend-authoritative.
  *
- * Incoming block and owner lifecycle can also deny the public projection
- * listener via Firestore Rules. A listener is a UI revocation signal, not a
- * substitute for authorization on every new signed URL.
+ * The projection is backend-only and direction-neutral. A missing legacy
+ * projection is reconciled once via a rate-limited callable; it never grants
+ * access by itself. This listener is only a local playback revocation signal.
  */
 @Injectable({ providedIn: 'root' })
 export class PublicVideoPlaybackExposureService {
   private readonly db = inject(Firestore);
   private readonly context = inject(FirestoreContextService);
+  private readonly functions = inject(Functions);
 
   watchActiveVideo$(
     ownerUid: string,
@@ -47,20 +52,42 @@ export class PublicVideoPlaybackExposureService {
         return publicExposure$;
       }
 
-      // Incoming block records are intentionally not readable by the viewer.
-      // We can directly observe only the viewer-owned outgoing block.
-      const outgoingBlockRef = doc(
-        this.db, `users/${viewerUid}/blocks/${ownerUid}`
+      // Neither direction of canonical blocks is exposed to this client.
+      // The backend mirrors only a neutral boolean in the viewer's own scope.
+      const bilateralAccessRef = doc(
+        this.db, `public_media_access/${viewerUid}/owners/${ownerUid}`
       );
-      const outgoingAllowed$ = docSnapshots(outgoingBlockRef).pipe(
-        map((snapshot) => snapshot.data()?.['isBlocked'] !== true),
+      const bilateralAllowed$ = docSnapshots(bilateralAccessRef).pipe(
+        switchMap((snapshot) => {
+          const allowed = resolvePublicMediaAvailability(
+            snapshot.exists() ? snapshot.data() : null
+          );
+          return allowed === null
+            ? this.reconcileLegacyPair$(ownerUid)
+            : of(allowed);
+        }),
         catchError(() => of(false))
       );
-      return combineLatest([publicExposure$, outgoingAllowed$]).pipe(
-        map(([exposable, notBlocked]) => exposable && notBlocked)
+      return combineLatest([publicExposure$, bilateralAllowed$]).pipe(
+        map(([exposable, bilateralAllowed]) => exposable && bilateralAllowed)
       );
     }).pipe(
       distinctUntilChanged(),
+      catchError(() => of(false))
+    );
+  }
+
+  private reconcileLegacyPair$(ownerUid: string): Observable<boolean> {
+    return this.context.deferPromise$(async () => {
+      const callable = httpsCallable<
+        { ownerUid: string }, { reconciled: true }
+      >(this.functions, 'reconcilePublicMediaAccess');
+      await callable({ ownerUid });
+    }).pipe(
+      // Do not emit false on success before the new snapshot arrives, because
+      // that would permanently revoke an otherwise authorized open viewer.
+      ignoreElements(),
+      // Legacy or unavailable backends fail closed without a polling loop.
       catchError(() => of(false))
     );
   }
