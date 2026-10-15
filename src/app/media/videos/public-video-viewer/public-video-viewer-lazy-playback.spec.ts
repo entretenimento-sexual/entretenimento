@@ -18,6 +18,7 @@ import { MediaReactionsService } from 'src/app/core/services/media/media-reactio
 import { MediaVideoCommentsService } from 'src/app/core/services/media/media-video-comments.service';
 import { MediaVideoRatingsService } from 'src/app/core/services/media/media-video-ratings.service';
 import { PublicVideoAccessService } from 'src/app/core/services/media/public-video-access.service';
+import { PublicVideoPlaybackExposureService } from 'src/app/core/services/media/public-video-playback-exposure.service';
 import { PublicVideoContinuationService } from 'src/app/core/services/media/public-video-continuation.service';
 import { VideoViewTrackingService } from 'src/app/core/services/media/video-view-tracking.service';
 import {
@@ -116,15 +117,22 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     hydrate: (
       items: readonly IPublicVideoItem[]
     ) => Observable<IPublicVideoItem[]>;
+    watchExposure?: (ownerUid: string, videoId: string, viewerUid: string) => Observable<boolean>;
   }): Promise<{
     component: PublicVideoViewerComponent;
     hydratePublicVideoUrls$: ReturnType<typeof vi.fn>;
     invalidatePublicVideoAccess: ReturnType<typeof vi.fn>;
-    viewer$: BehaviorSubject<{ uid: string } | null>;
+    viewer$: BehaviorSubject<{
+      uid: string;
+      accountStatus?: 'active' | 'moderation_suspended';
+    } | null>;
   }> {
     const hydratePublicVideoUrls$ = vi.fn(input.hydrate);
     const invalidatePublicVideoAccess = vi.fn();
-    const viewer$ = new BehaviorSubject<{ uid: string } | null>({
+    const viewer$ = new BehaviorSubject<{
+      uid: string;
+      accountStatus?: 'active' | 'moderation_suspended';
+    } | null>({
       uid: 'viewer-1',
     });
     const data: IPublicVideoViewerData = {
@@ -156,6 +164,12 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
               of(playbackVersion(video))
             ),
             invalidatePublicVideoAccess,
+          },
+        },
+        {
+          provide: PublicVideoPlaybackExposureService,
+          useValue: {
+            watchActiveVideo$: vi.fn(input.watchExposure ?? (() => of(true))),
           },
         },
         {
@@ -334,4 +348,92 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     expect(context.component.current?.id).toBe('video-2');
     expect(context.component.current?.url).toBe(secondPlayback.url);
   });
+
+  it('corta playback e URL ao receber restrição no vídeo atual', async () => {
+    const availability = new Subject<boolean>();
+    const initial = createVideo('video-1', null);
+    const playback = playbackVersion(initial);
+    const context = await createFixture({
+      items: [initial],
+      hydrate: () => of([playback]),
+      watchExposure: () => availability.asObservable(),
+    });
+    const player = fixture!.nativeElement.querySelector('video') as HTMLVideoElement;
+    expect(player.getAttribute('src')).toBe(playback.url);
+
+    availability.next(false);
+    fixture!.detectChanges();
+
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+    expect(player.getAttribute('src')).toBeNull();
+    expect(context.component.current?.url).toBeNull();
+    expect(context.invalidatePublicVideoAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'video-1' })
+    );
+    context.component.retryCurrentVideo();
+    await flushMicrotasks();
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
+  });
+
+  it('descarta resposta de hidratação entregue depois da revogação', async () => {
+    const availability = new Subject<boolean>();
+    const response = new Subject<IPublicVideoItem[]>();
+    const initial = createVideo('video-1', null);
+    const context = await createFixture({
+      items: [initial],
+      hydrate: () => response.asObservable(),
+      watchExposure: () => availability.asObservable(),
+    });
+
+    availability.next(false);
+    response.next([playbackVersion(initial)]);
+    response.complete();
+    await flushMicrotasks();
+    fixture!.detectChanges();
+
+    expect(context.component.current?.url).toBeNull();
+    const player = fixture!.nativeElement.querySelector('video') as HTMLVideoElement;
+    expect(player.getAttribute('src')).toBeNull();
+    expect(context.invalidatePublicVideoAccess).toHaveBeenCalled();
+  });
+
+  it('não bloqueia o próximo vídeo quando somente o anterior é revogado', async () => {
+    const unavailable = new Subject<boolean>();
+    const a = createVideo('video-1', null);
+    const b = createVideo('video-2', null);
+    const context = await createFixture({
+      items: [a, b],
+      hydrate: (items) => of(items.map(playbackVersion)),
+      watchExposure: (_, id) => id === 'video-1'
+        ? unavailable.asObservable() : of(true),
+    });
+
+    unavailable.next(false);
+    context.component.next();
+    fixture!.detectChanges();
+    await flushMicrotasks();
+    fixture!.detectChanges();
+
+    expect(context.component.current?.id).toBe('video-2');
+    expect(context.component.current?.url).toBe(playbackVersion(b).url);
+  });
+
+  it('interrompe o vídeo quando a conta atual é suspensa', async () => {
+    const initial = createVideo('video-1', null);
+    const context = await createFixture({
+      items: [initial],
+      hydrate: () => of([playbackVersion(initial)]),
+    });
+
+    context.viewer$.next({
+      uid: 'viewer-1', accountStatus: 'moderation_suspended',
+    });
+    fixture!.detectChanges();
+
+    expect(context.component.current?.url).toBeNull();
+    const player = fixture!.nativeElement.querySelector('video') as HTMLVideoElement;
+    expect(player.getAttribute('src')).toBeNull();
+    expect(context.invalidatePublicVideoAccess).toHaveBeenCalled();
+  });
+
 });

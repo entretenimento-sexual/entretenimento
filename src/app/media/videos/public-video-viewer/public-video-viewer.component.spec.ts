@@ -18,6 +18,7 @@ import { MediaReactionsService } from 'src/app/core/services/media/media-reactio
 import { MediaVideoCommentsService } from 'src/app/core/services/media/media-video-comments.service';
 import { MediaVideoRatingsService } from 'src/app/core/services/media/media-video-ratings.service';
 import { PublicVideoAccessService } from 'src/app/core/services/media/public-video-access.service';
+import { PublicVideoPlaybackExposureService } from 'src/app/core/services/media/public-video-playback-exposure.service';
 import {
   PublicVideoContinuationResult,
   PublicVideoContinuationService,
@@ -224,6 +225,10 @@ describe('PublicVideoViewerComponent', () => {
         },
         { provide: VideoViewTrackingService, useValue: videoViewTracking },
         { provide: PublicVideoAccessService, useValue: publicVideoAccess },
+        {
+          provide: PublicVideoPlaybackExposureService,
+          useValue: { watchActiveVideo$: vi.fn(() => of(true)) },
+        },
         {
           provide: PublicVideoContinuationService,
           useValue: publicVideoContinuation,

@@ -45,6 +45,7 @@ import {
 } from 'src/app/core/interfaces/media/i-public-video-item';
 import { IVideoComment } from 'src/app/core/interfaces/media/i-video-comment';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { normalizeUserAccountLifecycleStatus } from 'src/app/core/services/autentication/auth/account-lifecycle.policy';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
@@ -54,6 +55,7 @@ import {
   VideoRatingSummary,
 } from 'src/app/core/services/media/media-video-ratings.service';
 import { PublicVideoAccessService } from 'src/app/core/services/media/public-video-access.service';
+import { PublicVideoPlaybackExposureService } from 'src/app/core/services/media/public-video-playback-exposure.service';
 import { PublicVideoContinuationService } from 'src/app/core/services/media/public-video-continuation.service';
 import {
   TVideoViewSource,
@@ -139,6 +141,7 @@ export class PublicVideoViewerComponent {
   private readonly videoViewTracking = inject(VideoViewTrackingService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly publicVideoAccess = inject(PublicVideoAccessService);
+  private readonly videoExposure = inject(PublicVideoPlaybackExposureService);
   private readonly publicVideoContinuation = inject(PublicVideoContinuationService);
   private readonly reactions = inject(MediaReactionsService);
   private readonly comments = inject(MediaVideoCommentsService);
@@ -146,6 +149,7 @@ export class PublicVideoViewerComponent {
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly mediaError = inject(MediaApplicationErrorService);
   private readonly recordedViewKeys = new Set<string>();
+  private readonly revokedVideoKeys = new Set<string>();
   private readonly automaticRefreshKeys = new Set<string>();
   private readonly items = [...(this.data.items ?? [])];
 
@@ -351,7 +355,44 @@ export class PublicVideoViewerComponent {
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(([previousUid, currentUid]) => {
       if (previousUid !== currentUid) {
-        this.handleViewerSessionChanged();
+        this.handleViewerSessionChanged(currentUid);
+      }
+    });
+
+    // The account lifecycle is canonical. Do not add a second Media age gate.
+    this.currentUserStore.user$.pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe((user) => {
+      if (user && normalizeUserAccountLifecycleStatus(user) !== 'active') {
+        this.revokeCurrentVideoAccess();
+      }
+    });
+
+    // Watch only the currently opened video. switchMap closes the previous
+    // listener on navigation or session change. Restriction is fail-closed.
+    combineLatest([
+      this.currentVideo$.pipe(
+        map((video) => this.videoKey(video)),
+        distinctUntilChanged()
+      ),
+      this.viewerUid$,
+    ]).pipe(
+      switchMap(([key, viewerUid]) => {
+        const video = this.current;
+        if (!key || !viewerUid || !video) {
+          return EMPTY;
+        }
+        return this.videoExposure.watchActiveVideo$(
+          video.ownerUid, video.id, viewerUid
+        ).pipe(
+          map((allowed) => ({ key, allowed })),
+          catchError(() => of({ key, allowed: false }))
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(({ key, allowed }) => {
+      if (!allowed && key === this.videoKey(this.current)) {
+        this.revokeCurrentVideoAccess();
       }
     });
 
@@ -1078,7 +1119,7 @@ export class PublicVideoViewerComponent {
   private ensureCurrentPlaybackAccess(): void {
     const video = this.current;
 
-    if (!video) {
+    if (!video || this.revokedVideoKeys.has(this.videoKey(video))) {
       return;
     }
 
@@ -1151,7 +1192,7 @@ export class PublicVideoViewerComponent {
   private refreshCurrentVideoAccess(reason: TAccessRefreshReason): void {
     const video = this.current;
 
-    if (!video) {
+    if (!video || this.revokedVideoKeys.has(this.videoKey(video))) {
       return;
     }
 
@@ -1411,8 +1452,34 @@ export class PublicVideoViewerComponent {
     return ownerUid && videoId ? `${ownerUid}:${videoId}` : '';
   }
 
-  private handleViewerSessionChanged(): void {
+  private revokeCurrentVideoAccess(): void {
     const current = this.current;
+    const key = this.videoKey(current);
+
+    if (!current || !key || this.revokedVideoKeys.has(key)) {
+      return;
+    }
+
+    this.revokedVideoKeys.add(key);
+    this.releaseCurrentPlayerSource();
+    this.clearAccessRefreshTimer();
+    this.accessRevision += 1;
+    this.refreshingAccess = false;
+    this.pendingPlaybackResume = null;
+    this.publicVideoAccess.invalidatePublicVideoAccess(current);
+
+    const projectionOnly: IPublicVideoItem = {
+      ...current, url: null, posterUrl: null, accessExpiresAt: 0,
+    };
+    this.items[this.index] = projectionOnly;
+    this.currentVideoSubject.next(projectionOnly);
+    this.playbackFeedback?.markError('Este vídeo não está mais disponível.');
+    this.changeDetector.markForCheck();
+  }
+
+  private handleViewerSessionChanged(viewerUid: string | null): void {
+    const current = this.current;
+    this.revokedVideoKeys.clear();
 
     this.releaseCurrentPlayerSource();
     this.clearAccessRefreshTimer();
@@ -1438,9 +1505,11 @@ export class PublicVideoViewerComponent {
     this.currentVideoSubject.next(projectionOnly);
     this.changeDetector.markForCheck();
 
-    queueMicrotask(() => {
-      this.ensureCurrentPlaybackAccess();
-    });
+    if (viewerUid) {
+      queueMicrotask(() => {
+        this.ensureCurrentPlaybackAccess();
+      });
+    }
   }
 
   private releaseCurrentPlayerSource(): void {
