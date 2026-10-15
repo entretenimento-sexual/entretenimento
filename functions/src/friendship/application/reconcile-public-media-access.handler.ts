@@ -47,20 +47,15 @@ export const reconcilePublicMediaAccess = onCall<{ ownerUid?: unknown }>(
     const viewerProjectionRef = db.doc(
       `public_media_access/${viewerUid}/owners/${ownerUid}`
     );
-    const ownerProjectionRef = db.doc(
-      `public_media_access/${ownerUid}/owners/${viewerUid}`
-    );
-
     await db.runTransaction(async (tx) => {
       const [
-        viewer, owner, outgoing, incoming, viewerProjection, ownerProjection,
+        viewer, owner, outgoing, incoming, viewerProjection,
       ] = await Promise.all([
         tx.get(viewerRef),
         tx.get(ownerRef),
         tx.get(outgoingRef),
         tx.get(incomingRef),
         tx.get(viewerProjectionRef),
-        tx.get(ownerProjectionRef),
       ]);
 
       // Reconciliation is not a second age policy; this is account authority.
@@ -73,9 +68,7 @@ export const reconcilePublicMediaAccess = onCall<{ ownerUid?: unknown }>(
       );
       if (
         viewerProjection.data()?.version === 1 &&
-        viewerProjection.data()?.available === available &&
-        ownerProjection.data()?.version === 1 &&
-        ownerProjection.data()?.available === available
+        viewerProjection.data()?.available === available
       ) {
         return;
       }
@@ -85,8 +78,9 @@ export const reconcilePublicMediaAccess = onCall<{ ownerUid?: unknown }>(
         version: 1,
         updatedAt: FieldValue.serverTimestamp(),
       };
+      // Never write the reverse document here: passively watching a video
+      // must not leave a discoverable record in the owner's own scope.
       tx.set(viewerProjectionRef, projection);
-      tx.set(ownerProjectionRef, projection);
     });
 
     // No direction, reason, blocker UID or availability in the response.

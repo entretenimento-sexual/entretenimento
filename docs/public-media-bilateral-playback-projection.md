@@ -11,7 +11,9 @@ revogação da UI**, não uma concessão de acesso ou política de maioridade.
   de cliente. Nenhum campo inclui autor, direção, motivo ou evidência de bloqueio.
 - A Callable `reconcilePublicMediaAccess`, autenticada e limitada por quota,
   reconcilia apenas um par em caso de documento antigo/ausente. Ela lê os dois
-  bloqueios em transação e retorna apenas `{ reconciled: true }`.
+  bloqueios em transação, escreve **apenas na projeção do solicitante** e
+  retorna `{ reconciled: true }`. A consulta passiva de um vídeo não cria um
+  registro reverso de visita na área privada do autor.
 - A UI observa a projeção do **vídeo aberto**, não cada card e não faz polling.
   Falha de reconciliação nega a observação; na reconciliação bem-sucedida aguarda
   o snapshot atualizado antes de decidir.
