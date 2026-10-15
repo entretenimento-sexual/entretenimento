@@ -47,7 +47,7 @@ implements AccountRelationshipEdgeRetentionAdapter
     const snapshots = await db
       .collection('public_media_access').doc(safeUid)
       .collection('owners').limit(normalizeLimit(limit)).get();
-    await deleteMediaProjectionDocuments(snapshots.docs);
+    await deleteMediaProjectionDocuments(snapshots.docs, safeUid, 'owned');
     return snapshots.size;
   }
 
@@ -56,7 +56,7 @@ implements AccountRelationshipEdgeRetentionAdapter
     const snapshots = await db.collectionGroup('owners')
       .where('ownerUid', '==', safeUid)
       .limit(normalizeLimit(limit)).get();
-    await deleteMediaProjectionDocuments(snapshots.docs);
+    await deleteMediaProjectionDocuments(snapshots.docs, safeUid, 'inbound');
     return snapshots.size;
   }
   async archiveOwnedBlockReferencePage(
@@ -117,8 +117,24 @@ implements AccountRelationshipEdgeRetentionAdapter
 }
 
 async function deleteMediaProjectionDocuments(
-  docs: readonly FirebaseFirestore.QueryDocumentSnapshot[]
+  docs: readonly FirebaseFirestore.QueryDocumentSnapshot[],
+  deletedUid: string,
+  direction: 'owned' | 'inbound'
 ): Promise<void> {
+  // A collection-group may include homonymous subcollections elsewhere.
+  // Validate EVERY reference before committing any delete.
+  for (const snapshot of docs) {
+    const segments = snapshot.ref.path.split('/');
+    if (
+      segments.length !== 4 ||
+      segments[0] !== 'public_media_access' ||
+      segments[2] !== 'owners' ||
+      (direction === 'owned' && segments[1] !== deletedUid) ||
+      (direction === 'inbound' && segments[3] !== deletedUid)
+    ) {
+      throw new Error('unexpected-public-media-projection-path');
+    }
+  }
   for (let offset = 0; offset < docs.length; offset += MAX_BATCH_WRITES) {
     const batch = db.batch();
     for (const snapshot of docs.slice(offset, offset + MAX_BATCH_WRITES)) {

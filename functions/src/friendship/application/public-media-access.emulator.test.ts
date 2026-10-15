@@ -151,3 +151,20 @@ test('retention drains owned projections and leaves unrelated users intact', asy
   assert.equal((await media(a,b).get()).exists,false);
   assert.equal(await adapter.deleteOwnedMediaAccessPage(a,100),0);
 });
+
+test('collection-group cleanup rejects unrelated owners documents without deleting them', async () => {
+  const {a,b,media} = pair();
+  await seedUsers(a,b);
+  await reconcilePublicMediaAccessPair(a,b);
+  const unrelated = db.doc(`other-module/test-${a}/owners/external-${b}`);
+  await unrelated.set({ ownerUid: b, available: true });
+  const adapter = new FirestoreAccountRelationshipEdgeRetentionAdapter();
+  await assert.rejects(
+    adapter.deleteInboundMediaAccessPage(b,100),
+    /unexpected-public-media-projection-path/
+  );
+  assert.equal((await unrelated.get()).exists,true);
+  assert.equal((await media(a,b).get()).exists,true);
+  await unrelated.delete();
+  assert.equal(await adapter.deleteInboundMediaAccessPage(b,100),1);
+});
