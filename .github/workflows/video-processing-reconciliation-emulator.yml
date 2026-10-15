@@ -13,6 +13,7 @@ on:
       - 'functions/src/media/application/manage-video-publication.handler.ts'
       - 'functions/src/media/application/published-video-asset.service.ts'
       - 'functions/src/media/application/published-video-asset-cleanup.firestore.ts'
+      - 'functions/src/media/application/published-video-cleanup-migration.firestore.ts'
       - 'functions/src/media/application/published-video-cleanup-queue.firestore.ts'
       - 'functions/src/media/application/video-processing-reconciliation.emulator.test.ts'
       - 'functions/src/media/application/public-video-access-resolution.firestore.ts'

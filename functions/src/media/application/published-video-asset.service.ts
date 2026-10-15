@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { FieldPath } from 'firebase-admin/firestore';
 
 import { logger } from 'firebase-functions';
 
@@ -17,7 +16,8 @@ import {
   settlePublishedVideoCleanupJob,
   clearPublishedVideoCleanupJobIfUnleased,
 } from './published-video-cleanup-queue.firestore';
-import { nextVideoCleanupRetry, resolveVideoCleanupJobScheduling } from './video-cleanup-job.policy';
+import { nextVideoCleanupRetry } from './video-cleanup-job.policy';
+import { migrateLegacyPublishedVideoCleanupJobs } from './published-video-cleanup-migration.firestore';
 import {
   buildPublishedVideoPath,
   buildPublishedVideoPosterPath,
@@ -397,62 +397,11 @@ export async function deletePublishedVideoAssetOrQueue(
   }
 }
 
-const VIDEO_CLEANUP_MIGRATION_COLLECTION = 'media_cleanup_migration_state';
-const VIDEO_CLEANUP_MIGRATION_ID = 'published-video-asset-v1';
-const VIDEO_CLEANUP_MIGRATION_BATCH_SIZE = 100;
-
-/**
- * Old documents cannot be found by where(nextAttemptAt <= now) because the
- * field is absent. Sweep by document ID with a persisted cursor until every
- * legacy document has acquired its scheduling fields. Never drop old work.
- */
-async function migrateLegacyPublishedVideoCleanupJobs(): Promise<void> {
-  const progressRef = db.collection(VIDEO_CLEANUP_MIGRATION_COLLECTION)
-    .doc(VIDEO_CLEANUP_MIGRATION_ID);
-  const progressSnap = await progressRef.get();
-  const progress = progressSnap.exists ? progressSnap.data() : null;
-  if (progress?.['complete'] === true) return;
-
-  const lastId = typeof progress?.['lastDocumentId'] === 'string'
-    ? progress['lastDocumentId']
-    : '';
-  let query = db.collection(CLEANUP_COLLECTION)
-    .orderBy(FieldPath.documentId())
-    .limit(VIDEO_CLEANUP_MIGRATION_BATCH_SIZE);
-  if (lastId) query = query.startAfter(lastId);
-  const snapshot = await query.get();
-
-  // Limit transaction concurrency to avoid unexpected Firestore write spikes.
-  for (let index = 0; index < snapshot.docs.length; index += 5) {
-    const page = snapshot.docs.slice(index, index + 5);
-    await Promise.all(page.map((doc) => db.runTransaction(async (transaction) => {
-      const current = await transaction.get(doc.ref);
-      if (!current.exists) return;
-      const scheduling = resolveVideoCleanupJobScheduling(
-        current.data() ?? {}, Date.now()
-      );
-      if (!scheduling.requiresMigration) return;
-      transaction.set(doc.ref, {
-        state: scheduling.state,
-        nextAttemptAt: scheduling.nextAttemptAt,
-        deadLetterExpiresAt: null,
-        updatedAt: Date.now(),
-      }, { merge: true });
-    })));
-  }
-
-  await progressRef.set({
-    lastDocumentId: snapshot.docs.at(-1)?.id ?? lastId,
-    complete: snapshot.size < VIDEO_CLEANUP_MIGRATION_BATCH_SIZE,
-    updatedAt: Date.now(),
-  }, { merge: true });
-}
-
 export async function processPendingPublishedVideoAssetCleanupJobs(
   batchSize = 50
 ): Promise<void> {
   try {
-    await migrateLegacyPublishedVideoCleanupJobs();
+    await migrateLegacyPublishedVideoCleanupJobs(db);
   } catch (error) {
     // Existing due work must continue even when legacy migration is unavailable.
     logger.error('[publishedVideoAsset] Falha na migração incremental.', {

@@ -11,6 +11,7 @@ import { decideMissingVideoSubmission } from './video-submission-confirmation.po
 import { isCurrentVideoProcessingAttempt } from './video-processing-poll.policy';
 import { commitCopiedVideoPublicationIfCurrent } from './video-publication-commit.firestore';
 import { deleteUnreferencedPublishedVideoAsset } from './published-video-asset-cleanup.firestore';
+import { migrateLegacyPublishedVideoCleanupJobs } from './published-video-cleanup-migration.firestore';
 import {
   claimPublishedVideoCleanupJob,
   clearPublishedVideoCleanupJobIfUnleased,
@@ -1187,4 +1188,87 @@ test('published cleanup: direct completion resolves once without reviving a job'
   ]);
   assert.deepEqual([a, b].sort(), ['MISSING', 'REMOVED']);
   assert.equal((await ref.get()).exists, false);
+});
+
+test('legacy published video cleanup migrates 205 records in bounded resumable pages', async () => {
+  const suffix = randomUUID().replace(/-/g, '');
+  const collection = `test_video_cleanup_migration_${suffix}`;
+  const migrationId = `test-published-video-${suffix}`;
+  const migrationNow = now + 1_000;
+  const queue = firestore.collection(collection);
+  const batch = firestore.batch();
+  for (let i = 0; i < 205; i += 1) {
+    const isDeadLetter = i === 140;
+    batch.set(queue.doc(`job_${String(i).padStart(3, '0')}`), {
+      state: isDeadLetter ? 'dead_letter' : 'retryable',
+      attempts: isDeadLetter ? 8 : 1,
+      createdAt: now - 10_000,
+      // Simulate pre-scheduling documents and an old dead-letter deadline.
+      ...(isDeadLetter ? { nextAttemptAt: migrationNow - 100 } : {}),
+    });
+  }
+  await batch.commit();
+
+  const options = { cleanupCollection: collection, migrationId, now: migrationNow };
+  const first = await migrateLegacyPublishedVideoCleanupJobs(firestore, options);
+  assert.equal(first.scanned, 100);
+  assert.equal(first.checkpointAdvanced, true);
+  assert.equal(first.complete, false);
+  const progressRef = firestore.doc(`media_cleanup_migration_state/${migrationId}`);
+  assert.equal((await progressRef.get()).get('lastDocumentId'), 'job_099');
+
+  const second = await migrateLegacyPublishedVideoCleanupJobs(firestore, options);
+  assert.equal(second.scanned, 100);
+  assert.equal(second.complete, false);
+  assert.equal((await progressRef.get()).get('lastDocumentId'), 'job_199');
+
+  const third = await migrateLegacyPublishedVideoCleanupJobs(firestore, options);
+  assert.equal(third.scanned, 5);
+  assert.equal(third.complete, true);
+  assert.equal((await progressRef.get()).get('lastDocumentId'), 'job_204');
+  assert.equal((await progressRef.get()).get('complete'), true);
+
+  const migrated = await queue.get();
+  assert.equal(migrated.size, 205);
+  for (const doc of migrated.docs) {
+    const data = doc.data();
+    if (doc.id === 'job_140') {
+      assert.equal(data.state, 'dead_letter');
+      assert.equal(data.nextAttemptAt, null);
+    } else {
+      assert.equal(data.state, 'retryable');
+      assert.equal(data.nextAttemptAt, migrationNow);
+    }
+    assert.equal(data.deadLetterExpiresAt, null);
+  }
+});
+
+test('concurrent legacy cleanup migrations cannot regress the persisted cursor', async () => {
+  const suffix = randomUUID().replace(/-/g, '');
+  const collection = `test_video_cleanup_race_${suffix}`;
+  const migrationId = `test-published-race-${suffix}`;
+  const queue = firestore.collection(collection);
+  const batch = firestore.batch();
+  for (let i = 0; i < 151; i += 1) {
+    batch.set(queue.doc(`job_${String(i).padStart(3, '0')}`), {
+      state: 'retryable', attempts: 0,
+    });
+  }
+  await batch.commit();
+
+  const options = { cleanupCollection: collection, migrationId, now: now + 2_000 };
+  await Promise.all([
+    migrateLegacyPublishedVideoCleanupJobs(firestore, options),
+    migrateLegacyPublishedVideoCleanupJobs(firestore, options),
+  ]);
+  // A stale worker may have processed the same page; the next invocation
+  // must still continue from the highest committed checkpoint.
+  await migrateLegacyPublishedVideoCleanupJobs(firestore, options);
+  await migrateLegacyPublishedVideoCleanupJobs(firestore, options);
+  const progress = await firestore.doc(`media_cleanup_migration_state/${migrationId}`).get();
+  assert.equal(progress.get('complete'), true);
+  assert.equal(progress.get('lastDocumentId'), 'job_150');
+  const all = await queue.get();
+  assert.equal(all.size, 151);
+  for (const doc of all.docs) assert.equal(doc.get('nextAttemptAt'), now + 2_000);
 });
