@@ -418,6 +418,33 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     expect(context.component.current?.url).toBe(playbackVersion(b).url);
   });
 
+  it('ignora revogação tardia de observador cancelado após troca de conta', async () => {
+    const original = new Subject<boolean>();
+    const replacement = new Subject<boolean>();
+    const initial = createVideo('video-1', null);
+    const context = await createFixture({
+      items: [initial],
+      hydrate: () => of([playbackVersion(initial)]),
+      watchExposure: (_, __, uid) => uid === 'viewer-1'
+        ? original.asObservable() : replacement.asObservable(),
+    });
+
+    expect(original.observed).toBe(true);
+    context.viewer$.next({ uid: 'viewer-2' });
+    fixture!.detectChanges();
+    await flushMicrotasks();
+    fixture!.detectChanges();
+
+    expect(original.observed).toBe(false);
+    expect(replacement.observed).toBe(true);
+    original.next(false);
+    fixture!.detectChanges();
+
+    const player = fixture!.nativeElement.querySelector('video') as HTMLVideoElement;
+    expect(context.component.current?.url).toBe(playbackVersion(initial).url);
+    expect(player.getAttribute('src')).toBe(playbackVersion(initial).url);
+  });
+
   it('interrompe o vídeo quando a conta atual é suspensa', async () => {
     const initial = createVideo('video-1', null);
     const context = await createFixture({

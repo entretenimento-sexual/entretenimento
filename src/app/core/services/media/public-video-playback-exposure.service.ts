@@ -1,13 +1,16 @@
 import { Injectable, inject } from '@angular/core';
 import { Firestore, doc, docSnapshots } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, combineLatest, of } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import {
-  catchError, distinctUntilChanged, ignoreElements, map, switchMap,
+  catchError, distinctUntilChanged, ignoreElements, map,
 } from 'rxjs/operators';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { resolvePublicMediaAvailability } from './public-media-availability.policy';
+import {
+  combinePublicVideoExposure$, watchPublicMediaAvailability$,
+} from './public-media-availability-observer';
 
 /**
  * One short-lived read listener for the current public projection, plus the
@@ -57,27 +60,22 @@ export class PublicVideoPlaybackExposureService {
       const bilateralAccessRef = doc(
         this.db, `public_media_access/${viewerUid}/owners/${ownerUid}`
       );
-      const bilateralAllowed$ = docSnapshots(bilateralAccessRef).pipe(
-        switchMap((snapshot) => {
-          const allowed = resolvePublicMediaAvailability(
+      const bilateralAllowed$ = watchPublicMediaAvailability$(
+        docSnapshots(bilateralAccessRef).pipe(
+          map((snapshot) => resolvePublicMediaAvailability(
             snapshot.exists() ? snapshot.data() : null
-          );
-          return allowed === null
-            ? this.reconcileLegacyPair$(ownerUid)
-            : of(allowed);
-        }),
-        catchError(() => of(false))
-      );
-      return combineLatest([publicExposure$, bilateralAllowed$]).pipe(
-        map(([exposable, bilateralAllowed]) => exposable && bilateralAllowed)
-      );
+          ))
+        ),
+        () => this.reconcileLegacyPair$(ownerUid)
+      ).pipe(catchError(() => of(false)));
+      return combinePublicVideoExposure$(publicExposure$, bilateralAllowed$);
     }).pipe(
       distinctUntilChanged(),
       catchError(() => of(false))
     );
   }
 
-  private reconcileLegacyPair$(ownerUid: string): Observable<boolean> {
+  private reconcileLegacyPair$(ownerUid: string): Observable<false> {
     return this.context.deferPromise$(async () => {
       const callable = httpsCallable<
         { ownerUid: string }, { reconciled: true }
@@ -88,7 +86,7 @@ export class PublicVideoPlaybackExposureService {
       // that would permanently revoke an otherwise authorized open viewer.
       ignoreElements(),
       // Legacy or unavailable backends fail closed without a polling loop.
-      catchError(() => of(false))
+      catchError(() => of(false as const))
     );
   }
 }
