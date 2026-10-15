@@ -6,6 +6,8 @@ on:
       - '.github/workflows/media-e2e.yml'
       - 'functions/src/media/**'
       - 'functions/src/account_lifecycle/**'
+      - 'functions/src/friendship/**'
+      - 'scripts/quality/run-public-media-access-emulator.mjs'
       - 'functions/src/compliance/**'
       - 'functions/src/firebaseApp.ts'
       - 'functions/src/index.ts'
@@ -27,6 +29,8 @@ on:
       - '.github/workflows/media-e2e.yml'
       - 'functions/src/media/**'
       - 'functions/src/account_lifecycle/**'
+      - 'functions/src/friendship/**'
+      - 'scripts/quality/run-public-media-access-emulator.mjs'
       - 'functions/src/compliance/**'
       - 'functions/src/firebaseApp.ts'
       - 'functions/src/index.ts'
@@ -155,6 +159,12 @@ jobs:
         run: |
           set -o pipefail
           npm run test:media:video:e2e 2>&1 | tee logs/video-e2e.log
+
+      - name: Verify bilateral media access transactions on isolated Firestore
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run media:bilateral-access:emulator:test 2>&1 | tee logs/media-bilateral-access-emulator.log
 
       - name: Upload failure logs
         if: failure()

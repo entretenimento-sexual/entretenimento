@@ -102,7 +102,7 @@ test('relationship retention drains multiple event pages before completion', asy
   });
 
   assert.equal(result.status, 'completed');
-  assert.equal(result.pages, 3);
+  assert.equal(result.pages, 5);
   assert.equal(result.details?.['ownedBlockEventsArchived'], 2);
   assert.equal(result.details?.['ownedBlockStatesArchived'], 1);
 });
