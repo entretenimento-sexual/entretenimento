@@ -12,7 +12,11 @@ import {
 } from '../media-format.generated';
 import { deleteUnreferencedPublishedVideoAsset } from './published-video-asset-cleanup.firestore';
 import { MEDIA_CLEANUP_MAX_ATTEMPTS } from './media-cleanup-retry.policy';
-import { canClaimVideoCleanupJob, VIDEO_CLEANUP_LEASE_MS } from './video-cleanup-claim.policy';
+import {
+  claimPublishedVideoCleanupJob,
+  settlePublishedVideoCleanupJob,
+  clearPublishedVideoCleanupJobIfUnleased,
+} from './published-video-cleanup-queue.firestore';
 import { nextVideoCleanupRetry, resolveVideoCleanupJobScheduling } from './video-cleanup-job.policy';
 import {
   buildPublishedVideoPath,
@@ -367,11 +371,14 @@ export async function deletePublishedVideoAssetOrQueue(
       return false;
     }
 
-    await db
-      .collection(CLEANUP_COLLECTION)
-      .doc(buildCleanupJobId(storagePath))
-      .delete()
-      .catch(() => undefined);
+    await clearPublishedVideoCleanupJobIfUnleased(
+      db,
+      db.collection(CLEANUP_COLLECTION).doc(buildCleanupJobId(storagePath))
+    ).catch((cleanupError: unknown) => {
+      logger.warn('[publishedVideoAsset] Falha ao conciliar job após exclusão.', {
+        error: normalizeErrorMessage(cleanupError),
+      });
+    });
 
     return true;
   } catch (error) {
@@ -441,57 +448,6 @@ async function migrateLegacyPublishedVideoCleanupJobs(): Promise<void> {
   }, { merge: true });
 }
 
-async function claimPublishedVideoCleanupJob(
-  ref: FirebaseFirestore.DocumentReference,
-  now: number
-): Promise<{ job: PublishedVideoAssetCleanupJob; token: string } | null> {
-  const token = randomUUID();
-  return db.runTransaction(async (transaction) => {
-    const snap = await transaction.get(ref);
-    if (!snap.exists) return null;
-    const job = snap.data() as PublishedVideoAssetCleanupJob;
-    if (!canClaimVideoCleanupJob(job, now)) return null;
-
-    const leaseUntil = now + VIDEO_CLEANUP_LEASE_MS;
-    transaction.set(ref, {
-      leaseToken: token,
-      leaseUntil,
-      nextAttemptAt: leaseUntil,
-      updatedAt: now,
-    }, { merge: true });
-    return { job, token };
-  });
-}
-
-async function finishPublishedVideoCleanupJob(
-  ref: FirebaseFirestore.DocumentReference,
-  token: string,
-  error: unknown | null
-): Promise<void> {
-  await db.runTransaction(async (transaction) => {
-    const snap = await transaction.get(ref);
-    if (!snap.exists || snap.data()?.['leaseToken'] !== token) return;
-
-    if (error === null) {
-      transaction.delete(ref);
-      return;
-    }
-    const current = snap.data() as PublishedVideoAssetCleanupJob;
-    const now = Date.now();
-    const retry = nextVideoCleanupRetry(current.attempts, now);
-    transaction.set(ref, {
-      state: retry.state,
-      attempts: retry.attempts,
-      nextAttemptAt: retry.nextAttemptAt,
-      deadLetterExpiresAt: retry.deadLetterExpiresAt,
-      updatedAt: now,
-      lastError: normalizeErrorMessage(error),
-      leaseToken: null,
-      leaseUntil: null,
-    }, { merge: true });
-  });
-}
-
 export async function processPendingPublishedVideoAssetCleanupJobs(
   batchSize = 50
 ): Promise<void> {
@@ -511,10 +467,11 @@ export async function processPendingPublishedVideoAssetCleanupJobs(
     .get();
 
   for (const candidate of jobsSnapshot.docs) {
-    const claim = await claimPublishedVideoCleanupJob(candidate.ref, Date.now());
-    if (!claim) continue;
-
-    const { job, token } = claim;
+    const token = randomUUID();
+    const job = await claimPublishedVideoCleanupJob<PublishedVideoAssetCleanupJob>(
+      db, candidate.ref, Date.now(), token
+    );
+    if (!job) continue;
     const storagePath = normalizePublishedAssetPath(
       job.ownerUid, job.videoId, job.storagePath, job.assetKind
     );
@@ -552,9 +509,11 @@ export async function processPendingPublishedVideoAssetCleanupJobs(
           jobId: candidate.id,
         });
       }
-      await finishPublishedVideoCleanupJob(candidate.ref, token, null);
+      await settlePublishedVideoCleanupJob(db, candidate.ref, token, null);
     } catch (error) {
-      await finishPublishedVideoCleanupJob(candidate.ref, token, error);
+      await settlePublishedVideoCleanupJob(
+        db, candidate.ref, token, normalizeErrorMessage(error)
+      );
       logger.error('[publishedVideoAsset] Falha no retry de limpeza.', {
         jobId: candidate.id,
         error: normalizeErrorMessage(error),

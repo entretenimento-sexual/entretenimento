@@ -12,6 +12,12 @@ import { isCurrentVideoProcessingAttempt } from './video-processing-poll.policy'
 import { commitCopiedVideoPublicationIfCurrent } from './video-publication-commit.firestore';
 import { deleteUnreferencedPublishedVideoAsset } from './published-video-asset-cleanup.firestore';
 import {
+  claimPublishedVideoCleanupJob,
+  clearPublishedVideoCleanupJobIfUnleased,
+  settlePublishedVideoCleanupJob,
+} from './published-video-cleanup-queue.firestore';
+import { VIDEO_CLEANUP_LEASE_MS } from './video-cleanup-claim.policy';
+import {
   resolvePublicVideoSignedAccessItem,
   type PublicVideoSignedAccessRequest,
 } from './public-video-access-resolution.firestore';
@@ -1085,4 +1091,100 @@ test('a superseding job is never deleted by a late mocked provider response', as
   ]);
   assert.equal((await ref.get()).get('state'), 'QUEUED');
   assert.equal((await ref.get()).get('processingVersion'), replacement.processingVersion);
+});
+
+test('published cleanup: concurrent workers cannot claim the same job', async () => {
+  const ref = firestore.collection('media_published_video_asset_cleanup_jobs')
+    .doc('emulator-claim-' + randomUUID());
+  await ref.set({ state: 'retryable', attempts: 0,
+    nextAttemptAt: now - 1, leaseUntil: null, leaseToken: null });
+
+  const [a, b] = await Promise.all([
+    claimPublishedVideoCleanupJob<Record<string, unknown>>(firestore, ref, now, 'worker-a'),
+    claimPublishedVideoCleanupJob<Record<string, unknown>>(firestore, ref, now, 'worker-b'),
+  ]);
+  assert.equal(Number(a !== null) + Number(b !== null), 1);
+  const winner = a ? 'worker-a' : 'worker-b';
+  const loser = a ? 'worker-b' : 'worker-a';
+  const current = await ref.get();
+  assert.equal(current.get('leaseToken'), winner);
+  assert.equal(current.get('nextAttemptAt'), now + VIDEO_CLEANUP_LEASE_MS);
+  assert.equal(await settlePublishedVideoCleanupJob(
+    firestore, ref, loser, null, now + 1
+  ), 'STALE');
+  assert.equal((await ref.get()).get('leaseToken'), winner);
+  assert.equal(await settlePublishedVideoCleanupJob(
+    firestore, ref, winner, 'Storage temporarily unavailable', now + 2
+  ), 'RETRYABLE');
+  const retried = await ref.get();
+  assert.equal(retried.get('attempts'), 1);
+  assert.equal(retried.get('leaseToken'), null);
+  assert.ok(Number(retried.get('nextAttemptAt')) > now + 2);
+});
+
+test('published cleanup: a direct delete never removes an active lease', async () => {
+  const ref = firestore.collection('media_published_video_asset_cleanup_jobs')
+    .doc('emulator-direct-' + randomUUID());
+  await ref.set({ state: 'retryable', attempts: 2,
+    nextAttemptAt: now + VIDEO_CLEANUP_LEASE_MS,
+    leaseUntil: now + VIDEO_CLEANUP_LEASE_MS, leaseToken: 'reserved-worker' });
+  assert.equal(await clearPublishedVideoCleanupJobIfUnleased(
+    firestore, ref, now
+  ), 'LEASED');
+  assert.equal((await ref.get()).get('leaseToken'), 'reserved-worker');
+  assert.equal(await settlePublishedVideoCleanupJob(
+    firestore, ref, 'reserved-worker', null, now + 1
+  ), 'REMOVED');
+  assert.equal((await ref.get()).exists, false);
+});
+
+test('published cleanup: stale lease cannot overwrite new owner', async () => {
+  const ref = firestore.collection('media_published_video_asset_cleanup_jobs')
+    .doc('emulator-expired-' + randomUUID());
+  await ref.set({ state: 'retryable', attempts: 1,
+    nextAttemptAt: now - 1, leaseUntil: now - 1, leaseToken: 'old-owner' });
+  assert.ok(await claimPublishedVideoCleanupJob<Record<string, unknown>>(
+    firestore, ref, now, 'new-owner'
+  ));
+  assert.equal(await settlePublishedVideoCleanupJob(
+    firestore, ref, 'old-owner', null, now
+  ), 'STALE');
+  assert.equal((await ref.get()).get('leaseToken'), 'new-owner');
+  assert.equal(await settlePublishedVideoCleanupJob(
+    firestore, ref, 'new-owner', null, now + 1
+  ), 'REMOVED');
+});
+
+test('published cleanup: exhausted failure remains a durable dead letter', async () => {
+  const ref = firestore.collection('media_published_video_asset_cleanup_jobs')
+    .doc('emulator-dead-' + randomUUID());
+  await ref.set({ state: 'retryable', attempts: 7,
+    nextAttemptAt: now - 1, leaseUntil: null, leaseToken: null });
+  assert.ok(await claimPublishedVideoCleanupJob<Record<string, unknown>>(
+    firestore, ref, now, 'last-worker'
+  ));
+  assert.equal(await settlePublishedVideoCleanupJob(
+    firestore, ref, 'last-worker', 'GCS failure', now + 1
+  ), 'DEAD_LETTER');
+  const snap = await ref.get();
+  assert.equal(snap.get('state'), 'dead_letter');
+  assert.equal(snap.get('attempts'), 8);
+  assert.equal(snap.get('nextAttemptAt'), null);
+  assert.equal(snap.get('deadLetterExpiresAt'), null);
+  assert.equal(await claimPublishedVideoCleanupJob<Record<string, unknown>>(
+    firestore, ref, now + 1000, 'future-worker'
+  ), null);
+});
+
+test('published cleanup: direct completion resolves once without reviving a job', async () => {
+  const ref = firestore.collection('media_published_video_asset_cleanup_jobs')
+    .doc('emulator-ack-' + randomUUID());
+  await ref.set({ state: 'retryable', attempts: 1,
+    nextAttemptAt: now - 1, leaseUntil: null, leaseToken: null });
+  const [a, b] = await Promise.all([
+    clearPublishedVideoCleanupJobIfUnleased(firestore, ref, now),
+    clearPublishedVideoCleanupJobIfUnleased(firestore, ref, now),
+  ]);
+  assert.deepEqual([a, b].sort(), ['MISSING', 'REMOVED']);
+  assert.equal((await ref.get()).exists, false);
 });
