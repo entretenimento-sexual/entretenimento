@@ -150,6 +150,8 @@ export class PublicVideoViewerComponent {
   private readonly mediaError = inject(MediaApplicationErrorService);
   private readonly recordedViewKeys = new Set<string>();
   private readonly revokedVideoKeys = new Set<string>();
+  private observedAvailableVideoKey: string | null = null;
+  private viewerLifecycleActive = false;
   private readonly automaticRefreshKeys = new Set<string>();
   private readonly items = [...(this.data.items ?? [])];
 
@@ -363,8 +365,15 @@ export class PublicVideoViewerComponent {
     this.currentUserStore.user$.pipe(
       takeUntilDestroyed(this.destroyRef)
     ).subscribe((user) => {
-      if (user && normalizeUserAccountLifecycleStatus(user) !== 'active') {
+      const wasActive = this.viewerLifecycleActive;
+      this.viewerLifecycleActive = !!user &&
+        normalizeUserAccountLifecycleStatus(user) === 'active';
+      if (!this.viewerLifecycleActive) {
         this.revokeCurrentVideoAccess();
+      } else if (!wasActive && this.observedAvailableVideoKey) {
+        // Account lifecycle is authoritative. A resumed account must still
+        // obtain a NEW playback URL from the backend, never a revoked token.
+        this.resumeCurrentVideoIfAuthorized(this.observedAvailableVideoKey);
       }
     });
 
@@ -391,9 +400,16 @@ export class PublicVideoViewerComponent {
       }),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(({ key, allowed }) => {
-      if (!allowed && key === this.videoKey(this.current)) {
-        this.revokeCurrentVideoAccess();
+      if (key !== this.videoKey(this.current)) {
+        return;
       }
+      if (!allowed) {
+        this.observedAvailableVideoKey = null;
+        this.revokeCurrentVideoAccess();
+        return;
+      }
+      this.observedAvailableVideoKey = key;
+      this.resumeCurrentVideoIfAuthorized(key);
     });
 
     this.destroyRef.onDestroy(() => {
@@ -889,6 +905,7 @@ export class PublicVideoViewerComponent {
     this.accessRevision += 1;
     this.refreshingAccess = false;
     this.pendingContinuationAdvanceKey = null;
+    this.observedAvailableVideoKey = null;
     this.index = nextIndex;
     this.commentsExpanded.set(false);
     this.ratingsExpanded.set(false);
@@ -1477,8 +1494,41 @@ export class PublicVideoViewerComponent {
     this.changeDetector.markForCheck();
   }
 
+  private resumeCurrentVideoIfAuthorized(key: string): void {
+    const current = this.current;
+    if (!this.viewerLifecycleActive || !current ||
+        key !== this.videoKey(current) ||
+        !this.revokedVideoKeys.has(key)) {
+      return;
+    }
+
+    // A new positive observation only permits requesting authorization.
+    // Discard old signed URLs and every in-flight response started before it.
+    this.publicVideoAccess.invalidatePublicVideoAccess(current);
+    this.revokedVideoKeys.delete(key);
+    const prefix = `${current.ownerUid}:${current.id}:`;
+    for (const refreshKey of this.automaticRefreshKeys) {
+      if (refreshKey.startsWith(prefix)) {
+        this.automaticRefreshKeys.delete(refreshKey);
+      }
+    }
+    this.playbackFeedback?.markLoading('Restabelecendo acesso ao vídeo...');
+
+    // Defer rehydration so a same-turn restriction can revoke it before
+    // issuing a request. Repeated true emissions cannot trigger another one.
+    queueMicrotask(() => {
+      if (this.viewerLifecycleActive &&
+          this.observedAvailableVideoKey === key &&
+          !this.revokedVideoKeys.has(key) &&
+          key === this.videoKey(this.current)) {
+        this.ensureCurrentPlaybackAccess();
+      }
+    });
+  }
+
   private handleViewerSessionChanged(viewerUid: string | null): void {
     const current = this.current;
+    this.observedAvailableVideoKey = null;
     this.revokedVideoKeys.clear();
 
     this.releaseCurrentPlayerSource();

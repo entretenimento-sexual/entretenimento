@@ -445,6 +445,132 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     expect(player.getAttribute('src')).toBe(playbackVersion(initial).url);
   });
 
+  it('retoma após novo sinal positivo somente com nova autorização', async () => {
+    const availability = new Subject<boolean>();
+    const preview = createVideo('video-1', null);
+    const oldUrl = {
+      ...playbackVersion(preview),
+      url: 'https://example.test/video-1.mp4?token=old-revoked',
+    };
+    const newUrl = {
+      ...playbackVersion(preview),
+      url: 'https://example.test/video-1.mp4?token=new-authorized',
+    };
+    let calls = 0;
+    const context = await createFixture({
+      items: [preview],
+      hydrate: () => of([calls++ === 0 ? oldUrl : newUrl]),
+      watchExposure: () => availability.asObservable(),
+    });
+    const player = fixture!.nativeElement.querySelector('video') as HTMLVideoElement;
+    expect(player.getAttribute('src')).toBe(oldUrl.url);
+
+    availability.next(false);
+    fixture!.detectChanges();
+    expect(player.getAttribute('src')).toBeNull();
+    expect(context.component.current?.url).toBeNull();
+    context.component.retryCurrentVideo();
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
+
+    availability.next(true);
+    availability.next(true);
+    await flushMicrotasks();
+    fixture!.detectChanges();
+
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(2);
+    expect(context.hydratePublicVideoUrls$).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'video-1', url: null }),
+    ]);
+    expect(context.invalidatePublicVideoAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ url: oldUrl.url })
+    );
+    expect(player.getAttribute('src')).toBe(newUrl.url);
+    expect(context.component.current?.url).toBe(newUrl.url);
+  });
+
+  it('não aplica credencial atrasada da hidratação anterior à revogação', async () => {
+    const availability = new Subject<boolean>();
+    const previous = new Subject<IPublicVideoItem[]>();
+    const resumed = new Subject<IPublicVideoItem[]>();
+    const preview = createVideo('video-1', null);
+    let calls = 0;
+    const context = await createFixture({
+      items: [preview],
+      hydrate: () => (calls++ === 0 ? previous : resumed).asObservable(),
+      watchExposure: () => availability.asObservable(),
+    });
+
+    availability.next(false);
+    availability.next(true);
+    await flushMicrotasks();
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(2);
+
+    const oldUrl = {
+      ...playbackVersion(preview),
+      url: 'https://example.test/video-1.mp4?token=obsolete',
+    };
+    previous.next([oldUrl]);
+    previous.complete();
+    fixture!.detectChanges();
+    expect(context.component.current?.url).toBeNull();
+
+    const newUrl = {
+      ...playbackVersion(preview),
+      url: 'https://example.test/video-1.mp4?token=renewed',
+    };
+    resumed.next([newUrl]);
+    resumed.complete();
+    await flushMicrotasks();
+    fixture!.detectChanges();
+    expect(context.component.current?.url).toBe(newUrl.url);
+  });
+
+  it('não retoma durante suspensão, mesmo quando projeção volta a permitir', async () => {
+    const availability = new Subject<boolean>();
+    const initial = createVideo('video-1', null);
+    const context = await createFixture({
+      items: [initial],
+      hydrate: () => of([playbackVersion(initial)]),
+      watchExposure: () => availability.asObservable(),
+    });
+
+    availability.next(false);
+    context.viewer$.next({ uid: 'viewer-1', accountStatus: 'moderation_suspended' });
+    availability.next(true);
+    await flushMicrotasks();
+    fixture!.detectChanges();
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
+    expect(context.component.current?.url).toBeNull();
+
+    context.viewer$.next({ uid: 'viewer-1', accountStatus: 'active' });
+    await flushMicrotasks();
+    fixture!.detectChanges();
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(2);
+    expect(context.component.current?.url).toBe(playbackVersion(initial).url);
+  });
+
+  it('falha de reautorização não gera loop diante de true repetido', async () => {
+    const availability = new Subject<boolean>();
+    const preview = createVideo('video-1', null);
+    let calls = 0;
+    const context = await createFixture({
+      items: [preview],
+      hydrate: () => of([calls++ === 0 ? playbackVersion(preview) : preview]),
+      watchExposure: () => availability.asObservable(),
+    });
+
+    availability.next(false);
+    availability.next(true);
+    availability.next(true);
+    await flushMicrotasks();
+    fixture!.detectChanges();
+
+    expect(context.component.current?.url).toBeNull();
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(2);
+    await flushMicrotasks();
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(2);
+  });
+
   it('interrompe o vídeo quando a conta atual é suspensa', async () => {
     const initial = createVideo('video-1', null);
     const context = await createFixture({
