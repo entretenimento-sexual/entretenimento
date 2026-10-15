@@ -132,17 +132,47 @@ requireIncludes(discovery, [
   "'video_publications'",
 ], 'discovery deve revalidar viewer, owner e publicação');
 
-for (const accessPath of [
-  'functions/src/media/application/get-public-photo-access-urls.handler.ts',
-  'functions/src/media/application/get-public-video-access-urls.handler.ts',
-]) {
-  const source = read(accessPath);
-  requireIncludes(source, [
-    'assertPublicMediaConsumptionAccess',
-    'resolvePublicMediaSignedOwnerExposure',
-    'isCurrentPublic',
-    'resolvePublicMediaSignedUrlExpiresAt',
-  ], accessPath + ' deve revalidar viewer/owner/ativo antes de URL');
+const photoAccessPath =
+  'functions/src/media/application/get-public-photo-access-urls.handler.ts';
+requireIncludes(read(photoAccessPath), [
+  'assertPublicMediaConsumptionAccess',
+  'resolvePublicMediaSignedOwnerExposure',
+  'isCurrentPublicPhotoAssetExposure',
+  'resolvePublicMediaSignedUrlExpiresAt',
+], photoAccessPath + ' deve revalidar viewer/owner/ativo antes de URL');
+
+// Video's authoritative asset/expiry gate now lives in a shared resolver.
+// Verify the caller still checks viewer, bilateral block and owner lifecycle,
+// and that the delegated signer checks current publication before issuing URLs.
+const videoAccessPath =
+  'functions/src/media/application/get-public-video-access-urls.handler.ts';
+const videoAccess = read(videoAccessPath);
+requireIncludes(videoAccess, [
+  'assertPublicMediaConsumptionAccess(viewerUid)',
+  'resolveBlockedTargetUids(viewerUid, ownerUids)',
+  'resolvePublicMediaSignedOwnerExposure(',
+  'resolvePublicVideoSignedAccessItem(',
+  'ownerExposureAllowed: profileAccess?.allowed === true',
+], videoAccessPath + ' deve verificar viewer, bloqueio e owner');
+
+const videoSignerPath =
+  'functions/src/media/application/public-video-access-resolution.firestore.ts';
+const videoSigner = read(videoSignerPath);
+requireIncludes(videoSigner, [
+  'isCurrentPublicMediaAssetExposure({',
+  "allowedVisibilities: ['PUBLIC']",
+  'resolvePublicMediaSignedUrlExpiresAt({',
+  'if (expiresAt === null)',
+  'shouldIssuePublicVideoPlaybackAccess(mode)',
+  'ports.createReadUrl(videoStoragePath, expiresAt)',
+], videoSignerPath + ' deve verificar publicação, moderação, validade antes de assinar');
+if (
+  videoSigner.indexOf('isCurrentPublicMediaAssetExposure({') >
+    videoSigner.indexOf('ports.createReadUrl(videoStoragePath, expiresAt)')
+) {
+  throw new Error(
+    '[media-exposure-matrix] vídeo tenta assinar antes de validar a exposição'
+  );
 }
 
 // Previously issued playback/retention tokens never override a new
