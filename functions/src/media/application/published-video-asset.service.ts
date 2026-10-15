@@ -10,6 +10,7 @@ import {
   VIDEO_PUBLIC_PLAYBACK_MIME_TYPES,
 } from '../media-format.generated';
 import { deleteUnreferencedPublishedVideoAsset } from './published-video-asset-cleanup.firestore';
+import type { PublishedAssetCleanupResult } from './video-deletion-published-cleanup.policy';
 import { MEDIA_CLEANUP_MAX_ATTEMPTS } from './media-cleanup-retry.policy';
 import {
   claimPublishedVideoCleanupJob,
@@ -339,9 +340,15 @@ export async function copyPrivateVideoToPublishedAsset(
   }
 }
 
-export async function deletePublishedVideoAssetOrQueue(
+export async function deletePublishedVideoAssetOrQueueWithResult(
   command: DeletePublishedVideoAssetCommand
-): Promise<boolean> {
+): Promise<PublishedAssetCleanupResult> {
+  // An absent asset is already clean. A supplied but invalid path is NOT.
+  if (command.storagePath === null || command.storagePath === undefined ||
+      command.storagePath === '') {
+    return 'DELETED';
+  }
+
   const storagePath = normalizePublishedAssetPath(
     command.ownerUid,
     command.videoId,
@@ -350,7 +357,13 @@ export async function deletePublishedVideoAssetOrQueue(
   );
 
   if (!storagePath) {
-    return true;
+    logger.error('[publishedVideoAsset] Caminho inválido; revisão necessária.', {
+      ownerUid: command.ownerUid,
+      videoId: command.videoId,
+      assetKind: command.assetKind,
+      reason: command.reason,
+    });
+    return 'INVALID_PATH';
   }
 
   try {
@@ -368,7 +381,7 @@ export async function deletePublishedVideoAssetOrQueue(
         assetKind: command.assetKind,
         reason: command.reason,
       });
-      return false;
+      return 'ACTIVE_REFERENCE';
     }
 
     await clearPublishedVideoCleanupJobIfUnleased(
@@ -380,8 +393,9 @@ export async function deletePublishedVideoAssetOrQueue(
       });
     });
 
-    return true;
+    return 'DELETED';
   } catch (error) {
+    // This must succeed durably before the parent deletion job is completed.
     await enqueuePublishedVideoAssetCleanup(command, storagePath, error);
 
     logger.error('[publishedVideoAsset] Limpeza física pendente.', {
@@ -393,8 +407,15 @@ export async function deletePublishedVideoAssetOrQueue(
       error: normalizeErrorMessage(error),
     });
 
-    return false;
+    return 'QUEUED_FOR_RETRY';
   }
+}
+
+/** Compatibility wrapper for existing call sites. */
+export async function deletePublishedVideoAssetOrQueue(
+  command: DeletePublishedVideoAssetCommand
+): Promise<boolean> {
+  return (await deletePublishedVideoAssetOrQueueWithResult(command)) === 'DELETED';
 }
 
 export async function processPendingPublishedVideoAssetCleanupJobs(

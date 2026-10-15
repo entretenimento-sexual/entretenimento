@@ -12,7 +12,11 @@ import {
   consumeBackendRateLimitQuota,
 } from '../../shared/security/backend-rate-limit.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
-import { deletePublishedVideoAssetOrQueue } from './published-video-asset.service';
+import { deletePublishedVideoAssetOrQueueWithResult } from './published-video-asset.service';
+import {
+  summarizePublishedAssetCleanupResults,
+  type PublishedAssetsSummary,
+} from './video-deletion-published-cleanup.policy';
 import {
   buildVideoProcessingJobId,
   VIDEO_PROCESSING_JOBS_COLLECTION,
@@ -198,16 +202,16 @@ async function cleanupPublishedAssets(
     | 'publishedVideoStoragePath'
     | 'publishedPosterStoragePath'
   >
-): Promise<boolean> {
-  const [videoDeleted, posterDeleted] = await Promise.all([
-    deletePublishedVideoAssetOrQueue({
+): Promise<PublishedAssetsSummary> {
+  const [videoResult, posterResult] = await Promise.all([
+    deletePublishedVideoAssetOrQueueWithResult({
       ownerUid: job.ownerUid,
       videoId: job.videoId,
       storagePath: job.publishedVideoStoragePath,
       assetKind: 'video',
       reason: 'delete-profile-video',
     }),
-    deletePublishedVideoAssetOrQueue({
+    deletePublishedVideoAssetOrQueueWithResult({
       ownerUid: job.ownerUid,
       videoId: job.videoId,
       storagePath: job.publishedPosterStoragePath,
@@ -216,7 +220,7 @@ async function cleanupPublishedAssets(
     }),
   ]);
 
-  return videoDeleted && posterDeleted;
+  return summarizePublishedAssetCleanupResults(videoResult, posterResult);
 }
 
 async function deletePrivateAssets(job: VideoDeletionJob): Promise<void> {
@@ -262,19 +266,25 @@ async function executeDeletionJob(
   );
   const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
 
+  const publishedOutcome = await cleanupPublishedAssets(job);
+  if (publishedOutcome === 'BLOCKED') {
+    // Keep the parent job and private assets until a safe decision is possible.
+    throw new Error('Published video asset cleanup blocked; manual review required.');
+  }
+
   await Promise.all([
     deletePrivateAssets(job),
     deleteProcessedAssets(job),
   ]);
-  const publishedAssetsDeleted = await cleanupPublishedAssets(job);
 
   await Promise.all([
     db.recursiveDelete(privateVideoRef),
     db.recursiveDelete(publicVideoRef),
   ]);
+  // The specialised cleanup queue now owns every remaining published asset.
   await jobRef.delete();
 
-  return publishedAssetsDeleted;
+  return publishedOutcome === 'QUEUED_FOR_RETRY';
 }
 
 async function recordDeletionAttemptFailure(
@@ -469,12 +479,11 @@ export async function deleteProfileVideoResources(
   await refreshMetricsBestEffort(ownerUid);
 
   try {
-    const publishedAssetsDeleted = await executeDeletionJob(jobId, job);
+    const publishedCleanupPending = await executeDeletionJob(jobId, job);
 
     return {
       videoId,
-      cleanupPending:
-        !publishedAssetsDeleted || processingCleanupPending,
+      cleanupPending: publishedCleanupPending || processingCleanupPending,
     };
   } catch (error) {
     await recordDeletionAttemptFailure(jobId, error);

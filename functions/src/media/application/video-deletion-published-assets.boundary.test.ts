@@ -13,5 +13,7 @@ const source = readFileSync(
 test('profile-video deletion never sweeps published storage by prefix', () => {
   assert.doesNotMatch(source, /deletePublishedAssetsByPrefix|publishedVideoPrefix/);
   assert.match(source, /await cleanupPublishedAssets\(job\)/);
-  assert.match(source, /deletePublishedVideoAssetOrQueue\(/);
+  assert.match(source, /deletePublishedVideoAssetOrQueueWithResult\(/);
+  assert.match(source, /if \(publishedOutcome === 'BLOCKED'\)/);
+  assert.match(source, /return publishedOutcome === 'QUEUED_FOR_RETRY'/);
 });
