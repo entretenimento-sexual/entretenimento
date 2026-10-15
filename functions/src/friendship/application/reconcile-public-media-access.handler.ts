@@ -52,48 +52,55 @@ export async function reconcilePublicMediaAccessPair(
   viewerUid: string,
   ownerUid: string
 ): Promise<void> {
-    const viewerRef = db.doc(`users/${viewerUid}`);
-    const ownerRef = db.doc(`users/${ownerUid}`);
-    const outgoingRef = viewerRef.collection('blocks').doc(ownerUid);
-    const incomingRef = ownerRef.collection('blocks').doc(viewerUid);
-    const viewerProjectionRef = db.doc(
-      `public_media_access/${viewerUid}/owners/${ownerUid}`
+  const viewerRef = db.doc(`users/${viewerUid}`);
+  const ownerRef = db.doc(`users/${ownerUid}`);
+  const outgoingRef = viewerRef.collection('blocks').doc(ownerUid);
+  const incomingRef = ownerRef.collection('blocks').doc(viewerUid);
+  const viewerProjectionRef = db.doc(
+    `public_media_access/${viewerUid}/owners/${ownerUid}`
+  );
+  await db.runTransaction(async (tx) => {
+    const [
+      viewer, owner, outgoing, incoming, viewerProjection,
+    ] = await Promise.all([
+      tx.get(viewerRef),
+      tx.get(ownerRef),
+      tx.get(outgoingRef),
+      tx.get(incomingRef),
+      tx.get(viewerProjectionRef),
+    ]);
+
+    // Reconciliation is not a second age policy; this is account authority.
+    assertPlatformAccountAccessData(viewer.data());
+    // Lock the canonical owner state into this transaction. A concurrent
+    // lifecycle transition forces a retry, preventing stale re-materialization.
+    const ownerState = owner.data();
+    if (!owner.exists || ownerState?.['accountStatus'] !== 'active' ||
+        ownerState?.['loginAllowed'] === false ||
+        ownerState?.['accountLocked'] === true) {
+      // Legacy cache may survive until cleanup; never grant via its existence.
+      if (viewerProjection.exists) tx.delete(viewerProjectionRef);
+      return;
+    }
+
+    const available = isBilateralPublicMediaAvailable(
+      outgoing.data()?.isBlocked, incoming.data()?.isBlocked
     );
-    await db.runTransaction(async (tx) => {
-      const [
-        viewer, owner, outgoing, incoming, viewerProjection,
-      ] = await Promise.all([
-        tx.get(viewerRef),
-        tx.get(ownerRef),
-        tx.get(outgoingRef),
-        tx.get(incomingRef),
-        tx.get(viewerProjectionRef),
-      ]);
+    if (
+      viewerProjection.data()?.version === 1 &&
+      viewerProjection.data()?.available === available
+    ) {
+      return;
+    }
 
-      // Reconciliation is not a second age policy; this is account authority.
-      assertPlatformAccountAccessData(viewer.data());
-      // A missing target is treated neutrally; don't create arbitrary pairs.
-      if (!owner.exists) return;
-
-      const available = isBilateralPublicMediaAvailable(
-        outgoing.data()?.isBlocked, incoming.data()?.isBlocked
-      );
-      if (
-        viewerProjection.data()?.version === 1 &&
-        viewerProjection.data()?.available === available
-      ) {
-        return;
-      }
-
-      const projection = {
-        available,
-        ownerUid,
-        version: 1,
-        updatedAt: FieldValue.serverTimestamp(),
-      };
-      // Never write the reverse document here: passively watching a video
-      // must not leave a discoverable record in the owner's own scope.
-      tx.set(viewerProjectionRef, projection);
-    });
-
+    const projection = {
+      available,
+      ownerUid,
+      version: 1,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    // Never write the reverse document here: passively watching a video
+    // must not leave a discoverable record in the owner's own scope.
+    tx.set(viewerProjectionRef, projection);
+  });
 }

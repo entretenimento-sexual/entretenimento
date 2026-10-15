@@ -37,3 +37,12 @@ revogação da UI**, não uma concessão de acesso ou política de maioridade.
   Se houver paginação incompleta, a finalização é bloqueada para novo retry.
 - A checagem de bloqueios na emissão de URLs continua usando estados canônicos,
   jamais essas projeções derivadas.
+
+## Serialização com exclusão de conta
+- O documento canônico do proprietário precisa continuar com `accountStatus=active`
+  no momento da transação. Contas `pending_deletion`, `deleted` ou ausentes
+  não podem criar novas projeções; documentos derivados antigos são removidos.
+- A reconciliação lê o documento do proprietário na mesma transação que
+  escreve a projeção. A transição de lifecycle concorrente provoca retry
+  transacional e impede que uma leitura antiga de `active` recrie registros
+  após a limpeza paginada.

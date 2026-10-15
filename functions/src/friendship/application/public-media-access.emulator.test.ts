@@ -6,7 +6,9 @@ import { db } from '../../firebaseApp';
 import { ADULT_CONSENT_VERSION, TERMS_ACCEPTANCE_VERSION } from
   '../../compliance/platform-legal.constants';
 import { manageUserBlock } from './manage-user-block.handler';
-import { FirestoreAccountRelationshipEdgeRetentionAdapter } from '../../account_lifecycle/account-relationship-edge-retention.firestore';
+import {
+  FirestoreAccountRelationshipEdgeRetentionAdapter,
+} from '../../account_lifecycle/account-relationship-edge-retention.firestore';
 import { reconcilePublicMediaAccessPair } from
   './reconcile-public-media-access.handler';
 
@@ -167,4 +169,48 @@ test('collection-group cleanup rejects unrelated owners documents without deleti
   assert.equal((await media(a,b).get()).exists,true);
   await unrelated.delete();
   assert.equal(await adapter.deleteInboundMediaAccessPage(b,100),1);
+});
+
+test('pending deletion and deleted owner cannot recreate a media projection', async () => {
+  for (const accountStatus of ['pending_deletion', 'deleted']) {
+    const { a, b, media } = pair();
+    await seedUsers(a, b);
+    await db.doc(`users/${b}`).update({
+      accountStatus, interactionBlocked: true, loginAllowed: false,
+    });
+    await reconcilePublicMediaAccessPair(a, b);
+    assert.equal((await media(a, b).get()).exists, false);
+    assert.equal((await media(b, a).get()).exists, false);
+  }
+});
+
+test('inaccessible owner removes stale legacy projection without a reverse trace', async () => {
+  const { a, b, media } = pair();
+  await seedUsers(a, b);
+  await reconcilePublicMediaAccessPair(a, b);
+  assert.equal((await media(a, b).get()).get('available'), true);
+  await db.doc(`users/${b}`).update({ accountStatus: 'pending_deletion' });
+  await reconcilePublicMediaAccessPair(a, b);
+  assert.equal((await media(a, b).get()).exists, false);
+  assert.equal((await media(b, a).get()).exists, false);
+});
+
+test('cleanup and reconciliation cannot rematerialize projection during deletion', async () => {
+  const { a, b, media } = pair();
+  await seedUsers(a, b);
+  await reconcilePublicMediaAccessPair(a, b);
+  await db.doc(`users/${b}`).update({
+    accountStatus: 'deleted', interactionBlocked: true, loginAllowed: false,
+  });
+  const adapter = new FirestoreAccountRelationshipEdgeRetentionAdapter();
+  await Promise.all([
+    reconcilePublicMediaAccessPair(a, b),
+    adapter.deleteInboundMediaAccessPage(b, 100),
+  ]);
+  assert.equal((await media(a, b).get()).exists, false);
+  await reconcilePublicMediaAccessPair(a, b);
+  assert.equal((await media(a, b).get()).exists, false);
+  await db.doc(`users/${b}`).delete();
+  await reconcilePublicMediaAccessPair(a, b);
+  assert.equal((await media(a, b).get()).exists, false);
 });
