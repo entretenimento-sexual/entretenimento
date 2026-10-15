@@ -171,10 +171,6 @@ function processedVideoPrefix(ownerUid: string, videoId: string): string {
   return `users/${ownerUid}/processed/videos/${videoId}/`;
 }
 
-function publishedVideoPrefix(ownerUid: string, videoId: string): string {
-  return `users/${ownerUid}/published/videos/${videoId}/`;
-}
-
 async function deleteFilesByPrefix(prefix: string): Promise<void> {
   const [files] = await storage.bucket().getFiles({ prefix });
 
@@ -254,12 +250,6 @@ async function deleteProcessedAssets(job: VideoDeletionJob): Promise<void> {
   await deleteFilesByPrefix(processedVideoPrefix(job.ownerUid, job.videoId));
 }
 
-async function deletePublishedAssetsByPrefix(
-  job: VideoDeletionJob
-): Promise<void> {
-  await deleteFilesByPrefix(publishedVideoPrefix(job.ownerUid, job.videoId));
-}
-
 async function executeDeletionJob(
   jobId: string,
   job: VideoDeletionJob
@@ -275,7 +265,6 @@ async function executeDeletionJob(
   await Promise.all([
     deletePrivateAssets(job),
     deleteProcessedAssets(job),
-    deletePublishedAssetsByPrefix(job),
   ]);
   const publishedAssetsDeleted = await cleanupPublishedAssets(job);
 
