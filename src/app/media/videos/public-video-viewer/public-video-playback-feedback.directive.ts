@@ -54,11 +54,13 @@ const ADJACENT_PRELOAD_DELAY_MS = 280;
       >
         @if (state() === 'error') {
           <span class="playback-feedback__error-icon" aria-hidden="true">!</span>
-          <strong>Não foi possível reproduzir</strong>
+          <strong>{{ retryable() ? 'Não foi possível reproduzir' : 'Vídeo indisponível' }}</strong>
           <p>{{ message() }}</p>
-          <button type="button" (click)="retry.emit()">
-            Tentar novamente
-          </button>
+          @if (retryable()) {
+            <button type="button" (click)="retry.emit()">
+              Tentar novamente
+            </button>
+          }
         } @else {
           <span class="playback-feedback__spinner" aria-hidden="true"></span>
           <strong>{{ message() }}</strong>
@@ -132,7 +134,7 @@ const ADJACENT_PRELOAD_DELAY_MS = 280;
     }
 
     .playback-feedback button {
-      min-height: 42px;
+      min-height: 44px;
       padding: 8px 15px;
       border: 1px solid rgb(255 255 255 / 24%);
       border-radius: 999px;
@@ -175,6 +177,7 @@ const ADJACENT_PRELOAD_DELAY_MS = 280;
 export class PublicVideoPlaybackFeedbackComponent {
   readonly state = input.required<TPublicVideoPlaybackFeedbackState>();
   readonly message = input.required<string>();
+  readonly retryable = input<boolean>(true);
   readonly retry = output<void>();
 }
 
@@ -203,6 +206,8 @@ export class PublicVideoPlaybackFeedbackDirective
   private feedbackMessage = 'Carregando vídeo...';
   private feedbackRef: ComponentRef<PublicVideoPlaybackFeedbackComponent> | null =
     null;
+  private feedbackHost: HTMLElement | null = null;
+  private accessRevoked = false;
   private retrySubscription: { unsubscribe(): void } | null = null;
   private posterProbe: HTMLImageElement | null = null;
   private adjacentPreloadTimer: ReturnType<typeof setTimeout> | null = null;
@@ -241,6 +246,7 @@ export class PublicVideoPlaybackFeedbackDirective
       'app-public-video-playback-feedback'
     );
     parent.appendChild(hostElement);
+    this.feedbackHost = hostElement;
 
     this.feedbackRef = createComponent(PublicVideoPlaybackFeedbackComponent, {
       environmentInjector: this.environmentInjector,
@@ -248,6 +254,7 @@ export class PublicVideoPlaybackFeedbackDirective
     });
     this.applicationRef.attachView(this.feedbackRef.hostView);
     this.retrySubscription = this.feedbackRef.instance.retry.subscribe(() => {
+      if (this.accessRevoked || this.destroyed) return;
       this.markRefreshing('Atualizando acesso ao vídeo...');
       this.dispatch('publicVideoRetry');
     });
@@ -271,6 +278,8 @@ export class PublicVideoPlaybackFeedbackDirective
       this.feedbackRef.destroy();
       this.feedbackRef = null;
     }
+    this.feedbackHost?.remove();
+    this.feedbackHost = null;
   }
 
   @HostListener('document:visibilitychange')
@@ -295,6 +304,7 @@ export class PublicVideoPlaybackFeedbackDirective
 
   @HostListener('loadstart')
   onLoadStart(): void {
+    if (this.accessRevoked || !this.hasPlayableSource()) return;
     this.currentPlaybackReady = false;
     this.cancelAdjacentMetadataPreload();
     this.markLoading('Carregando vídeo...');
@@ -304,6 +314,7 @@ export class PublicVideoPlaybackFeedbackDirective
   @HostListener('waiting')
   @HostListener('stalled')
   onWaiting(): void {
+    if (this.accessRevoked || !this.hasPlayableSource()) return;
     if (this.feedbackState() !== 'refreshing') {
       this.markLoading('Aguardando o vídeo...');
     }
@@ -313,6 +324,7 @@ export class PublicVideoPlaybackFeedbackDirective
   @HostListener('canplay')
   @HostListener('playing')
   onReady(): void {
+    if (this.accessRevoked || !this.hasPlayableSource()) return;
     this.currentPlaybackReady = true;
     this.updateCurrentItemIndex();
     this.markReady();
@@ -322,6 +334,7 @@ export class PublicVideoPlaybackFeedbackDirective
 
   @HostListener('error')
   onError(): void {
+    if (this.accessRevoked || !this.hasPlayableSource()) return;
     this.currentPlaybackReady = false;
     this.cancelAdjacentMetadataPreload();
     this.markError(
@@ -331,20 +344,45 @@ export class PublicVideoPlaybackFeedbackDirective
   }
 
   markLoading(message = 'Carregando vídeo...'): void {
+    if (this.accessRevoked) return;
     this.setFeedback('loading', message);
   }
 
   markRefreshing(message = 'Atualizando acesso ao vídeo...'): void {
+    if (this.accessRevoked) return;
     this.cancelAdjacentMetadataPreload();
     this.setFeedback('refreshing', message);
   }
 
   markReady(): void {
+    if (this.accessRevoked) return;
     this.setFeedback('hidden', '');
   }
 
   markError(message: string): void {
+    if (this.accessRevoked) return;
     this.setFeedback('error', message);
+  }
+
+  /** Terminal UI state. Stale media events and retries cannot override it. */
+  markRevoked(message: string): void {
+    this.accessRevoked = true;
+    this.currentPlaybackReady = false;
+    this.cancelAdjacentMetadataPreload();
+    this.setFeedback('error', message);
+  }
+
+  /** Called only for a different video/session or after a positive access signal. */
+  beginAuthorization(message = 'Preparando vídeo...'): void {
+    this.accessRevoked = false;
+    this.currentPlaybackReady = false;
+    this.cancelAdjacentMetadataPreload();
+    this.setFeedback('loading', message);
+  }
+
+  private hasPlayableSource(): boolean {
+    return !!this.source()?.trim() &&
+      !!this.elementRef.nativeElement.getAttribute('src');
   }
 
   private setFeedback(
@@ -363,6 +401,7 @@ export class PublicVideoPlaybackFeedbackDirective
 
     this.feedbackRef.setInput('state', this.feedbackState());
     this.feedbackRef.setInput('message', this.feedbackMessage);
+    this.feedbackRef.setInput('retryable', !this.accessRevoked);
     this.feedbackRef.changeDetectorRef.detectChanges();
   }
 

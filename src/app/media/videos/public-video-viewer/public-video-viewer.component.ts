@@ -913,7 +913,7 @@ export class PublicVideoViewerComponent {
     this.commentControl.setValue('');
     this.cancelReply();
     this.pendingPlaybackResume = null;
-    this.playbackFeedback?.markLoading('Preparando vídeo...');
+    this.playbackFeedback?.beginAuthorization('Preparando vídeo...');
     this.syncCurrentVideoId();
     this.announceCurrentVideo();
 
@@ -1499,7 +1499,7 @@ export class PublicVideoViewerComponent {
     };
     this.items[this.index] = projectionOnly;
     this.currentVideoSubject.next(projectionOnly);
-    this.playbackFeedback?.markError('Este vídeo não está mais disponível.');
+    this.playbackFeedback?.markRevoked('Este vídeo não está mais disponível.');
     this.changeDetector.markForCheck();
   }
 
@@ -1521,7 +1521,9 @@ export class PublicVideoViewerComponent {
         this.automaticRefreshKeys.delete(refreshKey);
       }
     }
-    this.playbackFeedback?.markLoading('Restabelecendo acesso ao vídeo...');
+    this.playbackFeedback?.beginAuthorization(
+      'Restabelecendo acesso ao vídeo...'
+    );
 
     // Defer rehydration so a same-turn restriction can revoke it before
     // issuing a request. Repeated true emissions cannot trigger another one.
@@ -1567,6 +1569,11 @@ export class PublicVideoViewerComponent {
     this.currentVideoSubject.next(projectionOnly);
     this.changeDetector.markForCheck();
 
+    if (viewerUid) {
+      this.playbackFeedback?.beginAuthorization('Preparando vídeo...');
+    } else {
+      this.playbackFeedback?.markRevoked('Entre novamente para assistir.');
+    }
     if (viewerUid) {
       const revision = this.accessRevision;
       queueMicrotask(() => {

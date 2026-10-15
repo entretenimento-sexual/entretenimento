@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
+import { By } from '@angular/platform-browser';
 import { BehaviorSubject, Observable, Subject, of } from 'rxjs';
 import {
   afterEach,
@@ -26,6 +27,7 @@ import {
   IPublicVideoViewerData,
   PublicVideoViewerComponent,
 } from './public-video-viewer.component';
+import { PublicVideoPlaybackFeedbackDirective } from './public-video-playback-feedback.directive';
 
 const NOW = 1_800_000_000_000;
 
@@ -241,6 +243,106 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
       viewer$,
     };
   }
+
+  function feedbackDirective(): PublicVideoPlaybackFeedbackDirective {
+    return fixture!.debugElement
+      .query(By.directive(PublicVideoPlaybackFeedbackDirective))
+      .injector.get(PublicVideoPlaybackFeedbackDirective);
+  }
+
+  function feedbackText(): string {
+    return (fixture!.nativeElement.querySelector(
+      'app-public-video-playback-feedback'
+    ) as HTMLElement | null)?.textContent?.trim() ?? '';
+  }
+
+  it('preserva indisponibilidade diante de eventos antigos e reconexão', async () => {
+    const availability = new Subject<boolean>();
+    const preview = createVideo('video-1', null);
+    const context = await createFixture({
+      items: [preview],
+      hydrate: () => of([playbackVersion(preview)]),
+      watchExposure: () => availability.asObservable(),
+    });
+    const feedback = feedbackDirective();
+    availability.next(false);
+    fixture!.detectChanges();
+
+    expect(feedbackText()).toContain('Vídeo indisponível');
+    expect(feedbackText()).toContain('Este vídeo não está mais disponível.');
+    expect(fixture!.nativeElement.querySelector(
+      'app-public-video-playback-feedback button'
+    )).toBeNull();
+    feedback.onLoadStart();
+    feedback.onWaiting();
+    feedback.onReady();
+    feedback.onError();
+    feedback.onWindowOffline();
+    feedback.onWindowOnline();
+    fixture!.detectChanges();
+
+    expect(feedbackText()).toContain('Este vídeo não está mais disponível.');
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
+    expect(context.component.current?.url).toBeNull();
+  });
+
+  it('só limpa feedback de revogação após autorização renovada', async () => {
+    const availability = new Subject<boolean>();
+    const preview = createVideo('video-1', null);
+    const renewed = new Subject<IPublicVideoItem[]>();
+    let request = 0;
+    const context = await createFixture({
+      items: [preview],
+      hydrate: () => request++ === 0
+        ? of([playbackVersion(preview)])
+        : renewed.asObservable(),
+      watchExposure: () => availability.asObservable(),
+    });
+    availability.next(false);
+    fixture!.detectChanges();
+    expect(feedbackText()).toContain('Vídeo indisponível');
+
+    availability.next(true);
+    await flushMicrotasks();
+    fixture!.detectChanges();
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(2);
+    expect(context.component.current?.url).toBeNull();
+    expect(feedbackText()).toContain('Preparando vídeo...');
+
+    renewed.next([{
+      ...playbackVersion(preview),
+      url: 'https://example.test/video-1.mp4?token=authorized-again',
+    }]);
+    renewed.complete();
+    await flushMicrotasks();
+    fixture!.detectChanges();
+    feedbackDirective().onReady();
+    fixture!.detectChanges();
+    expect(feedbackText()).not.toContain('Vídeo indisponível');
+    expect(context.component.current?.url).toContain('authorized-again');
+  });
+
+  it('reinicializa feedback ao navegar para outro vídeo após revogação', async () => {
+    const a = createVideo('video-1', null);
+    const b = createVideo('video-2', null);
+    const denied = new Subject<boolean>();
+    const context = await createFixture({
+      items: [a, b],
+      hydrate: (items) => of(items.map(playbackVersion)),
+      watchExposure: (_, id) => id === 'video-1'
+        ? denied.asObservable() : of(true),
+    });
+    denied.next(false);
+    fixture!.detectChanges();
+    expect(feedbackText()).toContain('Vídeo indisponível');
+
+    context.component.next();
+    await flushMicrotasks();
+    fixture!.detectChanges();
+    expect(context.component.current?.id).toBe('video-2');
+    expect(context.component.current?.url).toBe(playbackVersion(b).url);
+    expect(feedbackText()).not.toContain('Vídeo indisponível');
+  });
 
   it('promove somente o preview ativo para playback ao abrir o viewer', async () => {
     const preview = createVideo('video-1', null);
