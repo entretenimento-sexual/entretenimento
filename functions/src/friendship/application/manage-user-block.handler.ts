@@ -165,7 +165,7 @@ async function removeSocialNotificationsBetweenUsers(
   return deleted;
 }
 
-async function manageUserBlock(input: {
+export async function manageUserBlock(input: {
   actorUid: string;
   targetUid: string;
   action: UserBlockAction;

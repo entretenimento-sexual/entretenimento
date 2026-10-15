@@ -40,6 +40,18 @@ export const reconcilePublicMediaAccess = onCall<{ ownerUid?: unknown }>(
       message: 'Muitas solicitações. Tente novamente mais tarde.',
     });
 
+    await reconcilePublicMediaAccessPair(viewerUid, ownerUid);
+
+    // No direction, reason, blocker UID or availability in the response.
+    return { reconciled: true };
+  }
+);
+
+/** Internal transaction also exercised by isolated Firestore Emulator tests. */
+export async function reconcilePublicMediaAccessPair(
+  viewerUid: string,
+  ownerUid: string
+): Promise<void> {
     const viewerRef = db.doc(`users/${viewerUid}`);
     const ownerRef = db.doc(`users/${ownerUid}`);
     const outgoingRef = viewerRef.collection('blocks').doc(ownerUid);
@@ -83,7 +95,4 @@ export const reconcilePublicMediaAccess = onCall<{ ownerUid?: unknown }>(
       tx.set(viewerProjectionRef, projection);
     });
 
-    // No direction, reason, blocker UID or availability in the response.
-    return { reconciled: true };
-  }
-);
+}
