@@ -6,6 +6,7 @@ import { db } from '../../firebaseApp';
 import { ADULT_CONSENT_VERSION, TERMS_ACCEPTANCE_VERSION } from
   '../../compliance/platform-legal.constants';
 import { manageUserBlock } from './manage-user-block.handler';
+import { FirestoreAccountRelationshipEdgeRetentionAdapter } from '../../account_lifecycle/account-relationship-edge-retention.firestore';
 import { reconcilePublicMediaAccessPair } from
   './reconcile-public-media-access.handler';
 
@@ -56,6 +57,8 @@ test('block revokes both views atomically without any friendship edge', async ()
   assert.equal(left.get('available'), false);
   assert.equal(right.get('available'), false);
   assert.equal(left.get('version'), 1);
+  assert.equal(left.get('ownerUid'), b);
+  assert.equal(right.get('ownerUid'), a);
   for (const field of ['actorUid','direction','reason','blockedByUid']) {
     assert.equal(left.get(field), undefined);
     assert.equal(right.get(field), undefined);
@@ -111,4 +114,40 @@ test('missing owner never manufactures an authorizing projection', async () => {
   await db.doc(`users/${b}`).delete();
   await reconcilePublicMediaAccessPair(a,b);
   assert.equal((await media(a,b).get()).exists,false);
+});
+
+test('block archival preserves safety audit and revokes both derived views', async () => {
+  const { a, b, media, block } = pair();
+  await seedUsers(a,b);
+  await manageUserBlock({actorUid:a,targetUid:b,action:'block'});
+  const adapter = new FirestoreAccountRelationshipEdgeRetentionAdapter();
+  const result = await adapter.archiveOwnedBlockReferencePage(a,100);
+  assert.equal(result.statesArchived,1);
+  assert.equal((await block(a,b).get()).exists,false);
+  assert.equal((await media(a,b).get()).exists,false);
+  assert.equal((await media(b,a).get()).exists,false);
+  const audit = await db.collection('block_security_audit')
+    .where('deletedUserRole','==','owner').get();
+  assert.ok(audit.docs.some(doc => doc.get('recordType')==='block_state_snapshot'));
+});
+
+test('retention removes passive references to deleted author without block edge', async () => {
+  const {a,b,media} = pair();
+  await seedUsers(a,b);
+  await reconcilePublicMediaAccessPair(a,b);
+  assert.equal((await media(a,b).get()).get('available'),true);
+  const adapter = new FirestoreAccountRelationshipEdgeRetentionAdapter();
+  assert.equal(await adapter.deleteInboundMediaAccessPage(b,100),1);
+  assert.equal((await media(a,b).get()).exists,false);
+  assert.equal(await adapter.deleteInboundMediaAccessPage(b,100),0);
+});
+
+test('retention drains owned projections and leaves unrelated users intact', async () => {
+  const {a,b,media}=pair();
+  await seedUsers(a,b);
+  await reconcilePublicMediaAccessPair(a,b);
+  const adapter=new FirestoreAccountRelationshipEdgeRetentionAdapter();
+  assert.equal(await adapter.deleteOwnedMediaAccessPage(a,100),1);
+  assert.equal((await media(a,b).get()).exists,false);
+  assert.equal(await adapter.deleteOwnedMediaAccessPage(a,100),0);
 });

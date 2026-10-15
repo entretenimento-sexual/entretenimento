@@ -42,6 +42,23 @@ const MAX_BATCH_WRITES = 400;
 export class FirestoreAccountRelationshipEdgeRetentionAdapter
 implements AccountRelationshipEdgeRetentionAdapter
 {
+  async deleteOwnedMediaAccessPage(uid: string, limit: number): Promise<number> {
+    const safeUid = requireUid(uid);
+    const snapshots = await db
+      .collection('public_media_access').doc(safeUid)
+      .collection('owners').limit(normalizeLimit(limit)).get();
+    await deleteMediaProjectionDocuments(snapshots.docs);
+    return snapshots.size;
+  }
+
+  async deleteInboundMediaAccessPage(uid: string, limit: number): Promise<number> {
+    const safeUid = requireUid(uid);
+    const snapshots = await db.collectionGroup('owners')
+      .where('ownerUid', '==', safeUid)
+      .limit(normalizeLimit(limit)).get();
+    await deleteMediaProjectionDocuments(snapshots.docs);
+    return snapshots.size;
+  }
   async archiveOwnedBlockReferencePage(
     uid: string,
     eventLimit: number
@@ -96,6 +113,18 @@ implements AccountRelationshipEdgeRetentionAdapter
       .get()).empty;
 
     return { ...result, remaining };
+  }
+}
+
+async function deleteMediaProjectionDocuments(
+  docs: readonly FirebaseFirestore.QueryDocumentSnapshot[]
+): Promise<void> {
+  for (let offset = 0; offset < docs.length; offset += MAX_BATCH_WRITES) {
+    const batch = db.batch();
+    for (const snapshot of docs.slice(offset, offset + MAX_BATCH_WRITES)) {
+      batch.delete(snapshot.ref);
+    }
+    await batch.commit();
   }
 }
 
@@ -201,6 +230,14 @@ async function archiveStateDocument(
       { merge: true }
     );
     transaction.delete(blockRef);
+    // Revoke both cached UI projections atomically with archival. Historic
+    // block-state evidence survives solely in block_security_audit.
+    transaction.delete(db.doc(
+      `public_media_access/${path.ownerUid}/owners/${path.targetUid}`
+    ));
+    transaction.delete(db.doc(
+      `public_media_access/${path.targetUid}/owners/${path.ownerUid}`
+    ));
     return 1;
   });
 }

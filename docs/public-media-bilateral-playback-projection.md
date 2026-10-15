@@ -25,3 +25,15 @@ revogação da UI**, não uma concessão de acesso ou política de maioridade.
 - Em release, Functions e regras correspondentes precisam ser disponibilizadas
   junto com o frontend; clientes antigos não devem ser utilizados como
   evidência de funcionamento desta observação. Nenhum deploy é feito aqui.
+
+## Expurgo da projeção
+- `ownerUid` é armazenado em cada projeção para permitir exclusão paginada
+  de referências passivas ao autor; o campo replica o UID presente no caminho.
+- A retenção de vínculos arquiva bloqueios e eventos em `block_security_audit`
+  antes de apagar os estados operacionais. A remoção de cada bloqueio elimina
+  atomicamente as projeções correspondentes.
+- O expurgo de `relationship_edges` remove também projeções pertencentes à
+  conta e referências inbound via índice de collection group `owners.ownerUid`.
+  Se houver paginação incompleta, a finalização é bloqueada para novo retry.
+- A checagem de bloqueios na emissão de URLs continua usando estados canônicos,
+  jamais essas projeções derivadas.

@@ -20,6 +20,9 @@ implements AccountRelationshipEdgeRetentionAdapter
   owned: BlockReferencePageSummary[] = [{ ...EMPTY_PAGE }];
   inbound: BlockReferencePageSummary[] = [{ ...EMPTY_PAGE }];
   error: unknown = null;
+  ownedMedia: number[] = [0];
+  inboundMedia: number[] = [0];
+  mediaCalls = 0;
 
   async archiveOwnedBlockReferencePage(): Promise<BlockReferencePageSummary> {
     if (this.error) throw this.error;
@@ -28,6 +31,14 @@ implements AccountRelationshipEdgeRetentionAdapter
 
   async archiveInboundBlockReferencePage(): Promise<BlockReferencePageSummary> {
     return this.inbound.shift() ?? { ...EMPTY_PAGE };
+  }
+  async deleteOwnedMediaAccessPage(): Promise<number> {
+    this.mediaCalls += 1;
+    return this.ownedMedia.shift() ?? 0;
+  }
+  async deleteInboundMediaAccessPage(): Promise<number> {
+    this.mediaCalls += 1;
+    return this.inboundMedia.shift() ?? 0;
   }
 }
 
@@ -63,6 +74,8 @@ test('relationship retention archives events and states in both directions', asy
     ownedBlockStatesArchived: 1,
     inboundBlockEventsArchived: 1,
     inboundBlockStatesArchived: 1,
+    ownedMediaAccessDeleted: 0,
+    inboundMediaAccessDeleted: 0,
   });
 });
 
@@ -148,4 +161,29 @@ test('invalid uid fails before block references are read', async () => {
   assert.equal(result.status, 'failed');
   assert.deepEqual(adapter.owned, [{ ...EMPTY_PAGE }]);
   assert.deepEqual(adapter.inbound, [{ ...EMPTY_PAGE }]);
+});
+
+
+test('deletion drains passive media projections in both directions', async () => {
+  const adapter = new FakeRelationshipEdgeAdapter();
+  adapter.ownedMedia = [2, 1];
+  adapter.inboundMedia = [2, 0];
+  const result = await executeRelationshipEdgeRetentionDomain(adapter, {
+    uid: 'deleted-owner', pageSize: 2, maxPagesPerDirection: 3,
+  });
+  assert.equal(result.status, 'completed');
+  assert.equal(result.processed, 5);
+  assert.equal(result.details?.['ownedMediaAccessDeleted'], 3);
+  assert.equal(result.details?.['inboundMediaAccessDeleted'], 2);
+});
+
+test('retention cannot finalize while media projection pages remain', async () => {
+  const adapter = new FakeRelationshipEdgeAdapter();
+  adapter.inboundMedia = [2, 2];
+  const result = await executeRelationshipEdgeRetentionDomain(adapter, {
+    uid: 'deleted-owner', pageSize: 2, maxPagesPerDirection: 2,
+  });
+  assert.equal(result.status, 'partial');
+  assert.equal(result.blocker, 'public-media-projection-pagination-limit-reached');
+  assert.equal(result.details?.['inboundMediaAccessDeleted'], 4);
 });

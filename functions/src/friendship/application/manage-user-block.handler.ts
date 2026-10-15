@@ -234,9 +234,11 @@ export async function manageUserBlock(input: {
       transition.nextIsBlocked, reverseBlockSnapshot.data()?.isBlocked
     );
     const mediaProjectionMatches = (
-      snapshot: FirebaseFirestore.DocumentSnapshot
+      snapshot: FirebaseFirestore.DocumentSnapshot,
+      expectedOwnerUid: string
     ) => snapshot.data()?.available === mediaAvailable &&
-      snapshot.data()?.version === 1;
+      snapshot.data()?.version === 1 &&
+      snapshot.data()?.ownerUid === expectedOwnerUid;
 
     if (!transition.changed) {
       // Compatibilidade com bloqueios anteriores à projeção: uma repetição
@@ -258,16 +260,19 @@ export async function manageUserBlock(input: {
         transaction.set(targetAccessRef, projection);
       }
       if (
-        !mediaProjectionMatches(actorMediaSnapshot) ||
-        !mediaProjectionMatches(targetMediaSnapshot)
+        !mediaProjectionMatches(actorMediaSnapshot, input.targetUid) ||
+        !mediaProjectionMatches(targetMediaSnapshot, input.actorUid)
       ) {
         const projection = {
           available: mediaAvailable,
+          ownerUid: input.targetUid,
           version: 1,
           updatedAt: FieldValue.serverTimestamp(),
         };
         transaction.set(actorMediaRef, projection);
-        transaction.set(targetMediaRef, projection);
+        transaction.set(targetMediaRef, {
+          ...projection, ownerUid: input.actorUid,
+        });
       }
       response = {
         actorUid: input.actorUid,
@@ -324,13 +329,18 @@ export async function manageUserBlock(input: {
 
     // Private mirror for active media viewers. Authoritative block writes and
     // both viewer-facing projections commit atomically in this transaction.
-    const mediaProjection = {
+    transaction.set(actorMediaRef, {
       available: mediaAvailable,
+      ownerUid: input.targetUid,
       version: 1,
       updatedAt: now,
-    };
-    transaction.set(actorMediaRef, mediaProjection);
-    transaction.set(targetMediaRef, mediaProjection);
+    });
+    transaction.set(targetMediaRef, {
+      available: mediaAvailable,
+      ownerUid: input.actorUid,
+      version: 1,
+      updatedAt: now,
+    });
 
     transaction.create(eventRef, {
       type: input.action,

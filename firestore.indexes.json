@@ -1848,6 +1848,16 @@
       ]
     },
     {
+      "collectionGroup": "owners",
+      "fieldPath": "ownerUid",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
       "collectionGroup": "participants",
       "fieldPath": "uid",
       "indexes": [

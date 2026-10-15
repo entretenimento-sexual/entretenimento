@@ -87,6 +87,7 @@ export async function reconcilePublicMediaAccessPair(
 
       const projection = {
         available,
+        ownerUid,
         version: 1,
         updatedAt: FieldValue.serverTimestamp(),
       };

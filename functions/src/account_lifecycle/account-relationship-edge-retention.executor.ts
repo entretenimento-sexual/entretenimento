@@ -23,6 +23,8 @@ export interface AccountRelationshipEdgeRetentionAdapter {
     uid: string,
     eventLimit: number
   ): Promise<BlockReferencePageSummary>;
+  deleteOwnedMediaAccessPage(uid: string, limit: number): Promise<number>;
+  deleteInboundMediaAccessPage(uid: string, limit: number): Promise<number>;
 }
 
 export interface ExecuteRelationshipEdgeRetentionInput {
@@ -75,19 +77,40 @@ export async function executeRelationshipEdgeRetentionDomain(
       () => adapter.archiveInboundBlockReferencePage(uid, eventPageSize),
       maxPages
     );
-    const completed = owned.completed && inbound.completed;
+    // Private bilateral projections are disposable; unlike canonical block
+    // events, no evidence retention is required. Drain both perspectives,
+    // including passive legacy viewer projections with no block documents.
+    const ownedMedia = await executeMediaProjectionPages(
+      () => adapter.deleteOwnedMediaAccessPage(uid, eventPageSize),
+      eventPageSize, maxPages
+    );
+    const inboundMedia = await executeMediaProjectionPages(
+      () => adapter.deleteInboundMediaAccessPage(uid, eventPageSize),
+      eventPageSize, maxPages
+    );
+    const completed = owned.completed && inbound.completed &&
+      ownedMedia.completed && inboundMedia.completed;
+    const blocksIncomplete = !owned.completed || !inbound.completed;
 
     return {
       domain: 'relationship_edges',
       status: completed ? 'completed' : 'partial',
-      processed: owned.processed + inbound.processed,
-      pages: owned.pages + inbound.pages,
-      ...(completed ? {} : { blocker: 'block-retention-pagination-limit-reached' }),
+      processed: owned.processed + inbound.processed +
+        ownedMedia.processed + inboundMedia.processed,
+      pages: owned.pages + inbound.pages +
+        ownedMedia.pages + inboundMedia.pages,
+      ...(completed ? {} : {
+        blocker: blocksIncomplete
+          ? 'block-retention-pagination-limit-reached'
+          : 'public-media-projection-pagination-limit-reached',
+      }),
       details: {
         ownedBlockEventsArchived: owned.eventsArchived,
         ownedBlockStatesArchived: owned.statesArchived,
         inboundBlockEventsArchived: inbound.eventsArchived,
         inboundBlockStatesArchived: inbound.statesArchived,
+        ownedMediaAccessDeleted: ownedMedia.processed,
+        inboundMediaAccessDeleted: inboundMedia.processed,
       },
     };
   } catch (error: unknown) {
@@ -127,6 +150,21 @@ async function executeDirection(
     statesArchived,
     pages: maxPages,
   };
+}
+
+async function executeMediaProjectionPages(
+  operation: () => Promise<number>,
+  pageSize: number,
+  maxPages: number
+): Promise<{ completed: boolean; processed: number; pages: number }> {
+  let processed = 0;
+  for (let page = 1; page <= maxPages; page += 1) {
+    const count = normalizeCount(await operation());
+    if (count > pageSize) throw new Error('invalid-media-projection-page-size');
+    processed += count;
+    if (count < pageSize) return { completed: true, processed, pages: page };
+  }
+  return { completed: false, processed, pages: maxPages };
 }
 
 function normalizeSummary(
