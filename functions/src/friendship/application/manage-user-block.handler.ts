@@ -216,7 +216,12 @@ export async function manageUserBlock(input: {
     const actor = actorSnapshot.data() as FriendshipUserDoc | undefined;
     assertActorCanManageBlocks(actor);
 
-    if (!targetSnapshot.exists) {
+    const target = targetSnapshot.data() as FriendshipUserDoc | undefined;
+    // Inactive/deleting targets must not acquire fresh block events or UI
+    // projections after the account purge has already drained them.
+    // This document read serializes against the lifecycle transition.
+    if (!targetSnapshot.exists || !target ||
+        String(target.accountStatus ?? '').trim().toLowerCase() !== 'active') {
       throw new HttpsError('not-found', 'Perfil de destino não encontrado.');
     }
 

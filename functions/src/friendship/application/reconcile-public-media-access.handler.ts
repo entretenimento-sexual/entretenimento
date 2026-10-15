@@ -88,7 +88,8 @@ export async function reconcilePublicMediaAccessPair(
     );
     if (
       viewerProjection.data()?.version === 1 &&
-      viewerProjection.data()?.available === available
+      viewerProjection.data()?.available === available &&
+      viewerProjection.data()?.ownerUid === ownerUid
     ) {
       return;
     }

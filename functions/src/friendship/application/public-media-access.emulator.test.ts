@@ -214,3 +214,32 @@ test('cleanup and reconciliation cannot rematerialize projection during deletion
   await reconcilePublicMediaAccessPair(a, b);
   assert.equal((await media(a, b).get()).exists, false);
 });
+
+test('block and unblock cannot recreate derived access for deleting target', async () => {
+  for (const accountStatus of ['pending_deletion', 'deleted']) {
+    const { a, b, media, block } = pair();
+    await seedUsers(a, b);
+    await db.doc(`users/${b}`).update({
+      accountStatus, interactionBlocked: true, loginAllowed: false,
+    });
+    await assert.rejects(
+      manageUserBlock({ actorUid: a, targetUid: b, action: 'block' }),
+      /Perfil de destino não encontrado/
+    );
+    assert.equal((await block(a, b).get()).exists, false);
+    assert.equal((await media(a, b).get()).exists, false);
+    assert.equal((await media(b, a).get()).exists, false);
+  }
+});
+
+test('reconciler repairs legacy projection missing ownerUid for deletion indexing', async () => {
+  const { a, b, media } = pair();
+  await seedUsers(a, b);
+  await media(a, b).set({ available: true, version: 1 });
+  await reconcilePublicMediaAccessPair(a, b);
+  assert.equal((await media(a, b).get()).get('ownerUid'), b);
+  assert.equal((await media(b, a).get()).exists, false);
+  const adapter = new FirestoreAccountRelationshipEdgeRetentionAdapter();
+  assert.equal(await adapter.deleteInboundMediaAccessPage(b, 100), 1);
+  assert.equal((await media(a, b).get()).exists, false);
+});

@@ -46,3 +46,10 @@ revogação da UI**, não uma concessão de acesso ou política de maioridade.
   escreve a projeção. A transição de lifecycle concorrente provoca retry
   transacional e impede que uma leitura antiga de `active` recrie registros
   após a limpeza paginada.
+
+- Os comandos `blockUser` e `unblockUser` recusam destinos cujo lifecycle
+  deixou de estar ativo, impedindo que novas projeções e eventos sejam
+  materializados depois da limpeza. A mesma transação lê o documento do
+  destino, garantindo conflito/retry quando o expurgo muda seu estado.
+- Projeções antigas que não tinham `ownerUid` são reparadas na reconciliação
+  de um par ativo, permitindo localizá-las na exclusão paginada.
