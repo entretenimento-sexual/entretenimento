@@ -56,6 +56,10 @@ import {
 } from 'src/app/core/services/media/media-video-ratings.service';
 import { PublicVideoAccessService } from 'src/app/core/services/media/public-video-access.service';
 import { PublicVideoPlaybackExposureService } from 'src/app/core/services/media/public-video-playback-exposure.service';
+import {
+  canRetryExpiringPublicVideoAccess,
+  classifyPublicVideoPlaybackFailure,
+} from './public-video-playback-failure.policy';
 import { PublicVideoContinuationService } from 'src/app/core/services/media/public-video-continuation.service';
 import {
   TVideoViewSource,
@@ -158,6 +162,7 @@ export class PublicVideoViewerComponent {
   private accessRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   private refreshingAccess = false;
   private accessRevision = 0;
+  private expiryRefreshRetryCount = 0;
   private pendingPlaybackResume: PendingPlaybackResume | null = null;
   private swipeNavigationGesture: PublicMediaViewerSwipeGesture | null = null;
   private continuationExhausted = false;
@@ -479,7 +484,28 @@ export class PublicVideoViewerComponent {
 
   @HostListener('publicVideoAccessError')
   onPublicVideoAccessError(): void {
-    this.refreshCurrentVideoAccess('automatic');
+    const video = this.current;
+    if (!video || this.revokedVideoKeys.has(this.videoKey(video))) return;
+
+    const failure = classifyPublicVideoPlaybackFailure({
+      offline: this.isNetworkOffline(),
+      expiresAt: video.accessExpiresAt,
+      now: Date.now(),
+      mediaErrorCode: this.videoPlayer?.nativeElement.error?.code,
+    });
+    if (failure === 'offline') {
+      this.playbackFeedback?.markError(
+        'Sem conexão. Reconecte-se e tente novamente.'
+      );
+    } else if (failure === 'expired') {
+      this.refreshCurrentVideoAccess('expiry');
+    } else if (failure === 'network') {
+      this.refreshCurrentVideoAccess('automatic');
+    } else {
+      this.playbackFeedback?.markError(
+        'Não foi possível reproduzir este arquivo. Tente novamente.'
+      );
+    }
   }
 
   @HostListener('publicVideoRetry')
@@ -907,6 +933,7 @@ export class PublicVideoViewerComponent {
     this.refreshingAccess = false;
     this.pendingContinuationAdvanceKey = null;
     this.observedAvailableVideoKey = null;
+    this.expiryRefreshRetryCount = 0;
     this.index = nextIndex;
     this.commentsExpanded.set(false);
     this.ratingsExpanded.set(false);
@@ -1194,6 +1221,7 @@ export class PublicVideoViewerComponent {
             return;
           }
 
+          this.expiryRefreshRetryCount = 0;
           this.items[targetIndex] = hydrated;
           this.currentVideoSubject.next(hydrated);
           this.changeDetector.markForCheck();
@@ -1218,6 +1246,13 @@ export class PublicVideoViewerComponent {
 
     if (this.destroyRef.destroyed || !this.viewerLifecycleActive ||
         !video || this.revokedVideoKeys.has(this.videoKey(video))) {
+      return;
+    }
+
+    if (this.isNetworkOffline()) {
+      this.playbackFeedback?.markError(
+        'Sem conexão. Reconecte-se e tente novamente.'
+      );
       return;
     }
 
@@ -1282,6 +1317,7 @@ export class PublicVideoViewerComponent {
             return;
           }
 
+          this.expiryRefreshRetryCount = 0;
           this.items[targetIndex] = refreshed;
           this.currentVideoSubject.next(refreshed);
           this.changeDetector.markForCheck();
@@ -1301,24 +1337,59 @@ export class PublicVideoViewerComponent {
       });
   }
 
+  private isNetworkOffline(): boolean {
+    return typeof navigator !== 'undefined' && navigator.onLine === false;
+  }
+
   private handleAccessRefreshFailure(reason: TAccessRefreshReason): void {
     if (reason === 'expiry') {
-      this.playbackFeedback?.markReady();
-      this.errorNotification.showWarning(
-        'Não foi possível prolongar o acesso agora. Uma nova tentativa será feita.'
+      const video = this.current;
+      if (canRetryExpiringPublicVideoAccess({
+        offline: this.isNetworkOffline(),
+        expiresAt: video?.accessExpiresAt,
+        now: Date.now(),
+        retriesUsed: this.expiryRefreshRetryCount,
+        retryDelayMs: ACCESS_REFRESH_RETRY_MS,
+      })) {
+        this.expiryRefreshRetryCount += 1;
+        this.playbackFeedback?.markRefreshing(
+          'Não foi possível renovar. Tentando mais uma vez...'
+        );
+        this.errorNotification.showWarning(
+          'A renovação falhou. Uma última tentativa será realizada.'
+        );
+        const revision = this.accessRevision;
+        this.accessRefreshTimer = setTimeout(() => {
+          if (!this.destroyRef.destroyed && this.accessRevision === revision) {
+            this.refreshCurrentVideoAccess('expiry');
+          }
+        }, ACCESS_REFRESH_RETRY_MS);
+        return;
+      }
+
+      // Never display ready or keep a stale signed URL after failed renewal.
+      if (video) {
+        this.releaseCurrentPlayerSource();
+        this.publicVideoAccess.invalidatePublicVideoAccess(video);
+        const previewOnly: IPublicVideoItem = {
+          ...video, url: null, accessExpiresAt: 0,
+        };
+        this.items[this.index] = previewOnly;
+        this.currentVideoSubject.next(previewOnly);
+        this.changeDetector.markForCheck();
+      }
+      this.pendingPlaybackResume = null;
+      this.playbackFeedback?.markError(
+        'A autorização do vídeo expirou. Tente novamente.'
       );
-      const revision = this.accessRevision;
-      this.accessRefreshTimer = setTimeout(() => {
-        if (this.accessRevision === revision) {
-          this.refreshCurrentVideoAccess('expiry');
-        }
-      }, ACCESS_REFRESH_RETRY_MS);
       return;
     }
 
     this.pendingPlaybackResume = null;
     this.playbackFeedback?.markError(
-      'O acesso ao vídeo não pôde ser atualizado. Verifique sua conexão.'
+      this.isNetworkOffline()
+        ? 'Sem conexão. Reconecte-se e tente novamente.'
+        : 'O acesso ao vídeo não pôde ser atualizado. Tente novamente.'
     );
     this.mediaError.reportReason(
       'video_playback_access_failed',
@@ -1491,6 +1562,7 @@ export class PublicVideoViewerComponent {
     this.clearAccessRefreshTimer();
     this.accessRevision += 1;
     this.refreshingAccess = false;
+    this.expiryRefreshRetryCount = 0;
     this.pendingPlaybackResume = null;
     this.publicVideoAccess.invalidatePublicVideoAccess(current);
 
@@ -1549,6 +1621,7 @@ export class PublicVideoViewerComponent {
     this.clearAccessRefreshTimer();
     this.accessRevision += 1;
     this.refreshingAccess = false;
+    this.expiryRefreshRetryCount = 0;
     this.pendingPlaybackResume = null;
     this.automaticRefreshKeys.clear();
     this.recordedViewKeys.clear();

@@ -121,10 +121,12 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
       items: readonly IPublicVideoItem[]
     ) => Observable<IPublicVideoItem[]>;
     watchExposure?: (ownerUid: string, videoId: string, viewerUid: string) => Observable<boolean>;
+    refresh?: (video: IPublicVideoItem) => Observable<IPublicVideoItem | null>;
   }): Promise<{
     component: PublicVideoViewerComponent;
     hydratePublicVideoUrls$: ReturnType<typeof vi.fn>;
     invalidatePublicVideoAccess: ReturnType<typeof vi.fn>;
+    refreshPublicVideoUrl$: ReturnType<typeof vi.fn>;
     reportPlaybackError: ReturnType<typeof vi.fn>;
     viewer$: BehaviorSubject<{
       uid: string;
@@ -133,6 +135,8 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
   }> {
     const hydratePublicVideoUrls$ = vi.fn(input.hydrate);
     const invalidatePublicVideoAccess = vi.fn();
+    const refreshPublicVideoUrl$ = vi.fn(input.refresh ??
+      ((video: IPublicVideoItem) => of(playbackVersion(video))));
     const reportPlaybackError = vi.fn();
     const viewer$ = new BehaviorSubject<{
       uid: string;
@@ -165,9 +169,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
           provide: PublicVideoAccessService,
           useValue: {
             hydratePublicVideoUrls$,
-            refreshPublicVideoUrl$: vi.fn((video: IPublicVideoItem) =>
-              of(playbackVersion(video))
-            ),
+            refreshPublicVideoUrl$,
             invalidatePublicVideoAccess,
           },
         },
@@ -239,6 +241,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
       component: fixture.componentInstance,
       hydratePublicVideoUrls$,
       invalidatePublicVideoAccess,
+      refreshPublicVideoUrl$,
       reportPlaybackError,
       viewer$,
     };
@@ -342,6 +345,44 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     expect(context.component.current?.id).toBe('video-2');
     expect(context.component.current?.url).toBe(playbackVersion(b).url);
     expect(feedbackText()).not.toContain('Vídeo indisponível');
+  });
+
+  it('falha de rede offline mostra feedback sem consultar backend', async () => {
+    const preview = createVideo('video-1', null);
+    const context = await createFixture({
+      items: [preview],
+      hydrate: () => of([playbackVersion(preview)]),
+    });
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+
+    context.component.onPublicVideoAccessError();
+    context.component.retryCurrentVideo();
+    fixture!.detectChanges();
+
+    expect(context.refreshPublicVideoUrl$).not.toHaveBeenCalled();
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
+    expect(feedbackText()).toContain('Sem conexão.');
+    expect(context.reportPlaybackError).not.toHaveBeenCalled();
+  });
+
+  it('erro de URL expirada remove credencial se renovação falhar', async () => {
+    const preview = createVideo('video-1', null);
+    const context = await createFixture({
+      items: [preview],
+      hydrate: () => of([playbackVersion(preview)]),
+      refresh: () => of(null),
+    });
+    const future = Date.now() + 400000;
+    vi.spyOn(Date, 'now').mockReturnValue(future);
+    context.component.onPublicVideoAccessError();
+    fixture!.detectChanges();
+
+    expect(context.refreshPublicVideoUrl$).toHaveBeenCalledTimes(1);
+    expect(context.component.current?.url).toBeNull();
+    expect(context.invalidatePublicVideoAccess).toHaveBeenCalled();
+    expect(feedbackText()).toContain('A autorização do vídeo expirou.');
+    expect(fixture!.nativeElement.querySelector('video').getAttribute('src'))
+      .toBeNull();
   });
 
   it('promove somente o preview ativo para playback ao abrir o viewer', async () => {
