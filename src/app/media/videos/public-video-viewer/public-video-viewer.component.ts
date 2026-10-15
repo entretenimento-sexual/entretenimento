@@ -60,6 +60,8 @@ import {
   canRetryExpiringPublicVideoAccess,
   classifyPublicVideoPlaybackFailure,
 } from './public-video-playback-failure.policy';
+import { classifyPublicVideoAccessRefreshFailure } from './public-video-access-refresh-failure.policy';
+import { MEDIA_ERROR_CODE_MESSAGES } from 'src/app/core/services/media/media-error.catalog';
 import { PublicVideoContinuationService } from 'src/app/core/services/media/public-video-continuation.service';
 import {
   TVideoViewSource,
@@ -1228,14 +1230,14 @@ export class PublicVideoViewerComponent {
           this.scheduleAccessRefresh();
           this.loadCurrentPlayer();
         },
-        error: () => {
+        error: (error: unknown) => {
           if (this.isCurrentAccessTarget(
             revision,
             targetIndex,
             ownerUid,
             videoId
           )) {
-            this.handleAccessRefreshFailure('manual');
+            this.handleAccessRefreshFailure('manual', error);
           }
         },
       });
@@ -1324,14 +1326,14 @@ export class PublicVideoViewerComponent {
           this.scheduleAccessRefresh();
           this.loadCurrentPlayer();
         },
-        error: () => {
+        error: (error: unknown) => {
           if (this.isCurrentAccessTarget(
             revision,
             targetIndex,
             ownerUid,
             videoId
           )) {
-            this.handleAccessRefreshFailure(reason);
+            this.handleAccessRefreshFailure(reason, error);
           }
         },
       });
@@ -1341,8 +1343,27 @@ export class PublicVideoViewerComponent {
     return typeof navigator !== 'undefined' && navigator.onLine === false;
   }
 
-  private handleAccessRefreshFailure(reason: TAccessRefreshReason): void {
-    if (reason === 'expiry') {
+  private handleAccessRefreshFailure(
+    reason: TAccessRefreshReason,
+    error?: unknown
+  ): void {
+    const failure = classifyPublicVideoAccessRefreshFailure(error);
+
+    if (failure === 'permission-denied' ||
+        failure === 'unauthenticated' ||
+        failure === 'not-found') {
+      // Backend negou novo acesso: não manter uma URL anteriormente emitida.
+      // A conta permanece governada pelo lifecycle canônico, não por Media.
+      this.observedAvailableVideoKey = null;
+      this.revokeCurrentVideoAccess(
+        MEDIA_ERROR_CODE_MESSAGES[failure] ?? 'Este vídeo não está disponível.'
+      );
+      return;
+    }
+
+    const mayRetryExpiry = failure === 'unavailable' ||
+      failure === 'deadline-exceeded' || failure === 'unknown';
+    if (reason === 'expiry' && mayRetryExpiry) {
       const video = this.current;
       if (canRetryExpiringPublicVideoAccess({
         offline: this.isNetworkOffline(),
@@ -1366,41 +1387,48 @@ export class PublicVideoViewerComponent {
         }, ACCESS_REFRESH_RETRY_MS);
         return;
       }
-
-      // Never display ready or keep a stale signed URL after failed renewal.
-      if (video) {
-        this.releaseCurrentPlayerSource();
-        this.publicVideoAccess.invalidatePublicVideoAccess(video);
-        const previewOnly: IPublicVideoItem = {
-          ...video, url: null, accessExpiresAt: 0,
-        };
-        this.items[this.index] = previewOnly;
-        this.currentVideoSubject.next(previewOnly);
-        this.changeDetector.markForCheck();
-      }
-      this.pendingPlaybackResume = null;
-      this.playbackFeedback?.markError(
-        'A autorização do vídeo expirou. Tente novamente.'
-      );
-      return;
     }
 
+    // Até em falhas temporárias, a credencial anterior não deve ser
+    // reutilizada depois de uma renovação rejeitada ou sem resultado.
+    this.discardCurrentPlaybackAccess();
     this.pendingPlaybackResume = null;
-    this.playbackFeedback?.markError(
-      this.isNetworkOffline()
-        ? 'Sem conexão. Reconecte-se e tente novamente.'
-        : 'O acesso ao vídeo não pôde ser atualizado. Tente novamente.'
-    );
-    this.mediaError.reportReason(
-      'video_playback_access_failed',
-      {
+    const message = this.isNetworkOffline()
+      ? 'Sem conexão. Reconecte-se e tente novamente.'
+      : failure !== 'unknown'
+        ? MEDIA_ERROR_CODE_MESSAGES[failure]
+        : reason === 'expiry'
+          ? 'A autorização do vídeo expirou. Tente novamente.'
+          : 'O acesso ao vídeo não pôde ser atualizado. Tente novamente.';
+    this.playbackFeedback?.markError(message);
+
+    // PublicVideoAccessService já relatou os erros de callable
+    // silenciosamente. Não emitir segundo diagnóstico do mesmo erro.
+    if (error == null && reason !== 'expiry') {
+      this.mediaError.reportReason('video_playback_access_failed', {
         operation: 'publicVideoViewer.refreshAccess',
         metadata: {
           scope: 'PublicVideoViewerComponent',
           reason,
         },
-      }
-    );
+      });
+    }
+  }
+
+  private discardCurrentPlaybackAccess(): void {
+    const video = this.current;
+    if (!video) return;
+    this.clearAccessRefreshTimer();
+    this.releaseCurrentPlayerSource();
+    this.publicVideoAccess.invalidatePublicVideoAccess(video);
+    const previewOnly: IPublicVideoItem = {
+      ...video, url: null, accessExpiresAt: 0,
+    };
+    this.items[this.index] = previewOnly;
+    this.currentVideoSubject.next(previewOnly);
+    this.accessRevision += 1;
+    this.refreshingAccess = false;
+    this.changeDetector.markForCheck();
   }
 
   private scheduleAccessRefresh(): void {
@@ -1549,7 +1577,9 @@ export class PublicVideoViewerComponent {
     return ownerUid && videoId ? `${ownerUid}:${videoId}` : '';
   }
 
-  private revokeCurrentVideoAccess(): void {
+  private revokeCurrentVideoAccess(
+    message = 'Este vídeo não está mais disponível.'
+  ): void {
     const current = this.current;
     const key = this.videoKey(current);
 
@@ -1571,7 +1601,7 @@ export class PublicVideoViewerComponent {
     };
     this.items[this.index] = projectionOnly;
     this.currentVideoSubject.next(projectionOnly);
-    this.playbackFeedback?.markRevoked('Este vídeo não está mais disponível.');
+    this.playbackFeedback?.markRevoked(message);
     this.changeDetector.markForCheck();
   }
 

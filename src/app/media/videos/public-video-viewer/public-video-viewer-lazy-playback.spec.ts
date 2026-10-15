@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
-import { BehaviorSubject, Observable, Subject, of } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, of, throwError } from 'rxjs';
 import {
   afterEach,
   beforeEach,
@@ -383,6 +383,69 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     expect(feedbackText()).toContain('A autorização do vídeo expirou.');
     expect(fixture!.nativeElement.querySelector('video').getAttribute('src'))
       .toBeNull();
+  });
+
+
+  it('nega playback, remove credencial e impede retry após permission-denied', async () => {
+    const preview = createVideo('video-1', null);
+    const context = await createFixture({
+      items: [preview],
+      hydrate: () => of([playbackVersion(preview)]),
+      refresh: () => throwError(() => ({ code: 'functions/permission-denied' })),
+    });
+    const previousUrl = context.component.current?.url;
+    expect(previousUrl).toContain('token=playback');
+
+    context.component.retryCurrentVideo();
+    fixture!.detectChanges();
+
+    expect(context.refreshPublicVideoUrl$).toHaveBeenCalledTimes(1);
+    expect(context.component.current?.url).toBeNull();
+    expect(context.invalidatePublicVideoAccess).toHaveBeenCalled();
+    expect(fixture!.nativeElement.querySelector('video').getAttribute('src')).toBeNull();
+    expect(feedbackText()).toContain('não tem permissão');
+    expect(fixture!.nativeElement.querySelector('app-public-video-playback-feedback button'))
+      .toBeNull();
+    context.component.retryCurrentVideo();
+    expect(context.refreshPublicVideoUrl$).toHaveBeenCalledTimes(1);
+  });
+
+  it('remove a URL após indisponibilidade, mas permite autorização manual posterior', async () => {
+    const preview = createVideo('video-1', null);
+    const context = await createFixture({
+      items: [preview],
+      hydrate: () => of([playbackVersion(preview)]),
+      refresh: () => throwError(() => ({ code: 'functions/unavailable' })),
+    });
+
+    context.component.retryCurrentVideo();
+    fixture!.detectChanges();
+    expect(context.component.current?.url).toBeNull();
+    expect(feedbackText()).toContain('temporariamente indisponível');
+    expect(fixture!.nativeElement.querySelector('video').getAttribute('src')).toBeNull();
+
+    context.component.retryCurrentVideo();
+    await flushMicrotasks();
+    fixture!.detectChanges();
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(2);
+    expect(context.component.current?.url).toContain('token=playback');
+  });
+
+  it('impede novas tentativas automáticas quando o backend limita chamadas', async () => {
+    const preview = createVideo('video-1', null);
+    const context = await createFixture({
+      items: [preview],
+      hydrate: () => of([playbackVersion(preview)]),
+      refresh: () => throwError(() => ({ code: 'functions/resource-exhausted' })),
+    });
+    const now = Date.now();
+    vi.spyOn(Date, 'now').mockReturnValue(now + 400_000);
+    context.component.onPublicVideoAccessError();
+    fixture!.detectChanges();
+
+    expect(context.refreshPublicVideoUrl$).toHaveBeenCalledTimes(1);
+    expect(context.component.current?.url).toBeNull();
+    expect(feedbackText()).toContain('Muitas ações de mídia');
   });
 
   it('promove somente o preview ativo para playback ao abrir o viewer', async () => {
