@@ -12,6 +12,11 @@ import { isCurrentVideoProcessingAttempt } from './video-processing-poll.policy'
 import { commitCopiedVideoPublicationIfCurrent } from './video-publication-commit.firestore';
 import { deleteUnreferencedPublishedVideoAsset } from './published-video-asset-cleanup.firestore';
 import {
+  resolvePublicVideoSignedAccessItem,
+  type PublicVideoSignedAccessRequest,
+} from './public-video-access-resolution.firestore';
+import { isBilateralBlockActive } from '../../friendship/application/bilateral-block-access.policy';
+import {
   executeVideoCancellation,
   type VideoCancellationPorts,
 } from './video-cancellation-execution';
@@ -254,6 +259,137 @@ test('unpublished asset cleanup succeeds and propagates storage failures', async
     /Storage unavailable/
   );
 });
+
+function publicPlaybackFixture() {
+  const ownerUid = 'demo-playback-owner';
+  const videoId = 'video-' + randomUUID();
+  const viewerUid = 'demo-playback-viewer';
+  const asset = `users/${ownerUid}/published/videos/${videoId}/assets/version-one`;
+  const poster = `users/${ownerUid}/published/videos/${videoId}/posters/version-one`;
+  const publicationRef = firestore.doc(
+    `users/${ownerUid}/video_publications/${videoId}`
+  );
+  const projectionRef = firestore.doc(
+    `public_profiles/${ownerUid}/public_videos/${videoId}`
+  );
+  const outboundBlockRef = firestore.doc(
+    `users/${viewerUid}/blocks/${ownerUid}`
+  );
+  const inboundBlockRef = firestore.doc(
+    `users/${ownerUid}/blocks/${viewerUid}`
+  );
+  const signed: string[] = [];
+  const request: PublicVideoSignedAccessRequest = {
+    ownerUid, videoId, nowMs: now,
+    technicalExpiresAt: now + 5 * 60_000,
+    requesterAccessExpiresAtMs: null,
+    ownerAccessExpiresAtMs: null,
+    ownerExposureAllowed: true,
+    mode: 'PLAYBACK',
+  };
+  const ports = {
+    fileExists: async (path: string) => path === asset || path === poster,
+    createReadUrl: async (path: string, expiresAt: number) => {
+      signed.push(path);
+      return `signed:${path}:${expiresAt}`;
+    },
+  };
+  async function setup() {
+    await Promise.all([
+      publicationRef.set({
+        isPublished: true, visibility: 'PUBLIC',
+        moderationStatus: 'APPROVED', publishedStoragePath: asset,
+        publishedPosterStoragePath: poster,
+      }),
+      projectionRef.set({
+        visibility: 'PUBLIC', moderationStatus: 'APPROVED',
+      }),
+    ]);
+  }
+  async function issue(
+    overrides: Partial<PublicVideoSignedAccessRequest> = {}
+  ) {
+    return resolvePublicVideoSignedAccessItem(
+      firestore, { ...request, ...overrides }, ports
+    );
+  }
+  return {
+    ownerUid, videoId, viewerUid, asset, poster, publicationRef,
+    projectionRef, outboundBlockRef, inboundBlockRef, request, ports,
+    signed, setup, issue,
+  };
+}
+
+test('fresh playback URLs stop after unpublish, moderation or audience restriction', async () => {
+  for (const [collection, patch] of [
+    ['publication', { isPublished: false }],
+    ['publication', { moderationStatus: 'HIDDEN' }],
+    ['publication', { moderationStatus: 'REJECTED' }],
+    ['publication', { moderationStatus: 'PENDING_REVIEW' }],
+    ['publication', { visibility: 'FRIENDS' }],
+    ['projection', { moderationStatus: 'FLAGGED' }],
+    ['projection', { visibility: 'FRIENDS' }],
+  ] as const) {
+    const fixture = publicPlaybackFixture();
+    await fixture.setup();
+    assert.ok((await fixture.issue())?.url);
+    const countBeforeRestriction = fixture.signed.length;
+    const target = collection === 'publication'
+      ? fixture.publicationRef
+      : fixture.projectionRef;
+    await target.set(patch, { merge: true });
+    assert.equal(await fixture.issue(), null);
+    assert.equal(fixture.signed.length, countBeforeRestriction);
+  }
+});
+
+test('public playback never signs for blocked or suspended owners', async () => {
+  for (const direction of ['outbound', 'inbound'] as const) {
+    const fixture = publicPlaybackFixture();
+    await fixture.setup();
+    const blockRef = direction === 'outbound'
+      ? fixture.outboundBlockRef
+      : fixture.inboundBlockRef;
+    await blockRef.set({ isBlocked: true });
+    const [outbound, inbound] = await Promise.all([
+      fixture.outboundBlockRef.get(), fixture.inboundBlockRef.get(),
+    ]);
+    const blocked = isBilateralBlockActive({
+      actorBlock: outbound.exists ? outbound.data() : null,
+      targetBlock: inbound.exists ? inbound.data() : null,
+    });
+    assert.equal(blocked, true);
+    assert.equal(await fixture.issue({
+      ownerExposureAllowed: !blocked,
+    }), null);
+    assert.equal(fixture.signed.length, 0);
+  }
+  const restricted = publicPlaybackFixture();
+  await restricted.setup();
+  assert.equal(await restricted.issue({ ownerExposureAllowed: false }), null);
+  assert.equal(restricted.signed.length, 0);
+});
+
+test('public signed URLs cap expiry and PREVIEW omits playback', async () => {
+  const fixture = publicPlaybackFixture();
+  await fixture.setup();
+  const capped = await fixture.issue({
+    requesterAccessExpiresAtMs: now + 60_000,
+    ownerAccessExpiresAtMs: now + 30_000,
+  });
+  assert.equal(capped?.expiresAt, now + 30_000);
+  assert.equal(fixture.signed.length, 2);
+  const preview = await fixture.issue({ mode: 'PREVIEW' });
+  assert.equal(preview?.url, null);
+  assert.ok(preview?.posterUrl);
+  assert.equal(fixture.signed.length, 3);
+  const expired = await fixture.issue({
+    requesterAccessExpiresAtMs: now - 1,
+  });
+  assert.equal(expired, null);
+  assert.equal(fixture.signed.length, 3);
+});
+
 test('due query selects earliest 20 and second batch after atomic claims', async () => {
   const prefix = 'due-' + randomUUID();
   const dueRefs = [];

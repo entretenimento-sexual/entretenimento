@@ -12,28 +12,21 @@ import {
 } from './public-media-callable-security';
 import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
 import {
-  isCurrentPublicMediaAssetExposure,
-} from './public-media-exposure.policy';
-import {
   resolvePublicMediaSignedOwnerExposure,
   type PublicMediaOwnerExposureContext,
 } from './public-media-owner-exposure.service';
 import {
   normalizePublicVideoAccessMode,
-  shouldIssuePublicVideoPlaybackAccess,
   type TPublicVideoAccessMode,
 } from './public-video-access-mode';
 import {
   consumePublicVideoAccessQuota,
 } from './public-video-access-rate-limit.service';
-import {
-  resolvePublicMediaSignedUrlExpiresAt,
-} from './public-media-signed-url-expiry.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 import {
-  normalizeOwnedPublishedVideoPath,
-  normalizeOwnedPublishedVideoPosterPath,
-} from './video-storage-path';
+  resolvePublicVideoSignedAccessItem,
+  type PublicVideoSignedAccessItem,
+} from './public-video-access-resolution.firestore';
 
 interface PublicVideoAccessRequestItem {
   ownerUid?: string;
@@ -45,20 +38,12 @@ interface PublicVideoAccessRequest {
   mode?: TPublicVideoAccessMode;
 }
 
-interface PublicVideoAccessResponseItem {
-  ownerUid: string;
-  videoId: string;
-  url: string | null;
-  posterUrl: string | null;
-  expiresAt: number;
-}
-
 interface PublicVideoAccessResponse {
-  items: PublicVideoAccessResponseItem[];
+  items: PublicVideoSignedAccessItem[];
 }
 
 interface PublicVideoAccessResolution {
-  item: PublicVideoAccessResponseItem | null;
+  item: PublicVideoSignedAccessItem | null;
   technicalFailure: boolean;
 }
 
@@ -81,113 +66,6 @@ function cleanId(value: unknown): string {
 
 function buildRequestKey(ownerUid: string, videoId: string): string {
   return JSON.stringify([ownerUid, videoId]);
-}
-
-async function resolveAccessItem(
-  ownerUid: string,
-  videoId: string,
-  technicalExpiresAt: number,
-  requesterAccessExpiresAtMs: number | null,
-  ownerAccessExpiresAtMs: number | null,
-  ownerExposureAllowed: boolean,
-  mode: TPublicVideoAccessMode,
-  nowMs: number
-): Promise<PublicVideoAccessResponseItem | null> {
-  if (!ownerExposureAllowed) {
-    return null;
-  }
-
-  const publicVideoRef = db.doc(
-    `public_profiles/${ownerUid}/public_videos/${videoId}`
-  );
-  const publicationRef = db.doc(
-    `users/${ownerUid}/video_publications/${videoId}`
-  );
-  const [publicVideoSnap, publicationSnap] = await Promise.all([
-    publicVideoRef.get(),
-    publicationRef.get(),
-  ]);
-
-  if (!publicVideoSnap.exists || !publicationSnap.exists) {
-    return null;
-  }
-
-  const publicVideo = publicVideoSnap.data() as Record<string, unknown>;
-  const publication = publicationSnap.data() as Record<string, unknown>;
-  if (
-    !isCurrentPublicMediaAssetExposure({
-      publicMedia: publicVideo,
-      publication,
-      ownerExposureAllowed,
-      nowMs,
-      allowedVisibilities: ['PUBLIC'],
-    })
-  ) {
-    return null;
-  }
-
-  const videoStoragePath = normalizeOwnedPublishedVideoPath(
-    ownerUid,
-    videoId,
-    publication?.publishedStoragePath
-  );
-
-  if (!videoStoragePath) {
-    return null;
-  }
-
-  const expiresAt = resolvePublicMediaSignedUrlExpiresAt({
-    nowMs,
-    technicalExpiresAtMs: technicalExpiresAt,
-    requesterAccessExpiresAtMs,
-    ownerAccessExpiresAtMs,
-  });
-
-  if (expiresAt === null) {
-    return null;
-  }
-
-  let url: string | null = null;
-
-  if (shouldIssuePublicVideoPlaybackAccess(mode)) {
-    const videoFile = storage.bucket().file(videoStoragePath);
-    const [videoExists] = await videoFile.exists();
-
-    if (!videoExists) {
-      throw new Error(
-        'O ativo publicado do vídeo não foi encontrado no Storage.'
-      );
-    }
-
-    url = await createTemporaryStorageReadUrl(videoStoragePath, expiresAt);
-  }
-
-  const posterStoragePath = normalizeOwnedPublishedVideoPosterPath(
-    ownerUid,
-    videoId,
-    publication?.publishedPosterStoragePath
-  );
-  let posterUrl: string | null = null;
-
-  if (posterStoragePath) {
-    const posterFile = storage.bucket().file(posterStoragePath);
-    const [posterExists] = await posterFile.exists();
-
-    if (posterExists) {
-      posterUrl = await createTemporaryStorageReadUrl(
-        posterStoragePath,
-        expiresAt
-      );
-    }
-  }
-
-  return {
-    ownerUid,
-    videoId,
-    url,
-    posterUrl,
-    expiresAt,
-  };
 }
 
 export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
@@ -324,15 +202,26 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
 
           try {
             return {
-              item: await resolveAccessItem(
-                ownerUid,
-                videoId,
-                technicalExpiresAt,
-                requesterAccess.accessExpiresAtMs,
-                profileAccess?.accountAccessExpiresAtMs ?? null,
-                profileAccess?.allowed === true,
-                mode,
-                nowMs
+              item: await resolvePublicVideoSignedAccessItem(
+                db,
+                {
+                  ownerUid,
+                  videoId,
+                  technicalExpiresAt,
+                  requesterAccessExpiresAtMs: requesterAccess.accessExpiresAtMs,
+                  ownerAccessExpiresAtMs:
+                    profileAccess?.accountAccessExpiresAtMs ?? null,
+                  ownerExposureAllowed: profileAccess?.allowed === true,
+                  mode,
+                  nowMs,
+                },
+                {
+                  fileExists: async (path) => {
+                    const [exists] = await storage.bucket().file(path).exists();
+                    return exists;
+                  },
+                  createReadUrl: createTemporaryStorageReadUrl,
+                }
               ),
               technicalFailure: false,
             };
