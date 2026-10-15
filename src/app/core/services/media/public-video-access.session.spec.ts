@@ -271,4 +271,119 @@ describe('PublicVideoAccessService / session lifecycle', () => {
     expect(internal.buildCacheKey(candidate)).not.toBe(previousKey);
   });
 
+
+  function createInvalidationFixture() {
+    const uid$ = new BehaviorSubject<string | null>('viewer-a');
+    TestBed.configureTestingModule({
+      providers: [
+        PublicVideoAccessService,
+        { provide: Functions, useValue: {} },
+        { provide: FirestoreContextService, useValue: {} },
+        { provide: AuthSessionService, useValue: { uid$: uid$.asObservable() } },
+        { provide: MediaApplicationErrorService, useValue: { reportSilently: vi.fn() } },
+        { provide: PublicVideoOwnerEnrichmentService, useValue: {} },
+      ],
+    });
+    const service = TestBed.inject(PublicVideoAccessService);
+    const internal = service as unknown as {
+      accessCache: Map<string, IPublicVideoAccess>;
+      inFlightRefreshes: Map<string, unknown>;
+      buildCacheKey(candidate: IPublicVideoProjection): string;
+      hydrateAccess$: (
+        candidates: IPublicVideoProjection[],
+        mode: 'PLAYBACK'
+      ) => import('rxjs').Observable<{ id: string }[]>;
+      requestAccessUrls$: (...args: unknown[]) => unknown;
+    };
+    const projection = (id: string): IPublicVideoProjection => ({
+      id, ownerUid: 'owner-1', mediaType: 'VIDEO',
+      visibility: 'PUBLIC', moderationStatus: 'APPROVED',
+      mimeType: 'video/mp4', durationMs: 60_000, sizeBytes: 2_048,
+      publishedAt: 100, assetAccess: 'SIGNED_URL', posterAccess: 'SIGNED_URL',
+    }) as IPublicVideoProjection;
+    const access = (videoId: string, marker: string): IPublicVideoAccess => ({
+      ownerUid: 'owner-1', videoId,
+      url: `https://example.test/${marker}`, posterUrl: null,
+      expiresAt: Date.now() + 120_000,
+    });
+    return { service, internal, projection, access };
+  }
+
+  it('rejeita refresh atrasado depois de invalidar o mesmo vídeo', () => {
+    const { service, internal, projection, access } = createInvalidationFixture();
+    const candidate = projection('video-1');
+    const previous = new Subject<{ items: IPublicVideoAccess[] }>();
+    const fresh = new Subject<{ items: IPublicVideoAccess[] }>();
+    const request = vi.fn()
+      .mockReturnValueOnce(previous.asObservable())
+      .mockReturnValueOnce(fresh.asObservable());
+    internal.requestAccessUrls$ = request;
+    const oldResults: unknown[] = [];
+    const newResults: unknown[] = [];
+
+    service.refreshPublicVideoUrl$(candidate)
+      .subscribe((item) => oldResults.push(item));
+    service.invalidatePublicVideoAccess(candidate);
+    expect(internal.inFlightRefreshes.size).toBe(0);
+    service.refreshPublicVideoUrl$(candidate)
+      .subscribe((item) => newResults.push(item));
+    expect(request).toHaveBeenCalledTimes(2);
+
+    previous.next({ items: [access('video-1', 'old')] });
+    previous.complete();
+    expect(oldResults).toEqual([null]);
+    expect(internal.accessCache.size).toBe(0);
+
+    fresh.next({ items: [access('video-1', 'new')] });
+    fresh.complete();
+    expect(newResults).toHaveLength(1);
+    expect((newResults[0] as { url: string }).url).toBe('https://example.test/new');
+    expect(internal.accessCache.size).toBe(1);
+  });
+
+  it('invalidação durante lote descarta apenas credencial do vídeo afetado', () => {
+    const { service, internal, projection, access } = createInvalidationFixture();
+    const a = projection('video-a');
+    const b = projection('video-b');
+    const pending = new Subject<{ items: IPublicVideoAccess[] }>();
+    internal.requestAccessUrls$ = vi.fn(() => pending.asObservable());
+    const received: { id: string }[][] = [];
+
+    internal.hydrateAccess$([a, b], 'PLAYBACK')
+      .subscribe((items) => received.push(items));
+    service.invalidatePublicVideoAccess(a);
+
+    pending.next({ items: [access('video-a', 'old'), access('video-b', 'valid')] });
+    pending.complete();
+
+    expect(received.map((items) => items.map((item) => item.id)))
+      .toEqual([['video-b']]);
+    expect(internal.accessCache.size).toBe(1);
+    expect([...internal.accessCache.keys()][0]).toContain('video-b');
+  });
+
+  it('invalida todas as versões mesmo se a projeção foi moderada', () => {
+    const { service, internal, projection, access } = createInvalidationFixture();
+    const candidate = projection('video-a');
+    internal.accessCache.set(
+      internal.buildCacheKey({ ...candidate, assetVersion: 100 }),
+      access('video-a', 'first')
+    );
+    internal.accessCache.set(
+      internal.buildCacheKey({ ...candidate, assetVersion: 200 }),
+      access('video-a', 'second')
+    );
+    internal.accessCache.set(
+      internal.buildCacheKey(projection('video-b')),
+      access('video-b', 'other')
+    );
+
+    service.invalidatePublicVideoAccess({
+      ...candidate, moderationStatus: 'HIDDEN',
+    } as IPublicVideoProjection);
+
+    expect(internal.accessCache.size).toBe(1);
+    expect([...internal.accessCache.keys()][0]).toContain('video-b');
+  });
+
 });

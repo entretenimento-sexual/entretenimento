@@ -62,6 +62,9 @@ export class PublicVideoAccessService {
   >();
   private lastSessionUid: string | null | undefined = undefined;
   private sessionEpoch = 0;
+  // A per-video fence rejects results started before an explicit invalidation.
+  private readonly invalidationRevisionByVideo = new Map<string, number>();
+  private invalidationSequence = 0;
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
@@ -80,6 +83,8 @@ export class PublicVideoAccessService {
           this.sessionEpoch += 1;
           this.accessCache.clear();
           this.inFlightRefreshes.clear();
+          this.invalidationRevisionByVideo.clear();
+          this.invalidationSequence = 0;
         }
 
         this.lastSessionUid = normalizedUid;
@@ -125,6 +130,7 @@ export class PublicVideoAccessService {
 
     const sessionScope = this.currentSessionScope();
     const identityKey = buildPublicVideoKey(projection.ownerUid, projection.id);
+    const requestRevision = this.currentInvalidationRevision(identityKey);
     const refreshKey = `${sessionScope}:${identityKey}`;
     const inFlight = this.inFlightRefreshes.get(refreshKey);
 
@@ -138,7 +144,10 @@ export class PublicVideoAccessService {
       map((response) => {
         // A promise de uma callable pode concluir depois de logout/troca A→B.
         // Nunca entregar nem armazenar a credencial da sessão anterior.
-        if (sessionScope !== this.currentSessionScope()) {
+        if (
+          sessionScope !== this.currentSessionScope() ||
+          requestRevision !== this.currentInvalidationRevision(identityKey)
+        ) {
           return null;
         }
 
@@ -167,13 +176,34 @@ export class PublicVideoAccessService {
   }
 
   invalidatePublicVideoAccess(candidate: IPublicVideoProjection): void {
-    const projection = this.normalizeProjection(candidate);
+    // A now-hidden or restricted projection must still revoke its old cache.
+    const ownerUid = String(candidate?.ownerUid ?? '').trim();
+    const videoId = String(candidate?.id ?? '').trim();
 
-    if (!projection) {
+    if (!ownerUid || !videoId) {
       return;
     }
 
-    this.accessCache.delete(this.buildCacheKey(projection));
+    const identityKey = buildPublicVideoKey(ownerUid, videoId);
+    this.invalidationRevisionByVideo.set(
+      identityKey, ++this.invalidationSequence
+    );
+
+    const sessionScope = this.currentSessionScope();
+    // Remove all binary versions of this video in the current session.
+    const prefix = `${sessionScope}:public-video-access:${ownerUid}:${videoId}:`;
+    for (const key of this.accessCache.keys()) {
+      if (key.startsWith(prefix)) {
+        this.accessCache.delete(key);
+      }
+    }
+
+    // The next refresh must not share an obsolete in-flight request.
+    this.inFlightRefreshes.delete(`${sessionScope}:${identityKey}`);
+  }
+
+  private currentInvalidationRevision(identityKey: string): number {
+    return this.invalidationRevisionByVideo.get(identityKey) ?? 0;
   }
 
   private hydrateAccess$(
@@ -192,6 +222,12 @@ export class PublicVideoAccessService {
     const sessionScope = this.currentSessionScope();
     const resolved = new Map<string, IPublicVideoAccess>();
     const pending: IPublicVideoProjection[] = [];
+    const revisions = new Map(
+      eligible.map((projection) => {
+        const identity = buildPublicVideoKey(projection.ownerUid, projection.id);
+        return [identity, this.currentInvalidationRevision(identity)] as const;
+      })
+    );
     const now = Date.now();
 
     for (const projection of eligible) {
@@ -222,7 +258,7 @@ export class PublicVideoAccessService {
     }
 
     if (!pending.length) {
-      return of(this.materializeItems(eligible, resolved, now, mode));
+      return of(this.materializeItems(eligible, resolved, now, mode, revisions));
     }
 
     const requests = this.chunkItems(pending, MAX_ITEMS_PER_REQUEST).map(
@@ -249,6 +285,12 @@ export class PublicVideoAccessService {
               access.videoId
             );
             const projection = projectionByIdentity.get(identityKey);
+            if (
+              revisions.get(identityKey) !==
+              this.currentInvalidationRevision(identityKey)
+            ) {
+              continue;
+            }
             const usable = projection && (mode === 'PLAYBACK'
               ? isPublicVideoAccessUsable(projection, access, now)
               : isPublicVideoPreviewAccessUsable(projection, access, now));
@@ -262,7 +304,9 @@ export class PublicVideoAccessService {
           }
         }
 
-        return this.materializeItems(eligible, resolved, Date.now(), mode);
+        return this.materializeItems(
+          eligible, resolved, Date.now(), mode, revisions
+        );
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -303,12 +347,18 @@ export class PublicVideoAccessService {
     projections: readonly IPublicVideoProjection[],
     resolved: ReadonlyMap<string, IPublicVideoAccess>,
     now: number,
-    mode: TPublicVideoAccessMode
+    mode: TPublicVideoAccessMode,
+    revisions: ReadonlyMap<string, number>
   ): IPublicVideoItem[] {
     return projections.flatMap((projection) => {
-      const access = resolved.get(
-        buildPublicVideoKey(projection.ownerUid, projection.id)
-      );
+      const identityKey = buildPublicVideoKey(projection.ownerUid, projection.id);
+      if (
+        revisions.get(identityKey) !==
+        this.currentInvalidationRevision(identityKey)
+      ) {
+        return [];
+      }
+      const access = resolved.get(identityKey);
       const item = access
         ? mode === 'PLAYBACK'
           ? hydratePublicVideoItem(projection, access, now)
