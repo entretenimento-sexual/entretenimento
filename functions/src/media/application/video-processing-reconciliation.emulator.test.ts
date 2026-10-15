@@ -9,6 +9,7 @@ import axios, { AxiosError, type AxiosResponse } from 'axios';
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
 import { decideMissingVideoSubmission } from './video-submission-confirmation.policy';
 import { isCurrentVideoProcessingAttempt } from './video-processing-poll.policy';
+import { commitCopiedVideoPublicationIfCurrent } from './video-publication-commit.firestore';
 import {
   executeVideoCancellation,
   type VideoCancellationPorts,
@@ -72,6 +73,108 @@ function fixture(suffix: string): VideoProcessingJob {
 function parseJob(data: unknown): VideoProcessingJob | null {
   return data && typeof data === 'object' ? data as VideoProcessingJob : null;
 }
+
+
+function readyPublicationFixture() {
+  const ownerUid = 'demo-video-publisher';
+  const videoId = 'vid-' + randomUUID();
+  const path = `users/${ownerUid}/uploads/videos/${videoId}-original.mp4`;
+  const processed = `users/${ownerUid}/processed/videos/${videoId}/version-one/output.mp4`;
+  const ownerRef = firestore.doc(`users/${ownerUid}/videos/${videoId}`);
+  const publicationRef = firestore.doc(
+    `users/${ownerUid}/video_publications/${videoId}`
+  );
+  const publicRef = firestore.doc(
+    `public_profiles/${ownerUid}/public_videos/${videoId}`
+  );
+  const video = {
+    ownerUid, path, processedStoragePath: processed,
+    status: 'ready', mimeType: 'video/mp4', durationMs: 12_000,
+  };
+  function command(version: string) {
+    const copiedPath =
+      `users/${ownerUid}/published/videos/${videoId}/assets/${version}`;
+    return {
+      ownerUid, videoId, sourceVideoStoragePath: path,
+      sourceProcessedStoragePath: processed,
+      publicationPatch: {
+        ownerUid, videoId, isPublished: true,
+        moderationStatus: 'APPROVED', publishedStoragePath: copiedPath,
+      },
+      publicVideoPatch: {
+        id: videoId, ownerUid, mediaType: 'VIDEO',
+        assetAccess: 'SIGNED_URL', assetVersion: version,
+      },
+    };
+  }
+  return { video, ownerRef, publicationRef, publicRef, command };
+}
+
+async function expectPublicationDenied(
+  fixture: ReturnType<typeof readyPublicationFixture>
+): Promise<void> {
+  await assert.rejects(
+    commitCopiedVideoPublicationIfCurrent(
+      firestore, fixture.command('copy-' + randomUUID())
+    ),
+    (error: unknown) => !!error && typeof error === 'object' &&
+      'code' in error && error.code === 'failed-precondition'
+  );
+  assert.notEqual((await fixture.publicationRef.get()).get('isPublished'), true);
+  assert.equal((await fixture.publicRef.get()).exists, false);
+}
+
+test('real publication transaction fences source, derivative and status changes', async () => {
+  for (const [field, replacement] of [
+    ['status', 'processing'],
+    ['path', 'users/demo-video-publisher/uploads/videos/replaced.mp4'],
+    ['processedStoragePath',
+      'users/demo-video-publisher/processed/videos/other/v2/output.mp4'],
+  ] as const) {
+    const fixture = readyPublicationFixture();
+    await fixture.ownerRef.set({ ...fixture.video, [field]: replacement });
+    await expectPublicationDenied(fixture);
+  }
+});
+
+test('real publication transaction blocks moderation changes during copy', async () => {
+  for (const reason of ['moderated', 'source-rejected'] as const) {
+    const fixture = readyPublicationFixture();
+    await fixture.ownerRef.set(fixture.video);
+    await fixture.publicationRef.set(reason === 'moderated'
+      ? { moderationStatus: 'REJECTED' }
+      : { rejectedSourceStoragePath: fixture.video.path });
+    await expectPublicationDenied(fixture);
+  }
+});
+
+test('two concurrent publication transactions cannot publish different copies', async () => {
+  const fixture = readyPublicationFixture();
+  await fixture.ownerRef.set(fixture.video);
+  const a = fixture.command('copy-' + randomUUID());
+  const b = fixture.command('copy-' + randomUUID());
+  const attempts = await Promise.allSettled([
+    commitCopiedVideoPublicationIfCurrent(firestore, a),
+    commitCopiedVideoPublicationIfCurrent(firestore, b),
+  ]);
+  assert.equal(attempts.filter(x => x.status === 'fulfilled').length, 1);
+  assert.equal(attempts.filter(x => x.status === 'rejected').length, 1);
+  const persisted = await fixture.publicationRef.get();
+  const projection = await fixture.publicRef.get();
+  const winningPath = persisted.get('publishedStoragePath');
+  assert.ok(
+    winningPath === a.publicationPatch['publishedStoragePath'] ||
+    winningPath === b.publicationPatch['publishedStoragePath']
+  );
+  const winningVersion = winningPath === a.publicationPatch['publishedStoragePath']
+    ? a.publicVideoPatch['assetVersion']
+    : b.publicVideoPatch['assetVersion'];
+  assert.equal(projection.get('assetVersion'), winningVersion);
+  // The losing copied path never becomes referenced by Firestore.
+  assert.notEqual(winningPath, winningPath === a.publicationPatch['publishedStoragePath']
+    ? b.publicationPatch['publishedStoragePath']
+    : a.publicationPatch['publishedStoragePath']);
+});
 
 test('due query selects earliest 20 and second batch after atomic claims', async () => {
   const prefix = 'due-' + randomUUID();

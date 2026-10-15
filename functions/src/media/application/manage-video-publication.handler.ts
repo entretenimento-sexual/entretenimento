@@ -21,47 +21,26 @@ import {
 import {
   buildUnassessedVideoScoreBreakdown,
   defaultVideoPublicationModerationStatus,
-  isRestrictedVideoModerationStatus,
 } from './video-publication-moderation.policy';
 import {
   extractOwnedPrivateVideoPosterPath,
 } from './video-storage-path';
+import { resolveVideoPublicationPrivateSource } from './video-publication-source-fence.policy';
 import {
-  resolveVideoPublicationPrivateSource,
-  isCurrentVideoPublicationSource,
-} from './video-publication-source-fence.policy';
+  assertPublishableVideo,
+  assertPublicationCanStart,
+  assertSourceWasNotRejected,
+  normalizeOptionalPositiveInteger,
+  commitCopiedVideoPublicationIfCurrent,
+  type OwnerVideoDoc,
+  type VideoPublicationDoc,
+} from './video-publication-commit.firestore';
 
 type VideoVisibility = AvailableMediaPublicationVisibility;
 type ModerationStatus = 'APPROVED';
 type PublishedVideoAssets = Awaited<
   ReturnType<typeof copyPrivateVideoToPublishedAsset>
 >;
-
-type OwnerVideoDoc = {
-  id?: string;
-  url?: string;
-  path?: string;
-  fileName?: string;
-  mimeType?: string;
-  sizeBytes?: number;
-  durationMs?: number;
-  thumbnailUrl?: string;
-  thumbnailPath?: string;
-  status?: string;
-  processedStoragePath?: string;
-  playbackPath?: string;
-  createdAt?: number;
-  updatedAt?: number;
-};
-
-type VideoPublicationDoc = {
-  isPublished?: boolean;
-  moderationStatus?: string;
-  sourceStoragePath?: string;
-  rejectedSourceStoragePath?: string;
-  publishedStoragePath?: string;
-  publishedPosterStoragePath?: string;
-};
 
 interface PublishVideoRequest {
   ownerUid?: string;
@@ -74,8 +53,6 @@ interface PublishVideoResponse {
   videoId: string;
   moderationStatus: ModerationStatus;
 }
-
-const PUBLIC_VIDEO_CONTENT_TYPES = new Set(['video/mp4', 'video/webm']);
 
 function containsControlCharacter(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
@@ -139,16 +116,6 @@ function normalizeCreatedAt(value: unknown): number {
     : Date.now();
 }
 
-function normalizeOptionalPositiveInteger(value: unknown): number | null {
-  const numberValue = Number(value ?? 0);
-
-  if (!Number.isFinite(numberValue) || numberValue <= 0) {
-    return null;
-  }
-
-  return Math.trunc(numberValue);
-}
-
 function assertOwner(requesterUid: string | null, ownerUid: string): void {
   if (!requesterUid) {
     throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
@@ -158,67 +125,6 @@ function assertOwner(requesterUid: string | null, ownerUid: string): void {
     throw new HttpsError(
       'permission-denied',
       'Você só pode publicar vídeos do seu próprio perfil.'
-    );
-  }
-}
-
-function assertPublishableVideo(ownerVideo: OwnerVideoDoc): void {
-  const status = String(ownerVideo.status ?? '').trim().toLowerCase();
-  const mimeType = String(ownerVideo.mimeType ?? '').trim().toLowerCase();
-  const durationMs = normalizeOptionalPositiveInteger(ownerVideo.durationMs);
-
-  if (status !== 'ready') {
-    throw new HttpsError(
-      'failed-precondition',
-      'O vídeo precisa estar pronto antes da publicação.'
-    );
-  }
-
-  if (!PUBLIC_VIDEO_CONTENT_TYPES.has(mimeType)) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Publique apenas vídeos MP4 ou WebM compatíveis.'
-    );
-  }
-
-  if (!durationMs) {
-    throw new HttpsError(
-      'failed-precondition',
-      'A duração do vídeo não foi confirmada.'
-    );
-  }
-}
-
-function assertPublicationCanStart(
-  publication: VideoPublicationDoc | null
-): void {
-  if (publication?.isPublished === true) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Este vídeo já está publicado.'
-    );
-  }
-
-  if (isRestrictedVideoModerationStatus(publication?.moderationStatus)) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Este vídeo possui uma restrição de moderação ativa.'
-    );
-  }
-}
-
-function assertSourceWasNotRejected(
-  publication: VideoPublicationDoc | null,
-  sourceStoragePath: string
-): void {
-  const rejectedSourceStoragePath = String(
-    publication?.rejectedSourceStoragePath ?? ''
-  ).trim();
-
-  if (rejectedSourceStoragePath === sourceStoragePath) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Este arquivo foi rejeitado pela moderação. Exclua-o e envie uma nova versão.'
     );
   }
 }
@@ -312,9 +218,6 @@ export const publishVideo = onCall<PublishVideoRequest>(
     const publicationRef = db.doc(
       `users/${ownerUid}/video_publications/${videoId}`
     );
-    const publicVideoRef = db.doc(
-      `public_profiles/${ownerUid}/public_videos/${videoId}`
-    );
     const [ownerVideoSnap, previousPublicationSnap] = await Promise.all([
       ownerVideoRef.get(),
       publicationRef.get(),
@@ -386,120 +289,88 @@ export const publishVideo = onCall<PublishVideoRequest>(
     const durationMs = normalizeOptionalPositiveInteger(
       ownerVideo.durationMs
     );
+    const publicationPatch =     {
+          ownerUid,
+          videoId,
+          isPublished: true,
+          publishWhenReady: false,
+          visibility,
+          orderIndex,
+          moderationStatus,
+          moderationReason: null,
+          contentSafetyAssessment,
+          reportsCount: 0,
+          openReportsCount: 0,
+          confirmedReportsCount: 0,
+          safetyScore: null,
+          score: 0,
+          scoreBreakdown,
+          preventiveReviewReportId: FieldValue.delete(),
+          reviewEvidenceRetention: FieldValue.delete(),
+          viewsCount: 0,
+          uniqueViewersCount: 0,
+          publishedAt: now,
+          updatedAt: now,
+          lastModeratedAt: FieldValue.delete(),
+          sourceStoragePath: sourceVideoStoragePath,
+          rejectedSourceStoragePath: FieldValue.delete(),
+          moderatedBy: FieldValue.delete(),
+          publishedStoragePath: publishedAssets.videoStoragePath,
+          publishedPosterStoragePath:
+            publishedAssets.posterStoragePath ?? FieldValue.delete(),
+          assetVersion: now,
+        };
+    const publicVideoPatch =     {
+          id: videoId,
+          ownerUid,
+          mediaType: 'VIDEO',
+          ageEligibilityAdultAccessAllowed: FieldValue.delete(),
+          ageEligibilityVerifiedAdult: FieldValue.delete(),
+          ageEligibilityAssurance: FieldValue.delete(),
+          ageEligibilityValidUntil: FieldValue.delete(),
+          assetAccess: 'SIGNED_URL',
+          posterAccess: publishedAssets.posterStoragePath
+            ? 'SIGNED_URL'
+            : 'NONE',
+          url: FieldValue.delete(),
+          posterUrl: FieldValue.delete(),
+          title: String(
+            ownerVideo.fileName ?? 'Vídeo do perfil'
+          ).slice(0, 160),
+          alt: 'Vídeo publicado no perfil',
+          mimeType: publishedAssets.videoContentType,
+          sizeBytes: publishedAssets.sizeBytes,
+          durationMs,
+          createdAt: normalizeCreatedAt(ownerVideo.createdAt),
+          publishedAt: now,
+          updatedAt: now,
+          assetVersion: now,
+          visibility,
+          orderIndex,
+          moderationStatus,
+          moderationReason: null,
+          contentSafetyAssessment,
+          reportsCount: 0,
+          openReportsCount: 0,
+          confirmedReportsCount: 0,
+          safetyScore: null,
+          score: 0,
+          scoreBreakdown,
+          preventiveReviewReportId: FieldValue.delete(),
+        };
+
     let committedPreviousPublication: VideoPublicationDoc | null = null;
-
     try {
-      committedPreviousPublication = await db.runTransaction(async (transaction) => {
-        const [currentOwnerSnap, currentPublicationSnap] = await Promise.all([
-          transaction.get(ownerVideoRef),
-          transaction.get(publicationRef),
-        ]);
-        if (!currentOwnerSnap.exists) {
-          throw new HttpsError(
-            'failed-precondition', 'O vídeo privado foi removido durante a publicação.'
-          );
+      committedPreviousPublication = await commitCopiedVideoPublicationIfCurrent(
+        db, {
+          ownerUid,
+          videoId,
+          sourceVideoStoragePath,
+          sourceProcessedStoragePath: publishedAssets.sourceProcessedStoragePath,
+          publicationPatch,
+          publicVideoPatch,
         }
-
-        const currentOwnerVideo = currentOwnerSnap.data() as OwnerVideoDoc;
-        const currentPublication = currentPublicationSnap.exists
-          ? currentPublicationSnap.data() as VideoPublicationDoc
-          : null;
-        assertPublishableVideo(currentOwnerVideo);
-        assertPublicationCanStart(currentPublication);
-        assertSourceWasNotRejected(currentPublication, sourceVideoStoragePath);
-
-        if (!isCurrentVideoPublicationSource(
-          ownerUid, videoId, currentOwnerVideo,
-          sourceVideoStoragePath, publishedAssets.sourceProcessedStoragePath
-        )) {
-          throw new HttpsError(
-            'failed-precondition',
-            'A origem ou a versão processada do vídeo mudou durante a publicação.'
-          );
-        }
-
-        transaction.set(
-          publicationRef,
-          {
-            ownerUid,
-            videoId,
-            isPublished: true,
-            publishWhenReady: false,
-            visibility,
-            orderIndex,
-            moderationStatus,
-            moderationReason: null,
-            contentSafetyAssessment,
-            reportsCount: 0,
-            openReportsCount: 0,
-            confirmedReportsCount: 0,
-            safetyScore: null,
-            score: 0,
-            scoreBreakdown,
-            preventiveReviewReportId: FieldValue.delete(),
-            reviewEvidenceRetention: FieldValue.delete(),
-            viewsCount: 0,
-            uniqueViewersCount: 0,
-            publishedAt: now,
-            updatedAt: now,
-            lastModeratedAt: FieldValue.delete(),
-            sourceStoragePath: sourceVideoStoragePath,
-            rejectedSourceStoragePath: FieldValue.delete(),
-            moderatedBy: FieldValue.delete(),
-            publishedStoragePath: publishedAssets.videoStoragePath,
-            publishedPosterStoragePath:
-              publishedAssets.posterStoragePath ?? FieldValue.delete(),
-            assetVersion: now,
-          },
-          { merge: true }
-        );
-
-        transaction.set(
-          publicVideoRef,
-          {
-            id: videoId,
-            ownerUid,
-            mediaType: 'VIDEO',
-            ageEligibilityAdultAccessAllowed: FieldValue.delete(),
-            ageEligibilityVerifiedAdult: FieldValue.delete(),
-            ageEligibilityAssurance: FieldValue.delete(),
-            ageEligibilityValidUntil: FieldValue.delete(),
-            assetAccess: 'SIGNED_URL',
-            posterAccess: publishedAssets.posterStoragePath
-              ? 'SIGNED_URL'
-              : 'NONE',
-            url: FieldValue.delete(),
-            posterUrl: FieldValue.delete(),
-            title: String(
-              ownerVideo.fileName ?? 'Vídeo do perfil'
-            ).slice(0, 160),
-            alt: 'Vídeo publicado no perfil',
-            mimeType: publishedAssets.videoContentType,
-            sizeBytes: publishedAssets.sizeBytes,
-            durationMs,
-            createdAt: normalizeCreatedAt(ownerVideo.createdAt),
-            publishedAt: now,
-            updatedAt: now,
-            assetVersion: now,
-            visibility,
-            orderIndex,
-            moderationStatus,
-            moderationReason: null,
-            contentSafetyAssessment,
-            reportsCount: 0,
-            openReportsCount: 0,
-            confirmedReportsCount: 0,
-            safetyScore: null,
-            score: 0,
-            scoreBreakdown,
-            preventiveReviewReportId: FieldValue.delete(),
-          },
-          { merge: true }
-        );
-
-
-        return currentPublication;
-      });
+      );
     } catch (error) {
       await rollbackPublishedAssets(ownerUid, videoId, publishedAssets);
       throw error;
