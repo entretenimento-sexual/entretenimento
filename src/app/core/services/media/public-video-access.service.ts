@@ -175,7 +175,9 @@ export class PublicVideoAccessService {
     return refresh$;
   }
 
-  invalidatePublicVideoAccess(candidate: IPublicVideoProjection): void {
+  invalidatePublicVideoAccess(
+    candidate: Pick<IPublicVideoProjection, 'ownerUid' | 'id'>
+  ): void {
     // A now-hidden or restricted projection must still revoke its old cache.
     const ownerUid = String(candidate?.ownerUid ?? '').trim();
     const videoId = String(candidate?.id ?? '').trim();

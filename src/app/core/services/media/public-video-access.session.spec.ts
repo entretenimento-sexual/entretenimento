@@ -378,9 +378,10 @@ describe('PublicVideoAccessService / session lifecycle', () => {
       access('video-b', 'other')
     );
 
-    service.invalidatePublicVideoAccess({
-      ...candidate, moderationStatus: 'HIDDEN',
-    } as IPublicVideoProjection);
+    // Simula snapshot restrito: a invalidação depende da identidade,
+    // não da compatibilidade com uma projeção pública APPROVED.
+    const hiddenVideo = { ...candidate, moderationStatus: 'HIDDEN' as const };
+    service.invalidatePublicVideoAccess(hiddenVideo);
 
     expect(internal.accessCache.size).toBe(1);
     expect([...internal.accessCache.keys()][0]).toContain('video-b');
