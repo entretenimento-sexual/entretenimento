@@ -1517,7 +1517,8 @@ export class PublicVideoViewerComponent {
     // Defer rehydration so a same-turn restriction can revoke it before
     // issuing a request. Repeated true emissions cannot trigger another one.
     queueMicrotask(() => {
-      if (this.viewerLifecycleActive &&
+      if (!this.destroyRef.destroyed &&
+          this.viewerLifecycleActive &&
           this.observedAvailableVideoKey === key &&
           !this.revokedVideoKeys.has(key) &&
           key === this.videoKey(this.current)) {

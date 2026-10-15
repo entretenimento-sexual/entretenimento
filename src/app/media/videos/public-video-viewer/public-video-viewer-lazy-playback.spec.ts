@@ -525,6 +525,25 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     expect(context.component.current?.url).toBe(newUrl.url);
   });
 
+  it('não requisita novo token depois que viewer é destruído no desbloqueio', async () => {
+    const availability = new Subject<boolean>();
+    const preview = createVideo('video-1', null);
+    const context = await createFixture({
+      items: [preview],
+      hydrate: () => of([playbackVersion(preview)]),
+      watchExposure: () => availability.asObservable(),
+    });
+
+    availability.next(false);
+    availability.next(true);
+    fixture!.destroy();
+    fixture = null;
+    await flushMicrotasks();
+
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
+    expect(availability.observed).toBe(false);
+  });
+
   it('não retoma durante suspensão, mesmo quando projeção volta a permitir', async () => {
     const availability = new Subject<boolean>();
     const initial = createVideo('video-1', null);
