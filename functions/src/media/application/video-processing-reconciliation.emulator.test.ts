@@ -10,6 +10,7 @@ import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-
 import { decideMissingVideoSubmission } from './video-submission-confirmation.policy';
 import { isCurrentVideoProcessingAttempt } from './video-processing-poll.policy';
 import { commitCopiedVideoPublicationIfCurrent } from './video-publication-commit.firestore';
+import { deleteUnreferencedPublishedVideoAsset } from './published-video-asset-cleanup.firestore';
 import {
   executeVideoCancellation,
   type VideoCancellationPorts,
@@ -176,6 +177,83 @@ test('two concurrent publication transactions cannot publish different copies', 
     : a.publicationPatch['publishedStoragePath']);
 });
 
+
+test('cleanup never deletes a video asset referenced by an active publication', async () => {
+  const fixture = readyPublicationFixture();
+  await fixture.ownerRef.set(fixture.video);
+  const version = 'active-' + randomUUID();
+  const published = fixture.command(version);
+  await commitCopiedVideoPublicationIfCurrent(firestore, published);
+  let deletes = 0;
+
+  const result = await deleteUnreferencedPublishedVideoAsset(
+    firestore, {
+      ownerUid: published.ownerUid,
+      videoId: published.videoId,
+      storagePath: String(published.publicationPatch['publishedStoragePath']),
+      assetKind: 'video',
+    },
+    async () => { deletes += 1; }
+  );
+  assert.equal(result, 'ACTIVE_REFERENCE');
+  assert.equal(deletes, 0);
+  assert.equal((await fixture.publicationRef.get()).get('isPublished'), true);
+  assert.equal((await fixture.publicRef.get()).get('assetVersion'), version);
+});
+
+test('cleanup protects current poster but permits obsolete video versions', async () => {
+  const fixture = readyPublicationFixture();
+  const currentVideo = fixture.command('v-' + randomUUID());
+  const posterPath = `users/${currentVideo.ownerUid}/published/videos/${currentVideo.videoId}/posters/current`;
+  await fixture.publicationRef.set({
+    ...currentVideo.publicationPatch,
+    publishedPosterStoragePath: posterPath,
+  });
+  const deleted: string[] = [];
+
+  async function attempt(storagePath: string, assetKind: 'video' | 'poster') {
+    return deleteUnreferencedPublishedVideoAsset(
+      firestore,
+      { ownerUid: currentVideo.ownerUid, videoId: currentVideo.videoId,
+        storagePath, assetKind },
+      async () => { deleted.push(storagePath); }
+    );
+  }
+
+  assert.equal(await attempt(posterPath, 'poster'), 'ACTIVE_REFERENCE');
+  assert.equal(await attempt(String(
+    currentVideo.publicationPatch['publishedStoragePath']
+  ), 'video'), 'ACTIVE_REFERENCE');
+  const oldPath =
+    `users/${currentVideo.ownerUid}/published/videos/${currentVideo.videoId}/assets/old-version`;
+  assert.equal(await attempt(oldPath, 'video'), 'DELETED');
+  assert.deepEqual(deleted, [oldPath]);
+});
+
+test('unpublished asset cleanup succeeds and propagates storage failures', async () => {
+  const fixture = readyPublicationFixture();
+  const item = fixture.command('removed-' + randomUUID());
+  const path = String(item.publicationPatch['publishedStoragePath']);
+  await fixture.publicationRef.set({
+    ...item.publicationPatch, isPublished: false,
+  });
+  let attempts = 0;
+  const command = {
+    ownerUid: item.ownerUid, videoId: item.videoId,
+    storagePath: path, assetKind: 'video' as const,
+  };
+  assert.equal(await deleteUnreferencedPublishedVideoAsset(
+    firestore, command, async () => { attempts += 1; }
+  ), 'DELETED');
+  assert.equal(attempts, 1);
+  await assert.rejects(
+    deleteUnreferencedPublishedVideoAsset(
+      firestore, command,
+      async () => { throw new Error('Storage unavailable'); }
+    ),
+    /Storage unavailable/
+  );
+});
 test('due query selects earliest 20 and second batch after atomic claims', async () => {
   const prefix = 'due-' + randomUUID();
   const dueRefs = [];

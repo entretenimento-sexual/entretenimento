@@ -12,6 +12,7 @@ on:
       - 'functions/src/media/application/video-publication-source-fence.contract.test.ts'
       - 'functions/src/media/application/manage-video-publication.handler.ts'
       - 'functions/src/media/application/published-video-asset.service.ts'
+      - 'functions/src/media/application/published-video-asset-cleanup.firestore.ts'
       - 'functions/src/media/application/admin-video-processing-recovery.*'
       - 'scripts/quality/run-video-processing-reconciliation-emulator.mjs'
       - 'firestore.indexes.json'

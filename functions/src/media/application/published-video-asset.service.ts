@@ -9,6 +9,7 @@ import {
   VIDEO_POSTER_IMAGE_MAX_BYTES,
   VIDEO_PUBLIC_PLAYBACK_MIME_TYPES,
 } from '../media-format.generated';
+import { deleteUnreferencedPublishedVideoAsset } from './published-video-asset-cleanup.firestore';
 import {
   buildPublishedVideoPath,
   buildPublishedVideoPosterPath,
@@ -319,10 +320,22 @@ export async function deletePublishedVideoAssetOrQueue(
   }
 
   try {
-    await storage
-      .bucket()
-      .file(storagePath)
-      .delete({ ignoreNotFound: true });
+    const result = await deleteUnreferencedPublishedVideoAsset(
+      db, { ...command, storagePath },
+      () => storage.bucket().file(storagePath).delete({
+        ignoreNotFound: true,
+      }).then(() => undefined)
+    );
+
+    if (result === 'ACTIVE_REFERENCE') {
+      logger.warn('[publishedVideoAsset] Limpeza recusada: ativo publicado.', {
+        ownerUid: command.ownerUid,
+        videoId: command.videoId,
+        assetKind: command.assetKind,
+        reason: command.reason,
+      });
+      return false;
+    }
 
     await db
       .collection(CLEANUP_COLLECTION)
@@ -372,10 +385,24 @@ export async function processPendingPublishedVideoAssetCleanupJobs(
     }
 
     try {
-      await storage
-        .bucket()
-        .file(storagePath)
-        .delete({ ignoreNotFound: true });
+      const result = await deleteUnreferencedPublishedVideoAsset(
+        db, { ...job, storagePath },
+        () => storage.bucket().file(storagePath).delete({
+          ignoreNotFound: true,
+        }).then(() => undefined)
+      );
+
+      if (result === 'ACTIVE_REFERENCE') {
+        logger.warn('[publishedVideoAsset] Retry descartado: ativo publicado.', {
+          jobId: jobDoc.id,
+          ownerUid: job.ownerUid,
+          videoId: job.videoId,
+          assetKind: job.assetKind,
+        });
+      }
+
+      // Referenced files are preserved, and stale cleanup jobs cannot
+      // occupy the retry queue indefinitely.
       await jobDoc.ref.delete();
     } catch (error) {
       await jobDoc.ref.set(
