@@ -476,6 +476,10 @@ describe('PublicVideoViewerComponent', () => {
     publicVideoAccess.refreshPublicVideoUrl$.mockReturnValueOnce(of(renewed));
 
     const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    Object.defineProperty(video, 'error', {
+      configurable: true,
+      value: { code: 2 }, // MEDIA_ERR_NETWORK
+    });
     video.dispatchEvent(new Event('error'));
     await Promise.resolve();
     fixture.detectChanges();
