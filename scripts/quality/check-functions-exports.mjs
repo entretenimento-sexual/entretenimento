@@ -86,6 +86,9 @@ const expectedDeploymentExports = [
   'ensureCurrentLegalNotice',
   'ensureDirectChat',
   'reconcileDirectChatAccess',
+  // Callable de reconciliação bilateral, autenticada, com rate limit e resposta
+  // neutra; a autoridade continua nos bloqueios canônicos do Firestore.
+  'reconcilePublicMediaAccess',
   'expireAgeEligibilityAtBoundary',
   'expireAgeEligibilityRecords',
   'findCommunityInviteCandidate',
@@ -348,6 +351,7 @@ const requiredExports = [
   'getMyBillingSnapshot',
   'getPlatformPlans',
   'getPublicVideoAccessUrls',
+  'reconcilePublicMediaAccess',
   'getRecentPublicMediaViews',
   'createCommunity',
   'getCommunityCreationCapability',
