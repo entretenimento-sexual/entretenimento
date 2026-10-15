@@ -22,8 +22,8 @@ test('publication rechecks private source and moderation transactionally after c
   assert.ok(handler.includes('assertSourceWasNotRejected(currentPublication, sourceVideoStoragePath)'));
   assert.ok(handler.includes('isCurrentVideoPublicationSource('));
   assert.ok(handler.includes('publishedAssets.sourceProcessedStoragePath'));
-  assert.ok(handler.includes('transaction.set(publicationRef,'));
-  assert.ok(handler.includes('transaction.set(publicVideoRef,'));
+  assert.match(handler, /transaction\.set\(\s*publicationRef,/);
+  assert.match(handler, /transaction\.set\(\s*publicVideoRef,/);
   assert.ok(!handler.includes('const batch = db.batch()'));
   assert.ok(handler.includes('await rollbackPublishedAssets(ownerUid, videoId, publishedAssets)'));
 });
