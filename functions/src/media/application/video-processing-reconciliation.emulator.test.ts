@@ -19,6 +19,11 @@ import {
 } from './published-video-cleanup-queue.firestore';
 import { VIDEO_CLEANUP_LEASE_MS } from './video-cleanup-claim.policy';
 import {
+  claimVideoDeletionJob,
+  createVideoDeletionJobIfAbsent,
+  settleVideoDeletionJob,
+} from './video-deletion-queue.firestore';
+import {
   resolvePublicVideoSignedAccessItem,
   type PublicVideoSignedAccessRequest,
 } from './public-video-access-resolution.firestore';
@@ -1271,4 +1276,136 @@ test('concurrent legacy cleanup migrations cannot regress the persisted cursor',
   const all = await queue.get();
   assert.equal(all.size, 151);
   for (const doc of all.docs) assert.equal(doc.get('nextAttemptAt'), now + 2_000);
+});
+
+test('video deletion: concurrent claims grant exactly one lease', async () => {
+  const ref = firestore.collection('media_video_deletion_jobs')
+    .doc('deletion-claim-' + randomUUID());
+  await ref.set({ state: 'retryable', attempts: 0,
+    nextAttemptAt: now - 1, leaseUntil: null, leaseToken: null });
+
+  const [first, second] = await Promise.all([
+    claimVideoDeletionJob<Record<string, unknown>>(firestore, ref, now, 'first'),
+    claimVideoDeletionJob<Record<string, unknown>>(firestore, ref, now, 'second'),
+  ]);
+  assert.equal(Number(first !== null) + Number(second !== null), 1);
+  const token = first ? 'first' : 'second';
+  const loser = first ? 'second' : 'first';
+  assert.equal((await ref.get()).get('leaseToken'), token);
+  assert.equal(await settleVideoDeletionJob(
+    firestore, ref, loser, { kind: 'COMPLETED' }, now + 1
+  ), 'STALE');
+  assert.equal(await settleVideoDeletionJob(
+    firestore, ref, token, { kind: 'COMPLETED' }, now + 1
+  ), 'REMOVED');
+  assert.equal((await ref.get()).exists, false);
+});
+
+test('video deletion: expired lease is recoverable and old ack is fenced', async () => {
+  const ref = firestore.collection('media_video_deletion_jobs')
+    .doc('deletion-expired-' + randomUUID());
+  await ref.set({ state: 'retryable', attempts: 2,
+    nextAttemptAt: now - 10, leaseUntil: now - 1, leaseToken: 'old' });
+  assert.ok(await claimVideoDeletionJob<Record<string, unknown>>(
+    firestore, ref, now, 'new'
+  ));
+  assert.equal(await settleVideoDeletionJob(
+    firestore, ref, 'old', { kind: 'COMPLETED' }, now + 1
+  ), 'STALE');
+  assert.equal((await ref.get()).get('leaseToken'), 'new');
+  assert.equal(await settleVideoDeletionJob(
+    firestore, ref, 'new', { kind: 'RETRYABLE_FAILURE', error: 'Storage unavailable' }, now + 2
+  ), 'RETRYABLE');
+  const retry = await ref.get();
+  assert.equal(retry.get('attempts'), 3);
+  assert.equal(retry.get('leaseUntil'), null);
+  assert.ok(Number(retry.get('nextAttemptAt')) > now + 2);
+});
+
+test('video deletion: blocked asset is retained for manual review', async () => {
+  const ref = firestore.collection('media_video_deletion_jobs')
+    .doc('deletion-blocked-' + randomUUID());
+  await ref.set({ state: 'retryable', attempts: 0,
+    nextAttemptAt: now - 1, leaseUntil: null, leaseToken: null });
+  assert.ok(await claimVideoDeletionJob<Record<string, unknown>>(
+    firestore, ref, now, 'review'
+  ));
+  assert.equal(await settleVideoDeletionJob(
+    firestore, ref, 'review', { kind: 'BLOCKED', error: 'ACTIVE_REFERENCE' }, now + 1
+  ), 'DEAD_LETTER');
+  const held = await ref.get();
+  assert.equal(held.get('state'), 'dead_letter');
+  assert.equal(held.get('nextAttemptAt'), null);
+  assert.equal(held.get('deadLetterExpiresAt'), null);
+  assert.equal(await claimVideoDeletionJob<Record<string, unknown>>(
+    firestore, ref, now + 50_000, 'other'
+  ), null);
+});
+
+test('video deletion: eighth failure is a durable dead letter', async () => {
+  const ref = firestore.collection('media_video_deletion_jobs')
+    .doc('deletion-exhausted-' + randomUUID());
+  await ref.set({ state: 'retryable', attempts: 7,
+    nextAttemptAt: now - 1, leaseUntil: null, leaseToken: null });
+  assert.ok(await claimVideoDeletionJob<Record<string, unknown>>(
+    firestore, ref, now, 'last'
+  ));
+  assert.equal(await settleVideoDeletionJob(
+    firestore, ref, 'last', { kind: 'RETRYABLE_FAILURE', error: 'GCS 503' }, now + 1
+  ), 'DEAD_LETTER');
+  assert.equal((await ref.get()).get('attempts'), 8);
+  assert.equal((await ref.get()).get('deadLetterExpiresAt'), null);
+});
+
+test('video deletion: repeated request never overwrites an existing job', async () => {
+  const ref = firestore.collection('media_video_deletion_jobs')
+    .doc('deletion-repeated-' + randomUUID());
+  await ref.set({ state: 'dead_letter', attempts: 8, createdAt: now - 4000,
+    privateVideoStoragePath: 'original', nextAttemptAt: null,
+    leaseToken: 'held-token', leaseUntil: now + 1000 });
+  assert.equal(await createVideoDeletionJobIfAbsent(
+    firestore, ref, { privateVideoStoragePath: 'replacement', attempts: 0 }, now
+  ), 'EXISTING');
+  const original = await ref.get();
+  assert.equal(original.get('privateVideoStoragePath'), 'original');
+  assert.equal(original.get('attempts'), 8);
+  assert.equal(original.get('leaseToken'), 'held-token');
+  assert.equal(original.get('createdAt'), now - 4000);
+});
+
+test('video deletion: legacy unscheduled job is never implicitly claimed', async () => {
+  const ref = firestore.collection('media_video_deletion_jobs')
+    .doc('deletion-legacy-' + randomUUID());
+  await ref.set({ attempts: 0, ownerUid: 'legacy', videoId: 'old' });
+  assert.equal(await claimVideoDeletionJob<Record<string, unknown>>(
+    firestore, ref, now, 'unsafe'
+  ), null);
+});
+
+test('video deletion: initial job carries due scheduling without resetting later', async () => {
+  const ref = firestore.collection('media_video_deletion_jobs')
+    .doc('deletion-create-' + randomUUID());
+  assert.equal(await createVideoDeletionJobIfAbsent(
+    firestore, ref, { ownerUid: 'owner', videoId: 'vid', attempts: 99 }, now
+  ), 'CREATED');
+  const snap = await ref.get();
+  assert.equal(snap.get('state'), 'retryable');
+  assert.equal(snap.get('attempts'), 0);
+  assert.equal(snap.get('nextAttemptAt'), now);
+  assert.equal(snap.get('leaseToken'), null);
+  assert.equal(snap.get('deadLetterExpiresAt'), null);
+});
+
+test('video deletion: future scheduling and active lease are not claimable', async () => {
+  const ref = firestore.collection('media_video_deletion_jobs')
+    .doc('deletion-not-due-' + randomUUID());
+  await ref.set({ state: 'retryable', attempts: 2,
+    nextAttemptAt: now + 60_000, leaseToken: null, leaseUntil: null });
+  assert.equal(await claimVideoDeletionJob<Record<string, unknown>>(
+    firestore, ref, now, 'early'
+  ), null);
+  await ref.update({ nextAttemptAt: now - 1, leaseUntil: now + 60_000 });
+  assert.equal(await claimVideoDeletionJob<Record<string, unknown>>(
+    firestore, ref, now, 'overlap'
+  ), null);
 });

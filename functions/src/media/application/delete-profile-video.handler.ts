@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto';
+
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
-import { db, FieldValue, storage } from '../../firebaseApp';
+import { db, storage } from '../../firebaseApp';
 import {
   assertCallableAppCheck,
   REQUIRE_CALLABLE_APP_CHECK,
@@ -12,6 +14,8 @@ import {
   consumeBackendRateLimitQuota,
 } from '../../shared/security/backend-rate-limit.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
+import { claimVideoDeletionJob, settleVideoDeletionJob } from './video-deletion-queue.firestore';
+import { migrateLegacyPublishedVideoCleanupJobs } from './published-video-cleanup-migration.firestore';
 import { deletePublishedVideoAssetOrQueueWithResult } from './published-video-asset.service';
 import {
   summarizePublishedAssetCleanupResults,
@@ -254,18 +258,13 @@ async function deleteProcessedAssets(job: VideoDeletionJob): Promise<void> {
   await deleteFilesByPrefix(processedVideoPrefix(job.ownerUid, job.videoId));
 }
 
-async function executeDeletionJob(
-  jobId: string,
-  job: VideoDeletionJob
-): Promise<boolean> {
+async function executeDeletionJob(job: VideoDeletionJob): Promise<boolean> {
   const privateVideoRef = db.doc(
     `users/${job.ownerUid}/videos/${job.videoId}`
   );
   const publicVideoRef = db.doc(
     `public_profiles/${job.ownerUid}/public_videos/${job.videoId}`
   );
-  const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
-
   const publishedOutcome = await cleanupPublishedAssets(job);
   if (publishedOutcome === 'BLOCKED') {
     // Keep the parent job and private assets until a safe decision is possible.
@@ -281,29 +280,64 @@ async function executeDeletionJob(
     db.recursiveDelete(privateVideoRef),
     db.recursiveDelete(publicVideoRef),
   ]);
-  // The specialised cleanup queue now owns every remaining published asset.
-  await jobRef.delete();
-
+  // The caller settles the lease transactionally after this work finishes.
   return publishedOutcome === 'QUEUED_FOR_RETRY';
 }
 
-async function recordDeletionAttemptFailure(
-  jobId: string,
-  error: unknown
-): Promise<void> {
-  const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
+/** Single entrypoint for immediate and scheduled physical cleanup. */
+async function processVideoDeletionJob(
+  jobRef: FirebaseFirestore.DocumentReference
+): Promise<boolean> {
+  const token = randomUUID();
+  const raw = await claimVideoDeletionJob<VideoDeletionJob>(
+    db, jobRef, Date.now(), token
+  );
+  if (!raw) return true;
+
+  const ownerUid = cleanId(raw.ownerUid);
+  const videoId = cleanId(raw.videoId);
+  if (!ownerUid || !videoId ||
+      buildDeletionJobId(ownerUid, videoId) !== jobRef.id) {
+    await settleVideoDeletionJob(db, jobRef, token, {
+      kind: 'BLOCKED', error: 'Invalid deletion job identity.',
+    });
+    logger.error('[videoDeletion] Job retido para revisao.', { jobId: jobRef.id });
+    return true;
+  }
+
+  const job: VideoDeletionJob = {
+    ...raw,
+    ownerUid,
+    videoId,
+    privateVideoStoragePath: raw.privateVideoStoragePath
+      ? extractOwnedPrivateVideoPathForId(ownerUid, videoId, raw.privateVideoStoragePath)
+      : null,
+    privatePosterStoragePath: raw.privatePosterStoragePath
+      ? extractOwnedPrivateVideoPosterPath(ownerUid, videoId, raw.privatePosterStoragePath)
+      : null,
+    processedOutputPrefix: raw.processedOutputPrefix
+      ? normalizeOwnedProcessedVideoPrefix(ownerUid, videoId, raw.processedOutputPrefix)
+      : null,
+  };
 
   try {
-    await jobRef.update({
-      attempts: FieldValue.increment(1),
-      updatedAt: Date.now(),
-      lastError: normalizeErrorMessage(error),
+    const cleanupPending = await executeDeletionJob(job);
+    const completion = await settleVideoDeletionJob(
+      db, jobRef, token, { kind: 'COMPLETED' }
+    );
+    return cleanupPending || completion !== 'REMOVED';
+  } catch (error) {
+    const detail = normalizeErrorMessage(error);
+    const blocked = detail ===
+      'Published video asset cleanup blocked; manual review required.';
+    const settlement = await settleVideoDeletionJob(db, jobRef, token,
+      blocked ? { kind: 'BLOCKED', error: detail } :
+        { kind: 'RETRYABLE_FAILURE', error: detail }
+    );
+    logger.error('[videoDeletion] Limpeza pendente.', {
+      jobId: jobRef.id, status: settlement, reason: blocked ? 'BLOCKED' : 'RETRY',
     });
-  } catch (updateError) {
-    logger.warn('[videoDeletion] Job indisponível para atualização.', {
-      jobId,
-      error: normalizeErrorMessage(updateError),
-    });
+    return true;
   }
 }
 
@@ -466,7 +500,15 @@ export async function deleteProfileVideoResources(
     lastError: null,
   };
 
-  removalBatch.set(jobRef, job);
+  // Create atomically with unpublication, never overwrite an active retry/lease.
+  removalBatch.create(jobRef, {
+    ...job,
+    state: 'retryable',
+    nextAttemptAt: now,
+    deadLetterExpiresAt: null,
+    leaseToken: null,
+    leaseUntil: null,
+  });
   if (publicationSnap.exists && publicationSnap.updateTime) {
     removalBatch.delete(publicationRef, {
       lastUpdateTime: publicationSnap.updateTime,
@@ -475,30 +517,26 @@ export async function deleteProfileVideoResources(
     removalBatch.delete(publicationRef);
   }
   removalBatch.delete(publicVideoRef);
-  await removalBatch.commit();
+  try {
+    await removalBatch.commit();
+  } catch (error) {
+    // If another invocation already registered the job, preserve its state.
+    if ((await jobRef.get()).exists) {
+      return { videoId, cleanupPending: true };
+    }
+    throw error;
+  }
   await refreshMetricsBestEffort(ownerUid);
 
   try {
-    const publishedCleanupPending = await executeDeletionJob(jobId, job);
-
-    return {
-      videoId,
-      cleanupPending: publishedCleanupPending || processingCleanupPending,
-    };
+    const pending = await processVideoDeletionJob(jobRef);
+    return { videoId, cleanupPending: pending || processingCleanupPending };
   } catch (error) {
-    await recordDeletionAttemptFailure(jobId, error);
-
-    logger.error('[deleteProfileVideo] Limpeza física pendente.', {
-      ownerUid,
-      videoId,
-      jobId,
-      error: normalizeErrorMessage(error),
+    // An unclaimed or unsettled job remains persisted for future recovery.
+    logger.error('[deleteProfileVideo] Limpeza fisica pendente.', {
+      jobId, error: normalizeErrorMessage(error),
     });
-
-    return {
-      videoId,
-      cleanupPending: true,
-    };
+    return { videoId, cleanupPending: true };
   }
 }
 
@@ -537,69 +575,31 @@ export const cleanupPendingVideoDeletions = onSchedule(
     retryCount: 3,
   },
   async () => {
-    const jobsSnapshot = await db
-      .collection(DELETION_JOBS_COLLECTION)
+    try {
+      // The resumable migration makes older unscheduled jobs selectable.
+      await migrateLegacyPublishedVideoCleanupJobs(db, {
+        cleanupCollection: DELETION_JOBS_COLLECTION,
+        migrationId: 'profile-video-deletion-v1',
+      });
+    } catch (error) {
+      logger.error('[videoDeletion] Falha na migracao incremental.', {
+        error: normalizeErrorMessage(error),
+      });
+    }
+
+    const now = Date.now();
+    const jobsSnapshot = await db.collection(DELETION_JOBS_COLLECTION)
+      .where('nextAttemptAt', '<=', now)
+      .orderBy('nextAttemptAt')
       .limit(CLEANUP_BATCH_SIZE)
       .get();
 
-    for (const jobDoc of jobsSnapshot.docs) {
-      const job = jobDoc.data() as VideoDeletionJob;
-      const ownerUid = cleanId(job.ownerUid);
-      const videoId = cleanId(job.videoId);
-
-      if (!ownerUid || !videoId) {
-        logger.error('[cleanupPendingVideoDeletions] Job inválido.', {
-          jobId: jobDoc.id,
-        });
-        continue;
-      }
-
-      const privateVideoStoragePath = job.privateVideoStoragePath
-        ? extractOwnedPrivateVideoPathForId(
-          ownerUid,
-          videoId,
-          job.privateVideoStoragePath
-        )
-        : null;
-      const privatePosterStoragePath = job.privatePosterStoragePath
-        ? extractOwnedPrivateVideoPosterPath(
-          ownerUid,
-          videoId,
-          job.privatePosterStoragePath
-        )
-        : null;
-      const processedOutputPrefix = job.processedOutputPrefix
-        ? normalizeOwnedProcessedVideoPrefix(
-          ownerUid,
-          videoId,
-          job.processedOutputPrefix
-        )
-        : null;
-
-      if (job.privateVideoStoragePath && !privateVideoStoragePath) {
-        logger.warn(
-          '[cleanupPendingVideoDeletions] Path privado inválido; usando prefixo canônico.',
-          { jobId: jobDoc.id, ownerUid, videoId }
-        );
-      }
-
+    for (const candidate of jobsSnapshot.docs) {
       try {
-        await executeDeletionJob(jobDoc.id, {
-          ...job,
-          ownerUid,
-          videoId,
-          privateVideoStoragePath,
-          privatePosterStoragePath,
-          processedOutputPrefix,
-        });
+        await processVideoDeletionJob(candidate.ref);
       } catch (error) {
-        await recordDeletionAttemptFailure(jobDoc.id, error);
-
-        logger.error('[cleanupPendingVideoDeletions] Falha no retry.', {
-          jobId: jobDoc.id,
-          ownerUid,
-          videoId,
-          error: normalizeErrorMessage(error),
+        logger.error('[videoDeletion] Tentativa nao concluida.', {
+          jobId: candidate.id, error: normalizeErrorMessage(error),
         });
       }
     }
