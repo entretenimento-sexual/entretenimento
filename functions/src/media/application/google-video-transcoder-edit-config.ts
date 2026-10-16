@@ -77,16 +77,54 @@ function hasCrop(crop: {
     crop.rightPixels > 0;
 }
 
-export function buildEditedTranscoderJobConfig(input: {
+interface SingleMp4TranscoderInput {
   inputUri: string;
   outputUri: string;
   recipe: VideoEditRecipe;
   sourceDurationMs: number | null;
-}): EditedTranscoderJobConfig | null {
+}
+
+export function buildEditedTranscoderJobConfig(
+  input: SingleMp4TranscoderInput
+): EditedTranscoderJobConfig | null {
   if (!hasEffectiveVideoEdit(input.recipe, input.sourceDurationMs)) {
     return null;
   }
+  return buildSingleMp4TranscoderJobConfig(input);
+}
 
+/**
+ * One MP4 only when the persisted geometry is present. Missing dimensions
+ * retain the existing template until their provenance can be verified.
+ * We still transcode: this is NOT a direct-upload playback bypass.
+ */
+export function buildNeutralSingleMp4Config(
+  input: SingleMp4TranscoderInput
+): EditedTranscoderJobConfig | null {
+  const geometry = resolveVideoEditGeometry(input.recipe);
+  if (hasEffectiveVideoEdit(input.recipe, input.sourceDurationMs) || !geometry) {
+    return null;
+  }
+  const config = buildSingleMp4TranscoderJobConfig(input);
+  const h264 = config.elementaryStreams[0]?.videoStream?.h264;
+  if (!h264) return null;
+
+  // The dimensions in the persisted edit recipe originate from the client,
+  // not from an authoritative media probe. Use them only to choose a target
+  // long-side bound. Asking the Transcoder for just one dimension delegates
+  // the other to the real input aspect ratio, preventing stretched outputs.
+  // No-upscale is not authoritative until the source dimensions are probed.
+  if (geometry.outputWidthPixels >= geometry.outputHeightPixels) {
+    delete h264.widthPixels;
+  } else {
+    delete h264.heightPixels;
+  }
+  return config;
+}
+
+function buildSingleMp4TranscoderJobConfig(
+  input: SingleMp4TranscoderInput
+): EditedTranscoderJobConfig {
   const geometry = resolveVideoEditGeometry(input.recipe);
   const crop = geometry?.crop;
   const videoInput: TranscoderInputConfig = {

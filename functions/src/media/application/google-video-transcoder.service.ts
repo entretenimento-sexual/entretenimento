@@ -4,7 +4,10 @@ import { applicationDefault } from 'firebase-admin/app';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { adminApp, db, storage } from '../../firebaseApp';
 import { assertExternalVideoEgressAllowed } from '../../shared/runtime/functions-runtime.guard';
-import { buildEditedTranscoderJobConfig } from './google-video-transcoder-edit-config';
+import {
+  buildEditedTranscoderJobConfig,
+  buildNeutralSingleMp4Config,
+} from './google-video-transcoder-edit-config';
 import {
   normalizeVideoEditRecipe,
   type VideoEditRecipe,
@@ -288,17 +291,20 @@ export async function submitGoogleVideoTranscoderJob(
     editSnapshot.recipe
   );
   const sourceUri = inputUri(preparedSource.sourceStoragePath);
-  const editedConfig = buildEditedTranscoderJobConfig({
+  const configInput = {
     inputUri: sourceUri,
     outputUri: destinationUri,
     recipe: preparedSource.recipe,
     sourceDurationMs: editSnapshot.sourceDurationMs,
-  });
+  };
+  const editedConfig = buildEditedTranscoderJobConfig(configInput);
+  const neutralConfig = editedConfig ? null : buildNeutralSingleMp4Config(configInput);
+  const selectedConfig = editedConfig ?? neutralConfig;
   const response = await axios.post<GoogleTranscoderJobResponse>(
     `${TRANSCODER_API_BASE_URL}/${parent}/jobs`,
     {
-      ...(editedConfig
-        ? { config: editedConfig }
+      ...(selectedConfig
+        ? { config: selectedConfig }
         : {
           inputUri: sourceUri,
           outputUri: destinationUri,
@@ -310,6 +316,7 @@ export async function submitGoogleVideoTranscoderJob(
         media: 'profile-video',
         processing_version: processingVersion,
         edited: editedConfig ? 'true' : 'false',
+        output_profile: selectedConfig ? 'single_mp4' : 'template_fallback',
         rotated: editSnapshot.recipe.rotationDegrees !== 0 ? 'true' : 'false',
       },
     },
