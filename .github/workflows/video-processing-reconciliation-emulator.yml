@@ -8,6 +8,7 @@ on:
       - 'functions/src/media/application/google-video-transcoder.service.ts'
       - 'functions/src/media/application/video-rotation-worker.service.ts'
       - 'functions/src/media/application/video-source-probe*'
+      - 'functions/src/media/application/video-immutable-input*'
       - 'functions/src/media/application/queue-video-processing.handler.ts'
       - 'services/video-rotation-worker/**'
       - 'functions/src/media/application/google-video-transcoder-edit-config*'
