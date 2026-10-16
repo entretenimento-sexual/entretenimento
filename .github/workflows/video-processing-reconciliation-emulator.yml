@@ -6,6 +6,9 @@ on:
     paths:
       - 'functions/src/media/application/video-processing*'
       - 'functions/src/media/application/google-video-transcoder.service.ts'
+      - 'functions/src/media/application/video-rotation-worker.service.ts'
+      - 'functions/src/media/application/queue-video-processing.handler.ts'
+      - 'services/video-rotation-worker/**'
       - 'functions/src/media/application/google-video-transcoder-edit-config*'
       - 'functions/src/media/application/video-cancellation*'
       - 'functions/src/media/application/video-transcoder-delete*'
@@ -73,6 +76,8 @@ jobs:
         run: node --test scripts/tests/video-processing-job-inventory.test.mjs
       - name: Verify offline scheduler log audit
         run: node --test scripts/tests/video-cancellation-log-audit.test.mjs
+      - name: Verify video metadata probe parsing
+        run: node --test services/video-rotation-worker/video-probe.test.mjs
       - name: Compile Functions
         run: npm --prefix functions run build
       - name: Test transactions in disposable demo Firestore

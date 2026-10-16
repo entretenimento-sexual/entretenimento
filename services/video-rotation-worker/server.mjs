@@ -6,6 +6,7 @@ import { extname, join } from 'node:path';
 import http from 'node:http';
 
 import { Storage } from '@google-cloud/storage';
+import { runVideoProbe, VideoProbeError } from './video-probe.mjs';
 
 const storage = new Storage();
 const PORT = Number(process.env.PORT ?? 8080);
@@ -299,6 +300,73 @@ async function rotateVideo(payload) {
   }
 }
 
+async function probeVideo(payload) {
+  if (!EXPECTED_BUCKET) throw new VideoProbeError('VIDEO_PROBE_UNAVAILABLE', 503);
+  const bucketName = String(payload?.bucketName ?? '').trim();
+  const ownerUid = cleanId(payload?.ownerUid);
+  const videoId = cleanId(payload?.videoId);
+  const processingVersion = cleanProcessingVersion(payload?.processingVersion);
+  const sourceGeneration = String(payload?.sourceGeneration ?? '').trim();
+  const sourceStoragePath = validateSourcePath(
+    ownerUid, videoId, payload?.sourceStoragePath
+  );
+  if (bucketName !== EXPECTED_BUCKET || !ownerUid || !videoId ||
+      !processingVersion || !sourceStoragePath ||
+      !/^[1-9][0-9]{0,29}$/.test(sourceGeneration)) {
+    throw new RequestValidationError('Comando de inspeção inválido.');
+  }
+  const file = storage.bucket(EXPECTED_BUCKET).file(sourceStoragePath);
+  const readMetadata = async () => {
+    try {
+      const [metadata] = await file.getMetadata();
+      return metadata;
+    } catch (error) {
+      if (Number(error?.code) === 404) {
+        throw new VideoProbeError('VIDEO_PROBE_SOURCE_NOT_FOUND', 404);
+      }
+      throw new VideoProbeError('VIDEO_PROBE_UNAVAILABLE', 503);
+    }
+  };
+  const initial = await readMetadata();
+  if (String(initial.generation ?? '') !== sourceGeneration) {
+    throw new VideoProbeError('VIDEO_PROBE_GENERATION_MISMATCH', 412);
+  }
+  const sizeBytes = Number(initial.size ?? 0);
+  const contentType = String(initial.contentType ?? '').trim().toLowerCase();
+  if (!Number.isSafeInteger(sizeBytes) || sizeBytes <= 0 ||
+      sizeBytes > MAX_SOURCE_BYTES || !ALLOWED_VIDEO_TYPES.has(contentType)) {
+    throw new VideoProbeError('VIDEO_PROBE_INVALID_MEDIA');
+  }
+  const workingDirectory = await mkdtemp(join(tmpdir(), 'video-probe-'));
+  const inputPath = join(workingDirectory,
+    'source-' + randomUUID() + safeExtension(sourceStoragePath));
+  try {
+    try {
+      await storage.bucket(EXPECTED_BUCKET)
+        .file(sourceStoragePath, { generation: sourceGeneration })
+        .download({ destination: inputPath, validation: 'crc32c' });
+    } catch (error) {
+      if (Number(error?.code) === 404 || Number(error?.code) === 412) {
+        throw new VideoProbeError('VIDEO_PROBE_SOURCE_CHANGED', 412);
+      }
+      throw new VideoProbeError('VIDEO_PROBE_UNAVAILABLE', 503);
+    }
+    const downloaded = await stat(inputPath);
+    if (!downloaded.isFile() || downloaded.size !== sizeBytes) {
+      throw new VideoProbeError('VIDEO_PROBE_SOURCE_CHANGED', 412);
+    }
+    const probe = await runVideoProbe(inputPath);
+    const current = await readMetadata();
+    if (String(current.generation ?? '') !== sourceGeneration ||
+        Number(current.size ?? 0) !== sizeBytes) {
+      throw new VideoProbeError('VIDEO_PROBE_SOURCE_CHANGED', 412);
+    }
+    return { ...probe, sourceGeneration, sourceSizeBytes: sizeBytes };
+  } finally {
+    await rm(workingDirectory, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
 const server = http.createServer(async (request, response) => {
   if (request.method === 'GET' && request.url === '/healthz') {
     sendJson(response, EXPECTED_BUCKET ? 200 : 503, {
@@ -307,25 +375,27 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
-  if (request.method !== 'POST' || request.url !== '/rotate') {
+  if (request.method !== 'POST' || !['/rotate', '/probe'].includes(request.url)) {
     sendJson(response, 404, { error: 'not-found' });
     return;
   }
 
   try {
     const payload = await readJson(request);
-    const result = await rotateVideo(payload);
+    const result = request.url === '/probe'
+      ? await probeVideo(payload) : await rotateVideo(payload);
     sendJson(response, 200, result);
   } catch (error) {
     const clientError = error instanceof RequestValidationError;
+    const probeError = error instanceof VideoProbeError ? error : null;
     console.error('[video-rotation-worker] Falha.', {
       clientError,
       message: error instanceof Error
         ? error.message.slice(0, 2_000)
         : String(error ?? 'unknown').slice(0, 2_000),
     });
-    sendJson(response, clientError ? 400 : 500, {
-      error: clientError ? 'invalid-request' : 'processing-failed',
+    sendJson(response, probeError?.statusCode ?? (clientError ? 400 : 500), {
+      error: probeError?.code ?? (clientError ? 'invalid-request' : 'processing-failed'),
     });
   }
 });

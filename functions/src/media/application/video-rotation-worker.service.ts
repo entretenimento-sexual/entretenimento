@@ -17,6 +17,93 @@ export interface PreparedTranscoderSource {
   recipe: VideoEditRecipe;
 }
 
+export interface AuthoritativeVideoProbeResult {
+  widthPixels: number;
+  heightPixels: number;
+  durationMs: number;
+  embeddedRotationDegrees: number;
+  displayAspectNumerator: number;
+  displayAspectDenominator: number;
+  sampleAspectRatio: { numerator: number; denominator: number };
+  videoCodec: string;
+  hasAudio: boolean;
+  audioCodec: string | null;
+  sourceGeneration: string;
+  sourceSizeBytes: number;
+}
+
+export class VideoProbeRequestError extends Error {
+  constructor(
+    readonly code: string,
+    readonly retryable: boolean
+  ) {
+    super(code);
+    this.name = 'VideoProbeRequestError';
+  }
+}
+
+/** Consulta explícita e versionada; não altera ainda a receita do Transcoder. */
+export async function probeVideoSource(
+  job: VideoProcessingJob
+): Promise<AuthoritativeVideoProbeResult> {
+  const generation = String(job.sourceGeneration ?? '').trim();
+  if (!/^[1-9][0-9]{0,29}$/.test(generation)) {
+    throw new VideoProbeRequestError(
+      'VIDEO_PROBE_SOURCE_GENERATION_UNAVAILABLE', false
+    );
+  }
+  const baseUrl = workerBaseUrl();
+  if (!baseUrl) {
+    throw new VideoProbeRequestError('VIDEO_PROBE_WORKER_UNAVAILABLE', true);
+  }
+  const authorization = await workerAuthorizationHeader(baseUrl);
+  try {
+    const response = await axios.post<AuthoritativeVideoProbeResult>(
+      baseUrl + '/probe',
+      {
+        bucketName: storage.bucket().name,
+        ownerUid: job.ownerUid,
+        videoId: job.videoId,
+        processingVersion: job.processingVersion,
+        sourceStoragePath: job.sourceStoragePath,
+        sourceGeneration: generation,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authorization ? { Authorization: authorization } : {}),
+        },
+        timeout: 70_000,
+      }
+    );
+    const result = response.data;
+    if (result?.sourceGeneration !== generation ||
+        !Number.isSafeInteger(result.widthPixels) ||
+        !Number.isSafeInteger(result.heightPixels) ||
+        !Number.isSafeInteger(result.durationMs) ||
+        result.widthPixels < 2 || result.heightPixels < 2 ||
+        result.durationMs < 5_000 ||
+        typeof result.hasAudio !== 'boolean') {
+      throw new VideoProbeRequestError('VIDEO_PROBE_INVALID_RESPONSE', true);
+    }
+    return result;
+  } catch (error) {
+    if (error instanceof VideoProbeRequestError) throw error;
+    const responseCode = axios.isAxiosError(error)
+      ? (error.response?.data as { error?: unknown } | undefined)?.error
+      : null;
+    const code = typeof responseCode === 'string' &&
+      /^VIDEO_PROBE_[A-Z0-9_]{1,80}$/.test(responseCode)
+      ? responseCode : 'VIDEO_PROBE_WORKER_UNAVAILABLE';
+    const retryable = [
+      'VIDEO_PROBE_WORKER_UNAVAILABLE',
+      'VIDEO_PROBE_UNAVAILABLE',
+      'VIDEO_PROBE_TIMEOUT',
+    ].includes(code);
+    throw new VideoProbeRequestError(code, retryable);
+  }
+}
+
 const METADATA_IDENTITY_URL =
   'http://metadata.google.internal/computeMetadata/v1/' +
   'instance/service-accounts/default/identity';

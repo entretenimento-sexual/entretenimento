@@ -27,6 +27,7 @@ import {
 } from './video-storage-path';
 
 interface PrivateVideoDocument {
+  sourceGeneration?: string | null;
   path?: string;
   url?: string;
   thumbnailPath?: string | null;
@@ -313,6 +314,9 @@ export async function ensurePrivateVideoProcessingQueued(
         ownerUid,
         videoId,
         sourceStoragePath,
+        ...(typeof video.sourceGeneration === 'string' &&
+            /^[1-9][0-9]{0,29}$/.test(video.sourceGeneration)
+          ? { sourceGeneration: video.sourceGeneration } : {}),
         sourcePosterStoragePath,
         sourceMimeType,
         sourceSizeBytes,

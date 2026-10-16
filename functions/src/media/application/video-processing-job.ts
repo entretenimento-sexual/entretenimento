@@ -20,6 +20,7 @@ export interface VideoProcessingJob {
   ownerUid: string;
   videoId: string;
   sourceStoragePath: string;
+  sourceGeneration?: string | null;
   sourcePosterStoragePath: string | null;
   sourceMimeType: string;
   sourceSizeBytes: number;
@@ -60,6 +61,7 @@ export interface BuildQueuedVideoProcessingJobCommand {
   ownerUid: string;
   videoId: string;
   sourceStoragePath: string;
+  sourceGeneration?: string | null;
   sourcePosterStoragePath: string | null;
   sourceMimeType: string;
   sourceSizeBytes: number;
@@ -102,6 +104,7 @@ export function buildQueuedVideoProcessingJob(
     ownerUid: command.ownerUid,
     videoId: command.videoId,
     sourceStoragePath: command.sourceStoragePath,
+    ...(command.sourceGeneration ? { sourceGeneration: command.sourceGeneration } : {}),
     sourcePosterStoragePath: command.sourcePosterStoragePath,
     sourceMimeType: command.sourceMimeType,
     sourceSizeBytes: command.sourceSizeBytes,

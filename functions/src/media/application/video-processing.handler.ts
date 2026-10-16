@@ -193,6 +193,9 @@ function normalizeJob(data: unknown): VideoProcessingJob | null {
     ownerUid,
     videoId,
     sourceStoragePath,
+    ...(typeof job.sourceGeneration === 'string' &&
+        /^[1-9][0-9]{0,29}$/.test(job.sourceGeneration)
+      ? { sourceGeneration: job.sourceGeneration } : {}),
     sourcePosterStoragePath:
       String(job.sourcePosterStoragePath ?? '').trim() || null,
     sourceMimeType: String(job.sourceMimeType ?? '').trim().toLowerCase(),

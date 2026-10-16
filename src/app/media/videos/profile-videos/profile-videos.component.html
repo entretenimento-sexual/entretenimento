@@ -422,6 +422,14 @@
                   }
                 </div>
 
+                @if (processingFailureFeedback(item.video); as failure) {
+                  <p class="profile-videos__helper" role="status">
+                    <strong>{{ failure.title }}.</strong>
+                    {{ failure.message }}
+                    <span>{{ failure.recovery }}</span>
+                  </p>
+                }
+
                 @if (item.publication?.description) {
                   <p class="profile-videos__caption">
                     {{ item.publication?.description }}

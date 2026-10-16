@@ -42,6 +42,10 @@ import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
+import {
+  resolveVideoProcessingFailureFeedback,
+  type VideoProcessingFailureFeedback,
+} from 'src/app/core/services/media/video-processing-failure-feedback.policy';
 import { resolveMediaPolicyDeniedMessage } from 'src/app/core/services/media/media-policy-feedback.policy';
 import { MEDIA_VIDEO_MAX_BYTES } from 'src/app/core/services/media/media-format.policy';
 import {
@@ -816,6 +820,13 @@ export class ProfileVideosComponent {
       item.video.ownerUid,
       item.video.id,
     ]);
+  }
+
+  /** Feedback de falha persistida. Sem toast repetido a cada emissão do NgRx. */
+  processingFailureFeedback(video: IVideoItem): VideoProcessingFailureFeedback | null {
+    return video.status === 'failed'
+      ? resolveVideoProcessingFailureFeedback(video.processingErrorCode)
+      : null;
   }
 
   mediaStateLabel(video: IVideoItem): string {
