@@ -6,6 +6,46 @@ export const VIDEO_DELETION_STORAGE_PAGE_SIZE = 20;
 export const VIDEO_DELETION_STORAGE_CONCURRENCY = 4;
 export const VIDEO_DELETION_STORAGE_MAX_FILES_PER_ATTEMPT = 80;
 
+/** A failed generation match must never turn into an unqualified retry. */
+export class VideoDeletionGenerationConflictError extends Error {
+  constructor(message = 'Video storage generation conflict; manual review required.') {
+    super(message);
+    this.name = 'VideoDeletionGenerationConflictError';
+  }
+}
+
+/** GCS generations are uint64 decimal strings; converting them to JS Number is unsafe. */
+function requireGcsGeneration(value: unknown): string {
+  const generation = typeof value === 'number' && Number.isSafeInteger(value)
+    ? String(value) : value;
+  if (typeof generation !== 'string' ||
+      !/^[1-9]\d{0,19}$/.test(generation) ||
+      BigInt(generation) > 18446744073709551615n) {
+    throw new VideoDeletionGenerationConflictError(
+      'Missing or invalid GCS object generation; manual review required.'
+    );
+  }
+  return generation;
+}
+
+/** The provider must atomically reject deletion when an object is replaced (HTTP 412). */
+export async function deleteGenerationPinnedVideoFile(
+  expectedGeneration: unknown,
+  deleteWithGeneration: (generation: string) => Promise<unknown>
+): Promise<void> {
+  const generation = requireGcsGeneration(expectedGeneration);
+  try {
+    await deleteWithGeneration(generation);
+  } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error
+      ? (error as { code: unknown }).code : null;
+    if (code === 412 || code === '412') {
+      throw new VideoDeletionGenerationConflictError();
+    }
+    throw error;
+  }
+}
+
 export interface DeletableVideoStorageFile {
   delete(): Promise<unknown>;
 }

@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  deleteGenerationPinnedVideoFile,
   deleteVideoStoragePrefixBounded,
+  VideoDeletionGenerationConflictError,
   VIDEO_DELETION_STORAGE_CONCURRENCY,
   VIDEO_DELETION_STORAGE_MAX_FILES_PER_ATTEMPT,
   VIDEO_DELETION_STORAGE_PAGE_SIZE,
@@ -73,4 +75,45 @@ test('surfaces partial delete failures for job retry', async () => {
     { delete: async () => { throw new Error('GCS unavailable'); } },
   ]), /GCS unavailable/);
   assert.ok(deleted >= 1);
+});
+
+test('generation-pinned delete forwards the exact GCS generation without rounding', async () => {
+  const generation = '18446744073709551615';
+  const observed: string[] = [];
+  await deleteGenerationPinnedVideoFile(generation, async (g) => {
+    observed.push(g);
+  });
+  assert.deepEqual(observed, [generation]);
+});
+
+test('generation-pinned delete fails closed before contacting GCS on missing metadata', async () => {
+  let called = 0;
+  for (const invalid of [null, undefined, '', '0', '001', -1, 1.5,
+    Number.MAX_SAFE_INTEGER + 1, '18446744073709551616', 'not-a-number']) {
+    await assert.rejects(
+      deleteGenerationPinnedVideoFile(invalid, async () => { called += 1; }),
+      VideoDeletionGenerationConflictError
+    );
+  }
+  assert.equal(called, 0);
+});
+
+test('GCS generation mismatch 412 blocks rather than retrying without a precondition', async () => {
+  let calls = 0;
+  await assert.rejects(
+    deleteGenerationPinnedVideoFile('123456', async () => {
+      calls += 1;
+      throw Object.assign(new Error('Precondition Failed'), { code: 412 });
+    }),
+    VideoDeletionGenerationConflictError
+  );
+  assert.equal(calls, 1);
+});
+
+test('transient GCS errors retain their identity for normal durable retry', async () => {
+  const transient = Object.assign(new Error('Storage unavailable'), { code: 503 });
+  await assert.rejects(
+    deleteGenerationPinnedVideoFile('123456', async () => { throw transient; }),
+    (error: unknown) => error === transient
+  );
 });

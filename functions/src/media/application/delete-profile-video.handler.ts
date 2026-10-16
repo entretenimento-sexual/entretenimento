@@ -6,7 +6,11 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
-import { deleteVideoStoragePrefixBounded } from './video-deletion-storage-pages';
+import {
+  deleteGenerationPinnedVideoFile,
+  deleteVideoStoragePrefixBounded,
+  VideoDeletionGenerationConflictError,
+} from './video-deletion-storage-pages';
 import {
   assertCallableAppCheck,
   REQUIRE_CALLABLE_APP_CHECK,
@@ -180,7 +184,15 @@ async function deleteFilesByPrefix(prefix: string): Promise<void> {
       autoPaginate: false,
     });
     return files.map((file) => ({
-      delete: () => file.delete({ ignoreNotFound: true }),
+      // getFiles returns the generation for the object listed on this page.
+      // Never delete a different generation that took its place meanwhile.
+      delete: () => deleteGenerationPinnedVideoFile(
+        file.metadata?.generation,
+        (generation) => file.delete({
+          ignoreNotFound: true,
+          ifGenerationMatch: generation,
+        })
+      ),
     }));
   });
 }
@@ -339,8 +351,8 @@ async function processVideoDeletionJob(
     return cleanupPending || completion !== 'REMOVED';
   } catch (error) {
     const detail = normalizeErrorMessage(error);
-    const blocked = detail ===
-      'Published video asset cleanup blocked; manual review required.';
+    const blocked = error instanceof VideoDeletionGenerationConflictError ||
+      detail === 'Published video asset cleanup blocked; manual review required.';
     const settlement = await settleVideoDeletionJob(db, jobRef, token,
       blocked ? { kind: 'BLOCKED', error: detail } :
         { kind: 'RETRYABLE_FAILURE', error: detail }
