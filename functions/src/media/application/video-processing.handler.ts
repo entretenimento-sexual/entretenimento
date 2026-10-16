@@ -45,6 +45,8 @@ import {
   claimExpiredSubmissionLease,
   updateRecoveredSubmissionIfCurrent,
 } from './video-processing-reconciliation.firestore';
+import { prepareVideoSourceProbeBeforeSubmission, videoSourceProbeCaptureEnabled } from './video-source-probe.service';
+import { matchesVideoSourceProbeSnapshot } from './video-source-probe.policy';
 
 interface ProcessedVideoCandidate {
   storagePath: string;
@@ -53,6 +55,7 @@ interface ProcessedVideoCandidate {
 }
 
 interface PrivateVideoDocument {
+  sourceGeneration?: string | null;
   path?: string;
   url?: string;
   mimeType?: string;
@@ -196,6 +199,7 @@ function normalizeJob(data: unknown): VideoProcessingJob | null {
     ...(typeof job.sourceGeneration === 'string' &&
         /^[1-9][0-9]{0,29}$/.test(job.sourceGeneration)
       ? { sourceGeneration: job.sourceGeneration } : {}),
+    sourceProbe: job.sourceProbe ?? null,
     sourcePosterStoragePath:
       String(job.sourcePosterStoragePath ?? '').trim() || null,
     sourceMimeType: String(job.sourceMimeType ?? '').trim().toLowerCase(),
@@ -254,7 +258,9 @@ async function claimQueuedJob(
     if (
       !job ||
       job.state !== 'QUEUED' ||
-      job.nextAttemptAt > now
+      job.nextAttemptAt > now ||
+      (videoSourceProbeCaptureEnabled() && !!job.sourceGeneration &&
+        !matchesVideoSourceProbeSnapshot(job, job.sourceProbe))
     ) {
       return null;
     }
@@ -279,7 +285,8 @@ async function claimQueuedJob(
 
     if (
       privateSourcePath(job.ownerUid, job.videoId, video) !==
-      job.sourceStoragePath
+      job.sourceStoragePath ||
+      (!!job.sourceGeneration && video.sourceGeneration !== job.sourceGeneration)
     ) {
       transaction.update(jobRef, {
         state: 'CANCEL_REQUESTED',
@@ -398,7 +405,8 @@ async function persistSubmittedJob(
 
     if (
       privateSourcePath(job.ownerUid, job.videoId, video) !==
-      job.sourceStoragePath
+      job.sourceStoragePath ||
+      (!!job.sourceGeneration && video.sourceGeneration !== job.sourceGeneration)
     ) {
       transaction.update(jobRef, {
         state: 'CANCEL_REQUESTED',
@@ -697,7 +705,8 @@ async function finalizeSucceededJob(
 
     if (
       privateSourcePath(job.ownerUid, job.videoId, video) !==
-      job.sourceStoragePath
+      job.sourceStoragePath ||
+      (!!job.sourceGeneration && video.sourceGeneration !== job.sourceGeneration)
     ) {
       transaction.update(jobRef, {
         state: 'CANCEL_REQUESTED',
@@ -970,11 +979,13 @@ export const submitQueuedVideoProcessing = onSchedule(
     const tasks: Array<() => Promise<void>> = [];
 
     for (const jobDoc of snapshot.docs) {
-      const claimedJob = await claimQueuedJob(jobDoc.ref, now);
-
-      if (claimedJob) {
-        tasks.push(() => submitClaimedJob(jobDoc.ref, claimedJob));
-      }
+      tasks.push(async () => {
+        if (!await prepareVideoSourceProbeBeforeSubmission(jobDoc.ref, Date.now())) {
+          return;
+        }
+        const claimedJob = await claimQueuedJob(jobDoc.ref, Date.now());
+        if (claimedJob) await submitClaimedJob(jobDoc.ref, claimedJob);
+      });
     }
 
     await runBatch(tasks, 'submit');

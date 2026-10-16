@@ -21,6 +21,10 @@ export interface VideoProcessingJob {
   videoId: string;
   sourceStoragePath: string;
   sourceGeneration?: string | null;
+  /** Validated ffprobe result fenced to this immutable source/version. */
+  sourceProbe?: import('./video-source-probe.policy').VideoSourceProbeSnapshot | null;
+  sourceProbeClaimId?: string | null;
+  sourceProbeAttempts?: number;
   sourcePosterStoragePath: string | null;
   sourceMimeType: string;
   sourceSizeBytes: number;

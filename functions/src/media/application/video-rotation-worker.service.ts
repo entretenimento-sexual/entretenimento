@@ -56,8 +56,8 @@ export async function probeVideoSource(
   if (!baseUrl) {
     throw new VideoProbeRequestError('VIDEO_PROBE_WORKER_UNAVAILABLE', true);
   }
-  const authorization = await workerAuthorizationHeader(baseUrl);
   try {
+    const authorization = await workerAuthorizationHeader(baseUrl);
     const response = await axios.post<AuthoritativeVideoProbeResult>(
       baseUrl + '/probe',
       {
