@@ -14,13 +14,19 @@ export class VideoDeletionGenerationConflictError extends Error {
   }
 }
 
-/** GCS generations are uint64 decimal strings; converting them to JS Number is unsafe. */
-function requireGcsGeneration(value: unknown): string {
+/** GCS generations are uint64 decimals. Never round an unsafe JS number. */
+export function normalizeGcsGeneration(value: unknown): string | null {
   const generation = typeof value === 'number' && Number.isSafeInteger(value)
     ? String(value) : value;
   if (typeof generation !== 'string' ||
       !/^[1-9]\d{0,19}$/.test(generation) ||
-      BigInt(generation) > 18446744073709551615n) {
+      BigInt(generation) > 18446744073709551615n) return null;
+  return generation;
+}
+
+function requireGcsGeneration(value: unknown): string {
+  const generation = normalizeGcsGeneration(value);
+  if (!generation) {
     throw new VideoDeletionGenerationConflictError(
       'Missing or invalid GCS object generation; manual review required.'
     );

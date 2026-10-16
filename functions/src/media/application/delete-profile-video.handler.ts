@@ -20,6 +20,7 @@ import {
 } from '../../shared/security/backend-rate-limit.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import { claimVideoDeletionJob, settleVideoDeletionJob } from './video-deletion-queue.firestore';
+import { processPendingVideoOriginalCleanupJobs } from './cleanup-published-video-originals.handler';
 import {
   retireVideoIdentityForActiveClaim,
   retireVideoIdentityInBatch,
@@ -631,5 +632,7 @@ export const cleanupPendingVideoDeletions = onSchedule(
         });
       }
     }
+    // Piggyback on the existing scheduler: no extra periodic Function.
+    await processPendingVideoOriginalCleanupJobs();
   }
 );

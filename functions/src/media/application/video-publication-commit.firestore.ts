@@ -3,11 +3,17 @@ import { HttpsError } from 'firebase-functions/v2/https';
 
 import { isRestrictedVideoModerationStatus } from './video-publication-moderation.policy';
 import { isCurrentVideoPublicationSource } from './video-publication-source-fence.policy';
+import {
+  buildVideoOriginalCleanupJob,
+  VIDEO_ORIGINAL_CLEANUP_COLLECTION,
+  videoOriginalCleanupJobId,
+} from './video-original-cleanup.policy';
 
 export type OwnerVideoDoc = {
   id?: string;
   url?: string;
   path?: string;
+  sourceGeneration?: string | null;
   fileName?: string;
   mimeType?: string;
   sizeBytes?: number;
@@ -154,6 +160,22 @@ export async function commitCopiedVideoPublicationIfCurrent(
         'failed-precondition',
         'A origem ou a versão processada do vídeo mudou durante a publicação.'
       );
+    }
+    // The cleanup intent is atomic with publication. A crash cannot leave
+    // newly published originals untracked. Legacy sources without a GCS
+    // generation remain untouched until explicitly reconciled.
+    const originalCleanup = buildVideoOriginalCleanupJob({
+      ownerUid, videoId, sourceStoragePath: sourceVideoStoragePath,
+      sourceGeneration: currentOwnerVideo.sourceGeneration,
+      processedStoragePath: sourceProcessedStoragePath,
+      publishedStoragePath: publicationPatch['publishedStoragePath'],
+      now: Date.now(),
+    });
+    if (originalCleanup) {
+      const cleanupRef = firestore.collection(VIDEO_ORIGINAL_CLEANUP_COLLECTION)
+        .doc(videoOriginalCleanupJobId(ownerUid, videoId));
+      const pendingCleanup = await transaction.get(cleanupRef);
+      if (!pendingCleanup.exists) transaction.create(cleanupRef, originalCleanup);
     }
     transaction.set(publicationRef, publicationPatch, { merge: true });
     transaction.set(publicVideoRef, publicVideoPatch, { merge: true });

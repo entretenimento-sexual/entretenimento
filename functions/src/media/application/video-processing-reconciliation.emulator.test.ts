@@ -10,6 +10,11 @@ import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-
 import { decideMissingVideoSubmission } from './video-submission-confirmation.policy';
 import { isCurrentVideoProcessingAttempt } from './video-processing-poll.policy';
 import { commitCopiedVideoPublicationIfCurrent } from './video-publication-commit.firestore';
+import {
+  VIDEO_ORIGINAL_CLEANUP_COLLECTION,
+  VIDEO_ORIGINAL_CLEANUP_GRACE_MS,
+  videoOriginalCleanupJobId,
+} from './video-original-cleanup.policy';
 import { deleteUnreferencedPublishedVideoAsset } from './published-video-asset-cleanup.firestore';
 import { migrateLegacyPublishedVideoCleanupJobs } from './published-video-cleanup-migration.firestore';
 import {
@@ -171,6 +176,52 @@ test('real publication transaction blocks moderation changes during copy', async
       : { rejectedSourceStoragePath: fixture.video.path });
     await expectPublicationDenied(fixture);
   }
+});
+
+test('original cleanup job is atomically created with a successful publication', async () => {
+  const fixture = readyPublicationFixture();
+  const generation = '90071992547409933';
+  await fixture.ownerRef.set({ ...fixture.video, sourceGeneration: generation });
+  const command = fixture.command('cleanup-' + randomUUID());
+  await commitCopiedVideoPublicationIfCurrent(firestore, command);
+  const jobRef = firestore.collection(VIDEO_ORIGINAL_CLEANUP_COLLECTION)
+    .doc(videoOriginalCleanupJobId(command.ownerUid, command.videoId));
+  const [job, publication] = await Promise.all([
+    jobRef.get(), fixture.publicationRef.get(),
+  ]);
+  assert.ok(job.exists);
+  assert.equal(publication.get('publishedStoragePath'), command.publicationPatch['publishedStoragePath']);
+  assert.equal(job.get('state'), 'retryable');
+  assert.equal(job.get('sourceStoragePath'), fixture.video.path);
+  assert.equal(job.get('sourceGeneration'), generation);
+  assert.equal(job.get('processedStoragePath'), fixture.video.processedStoragePath);
+  assert.equal(job.get('publishedStoragePath'), command.publicationPatch['publishedStoragePath']);
+  assert.equal(job.get('nextAttemptAt') - job.get('createdAt'), VIDEO_ORIGINAL_CLEANUP_GRACE_MS);
+});
+
+test('legacy publication without stored GCS generation keeps its original', async () => {
+  const fixture = readyPublicationFixture();
+  await fixture.ownerRef.set(fixture.video);
+  const command = fixture.command('legacy-' + randomUUID());
+  await commitCopiedVideoPublicationIfCurrent(firestore, command);
+  const job = await firestore.collection(VIDEO_ORIGINAL_CLEANUP_COLLECTION)
+    .doc(videoOriginalCleanupJobId(command.ownerUid, command.videoId)).get();
+  assert.equal((await fixture.publicationRef.get()).get('isPublished'), true);
+  assert.equal(job.exists, false);
+});
+
+test('publication rejected during transaction never leaves an original-cleanup job', async () => {
+  const fixture = readyPublicationFixture();
+  await fixture.ownerRef.set({ ...fixture.video, sourceGeneration: '90071992547409933' });
+  await fixture.publicationRef.set({ moderationStatus: 'REJECTED' });
+  const command = fixture.command('rejected-' + randomUUID());
+  await assert.rejects(commitCopiedVideoPublicationIfCurrent(firestore, command),
+    (error: unknown) => !!error && typeof error === 'object' &&
+      'code' in error && error.code === 'failed-precondition');
+  const job = await firestore.collection(VIDEO_ORIGINAL_CLEANUP_COLLECTION)
+    .doc(videoOriginalCleanupJobId(command.ownerUid, command.videoId)).get();
+  assert.equal(job.exists, false);
+  assert.equal((await fixture.publicRef.get()).exists, false);
 });
 
 test('two concurrent publication transactions cannot publish different copies', async () => {

@@ -11,6 +11,7 @@ import {
   isVideoIdentityRetiring,
   VideoIdentityUnavailableError,
 } from './video-identity-guard.firestore';
+import { normalizeGcsGeneration } from './video-deletion-storage-pages';
 import {
   VIDEO_INPUT_MIME_TYPES,
   VIDEO_MAX_BYTES,
@@ -204,6 +205,7 @@ async function readRequiredVideoMetadata(
 ): Promise<{
   mimeType: string;
   sizeBytes: number;
+  generation: string | null;
 }> {
   const file = storage.bucket().file(storagePath);
   const [exists] = await file.exists();
@@ -243,7 +245,7 @@ async function readRequiredVideoMetadata(
     );
   }
 
-  return { mimeType, sizeBytes };
+  return { mimeType, sizeBytes, generation: normalizeGcsGeneration(metadata.generation) };
 }
 
 async function validateOptionalPoster(
@@ -562,6 +564,7 @@ export const registerPrivateVideoUpload = onCall<
             id: videoId,
             ownerUid,
             path: videoStoragePath,
+            sourceGeneration: videoMetadata.generation,
             fileName,
             mimeType: videoMetadata.mimeType,
             sizeBytes: videoMetadata.sizeBytes,

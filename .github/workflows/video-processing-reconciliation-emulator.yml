@@ -18,6 +18,8 @@ on:
       - 'functions/src/media/application/video-deletion-queue.firestore.ts'
       - 'functions/src/media/application/video-deletion-*'
       - 'functions/src/media/application/video-identity-guard.*'
+      - 'functions/src/media/application/video-original-cleanup.*'
+      - 'functions/src/media/application/cleanup-published-video-originals.handler.ts'
       - 'functions/src/media/application/delete-profile-video.handler.ts'
       - 'functions/src/media/application/register-private-video-upload.handler.ts'
       - 'functions/src/media/application/video-processing-reconciliation.emulator.test.ts'
