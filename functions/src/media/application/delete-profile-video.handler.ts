@@ -6,6 +6,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
+import { deleteVideoStoragePrefixBounded } from './video-deletion-storage-pages';
 import {
   assertCallableAppCheck,
   REQUIRE_CALLABLE_APP_CHECK,
@@ -167,24 +168,17 @@ function normalizeErrorMessage(error: unknown): string {
   return String(error ?? 'unknown').slice(0, 500);
 }
 
-function privateVideoPrefix(ownerUid: string, videoId: string): string {
-  return `users/${ownerUid}/uploads/videos/${videoId}-`;
-}
-
-function privatePosterPrefix(ownerUid: string, videoId: string): string {
-  return `users/${ownerUid}/uploads/video-posters/${videoId}/`;
-}
-
-function processedVideoPrefix(ownerUid: string, videoId: string): string {
-  return `users/${ownerUid}/processed/videos/${videoId}/`;
-}
-
 async function deleteFilesByPrefix(prefix: string): Promise<void> {
-  const [files] = await storage.bucket().getFiles({ prefix });
-
-  await Promise.all(
-    files.map((file) => file.delete({ ignoreNotFound: true }))
-  );
+  await deleteVideoStoragePrefixBounded(prefix, async (pagePrefix, limit) => {
+    const [files] = await storage.bucket().getFiles({
+      prefix: pagePrefix,
+      maxResults: limit,
+      autoPaginate: false,
+    });
+    return files.map((file) => ({
+      delete: () => file.delete({ ignoreNotFound: true }),
+    }));
+  });
 }
 
 async function refreshMetricsBestEffort(ownerUid: string): Promise<void> {
@@ -247,15 +241,16 @@ async function deletePrivateAssets(job: VideoDeletionJob): Promise<void> {
     );
   }
 
-  await Promise.all([
-    ...exactDeleteTasks,
-    deleteFilesByPrefix(privateVideoPrefix(job.ownerUid, job.videoId)),
-    deleteFilesByPrefix(privatePosterPrefix(job.ownerUid, job.videoId)),
-  ]);
+  // A videoId prefix can also match a different ID (e.g. foo and foo-bar).
+  // Only exact persisted paths are safe for private object deletion.
+  await Promise.all(exactDeleteTasks);
 }
 
 async function deleteProcessedAssets(job: VideoDeletionJob): Promise<void> {
-  await deleteFilesByPrefix(processedVideoPrefix(job.ownerUid, job.videoId));
+  // Never sweep every processing generation of a videoId. Missing or legacy
+  // versions need reconciliation, not a broad destructive fallback.
+  if (!job.processedOutputPrefix) return;
+  await deleteFilesByPrefix(job.processedOutputPrefix);
 }
 
 async function executeDeletionJob(job: VideoDeletionJob): Promise<boolean> {
