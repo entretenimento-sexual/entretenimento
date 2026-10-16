@@ -7,6 +7,9 @@ import http from 'node:http';
 
 import { Storage } from '@google-cloud/storage';
 import { runVideoProbe, VideoProbeError } from './video-probe.mjs';
+import { ImmutableRotationInputError, requireImmutableRotationInput,
+  matchesImmutableRotationSource, matchesImmutableRotationDestination,
+  immutableRotationOutputMetadata } from './video-rotation-immutable.policy.mjs';
 
 const storage = new Storage();
 const PORT = Number(process.env.PORT ?? 8080);
@@ -227,19 +230,43 @@ async function rotateVideo(payload) {
     throw new RequestValidationError('Caminho de mídia inválido.');
   }
 
+  const immutableInputRequested = payload &&
+    Object.prototype.hasOwnProperty.call(payload, 'immutableInput');
+  // Invalid explicit opt-in must not fall through to mutable legacy input.
+  const immutableInput = immutableInputRequested
+    ? requireImmutableRotationInput(payload, sourceStoragePath) : null;
   const bucket = storage.bucket(EXPECTED_BUCKET);
 
-  if (await destinationIsReady(bucket, destinationStoragePath)) {
+  if (!immutableInput && await destinationIsReady(bucket, destinationStoragePath)) {
     return { destinationStoragePath, reused: true };
   }
 
-  const sourceFile = bucket.file(sourceStoragePath);
-  const [sourceExists] = await sourceFile.exists();
-  if (!sourceExists) {
-    throw new RequestValidationError('Arquivo de origem não encontrado.');
+  const sourceFile = immutableInput
+    ? bucket.file(immutableInput.destinationStoragePath, {
+      generation: immutableInput.destinationGeneration,
+    }) : bucket.file(sourceStoragePath);
+  if (!immutableInput) {
+    const [sourceExists] = await sourceFile.exists();
+    if (!sourceExists) {
+      throw new RequestValidationError('Arquivo de origem não encontrado.');
+    }
   }
-
   const [sourceMetadata] = await sourceFile.getMetadata();
+  if (immutableInput &&
+      !matchesImmutableRotationSource(immutableInput, sourceMetadata)) {
+    throw new RequestValidationError('Origem imutável divergente.');
+  }
+  const rotatedFile = bucket.file(destinationStoragePath);
+  if (immutableInput) {
+    const [exists] = await rotatedFile.exists();
+    if (exists) {
+      const [metadata] = await rotatedFile.getMetadata();
+      if (!matchesImmutableRotationDestination(immutableInput, rotationDegrees, metadata)) {
+        throw new RequestValidationError('Destino de rotação incompatível.');
+      }
+      return { destinationStoragePath, destinationGeneration: String(metadata.generation), reused: true };
+    }
+  }
   const sourceSizeBytes = Number(sourceMetadata.size ?? 0);
   const sourceContentType = String(sourceMetadata.contentType ?? '')
     .trim()
@@ -257,12 +284,21 @@ async function rotateVideo(payload) {
   const workingDirectory = await mkdtemp(join(tmpdir(), 'video-rotation-'));
   const inputPath = join(
     workingDirectory,
-    `source-${randomUUID()}${safeExtension(sourceStoragePath)}`
+    `source-${randomUUID()}${safeExtension(immutableInput?.destinationStoragePath ?? sourceStoragePath)}`
   );
   const outputPath = join(workingDirectory, `rotated-${randomUUID()}.mp4`);
 
   try {
-    await sourceFile.download({ destination: inputPath });
+    await sourceFile.download({
+      destination: inputPath,
+      ...(immutableInput ? { validation: 'crc32c' } : {}),
+    });
+    if (immutableInput) {
+      const downloaded = await stat(inputPath);
+      if (!downloaded.isFile() || downloaded.size !== immutableInput.sizeBytes) {
+        throw new RequestValidationError('Bytes de origem imutável divergentes.');
+      }
+    }
     await runFfmpeg(inputPath, outputPath, rotationDegrees);
 
     const outputStats = await stat(outputPath);
@@ -274,22 +310,44 @@ async function rotateVideo(payload) {
       throw new Error('O arquivo rotacionado possui tamanho inválido.');
     }
 
-    await bucket.upload(outputPath, {
-      destination: destinationStoragePath,
-      resumable: true,
-      validation: 'crc32c',
-      metadata: {
-        contentType: 'video/mp4',
-        contentDisposition: 'inline',
-        cacheControl: 'private, max-age=0, no-store, no-transform',
+    try {
+      await bucket.upload(outputPath, {
+        destination: destinationStoragePath,
+        resumable: true,
+        validation: 'crc32c',
+        ...(immutableInput ? { preconditionOpts: { ifGenerationMatch: 0 } } : {}),
         metadata: {
-          source: 'video-rotation-worker',
-          processingVersion,
-          rotationDegrees: String(rotationDegrees),
+          contentType: 'video/mp4',
+          contentDisposition: 'inline',
+          cacheControl: 'private, max-age=0, no-store, no-transform',
+          metadata: {
+            source: 'video-rotation-worker',
+            processingVersion,
+            rotationDegrees: String(rotationDegrees),
+            ...(immutableInput ? immutableRotationOutputMetadata(
+              immutableInput, rotationDegrees) : {}),
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      if (!immutableInput) throw error;
+      // 412 or ambiguous network completion: reuse only an exact matching object.
+      const [exists] = await rotatedFile.exists();
+      if (!exists) throw error;
+      const [metadata] = await rotatedFile.getMetadata();
+      if (!matchesImmutableRotationDestination(immutableInput, rotationDegrees, metadata)) {
+        throw new RequestValidationError('Destino de rotação incompatível.');
+      }
+      return { destinationStoragePath, destinationGeneration: String(metadata.generation), reused: true };
+    }
 
+    if (immutableInput) {
+      const [metadata] = await rotatedFile.getMetadata();
+      if (!matchesImmutableRotationDestination(immutableInput, rotationDegrees, metadata)) {
+        throw new RequestValidationError('Rotação imutável não validada.');
+      }
+      return { destinationStoragePath, destinationGeneration: String(metadata.generation), reused: false };
+    }
     if (!(await destinationIsReady(bucket, destinationStoragePath))) {
       throw new Error('Falha ao validar o resultado da rotação.');
     }
@@ -386,7 +444,8 @@ const server = http.createServer(async (request, response) => {
       ? await probeVideo(payload) : await rotateVideo(payload);
     sendJson(response, 200, result);
   } catch (error) {
-    const clientError = error instanceof RequestValidationError;
+    const clientError = error instanceof RequestValidationError ||
+      error instanceof ImmutableRotationInputError;
     const probeError = error instanceof VideoProbeError ? error : null;
     console.error('[video-rotation-worker] Falha.', {
       clientError,

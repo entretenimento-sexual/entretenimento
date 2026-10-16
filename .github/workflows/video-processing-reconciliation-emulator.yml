@@ -80,6 +80,8 @@ jobs:
         run: node --test scripts/tests/video-cancellation-log-audit.test.mjs
       - name: Verify video metadata probe parsing
         run: node --test services/video-rotation-worker/video-probe.test.mjs
+      - name: Verify pinned immutable rotation input contract
+        run: node --test services/video-rotation-worker/video-rotation-immutable.policy.test.mjs
       - name: Compile Functions
         run: npm --prefix functions run build
       - name: Test transactions in disposable demo Firestore
