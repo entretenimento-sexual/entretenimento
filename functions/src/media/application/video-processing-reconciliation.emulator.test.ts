@@ -19,6 +19,13 @@ import {
 } from './published-video-cleanup-queue.firestore';
 import { VIDEO_CLEANUP_LEASE_MS } from './video-cleanup-claim.policy';
 import {
+  commitPrivateVideoRegistrationIfUnused,
+  isVideoIdentityRetiring,
+  retireVideoIdentityInBatch,
+  retireVideoIdentityForActiveClaim,
+  VideoIdentityUnavailableError,
+} from './video-identity-guard.firestore';
+import {
   claimVideoDeletionJob,
   createVideoDeletionJobIfAbsent,
   settleVideoDeletionJob,
@@ -1408,4 +1415,205 @@ test('video deletion: future scheduling and active lease are not claimable', asy
   assert.equal(await claimVideoDeletionJob<Record<string, unknown>>(
     firestore, ref, now, 'overlap'
   ), null);
+});
+test('video identity: concurrent registrations grant the videoId to only one generation', async () => {
+  const ownerUid = 'identity-' + randomUUID();
+  const videoId = 'v-' + randomUUID();
+  const videoRef = firestore.doc(`users/${ownerUid}/videos/${videoId}`);
+  const publicationRef = firestore.doc(`users/${ownerUid}/video_publications/${videoId}`);
+  const guardRef = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  const command = (generation: string) => ({
+    ownerUid, videoId, videoRef, publicationRef,
+    videoDocument: { ownerUid, path: `generation-${generation}` },
+    publicationDocument: { ownerUid, videoId, generation },
+    now,
+  });
+  const outcomes = await Promise.allSettled([
+    commitPrivateVideoRegistrationIfUnused(firestore, command('one')),
+    commitPrivateVideoRegistrationIfUnused(firestore, command('two')),
+  ]);
+  assert.equal(outcomes.filter((result) => result.status === 'fulfilled').length, 1);
+  assert.equal(outcomes.filter((result) => result.status === 'rejected' &&
+    result.reason instanceof VideoIdentityUnavailableError).length, 1);
+  assert.equal((await guardRef.get()).get('state'), 'REGISTERED');
+  const winner = (await videoRef.get()).get('path');
+  assert.ok(winner === 'generation-one' || winner === 'generation-two');
+  assert.equal((await publicationRef.get()).get('generation'),
+    winner === 'generation-one' ? 'one' : 'two');
+});
+
+test('video identity: legacy pending deletion refuses a new registration', async () => {
+  const ownerUid = 'identity-' + randomUUID();
+  const videoId = 'v-' + randomUUID();
+  const jobRef = firestore.collection('media_video_deletion_jobs').doc(`${ownerUid}_${videoId}`);
+  const videoRef = firestore.doc(`users/${ownerUid}/videos/${videoId}`);
+  const publicationRef = firestore.doc(`users/${ownerUid}/video_publications/${videoId}`);
+  const guardRef = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  await jobRef.create({ state: 'retryable' });
+  assert.equal(await isVideoIdentityRetiring(firestore, ownerUid, videoId), true);
+  await assert.rejects(
+    commitPrivateVideoRegistrationIfUnused(firestore, {
+      ownerUid, videoId, videoRef, publicationRef,
+      videoDocument: { path: 'new' }, publicationDocument: { isPublished: false }, now,
+    }), VideoIdentityUnavailableError
+  );
+  assert.equal((await guardRef.get()).exists, false);
+  assert.equal((await videoRef.get()).exists, false);
+});
+
+test('video identity: retiring a legacy video blocks reuse after cleanup job removal', async () => {
+  const ownerUid = 'identity-' + randomUUID();
+  const videoId = 'v-' + randomUUID();
+  const videoRef = firestore.doc(`users/${ownerUid}/videos/${videoId}`);
+  const publicationRef = firestore.doc(`users/${ownerUid}/video_publications/${videoId}`);
+  const jobRef = firestore.collection('media_video_deletion_jobs').doc(`${ownerUid}_${videoId}`);
+  const guardRef = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  await videoRef.create({ path: 'legacy-source' });
+  const batch = firestore.batch();
+  retireVideoIdentityInBatch(firestore, batch, ownerUid, videoId, now, await guardRef.get());
+  batch.create(jobRef, { state: 'retryable' });
+  batch.delete(publicationRef);
+  await batch.commit();
+  assert.equal((await guardRef.get()).get('state'), 'RETIRED');
+  await videoRef.delete();
+  await jobRef.delete();
+  assert.equal(await isVideoIdentityRetiring(firestore, ownerUid, videoId), true);
+  await assert.rejects(commitPrivateVideoRegistrationIfUnused(firestore, {
+    ownerUid, videoId, videoRef, publicationRef,
+    videoDocument: { path: 'replacement' }, publicationDocument: { isPublished: false }, now,
+  }), VideoIdentityUnavailableError);
+  assert.equal((await videoRef.get()).exists, false);
+});
+
+test('video identity: failed document create cannot commit a stray registration guard', async () => {
+  const ownerUid = 'identity-' + randomUUID();
+  const videoId = 'v-' + randomUUID();
+  const videoRef = firestore.doc(`users/${ownerUid}/videos/${videoId}`);
+  const publicationRef = firestore.doc(`users/${ownerUid}/video_publications/${videoId}`);
+  const guardRef = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  await videoRef.create({ path: 'existing-legacy' });
+  await assert.rejects(commitPrivateVideoRegistrationIfUnused(firestore, {
+    ownerUid, videoId, videoRef, publicationRef,
+    videoDocument: { path: 'should-not-be-stored' },
+    publicationDocument: { isPublished: false }, now,
+  }));
+  assert.equal((await guardRef.get()).exists, false);
+  assert.equal((await videoRef.get()).get('path'), 'existing-legacy');
+  assert.equal((await publicationRef.get()).exists, false);
+});
+
+test('video identity: duplicate retiring batch remains retired and blocks idempotent reply', async () => {
+  const ownerUid = 'identity-' + randomUUID();
+  const videoId = 'v-' + randomUUID();
+  const guardRef = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  await guardRef.create({ ownerUid, videoId, state: 'REGISTERED', createdAt: now - 1000 });
+  for (const time of [now, now + 1000]) {
+    const batch = firestore.batch();
+    retireVideoIdentityInBatch(firestore, batch, ownerUid, videoId, time, await guardRef.get());
+    await batch.commit();
+  }
+  assert.equal((await guardRef.get()).get('createdAt'), now - 1000);
+  assert.equal((await guardRef.get()).get('state'), 'RETIRED');
+  assert.equal(await isVideoIdentityRetiring(firestore, ownerUid, videoId), true);
+});
+
+
+test('video identity: legacy deletion claim backfills a tombstone before physical cleanup', async () => {
+  const ownerUid = 'identity-' + randomUUID();
+  const videoId = 'v-' + randomUUID();
+  const jobRef = firestore.collection('media_video_deletion_jobs').doc(`${ownerUid}_${videoId}`);
+  const guardRef = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  await jobRef.create({ ownerUid, videoId, state: 'retryable',
+    leaseToken: 'current', leaseUntil: now + 60_000 });
+  assert.equal(await retireVideoIdentityForActiveClaim(
+    firestore, jobRef, 'stale', ownerUid, videoId, now
+  ), 'STALE');
+  assert.equal((await guardRef.get()).exists, false);
+  assert.equal(await retireVideoIdentityForActiveClaim(
+    firestore, jobRef, 'current', ownerUid, videoId, now
+  ), 'READY');
+  assert.equal((await guardRef.get()).get('state'), 'RETIRED');
+  await jobRef.delete();
+  assert.equal(await isVideoIdentityRetiring(firestore, ownerUid, videoId), true);
+});
+
+test('video identity: expired legacy worker never backfills after losing authority', async () => {
+  const ownerUid = 'identity-' + randomUUID();
+  const videoId = 'v-' + randomUUID();
+  const jobRef = firestore.collection('media_video_deletion_jobs').doc(`${ownerUid}_${videoId}`);
+  const guardRef = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  await jobRef.create({ ownerUid, videoId, leaseToken: 'expired', leaseUntil: now - 1 });
+  assert.equal(await retireVideoIdentityForActiveClaim(
+    firestore, jobRef, 'expired', ownerUid, videoId, now
+  ), 'STALE');
+  assert.equal((await guardRef.get()).exists, false);
+});
+
+test('video identity: stale deletion of a missing video cannot retire a concurrent registration', async () => {
+  const ownerUid = 'identity-' + randomUUID();
+  const videoId = 'v-' + randomUUID();
+  const videoRef = firestore.doc(`users/${ownerUid}/videos/${videoId}`);
+  const publicationRef = firestore.doc(`users/${ownerUid}/video_publications/${videoId}`);
+  const guardRef = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  const jobRef = firestore.collection('media_video_deletion_jobs').doc(`${ownerUid}_${videoId}`);
+  const oldGuardSnapshot = await guardRef.get();
+  const pendingDeletionBatch = firestore.batch();
+  retireVideoIdentityInBatch(firestore, pendingDeletionBatch,
+    ownerUid, videoId, now, oldGuardSnapshot);
+  pendingDeletionBatch.create(jobRef, { ownerUid, videoId, state: 'retryable' });
+  pendingDeletionBatch.delete(publicationRef);
+  await commitPrivateVideoRegistrationIfUnused(firestore, {
+    ownerUid, videoId, videoRef, publicationRef, now,
+    videoDocument: { path: 'fresh' }, publicationDocument: { isPublished: false },
+  });
+  await assert.rejects(pendingDeletionBatch.commit());
+  assert.equal((await videoRef.get()).get('path'), 'fresh');
+  assert.equal((await guardRef.get()).get('state'), 'REGISTERED');
+  assert.equal((await jobRef.get()).exists, false);
+});
+
+test('video identity: deletion succeeds first and blocks a late registration', async () => {
+  const ownerUid = 'identity-' + randomUUID();
+  const videoId = 'v-' + randomUUID();
+  const videoRef = firestore.doc(`users/${ownerUid}/videos/${videoId}`);
+  const publicationRef = firestore.doc(`users/${ownerUid}/video_publications/${videoId}`);
+  const guardRef = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  const jobRef = firestore.collection('media_video_deletion_jobs').doc(`${ownerUid}_${videoId}`);
+  const batch = firestore.batch();
+  retireVideoIdentityInBatch(firestore, batch, ownerUid, videoId, now, await guardRef.get());
+  batch.create(jobRef, { ownerUid, videoId, state: 'retryable' });
+  await batch.commit();
+  await assert.rejects(commitPrivateVideoRegistrationIfUnused(firestore, {
+    ownerUid, videoId, videoRef, publicationRef, now,
+    videoDocument: { path: 'late' }, publicationDocument: { isPublished: false },
+  }), VideoIdentityUnavailableError);
+  assert.equal((await videoRef.get()).exists, false);
+  assert.equal((await guardRef.get()).get('state'), 'RETIRED');
+});
+
+test('video identity: stale guard snapshot cannot overwrite an updated identity', async () => {
+  const ownerUid = 'identity-' + randomUUID();
+  const videoId = 'v-' + randomUUID();
+  const guardRef = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  await guardRef.create({ ownerUid, videoId, state: 'REGISTERED', createdAt: now });
+  const stale = await guardRef.get();
+  await guardRef.update({ updatedAt: now + 1 });
+  const batch = firestore.batch();
+  retireVideoIdentityInBatch(firestore, batch, ownerUid, videoId, now + 2, stale);
+  await assert.rejects(batch.commit());
+  assert.equal((await guardRef.get()).get('state'), 'REGISTERED');
+});
+
+test('video identity: legacy cleanup cannot retire an active registered identity', async () => {
+  const ownerUid = 'identity-' + randomUUID();
+  const videoId = 'v-' + randomUUID();
+  const jobRef = firestore.collection('media_video_deletion_jobs').doc(`${ownerUid}_${videoId}`);
+  const guardRef = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  await guardRef.create({ ownerUid, videoId, state: 'REGISTERED', createdAt: now });
+  await jobRef.create({ ownerUid, videoId, state: 'retryable',
+    leaseToken: 'legacy', leaseUntil: now + 60_000 });
+  assert.equal(await retireVideoIdentityForActiveClaim(
+    firestore, jobRef, 'legacy', ownerUid, videoId, now
+  ), 'CONFLICT');
+  assert.equal((await guardRef.get()).get('state'), 'REGISTERED');
 });

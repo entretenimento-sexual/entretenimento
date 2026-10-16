@@ -16,6 +16,10 @@ import {
 } from '../../shared/security/backend-rate-limit.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import { claimVideoDeletionJob, settleVideoDeletionJob } from './video-deletion-queue.firestore';
+import {
+  retireVideoIdentityForActiveClaim,
+  retireVideoIdentityInBatch,
+} from './video-identity-guard.firestore';
 import { migrateLegacyPublishedVideoCleanupJobs } from './published-video-cleanup-migration.firestore';
 import { deletePublishedVideoAssetOrQueueWithResult } from './published-video-asset.service';
 import {
@@ -316,6 +320,18 @@ async function processVideoDeletionJob(
   };
 
   try {
+    // Legacy deletion jobs did not create identity tombstones at request time.
+    // Backfill one under the current lease BEFORE any destructive operation.
+    const identity = await retireVideoIdentityForActiveClaim(
+      db, jobRef, token, ownerUid, videoId, Date.now()
+    );
+    if (identity === 'STALE') return true;
+    if (identity === 'CONFLICT') {
+      await settleVideoDeletionJob(db, jobRef, token, {
+        kind: 'BLOCKED', error: 'Registered identity conflicts with legacy deletion job.',
+      });
+      return true;
+    }
     const cleanupPending = await executeDeletionJob(job);
     const completion = await settleVideoDeletionJob(
       db, jobRef, token, { kind: 'COMPLETED' }
@@ -402,11 +418,15 @@ export async function deleteProfileVideoResources(
   const processingJobRef = db
     .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
     .doc(buildVideoProcessingJobId(ownerUid, videoId));
-  const [privateVideoSnap, publicationSnap, processingJobSnap] =
+  const identityRef = db.doc(
+    `users/${ownerUid}/video_identity_guards/${videoId}`
+  );
+  const [privateVideoSnap, publicationSnap, processingJobSnap, identitySnap] =
     await Promise.all([
       privateVideoRef.get(),
       publicationRef.get(),
       processingJobRef.get(),
+      identityRef.get(),
     ]);
   const privateVideo = privateVideoSnap.exists
     ? (privateVideoSnap.data() as PrivateVideoDoc)
@@ -504,6 +524,7 @@ export async function deleteProfileVideoResources(
     leaseToken: null,
     leaseUntil: null,
   });
+  retireVideoIdentityInBatch(db, removalBatch, ownerUid, videoId, now, identitySnap);
   if (publicationSnap.exists && publicationSnap.updateTime) {
     removalBatch.delete(publicationRef, {
       lastUpdateTime: publicationSnap.updateTime,

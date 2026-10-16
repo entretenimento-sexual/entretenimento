@@ -7,6 +7,11 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
 import {
+  commitPrivateVideoRegistrationIfUnused,
+  isVideoIdentityRetiring,
+  VideoIdentityUnavailableError,
+} from './video-identity-guard.firestore';
+import {
   VIDEO_INPUT_MIME_TYPES,
   VIDEO_MAX_BYTES,
   VIDEO_POSTER_IMAGE_MAX_BYTES,
@@ -461,6 +466,10 @@ export const registerPrivateVideoUpload = onCall<
     );
 
     if (existingResponse) {
+      if (await isVideoIdentityRetiring(db, ownerUid, videoId)) {
+        throw new HttpsError('failed-precondition',
+          'A exclusão deste vídeo está em andamento. Use um novo identificador.');
+      }
       await clearCleanupJobsBestEffort([
         videoStoragePath,
         ...(posterStoragePath ? [posterStoragePath] : []),
@@ -543,38 +552,44 @@ export const registerPrivateVideoUpload = onCall<
       );
 
       try {
-        const batch = db.batch();
-        batch.create(videoRef, {
-          id: videoId,
-          ownerUid,
-          path: videoStoragePath,
-          fileName,
-          mimeType: videoMetadata.mimeType,
-          sizeBytes: videoMetadata.sizeBytes,
-          durationMs,
-          thumbnailPath: posterStoragePath,
-          editRecipe: request.data?.editRecipe ?? null,
-          status,
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-        batch.set(publicationRef, {
+        await commitPrivateVideoRegistrationIfUnused(db, {
           ownerUid,
           videoId,
-          isPublished: false,
-          publishWhenReady: true,
-          visibility: 'PUBLIC',
-          orderIndex: 0,
-          moderationStatus: 'PRIVATE',
-          moderationReason: null,
-          ...publicationSettings,
-          createdAt,
-          updatedAt: createdAt,
+          videoRef,
+          publicationRef,
+          now: createdAt,
+          videoDocument: {
+            id: videoId,
+            ownerUid,
+            path: videoStoragePath,
+            fileName,
+            mimeType: videoMetadata.mimeType,
+            sizeBytes: videoMetadata.sizeBytes,
+            durationMs,
+            thumbnailPath: posterStoragePath,
+            editRecipe: request.data?.editRecipe ?? null,
+            status,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          publicationDocument: {
+            ownerUid,
+            videoId,
+            isPublished: false,
+            publishWhenReady: true,
+            visibility: 'PUBLIC',
+            orderIndex: 0,
+            moderationStatus: 'PRIVATE',
+            moderationReason: null,
+            ...publicationSettings,
+            createdAt,
+            updatedAt: createdAt,
+          },
         });
-        await batch.commit();
         registrationCommitted = true;
       } catch (createError) {
-        if (isAlreadyExistsError(createError)) {
+        if (createError instanceof VideoIdentityUnavailableError ||
+            isAlreadyExistsError(createError)) {
           const concurrentResponse = await findExistingResponse(
             ownerUid,
             videoId,
@@ -582,13 +597,21 @@ export const registerPrivateVideoUpload = onCall<
             posterStoragePath
           );
 
-          if (concurrentResponse) {
+          if (concurrentResponse &&
+              !(await isVideoIdentityRetiring(db, ownerUid, videoId))) {
             registrationCommitted = true;
             await clearCleanupJobsBestEffort(
               rollbackAssets.map((asset) => asset.storagePath)
             );
             return concurrentResponse;
           }
+        }
+
+        if (createError instanceof VideoIdentityUnavailableError) {
+          throw new HttpsError(
+            'failed-precondition',
+            'Este identificador de vídeo já foi utilizado ou está em exclusão. Gere outro identificador.'
+          );
         }
 
         throw createError;
