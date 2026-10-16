@@ -47,6 +47,7 @@ import {
 } from './video-processing-reconciliation.firestore';
 import { prepareVideoSourceProbeBeforeSubmission, videoSourceProbeCaptureEnabled } from './video-source-probe.service';
 import { matchesVideoSourceProbeSnapshot } from './video-source-probe.policy';
+import { matchesPersistedImmutableInput } from './video-immutable-input-preflight.service';
 
 interface ProcessedVideoCandidate {
   storagePath: string;
@@ -200,6 +201,7 @@ function normalizeJob(data: unknown): VideoProcessingJob | null {
         /^[1-9][0-9]{0,29}$/.test(job.sourceGeneration)
       ? { sourceGeneration: job.sourceGeneration } : {}),
     sourceProbe: job.sourceProbe ?? null,
+    immutableInput: job.immutableInput ?? null,
     sourcePosterStoragePath:
       String(job.sourcePosterStoragePath ?? '').trim() || null,
     sourceMimeType: String(job.sourceMimeType ?? '').trim().toLowerCase(),
@@ -260,7 +262,9 @@ async function claimQueuedJob(
       job.state !== 'QUEUED' ||
       job.nextAttemptAt > now ||
       (videoSourceProbeCaptureEnabled() && !!job.sourceGeneration &&
-        !matchesVideoSourceProbeSnapshot(job, job.sourceProbe))
+        !matchesVideoSourceProbeSnapshot(job, job.sourceProbe)) ||
+      (videoSourceProbeCaptureEnabled() && !!job.sourceGeneration &&
+        !matchesPersistedImmutableInput(job, job.immutableInput))
     ) {
       return null;
     }

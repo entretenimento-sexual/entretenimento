@@ -23,6 +23,10 @@ export interface VideoProcessingJob {
   sourceGeneration?: string | null;
   /** Validated ffprobe result fenced to this immutable source/version. */
   sourceProbe?: import('./video-source-probe.policy').VideoSourceProbeSnapshot | null;
+  /** Preparatory only: persisted, version-fenced copy; not yet used by provider. */
+  immutableInput?: import('./video-immutable-input.policy').ImmutableTranscoderInput | null;
+  immutableInputClaimId?: string | null;
+  immutableInputAttempts?: number;
   sourceProbeClaimId?: string | null;
   sourceProbeAttempts?: number;
   sourcePosterStoragePath: string | null;

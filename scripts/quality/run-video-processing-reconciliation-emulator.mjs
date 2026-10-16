@@ -77,6 +77,7 @@ try {
     'node --test --test-concurrency=1',
     'functions/lib/media/application/video-processing-reconciliation.emulator.test.js',
     'functions/lib/media/application/video-source-probe.emulator.test.js',
+    'functions/lib/media/application/video-immutable-input-preflight.emulator.test.js',
   ].join(' ');
   const child = spawn(process.execPath, [
     cli, 'emulators:exec', '--only', 'firestore',
