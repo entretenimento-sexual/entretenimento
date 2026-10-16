@@ -64,3 +64,24 @@ test('deletion requires published approved asset and a completed exact processin
     { ...processing, state: 'PROCESSING' }), false);
   assert.equal(mayDeletePublishedVideoOriginal(job, null, publication, processing), false);
 });
+
+test('new canonical publication uses one processed video and preserves generation fence', () => {
+  const canonical = buildVideoOriginalCleanupJob({
+    ownerUid: uid, videoId: id, sourceStoragePath: original,
+    sourceGeneration: '123456789', processedStoragePath: processed,
+    publishedStoragePath: processed, assetStorageMode: 'PROCESSED_CANONICAL', now: 1000,
+  });
+  assert.ok(canonical);
+  const video = { ownerUid: uid, status: 'ready', path: original,
+    sourceGeneration: canonical.sourceGeneration, processedStoragePath: processed };
+  const publication = { ownerUid: uid, videoId: id, isPublished: true,
+    moderationStatus: 'APPROVED', sourceStoragePath: original,
+    publishedStoragePath: processed, assetStorageMode: 'PROCESSED_CANONICAL' };
+  const job = { ownerUid: uid, videoId: id,
+    state: 'SUCCEEDED', outputStoragePath: processed };
+  assert.equal(mayDeletePublishedVideoOriginal(canonical, video, publication, job), true);
+  assert.equal(mayDeletePublishedVideoOriginal(canonical, video,
+    { ...publication, assetStorageMode: undefined }, job), false);
+  assert.equal(buildVideoOriginalCleanupJob({ ...canonical,
+    publishedStoragePath: published, now: 1000 }), null);
+});

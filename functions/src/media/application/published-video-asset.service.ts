@@ -20,7 +20,6 @@ import {
 import { nextVideoCleanupRetry } from './video-cleanup-job.policy';
 import { migrateLegacyPublishedVideoCleanupJobs } from './published-video-cleanup-migration.firestore';
 import {
-  buildPublishedVideoPath,
   buildPublishedVideoPosterPath,
   normalizeOwnedProcessedVideoPath,
   normalizeOwnedPublishedVideoPath,
@@ -266,78 +265,38 @@ async function copyPosterIfAvailable(
   };
 }
 
-export async function copyPrivateVideoToPublishedAsset(
+/** Reuse the immutable transcoded object: no second GCS video copy. */
+export async function prepareProcessedVideoForPublication(
   command: CopyPublishedVideoAssetCommand
 ): Promise<PublishedVideoAssetResult> {
-  const bucket = storage.bucket();
   const processedStoragePath = await resolveProcessedVideoSource(command);
-  const sourceVideo = bucket.file(processedStoragePath);
+  const sourceVideo = storage.bucket().file(processedStoragePath);
   const [videoExists] = await sourceVideo.exists();
-
   if (!videoExists) {
     throw new Error('O derivado processado do vídeo não foi encontrado.');
   }
-
-  const [videoMetadata] = await sourceVideo.getMetadata();
-  const videoContentType = String(videoMetadata.contentType ?? '')
-    .trim()
-    .toLowerCase();
-
+  const [metadata] = await sourceVideo.getMetadata();
+  const videoContentType = String(metadata.contentType ?? '').trim().toLowerCase();
   if (!ALLOWED_VIDEO_CONTENT_TYPES.has(videoContentType)) {
-    throw new Error(
-      'O derivado processado não possui um formato público compatível.'
-    );
+    throw new Error('O derivado processado não possui formato público compatível.');
   }
-
-  const sizeBytes = resolveValidatedSize(
-    videoMetadata.size,
-    VIDEO_MAX_BYTES
-  );
-  const assetVersion = `${Date.now()}-${randomUUID()}`;
-  const videoStoragePath = buildPublishedVideoPath(
-    command.ownerUid,
-    command.videoId,
-    assetVersion
-  );
-  const destinationVideo = bucket.file(videoStoragePath);
-  let posterStoragePath: string | null = null;
-
-  try {
-    await sourceVideo.copy(destinationVideo, {
-      metadata: {
-        contentType: videoContentType,
-        contentDisposition: 'inline',
-        cacheControl: 'private, max-age=0, no-store, no-transform',
-      },
-    });
-
-    const poster = await copyPosterIfAvailable(command, assetVersion);
-    posterStoragePath = poster?.storagePath ?? null;
-
-    return {
-      sourceProcessedStoragePath: processedStoragePath,
-      videoStoragePath,
-      posterStoragePath,
-      videoContentType,
-      sizeBytes,
-    };
-  } catch (error) {
-    const cleanupTasks: Promise<unknown>[] = [
-      destinationVideo.delete({ ignoreNotFound: true }).catch(() => undefined),
-    ];
-
-    if (posterStoragePath) {
-      cleanupTasks.push(
-        bucket
-          .file(posterStoragePath)
-          .delete({ ignoreNotFound: true })
-          .catch(() => undefined)
-      );
-    }
-
-    await Promise.all(cleanupTasks);
-    throw error;
-  }
+  const sizeBytes = resolveValidatedSize(metadata.size, VIDEO_MAX_BYTES);
+  // The transcoder result must retain the same private no-cache policy as
+  // the former published copy, including for revoked signed URLs.
+  await sourceVideo.setMetadata({
+    contentDisposition: 'inline',
+    cacheControl: 'private, max-age=0, no-store, no-transform',
+  });
+  // Only a poster needs a published copy in phase 1B.
+  const version = String(Date.now()) + '-' + randomUUID();
+  const poster = await copyPosterIfAvailable(command, version);
+  return {
+    sourceProcessedStoragePath: processedStoragePath,
+    videoStoragePath: processedStoragePath,
+    posterStoragePath: poster?.storagePath ?? null,
+    videoContentType,
+    sizeBytes,
+  };
 }
 
 export async function deletePublishedVideoAssetOrQueueWithResult(

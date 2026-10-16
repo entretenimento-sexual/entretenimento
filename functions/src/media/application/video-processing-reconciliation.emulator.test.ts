@@ -1668,3 +1668,73 @@ test('video identity: legacy cleanup cannot retire an active registered identity
   ), 'CONFLICT');
   assert.equal((await guardRef.get()).get('state'), 'REGISTERED');
 });
+
+test('canonical processed publication records a generation-pinned original cleanup atomically', async () => {
+  const f = readyPublicationFixture();
+  await f.ownerRef.set({ ...f.video, sourceGeneration: '90071992547409933' });
+  const old = f.command('unused');
+  const command = {
+    ...old,
+    publicationPatch: {
+      ...old.publicationPatch,
+      assetStorageMode: 'PROCESSED_CANONICAL',
+      publishedStoragePath: f.video.processedStoragePath,
+    },
+  };
+  await commitCopiedVideoPublicationIfCurrent(firestore, command);
+  const publication = await f.publicationRef.get();
+  assert.equal(publication.get('publishedStoragePath'), f.video.processedStoragePath);
+  assert.equal(publication.get('assetStorageMode'), 'PROCESSED_CANONICAL');
+
+  const cleanup = await firestore.collection(VIDEO_ORIGINAL_CLEANUP_COLLECTION)
+    .doc(videoOriginalCleanupJobId(command.ownerUid, command.videoId)).get();
+  assert.equal(cleanup.exists, true);
+  assert.equal(cleanup.get('sourceGeneration'), '90071992547409933');
+  assert.equal(cleanup.get('assetStorageMode'), 'PROCESSED_CANONICAL');
+});
+
+test('canonical publication cannot reference a different processed object', async () => {
+  const f = readyPublicationFixture();
+  await f.ownerRef.set(f.video);
+  const old = f.command('unused');
+  await assert.rejects(commitCopiedVideoPublicationIfCurrent(firestore, {
+    ...old,
+    publicationPatch: {
+      ...old.publicationPatch,
+      assetStorageMode: 'PROCESSED_CANONICAL',
+      publishedStoragePath: 'users/' + old.ownerUid + '/processed/videos/' + old.videoId + '/other/final.mp4',
+    },
+  }), /diverge da versão processada/);
+  assert.equal((await f.publicationRef.get()).exists, false);
+});
+
+
+test('publication is fenced against a pending video deletion', async () => {
+  const f = readyPublicationFixture();
+  await f.ownerRef.set(f.video);
+  await firestore.collection('media_video_deletion_jobs')
+    .doc(`${f.video.ownerUid}_${f.publicationRef.id}`)
+    .set({ ownerUid: f.video.ownerUid, videoId: f.publicationRef.id, state: 'retryable' });
+  await expectPublicationDenied(f);
+  assert.equal((await f.publicRef.get()).exists, false);
+});
+
+test('publication is fenced against a retired or inconsistent video identity', async () => {
+  for (const state of ['RETIRED', 'CORRUPT'] as const) {
+    const f = readyPublicationFixture();
+    await f.ownerRef.set(f.video);
+    await firestore.doc(`users/${f.video.ownerUid}/video_identity_guards/${f.publicationRef.id}`)
+      .set({ ownerUid: f.video.ownerUid, videoId: f.publicationRef.id, state });
+    await expectPublicationDenied(f);
+    assert.equal((await f.publicRef.get()).exists, false);
+  }
+});
+
+test('publication still accepts a valid registered video identity', async () => {
+  const f = readyPublicationFixture();
+  await f.ownerRef.set(f.video);
+  await firestore.doc(`users/${f.video.ownerUid}/video_identity_guards/${f.publicationRef.id}`)
+    .set({ ownerUid: f.video.ownerUid, videoId: f.publicationRef.id, state: 'REGISTERED' });
+  await commitCopiedVideoPublicationIfCurrent(firestore, f.command('registered-' + randomUUID()));
+  assert.equal((await f.publicationRef.get()).get('isPublished'), true);
+});

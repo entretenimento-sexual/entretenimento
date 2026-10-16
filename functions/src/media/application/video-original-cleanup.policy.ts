@@ -4,8 +4,8 @@ import { normalizeGcsGeneration } from './video-deletion-storage-pages';
 import {
   extractOwnedPrivateVideoPathForId,
   normalizeOwnedProcessedVideoPath,
-  normalizeOwnedPublishedVideoPath,
 } from './video-storage-path';
+import { normalizePublishedVideoPlaybackPath } from './published-video-storage-mode.policy';
 
 export const VIDEO_ORIGINAL_CLEANUP_COLLECTION = 'media_video_original_cleanup_jobs';
 export const VIDEO_ORIGINAL_CLEANUP_GRACE_MS = 30 * 60 * 1000;
@@ -17,6 +17,7 @@ export interface VideoOriginalCleanupJob {
   sourceGeneration: string;
   processedStoragePath: string;
   publishedStoragePath: string;
+  assetStorageMode?: 'PROCESSED_CANONICAL';
   state: 'retryable' | 'dead_letter';
   attempts: number;
   createdAt: number;
@@ -42,6 +43,7 @@ export function buildVideoOriginalCleanupJob(input: {
   sourceGeneration: unknown;
   processedStoragePath: unknown;
   publishedStoragePath: unknown;
+  assetStorageMode?: unknown;
   now: number;
 }): VideoOriginalCleanupJob | null {
   const { ownerUid, videoId, now } = input;
@@ -53,15 +55,20 @@ export function buildVideoOriginalCleanupJob(input: {
   const processedStoragePath = normalizeOwnedProcessedVideoPath(
     ownerUid, videoId, input.processedStoragePath
   );
-  const publishedStoragePath = normalizeOwnedPublishedVideoPath(
-    ownerUid, videoId, input.publishedStoragePath
+  const mode = input.assetStorageMode;
+  if (mode !== undefined && mode !== 'PROCESSED_CANONICAL') return null;
+  const publishedStoragePath = normalizePublishedVideoPlaybackPath(
+    ownerUid, videoId, input.publishedStoragePath, mode
   );
+  if (mode === 'PROCESSED_CANONICAL' &&
+      publishedStoragePath !== processedStoragePath) return null;
   if (!sourceStoragePath || !sourceGeneration ||
       !processedStoragePath || !publishedStoragePath) return null;
 
   return {
     ownerUid, videoId, sourceStoragePath, sourceGeneration,
     processedStoragePath, publishedStoragePath,
+    ...(mode === 'PROCESSED_CANONICAL' ? {assetStorageMode: mode} : {}),
     state: 'retryable', attempts: 0,
     createdAt: now, updatedAt: now,
     nextAttemptAt: now + VIDEO_ORIGINAL_CLEANUP_GRACE_MS,
@@ -90,6 +97,7 @@ export function mayDeletePublishedVideoOriginal(
       publication['moderationStatus'] !== 'APPROVED' ||
       publication['sourceStoragePath'] !== job.sourceStoragePath ||
       publication['publishedStoragePath'] !== job.publishedStoragePath ||
+      publication['assetStorageMode'] !== job.assetStorageMode ||
       // A locked publication or evidence hold must not lose its source.
       !!publication['reviewEvidenceRetention']) return false;
   if (processing['ownerUid'] !== job.ownerUid ||

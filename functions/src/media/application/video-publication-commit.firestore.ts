@@ -3,6 +3,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 
 import { isRestrictedVideoModerationStatus } from './video-publication-moderation.policy';
 import { isCurrentVideoPublicationSource } from './video-publication-source-fence.policy';
+import { normalizePublishedVideoPlaybackPath } from './published-video-storage-mode.policy';
 import {
   buildVideoOriginalCleanupJob,
   VIDEO_ORIGINAL_CLEANUP_COLLECTION,
@@ -34,6 +35,7 @@ export type VideoPublicationDoc = {
   rejectedSourceStoragePath?: string;
   publishedStoragePath?: string;
   publishedPosterStoragePath?: string;
+  assetStorageMode?: 'PROCESSED_CANONICAL' | 'COPIED_PUBLISHED';
 };
 
 const PUBLIC_VIDEO_CONTENT_TYPES = new Set(['video/mp4', 'video/webm']);
@@ -134,11 +136,30 @@ export async function commitCopiedVideoPublicationIfCurrent(
   const publicVideoRef = firestore.doc(
     `public_profiles/${ownerUid}/public_videos/${videoId}`
   );
+  const identityRef = firestore.doc(
+    `users/${ownerUid}/video_identity_guards/${videoId}`
+  );
+  const deletionRef = firestore.collection('media_video_deletion_jobs')
+    .doc(`${ownerUid}_${videoId}`);
   return firestore.runTransaction(async (transaction) => {
-    const [ownerSnap, publicationSnap] = await Promise.all([
-      transaction.get(ownerVideoRef),
-      transaction.get(publicationRef),
-    ]);
+    const [ownerSnap, publicationSnap, identitySnap, deletionSnap] =
+      await Promise.all([
+        transaction.get(ownerVideoRef),
+        transaction.get(publicationRef),
+        transaction.get(identityRef),
+        transaction.get(deletionRef),
+      ]);
+    // A deletion request atomically retires the identity and unpublishes.
+    // Reading both guards in this same transaction prevents a late publish
+    // from resurrecting a video while its processed asset is being removed.
+    if (deletionSnap.exists || (identitySnap.exists && (
+      identitySnap.get('state') !== 'REGISTERED' ||
+      identitySnap.get('ownerUid') !== ownerUid ||
+      identitySnap.get('videoId') !== videoId
+    ))) {
+      throw new HttpsError('failed-precondition',
+        'A exclusao deste video ja foi solicitada.');
+    }
     if (!ownerSnap.exists) {
       throw new HttpsError(
         'failed-precondition', 'O vídeo privado foi removido durante a publicação.'
@@ -161,6 +182,15 @@ export async function commitCopiedVideoPublicationIfCurrent(
         'A origem ou a versão processada do vídeo mudou durante a publicação.'
       );
     }
+    const mode = publicationPatch['assetStorageMode'];
+    const publishedPath = normalizePublishedVideoPlaybackPath(
+      ownerUid, videoId, publicationPatch['publishedStoragePath'], mode
+    );
+    if (!publishedPath || (mode === 'PROCESSED_CANONICAL' &&
+        publishedPath !== sourceProcessedStoragePath)) {
+      throw new HttpsError('failed-precondition',
+        'O ativo publicado diverge da versão processada autorizada.');
+    }
     // The cleanup intent is atomic with publication. A crash cannot leave
     // newly published originals untracked. Legacy sources without a GCS
     // generation remain untouched until explicitly reconciled.
@@ -169,6 +199,7 @@ export async function commitCopiedVideoPublicationIfCurrent(
       sourceGeneration: currentOwnerVideo.sourceGeneration,
       processedStoragePath: sourceProcessedStoragePath,
       publishedStoragePath: publicationPatch['publishedStoragePath'],
+      assetStorageMode: publicationPatch['assetStorageMode'],
       now: Date.now(),
     });
     if (originalCleanup) {

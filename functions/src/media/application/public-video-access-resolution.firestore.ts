@@ -6,10 +6,8 @@ import {
   shouldIssuePublicVideoPlaybackAccess,
   type TPublicVideoAccessMode,
 } from './public-video-access-mode';
-import {
-  normalizeOwnedPublishedVideoPath,
-  normalizeOwnedPublishedVideoPosterPath,
-} from './video-storage-path';
+import { normalizeOwnedPublishedVideoPosterPath } from './video-storage-path';
+import { normalizePublishedVideoPlaybackPath } from './published-video-storage-mode.policy';
 
 export interface PublicVideoSignedAccessItem {
   ownerUid: string;
@@ -82,8 +80,9 @@ export async function resolvePublicVideoSignedAccessItem(
     return null;
   }
 
-  const videoStoragePath = normalizeOwnedPublishedVideoPath(
-    ownerUid, videoId, publication['publishedStoragePath']
+  const videoStoragePath = normalizePublishedVideoPlaybackPath(
+    ownerUid, videoId, publication['publishedStoragePath'],
+    publication['assetStorageMode']
   );
 
   if (!videoStoragePath) {

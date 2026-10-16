@@ -8,6 +8,7 @@ on:
       - 'functions/src/media/application/video-cancellation*'
       - 'functions/src/media/application/video-transcoder-delete*'
       - 'functions/src/media/application/video-publication-commit.firestore.ts'
+      - 'functions/src/media/application/published-video-storage-mode.policy*'
       - 'functions/src/media/application/video-publication-source-fence.policy.ts'
       - 'functions/src/media/application/video-publication-source-fence.contract.test.ts'
       - 'functions/src/media/application/manage-video-publication.handler.ts'

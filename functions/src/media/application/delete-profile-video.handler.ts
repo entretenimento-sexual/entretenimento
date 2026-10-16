@@ -27,6 +27,7 @@ import {
 } from './video-identity-guard.firestore';
 import { migrateLegacyPublishedVideoCleanupJobs } from './published-video-cleanup-migration.firestore';
 import { deletePublishedVideoAssetOrQueueWithResult } from './published-video-asset.service';
+import { decidePublishedVideoDeletionPath } from './published-video-storage-mode.policy';
 import {
   summarizePublishedAssetCleanupResults,
   type PublishedAssetsSummary,
@@ -216,16 +217,26 @@ async function cleanupPublishedAssets(
     | 'videoId'
     | 'publishedVideoStoragePath'
     | 'publishedPosterStoragePath'
+    | 'processedOutputPrefix'
   >
 ): Promise<PublishedAssetsSummary> {
+  const publishedDecision = decidePublishedVideoDeletionPath(
+    job.ownerUid, job.videoId, job.publishedVideoStoragePath,
+    job.processedOutputPrefix
+  );
   const [videoResult, posterResult] = await Promise.all([
-    deletePublishedVideoAssetOrQueueWithResult({
-      ownerUid: job.ownerUid,
-      videoId: job.videoId,
-      storagePath: job.publishedVideoStoragePath,
-      assetKind: 'video',
-      reason: 'delete-profile-video',
-    }),
+    publishedDecision === 'HANDLED_BY_PROCESSED_PREFIX'
+      ? Promise.resolve('DELETED' as const)
+      : publishedDecision === 'BLOCKED'
+        ? Promise.resolve('INVALID_PATH' as const)
+        :
+        deletePublishedVideoAssetOrQueueWithResult({
+          ownerUid: job.ownerUid,
+          videoId: job.videoId,
+          storagePath: job.publishedVideoStoragePath,
+          assetKind: 'video',
+          reason: 'delete-profile-video',
+        }),
     deletePublishedVideoAssetOrQueueWithResult({
       ownerUid: job.ownerUid,
       videoId: job.videoId,

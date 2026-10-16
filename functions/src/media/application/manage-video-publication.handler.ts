@@ -15,7 +15,7 @@ import {
 } from './media-publication-audience.policy';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import {
-  copyPrivateVideoToPublishedAsset,
+  prepareProcessedVideoForPublication,
   deletePublishedVideoAssetOrQueue,
 } from './published-video-asset.service';
 import {
@@ -39,7 +39,7 @@ import {
 type VideoVisibility = AvailableMediaPublicationVisibility;
 type ModerationStatus = 'APPROVED';
 type PublishedVideoAssets = Awaited<
-  ReturnType<typeof copyPrivateVideoToPublishedAsset>
+  ReturnType<typeof prepareProcessedVideoForPublication>
 >;
 
 interface PublishVideoRequest {
@@ -179,22 +179,15 @@ async function rollbackPublishedAssets(
   videoId: string,
   publishedAssets: PublishedVideoAssets
 ): Promise<void> {
-  await Promise.all([
-    deletePublishedVideoAssetOrQueue({
-      ownerUid,
-      videoId,
-      storagePath: publishedAssets.videoStoragePath,
-      assetKind: 'video',
-      reason: 'publish-video-firestore-rollback',
-    }),
-    deletePublishedVideoAssetOrQueue({
-      ownerUid,
-      videoId,
-      storagePath: publishedAssets.posterStoragePath,
-      assetKind: 'poster',
-      reason: 'publish-video-poster-firestore-rollback',
-    }),
-  ]);
+  // The processed video is shared with the owner library. Failed publication
+  // MUST NEVER delete it. Only the newly copied poster may be rolled back.
+  await deletePublishedVideoAssetOrQueue({
+    ownerUid,
+    videoId,
+    storagePath: publishedAssets.posterStoragePath,
+    assetKind: 'poster',
+    reason: 'publish-video-poster-firestore-rollback',
+  });
 }
 
 export const publishVideo = onCall<PublishVideoRequest>(
@@ -262,7 +255,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
     let publishedAssets: PublishedVideoAssets;
 
     try {
-      publishedAssets = await copyPrivateVideoToPublishedAsset({
+      publishedAssets = await prepareProcessedVideoForPublication({
         ownerUid,
         videoId,
         sourceVideoStoragePath,
@@ -315,6 +308,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
       sourceStoragePath: sourceVideoStoragePath,
       rejectedSourceStoragePath: FieldValue.delete(),
       moderatedBy: FieldValue.delete(),
+      assetStorageMode: 'PROCESSED_CANONICAL' as const,
       publishedStoragePath: publishedAssets.videoStoragePath,
       publishedPosterStoragePath:
         publishedAssets.posterStoragePath ?? FieldValue.delete(),

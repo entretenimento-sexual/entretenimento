@@ -17,7 +17,7 @@ const asset = readFileSync(
 );
 
 test('publication uses the transactional source fence shared with emulator tests', () => {
-  assert.ok(handler.includes('await copyPrivateVideoToPublishedAsset({'));
+  assert.ok(handler.includes('await prepareProcessedVideoForPublication({'));
   assert.ok(handler.includes('commitCopiedVideoPublicationIfCurrent('));
   assert.ok(core.includes('firestore.runTransaction(async (transaction) => {'));
   assert.ok(core.includes('transaction.get(ownerVideoRef)'));
@@ -32,7 +32,13 @@ test('publication uses the transactional source fence shared with emulator tests
   assert.ok(handler.includes('await rollbackPublishedAssets(ownerUid, videoId, publishedAssets)'));
 });
 
-test('published video copy reports exactly which processed version was copied', () => {
+test('published video reuses exactly the processed version without GCS copying', () => {
   assert.ok(asset.includes('sourceProcessedStoragePath: string;'));
   assert.ok(asset.includes('sourceProcessedStoragePath: processedStoragePath,'));
+});
+
+test('publisher must never copy processed bytes into a second video object', () => {
+  assert.ok(!asset.includes('sourceVideo.copy(destinationVideo'));
+  assert.ok(asset.includes('videoStoragePath: processedStoragePath'));
+  assert.ok(handler.includes("assetStorageMode: 'PROCESSED_CANONICAL'"));
 });

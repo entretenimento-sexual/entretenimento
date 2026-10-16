@@ -12,6 +12,7 @@ const NOW = 1_800_000_000_000;
 const VIDEO = 'users/owner-1/published/videos/video-1/assets/v1';
 const POSTER = 'users/owner-1/published/videos/video-1/posters/v1';
 const VIDEO_V2 = 'users/owner-1/published/videos/video-1/assets/v2';
+const CANONICAL = 'users/owner-1/processed/videos/video-1/v1/output.mp4';
 
 type Document = Record<string, unknown> | null;
 
@@ -76,6 +77,18 @@ describe('public video signed access - comportamento real', () => {
     assert.equal(item?.expiresAt, NOW + 300_000);
     assert.equal(f.reads.length, 2);
     assert.deepEqual(f.signed.map((entry) => entry.path), [VIDEO, POSTER]);
+  });
+
+  it('assina o processado canônico somente com modo explícito', async () => {
+    const f = createFixture();
+    f.files.add(CANONICAL);
+    f.state.publication = {
+      ...f.state.publication,
+      assetStorageMode: 'PROCESSED_CANONICAL', publishedStoragePath: CANONICAL,
+    };
+    assert.equal((await f.resolve())?.url, 'signed:' + CANONICAL + ':' + (NOW + 300_000));
+    f.state.publication = { ...f.state.publication, assetStorageMode: undefined };
+    assert.equal(await f.resolve(), null);
   });
 
   it('PREVIEW nunca consulta nem assina o arquivo de reprodução', async () => {
