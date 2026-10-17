@@ -61,11 +61,28 @@ export interface IAdminVideoProcessingQueueStatus {
   cancellation: IAdminVideoCancellationBacklog | null;
 }
 
+export type AdminVideoSchedulerHealth = 'OPERATIONAL' | 'DEGRADED' | 'FAILED' | 'UNVERIFIED';
+export type AdminVideoSchedulerName =
+  | 'submitQueuedVideoProcessing'
+  | 'reconcileVideoProcessing'
+  | 'cleanupCancelledVideoProcessing';
+export interface IAdminVideoSchedulerDiagnostic {
+  scheduler: AdminVideoSchedulerName;
+  intervalMinutes: number;
+  health: AdminVideoSchedulerHealth;
+  lastOutcome: 'OK' | 'ATTENTION' | 'FAILED' | null;
+  lastFinishedAt: number | null;
+  ageMs: number | null;
+  durationMs: number | null;
+  metrics: Readonly<Record<string, number | boolean>>;
+}
+
 export interface IAdminVideoProcessingStatus {
   state: AdminVideoProcessingOperationalState;
   checkedAt: number;
   provider: IAdminVideoProcessingProviderStatus;
   queue: IAdminVideoProcessingQueueStatus;
+  schedulers: IAdminVideoSchedulerDiagnostic[];
 }
 
 const PROCESSING_JOB_STATES: AdminVideoProcessingJobState[] = [
@@ -128,6 +145,7 @@ export class AdminVideoModerationService {
 
     return {
       state: operationalState,
+      schedulers: this.normalizeSchedulers(value?.schedulers),
       checkedAt: this.normalizeNonNegativeInteger(value?.checkedAt),
       provider: {
         status: providerStatus,
@@ -191,6 +209,45 @@ export class AdminVideoModerationService {
           : null,
       },
     };
+  }
+
+  private normalizeSchedulers(
+    value: IAdminVideoSchedulerDiagnostic[] | undefined
+  ): IAdminVideoSchedulerDiagnostic[] {
+    const names: AdminVideoSchedulerName[] = [
+      'submitQueuedVideoProcessing', 'reconcileVideoProcessing',
+      'cleanupCancelledVideoProcessing',
+    ];
+    return names.map(scheduler => {
+      const item = Array.isArray(value) ? value.find(x => x?.scheduler === scheduler) : null;
+      const health = item?.health === 'OPERATIONAL' || item?.health === 'DEGRADED' ||
+        item?.health === 'FAILED' ? item.health : 'UNVERIFIED';
+      const outcome = item?.lastOutcome === 'OK' || item?.lastOutcome === 'ATTENTION' ||
+        item?.lastOutcome === 'FAILED' ? item.lastOutcome : null;
+      const intervalMinutes = scheduler === 'cleanupCancelledVideoProcessing' ? 30 : 5;
+      const safeMetrics: Record<string, number | boolean> = {};
+      for (const key of ['selected', 'claimed', 'completed', 'taskRejected',
+        'retryScheduled', 'reviewRequired', 'terminalSelected', 'terminalCompleted',
+        'terminalRetryScheduled', 'terminalReviewRequired', 'batchLimitReached']) {
+        const metric = item?.metrics?.[key];
+        if (typeof metric === 'boolean' ||
+            (typeof metric === 'number' && Number.isSafeInteger(metric) && metric >= 0)) {
+          safeMetrics[key] = metric;
+        }
+      }
+      return {
+        scheduler, intervalMinutes, health, lastOutcome: outcome,
+        lastFinishedAt: this.normalizeOptionalPositiveInteger(item?.lastFinishedAt),
+        ageMs: this.normalizeOptionalNonNegativeInteger(item?.ageMs),
+        durationMs: this.normalizeOptionalNonNegativeInteger(item?.durationMs),
+        metrics: safeMetrics,
+      };
+    });
+  }
+
+  private normalizeOptionalNonNegativeInteger(value: unknown): number | null {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+      ? value : null;
   }
 
   private normalizeProcessingCounts(

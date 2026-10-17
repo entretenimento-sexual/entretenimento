@@ -27,6 +27,18 @@ import {
 const CLEANUP_BATCH_SIZE = 12;
 const MAX_ATTEMPTS = 8;
 
+export interface TerminalCleanupCycleMetrics {
+  selected: number;
+  attempted: number;
+  completed: number;
+  retryScheduled: number;
+  reviewRequired: number;
+  claimSkipped: number;
+  batchLimitReached: boolean;
+}
+
+type TerminalCleanupOutcome = 'COMPLETED' | 'RETRY' | 'REVIEW' | 'SKIPPED';
+
 function isAlreadyExists(error: unknown): boolean {
   return !!error && typeof error === 'object' && 'code' in error &&
     (error.code === 6 || error.code === '6' || error.code === 'already-exists');
@@ -72,9 +84,9 @@ async function enqueueTerminalCleanup(jobId: string, job: VideoProcessingJob): P
 
 async function processCleanupDoc(
   queueRef: DocumentReference, now: number
-): Promise<void> {
+): Promise<TerminalCleanupOutcome> {
   const claimed = await claimDueTerminalTemporaryCleanup(db, queueRef, now);
-  if (!claimed) return;
+  if (!claimed) return 'SKIPPED';
 
   let completed = false;
   let failure: unknown = null;
@@ -93,11 +105,11 @@ async function processCleanupDoc(
   const permanent = /PROVENANCE_CONFLICT|INVALID_|PROVIDER_UNCONFIRMED|GENERATION_CONFLICT/i
     .test(message);
 
-  await db.runTransaction(async transaction => {
+  const outcome = await db.runTransaction(async transaction => {
     const snap = await transaction.get(queueRef);
     const current = snap.exists ? snap.data() as TerminalCleanupQueue : null;
     if (!current || current.leaseToken !== claimed.token ||
-        current.state !== 'retryable') return;
+        current.state !== 'retryable') return 'SKIPPED' as const;
     const attempts = current.attempts + (completed ? 0 : 1);
     const review = !completed && (permanent || attempts >= MAX_ATTEMPTS);
     const delay = Math.min(60 * 60_000, 60_000 * 2 ** Math.min(6, attempts));
@@ -107,6 +119,7 @@ async function processCleanupDoc(
       leaseToken: null, updatedAt: finishedAt,
       lastError: completed ? null : message.slice(0, 350),
     });
+    return completed ? 'COMPLETED' as const : review ? 'REVIEW' as const : 'RETRY' as const;
   });
   logger[completed ? 'info' : 'warn']('[videoTempCleanup] Ciclo finalizado.', {
     jobId: claimed.queue.jobId,
@@ -114,18 +127,29 @@ async function processCleanupDoc(
     status: completed ? 'DONE' : 'RETRY_OR_REVIEW',
     error: completed ? null : message.slice(0, 350),
   });
+  return outcome;
 }
 
 /** Existing 5-minute reconciliation schedule owns the durable queue. */
-export async function processPendingVideoTerminalTemporaryCleanup(): Promise<void> {
+export async function processPendingVideoTerminalTemporaryCleanup(): Promise<TerminalCleanupCycleMetrics> {
   const now = Date.now();
   const snapshot = await db.collection(VIDEO_TERMINAL_TEMP_CLEANUP_COLLECTION)
     .where('nextAttemptAt', '<=', now)
     .orderBy('nextAttemptAt', 'asc')
     .limit(CLEANUP_BATCH_SIZE).get();
+  const metrics: TerminalCleanupCycleMetrics = {
+    selected: snapshot.size, attempted: 0, completed: 0,
+    retryScheduled: 0, reviewRequired: 0, claimSkipped: 0,
+    batchLimitReached: snapshot.size >= CLEANUP_BATCH_SIZE,
+  };
   for (const item of snapshot.docs) {
     try {
-      await processCleanupDoc(item.ref, Date.now());
+      metrics.attempted += 1;
+      const outcome = await processCleanupDoc(item.ref, Date.now());
+      if (outcome === 'COMPLETED') metrics.completed += 1;
+      else if (outcome === 'RETRY') metrics.retryScheduled += 1;
+      else if (outcome === 'REVIEW') metrics.reviewRequired += 1;
+      else metrics.claimSkipped += 1;
     } catch (error) {
       logger.error('[videoTempCleanup] Falha na fila.', {
         queueId: item.id,
@@ -134,6 +158,7 @@ export async function processPendingVideoTerminalTemporaryCleanup(): Promise<voi
       throw error;
     }
   }
+  return metrics;
 }
 
 /**

@@ -7,6 +7,10 @@ import { getFirestore, type DocumentReference } from 'firebase-admin/firestore';
 import axios, { AxiosError, type AxiosResponse } from 'axios';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
+import { saveLastVideoSchedulerCycle } from './video-scheduler-observability.firestore';
+import {
+  diagnoseVideoScheduler, videoSchedulerRecord, VIDEO_SCHEDULER_COLLECTION,
+} from './video-scheduler-observability.policy';
 import {
   clearProviderPollFailures,
   isProviderPollReviewRequired,
@@ -2285,6 +2289,58 @@ test('review recheck fails closed for stale, missing, foreign and lease-held sna
     assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
     assert.equal(results.filter(result => result.status === 'rejected').length, 1);
     assert.equal((await ref.get()).get('state'), 'retryable');
+  } finally {
+    await ref.delete();
+  }
+});
+
+test('real Firestore scheduler evidence is monotonic under concurrent cycles', async () => {
+  const key = 'submitQueuedVideoProcessing' as const;
+  const ref = firestore.collection(VIDEO_SCHEDULER_COLLECTION).doc(key);
+  const old = videoSchedulerRecord(
+    key, 'older', now - 30_000, now - 20_000, 'FAILED', 'QUERY', {}
+  );
+  const latest = videoSchedulerRecord(
+    key, 'latest', now - 15_000, now, 'OK', 'EXECUTE',
+    { selected: 0, taskRejected: 0, batchLimitReached: false }
+  );
+  try {
+    await ref.delete();
+    const results = await Promise.all([
+      saveLastVideoSchedulerCycle(firestore, latest),
+      saveLastVideoSchedulerCycle(firestore, old),
+    ]);
+    assert.equal(results.filter(Boolean).length >= 1, true);
+    const stored = (await ref.get()).data();
+    assert.ok(stored);
+    assert.equal(stored['cycleId'], latest.cycleId);
+    assert.equal(stored['finishedAt'], now);
+    assert.equal(await saveLastVideoSchedulerCycle(firestore, old), false);
+    assert.equal(await saveLastVideoSchedulerCycle(firestore, latest), false);
+    assert.equal(diagnoseVideoScheduler(key, stored, now + 1).health, 'OPERATIONAL');
+    assert.equal(diagnoseVideoScheduler(key, stored, now + 26 * 60_000).health,
+      'UNVERIFIED');
+  } finally {
+    await ref.delete();
+  }
+});
+
+test('last recorded scheduler failure is separate from provider and job state', async () => {
+  const key = 'reconcileVideoProcessing' as const;
+  const ref = firestore.collection(VIDEO_SCHEDULER_COLLECTION).doc(key);
+  const failure = videoSchedulerRecord(
+    key, 'cycle-failed', now - 3000, now, 'FAILED', 'TERMINAL_CLEANUP', {}
+  );
+  try {
+    await ref.delete();
+    assert.equal(await saveLastVideoSchedulerCycle(firestore, failure), true);
+    const stored = (await ref.get()).data();
+    assert.ok(stored);
+    assert.equal(diagnoseVideoScheduler(key, stored, now + 1).health, 'FAILED');
+    const cancel = diagnoseVideoScheduler('cleanupCancelledVideoProcessing', null, now);
+    assert.equal(cancel.health, 'UNVERIFIED');
+    assert.equal((await jobs.where('providerState', '==', 'cycle-failed')
+      .limit(1).get()).empty, true);
   } finally {
     await ref.delete();
   }

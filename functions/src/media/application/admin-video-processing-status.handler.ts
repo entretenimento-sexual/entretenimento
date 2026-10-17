@@ -4,6 +4,11 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
+  VIDEO_SCHEDULERS, VIDEO_SCHEDULER_COLLECTION,
+  diagnoseVideoScheduler,
+  type VideoSchedulerDiagnostic,
+} from './video-scheduler-observability.policy';
+import {
   summarizeCancellationBacklogSample,
   type CancellationBacklogDiagnostic,
 } from './video-cancellation-backlog-diagnostic.policy';
@@ -42,6 +47,7 @@ interface AdminVideoProcessingStatusResponse {
   checkedAt: number;
   provider: GoogleVideoTranscoderProbeResult;
   queue: VideoProcessingQueueSnapshot;
+  schedulers: VideoSchedulerDiagnostic[];
 }
 
 interface ProcessingJobSnapshot {
@@ -231,6 +237,21 @@ async function readActiveSample(
   };
 }
 
+async function readSchedulerDiagnostics(checkedAt: number): Promise<VideoSchedulerDiagnostic[]> {
+  try {
+    // Exactly three document reads; never scan queues or call the provider.
+    const snapshots = await db.getAll(...VIDEO_SCHEDULERS.map(name =>
+      db.collection(VIDEO_SCHEDULER_COLLECTION).doc(name)
+    ));
+    return VIDEO_SCHEDULERS.map((name, index) =>
+      diagnoseVideoScheduler(name,
+        snapshots[index].exists ? snapshots[index].data() : null, checkedAt));
+  } catch {
+    logger.warn('[videoProcessingStatus] Evidência dos schedulers indisponível.');
+    return VIDEO_SCHEDULERS.map(name => diagnoseVideoScheduler(name, null, checkedAt));
+  }
+}
+
 function resolveOperationalState(
   provider: GoogleVideoTranscoderProbeResult
 ): VideoProcessingOperationalState {
@@ -262,9 +283,10 @@ export const getVideoProcessingOperationalStatus = onCall(
     const checkedAt = Date.now();
 
     try {
-      const [provider, counts] = await Promise.all([
+      const [provider, counts, schedulers] = await Promise.all([
         probeGoogleVideoTranscoder(),
         readJobCounts(),
+        readSchedulerDiagnostics(checkedAt),
       ]);
       const activeTotal = ACTIVE_JOB_STATES.reduce(
         (total, state) => total + counts[state],
@@ -286,6 +308,7 @@ export const getVideoProcessingOperationalStatus = onCall(
         state,
         checkedAt,
         provider,
+        schedulers,
         queue: {
           counts,
           activeTotal,

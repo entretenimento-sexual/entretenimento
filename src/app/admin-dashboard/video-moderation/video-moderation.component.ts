@@ -30,6 +30,7 @@ import {
   AdminVideoModerationService,
   AdminVideoProcessingJobState,
   IAdminVideoProcessingStatus,
+  IAdminVideoSchedulerDiagnostic,
 } from 'src/app/core/services/moderation/admin-video-moderation.service';
 import {
   AdminVideoTerminalTemporaryCleanupService,
@@ -252,6 +253,23 @@ export class VideoModerationComponent {
 
     return status.provider.errorMessage ||
       'A API, a região ou as permissões do Transcoder precisam ser revisadas.';
+  }
+
+  schedulerLabel(value: IAdminVideoSchedulerDiagnostic): string {
+    switch (value.scheduler) {
+      case 'submitQueuedVideoProcessing': return 'Envio de vídeos';
+      case 'reconcileVideoProcessing': return 'Reconciliação e temporários';
+      case 'cleanupCancelledVideoProcessing': return 'Cancelamentos';
+    }
+  }
+
+  schedulerHealthLabel(value: IAdminVideoSchedulerDiagnostic): string {
+    switch (value.health) {
+      case 'OPERATIONAL': return 'Execução recente sem alertas';
+      case 'DEGRADED': return 'Execução recente com pendências';
+      case 'FAILED': return 'Última execução falhou';
+      case 'UNVERIFIED': return 'Execução não verificada';
+    }
   }
 
   processingJobStateLabel(state: AdminVideoProcessingJobState): string {

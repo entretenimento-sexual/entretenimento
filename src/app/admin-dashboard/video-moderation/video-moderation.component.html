@@ -117,18 +117,45 @@
           </article>
         </div>
 
-        <p class="video-moderation__operations-summary" role="status">
-          <strong>Execução do scheduler não verificada.</strong>
-          A conectividade com o Transcoder e os dados da fila não comprovam
-          que a limpeza agendada foi executada. Confira os eventos estruturados
-          do Cloud Logging e o Cloud Scheduler no ambiente implantado.
-          @if (diagnostic.queue.cancellation; as cancellation) {
-            Frequência configurada: a cada {{ cancellation.scheduleMinutes }} minutos.
-            @if (cancellation.samplePartial) {
-              Os contadores de cancelamento representam apenas uma amostra.
+        <section aria-labelledby="video-scheduler-evidence-heading">
+          <h4 id="video-scheduler-evidence-heading">Execuções recentes dos schedulers</h4>
+          <div class="video-moderation__operations-grid">
+            @for (scheduler of diagnostic.schedulers; track scheduler.scheduler) {
+              <article class="video-moderation__metric">
+                <span>{{ schedulerLabel(scheduler) }}</span>
+                <strong>{{ schedulerHealthLabel(scheduler) }}</strong>
+                <small>
+                  @if (scheduler.lastFinishedAt !== null) {
+                    Último registro: {{ scheduler.lastFinishedAt | date:'dd/MM HH:mm' }};
+                    {{ scheduler.intervalMinutes }} min entre execuções previstas.
+                  } @else {
+                    Sem evidência persistida de conclusão.
+                  }
+                </small>
+                <small>
+                  Lote {{ scheduler.metrics['selected'] ?? 0 }};
+                  falhas isoladas {{ scheduler.metrics['taskRejected'] ?? 0 }}.
+                  @if (scheduler.metrics['batchLimitReached'] === true) {
+                    Lote no limite.
+                  }
+                  @if (scheduler.scheduler === 'reconcileVideoProcessing') {
+                    Temporários {{ scheduler.metrics['terminalSelected'] ?? 0 }};
+                    em revisão {{ scheduler.metrics['terminalReviewRequired'] ?? 0 }}.
+                  }
+                </small>
+              </article>
             }
-          }
-        </p>
+          </div>
+          <p class="video-moderation__operations-summary" role="status">
+            Uma conclusão recente confirma apenas aquela execução. Registros
+            ausentes ou antigos permanecem não verificados; não comprovam sucesso
+            ou falha do Cloud Scheduler. Confira os ciclos correlacionados no
+            Cloud Logging e o agendamento no Google Cloud.
+            @if (diagnostic.queue.cancellation?.samplePartial) {
+              O backlog de cancelamentos é uma amostra parcial.
+            }
+          </p>
+        </section>
 
         <dl class="video-moderation__configuration">
           <div>

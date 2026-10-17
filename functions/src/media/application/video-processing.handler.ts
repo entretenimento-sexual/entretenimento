@@ -6,6 +6,10 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import {
+  runObservedVideoScheduler, bestEffortSaveVideoSchedulerCycle,
+} from './video-scheduler-observability.firestore';
+import { videoSchedulerRecord } from './video-scheduler-observability.policy';
+import {
   deleteGoogleVideoTranscoderJob,
   findGoogleVideoTranscoderJob,
   getGoogleVideoTranscoderJob,
@@ -614,7 +618,9 @@ async function recoverExpiredSubmission(
   }
 }
 
-async function recoverExpiredSubmissionLeases(): Promise<void> {
+async function recoverExpiredSubmissionLeases(): Promise<{
+  selected: number; claimed: number; rejected: number;
+}> {
   const now = Date.now();
   const snapshot = await db
     .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
@@ -633,7 +639,8 @@ async function recoverExpiredSubmissionLeases(): Promise<void> {
       tasks.push(() => recoverExpiredSubmission(jobDoc.ref, claimed));
     }
   }
-  await runBatch(tasks, 'recover-submissions');
+  const batch = await runBatch(tasks, 'recover-submissions');
+  return { selected: snapshot.size, claimed: tasks.length, rejected: batch.rejected };
 }
 
 function inferVideoMimeType(fileName: string, contentType: unknown): string {
@@ -979,7 +986,7 @@ async function processCancellation(
 async function runBatch(
   tasks: Array<() => Promise<void>>,
   operation: string
-): Promise<void> {
+): Promise<{ rejected: number }> {
   const results = await Promise.allSettled(tasks.map((task) => task()));
 
   results.forEach((result, index) => {
@@ -993,6 +1000,7 @@ async function runBatch(
       });
     }
   });
+  return { rejected: results.filter(result => result.status === 'rejected').length };
 }
 
 export const submitQueuedVideoProcessing = onSchedule(
@@ -1004,9 +1012,11 @@ export const submitQueuedVideoProcessing = onSchedule(
     timeoutSeconds: 540,
     memory: '512MiB',
   },
-  async () => {
-    await recoverExpiredSubmissionLeases();
+  async () => runObservedVideoScheduler(db, 'submitQueuedVideoProcessing', async context => {
+    context.setPhase('RECOVER_SUBMISSIONS');
+    const recovered = await recoverExpiredSubmissionLeases();
 
+    context.setPhase('QUERY');
     const now = Date.now();
     const snapshot = await db
       .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
@@ -1015,23 +1025,43 @@ export const submitQueuedVideoProcessing = onSchedule(
       .orderBy('nextAttemptAt', 'asc')
       .limit(SUBMISSION_BATCH_SIZE)
       .get();
+    let claimed = 0;
+    let skipped = 0;
     const tasks: Array<() => Promise<void>> = [];
-
     for (const jobDoc of snapshot.docs) {
       tasks.push(async () => {
         if (!await prepareVideoSourceProbeBeforeSubmission(jobDoc.ref, Date.now())) {
+          skipped += 1;
           return;
         }
         if (!await prepareImmutableInputBeforeSubmission(jobDoc.ref, Date.now())) {
+          skipped += 1;
           return;
         }
         const claimedJob = await claimQueuedJob(jobDoc.ref, Date.now());
-        if (claimedJob) await submitClaimedJob(jobDoc.ref, claimedJob);
+        if (claimedJob) {
+          claimed += 1;
+          await submitClaimedJob(jobDoc.ref, claimedJob);
+        } else {
+          skipped += 1;
+        }
       });
     }
-
-    await runBatch(tasks, 'submit');
-  }
+    context.setPhase('EXECUTE');
+    const batch = await runBatch(tasks, 'submit');
+    const saturated = snapshot.size >= SUBMISSION_BATCH_SIZE;
+    const failed = batch.rejected + recovered.rejected;
+    return {
+      attention: failed > 0 || saturated,
+      metrics: {
+        selected: snapshot.size, attempted: tasks.length, claimed, skipped,
+        taskRejected: failed, batchLimitReached: saturated,
+        recoveredSubmissionSelected: recovered.selected,
+        recoveredSubmissionClaimed: recovered.claimed,
+        recoveredSubmissionRejected: recovered.rejected,
+      },
+    };
+  })
 );
 
 export const reconcileVideoProcessing = onSchedule(
@@ -1043,24 +1073,41 @@ export const reconcileVideoProcessing = onSchedule(
     timeoutSeconds: 540,
     memory: '512MiB',
   },
-  async () => {
+  async () => runObservedVideoScheduler(db, 'reconcileVideoProcessing', async context => {
+    context.setPhase('QUERY');
     const now = Date.now();
     const snapshot = await queryDueProcessingJobs(
       db, now, RECONCILIATION_BATCH_SIZE
     ).get();
     const tasks: Array<() => Promise<void>> = [];
-
+    context.setPhase('CLAIM');
     for (const jobDoc of snapshot.docs) {
       const claimedJob = await claimProcessingJob(db, jobDoc.ref, now, normalizeJob);
-
       if (claimedJob) {
         tasks.push(() => reconcileProcessingJob(jobDoc.ref, claimedJob));
       }
     }
-
-    await runBatch(tasks, 'reconcile');
-    await processPendingVideoTerminalTemporaryCleanup();
-  }
+    context.setPhase('EXECUTE');
+    const batch = await runBatch(tasks, 'reconcile');
+    context.setPhase('TERMINAL_CLEANUP');
+    const terminal = await processPendingVideoTerminalTemporaryCleanup();
+    const saturated = snapshot.size >= RECONCILIATION_BATCH_SIZE ||
+      terminal.batchLimitReached;
+    return {
+      attention: batch.rejected > 0 || terminal.retryScheduled > 0 ||
+        terminal.reviewRequired > 0 || saturated,
+      metrics: {
+        selected: snapshot.size, attempted: tasks.length, claimed: tasks.length,
+        skipped: Math.max(0, snapshot.size - tasks.length),
+        taskRejected: batch.rejected, batchLimitReached: saturated,
+        terminalSelected: terminal.selected,
+        terminalCompleted: terminal.completed,
+        terminalRetryScheduled: terminal.retryScheduled,
+        terminalReviewRequired: terminal.reviewRequired,
+        terminalClaimSkipped: terminal.claimSkipped,
+      },
+    };
+  })
 );
 
 export const cleanupCancelledVideoProcessing = onSchedule(
@@ -1129,6 +1176,17 @@ export const cleanupCancelledVideoProcessing = onSchedule(
       } else {
         logger.info('[videoProcessing] Ciclo de cancelamentos concluído.', details);
       }
+      await bestEffortSaveVideoSchedulerCycle(db, videoSchedulerRecord(
+        'cleanupCancelledVideoProcessing', cycleId, startedAt, Date.now(),
+        needsAttention ? 'ATTENTION' : 'OK', 'EXECUTE', {
+          selected: metrics.selected, claimed: metrics.claimed,
+          skipped: metrics.claimSkipped, invalid: metrics.invalid,
+          batchLimitReached: metrics.batchLimitReached,
+          completed: metrics.completed, retryScheduled: metrics.retryScheduled,
+          unconfirmed: metrics.unconfirmed, replaced: metrics.replaced,
+          taskRejected: metrics.taskRejected,
+        }
+      ));
     } catch (error) {
       logger.error('[videoProcessing] Falha no ciclo de cancelamentos.', {
         event: 'VIDEO_CANCELLATION_CYCLE_FAILED',
@@ -1136,6 +1194,10 @@ export const cleanupCancelledVideoProcessing = onSchedule(
         phase,
         durationMs: Date.now() - startedAt,
       });
+      await bestEffortSaveVideoSchedulerCycle(db, videoSchedulerRecord(
+        'cleanupCancelledVideoProcessing', cycleId, startedAt, Date.now(),
+        'FAILED', phase, {}
+      ));
       // Let the scheduler report and retry the failed invocation.
       throw error;
     }

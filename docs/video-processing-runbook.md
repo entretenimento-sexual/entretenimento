@@ -205,6 +205,46 @@ de documentos. O estado do scheduler permanece `UNVERIFIED` até que exista
 evidência de execução verificada por outro mecanismo; contadores zerados,
 inclusive de amostra parcial, não provam saúde operacional.
 
+### Observabilidade consolidada dos schedulers (1C2-A3b2b2c7)
+
+Três rotinas mantêm evidência agregada em
+`media_video_scheduler_execution/{scheduler}`: submissão de vídeos,
+reconciliação/limpeza terminal e cancelamento. Cada ciclo concluído (ou
+falhado) persiste, em **um único documento por scheduler**, o último resultado
+por ordem de conclusão. Uma transação impede que uma execução antiga sobrescreva
+a conclusão mais recente. A gravação é *best effort*: falha de telemetria
+nunca autoriza reenvio, exclusão, mudança de estado ou supressão de erro do
+processamento. Não há novos agendamentos, consultas ao Transcoder nem varreduras
+de coleções para telemetria.
+
+`getVideoProcessingOperationalStatus` lê no máximo esses três documentos.
+O painel exibe estados **somente da última execução registrada**:
+
+- `OPERATIONAL`: uma execução recente terminou sem alertas identificados;
+- `DEGRADED`: uma execução recente terminou com itens pendentes, erros
+  isolados ou limite do lote alcançado;
+- `FAILED`: a última execução recente terminou com exceção;
+- `UNVERIFIED`: registro ausente, inválido ou antigo (acima de 25 minutos
+  para ciclos de 5 minutos e de 100 minutos para cancelamentos).
+
+Esses estados **não comprovam** que o Cloud Scheduler executou em todos os
+horários nem que todos os jobs estão íntegros. Ausência de registro não é
+classificada automaticamente como falha; há que conferir Cloud Scheduler,
+Cloud Run e logs de produção. A leitura administrativa é restrita por
+autenticação, App Check e rate limit e não permite ações de descarte.
+
+`VIDEO_MEDIA_SCHEDULER_STARTED`, `VIDEO_MEDIA_SCHEDULER_FINISHED` e
+`VIDEO_MEDIA_SCHEDULER_FAILED` usam `cycleId`, nome de scheduler, fase,
+duração e contadores agregados, sem UID, IDs de vídeo, nomes de jobs, caminhos
+ou mensagens de exceção. Os eventos legados
+`VIDEO_CANCELLATION_CYCLE_STARTED/FINISHED/FAILED` continuam preservados;
+o cancelamento grava sua conclusão agregada no mesmo mecanismo.
+A reconciliação inclui resumo da limpeza terminal, mas nenhuma métrica
+autoriza reprocessamento ou exclusão. Operações com falhas internas tratadas
+pelo próprio fluxo podem não ser contadas como falhas isoladas: interpretar
+`attempted`/ `claimed` como volume, nunca como número de transcodificações
+bem-sucedidas. Um lote cheio indica possível saturação, não erro do provedor.
+
 ### Auditoria offline do scheduler por logs exportados
 
 A analise de logs pode ser feita sob demanda sem novas permissoes nas Functions,
