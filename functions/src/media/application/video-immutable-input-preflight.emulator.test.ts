@@ -11,6 +11,7 @@ import { ImmutableInputPreparationError, buildImmutableTranscoderInputPath,
   type ImmutableTranscoderInput } from './video-immutable-input.policy';
 import {
   matchesPersistedImmutableInput,
+  prepareImmutableInputBeforeSubmission,
   prepareImmutableInputPreflightWithPorts,
 } from './video-immutable-input-preflight.service';
 
@@ -88,6 +89,19 @@ async function seed(f: ReturnType<typeof fixture>) {
   await Promise.all([f.jobRef.set(f.job), f.videoRef.set(f.video)]);
 }
 const copy = (input: ImmutableTranscoderInput) => async () => input;
+
+test('scheduler entrypoint: opt-in OFF does not read or modify a job', async () => {
+  const f = fixture();
+  const previous = process.env.VIDEO_SOURCE_PROBE_CAPTURE_ENABLED;
+  try {
+    delete process.env.VIDEO_SOURCE_PROBE_CAPTURE_ENABLED;
+    assert.equal(await prepareImmutableInputBeforeSubmission(f.jobRef, f.now), true);
+    assert.equal((await f.jobRef.get()).exists, false);
+  } finally {
+    if (previous === undefined) delete process.env.VIDEO_SOURCE_PROBE_CAPTURE_ENABLED;
+    else process.env.VIDEO_SOURCE_PROBE_CAPTURE_ENABLED = previous;
+  }
+});
 
 test('preflight: copies once and persists exact version and generation', async () => {
   const f = fixture();

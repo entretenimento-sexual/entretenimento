@@ -7,7 +7,9 @@ import { randomUUID } from 'node:crypto';
 import type { DocumentData, DocumentReference, Firestore } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
 
+import { db } from '../../firebaseApp';
 import type { VideoProcessingJob } from './video-processing-job';
+import { videoSourceProbeCaptureEnabled } from './video-source-probe.service';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 import {
   ImmutableInputPreparationError,
@@ -32,6 +34,20 @@ type Claim = {
   reservedUntil: number;
   attempts: number;
 };
+
+/**
+ * Feature-gated production scheduler entrypoint. A pinned GCS copy is
+ * required for generation-aware jobs before SUBMITTING can be claimed.
+ * Kept OFF until provider input + rotation + lifecycle cleanup are fenced.
+ */
+export async function prepareImmutableInputBeforeSubmission(
+  jobRef: DocumentReference, now: number
+): Promise<boolean> {
+  if (!videoSourceProbeCaptureEnabled()) return true;
+  return prepareImmutableInputPreflightWithPorts(
+    jobRef, now, db, prepareImmutableTranscoderInput
+  );
+}
 
 export function matchesPersistedImmutableInput(job: Job, input: unknown): boolean {
   if (!input || typeof input !== 'object' ||

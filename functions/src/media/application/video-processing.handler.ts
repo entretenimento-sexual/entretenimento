@@ -47,7 +47,10 @@ import {
 } from './video-processing-reconciliation.firestore';
 import { prepareVideoSourceProbeBeforeSubmission, videoSourceProbeCaptureEnabled } from './video-source-probe.service';
 import { matchesVideoSourceProbeSnapshot } from './video-source-probe.policy';
-import { matchesPersistedImmutableInput } from './video-immutable-input-preflight.service';
+import {
+  matchesPersistedImmutableInput,
+  prepareImmutableInputBeforeSubmission,
+} from './video-immutable-input-preflight.service';
 
 interface ProcessedVideoCandidate {
   storagePath: string;
@@ -985,6 +988,9 @@ export const submitQueuedVideoProcessing = onSchedule(
     for (const jobDoc of snapshot.docs) {
       tasks.push(async () => {
         if (!await prepareVideoSourceProbeBeforeSubmission(jobDoc.ref, Date.now())) {
+          return;
+        }
+        if (!await prepareImmutableInputBeforeSubmission(jobDoc.ref, Date.now())) {
           return;
         }
         const claimedJob = await claimQueuedJob(jobDoc.ref, Date.now());
