@@ -51,6 +51,7 @@ import { selectTranscoderInputSource } from './video-immutable-input.policy';
 import { prepareImmutableInputBeforeSubmission } from './video-immutable-input-preflight.service';
 import { deleteCancelledImmutableInput } from './video-immutable-cancellation-cleanup.storage';
 import { isCurrentCancellationClaim } from './video-cancellation-schedule.policy';
+import { processPendingVideoTerminalTemporaryCleanup } from './cleanup-video-rotation-input.handler';
 
 interface ProcessedVideoCandidate {
   storagePath: string;
@@ -1046,6 +1047,7 @@ export const reconcileVideoProcessing = onSchedule(
     }
 
     await runBatch(tasks, 'reconcile');
+    await processPendingVideoTerminalTemporaryCleanup();
   }
 );
 
