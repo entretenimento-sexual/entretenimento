@@ -311,32 +311,32 @@ export async function submitGoogleVideoTranscoderJob(
   const response = await submitAfterTranscoderPostGuard(
     confirmBeforePost,
     () => axios.post<GoogleTranscoderJobResponse>(
-    `${TRANSCODER_API_BASE_URL}/${parent}/jobs`,
-    {
-      ...(selectedConfig
-        ? { config: selectedConfig }
-        : {
-          inputUri: sourceUri,
-          outputUri: destinationUri,
-          templateId: TRANSCODER_TEMPLATE_ID,
-        }),
-      ttlAfterCompletionDays: 7,
-      labels: {
-        source: 'entretenimento',
-        media: 'profile-video',
-        processing_version: processingVersion,
-        edited: editedConfig ? 'true' : 'false',
-        output_profile: selectedConfig ? 'single_mp4' : 'template_fallback',
-        rotated: editSnapshot.recipe.rotationDegrees !== 0 ? 'true' : 'false',
+      `${TRANSCODER_API_BASE_URL}/${parent}/jobs`,
+      {
+        ...(selectedConfig
+          ? { config: selectedConfig }
+          : {
+            inputUri: sourceUri,
+            outputUri: destinationUri,
+            templateId: TRANSCODER_TEMPLATE_ID,
+          }),
+        ttlAfterCompletionDays: 7,
+        labels: {
+          source: 'entretenimento',
+          media: 'profile-video',
+          processing_version: processingVersion,
+          edited: editedConfig ? 'true' : 'false',
+          output_profile: selectedConfig ? 'single_mp4' : 'template_fallback',
+          rotated: editSnapshot.recipe.rotationDegrees !== 0 ? 'true' : 'false',
+        },
       },
-    },
-    {
-      headers: {
-        Authorization: authorization,
-        'Content-Type': 'application/json',
-      },
-      timeout: 30_000,
-    }
+      {
+        headers: {
+          Authorization: authorization,
+          'Content-Type': 'application/json',
+        },
+        timeout: 30_000,
+      }
     )
   );
   if (!response) return null;
