@@ -13,7 +13,7 @@ import { videoSourceProbeCaptureEnabled } from './video-source-probe.service';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 import {
   ImmutableInputPreparationError,
-  buildImmutableTranscoderInputPath,
+  matchesPersistedImmutableInput,
   type ImmutableTranscoderInput,
 } from './video-immutable-input.policy';
 import { prepareImmutableTranscoderInput } from './video-immutable-input.storage';
@@ -49,23 +49,7 @@ export async function prepareImmutableInputBeforeSubmission(
   );
 }
 
-export function matchesPersistedImmutableInput(job: Job, input: unknown): boolean {
-  if (!input || typeof input !== 'object' ||
-      !GENERATION.test(String(job.sourceGeneration ?? '')) ||
-      !matchesVideoSourceProbeSnapshot(job, job.sourceProbe)) return false;
-  const stored = input as Partial<ImmutableTranscoderInput>;
-  try {
-    return stored.sourceStoragePath === job.sourceStoragePath &&
-      stored.sourceGeneration === job.sourceGeneration &&
-      stored.destinationStoragePath === buildImmutableTranscoderInputPath(job) &&
-      GENERATION.test(String(stored.destinationGeneration ?? '')) &&
-      stored.sizeBytes === job.sourceSizeBytes &&
-      typeof stored.crc32c === 'string' &&
-      /^[A-Za-z0-9+/]{6,8}={0,2}$/.test(stored.crc32c);
-  } catch {
-    return false;
-  }
-}
+export { matchesPersistedImmutableInput } from './video-immutable-input.policy';
 
 function privateVideoMatches(job: Job, video: DocumentData | undefined): boolean {
   if (!video) return false;

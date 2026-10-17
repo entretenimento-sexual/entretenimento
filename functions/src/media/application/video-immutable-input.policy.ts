@@ -53,6 +53,57 @@ export interface ImmutableTranscoderInput {
   readonly reused: boolean;
 }
 
+/** Pure, version-scoped source selection. No GCS calls and no provider POST. */
+export type TranscoderInputSourceSelection = Readonly<
+  | { mode: 'legacy'; sourceStoragePath: string }
+  | { mode: 'immutable'; sourceStoragePath: string; sourceGeneration: string;
+      destinationGeneration: string; sizeBytes: number; crc32c: string }
+>;
+
+/** Shared authority for persisted copy identity across scheduler and preflight. */
+export function matchesPersistedImmutableInput(
+  job: VideoProcessingJob, input: unknown
+): boolean {
+  if (!input || typeof input !== 'object' ||
+      !GENERATION.test(String(job.sourceGeneration ?? '')) ||
+      !matchesVideoSourceProbeSnapshot(job, job.sourceProbe)) return false;
+  const stored = input as Partial<ImmutableTranscoderInput>;
+  try {
+    return stored.sourceStoragePath === job.sourceStoragePath &&
+      stored.sourceGeneration === job.sourceGeneration &&
+      stored.destinationStoragePath === buildImmutableTranscoderInputPath(job) &&
+      GENERATION.test(String(stored.destinationGeneration ?? '')) &&
+      stored.sizeBytes === job.sourceSizeBytes &&
+      typeof stored.crc32c === 'string' &&
+      CRC32C.test(stored.crc32c);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Select the only admissible source. Until lifecycle/rotation/POST are fenced,
+ * this decision is consumed exclusively at the claim guard, never at POST.
+ * Existing jobs without a sourceGeneration remain legacy-compatible.
+ */
+export function selectTranscoderInputSource(
+  job: VideoProcessingJob, immutableInputRequired: boolean
+): TranscoderInputSourceSelection | null {
+  if (!immutableInputRequired || job.sourceGeneration == null) {
+    return { mode: 'legacy', sourceStoragePath: job.sourceStoragePath };
+  }
+  if (!matchesPersistedImmutableInput(job, job.immutableInput)) return null;
+  const input = job.immutableInput!;
+  return {
+    mode: 'immutable',
+    sourceStoragePath: input.destinationStoragePath,
+    sourceGeneration: input.sourceGeneration,
+    destinationGeneration: input.destinationGeneration,
+    sizeBytes: input.sizeBytes,
+    crc32c: input.crc32c,
+  };
+}
+
 export class ImmutableInputPreparationError extends Error {
   constructor(readonly code: string, readonly retryable: boolean) {
     super(code);

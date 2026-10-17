@@ -46,11 +46,8 @@ import {
   updateRecoveredSubmissionIfCurrent,
 } from './video-processing-reconciliation.firestore';
 import { prepareVideoSourceProbeBeforeSubmission, videoSourceProbeCaptureEnabled } from './video-source-probe.service';
-import { matchesVideoSourceProbeSnapshot } from './video-source-probe.policy';
-import {
-  matchesPersistedImmutableInput,
-  prepareImmutableInputBeforeSubmission,
-} from './video-immutable-input-preflight.service';
+import { selectTranscoderInputSource } from './video-immutable-input.policy';
+import { prepareImmutableInputBeforeSubmission } from './video-immutable-input-preflight.service';
 
 interface ProcessedVideoCandidate {
   storagePath: string;
@@ -264,10 +261,7 @@ async function claimQueuedJob(
       !job ||
       job.state !== 'QUEUED' ||
       job.nextAttemptAt > now ||
-      (videoSourceProbeCaptureEnabled() && !!job.sourceGeneration &&
-        !matchesVideoSourceProbeSnapshot(job, job.sourceProbe)) ||
-      (videoSourceProbeCaptureEnabled() && !!job.sourceGeneration &&
-        !matchesPersistedImmutableInput(job, job.immutableInput))
+      !selectTranscoderInputSource(job, videoSourceProbeCaptureEnabled())
     ) {
       return null;
     }
