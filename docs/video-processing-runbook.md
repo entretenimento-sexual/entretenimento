@@ -245,6 +245,53 @@ pelo próprio fluxo podem não ser contadas como falhas isoladas: interpretar
 `attempted`/ `claimed` como volume, nunca como número de transcodificações
 bem-sucedidas. Um lote cheio indica possível saturação, não erro do provedor.
 
+### Qualidade real dos jobs, distinta da execução (1C2-A3b2b2c8)
+
+A conclusão de uma invocação do Scheduler não implica sucesso dos jobs. A
+instrumentação contabiliza, **sem consultas novas ao Transcoder**, somente os
+resultados efetivamente observados nas funções de submissão, recuperação
+de submissões e reconciliação:
+
+- Submissões confirmadas no documento atual, falhas de POST aplicadas ao estado
+  atual, retentativas e pré-verificações adiadas;
+- Buscas por submissão ambígua que encontraram um job externo e foram
+  persistidas, negativas ainda não confirmadas, e erros de consulta já
+  tratados com version fencing;
+- Consultas GET que retornaram estado não terminal, SUCCEEDED ou FAILED,
+  erros do provedor que resultaram em backoff, e necessidade de revisão
+  administrativa após falhas consecutivas;
+- Limpeza terminal concluída, reagendada, bloqueada para revisão ou ignorada
+  por alteração concorrente, com suas métricas de geração e proveniência
+  preservadas pelo executor anterior.
+
+Na tela administrativa, o **estado da execução** (`EXECUTED`, `FAILED`,
+`UNVERIFIED`) agora é distinto da **qualidade dos jobs observados**
+(`NO_ALERTS_OBSERVED`, `ATTENTION`, `UNVERIFIED`). Uma execução que
+terminou sem rejeitar promises pode, corretamente, ter jobs exigindo atenção
+quando houve erro de consulta, confirmação ambígua, backoff ou revisão.
+Uma execução `FAILED` não produz uma conclusão agregada confiável dos jobs.
+
+O campo `evidenceVersion: 2` identifica registros criados com as novas
+métricas. Documentos anteriores não são tomados como evidência de ausência
+de erros; o diagnóstico de jobs permanece `UNVERIFIED` até um novo ciclo.
+Registros antigos ou ausentes também não provam que um agendamento falhou.
+O painel não autoriza ações automáticas baseado nesses contadores.
+
+`providerSucceededObserved` e `providerFailedObserved` significam
+**resposta terminal do provedor observada**, não confirmação de publicação
+ou alteração do estado persistido. `submissionConfirmed` exige que o
+resultado da transação atual tenha aplicado a identidade externa ao
+processamento vigente. Mudanças de versão/cancelamento são registradas
+separadamente como substituição, sem contar como erro de Transcoder.
+Os contadores são relativos **somente aos lotes selecionados no ciclo**;
+fila total e atrasos continuam vindo do diagnóstico anterior, sujeito a
+amostragem e limites. Não inferir sucesso de jobs fora desses lotes.
+
+A instrumentação é best effort, não altera leases, estado, reprocessamento,
+cancelamento, precondições de geração ou exclusões GCS e não adiciona
+permissões, jobs agendados, flags nem varreduras de coleções. A documentação
+se refere ao código da `main`, sem presumir implantação em produção.
+
 ### Auditoria offline do scheduler por logs exportados
 
 A analise de logs pode ser feita sob demanda sem novas permissoes nas Functions,

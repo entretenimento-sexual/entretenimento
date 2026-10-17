@@ -53,3 +53,23 @@ test('status reads only three snapshots and displays unknown as UNVERIFIED', () 
   assert.ok(template.includes('schedulerHealthLabel(scheduler)'));
   assert.ok(doc.includes('VIDEO_MEDIA_SCHEDULER_FAILED'));
 });
+
+test('outcome telemetry records handled failures without new Firestore or provider queries', () => {
+  const outcomes = file('src/media/application/video-processing-outcomes.policy.ts');
+  assert.ok(scheduler.includes('const outcomes = createVideoWorkOutcomeCounter()'));
+  assert.ok(scheduler.includes('outcomes.needsAttention()'));
+  assert.ok(scheduler.includes('outcomes.observe'));
+  assert.ok(scheduler.includes('const applied = await recordProviderPollErrorIfCurrent('));
+  assert.ok(scheduler.includes('decision.providerPollReviewRequired'));
+  assert.ok(scheduler.includes("'RECOVERY_UNCONFIRMED'"));
+  assert.ok(scheduler.includes("'RECOVERY_POLL_ERROR'"));
+  assert.ok(scheduler.includes("'SUBMISSION_RETRY'"));
+  assert.ok(scheduler.includes("'PROVIDER_FAILED_OBSERVED'"));
+  assert.ok(scheduler.includes('persisted ? \'SUBMISSION_CONFIRMED\''));
+  assert.ok(outcomes.includes('ATTENTION_OUTCOMES'));
+  assert.ok(!outcomes.includes('getGoogleVideoTranscoderJob('));
+  assert.ok(!outcomes.includes('deletePinned('));
+  assert.ok(client.includes('executionHealth:'));
+  assert.ok(client.includes('jobsHealth:'));
+  assert.ok(template.includes('schedulerJobsHealthLabel(scheduler)'));
+});

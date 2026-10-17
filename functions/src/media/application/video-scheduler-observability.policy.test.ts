@@ -38,3 +38,29 @@ test('observability refuses identifiers, errors and raw private messages', () =>
     selected: 3, taskRejected: 1, batchLimitReached: true,
   });
 });
+
+test('runtime completion and job evidence are independent and versioned', () => {
+  const name = 'reconcileVideoProcessing';
+  const successful = videoSchedulerRecord(name, 'ok', now - 500, now,
+    'OK', 'EXECUTE', { providerNonterminal: 1 });
+  const healthy = diagnoseVideoScheduler(name, successful, now + 5);
+  assert.equal(healthy.executionHealth, 'EXECUTED');
+  assert.equal(healthy.jobsHealth, 'NO_ALERTS_OBSERVED');
+
+  const pending = videoSchedulerRecord(name, 'pending', now - 500, now,
+    'ATTENTION', 'EXECUTE', { providerPollErrors: 1 });
+  const degraded = diagnoseVideoScheduler(name, pending, now + 5);
+  assert.equal(degraded.executionHealth, 'EXECUTED');
+  assert.equal(degraded.jobsHealth, 'ATTENTION');
+  assert.equal(degraded.health, 'DEGRADED');
+
+  const failed = videoSchedulerRecord(name, 'failure', now - 500, now,
+    'FAILED', 'EXECUTE', {});
+  assert.equal(diagnoseVideoScheduler(name, failed, now + 5).executionHealth, 'FAILED');
+  assert.equal(diagnoseVideoScheduler(name, failed, now + 5).jobsHealth, 'UNVERIFIED');
+
+  const legacy = { ...successful, evidenceVersion: undefined };
+  assert.equal(diagnoseVideoScheduler(name, legacy, now + 5).jobsHealth, 'UNVERIFIED');
+  assert.equal(diagnoseVideoScheduler(name, successful, now + 30 * 60_000)
+    .executionHealth, 'UNVERIFIED');
+});

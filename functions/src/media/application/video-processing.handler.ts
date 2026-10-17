@@ -9,6 +9,7 @@ import {
   runObservedVideoScheduler, bestEffortSaveVideoSchedulerCycle,
 } from './video-scheduler-observability.firestore';
 import { videoSchedulerRecord } from './video-scheduler-observability.policy';
+import { createVideoWorkOutcomeCounter, type VideoWorkOutcome } from './video-processing-outcomes.policy';
 import {
   deleteGoogleVideoTranscoderJob,
   findGoogleVideoTranscoderJob,
@@ -24,7 +25,7 @@ import {
 } from './video-processing-job';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 import { buildProviderTerminalEvidence } from './video-provider-terminal-evidence.policy';
-import { clearProviderPollFailures } from './video-provider-poll-failure.policy';
+import { clearProviderPollFailures, nextProviderPollFailure } from './video-provider-poll-failure.policy';
 import {
   executeVideoCancellation,
   type VideoCancellationResult,
@@ -387,10 +388,10 @@ async function persistSubmittedJob(
   job: VideoProcessingJob,
   externalJobName: string,
   providerState: string
-): Promise<void> {
+): Promise<boolean> {
   const now = Date.now();
 
-  await db.runTransaction(async (transaction) => {
+  return db.runTransaction(async (transaction) => {
     const [jobSnapshot, videoSnapshot] = await Promise.all([
       transaction.get(jobRef),
       transaction.get(db.doc(`users/${job.ownerUid}/videos/${job.videoId}`)),
@@ -402,7 +403,7 @@ async function persistSubmittedJob(
     if (!currentJob || !canAttachSubmittedProviderJob(
       currentJob, job, externalJobName
     )) {
-      return;
+      return false;
     }
 
     if (
@@ -420,7 +421,7 @@ async function persistSubmittedJob(
         leaseUntil: null,
         updatedAt: now,
       });
-      return;
+      return false;
     }
 
     const video = videoSnapshot.data() as PrivateVideoDocument;
@@ -441,7 +442,7 @@ async function persistSubmittedJob(
         lastErrorCode: 'SOURCE_CHANGED',
         lastError: 'O arquivo privado associado ao vídeo foi alterado.',
       });
-      return;
+      return false;
     }
 
     transaction.update(jobRef, {
@@ -466,6 +467,7 @@ async function persistSubmittedJob(
       },
       { merge: true }
     );
+    return true;
   });
 }
 
@@ -473,7 +475,7 @@ async function handleSubmissionFailure(
   jobRef: DocumentReference,
   job: VideoProcessingJob,
   error: unknown
-): Promise<void> {
+): Promise<VideoWorkOutcome> {
   const normalized = normalizeGoogleTranscoderError(error);
   const now = Date.now();
   const retryable = normalized.retryable;
@@ -521,11 +523,14 @@ async function handleSubmissionFailure(
     errorCode: normalized.code,
     error: normalized.message,
   });
+  return !applied ? 'SUBMISSION_REPLACED'
+    : retryable ? 'SUBMISSION_RETRY' : 'SUBMISSION_FAILED';
 }
 
 async function submitClaimedJob(
   jobRef: DocumentReference,
-  job: VideoProcessingJob
+  job: VideoProcessingJob,
+  observe?: (outcome: VideoWorkOutcome) => void
 ): Promise<void> {
   try {
     const providerJob = await submitGoogleVideoTranscoderJob(
@@ -535,21 +540,23 @@ async function submitClaimedJob(
         videoSourceProbeCaptureEnabled()
       )
     );
-    if (!providerJob) return;
-    await persistSubmittedJob(
-      jobRef,
-      job,
-      providerJob.name,
-      providerJob.state
+    if (!providerJob) {
+      observe?.('SUBMISSION_REPLACED');
+      return;
+    }
+    const persisted = await persistSubmittedJob(
+      jobRef, job, providerJob.name, providerJob.state
     );
+    observe?.(persisted ? 'SUBMISSION_CONFIRMED' : 'SUBMISSION_REPLACED');
   } catch (error) {
-    await handleSubmissionFailure(jobRef, job, error);
+    observe?.(await handleSubmissionFailure(jobRef, job, error));
   }
 }
 
 async function recoverExpiredSubmission(
   jobRef: DocumentReference,
-  job: VideoProcessingJob
+  job: VideoProcessingJob,
+  observe?: (outcome: VideoWorkOutcome) => void
 ): Promise<void> {
   try {
     // A provider lookup is mandatory before considering another submission.
@@ -559,12 +566,10 @@ async function recoverExpiredSubmission(
     );
 
     if (recovered) {
-      await persistSubmittedJob(
-        jobRef,
-        job,
-        recovered.name,
-        recovered.state
+      const persisted = await persistSubmittedJob(
+        jobRef, job, recovered.name, recovered.state
       );
+      observe?.(persisted ? 'RECOVERY_CONFIRMED' : 'RECOVERY_REPLACED');
       return;
     }
 
@@ -573,7 +578,7 @@ async function recoverExpiredSubmission(
 
     // A negative list response cannot prove the prior POST was rejected.
     // Hold the job for further confirmation; never requeue automatically.
-    await updateRecoveredSubmissionIfCurrent(
+    const applied = await updateRecoveredSubmissionIfCurrent(
       db, jobRef, job, normalizeJob, {
         now,
         jobPatch: {
@@ -589,12 +594,13 @@ async function recoverExpiredSubmission(
         },
       }
     );
+    observe?.(applied ? 'RECOVERY_UNCONFIRMED' : 'RECOVERY_REPLACED');
   } catch (error) {
     const normalized = normalizeGoogleTranscoderError(error);
     const now = Date.now();
     // When recovering PROCESSING without a provider name, preserve its state.
     // A late exception must not regress a cancelled or completed attempt.
-    await updateRecoveredSubmissionIfCurrent(
+    const applied = await updateRecoveredSubmissionIfCurrent(
       db, jobRef, job, normalizeJob, {
         now,
         jobPatch: {
@@ -609,6 +615,7 @@ async function recoverExpiredSubmission(
       }
     );
 
+    observe?.(applied ? 'RECOVERY_POLL_ERROR' : 'RECOVERY_REPLACED');
     logger.warn('[videoProcessing] Falha ao recuperar submissão.', {
       ownerUid: job.ownerUid,
       videoId: job.videoId,
@@ -618,7 +625,9 @@ async function recoverExpiredSubmission(
   }
 }
 
-async function recoverExpiredSubmissionLeases(): Promise<{
+async function recoverExpiredSubmissionLeases(
+  observe?: (outcome: VideoWorkOutcome) => void
+): Promise<{
   selected: number; claimed: number; rejected: number;
 }> {
   const now = Date.now();
@@ -636,7 +645,7 @@ async function recoverExpiredSubmissionLeases(): Promise<{
       db, jobDoc.ref, now, AMBIGUOUS_SUBMISSION_LEASE_MS, normalizeJob
     );
     if (claimed) {
-      tasks.push(() => recoverExpiredSubmission(jobDoc.ref, claimed));
+      tasks.push(() => recoverExpiredSubmission(jobDoc.ref, claimed, observe));
     }
   }
   const batch = await runBatch(tasks, 'recover-submissions');
@@ -856,10 +865,11 @@ async function markProviderFailure(
 
 async function reconcileProcessingJob(
   jobRef: DocumentReference,
-  job: VideoProcessingJob
+  job: VideoProcessingJob,
+  observe?: (outcome: VideoWorkOutcome) => void
 ): Promise<void> {
   if (!job.externalJobName) {
-    await recoverExpiredSubmission(jobRef, job);
+    await recoverExpiredSubmission(jobRef, job, observe);
     return;
   }
 
@@ -870,9 +880,12 @@ async function reconcileProcessingJob(
     providerJob = await getGoogleVideoTranscoderJob(job.externalJobName);
   } catch (error) {
     const normalized = normalizeGoogleTranscoderError(error);
-    await recordProviderPollErrorIfCurrent(
+    const applied = await recordProviderPollErrorIfCurrent(
       db, jobRef, job, normalizeJob, normalized, Date.now()
     );
+    const decision = nextProviderPollFailure(job, Date.now(), normalized.retryable === true);
+    observe?.(!applied ? 'PROCESSING_REPLACED'
+      : decision.providerPollReviewRequired ? 'PROVIDER_REVIEW' : 'PROVIDER_POLL_ERROR');
     logger.warn('[videoProcessing] Consulta ao provedor sem confirmação terminal.', {
       processingVersion: job.processingVersion,
       errorCode: normalized.code,
@@ -885,6 +898,7 @@ async function reconcileProcessingJob(
   if (providerJob.state === 'SUCCEEDED') {
     const evidence = buildProviderTerminalEvidence(job, providerJob, now);
     await finalizeSucceededJob(jobRef, job, evidence);
+    observe?.('PROVIDER_SUCCEEDED_OBSERVED');
     return;
   }
   if (providerJob.state === 'FAILED') {
@@ -892,6 +906,7 @@ async function reconcileProcessingJob(
     await markProviderFailure(
       jobRef, job, providerJob.errorCode, providerJob.errorMessage, evidence
     );
+    observe?.('PROVIDER_FAILED_OBSERVED');
     return;
   }
 
@@ -917,6 +932,7 @@ async function reconcileProcessingJob(
       });
     });
   }
+  observe?.('PROVIDER_NONTERMINAL');
 }
 
 async function deleteOutputPrefix(outputPrefix: string): Promise<void> {
@@ -1014,7 +1030,8 @@ export const submitQueuedVideoProcessing = onSchedule(
   },
   async () => runObservedVideoScheduler(db, 'submitQueuedVideoProcessing', async context => {
     context.setPhase('RECOVER_SUBMISSIONS');
-    const recovered = await recoverExpiredSubmissionLeases();
+    const outcomes = createVideoWorkOutcomeCounter();
+    const recovered = await recoverExpiredSubmissionLeases(outcomes.observe);
 
     context.setPhase('QUERY');
     const now = Date.now();
@@ -1032,18 +1049,21 @@ export const submitQueuedVideoProcessing = onSchedule(
       tasks.push(async () => {
         if (!await prepareVideoSourceProbeBeforeSubmission(jobDoc.ref, Date.now())) {
           skipped += 1;
+          outcomes.observe('SUBMISSION_DEFERRED');
           return;
         }
         if (!await prepareImmutableInputBeforeSubmission(jobDoc.ref, Date.now())) {
           skipped += 1;
+          outcomes.observe('SUBMISSION_DEFERRED');
           return;
         }
         const claimedJob = await claimQueuedJob(jobDoc.ref, Date.now());
         if (claimedJob) {
           claimed += 1;
-          await submitClaimedJob(jobDoc.ref, claimedJob);
+          await submitClaimedJob(jobDoc.ref, claimedJob, outcomes.observe);
         } else {
           skipped += 1;
+          outcomes.observe('SUBMISSION_REPLACED');
         }
       });
     }
@@ -1052,8 +1072,9 @@ export const submitQueuedVideoProcessing = onSchedule(
     const saturated = snapshot.size >= SUBMISSION_BATCH_SIZE;
     const failed = batch.rejected + recovered.rejected;
     return {
-      attention: failed > 0 || saturated,
+      attention: failed > 0 || saturated || outcomes.needsAttention(),
       metrics: {
+        ...outcomes.metrics(),
         selected: snapshot.size, attempted: tasks.length, claimed, skipped,
         taskRejected: failed, batchLimitReached: saturated,
         recoveredSubmissionSelected: recovered.selected,
@@ -1080,11 +1101,12 @@ export const reconcileVideoProcessing = onSchedule(
       db, now, RECONCILIATION_BATCH_SIZE
     ).get();
     const tasks: Array<() => Promise<void>> = [];
+    const outcomes = createVideoWorkOutcomeCounter();
     context.setPhase('CLAIM');
     for (const jobDoc of snapshot.docs) {
       const claimedJob = await claimProcessingJob(db, jobDoc.ref, now, normalizeJob);
       if (claimedJob) {
-        tasks.push(() => reconcileProcessingJob(jobDoc.ref, claimedJob));
+        tasks.push(() => reconcileProcessingJob(jobDoc.ref, claimedJob, outcomes.observe));
       }
     }
     context.setPhase('EXECUTE');
@@ -1095,8 +1117,9 @@ export const reconcileVideoProcessing = onSchedule(
       terminal.batchLimitReached;
     return {
       attention: batch.rejected > 0 || terminal.retryScheduled > 0 ||
-        terminal.reviewRequired > 0 || saturated,
+        terminal.reviewRequired > 0 || saturated || outcomes.needsAttention(),
       metrics: {
+        ...outcomes.metrics(),
         selected: snapshot.size, attempted: tasks.length, claimed: tasks.length,
         skipped: Math.max(0, snapshot.size - tasks.length),
         taskRejected: batch.rejected, batchLimitReached: saturated,

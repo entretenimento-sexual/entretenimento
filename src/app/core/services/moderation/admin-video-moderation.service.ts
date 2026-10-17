@@ -70,6 +70,8 @@ export interface IAdminVideoSchedulerDiagnostic {
   scheduler: AdminVideoSchedulerName;
   intervalMinutes: number;
   health: AdminVideoSchedulerHealth;
+  executionHealth: 'EXECUTED' | 'FAILED' | 'UNVERIFIED';
+  jobsHealth: 'NO_ALERTS_OBSERVED' | 'ATTENTION' | 'UNVERIFIED';
   lastOutcome: 'OK' | 'ATTENTION' | 'FAILED' | null;
   lastFinishedAt: number | null;
   ageMs: number | null;
@@ -228,7 +230,11 @@ export class AdminVideoModerationService {
       const safeMetrics: Record<string, number | boolean> = {};
       for (const key of ['selected', 'claimed', 'completed', 'taskRejected',
         'retryScheduled', 'reviewRequired', 'terminalSelected', 'terminalCompleted',
-        'terminalRetryScheduled', 'terminalReviewRequired', 'batchLimitReached']) {
+        'terminalRetryScheduled', 'terminalReviewRequired', 'batchLimitReached',
+        'submissionConfirmed', 'submissionUnconfirmed', 'submissionRetryScheduled',
+        'submissionFailed', 'submissionDeferred', 'recoveryConfirmed',
+        'recoveryUnconfirmed', 'recoveryPollErrors', 'providerPollErrors',
+        'providerReviewRequired', 'providerSucceededObserved', 'providerFailedObserved']) {
         const metric = item?.metrics?.[key];
         if (typeof metric === 'boolean' ||
             (typeof metric === 'number' && Number.isSafeInteger(metric) && metric >= 0)) {
@@ -237,6 +243,10 @@ export class AdminVideoModerationService {
       }
       return {
         scheduler, intervalMinutes, health, lastOutcome: outcome,
+        executionHealth: item?.executionHealth === 'EXECUTED' ||
+          item?.executionHealth === 'FAILED' ? item.executionHealth : 'UNVERIFIED',
+        jobsHealth: item?.jobsHealth === 'NO_ALERTS_OBSERVED' ||
+          item?.jobsHealth === 'ATTENTION' ? item.jobsHealth : 'UNVERIFIED',
         lastFinishedAt: this.normalizeOptionalPositiveInteger(item?.lastFinishedAt),
         ageMs: this.normalizeOptionalNonNegativeInteger(item?.ageMs),
         durationMs: this.normalizeOptionalNonNegativeInteger(item?.durationMs),

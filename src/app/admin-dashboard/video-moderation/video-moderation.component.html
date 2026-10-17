@@ -124,6 +124,7 @@
               <article class="video-moderation__metric">
                 <span>{{ schedulerLabel(scheduler) }}</span>
                 <strong>{{ schedulerHealthLabel(scheduler) }}</strong>
+                <small>{{ schedulerJobsHealthLabel(scheduler) }}</small>
                 <small>
                   @if (scheduler.lastFinishedAt !== null) {
                     Último registro: {{ scheduler.lastFinishedAt | date:'dd/MM HH:mm' }};
@@ -133,12 +134,30 @@
                   }
                 </small>
                 <small>
-                  Lote {{ scheduler.metrics['selected'] ?? 0 }};
-                  falhas isoladas {{ scheduler.metrics['taskRejected'] ?? 0 }}.
-                  @if (scheduler.metrics['batchLimitReached'] === true) {
+                  @if (scheduler.jobsHealth !== 'UNVERIFIED') {
+                    Lote {{ scheduler.metrics['selected'] ?? 0 }};
+                    falhas isoladas {{ scheduler.metrics['taskRejected'] ?? 0 }}.
+                    @if (scheduler.scheduler === 'submitQueuedVideoProcessing') {
+                      Confirmados {{ scheduler.metrics['submissionConfirmed'] ?? 0 }};
+                      reagendados {{ scheduler.metrics['submissionRetryScheduled'] ?? 0 }};
+                      falhas {{ scheduler.metrics['submissionFailed'] ?? 0 }};
+                      reconferência pendente {{ scheduler.metrics['recoveryUnconfirmed'] ?? 0 }};
+                      erros de recuperação {{ scheduler.metrics['recoveryPollErrors'] ?? 0 }}.
+                    }
+                    @if (scheduler.scheduler === 'reconcileVideoProcessing') {
+                      Erros de consulta {{ scheduler.metrics['providerPollErrors'] ?? 0 }};
+                      revisão do provedor {{ scheduler.metrics['providerReviewRequired'] ?? 0 }};
+                      falha terminal observada {{ scheduler.metrics['providerFailedObserved'] ?? 0 }}.
+                    }
+                  } @else {
+                    Métricas de jobs não verificadas para este ciclo.
+                  }
+                  @if (scheduler.jobsHealth !== 'UNVERIFIED' &&
+                    scheduler.metrics['batchLimitReached'] === true) {
                     Lote no limite.
                   }
-                  @if (scheduler.scheduler === 'reconcileVideoProcessing') {
+                  @if (scheduler.jobsHealth !== 'UNVERIFIED' &&
+                    scheduler.scheduler === 'reconcileVideoProcessing') {
                     Temporários {{ scheduler.metrics['terminalSelected'] ?? 0 }};
                     em revisão {{ scheduler.metrics['terminalReviewRequired'] ?? 0 }}.
                   }
@@ -147,8 +166,9 @@
             }
           </div>
           <p class="video-moderation__operations-summary" role="status">
-            Uma conclusão recente confirma apenas aquela execução. Registros
-            ausentes ou antigos permanecem não verificados; não comprovam sucesso
+            A execução do scheduler e os resultados dos jobs são diagnósticos distintos.
+            Sem alertas observados não significa que todos os vídeos foram processados.
+            Registros ausentes ou antigos permanecem não verificados; não comprovam sucesso
             ou falha do Cloud Scheduler. Confira os ciclos correlacionados no
             Cloud Logging e o agendamento no Google Cloud.
             @if (diagnostic.queue.cancellation?.samplePartial) {

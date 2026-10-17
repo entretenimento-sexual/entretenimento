@@ -8,6 +8,7 @@ import axios, { AxiosError, type AxiosResponse } from 'axios';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
 import { saveLastVideoSchedulerCycle } from './video-scheduler-observability.firestore';
+import { createVideoWorkOutcomeCounter } from './video-processing-outcomes.policy';
 import {
   diagnoseVideoScheduler, videoSchedulerRecord, VIDEO_SCHEDULER_COLLECTION,
 } from './video-scheduler-observability.policy';
@@ -2343,5 +2344,36 @@ test('last recorded scheduler failure is separate from provider and job state', 
       .limit(1).get()).empty, true);
   } finally {
     await ref.delete();
+  }
+});
+
+test('handled provider errors produce persistent ATTENTION without touching a job', async () => {
+  const key = 'reconcileVideoProcessing' as const;
+  const ref = firestore.collection(VIDEO_SCHEDULER_COLLECTION).doc(key);
+  const jobRef = jobs.doc('scheduler-observation-' + randomUUID());
+  const outcomes = createVideoWorkOutcomeCounter();
+  try {
+    await ref.delete();
+    await jobRef.set({ state: 'PROCESSING', nextAttemptAt: now + 60_000 });
+    outcomes.observe('PROVIDER_POLL_ERROR');
+    outcomes.observe('PROVIDER_REVIEW');
+    assert.equal(outcomes.needsAttention(), true);
+    const evidence = videoSchedulerRecord(
+      key, 'handled-transport-error', now - 5_000, now,
+      outcomes.needsAttention() ? 'ATTENTION' : 'OK', 'EXECUTE', {
+        ...outcomes.metrics(), selected: 1, claimed: 1,
+      }
+    );
+    assert.equal(await saveLastVideoSchedulerCycle(firestore, evidence), true);
+    const diagnostic = diagnoseVideoScheduler(key, (await ref.get()).data(), now + 1);
+    assert.equal(diagnostic.executionHealth, 'EXECUTED');
+    assert.equal(diagnostic.jobsHealth, 'ATTENTION');
+    assert.equal(diagnostic.metrics.providerPollErrors, 1);
+    assert.equal(diagnostic.metrics.providerReviewRequired, 1);
+    const after = (await jobRef.get()).data();
+    assert.equal(after?.['state'], 'PROCESSING');
+    assert.equal(after?.['nextAttemptAt'], now + 60_000);
+  } finally {
+    await Promise.all([ref.delete(), jobRef.delete()]);
   }
 });

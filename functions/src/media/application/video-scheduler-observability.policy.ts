@@ -11,6 +11,8 @@ export const VIDEO_SCHEDULERS = [
 export type VideoSchedulerName = typeof VIDEO_SCHEDULERS[number];
 export type VideoSchedulerOutcome = 'OK' | 'ATTENTION' | 'FAILED';
 export type VideoSchedulerHealth = 'OPERATIONAL' | 'DEGRADED' | 'FAILED' | 'UNVERIFIED';
+export type SchedulerExecutionHealth = 'EXECUTED' | 'FAILED' | 'UNVERIFIED';
+export type SchedulerJobHealth = 'NO_ALERTS_OBSERVED' | 'ATTENTION' | 'UNVERIFIED';
 
 export const VIDEO_SCHEDULER_INTERVAL_MS: Record<VideoSchedulerName, number> = {
   submitQueuedVideoProcessing: 5 * 60_000,
@@ -25,11 +27,18 @@ const METRIC_KEYS = [
   'recoveredSubmissionClaimed', 'recoveredSubmissionRejected',
   'terminalSelected', 'terminalCompleted', 'terminalRetryScheduled',
   'terminalReviewRequired', 'terminalClaimSkipped',
+  'submissionConfirmed', 'submissionUnconfirmed', 'submissionRetryScheduled',
+  'submissionFailed', 'submissionDeferred', 'submissionReplaced',
+  'recoveryConfirmed', 'recoveryUnconfirmed', 'recoveryPollErrors',
+  'recoveryReplaced', 'providerPollErrors', 'providerReviewRequired',
+  'providerNonterminal', 'providerSucceededObserved',
+  'providerFailedObserved', 'processingReplaced',
 ] as const;
 
 export type VideoSchedulerMetrics = Partial<Record<typeof METRIC_KEYS[number], number | boolean>>;
 
 export interface VideoSchedulerCycleRecord {
+  evidenceVersion: 2;
   scheduler: VideoSchedulerName;
   cycleId: string;
   startedAt: number;
@@ -60,6 +69,7 @@ export function videoSchedulerRecord(
   phase: string, metrics: VideoSchedulerMetrics
 ): VideoSchedulerCycleRecord {
   return {
+    evidenceVersion: 2,
     scheduler, cycleId, startedAt, finishedAt, outcome,
     phase: /^[A-Z_]{1,32}$/.test(phase) ? phase : 'UNKNOWN',
     durationMs: Math.max(0, finishedAt - startedAt),
@@ -71,6 +81,8 @@ export interface VideoSchedulerDiagnostic {
   scheduler: VideoSchedulerName;
   intervalMinutes: number;
   health: VideoSchedulerHealth;
+  executionHealth: SchedulerExecutionHealth;
+  jobsHealth: SchedulerJobHealth;
   lastOutcome: VideoSchedulerOutcome | null;
   lastFinishedAt: number | null;
   ageMs: number | null;
@@ -87,7 +99,8 @@ export function diagnoseVideoScheduler(
 ): VideoSchedulerDiagnostic {
   const intervalMinutes = VIDEO_SCHEDULER_INTERVAL_MS[scheduler] / 60_000;
   const base: VideoSchedulerDiagnostic = {
-    scheduler, intervalMinutes, health: 'UNVERIFIED', lastOutcome: null,
+    scheduler, intervalMinutes, health: 'UNVERIFIED',
+    executionHealth: 'UNVERIFIED', jobsHealth: 'UNVERIFIED', lastOutcome: null,
     lastFinishedAt: null, ageMs: null, durationMs: null, metrics: {},
   };
   if (!data || typeof data !== 'object') return base;
@@ -107,6 +120,11 @@ export function diagnoseVideoScheduler(
     health: ageMs > horizonMs ? 'UNVERIFIED'
       : value.outcome === 'OK' ? 'OPERATIONAL'
         : value.outcome === 'ATTENTION' ? 'DEGRADED' : 'FAILED',
+    executionHealth: ageMs > horizonMs ? 'UNVERIFIED'
+      : value.outcome === 'FAILED' ? 'FAILED' : 'EXECUTED',
+    jobsHealth: ageMs > horizonMs || value.evidenceVersion !== 2 ||
+      value.outcome === 'FAILED' ? 'UNVERIFIED'
+      : value.outcome === 'ATTENTION' ? 'ATTENTION' : 'NO_ALERTS_OBSERVED',
     lastOutcome: value.outcome,
     lastFinishedAt: finishedAt,
     ageMs,

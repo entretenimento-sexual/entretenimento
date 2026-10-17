@@ -264,11 +264,18 @@ export class VideoModerationComponent {
   }
 
   schedulerHealthLabel(value: IAdminVideoSchedulerDiagnostic): string {
-    switch (value.health) {
-      case 'OPERATIONAL': return 'Execução recente sem alertas';
-      case 'DEGRADED': return 'Execução recente com pendências';
-      case 'FAILED': return 'Última execução falhou';
+    switch (value.executionHealth) {
+      case 'EXECUTED': return 'Scheduler executou';
+      case 'FAILED': return 'Execução do scheduler falhou';
       case 'UNVERIFIED': return 'Execução não verificada';
+    }
+  }
+
+  schedulerJobsHealthLabel(value: IAdminVideoSchedulerDiagnostic): string {
+    switch (value.jobsHealth) {
+      case 'NO_ALERTS_OBSERVED': return 'Sem alertas nos resultados observados';
+      case 'ATTENTION': return 'Jobs exigem atenção';
+      case 'UNVERIFIED': return 'Resultado dos jobs não verificado';
     }
   }
 
