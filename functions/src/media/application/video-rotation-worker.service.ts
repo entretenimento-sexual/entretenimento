@@ -7,13 +7,24 @@ import {
   type VideoEditRecipe,
 } from './video-edit-recipe';
 import type { VideoProcessingJob } from './video-processing-job';
+import {
+  selectTranscoderInputSource,
+  type TranscoderInputSourceSelection,
+} from './video-immutable-input.policy';
+import {
+  matchesPinnedRotatedSource,
+  type PinnedTranscoderInputSource,
+} from './video-rotation-immutable-readiness.policy';
 
 interface RotationWorkerResponse {
   destinationStoragePath?: string;
+  destinationGeneration?: string;
 }
 
 export interface PreparedTranscoderSource {
   sourceStoragePath: string;
+  /** Set only when the selected GCS source was generation-pinned. */
+  sourceGeneration?: string;
   recipe: VideoEditRecipe;
 }
 
@@ -186,48 +197,93 @@ async function workerAuthorizationHeader(baseUrl: string): Promise<string | null
   return `Bearer ${token}`;
 }
 
-async function storedRotationSourceIsReady(storagePath: string): Promise<boolean> {
+type RotationProof = {
+  job: VideoProcessingJob;
+  source: PinnedTranscoderInputSource;
+  rotationDegrees: number;
+};
+
+async function storedRotationSourceGeneration(
+  storagePath: string, proof?: RotationProof
+): Promise<string | null> {
   const file = storage.bucket().file(storagePath);
   const [exists] = await file.exists();
-
-  if (!exists) {
-    return false;
+  if (!exists) return null;
+  let metadata;
+  try {
+    [metadata] = await file.getMetadata();
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error &&
+        Number(error.code) === 404) return null;
+    throw error;
   }
-
-  const [metadata] = await file.getMetadata();
+  if (proof) {
+    return matchesPinnedRotatedSource(
+      proof.job, proof.source, proof.rotationDegrees, metadata
+    ) ? String(metadata.generation) : null;
+  }
+  // Legacy readiness behavior remains unchanged while the flag is OFF.
   const sizeBytes = Number(metadata.size ?? 0);
   const contentType = String(metadata.contentType ?? '').trim().toLowerCase();
-
-  return Number.isFinite(sizeBytes) &&
-    sizeBytes > 0 &&
-    contentType === 'video/mp4';
+  return Number.isFinite(sizeBytes) && sizeBytes > 0 &&
+    contentType === 'video/mp4' ? 'legacy' : null;
 }
 
+function validatedSelection(
+  job: VideoProcessingJob, selected?: TranscoderInputSourceSelection
+): TranscoderInputSourceSelection {
+  if (!selected || selected.mode === 'legacy') {
+    if (selected && selected.sourceStoragePath !== job.sourceStoragePath) {
+      throw new Error('Origem legada de rotação divergente.');
+    }
+    return { mode: 'legacy', sourceStoragePath: job.sourceStoragePath };
+  }
+  const current = selectTranscoderInputSource(job, true);
+  if (!current || current.mode !== 'immutable' ||
+      current.sourceStoragePath !== selected.sourceStoragePath ||
+      current.sourceGeneration !== selected.sourceGeneration ||
+      current.destinationGeneration !== selected.destinationGeneration ||
+      current.sizeBytes !== selected.sizeBytes ||
+      current.crc32c !== selected.crc32c) {
+    throw new Error('Identidade da origem imutável de rotação divergente.');
+  }
+  return current;
+}
+
+/**
+ * Explicit selection is prepared for the future provider adapter. The current
+ * two-argument production call stays legacy until a final POST fence exists.
+ */
 export async function prepareVideoSourceForTranscoder(
   job: VideoProcessingJob,
-  recipe: VideoEditRecipe
+  recipe: VideoEditRecipe,
+  requested?: TranscoderInputSourceSelection
 ): Promise<PreparedTranscoderSource> {
+  const source = validatedSelection(job, requested);
+  const immutable = source.mode === 'immutable' ? source : null;
   if (recipe.rotationDegrees === 0) {
     return {
-      sourceStoragePath: job.sourceStoragePath,
+      sourceStoragePath: source.sourceStoragePath,
+      ...(immutable ? { sourceGeneration: immutable.destinationGeneration } : {}),
       recipe,
     };
   }
 
   const baseUrl = workerBaseUrl();
-
   if (!baseUrl) {
-    throw new Error(
-      'O processamento de rotação não está configurado no ambiente.'
-    );
+    throw new Error('O processamento de rotação não está configurado no ambiente.');
   }
-
   const destinationStoragePath = buildRotationSourceStoragePath(job);
-
-  if (!(await storedRotationSourceIsReady(destinationStoragePath))) {
+  const proof: RotationProof | undefined = immutable ? {
+    job, source: immutable, rotationDegrees: recipe.rotationDegrees,
+  } : undefined;
+  let rotatedGeneration = await storedRotationSourceGeneration(
+    destinationStoragePath, proof
+  );
+  if (!rotatedGeneration) {
     const authorization = await workerAuthorizationHeader(baseUrl);
     const response = await axios.post<RotationWorkerResponse>(
-      `${baseUrl}/rotate`,
+      baseUrl + '/rotate',
       {
         bucketName: storage.bucket().name,
         ownerUid: job.ownerUid,
@@ -236,6 +292,7 @@ export async function prepareVideoSourceForTranscoder(
         sourceStoragePath: job.sourceStoragePath,
         destinationStoragePath,
         rotationDegrees: recipe.rotationDegrees,
+        ...(immutable ? { immutableInput: job.immutableInput } : {}),
       },
       {
         headers: {
@@ -245,18 +302,20 @@ export async function prepareVideoSourceForTranscoder(
         timeout: ROTATION_WORKER_TIMEOUT_MS,
       }
     );
-
     if (response.data?.destinationStoragePath !== destinationStoragePath) {
       throw new Error('O worker de rotação retornou um destino inesperado.');
     }
-
-    if (!(await storedRotationSourceIsReady(destinationStoragePath))) {
-      throw new Error('O worker de rotação não gerou um arquivo válido.');
+    rotatedGeneration = await storedRotationSourceGeneration(
+      destinationStoragePath, proof
+    );
+    if (!rotatedGeneration || (immutable &&
+        response.data?.destinationGeneration !== rotatedGeneration)) {
+      throw new Error('O worker de rotação não comprovou a geração esperada.');
     }
   }
-
   return {
     sourceStoragePath: destinationStoragePath,
+    ...(immutable ? { sourceGeneration: rotatedGeneration } : {}),
     recipe: withoutVideoRotation(recipe),
   };
 }
