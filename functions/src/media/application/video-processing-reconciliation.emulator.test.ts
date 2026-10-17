@@ -8,6 +8,11 @@ import axios, { AxiosError, type AxiosResponse } from 'axios';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
 import {
+  clearProviderPollFailures,
+  isProviderPollReviewRequired,
+} from './video-provider-poll-failure.policy';
+import { isCurrentVideoProcessingAttempt } from './video-processing-poll.policy';
+import {
   buildTerminalCleanupQueue,
   preserveTerminalCleanupBeforeRetry,
   terminalCleanupRef,
@@ -2102,6 +2107,54 @@ test('eight failed GETs hold the job outside the due query until explicitly rear
       { code: 'PERMISSION_DENIED', message: 'recheck failed' }, now + 2
     ), true);
     assert.equal((await ref.get()).get('nextAttemptAt'), Number.MAX_SAFE_INTEGER);
+  } finally {
+    await ref.delete();
+  }
+});
+
+test('manual provider recheck fences version and successful GET clears backoff', async () => {
+  const original = fixture('RUNNING');
+  const ref = jobs.doc(original.ownerUid + '_' + original.videoId);
+  await ref.set({
+    ...original,
+    providerPollFailureVersion: original.processingVersion,
+    providerPollFailureCount: 8,
+    providerPollLastFailedAt: now - 30_000,
+    providerPollReviewRequired: true,
+    nextAttemptAt: Number.MAX_SAFE_INTEGER,
+  });
+  const rearm = (expectedVersion: string) => firestore.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const current = snap.data() as VideoProcessingJob;
+    if (current.processingVersion !== expectedVersion ||
+        !isProviderPollReviewRequired(current)) return false;
+    tx.update(ref, { nextAttemptAt: now, providerPollReviewRequired: false });
+    return true;
+  });
+  try {
+    assert.equal(await rearm('obsolete'), false);
+    assert.equal((await ref.get()).get('nextAttemptAt'), Number.MAX_SAFE_INTEGER);
+    assert.equal(await rearm(original.processingVersion), true);
+    const claimed = await claimProcessingJob(firestore, ref, now + 1, parseJob);
+    assert.ok(claimed);
+    await firestore.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      const current = snap.data() as VideoProcessingJob;
+      assert.equal(isCurrentVideoProcessingAttempt(current, claimed), true);
+      tx.update(ref, {
+        providerState: 'RUNNING',
+        ...clearProviderPollFailures(),
+        lastErrorCode: null,
+        lastError: null,
+      });
+    });
+    const snap = await ref.get();
+    assert.equal(snap.get('state'), 'PROCESSING');
+    assert.equal(snap.get('processingVersion'), original.processingVersion);
+    assert.equal(snap.get('providerPollFailureCount'), 0);
+    assert.equal(snap.get('providerPollFailureVersion'), null);
+    assert.equal(snap.get('providerPollReviewRequired'), false);
+    assert.equal(snap.get('providerPollLastFailedAt'), null);
   } finally {
     await ref.delete();
   }
