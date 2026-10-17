@@ -2245,7 +2245,9 @@ test('review recheck fails closed for stale, missing, foreign and lease-held sna
       { ...safe, snapshot: { ...safe.snapshot!,
         processingVersion: 'different-version' } },
     ]) {
-      await ref.set(broken);
+      // Firestore rejects undefined fields; omit the legacy snapshot entirely.
+      await ref.set(JSON.parse(JSON.stringify(broken)));
+
       assert.ok(terminalCleanupReviewBlocker(ref.id, broken));
       const auditRef = firestore.collection('admin_logs').doc();
       await assert.rejects(recheckReviewedTerminalTemporaryCleanup(
