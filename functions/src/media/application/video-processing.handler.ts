@@ -51,7 +51,7 @@ import { selectTranscoderInputSource } from './video-immutable-input.policy';
 import { prepareImmutableInputBeforeSubmission } from './video-immutable-input-preflight.service';
 import { deleteCancelledImmutableInput } from './video-immutable-cancellation-cleanup.storage';
 import { isCurrentCancellationClaim } from './video-cancellation-schedule.policy';
-import { processPendingVideoTerminalTemporaryCleanup } from './cleanup-video-rotation-input.handler';
+import { deleteCancelledRotationInput, processPendingVideoTerminalTemporaryCleanup } from './cleanup-video-rotation-input.handler';
 
 interface ProcessedVideoCandidate {
   storagePath: string;
@@ -938,6 +938,24 @@ async function processCancellation(
       ),
     deleteProviderJob: deleteGoogleVideoTranscoderJob,
     deleteOutputPrefix,
+    deleteRotationInput: async (started) => {
+      const snapshot = await jobRef.get();
+      const raw = snapshot.exists ? snapshot.data() as VideoProcessingJob : null;
+      if (!raw || raw.processingVersion !== started.processingVersion) return false;
+      return deleteCancelledRotationInput(
+        { ...started, editRecipe: raw.editRecipe },
+        async () => {
+          const snapshot = await jobRef.get();
+          const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
+          return !!current && isCurrentCancellationClaim(current, started) &&
+            current.nextAttemptAt > Date.now() &&
+            current.sourceStoragePath === started.sourceStoragePath &&
+            current.sourceGeneration === started.sourceGeneration &&
+            current.immutableInput?.destinationGeneration ===
+              started.immutableInput?.destinationGeneration;
+        }
+      );
+    },
     deleteImmutableInput: (started) =>
       deleteCancelledImmutableInput(started, async () => {
         const snapshot = await jobRef.get();

@@ -203,3 +203,29 @@ test('immutable deletion failure keeps the cancellation for durable retry', asyn
     'provider-delete', 'storage-delete', 'failure:TRANSIENT',
   ]);
 });
+
+test('cancelled rotation cleanup requires a generation-fenced port before Firestore removal', async () => {
+  const events: string[] = [];
+  const rotated = {
+    ...job(),
+    editRecipe: { ...job().editRecipe!, rotationDegrees: 90 as const },
+  };
+  const result = await executeVideoCancellation(rotated, ports(events, {
+    deleteRotationInput: async () => { events.push('rotation-delete'); return true; },
+  }));
+  assert.equal(result.status, 'COMPLETED');
+  assert.deepEqual(events, [
+    'provider-delete', 'storage-delete', 'rotation-delete', 'firestore-delete',
+  ]);
+  const missing = await executeVideoCancellation(rotated, ports([]));
+  assert.equal(missing.status, 'RETRY_SCHEDULED');
+});
+test('failed rotation deletion schedules a retry, never removes the cancellation', async () => {
+  const events: string[] = [];
+  const rotated = { ...job(), editRecipe: { ...job().editRecipe!, rotationDegrees: 90 as const } };
+  const result = await executeVideoCancellation(rotated, ports(events, {
+    deleteRotationInput: async () => { throw new Error('GCS generation mismatch'); },
+  }));
+  assert.equal(result.status, 'RETRY_SCHEDULED');
+  assert.deepEqual(events, ['provider-delete', 'storage-delete', 'failure:TRANSIENT']);
+});

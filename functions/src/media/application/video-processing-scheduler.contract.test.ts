@@ -259,3 +259,30 @@ test('scheduler emits identifier-free cancellation cycle start and completion lo
   assert.ok(!cancel.includes('videoId:'));
   assert.ok(!cancel.includes("await runBatch(tasks, 'cancel')"));
 });
+
+test('terminal cleanup never performs path-only deletion and uses versioned snapshots', () => {
+  const cleanup = readFileSync(
+    resolve(__dirname, '../../../src/media/application/cleanup-video-rotation-input.handler.ts'),
+    'utf8'
+  );
+  const queue = readFileSync(
+    resolve(__dirname, '../../../src/media/application/video-terminal-temporary-cleanup.firestore.ts'),
+    'utf8'
+  );
+  const admin = readFileSync(
+    resolve(__dirname, '../../../src/media/application/admin-video-processing-recovery.handler.ts'),
+    'utf8'
+  );
+  const cancellation = readFileSync(
+    resolve(__dirname, '../../../src/media/application/video-cancellation-execution.ts'),
+    'utf8'
+  );
+  assert.ok(cleanup.includes('ifGenerationMatch: pinned'));
+  assert.ok(!cleanup.includes('.file(path).delete({ ignoreNotFound: true })'));
+  assert.ok(cleanup.includes('claimDueTerminalTemporaryCleanup('));
+  assert.ok(queue.includes('snapshot: TerminalTempCleanupJob'));
+  assert.ok(queue.includes('transaction.create(ref, prepared)'));
+  assert.ok(admin.includes('await preserveTerminalCleanupBeforeRetry('));
+  assert.ok(cancellation.includes('await ports.deleteRotationInput(job)'));
+  assert.ok(scheduler.includes('deleteCancelledRotationInput(started'));
+});

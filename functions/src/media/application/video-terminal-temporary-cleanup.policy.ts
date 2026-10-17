@@ -60,17 +60,12 @@ function isLegacyRotationProvenance(
     tags['rotationDegrees'] === String(angle);
 }
 
-/** False means the fenced cleanup claim changed; no success is acknowledged. */
-export async function cleanupTerminalVideoTemporaryAssets(
+async function cleanupRotationTempWithPorts(
   job: TerminalTempCleanupJob,
+  immutablePresent: boolean,
   ports: TerminalTemporaryCleanupPorts
 ): Promise<boolean> {
-  if (!isConfirmedTerminalVideoJob(job)) {
-    throw new Error('VIDEO_TEMP_CLEANUP_PROVIDER_UNCONFIRMED');
-  }
-  // Validate persisted immutable identity before the first GCS call.
-  const immutable = job.immutableInput != null
-    ? selectImmutableCancellationTarget(job as VideoProcessingJob) : null;
+  if (immutablePresent) selectImmutableCancellationTarget(job as VideoProcessingJob);
   const angle = rotationDegreesForCleanup(job);
   const rotationPath = angle
     ? buildRotationSourceStoragePath(job) : null;
@@ -80,9 +75,9 @@ export async function cleanupTerminalVideoTemporaryAssets(
     const object = await ports.readObject(rotationPath);
     if (object) {
       const generation = normalizeGcsGeneration(object.generation);
-      const selected = immutable
+      const selected = immutablePresent
         ? selectTranscoderInputSource(job as VideoProcessingJob, true) : null;
-      const proven = immutable
+      const proven = immutablePresent
         ? !!selected && selected.mode === 'immutable' &&
           matchesPinnedRotatedSource(job, selected, angle, {
             generation: object.generation as string,
@@ -98,6 +93,21 @@ export async function cleanupTerminalVideoTemporaryAssets(
       await ports.deletePinned(rotationPath, generation);
     }
   }
+  return true;
+}
+
+/** False means the fenced cleanup claim changed; no success is acknowledged. */
+export async function cleanupTerminalVideoTemporaryAssets(
+  job: TerminalTempCleanupJob,
+  ports: TerminalTemporaryCleanupPorts
+): Promise<boolean> {
+  if (!isConfirmedTerminalVideoJob(job)) {
+    throw new Error('VIDEO_TEMP_CLEANUP_PROVIDER_UNCONFIRMED');
+  }
+  // Validate persisted immutable identity before the first GCS call.
+  const immutable = job.immutableInput != null
+    ? selectImmutableCancellationTarget(job as VideoProcessingJob) : null;
+  if (!await cleanupRotationTempWithPorts(job, immutable !== null, ports)) return false;
   if (immutable) {
     const object = await ports.readObject(immutable.path);
     if (object && !matchesImmutableCancellationObject(immutable, object)) {
@@ -107,4 +117,15 @@ export async function cleanupTerminalVideoTemporaryAssets(
     if (object) await ports.deletePinned(immutable.path, immutable.generation);
   }
   return true;
+}
+
+/**
+ * Caller must prove that provider deletion has completed when invoked by the
+ * cancellation executor; failed deletes retain the durable cancellation job.
+ */
+export async function cleanupCancelledRotationTemporaryAsset(
+  job: TerminalTempCleanupJob,
+  ports: TerminalTemporaryCleanupPorts
+): Promise<boolean> {
+  return cleanupRotationTempWithPorts(job, job.immutableInput != null, ports);
 }

@@ -14,6 +14,8 @@ export interface VideoCancellationPorts {
   bindProviderJob: (job: VideoProcessingJob, name: string) => Promise<boolean>;
   deleteProviderJob: (name: string) => Promise<void>;
   deleteOutputPrefix: (prefix: string) => Promise<void>;
+  /** Rotation deletion must be generation-pinned and claim-fenced. */
+  deleteRotationInput?: (job: VideoProcessingJob) => Promise<boolean>;
   /** Optional for injected legacy test ports; production always supplies it. */
   deleteImmutableInput?: (job: VideoProcessingJob) => Promise<boolean>;
   deleteCancelledJob: (job: VideoProcessingJob) => Promise<boolean>;
@@ -66,6 +68,11 @@ export async function executeVideoCancellation(
     }
 
     await ports.deleteOutputPrefix(job.outputPrefix);
+    if (ports.deleteRotationInput) {
+      if (!await ports.deleteRotationInput(job)) return { status: 'REPLACED' };
+    } else if ([90, 180, 270].includes(job.editRecipe?.rotationDegrees ?? 0)) {
+      throw new Error('ROTATION_CLEANUP_PORT_UNAVAILABLE');
+    }
     if (job.immutableInput != null) {
       if (!ports.deleteImmutableInput) {
         throw new Error('IMMUTABLE_CLEANUP_PORT_UNAVAILABLE');

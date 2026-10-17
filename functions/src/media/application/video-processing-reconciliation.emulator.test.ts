@@ -7,6 +7,14 @@ import { getFirestore, type DocumentReference } from 'firebase-admin/firestore';
 import axios, { AxiosError, type AxiosResponse } from 'axios';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
+import {
+  buildTerminalCleanupQueue,
+  preserveTerminalCleanupBeforeRetry,
+  terminalCleanupRef,
+  claimDueTerminalTemporaryCleanup,
+  isTerminalTemporaryClaimCurrent,
+} from './video-terminal-temporary-cleanup.firestore';
+
 import { decideMissingVideoSubmission } from './video-submission-confirmation.policy';
 import { isCurrentVideoProcessingAttempt } from './video-processing-poll.policy';
 import { commitCopiedVideoPublicationIfCurrent } from './video-publication-commit.firestore';
@@ -1773,5 +1781,131 @@ test('final Transcoder POST guard denies cancellation, replacements and expired 
     assert.equal(await allows(), false);
   } finally {
     await Promise.all([ref.delete(), videoRef.delete()]);
+  }
+});
+
+test('terminal cleanup snapshot survives atomic retry and new processingVersion', async () => {
+  const base = fixture('FAILED');
+  const old = {
+    ...base, state: 'FAILED' as const, providerState: 'FAILED',
+    editRecipe: { ...base.editRecipe!, rotationDegrees: 90 as const },
+  };
+  const jobId = old.ownerUid + '_' + old.videoId;
+  const ref = jobs.doc(jobId);
+  const cleanupRef = terminalCleanupRef(firestore, jobId, old.processingVersion);
+  const replacement = {
+    ...old, state: 'QUEUED' as const, providerState: null,
+    externalJobName: null, processingVersion: old.processingVersion + '-new',
+  };
+  await ref.set(old);
+  try {
+    await firestore.runTransaction(async transaction => {
+      const original = await transaction.get(ref);
+      assert.equal(original.get('processingVersion'), old.processingVersion);
+      assert.equal(await preserveTerminalCleanupBeforeRetry(
+        firestore, transaction, jobId,
+        original.data() as VideoProcessingJob, now
+      ), true);
+      transaction.set(ref, replacement);
+    });
+    const queued = await cleanupRef.get();
+    assert.equal(queued.exists, true);
+    assert.equal(queued.get('snapshot.processingVersion'), old.processingVersion);
+    assert.equal(queued.get('snapshot.providerState'), 'FAILED');
+    assert.equal((await ref.get()).get('processingVersion'), replacement.processingVersion);
+    const claimed = await claimDueTerminalTemporaryCleanup(firestore, cleanupRef, now + 1);
+    assert.ok(claimed);
+    assert.equal(claimed.snapshot.processingVersion, old.processingVersion);
+    assert.equal(await isTerminalTemporaryClaimCurrent(
+      cleanupRef, claimed, now + 2
+    ), true);
+    await cleanupRef.update({ leaseToken: 'new-owner' });
+    assert.equal(await isTerminalTemporaryClaimCurrent(
+      cleanupRef, claimed, now + 2
+    ), false);
+  } finally {
+    await Promise.all([ref.delete(), cleanupRef.delete()]);
+  }
+});
+
+test('pre-upgrade cleanup queue is retained for review after replacement', async () => {
+  const base = fixture('FAILED');
+  const old = {
+    ...base, state: 'FAILED' as const, providerState: 'FAILED',
+    editRecipe: { ...base.editRecipe!, rotationDegrees: 90 as const },
+  };
+  const jobId = old.ownerUid + '_' + old.videoId;
+  const ref = jobs.doc(jobId);
+  const cleanupRef = terminalCleanupRef(firestore, jobId, old.processingVersion);
+  const oldQueue = buildTerminalCleanupQueue(jobId, old, now);
+  assert.ok(oldQueue);
+  const legacyQueue = { ...oldQueue };
+  delete legacyQueue.snapshot;
+  await Promise.all([
+    cleanupRef.set(legacyQueue),
+    ref.set({ ...old, processingVersion: old.processingVersion + '-new', state: 'QUEUED' }),
+  ]);
+  try {
+    assert.equal(await claimDueTerminalTemporaryCleanup(
+      firestore, cleanupRef, now + 1
+    ), null);
+    const blocked = await cleanupRef.get();
+    assert.equal(blocked.get('state'), 'review');
+    assert.equal(blocked.get('lastError'), 'VIDEO_TEMP_CLEANUP_SNAPSHOT_UNAVAILABLE');
+  } finally {
+    await Promise.all([ref.delete(), cleanupRef.delete()]);
+  }
+});
+
+test('preserving terminal snapshot is idempotent across repeated administrative retries', async () => {
+  const base = fixture('FAILED');
+  const old = {
+    ...base, state: 'FAILED' as const, providerState: 'FAILED',
+    editRecipe: { ...base.editRecipe!, rotationDegrees: 90 as const },
+  };
+  const jobId = old.ownerUid + '_' + old.videoId;
+  const cleanupRef = terminalCleanupRef(firestore, jobId, old.processingVersion);
+  try {
+    await firestore.runTransaction(async t => {
+      assert.equal(await preserveTerminalCleanupBeforeRetry(
+        firestore, t, jobId, old, now
+      ), true);
+    });
+    await firestore.runTransaction(async t => {
+      assert.equal(await preserveTerminalCleanupBeforeRetry(
+        firestore, t, jobId, old, now + 1
+      ), true);
+    });
+    const snap = await cleanupRef.get();
+    assert.equal(snap.get('snapshot.processingVersion'), old.processingVersion);
+    assert.equal(snap.get('createdAt'), now);
+    assert.equal(snap.get('state'), 'retryable');
+  } finally {
+    await cleanupRef.delete();
+  }
+});
+
+test('concurrent terminal cleanup claims elect exactly one owner', async () => {
+  const base = fixture('FAILED');
+  const old = {
+    ...base, state: 'FAILED' as const, providerState: 'FAILED',
+    editRecipe: { ...base.editRecipe!, rotationDegrees: 90 as const },
+  };
+  const jobId = old.ownerUid + '_' + old.videoId;
+  const ref = terminalCleanupRef(firestore, jobId, old.processingVersion);
+  const queue = buildTerminalCleanupQueue(jobId, old, now);
+  assert.ok(queue);
+  await ref.create(queue);
+  try {
+    const owners = await Promise.all([
+      claimDueTerminalTemporaryCleanup(firestore, ref, now + 1),
+      claimDueTerminalTemporaryCleanup(firestore, ref, now + 1),
+    ]);
+    assert.equal(owners.filter(Boolean).length, 1);
+    assert.equal(await isTerminalTemporaryClaimCurrent(
+      ref, owners.find(Boolean)!, now + 2
+    ), true);
+  } finally {
+    await ref.delete();
   }
 });

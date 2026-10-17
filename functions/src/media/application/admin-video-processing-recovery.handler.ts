@@ -26,6 +26,7 @@ import {
   videoRecoveryRequiresProviderReview,
   type AdminVideoProcessingRecoveryAction,
 } from './admin-video-processing-recovery.policy';
+import { preserveTerminalCleanupBeforeRetry } from './video-terminal-temporary-cleanup.firestore';
 import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
@@ -508,6 +509,10 @@ async function retryFailedJob(command: {
     }
 
     const now = Date.now();
+    // Commit the old version's cleanup proof atomically with replacement.
+    const tempCleanupQueued = await preserveTerminalCleanupBeforeRetry(
+      db, transaction, jobId, currentJob as VideoProcessingJob, now
+    );
     transaction.set(jobRef, {
       ...retryJob,
       lastAdminOperationId: command.operationId,
@@ -575,7 +580,7 @@ async function retryFailedJob(command: {
       nextState: 'QUEUED',
       action: 'RETRY_FAILED',
       alreadyApplied: false,
-      cleanupPending: !!previousPrefix,
+      cleanupPending: !!previousPrefix || tempCleanupQueued,
     };
   });
 }

@@ -6,6 +6,7 @@ import type { VideoRotationDegrees } from './video-edit-recipe';
 import type { ImmutableCancellationObject } from './video-immutable-cancellation-cleanup.policy';
 import {
   cleanupTerminalVideoTemporaryAssets,
+  cleanupCancelledRotationTemporaryAsset,
   hasTerminalTemporaryAssets,
   isConfirmedTerminalVideoJob,
   type TerminalTemporaryCleanupPorts,
@@ -185,4 +186,44 @@ test('GCS failure leaves cleanup incomplete for durable retry', async () => {
     ...p, deletePinned: async () => { throw new Error('GCS 503'); },
   }), /GCS 503/);
   assert.deepEqual(deleted, []);
+});
+
+test('legacy cancellation requires version provenance and exact GCS generation', async () => {
+  const current = job();
+  const legacy = { ...current, immutableInput: null };
+  const { deleted, p } = ports(current);
+  assert.equal(await cleanupCancelledRotationTemporaryAsset(legacy, p), true);
+  assert.equal(deleted.length, 1);
+  assert.ok(deleted[0][0].includes('/video-rotation-sources/'));
+  assert.equal(deleted[0][1], '90071992547409933');
+});
+
+test('legacy cancellation rejects a foreign rotation and never calls delete', async () => {
+  const current = job();
+  const legacy = { ...current, immutableInput: null };
+  const { stored, deleted, p } = ports(current);
+  const rotationPath = [...stored.keys()].find(x => x.includes('/video-rotation-sources/'))!;
+  const original = stored.get(rotationPath)!;
+  for (const altered of [
+    { ...original, metadata: { ...original.metadata, processingVersion: 'other' } },
+    { ...original, generation: '0' },
+    { ...original, metadata: { source: 'foreign' } },
+  ]) {
+    stored.set(rotationPath, altered);
+    await assert.rejects(cleanupCancelledRotationTemporaryAsset(legacy, p),
+      /ROTATION_PROVENANCE_CONFLICT/);
+    assert.deepEqual(deleted, []);
+  }
+});
+
+test('cancellation never reads GCS after a stale claim', async () => {
+  const j = { ...job(), immutableInput: null };
+  let read = false;
+  const result = await cleanupCancelledRotationTemporaryAsset(j, {
+    claimIsCurrent: async () => false,
+    readObject: async () => { read = true; return null; },
+    deletePinned: async () => { throw new Error('unexpected deletion'); },
+  });
+  assert.equal(result, false);
+  assert.equal(read, false);
 });
