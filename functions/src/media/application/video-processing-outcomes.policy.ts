@@ -37,11 +37,13 @@ const ATTENTION_OUTCOMES: readonly VideoWorkOutcome[] = [
   'PROVIDER_POLL_ERROR', 'PROVIDER_REVIEW', 'PROVIDER_FAILED_OBSERVED',
 ];
 
-export function createVideoWorkOutcomeCounter(): {
+export interface VideoWorkOutcomeCounter {
   observe: (outcome: VideoWorkOutcome) => void;
   metrics: () => Record<string, number>;
   needsAttention: () => boolean;
-} {
+}
+
+export function createVideoWorkOutcomeCounter(): VideoWorkOutcomeCounter {
   const counts = new Map<VideoWorkOutcome, number>();
   return {
     observe: (outcome) => counts.set(outcome, (counts.get(outcome) ?? 0) + 1),
