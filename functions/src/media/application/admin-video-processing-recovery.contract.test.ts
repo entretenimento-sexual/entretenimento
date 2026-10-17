@@ -56,7 +56,7 @@ test('admin flags overdue cancellation separately from unconfirmed provider jobs
 
 test('explicit provider recheck is version-fenced, logged, rate-limited and not a POST', () => {
   assert.ok(handler.includes("command.action === 'RECHECK_PROVIDER'"));
-  assert.ok(handler.includes("!isProviderPollReviewRequired({ ...job, state })"));
+  assert.ok(handler.includes('!isProviderPollReviewRequired({ ...job, state })'));
   assert.ok(handler.includes("jobPatch['nextAttemptAt'] = now"));
   assert.ok(handler.includes("jobPatch['providerPollReviewRequired'] = false"));
   assert.ok(handler.includes('job.processingVersion !== command.expectedProcessingVersion'));

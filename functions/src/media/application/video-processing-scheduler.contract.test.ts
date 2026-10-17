@@ -102,7 +102,7 @@ test('stale transcoder results cannot finalize or fail another processing attemp
 test('provider GET errors are recorded only under the current polling claim', () => {
   assert.ok(scheduler.includes('recordProviderPollErrorIfCurrent('));
   assert.ok(firestoreCore.includes('isCurrentVideoProcessingAttempt(current, observed)'));
-  assert.ok(firestoreCore.includes('current.lastErrorCode !== error.code'));
+  assert.ok(firestoreCore.includes('nextProviderPollFailure(current, now'));
 });
 
 test('provider submission recovery supports processing jobs without external IDs', () => {
