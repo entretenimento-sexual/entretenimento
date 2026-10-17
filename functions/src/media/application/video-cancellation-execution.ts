@@ -14,6 +14,8 @@ export interface VideoCancellationPorts {
   bindProviderJob: (job: VideoProcessingJob, name: string) => Promise<boolean>;
   deleteProviderJob: (name: string) => Promise<void>;
   deleteOutputPrefix: (prefix: string) => Promise<void>;
+  /** Optional for injected legacy test ports; production always supplies it. */
+  deleteImmutableInput?: (job: VideoProcessingJob) => Promise<boolean>;
   deleteCancelledJob: (job: VideoProcessingJob) => Promise<boolean>;
   recordFailure: (
     job: VideoProcessingJob,
@@ -64,6 +66,14 @@ export async function executeVideoCancellation(
     }
 
     await ports.deleteOutputPrefix(job.outputPrefix);
+    if (job.immutableInput != null) {
+      if (!ports.deleteImmutableInput) {
+        throw new Error('IMMUTABLE_CLEANUP_PORT_UNAVAILABLE');
+      }
+      if (!await ports.deleteImmutableInput(job)) {
+        return { status: 'REPLACED' };
+      }
+    }
     const deleted = await ports.deleteCancelledJob(job);
     return { status: deleted ? 'COMPLETED' : 'REPLACED' };
   } catch (error) {

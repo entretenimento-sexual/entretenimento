@@ -49,6 +49,8 @@ import {
 import { prepareVideoSourceProbeBeforeSubmission, videoSourceProbeCaptureEnabled } from './video-source-probe.service';
 import { selectTranscoderInputSource } from './video-immutable-input.policy';
 import { prepareImmutableInputBeforeSubmission } from './video-immutable-input-preflight.service';
+import { deleteCancelledImmutableInput } from './video-immutable-cancellation-cleanup.storage';
+import { isCurrentCancellationClaim } from './video-cancellation-schedule.policy';
 
 interface ProcessedVideoCandidate {
   storagePath: string;
@@ -935,6 +937,21 @@ async function processCancellation(
       ),
     deleteProviderJob: deleteGoogleVideoTranscoderJob,
     deleteOutputPrefix,
+    deleteImmutableInput: (started) =>
+      deleteCancelledImmutableInput(started, async () => {
+        const snapshot = await jobRef.get();
+        const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
+        const expected = started.immutableInput;
+        const actual = current?.immutableInput;
+        return !!current && !!expected && !!actual &&
+          isCurrentCancellationClaim(current, started) &&
+          current.nextAttemptAt > Date.now() &&
+          current.sourceStoragePath === started.sourceStoragePath &&
+          current.sourceGeneration === started.sourceGeneration &&
+          actual.destinationStoragePath === expected.destinationStoragePath &&
+          actual.destinationGeneration === expected.destinationGeneration &&
+          actual.crc32c === expected.crc32c;
+      }),
     deleteCancelledJob: (started) =>
       deleteCancelledJobIfCurrent(db, jobRef, started, normalizeJob),
     recordFailure: (started, error, now) =>

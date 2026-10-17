@@ -135,3 +135,56 @@ test('non-cancellation state does not call any external dependency', async () =>
   assert.equal(result.status, 'REPLACED');
   assert.deepEqual(events, []);
 });
+
+test('immutable cancellation deletes pinned input before removing tracking', async () => {
+  const events: string[] = [];
+  const result = await executeVideoCancellation({
+    ...job(), immutableInput: { destinationStoragePath: 'present' },
+  } as ReturnType<typeof job>, ports(events, {
+    deleteImmutableInput: async () => {
+      events.push('immutable-delete');
+      return true;
+    },
+  }));
+  assert.equal(result.status, 'COMPLETED');
+  assert.deepEqual(events, [
+    'provider-delete', 'storage-delete', 'immutable-delete', 'firestore-delete',
+  ]);
+});
+
+test('ambiguous provider never deletes immutable copy', async () => {
+  const events: string[] = [];
+  const result = await executeVideoCancellation({
+    ...job(), externalJobName: null, immutableInput: { destinationStoragePath: 'present' },
+  } as ReturnType<typeof job>, ports(events, {
+    deleteImmutableInput: async () => { events.push('immutable-delete'); return true; },
+  }));
+  assert.equal(result.status, 'UNCONFIRMED');
+  assert.deepEqual(events, ['lookup', 'failure:CANCELLATION_UNCONFIRMED']);
+});
+
+test('stale immutable claim keeps Firestore tracking and does not report success', async () => {
+  const events: string[] = [];
+  const result = await executeVideoCancellation({
+    ...job(), immutableInput: { destinationStoragePath: 'present' },
+  } as ReturnType<typeof job>, ports(events, {
+    deleteImmutableInput: async () => { events.push('immutable-check'); return false; },
+  }));
+  assert.equal(result.status, 'REPLACED');
+  assert.deepEqual(events, [
+    'provider-delete', 'storage-delete', 'immutable-check',
+  ]);
+});
+
+test('immutable deletion failure keeps the cancellation for durable retry', async () => {
+  const events: string[] = [];
+  const result = await executeVideoCancellation({
+    ...job(), immutableInput: { destinationStoragePath: 'present' },
+  } as ReturnType<typeof job>, ports(events, {
+    deleteImmutableInput: async () => { throw new Error('GCS 412'); },
+  }));
+  assert.equal(result.status, 'RETRY_SCHEDULED');
+  assert.deepEqual(events, [
+    'provider-delete', 'storage-delete', 'failure:TRANSIENT',
+  ]);
+});

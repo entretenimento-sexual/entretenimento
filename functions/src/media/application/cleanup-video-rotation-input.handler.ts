@@ -13,6 +13,7 @@ interface RotationCleanupJobSnapshot {
   processingVersion?: string;
   state?: string;
   editRecipe?: Partial<VideoEditRecipe>;
+  immutableInput?: unknown;
 }
 
 function hasRotation(job: RotationCleanupJobSnapshot): boolean {
@@ -22,12 +23,11 @@ function hasRotation(job: RotationCleanupJobSnapshot): boolean {
     rotationDegrees === 270;
 }
 
-function isTerminalOrCancelling(job: RotationCleanupJobSnapshot): boolean {
+function isTerminal(job: RotationCleanupJobSnapshot): boolean {
   const state = String(job.state ?? '').trim().toUpperCase();
   return state === 'SUCCEEDED' ||
     state === 'FAILED' ||
-    state === 'CANCELLED' ||
-    state === 'CANCEL_REQUESTED';
+    state === 'CANCELLED';
 }
 
 async function deleteRotationSource(job: RotationCleanupJobSnapshot): Promise<void> {
@@ -56,7 +56,14 @@ export const cleanupVideoRotationInput = onDocumentWritten(
       return;
     }
 
-    if (after && !isTerminalOrCancelling(after)) {
+    // A cancellation request does not prove the provider stopped reading.
+    // The deletion event occurs only after the provider cleanup finishes.
+    if (after && !isTerminal(after)) {
+      return;
+    }
+    // Pinned rotation outputs need provenance/generation cleanup in a separate
+    // durable flow; never delete these by mutable path alone.
+    if (candidate.immutableInput != null) {
       return;
     }
 
