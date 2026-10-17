@@ -51,7 +51,10 @@ import { selectTranscoderInputSource } from './video-immutable-input.policy';
 import { prepareImmutableInputBeforeSubmission } from './video-immutable-input-preflight.service';
 import { deleteCancelledImmutableInput } from './video-immutable-cancellation-cleanup.storage';
 import { isCurrentCancellationClaim } from './video-cancellation-schedule.policy';
-import { deleteCancelledRotationInput, processPendingVideoTerminalTemporaryCleanup } from './cleanup-video-rotation-input.handler';
+import {
+  deleteCancelledRotationInput,
+  processPendingVideoTerminalTemporaryCleanup,
+} from './cleanup-video-rotation-input.handler';
 
 interface ProcessedVideoCandidate {
   storagePath: string;

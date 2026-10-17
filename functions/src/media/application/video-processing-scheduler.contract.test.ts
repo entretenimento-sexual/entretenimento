@@ -284,5 +284,6 @@ test('terminal cleanup never performs path-only deletion and uses versioned snap
   assert.ok(queue.includes('transaction.create(ref, prepared)'));
   assert.ok(admin.includes('await preserveTerminalCleanupBeforeRetry('));
   assert.ok(cancellation.includes('await ports.deleteRotationInput(job)'));
-  assert.ok(scheduler.includes('deleteCancelledRotationInput(started'));
+  assert.ok(scheduler.includes('deleteCancelledRotationInput('));
+  assert.ok(scheduler.includes('editRecipe: raw.editRecipe'));
 });

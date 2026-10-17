@@ -4,7 +4,11 @@
  */
 import { createHash, randomUUID } from 'node:crypto';
 import type { DocumentReference, Firestore, Transaction } from 'firebase-admin/firestore';
-import { buildVideoProcessingJobId, VIDEO_PROCESSING_JOBS_COLLECTION, type VideoProcessingJob } from './video-processing-job';
+import {
+  buildVideoProcessingJobId,
+  VIDEO_PROCESSING_JOBS_COLLECTION,
+  type VideoProcessingJob,
+} from './video-processing-job';
 import {
   hasTerminalTemporaryAssets,
   isConfirmedTerminalVideoJob,
