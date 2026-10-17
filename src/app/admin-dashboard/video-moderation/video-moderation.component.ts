@@ -197,6 +197,8 @@ export class VideoModerationComponent {
         return 'Revalidar job atrasado';
       case 'RECHECK_UNCONFIRMED':
         return 'Conferir submissão externa';
+      case 'RECHECK_PROVIDER':
+        return 'Reconferir estado no Transcoder';
       case 'CANCEL_ACTIVE':
         return 'Cancelar processamento';
     }
@@ -212,6 +214,8 @@ export class VideoModerationComponent {
         return 'Libera o lease para que o reconciliador confirme o job sem duplicá-lo.';
       case 'RECHECK_UNCONFIRMED':
         return 'Solicita nova consulta ao Transcoder. Não reenvia o vídeo e não libera novo processamento.';
+      case 'RECHECK_PROVIDER':
+        return 'Consulta o job externo existente sem criar outro job ou autorizar exclusões.';
       case 'CANCEL_ACTIVE':
         return 'Solicita cancelamento e limpeza técnica em segundo plano.';
     }
@@ -312,6 +316,7 @@ export class VideoModerationComponent {
       ownerUid: item.ownerUid,
       videoId: item.videoId,
       action,
+      expectedProcessingVersion: item.processingVersion,
       reason,
       operationId: this.createOperationId(),
     }).pipe(
@@ -332,7 +337,9 @@ export class VideoModerationComponent {
                 ? 'Job liberado para nova reconciliação segura.'
                 : action === 'RECHECK_UNCONFIRMED'
                   ? 'Consulta externa solicitada. Nenhum novo envio foi autorizado.'
-                  : 'Cancelamento solicitado. A limpeza continuará em segundo plano.'
+                  : action === 'RECHECK_PROVIDER'
+                    ? 'Reconferência agendada. Nenhum novo envio ou descarte foi autorizado.'
+                    : 'Cancelamento solicitado. A limpeza continuará em segundo plano.'
         );
         this.retry();
       },

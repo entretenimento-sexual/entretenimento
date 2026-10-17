@@ -27,6 +27,7 @@ import {
   type AdminVideoProcessingRecoveryAction,
 } from './admin-video-processing-recovery.policy';
 import { preserveTerminalCleanupBeforeRetry } from './video-terminal-temporary-cleanup.firestore';
+import { isProviderPollReviewRequired } from './video-provider-poll-failure.policy';
 import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
@@ -41,6 +42,7 @@ interface RecoveryJobItem {
   jobId: string;
   ownerUid: string;
   videoId: string;
+  processingVersion: string;
   state: VideoProcessingJobState;
   attempts: number;
   createdAt: number;
@@ -50,6 +52,9 @@ interface RecoveryJobItem {
   hasExternalJob: boolean;
   requiresProviderReview: boolean;
   requiresOperationalAttention: boolean;
+  providerPollFailureCount: number;
+  providerPollLastFailedAt: number | null;
+  providerPollReviewRequired: boolean;
   lastErrorCode: string | null;
   lastError: string | null;
   availableActions: AdminVideoProcessingRecoveryAction[];
@@ -67,6 +72,7 @@ interface RecoverVideoProcessingRequest {
   action?: AdminVideoProcessingRecoveryAction;
   reason?: string;
   operationId?: string;
+  expectedProcessingVersion?: string;
 }
 
 interface RecoverVideoProcessingResponse {
@@ -161,6 +167,7 @@ function normalizeAction(
     action === 'RETRY_FAILED' ||
     action === 'RECHECK_STALE' ||
     action === 'RECHECK_UNCONFIRMED' ||
+    action === 'RECHECK_PROVIDER' ||
     action === 'CANCEL_ACTIVE'
   ) {
     return action;
@@ -267,6 +274,7 @@ function normalizeRecoveryItem(
     jobId,
     ownerUid,
     videoId,
+    processingVersion: String(job.processingVersion ?? ''),
     state,
     attempts: normalizeNonNegativeInteger(job.attempts),
     createdAt,
@@ -278,6 +286,13 @@ function normalizeRecoveryItem(
     requiresOperationalAttention: isOverdueVideoCancellation(
       { ...job, state }, checkedAt
     ),
+    providerPollFailureCount: normalizeNonNegativeInteger(job.providerPollFailureCount),
+    providerPollLastFailedAt:
+      typeof job.providerPollLastFailedAt === 'number' &&
+        Number.isSafeInteger(job.providerPollLastFailedAt) &&
+        job.providerPollLastFailedAt > 0
+        ? job.providerPollLastFailedAt : null,
+    providerPollReviewRequired: isProviderPollReviewRequired({ ...job, state }),
     lastErrorCode: String(job.lastErrorCode ?? '').trim() || null,
     lastError: String(job.lastError ?? '').trim().slice(0, 500) || null,
     availableActions: availableAdminVideoRecoveryActions({ ...job, state }, stale),
@@ -290,16 +305,21 @@ async function listRecoveryItems(
 ): Promise<{ items: RecoveryJobItem[]; skippedItems: number }> {
   const perStateLimit = Math.max(6, Math.ceil(limit / 2));
   const collection = db.collection(VIDEO_PROCESSING_JOBS_COLLECTION);
-  const snapshots = await Promise.all(
-    ACTIONABLE_STATES.map((state) =>
+  const snapshots = await Promise.all([
+    ...ACTIONABLE_STATES.map((state) =>
       collection.where('state', '==', state).limit(perStateLimit).get()
-    )
-  );
+    ),
+    collection.where('providerPollReviewRequired', '==', true)
+      .limit(perStateLimit).get(),
+  ]);
   const items: RecoveryJobItem[] = [];
   let skippedItems = 0;
+  const seen = new Set<string>();
 
   for (const snapshot of snapshots) {
     for (const document of snapshot.docs) {
+      if (seen.has(document.id)) continue;
+      seen.add(document.id);
       const item = normalizeRecoveryItem(document.id, document.data(), checkedAt);
 
       if (item) {
@@ -311,6 +331,9 @@ async function listRecoveryItems(
   }
 
   items.sort((left, right) => {
+    if (left.providerPollReviewRequired !== right.providerPollReviewRequired) {
+      return left.providerPollReviewRequired ? -1 : 1;
+    }
     if (left.state === 'FAILED' && right.state !== 'FAILED') {
       return -1;
     }
@@ -591,6 +614,7 @@ async function mutateExistingJob(command: {
   videoId: string;
   action: Exclude<AdminVideoProcessingRecoveryAction, 'RETRY_FAILED'>;
   operationId: string;
+  expectedProcessingVersion?: string;
   reason: string;
 }): Promise<RecoverVideoProcessingResponse> {
   const jobId = buildVideoProcessingJobId(command.ownerUid, command.videoId);
@@ -615,6 +639,15 @@ async function mutateExistingJob(command: {
 
     if (!state) {
       throw new HttpsError('failed-precondition', 'Estado do job inválido.');
+    }
+
+    if (command.action === 'RECHECK_PROVIDER' &&
+        (!command.expectedProcessingVersion ||
+          job.processingVersion !== command.expectedProcessingVersion)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Versão do processamento alterada antes da reconferência.'
+      );
     }
 
     if (job.lastAdminOperationId === command.operationId) {
@@ -653,6 +686,21 @@ async function mutateExistingJob(command: {
       jobPatch['leaseUntil'] = 0;
       videoPatch['status'] = 'processing';
       videoPatch['processingStage'] = 'confirming_submission';
+    } else if (command.action === 'RECHECK_PROVIDER') {
+      if (state !== 'PROCESSING' ||
+          !command.expectedProcessingVersion ||
+          job.processingVersion !== command.expectedProcessingVersion ||
+          !isProviderPollReviewRequired({ ...job, state })) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Reconferência exige falhas persistentes de consulta ao Transcoder.'
+        );
+      }
+      // A new reservation invalidates all older polling claims without a POST.
+      jobPatch['nextAttemptAt'] = now;
+      jobPatch['providerPollReviewRequired'] = false;
+      videoPatch['status'] = 'processing';
+      videoPatch['processingStage'] = 'processing';
     } else if (command.action === 'RECHECK_STALE') {
       if (state === 'SUBMITTING' &&
         job.lastErrorCode === 'SUBMISSION_UNCONFIRMED') {
@@ -836,6 +884,7 @@ export const recoverVideoProcessingJob = onCall<RecoverVideoProcessingRequest>(
     const action = normalizeAction(request.data?.action);
     const operationId = cleanOperationId(request.data?.operationId);
     const reason = cleanReason(request.data?.reason);
+    const expectedProcessingVersion = cleanId(request.data?.expectedProcessingVersion);
 
     if (!ownerUid || !videoId || !action || !operationId) {
       throw new HttpsError('invalid-argument', 'Comando de recuperação inválido.');
@@ -872,6 +921,7 @@ export const recoverVideoProcessingJob = onCall<RecoverVideoProcessingRequest>(
         videoId,
         action,
         operationId,
+        expectedProcessingVersion,
         reason,
       });
     } catch (error) {

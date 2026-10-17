@@ -255,7 +255,16 @@
                 </div>
               }
 
-              @if (item.requiresProviderReview) {
+              @if (item.providerPollReviewRequired) {
+                <div class="video-moderation__recovery-pending" role="status">
+                  <strong>Falhas ao consultar o Transcoder: {{ item.providerPollFailureCount }}.</strong>
+                  <span>
+                    O estado terminal não foi confirmado. Após oito falhas,
+                    consultas automáticas ficam suspensas até uma reconferência
+                    administrativa. Não reenvie nem exclua arquivos.
+                  </span>
+                </div>
+              } @else if (item.requiresProviderReview) {
                 <div class="video-moderation__recovery-pending" role="status">
                   <strong>Verificação externa necessária.</strong>
                   <span>

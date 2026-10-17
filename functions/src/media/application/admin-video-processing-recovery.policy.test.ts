@@ -93,3 +93,28 @@ test('overdue cancellations are operational alerts, not verified provider failur
     ...job, cancelRequestedAt: null,
   }, now), false);
 });
+
+test('persistent provider GET failures offer explicit recheck without resubmission', () => {
+  const processing = {
+    state: 'PROCESSING' as const,
+    processingVersion: 'attempt-v1',
+    externalJobName: 'projects/demo/locations/us-central1/jobs/sample',
+    providerPollFailureVersion: 'attempt-v1',
+    providerPollFailureCount: 8,
+    providerPollReviewRequired: true,
+  };
+  assert.equal(videoRecoveryRequiresProviderReview(processing), true);
+  assert.deepEqual(availableAdminVideoRecoveryActions(processing, true), [
+    'RECHECK_PROVIDER', 'CANCEL_ACTIVE',
+  ]);
+  for (const other of [
+    { ...processing, providerPollReviewRequired: false },
+    { ...processing, processingVersion: 'new-version' },
+    { ...processing, externalJobName: null },
+    { ...processing, state: 'CANCEL_REQUESTED' as const },
+  ]) {
+    assert.equal(availableAdminVideoRecoveryActions(other, true).includes(
+      'RECHECK_PROVIDER'
+    ), false);
+  }
+});

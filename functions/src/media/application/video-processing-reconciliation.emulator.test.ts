@@ -1997,15 +1997,20 @@ test('persisted FAILED snapshot without matching provider evidence goes to revie
   }
 });
 
-test('failed provider GET preserves PROCESSING for HTTP 403, 404 and local errors', async () => {
+test('failed provider GET retains PROCESSING with durable backoff and provenance', async () => {
   const current = fixture('RUNNING');
   const jobRef = jobs.doc(current.ownerUid + '_' + current.videoId);
   await jobRef.set(current);
   try {
-    for (const code of ['PERMISSION_DENIED', 'NOT_FOUND', 'TRANSCODER_CLIENT_ERROR']) {
+    for (const [index, code] of [
+      'PERMISSION_DENIED', 'NOT_FOUND', 'TRANSCODER_CLIENT_ERROR',
+    ].entries()) {
+      const snapshot = await jobRef.get();
+      const observed = snapshot.data() as VideoProcessingJob;
       const applied = await recordProviderPollErrorIfCurrent(
-        firestore, jobRef, current, parseJob,
-        { code, message: 'Provider lookup did not confirm terminal state' }, now
+        firestore, jobRef, observed, parseJob,
+        { code, message: 'Provider lookup did not confirm terminal state', retryable: false },
+        now + index * 1_000
       );
       assert.equal(applied, true);
       const stored = await jobRef.get();
@@ -2013,14 +2018,18 @@ test('failed provider GET preserves PROCESSING for HTTP 403, 404 and local error
       assert.equal(stored.get('providerState'), 'RUNNING');
       assert.equal(stored.get('externalJobName'), current.externalJobName);
       assert.equal(stored.get('processingVersion'), current.processingVersion);
-      assert.equal(stored.get('nextAttemptAt'), current.nextAttemptAt);
+      assert.ok(stored.get('nextAttemptAt') > observed.nextAttemptAt);
+      assert.equal(stored.get('providerPollFailureCount'), index + 1);
+      assert.equal(stored.get('providerPollFailureVersion'), current.processingVersion);
+      assert.equal(stored.get('providerPollReviewRequired'), index >= 2);
       assert.equal(stored.get('lastErrorCode'), code);
       assert.equal(stored.get('providerTerminalEvidence'), undefined);
     }
+    const last = (await jobRef.get()).data() as VideoProcessingJob;
     await jobRef.update({ state: 'CANCEL_REQUESTED' });
     assert.equal(await recordProviderPollErrorIfCurrent(
-      firestore, jobRef, current, parseJob,
-      { code: 'NOT_FOUND', message: 'late GET' }, now + 1
+      firestore, jobRef, last, parseJob,
+      { code: 'NOT_FOUND', message: 'late GET' }, now + 20_000
     ), false);
     assert.equal((await jobRef.get()).get('state'), 'CANCEL_REQUESTED');
   } finally {
@@ -2048,6 +2057,51 @@ test('stale provider lookup error never alters another processing version or pol
       { code: 'PERMISSION_DENIED', message: 'late 403' }, now
     ), false);
     assert.equal((await ref.get()).get('lastErrorCode'), original.lastErrorCode);
+  } finally {
+    await ref.delete();
+  }
+});
+
+test('eight failed GETs hold the job outside the due query until explicitly rearmed', async () => {
+  const current = fixture('RUNNING');
+  const ref = jobs.doc(current.ownerUid + '_' + current.videoId);
+  await ref.set(current);
+  try {
+    for (let attempt = 1; attempt <= 8; attempt++) {
+      const before = (await ref.get()).data() as VideoProcessingJob;
+      assert.equal(await recordProviderPollErrorIfCurrent(
+        firestore, ref, before, parseJob,
+        { code: 'NOT_FOUND', message: 'Remote state unknown', retryable: false },
+        now + attempt * 1_000
+      ), true);
+    }
+    const held = (await ref.get()).data() as VideoProcessingJob;
+    assert.equal(held.providerPollFailureCount, 8);
+    assert.equal(held.providerPollReviewRequired, true);
+    assert.equal(held.nextAttemptAt, Number.MAX_SAFE_INTEGER);
+    assert.equal((await queryDueProcessingJobs(firestore, now + 24 * 60 * 60_000, 30).get())
+      .docs.some(doc => doc.id === ref.id), false);
+    // The manual path only advances the poll reservation. No provider POST.
+    await firestore.runTransaction(async tx => {
+      const latest = (await tx.get(ref)).data() as VideoProcessingJob;
+      assert.equal(latest.processingVersion, current.processingVersion);
+      assert.equal(latest.providerPollReviewRequired, true);
+      tx.update(ref, { nextAttemptAt: now, providerPollReviewRequired: false });
+    });
+    const claimed = await claimProcessingJob(firestore, ref, now + 1, parseJob);
+    assert.ok(claimed);
+    assert.equal(claimed.processingVersion, current.processingVersion);
+    assert.equal(claimed.externalJobName, current.externalJobName);
+    assert.equal(claimed.providerPollFailureCount, 8);
+    assert.equal(await recordProviderPollErrorIfCurrent(
+      firestore, ref, held, parseJob,
+      { code: 'PERMISSION_DENIED', message: 'stale worker' }, now + 5
+    ), false);
+    assert.equal(await recordProviderPollErrorIfCurrent(
+      firestore, ref, claimed, parseJob,
+      { code: 'PERMISSION_DENIED', message: 'recheck failed' }, now + 2
+    ), true);
+    assert.equal((await ref.get()).get('nextAttemptAt'), Number.MAX_SAFE_INTEGER);
   } finally {
     await ref.delete();
   }

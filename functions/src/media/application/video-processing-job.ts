@@ -57,6 +57,11 @@ export interface VideoProcessingJob {
   providerState: string | null;
   /** Evidence of a successful GET for this exact terminal provider job. */
   providerTerminalEvidence?: VideoProviderTerminalEvidence | null;
+  /** Consecutive provider GET failures for this processingVersion. */
+  providerPollFailureVersion?: string | null;
+  providerPollFailureCount?: number;
+  providerPollLastFailedAt?: number | null;
+  providerPollReviewRequired?: boolean;
   outputStoragePath: string | null;
   outputMimeType: string | null;
   outputSizeBytes: number | null;
@@ -142,6 +147,10 @@ export function buildQueuedVideoProcessingJob(
     leaseUntil: null,
     externalJobName: null,
     providerState: null,
+    providerPollFailureVersion: null,
+    providerPollFailureCount: 0,
+    providerPollLastFailedAt: null,
+    providerPollReviewRequired: false,
     outputStoragePath: null,
     outputMimeType: null,
     outputSizeBytes: null,

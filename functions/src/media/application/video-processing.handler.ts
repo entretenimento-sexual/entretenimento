@@ -20,6 +20,7 @@ import {
 } from './video-processing-job';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 import { buildProviderTerminalEvidence } from './video-provider-terminal-evidence.policy';
+import { clearProviderPollFailures } from './video-provider-poll-failure.policy';
 import {
   executeVideoCancellation,
   type VideoCancellationResult,
@@ -232,6 +233,11 @@ function normalizeJob(data: unknown): VideoProcessingJob | null {
     externalJobName: String(job.externalJobName ?? '').trim() || null,
     providerState: String(job.providerState ?? '').trim() || null,
     providerTerminalEvidence: job.providerTerminalEvidence ?? null,
+    providerPollFailureVersion:
+      String(job.providerPollFailureVersion ?? '').trim() || null,
+    providerPollFailureCount: normalizeNonNegativeInteger(job.providerPollFailureCount),
+    providerPollLastFailedAt: normalizeOptionalNonNegativeInteger(job.providerPollLastFailedAt),
+    providerPollReviewRequired: job.providerPollReviewRequired === true,
     outputStoragePath: String(job.outputStoragePath ?? '').trim() || null,
     outputMimeType: String(job.outputMimeType ?? '').trim() || null,
     outputSizeBytes: normalizeOptionalNonNegativeInteger(job.outputSizeBytes),
@@ -744,6 +750,7 @@ async function finalizeSucceededJob(
       state: 'SUCCEEDED',
       providerState: 'SUCCEEDED',
       providerTerminalEvidence: evidence,
+      ...clearProviderPollFailures(),
       outputStoragePath: candidate.storagePath,
       outputMimeType: candidate.mimeType,
       outputSizeBytes: candidate.sizeBytes,
@@ -822,6 +829,7 @@ async function markProviderFailure(
       state: 'FAILED',
       providerState: 'FAILED',
       providerTerminalEvidence: evidence,
+      ...clearProviderPollFailures(),
       completedAt: now,
       leaseUntil: null,
       updatedAt: now,
@@ -880,7 +888,9 @@ async function reconcileProcessingJob(
     return;
   }
 
-  if (providerObservationChanged(job, providerJob.state)) {
+  if (providerObservationChanged(job, providerJob.state) ||
+      (job.providerPollFailureCount ?? 0) > 0 ||
+      job.providerPollReviewRequired === true) {
     await db.runTransaction(async transaction => {
       const snapshot = await transaction.get(jobRef);
       const current = snapshot.exists
@@ -888,9 +898,12 @@ async function reconcileProcessingJob(
         : null;
       if (!current ||
           !isCurrentVideoProcessingAttempt(current, job) ||
-          !providerObservationChanged(current, providerJob.state)) return;
+          !(providerObservationChanged(current, providerJob.state) ||
+            (current.providerPollFailureCount ?? 0) > 0 ||
+            current.providerPollReviewRequired === true)) return;
       transaction.update(jobRef, {
         providerState: providerJob.state,
+        ...clearProviderPollFailures(),
         updatedAt: now,
         lastErrorCode: null,
         lastError: null,

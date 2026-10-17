@@ -10,12 +10,14 @@ export type AdminVideoProcessingRecoveryAction =
   | 'RETRY_FAILED'
   | 'RECHECK_STALE'
   | 'RECHECK_UNCONFIRMED'
+  | 'RECHECK_PROVIDER'
   | 'CANCEL_ACTIVE';
 
 export interface IAdminVideoProcessingRecoveryJob {
   jobId: string;
   ownerUid: string;
   videoId: string;
+  processingVersion: string;
   state: AdminVideoProcessingJobState;
   attempts: number;
   createdAt: number;
@@ -25,6 +27,9 @@ export interface IAdminVideoProcessingRecoveryJob {
   hasExternalJob: boolean;
   requiresProviderReview: boolean;
   requiresOperationalAttention: boolean;
+  providerPollFailureCount: number;
+  providerPollLastFailedAt: number | null;
+  providerPollReviewRequired: boolean;
   lastErrorCode: string | null;
   lastError: string | null;
   availableActions: AdminVideoProcessingRecoveryAction[];
@@ -46,6 +51,7 @@ interface RecoverVideoProcessingRequest {
   action: AdminVideoProcessingRecoveryAction;
   reason: string;
   operationId: string;
+  expectedProcessingVersion?: string;
 }
 
 export interface IAdminVideoProcessingRecoveryResult {
@@ -78,6 +84,7 @@ const RECOVERY_ACTIONS: AdminVideoProcessingRecoveryAction[] = [
   'RETRY_FAILED',
   'RECHECK_STALE',
   'RECHECK_UNCONFIRMED',
+  'RECHECK_PROVIDER',
   'CANCEL_ACTIVE',
 ];
 
@@ -129,6 +136,7 @@ export class AdminVideoProcessingRecoveryService {
     action: AdminVideoProcessingRecoveryAction;
     reason: string;
     operationId: string;
+    expectedProcessingVersion?: string;
   }): Observable<IAdminVideoProcessingRecoveryResult> {
     const action = this.normalizeAction(command.action);
     if (!action) {
@@ -141,13 +149,15 @@ export class AdminVideoProcessingRecoveryService {
       action,
       reason: String(command.reason ?? '').trim().slice(0, 900),
       operationId: this.normalizeOperationId(command.operationId),
+      expectedProcessingVersion: this.normalizeId(command.expectedProcessingVersion),
     };
 
     if (
       !payload.ownerUid ||
       !payload.videoId ||
       !payload.action ||
-      !payload.operationId
+      !payload.operationId ||
+      (payload.action === 'RECHECK_PROVIDER' && !payload.expectedProcessingVersion)
     ) {
       return throwError(
         () => new Error('Comando inválido para recuperação do processamento.')
@@ -194,6 +204,7 @@ export class AdminVideoProcessingRecoveryService {
       jobId: this.normalizeId(value?.jobId),
       ownerUid: this.normalizeId(value?.ownerUid),
       videoId: this.normalizeId(value?.videoId),
+      processingVersion: this.normalizeId(value?.processingVersion),
       state,
       attempts: this.normalizeNonNegativeInteger(value?.attempts),
       createdAt: this.normalizeNonNegativeInteger(value?.createdAt),
@@ -203,6 +214,11 @@ export class AdminVideoProcessingRecoveryService {
       hasExternalJob: value?.hasExternalJob === true,
       requiresProviderReview: value?.requiresProviderReview === true,
       requiresOperationalAttention: value?.requiresOperationalAttention === true,
+      providerPollFailureCount:
+        this.normalizeNonNegativeInteger(value?.providerPollFailureCount),
+      providerPollLastFailedAt: value?.providerPollLastFailedAt == null
+        ? null : this.normalizeNonNegativeInteger(value.providerPollLastFailedAt),
+      providerPollReviewRequired: value?.providerPollReviewRequired === true,
       lastErrorCode: this.normalizeOptionalText(value?.lastErrorCode, 160),
       lastError: this.normalizeOptionalText(value?.lastError, 500),
       availableActions: Array.isArray(value?.availableActions)

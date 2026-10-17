@@ -53,3 +53,20 @@ test('admin flags overdue cancellation separately from unconfirmed provider jobs
   assert.ok(template.includes('item.requiresOperationalAttention'));
   assert.ok(template.includes('Este alerta não confirma falha do Transcoder'));
 });
+
+test('explicit provider recheck is version-fenced, logged, rate-limited and not a POST', () => {
+  assert.ok(handler.includes("command.action === 'RECHECK_PROVIDER'"));
+  assert.ok(handler.includes("!isProviderPollReviewRequired({ ...job, state })"));
+  assert.ok(handler.includes("jobPatch['nextAttemptAt'] = now"));
+  assert.ok(handler.includes("jobPatch['providerPollReviewRequired'] = false"));
+  assert.ok(handler.includes('job.processingVersion !== command.expectedProcessingVersion'));
+  assert.ok(client.includes('expectedProcessingVersion:'));
+  assert.ok(component.includes('expectedProcessingVersion: item.processingVersion'));
+  assert.ok(handler.includes("'admin-video-processing-recovery-mutate'"));
+  assert.ok(handler.includes('lastAdminOperationId: command.operationId') ||
+    handler.includes('lastAdminOperationId: command.operationId,'));
+  assert.ok(client.includes("'RECHECK_PROVIDER'"));
+  assert.ok(component.includes("case 'RECHECK_PROVIDER':"));
+  assert.ok(template.includes('item.providerPollReviewRequired'));
+  assert.ok(template.includes('item.providerPollFailureCount'));
+});

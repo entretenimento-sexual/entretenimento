@@ -8,6 +8,7 @@ import {
   nextVideoProcessingPollAt,
   isCurrentVideoProcessingAttempt,
 } from './video-processing-poll.policy';
+import { nextProviderPollFailure } from './video-provider-poll-failure.policy';
 import {
   CANCELLATION_RESERVATION_MS,
   cancellationNeedsReview,
@@ -90,7 +91,7 @@ export async function recordProviderPollErrorIfCurrent(
   jobRef: DocumentReference,
   observed: VideoProcessingJob,
   normalizeJob: NormalizeJob,
-  error: { code: string; message: string },
+  error: { code: string; message: string; retryable?: boolean },
   now: number
 ): Promise<boolean> {
   return firestore.runTransaction(async transaction => {
@@ -99,14 +100,13 @@ export async function recordProviderPollErrorIfCurrent(
     if (!current || !isCurrentVideoProcessingAttempt(current, observed)) {
       return false;
     }
-    if (current.lastErrorCode !== error.code ||
-        current.lastError !== error.message) {
-      transaction.update(jobRef, {
-        updatedAt: now,
-        lastErrorCode: error.code,
-        lastError: error.message,
-      });
-    }
+    const decision = nextProviderPollFailure(current, now, error.retryable === true);
+    transaction.update(jobRef, {
+      ...decision,
+      updatedAt: now,
+      lastErrorCode: error.code,
+      lastError: error.message,
+    });
     return true;
   });
 }

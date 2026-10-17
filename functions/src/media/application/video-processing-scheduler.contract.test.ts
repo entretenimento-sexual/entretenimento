@@ -323,3 +323,17 @@ test('cleanup requires provider-bound evidence and retains unproven legacy snaps
   assert.ok(queue.includes('providerTerminalEvidence: job.providerTerminalEvidence ?? null'));
   assert.ok(queue.includes("state: 'review'"));
 });
+
+test('GET failure uses bounded backoff and successful observations clear it', () => {
+  const policy = readFileSync(
+    resolve(__dirname, '../../../src/media/application/video-provider-poll-failure.policy.ts'),
+    'utf8'
+  );
+  assert.ok(firestoreCore.includes('nextProviderPollFailure(current, now'));
+  assert.ok(firestoreCore.includes('...decision,'));
+  assert.ok(policy.includes('PROVIDER_POLL_HOLD_AFTER = 8'));
+  assert.ok(policy.includes('Number.MAX_SAFE_INTEGER'));
+  assert.ok(scheduler.includes('...clearProviderPollFailures()'));
+  assert.ok(scheduler.includes('recordProviderPollErrorIfCurrent('));
+  assert.ok(scheduler.includes('providerPollReviewRequired === true'));
+});

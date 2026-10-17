@@ -1,9 +1,11 @@
 import type { VideoProcessingJob, VideoProcessingJobState } from './video-processing-job';
+import { isProviderPollReviewRequired } from './video-provider-poll-failure.policy';
 
 export type AdminVideoProcessingRecoveryAction =
   | 'RETRY_FAILED'
   | 'RECHECK_STALE'
   | 'RECHECK_UNCONFIRMED'
+  | 'RECHECK_PROVIDER'
   | 'CANCEL_ACTIVE';
 
 const UNCERTAIN_FAILURE_CODES = new Set([
@@ -34,6 +36,7 @@ export function videoRecoveryRequiresProviderReview(
 ): boolean {
   return isUnconfirmedVideoSubmission(job) ||
     isUnsafeVideoProcessingRetry(job) ||
+    isProviderPollReviewRequired(job) ||
     (job.state === 'CANCEL_REQUESTED' &&
       (job.lastErrorCode === 'CANCELLATION_UNCONFIRMED' ||
         job.cancellationReviewRequired === true));
@@ -57,7 +60,10 @@ export function availableAdminVideoRecoveryActions(
   if (job.state === 'QUEUED') {
     return stale ? ['RECHECK_STALE', 'CANCEL_ACTIVE'] : ['CANCEL_ACTIVE'];
   }
-  if (job.state === 'PROCESSING') return ['CANCEL_ACTIVE'];
+  if (job.state === 'PROCESSING') {
+    return isProviderPollReviewRequired(job)
+      ? ['RECHECK_PROVIDER', 'CANCEL_ACTIVE'] : ['CANCEL_ACTIVE'];
+  }
   return [];
 }
 
