@@ -32,6 +32,11 @@ import {
   IAdminVideoProcessingStatus,
 } from 'src/app/core/services/moderation/admin-video-moderation.service';
 import {
+  AdminVideoTerminalTemporaryCleanupService,
+  IAdminVideoTerminalCleanupReview,
+  IAdminVideoTerminalCleanupReviews,
+} from 'src/app/core/services/moderation/admin-video-terminal-temporary-cleanup.service';
+import {
   AdminVideoProcessingRecoveryAction,
   AdminVideoProcessingRecoveryService,
   IAdminVideoProcessingRecoveryJob,
@@ -75,11 +80,15 @@ export class VideoModerationComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly moderation = inject(AdminVideoModerationService);
   private readonly recovery = inject(AdminVideoProcessingRecoveryService);
+  private readonly terminalCleanup = inject(AdminVideoTerminalTemporaryCleanupService);
   private readonly notification = inject(ErrorNotificationService);
 
   private readonly refreshSubject = new BehaviorSubject<number>(0);
   readonly busyRecoveryKey = signal<string | null>(null);
   readonly recoveryReasonDrafts = signal<RecoveryReasonDrafts>({});
+  readonly terminalCleanupReasonDrafts = signal<Record<string, string>>({});
+  readonly pendingTerminalCleanupConfirmation = signal<string | null>(null);
+  readonly busyTerminalCleanupQueue = signal<string | null>(null);
   readonly pendingRecoveryConfirmation =
     signal<PendingRecoveryConfirmation | null>(null);
 
@@ -140,6 +149,81 @@ export class VideoModerationComponent {
     ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+
+  readonly terminalCleanupState$: Observable<{
+    status: VideoRecoveryPanelStatus;
+    data: IAdminVideoTerminalCleanupReviews | null;
+  }> = merge(
+    this.refreshSubject,
+    timer(PROCESSING_STATUS_REFRESH_INTERVAL_MS, PROCESSING_STATUS_REFRESH_INTERVAL_MS)
+  ).pipe(
+    switchMap(() => this.terminalCleanup.listReviews$(30).pipe(
+      map(data => ({
+        status: data.totalReview > 0 ? 'ready' : 'empty',
+        data,
+      } as const)),
+      startWith({ status: 'loading', data: null } as const),
+      catchError(() => of({ status: 'error', data: null } as const))
+    )),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  terminalCleanupReason(review: IAdminVideoTerminalCleanupReview): string {
+    return this.terminalCleanupReasonDrafts()[review.queueId] ?? '';
+  }
+
+  setTerminalCleanupReason(review: IAdminVideoTerminalCleanupReview, value: string): void {
+    this.terminalCleanupReasonDrafts.update(drafts => ({
+      ...drafts, [review.queueId]: String(value ?? '').slice(0, 900),
+    }));
+  }
+
+  beginTerminalCleanupRecheck(review: IAdminVideoTerminalCleanupReview): void {
+    if (this.busyTerminalCleanupQueue() || !review.recheckable) return;
+    this.pendingTerminalCleanupConfirmation.set(review.queueId);
+  }
+
+  cancelTerminalCleanupRecheck(): void {
+    this.pendingTerminalCleanupConfirmation.set(null);
+  }
+
+  confirmTerminalCleanupRecheck(review: IAdminVideoTerminalCleanupReview): void {
+    if (!review.recheckable || this.busyTerminalCleanupQueue() ||
+        this.pendingTerminalCleanupConfirmation() !== review.queueId) return;
+    const reason = this.terminalCleanupReason(review).trim();
+    if (reason.length < 8) {
+      this.notification.showWarning('Informe uma justificativa com pelo menos 8 caracteres.');
+      return;
+    }
+    this.busyTerminalCleanupQueue.set(review.queueId);
+    this.terminalCleanup.recheckReview$({
+      queueId: review.queueId,
+      processingVersion: review.processingVersion,
+      expectedUpdatedAt: review.updatedAt,
+      operationId: this.createOperationId(),
+      reason,
+    }).pipe(
+      finalize(() => this.busyTerminalCleanupQueue.set(null)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: result => {
+        this.pendingTerminalCleanupConfirmation.set(null);
+        this.terminalCleanupReasonDrafts.update(drafts => {
+          const next = { ...drafts };
+          delete next[review.queueId];
+          return next;
+        });
+        this.notification.showSuccess(result.alreadyApplied
+          ? 'A reconferência já havia sido agendada.'
+          : 'Reconferência agendada. Nenhuma exclusão foi autorizada diretamente.');
+        this.retry();
+      },
+      error: () => {
+        // Erros reportados pelo MediaApplicationErrorService, sem toast duplicado.
+      },
+    });
+  }
 
   retry(): void {
     this.refreshSubject.next(this.refreshSubject.value + 1);

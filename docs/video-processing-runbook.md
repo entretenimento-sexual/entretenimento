@@ -116,6 +116,7 @@ Ações disponíveis:
 RETRY_FAILED    cria uma nova versão de processamento para um job FAILED
 RECHECK_STALE       libera fila ou lease expirado para reconciliação segura
 RECHECK_UNCONFIRMED libera somente nova consulta para submissão sem confirmação
+RECHECK_PROVIDER    reconfere GET do job externo da versão sem novo POST
 CANCEL_ACTIVE       solicita cancelamento e limpeza técnica assíncrona
 ```
 
@@ -278,6 +279,32 @@ Não alterar manualmente `state`, `leaseUntil`, `externalJobName` ou
 `outputPrefix` no Firestore. Em jobs `SUBMITTING`, a revalidação não cria outro
 job imediatamente: o reconciliador procura primeiro o job existente pela label
 de versão. Jobs `PROCESSING` devem ser cancelados, não reenfileirados às cegas.
+
+
+### Revisão administrativa de limpeza temporária terminal
+
+A fila `media_video_terminal_temp_cleanup_jobs` guarda snapshots imutáveis por
+`jobId + processingVersion`. Falhas persistentes (oito tentativas) e
+conflitos de proveniência levam a `state=review` e deixam de ser agendados.
+A tela administrativa consulta `listVideoTerminalTemporaryCleanupReviews`;
+o contador completo é independente da amostra limitada a 50 registros.
+
+Somente um administrador com App Check pode solicitar
+`recheckVideoTerminalTemporaryCleanup`, com justificativa, `operationId`
+idempotente, versão e `updatedAt` esperado. Uma transação confirma
+`state=review`, ausência de lease e o snapshot terminal da versão exata,
+incluindo identidade do job, prova terminal do provedor e validação da
+geração/proveniência do input imutável. Sem snapshot recuperável ou com
+identidade inválida, a revisão permanece bloqueada; nenhum estado de
+processamento, publicação ou cancelamento é alterado.
+
+A reconferência **somente** reabre a mesma fila; não realiza GET/POST/DELETE
+no Transcoder nem remove arquivos do Storage. O scheduler existente valida
+novamente a proveniência e a geração dos objetos GCS, com precondição
+`ifGenerationMatch` e reserva transacional, antes de eventual remoção.
+Conflitos voltam para `review`, sem autorização de descarte forçado.
+A decisão é auditada atomicamente em `admin_logs`. Nunca reconstruir
+snapshots de uma versão substituída ou editar manualmente documentos.
 
 ## Estados persistidos
 

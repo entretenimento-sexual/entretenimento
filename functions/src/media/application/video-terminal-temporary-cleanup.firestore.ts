@@ -3,7 +3,8 @@
  * live job document; only the terminal version's immutable snapshot is trusted.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import type { DocumentReference, Firestore, Transaction } from 'firebase-admin/firestore';
+import { FieldValue, type DocumentReference, type Firestore, type Transaction } from 'firebase-admin/firestore';
+import { selectImmutableCancellationTarget } from './video-immutable-cancellation-cleanup.policy';
 import {
   buildVideoProcessingJobId,
   VIDEO_PROCESSING_JOBS_COLLECTION,
@@ -27,6 +28,8 @@ export interface TerminalCleanupQueue {
   createdAt: number;
   updatedAt: number;
   lastError: string | null;
+  lastAdminOperationId?: string;
+  lastAdminAt?: number;
 }
 
 export const TERMINAL_TEMP_CLEANUP_LEASE_MS = 10 * 60_000;
@@ -159,4 +162,97 @@ export async function isTerminalTemporaryClaimCurrent(
     current.nextAttemptAt > now &&
     !!current.snapshot &&
     JSON.stringify(current.snapshot) === JSON.stringify(claim.snapshot);
+}
+
+/**
+ * An admin can only schedule a new pass through the existing generation-pinned
+ * cleanup worker. Never reconstruct missing snapshots from a replaced job.
+ */
+export function terminalCleanupReviewBlocker(
+  queueId: string,
+  queue: TerminalCleanupQueue
+): string | null {
+  if (queue.state !== 'review') return 'NOT_IN_REVIEW';
+  if (queue.leaseToken !== null) return 'ACTIVE_LEASE';
+  if (!queue.snapshot) return 'SNAPSHOT_UNAVAILABLE';
+  if (queueId !== terminalCleanupQueueId(queue.jobId, queue.processingVersion) ||
+      !snapshotMatchesQueue(queue, queue.snapshot)) {
+    return 'SNAPSHOT_PROVENANCE_INVALID';
+  }
+  try {
+    // Validates immutable path, exact generation, CRC and source/version binding.
+    // Rotation metadata and live object generation are checked by the worker.
+    if (queue.snapshot.immutableInput) {
+      selectImmutableCancellationTarget(queue.snapshot as VideoProcessingJob);
+    }
+  } catch {
+    return 'IMMUTABLE_GENERATION_OR_PROVENANCE_INVALID';
+  }
+  return null;
+}
+
+export class TerminalCleanupReviewPreconditionError extends Error {
+  constructor(readonly reason: string) {
+    super(reason);
+  }
+}
+
+export interface TerminalCleanupRecheckCommand {
+  queueId: string;
+  processingVersion: string;
+  expectedUpdatedAt: number;
+  operationId: string;
+  adminUid: string;
+  reason: string;
+  now: number;
+}
+
+/** Idempotent, compare-and-set admin recheck with audit in the same transaction. */
+export async function recheckReviewedTerminalTemporaryCleanup(
+  firestore: Firestore,
+  queueRef: DocumentReference,
+  auditRef: DocumentReference,
+  command: TerminalCleanupRecheckCommand
+): Promise<{ alreadyApplied: boolean }> {
+  return firestore.runTransaction(async transaction => {
+    const entry = await transaction.get(queueRef);
+    const queue = entry.exists ? entry.data() as TerminalCleanupQueue : null;
+    if (!queue || queueRef.id !== command.queueId ||
+        queue.processingVersion !== command.processingVersion) {
+      throw new TerminalCleanupReviewPreconditionError('REVIEW_VERSION_MISMATCH');
+    }
+    if (queue.lastAdminOperationId === command.operationId) {
+      return { alreadyApplied: true };
+    }
+    if (queue.updatedAt !== command.expectedUpdatedAt) {
+      throw new TerminalCleanupReviewPreconditionError('REVIEW_CHANGED');
+    }
+    const blocker = terminalCleanupReviewBlocker(queueRef.id, queue);
+    if (blocker) throw new TerminalCleanupReviewPreconditionError(blocker);
+
+    transaction.update(queueRef, {
+      state: 'retryable',
+      nextAttemptAt: command.now,
+      leaseToken: null,
+      updatedAt: command.now,
+      lastAdminOperationId: command.operationId,
+      lastAdminAt: command.now,
+    });
+    transaction.create(auditRef, {
+      adminUid: command.adminUid,
+      action: 'videoTerminalCleanupRecheck',
+      targetUserUid: queue.snapshot!.ownerUid,
+      details: {
+        videoId: queue.snapshot!.videoId,
+        jobId: queue.jobId,
+        processingVersion: queue.processingVersion,
+        operationId: command.operationId,
+        previousState: 'review',
+        nextState: 'retryable',
+        reason: command.reason,
+      },
+      timestamp: FieldValue.serverTimestamp(),
+    });
+    return { alreadyApplied: false };
+  });
 }

@@ -17,6 +17,9 @@ import {
   terminalCleanupRef,
   claimDueTerminalTemporaryCleanup,
   isTerminalTemporaryClaimCurrent,
+  terminalCleanupReviewBlocker,
+  recheckReviewedTerminalTemporaryCleanup,
+  TerminalCleanupReviewPreconditionError,
 } from './video-terminal-temporary-cleanup.firestore';
 
 import { decideMissingVideoSubmission } from './video-submission-confirmation.policy';
@@ -2154,6 +2157,123 @@ test('manual provider recheck fences version and successful GET clears backoff',
     assert.equal(snap.get('providerPollFailureVersion'), null);
     assert.equal(snap.get('providerPollReviewRequired'), false);
     assert.equal(snap.get('providerPollLastFailedAt'), null);
+  } finally {
+    await ref.delete();
+  }
+});
+
+test('review recheck reuses immutable terminal snapshot and never touches a new version', async () => {
+  const old = fixture('SUCCEEDED');
+  const terminal: VideoProcessingJob = {
+    ...old, state: 'SUCCEEDED', attempts: 1,
+    editRecipe: { ...old.editRecipe!, rotationDegrees: 90 },
+    providerTerminalEvidence: {
+      processingVersion: old.processingVersion,
+      externalJobName: old.externalJobName!,
+      state: 'SUCCEEDED',
+      observedAt: now,
+    },
+  };
+  const jobId = old.ownerUid + '_' + old.videoId;
+  const ref = terminalCleanupRef(firestore, jobId, old.processingVersion);
+  const auditRef = firestore.collection('admin_logs').doc();
+  const prepared = buildTerminalCleanupQueue(jobId, terminal, now);
+  assert.ok(prepared);
+  const held = { ...prepared, state: 'review' as const, attempts: 8,
+    lastError: 'VIDEO_TEMP_CLEANUP_GCS_ERROR' };
+  const command = {
+    queueId: ref.id,
+    processingVersion: old.processingVersion,
+    expectedUpdatedAt: now,
+    adminUid: 'admin-test',
+    operationId: 'recheck-00001',
+    reason: 'Proveniência verificada para nova checagem',
+    now: now + 1,
+  };
+  await ref.set(held);
+  try {
+    assert.equal(terminalCleanupReviewBlocker(ref.id, held), null);
+    assert.deepEqual(await recheckReviewedTerminalTemporaryCleanup(
+      firestore, ref, auditRef, command
+    ), { alreadyApplied: false });
+    const actual = (await ref.get()).data()!;
+    assert.equal(actual['state'], 'retryable');
+    assert.equal(actual['attempts'], 8);
+    assert.equal(actual['nextAttemptAt'], now + 1);
+    assert.equal(actual['processingVersion'], old.processingVersion);
+    assert.deepEqual(actual['snapshot'], held.snapshot);
+    assert.equal((await auditRef.get()).get('action'), 'videoTerminalCleanupRecheck');
+    assert.deepEqual(await recheckReviewedTerminalTemporaryCleanup(
+      firestore, ref, firestore.collection('admin_logs').doc(), command
+    ), { alreadyApplied: true });
+    const claimed = await claimDueTerminalTemporaryCleanup(firestore, ref, now + 2);
+    assert.ok(claimed);
+    assert.equal(claimed.snapshot.processingVersion, old.processingVersion);
+    assert.equal(claimed.queue.attempts, 8);
+    assert.equal(await isTerminalTemporaryClaimCurrent(ref, claimed, now + 3), true);
+  } finally {
+    await Promise.all([ref.delete(), auditRef.delete()]);
+  }
+});
+
+test('review recheck fails closed for stale, missing, foreign and lease-held snapshots', async () => {
+  const old = fixture('FAILED');
+  const terminal: VideoProcessingJob = {
+    ...old, state: 'FAILED', attempts: 1,
+    editRecipe: { ...old.editRecipe!, rotationDegrees: 90 },
+    providerTerminalEvidence: {
+      processingVersion: old.processingVersion,
+      externalJobName: old.externalJobName!, state: 'FAILED', observedAt: now,
+    },
+  };
+  const jobId = old.ownerUid + '_' + old.videoId;
+  const ref = terminalCleanupRef(firestore, jobId, old.processingVersion);
+  const prepared = buildTerminalCleanupQueue(jobId, terminal, now);
+  assert.ok(prepared);
+  const safe = { ...prepared, state: 'review' as const };
+  const command = {
+    queueId: ref.id, processingVersion: terminal.processingVersion,
+    expectedUpdatedAt: now, adminUid: 'admin-test',
+    operationId: 'recheck-00002', reason: 'Análise de recuperação controlada', now: now + 1,
+  };
+  try {
+    for (const broken of [
+      { ...safe, snapshot: undefined },
+      { ...safe, leaseToken: 'other-worker' },
+      { ...safe, snapshot: { ...safe.snapshot!,
+        providerTerminalEvidence: null } },
+      { ...safe, snapshot: { ...safe.snapshot!,
+        processingVersion: 'different-version' } },
+    ]) {
+      await ref.set(broken);
+      assert.ok(terminalCleanupReviewBlocker(ref.id, broken));
+      const auditRef = firestore.collection('admin_logs').doc();
+      await assert.rejects(recheckReviewedTerminalTemporaryCleanup(
+        firestore, ref, auditRef, command
+      ), (error: unknown) => error instanceof TerminalCleanupReviewPreconditionError);
+      assert.equal((await ref.get()).get('state'), 'review');
+      assert.equal((await auditRef.get()).exists, false);
+    }
+    await ref.set(safe);
+    for (const invalid of [
+      { ...command, expectedUpdatedAt: now - 1 },
+      { ...command, processingVersion: 'replaced' },
+    ]) {
+      await assert.rejects(recheckReviewedTerminalTemporaryCleanup(
+        firestore, ref, firestore.collection('admin_logs').doc(), invalid
+      ), (error: unknown) => error instanceof TerminalCleanupReviewPreconditionError);
+      assert.equal((await ref.get()).get('state'), 'review');
+    }
+    const results = await Promise.allSettled([
+      recheckReviewedTerminalTemporaryCleanup(firestore, ref,
+        firestore.collection('admin_logs').doc(), command),
+      recheckReviewedTerminalTemporaryCleanup(firestore, ref,
+        firestore.collection('admin_logs').doc(),
+        { ...command, operationId: 'recheck-00003' }),
+    ]);
+    assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+    assert.equal(results.filter(result => result.status === 'rejected').length, 1);
+    assert.equal((await ref.get()).get('state'), 'retryable');
   } finally {
     await ref.delete();
   }

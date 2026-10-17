@@ -105,6 +105,10 @@ export {
 export {
   cleanupVideoRotationInput,
 } from './application/cleanup-video-rotation-input.handler';
+export {
+  listVideoTerminalTemporaryCleanupReviews,
+  recheckVideoTerminalTemporaryCleanup,
+} from './application/admin-video-terminal-temporary-cleanup.handler';
 
 export {
   cleanupFailedVideoUploads,

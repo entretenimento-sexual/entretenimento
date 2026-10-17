@@ -159,6 +159,97 @@
     </section>
   }
 
+
+  @if (terminalCleanupState$ | async; as terminal) {
+    <section class="video-moderation__recovery"
+      aria-labelledby="video-terminal-cleanup-title"
+      [attr.aria-busy]="terminal.status === 'loading' ? 'true' : 'false'">
+      <div class="video-moderation__operations-heading">
+        <div>
+          <h3 id="video-terminal-cleanup-title">Limpeza temporária em revisão</h3>
+          <p>
+            Itens bloqueados até reconferência segura. Reconferir não exclui objetos:
+            a limpeza exige snapshot terminal, proveniência e geração confirmadas.
+          </p>
+        </div>
+      </div>
+      @if (terminal.status === 'loading') {
+        <p class="video-moderation__operations-message" role="status">
+          Consultando revisões de limpeza...
+        </p>
+      } @else if (terminal.status === 'error') {
+        <p class="video-moderation__operations-message video-moderation__operations-message--error"
+          role="alert">Não foi possível consultar a limpeza temporária.</p>
+      } @else if (terminal.data; as data) {
+        <p class="video-moderation__operations-summary" role="status">
+          <strong>{{ data.totalReview }} registro(s) em revisão.</strong>
+          @if (data.samplePartial) {
+            A lista é uma amostra parcial; a contagem considera toda a fila.
+          }
+        </p>
+        @if (data.items.length > 0) {
+          <div class="video-moderation__recovery-grid">
+            @for (review of data.items; track review.queueId) {
+              <article class="video-moderation__recovery-card">
+                <header class="video-moderation__recovery-card-header">
+                  <strong>Limpeza #{{ review.queueId.slice(0, 12) }}</strong>
+                  <span class="video-moderation__job-chip video-moderation__job-chip--warning">
+                    Revisão pendente
+                  </span>
+                </header>
+                <dl class="video-moderation__recovery-meta">
+                  <div><dt>Idade do alerta</dt><dd>{{ formatAge(review.ageMs) }}</dd></div>
+                  <div><dt>Tentativas</dt><dd>{{ review.attempts }}</dd></div>
+                  <div><dt>Versão</dt><dd>{{ review.processingVersion }}</dd></div>
+                  <div><dt>Falha</dt><dd>{{ review.failureCode || 'Não classificada' }}</dd></div>
+                </dl>
+                @if (!review.recheckable) {
+                  <p class="video-moderation__recovery-pending" role="status">
+                    Reconferência bloqueada: {{ review.blocker }}.
+                    O snapshot deve ser investigado sem excluir arquivos.
+                  </p>
+                } @else if (pendingTerminalCleanupConfirmation() === review.queueId) {
+                  <div class="video-moderation__recovery-confirmation" role="group"
+                    aria-label="Confirmar reconferência de limpeza temporária">
+                    <p>Será agendada uma nova verificação. Nenhum arquivo será excluído diretamente.</p>
+                    <label class="video-moderation__reason"
+                      [attr.for]="'terminal-cleanup-reason-' + review.queueId">
+                      <span>Justificativa administrativa</span>
+                      <textarea [id]="'terminal-cleanup-reason-' + review.queueId"
+                        rows="3" maxlength="900"
+                        [ngModel]="terminalCleanupReason(review)"
+                        (ngModelChange)="setTerminalCleanupReason(review, $event)"
+                        [disabled]="busyTerminalCleanupQueue() !== null">
+                      </textarea>
+                    </label>
+                    <div class="video-moderation__recovery-confirmation-actions">
+                      <button class="app-action app-action--primary" type="button"
+                        (click)="confirmTerminalCleanupRecheck(review)"
+                        [disabled]="busyTerminalCleanupQueue() !== null">
+                        Confirmar reconferência
+                      </button>
+                      <button class="app-action app-action--ghost" type="button"
+                        (click)="cancelTerminalCleanupRecheck()"
+                        [disabled]="busyTerminalCleanupQueue() !== null">
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                } @else {
+                  <button class="app-action" type="button"
+                    (click)="beginTerminalCleanupRecheck(review)"
+                    [disabled]="busyTerminalCleanupQueue() !== null">
+                    Reconferir limpeza
+                  </button>
+                }
+              </article>
+            }
+          </div>
+        }
+      }
+    </section>
+  }
+
   @if (recoveryState$ | async; as recoveryState) {
     <section
       class="video-moderation__recovery"
