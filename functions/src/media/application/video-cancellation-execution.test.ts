@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildQueuedVideoProcessingJob } from './video-processing-job';
+import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
 import {
   executeVideoCancellation,
   type VideoCancellationPorts,
@@ -25,6 +25,27 @@ function job() {
     state: 'CANCEL_REQUESTED' as const,
     attempts: 1,
     externalJobName: providerName,
+  };
+}
+
+/** Full, typed immutable copy; no unsafe cast of a partial GCS snapshot. */
+function immutableJob(): VideoProcessingJob {
+  const current = job();
+  const sourceGeneration = '90071992547409930';
+  return {
+    ...current,
+    sourceGeneration,
+    immutableInput: {
+      sourceStoragePath: current.sourceStoragePath,
+      sourceGeneration,
+      destinationStoragePath:
+        `users/${current.ownerUid}/processed/video-transcoder-inputs/` +
+        `${current.videoId}/${current.processingVersion}/source.mp4`,
+      destinationGeneration: '90071992547409931',
+      sizeBytes: current.sourceSizeBytes,
+      crc32c: 'AAAAAA==',
+      reused: false,
+    },
   };
 }
 
@@ -138,9 +159,7 @@ test('non-cancellation state does not call any external dependency', async () =>
 
 test('immutable cancellation deletes pinned input before removing tracking', async () => {
   const events: string[] = [];
-  const result = await executeVideoCancellation({
-    ...job(), immutableInput: { destinationStoragePath: 'present' },
-  } as ReturnType<typeof job>, ports(events, {
+  const result = await executeVideoCancellation(immutableJob(), ports(events, {
     deleteImmutableInput: async () => {
       events.push('immutable-delete');
       return true;
@@ -155,8 +174,8 @@ test('immutable cancellation deletes pinned input before removing tracking', asy
 test('ambiguous provider never deletes immutable copy', async () => {
   const events: string[] = [];
   const result = await executeVideoCancellation({
-    ...job(), externalJobName: null, immutableInput: { destinationStoragePath: 'present' },
-  } as ReturnType<typeof job>, ports(events, {
+    ...immutableJob(), externalJobName: null,
+  }, ports(events, {
     deleteImmutableInput: async () => { events.push('immutable-delete'); return true; },
   }));
   assert.equal(result.status, 'UNCONFIRMED');
@@ -165,9 +184,7 @@ test('ambiguous provider never deletes immutable copy', async () => {
 
 test('stale immutable claim keeps Firestore tracking and does not report success', async () => {
   const events: string[] = [];
-  const result = await executeVideoCancellation({
-    ...job(), immutableInput: { destinationStoragePath: 'present' },
-  } as ReturnType<typeof job>, ports(events, {
+  const result = await executeVideoCancellation(immutableJob(), ports(events, {
     deleteImmutableInput: async () => { events.push('immutable-check'); return false; },
   }));
   assert.equal(result.status, 'REPLACED');
@@ -178,9 +195,7 @@ test('stale immutable claim keeps Firestore tracking and does not report success
 
 test('immutable deletion failure keeps the cancellation for durable retry', async () => {
   const events: string[] = [];
-  const result = await executeVideoCancellation({
-    ...job(), immutableInput: { destinationStoragePath: 'present' },
-  } as ReturnType<typeof job>, ports(events, {
+  const result = await executeVideoCancellation(immutableJob(), ports(events, {
     deleteImmutableInput: async () => { throw new Error('GCS 412'); },
   }));
   assert.equal(result.status, 'RETRY_SCHEDULED');
