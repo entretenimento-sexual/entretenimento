@@ -4,7 +4,10 @@ import {
   VIDEO_PROCESSING_JOBS_COLLECTION,
   type VideoProcessingJob,
 } from './video-processing-job';
-import { nextVideoProcessingPollAt } from './video-processing-poll.policy';
+import {
+  nextVideoProcessingPollAt,
+  isCurrentVideoProcessingAttempt,
+} from './video-processing-poll.policy';
 import {
   CANCELLATION_RESERVATION_MS,
   cancellationNeedsReview,
@@ -75,6 +78,36 @@ export async function claimProcessingJob(
     const reservedUntil = nextVideoProcessingPollAt(job, now);
     transaction.update(jobRef, { nextAttemptAt: reservedUntil });
     return { ...job, nextAttemptAt: reservedUntil };
+  });
+}
+
+/**
+ * A failed provider GET does not establish a terminal provider state.
+ * Preserve PROCESSING and its next poll reservation even for HTTP 403/404.
+ */
+export async function recordProviderPollErrorIfCurrent(
+  firestore: Firestore,
+  jobRef: DocumentReference,
+  observed: VideoProcessingJob,
+  normalizeJob: NormalizeJob,
+  error: { code: string; message: string },
+  now: number
+): Promise<boolean> {
+  return firestore.runTransaction(async transaction => {
+    const snap = await transaction.get(jobRef);
+    const current = snap.exists ? normalizeJob(snap.data()) : null;
+    if (!current || !isCurrentVideoProcessingAttempt(current, observed)) {
+      return false;
+    }
+    if (current.lastErrorCode !== error.code ||
+        current.lastError !== error.message) {
+      transaction.update(jobRef, {
+        updatedAt: now,
+        lastErrorCode: error.code,
+        lastError: error.message,
+      });
+    }
+    return true;
   });
 }
 

@@ -16,8 +16,10 @@ import {
   VIDEO_PROCESSING_JOBS_COLLECTION,
   VIDEO_PROCESSING_MAX_ATTEMPTS,
   type VideoProcessingJob,
+  type VideoProviderTerminalEvidence,
 } from './video-processing-job';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
+import { buildProviderTerminalEvidence } from './video-provider-terminal-evidence.policy';
 import {
   executeVideoCancellation,
   type VideoCancellationResult,
@@ -36,6 +38,7 @@ import {
 } from './video-processing-poll.policy';
 import {
   claimProcessingJob,
+  recordProviderPollErrorIfCurrent,
   queryDueProcessingJobs,
   claimDueCancellation,
   queryDueCancelledJobs,
@@ -228,6 +231,7 @@ function normalizeJob(data: unknown): VideoProcessingJob | null {
     leaseUntil: normalizeOptionalNonNegativeInteger(job.leaseUntil),
     externalJobName: String(job.externalJobName ?? '').trim() || null,
     providerState: String(job.providerState ?? '').trim() || null,
+    providerTerminalEvidence: job.providerTerminalEvidence ?? null,
     outputStoragePath: String(job.outputStoragePath ?? '').trim() || null,
     outputMimeType: String(job.outputMimeType ?? '').trim() || null,
     outputSizeBytes: normalizeOptionalNonNegativeInteger(job.outputSizeBytes),
@@ -687,7 +691,8 @@ async function findProcessedVideoCandidate(
 
 async function finalizeSucceededJob(
   jobRef: DocumentReference,
-  job: VideoProcessingJob
+  job: VideoProcessingJob,
+  evidence: VideoProviderTerminalEvidence
 ): Promise<void> {
   const candidate = await findProcessedVideoCandidate(job);
   const now = Date.now();
@@ -738,6 +743,7 @@ async function finalizeSucceededJob(
     transaction.update(jobRef, {
       state: 'SUCCEEDED',
       providerState: 'SUCCEEDED',
+      providerTerminalEvidence: evidence,
       outputStoragePath: candidate.storagePath,
       outputMimeType: candidate.mimeType,
       outputSizeBytes: candidate.sizeBytes,
@@ -775,7 +781,8 @@ async function markProviderFailure(
   jobRef: DocumentReference,
   job: VideoProcessingJob,
   errorCode: string | null,
-  errorMessage: string | null
+  errorMessage: string | null,
+  evidence: VideoProviderTerminalEvidence
 ): Promise<void> {
   const now = Date.now();
   const videoRef = db.doc(`users/${job.ownerUid}/videos/${job.videoId}`);
@@ -814,6 +821,7 @@ async function markProviderFailure(
     transaction.update(jobRef, {
       state: 'FAILED',
       providerState: 'FAILED',
+      providerTerminalEvidence: evidence,
       completedAt: now,
       leaseUntil: null,
       updatedAt: now,
@@ -840,84 +848,54 @@ async function reconcileProcessingJob(
     return;
   }
 
+  // Transport errors cannot prove that the provider stopped using its inputs.
+  // Even non-retryable HTTP 403/404 stays PROCESSING for explicit review/recheck.
+  let providerJob: Awaited<ReturnType<typeof getGoogleVideoTranscoderJob>>;
   try {
-    const providerJob = await getGoogleVideoTranscoderJob(job.externalJobName);
-    const now = Date.now();
-
-    if (providerJob.state === 'SUCCEEDED') {
-      await finalizeSucceededJob(jobRef, job);
-      return;
-    }
-
-    if (providerJob.state === 'FAILED') {
-      await markProviderFailure(
-        jobRef,
-        job,
-        providerJob.errorCode,
-        providerJob.errorMessage
-      );
-      return;
-    }
-
-    if (providerObservationChanged(job, providerJob.state)) {
-      await db.runTransaction(async (transaction) => {
-        const snapshot = await transaction.get(jobRef);
-        const current = snapshot.exists
-          ? normalizeJob(snapshot.data())
-          : null;
-
-        if (
-          !current ||
-          !isCurrentVideoProcessingAttempt(current, job) ||
-          !providerObservationChanged(current, providerJob.state)
-        ) {
-          return;
-        }
-
-        transaction.update(jobRef, {
-          providerState: providerJob.state,
-          updatedAt: now,
-          lastErrorCode: null,
-          lastError: null,
-        });
-      });
-    }
+    providerJob = await getGoogleVideoTranscoderJob(job.externalJobName);
   } catch (error) {
     const normalized = normalizeGoogleTranscoderError(error);
-
-    if (normalized.retryable) {
-      await db.runTransaction(async (transaction) => {
-        const snapshot = await transaction.get(jobRef);
-        const current = snapshot.exists
-          ? normalizeJob(snapshot.data())
-          : null;
-
-        if (!current || !isCurrentVideoProcessingAttempt(current, job)) {
-          return;
-        }
-
-        if (
-          current.lastErrorCode === normalized.code &&
-          current.lastError === normalized.message
-        ) {
-          return;
-        }
-
-        transaction.update(jobRef, {
-          updatedAt: Date.now(),
-          lastErrorCode: normalized.code,
-          lastError: normalized.message,
-        });
-      });
-      return;
-    }
-
-    await markProviderFailure(
-      jobRef,
-      job,
-      normalized.code,
-      normalized.message
+    await recordProviderPollErrorIfCurrent(
+      db, jobRef, job, normalizeJob, normalized, Date.now()
     );
+    logger.warn('[videoProcessing] Consulta ao provedor sem confirmação terminal.', {
+      processingVersion: job.processingVersion,
+      errorCode: normalized.code,
+      retryable: normalized.retryable,
+    });
+    return;
+  }
+
+  const now = Date.now();
+  if (providerJob.state === 'SUCCEEDED') {
+    const evidence = buildProviderTerminalEvidence(job, providerJob, now);
+    await finalizeSucceededJob(jobRef, job, evidence);
+    return;
+  }
+  if (providerJob.state === 'FAILED') {
+    const evidence = buildProviderTerminalEvidence(job, providerJob, now);
+    await markProviderFailure(
+      jobRef, job, providerJob.errorCode, providerJob.errorMessage, evidence
+    );
+    return;
+  }
+
+  if (providerObservationChanged(job, providerJob.state)) {
+    await db.runTransaction(async transaction => {
+      const snapshot = await transaction.get(jobRef);
+      const current = snapshot.exists
+        ? normalizeJob(snapshot.data())
+        : null;
+      if (!current ||
+          !isCurrentVideoProcessingAttempt(current, job) ||
+          !providerObservationChanged(current, providerJob.state)) return;
+      transaction.update(jobRef, {
+        providerState: providerJob.state,
+        updatedAt: now,
+        lastErrorCode: null,
+        lastError: null,
+      });
+    });
   }
 }
 

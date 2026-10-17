@@ -20,9 +20,14 @@ function job(rotation: VideoRotationDegrees = 90): VideoProcessingJob {
     sourceSizeBytes: 100_000, sourceDurationMs: 12_000, now: 1_800_000_000_000,
   });
   const sourceGeneration = '90071992547409931';
+  const externalJobName = 'projects/demo/locations/us-central1/jobs/video';
   return {
     ...queued, state: 'SUCCEEDED', providerState: 'SUCCEEDED',
-    externalJobName: 'projects/demo/locations/us-central1/jobs/video',
+    externalJobName,
+    providerTerminalEvidence: {
+      processingVersion: queued.processingVersion,
+      externalJobName, state: 'SUCCEEDED', observedAt: 1_800_000_000_000,
+    },
     attempts: 1, sourceGeneration,
     sourceProbe: {
       processingVersion: queued.processingVersion,
@@ -107,13 +112,30 @@ test('terminal verified inputs are cleaned rotation first with exact generations
 
 test('failed provider is eligible only after confirmed terminal state', async () => {
   const j = job(0);
-  assert.equal(isConfirmedTerminalVideoJob({ ...j, state: 'FAILED',
-    providerState: 'FAILED' }), true);
+  const failed = {
+    ...j, state: 'FAILED' as const, providerState: 'FAILED',
+    providerTerminalEvidence: { ...j.providerTerminalEvidence!, state: 'FAILED' as const },
+  };
+  assert.equal(isConfirmedTerminalVideoJob(failed), true);
+  assert.equal(isConfirmedTerminalVideoJob({
+    ...failed, providerTerminalEvidence: null,
+  }), false);
+  assert.equal(isConfirmedTerminalVideoJob({
+    ...failed, providerTerminalEvidence: {
+      ...failed.providerTerminalEvidence, processingVersion: 'replaced',
+    },
+  }), false);
+  assert.equal(isConfirmedTerminalVideoJob({
+    ...failed, providerTerminalEvidence: {
+      ...failed.providerTerminalEvidence, externalJobName: 'jobs/foreign',
+    },
+  }), false);
   assert.equal(isConfirmedTerminalVideoJob({ ...j, state: 'FAILED',
     providerState: 'RUNNING' }), false);
   assert.equal(isConfirmedTerminalVideoJob({ ...j, state: 'CANCEL_REQUESTED' }), false);
   assert.equal(isConfirmedTerminalVideoJob({ ...j, state: 'FAILED',
-    externalJobName: null, providerState: null, attempts: 0 }), true);
+    externalJobName: null, providerState: null, attempts: 0,
+    providerTerminalEvidence: null }), true);
   const { p, deleted } = ports(j);
   await assert.rejects(cleanupTerminalVideoTemporaryAssets({
     ...j, state: 'FAILED', providerState: 'RUNNING',
@@ -226,4 +248,43 @@ test('cancellation never reads GCS after a stale claim', async () => {
   });
   assert.equal(result, false);
   assert.equal(read, false);
+});
+
+test('unconfirmed FAILED never opens GCS, including a locally reported HTTP error', async () => {
+  const j = job(0);
+  let calls = 0;
+  const ports: TerminalTemporaryCleanupPorts = {
+    claimIsCurrent: async () => { calls++; return true; },
+    readObject: async () => { calls++; return null; },
+    deletePinned: async () => { calls++; },
+  };
+  for (const unsafe of [
+    { ...j, state: 'FAILED' as const, providerState: 'FAILED', providerTerminalEvidence: null },
+    { ...j, state: 'FAILED' as const, providerState: 'RUNNING' },
+    { ...j, state: 'FAILED' as const, providerTerminalEvidence: {
+      ...j.providerTerminalEvidence!, state: 'FAILED' as const, processingVersion: 'old',
+    } },
+    { ...j, state: 'FAILED' as const, providerTerminalEvidence: {
+      ...j.providerTerminalEvidence!, state: 'FAILED' as const,
+      externalJobName: 'projects/demo/locations/us-central1/jobs/replaced',
+    } },
+  ]) {
+    await assert.rejects(cleanupTerminalVideoTemporaryAssets(unsafe, ports),
+      /VIDEO_TEMP_CLEANUP_PROVIDER_UNCONFIRMED/);
+    assert.equal(calls, 0);
+  }
+});
+
+test('observed FAILED with matching provider proof may clean pinned immutable input', async () => {
+  const j = job(0);
+  const failed = {
+    ...j, state: 'FAILED' as const, providerState: 'FAILED',
+    providerTerminalEvidence: { ...j.providerTerminalEvidence!, state: 'FAILED' as const },
+  };
+  const { p, deleted } = ports(failed);
+  assert.equal(await cleanupTerminalVideoTemporaryAssets(failed, p), true);
+  assert.deepEqual(deleted, [[
+    failed.immutableInput!.destinationStoragePath,
+    failed.immutableInput!.destinationGeneration,
+  ]]);
 });

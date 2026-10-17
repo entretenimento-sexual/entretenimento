@@ -287,3 +287,42 @@ test('terminal cleanup never performs path-only deletion and uses versioned snap
   assert.ok(scheduler.includes('deleteCancelledRotationInput('));
   assert.ok(scheduler.includes('editRecipe: raw.editRecipe'));
 });
+
+test('nonterminal HTTP errors cannot forge a provider FAILED observation', () => {
+  const begin = scheduler.indexOf('async function reconcileProcessingJob(');
+  const end = scheduler.indexOf('async function deleteOutputPrefix(', begin);
+  assert.ok(begin >= 0 && end > begin);
+  const body = scheduler.slice(begin, end);
+  const transportStart = body.indexOf('providerJob = await getGoogleVideoTranscoderJob(');
+  const catchStart = body.indexOf('} catch (error) {', transportStart);
+  const afterCatch = body.indexOf('const now = Date.now();', catchStart);
+  assert.ok(transportStart >= 0 && catchStart > transportStart && afterCatch > catchStart);
+  const errors = body.slice(catchStart, afterCatch);
+  assert.ok(errors.includes('normalizeGoogleTranscoderError(error)'));
+  assert.ok(errors.includes('recordProviderPollErrorIfCurrent('));
+  assert.ok(firestoreCore.includes('isCurrentVideoProcessingAttempt(current, observed)'));
+  assert.ok(!errors.includes("state: 'FAILED'"));
+  assert.ok(!errors.includes("providerState: 'FAILED'"));
+  assert.ok(!errors.includes('markProviderFailure('));
+  assert.ok(!errors.includes('providerTerminalEvidence:'));
+  assert.ok(body.includes("providerJob.state === 'FAILED'"));
+  assert.ok(body.includes("providerJob.state === 'SUCCEEDED'"));
+  assert.equal(body.split('buildProviderTerminalEvidence(job, providerJob, now)').length - 1, 2);
+  assert.ok(scheduler.includes('providerTerminalEvidence: evidence'));
+});
+
+test('cleanup requires provider-bound evidence and retains unproven legacy snapshots', () => {
+  const policy = readFileSync(
+    resolve(__dirname, '../../../src/media/application/video-terminal-temporary-cleanup.policy.ts'),
+    'utf8'
+  );
+  const queue = readFileSync(
+    resolve(__dirname, '../../../src/media/application/video-terminal-temporary-cleanup.firestore.ts'),
+    'utf8'
+  );
+  assert.ok(policy.includes('matchesProviderTerminalEvidence(job)'));
+  assert.ok(policy.includes("job.state === 'FAILED' && job.attempts === 0"));
+  assert.ok(queue.includes('!isConfirmedTerminalVideoJob(job)'));
+  assert.ok(queue.includes('providerTerminalEvidence: job.providerTerminalEvidence ?? null'));
+  assert.ok(queue.includes("state: 'review'"));
+});

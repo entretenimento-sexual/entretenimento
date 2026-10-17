@@ -40,6 +40,7 @@ export function buildTerminalCleanupQueue(
 ): TerminalCleanupQueue | null {
   if ((job.state !== 'SUCCEEDED' && job.state !== 'FAILED') ||
       !hasTerminalTemporaryAssets(job) ||
+      !isConfirmedTerminalVideoJob(job) ||
       !/^[A-Za-z0-9_-]{1,128}$/.test(job.ownerUid) ||
       !/^[A-Za-z0-9_-]{1,128}$/.test(job.videoId) ||
       buildVideoProcessingJobId(job.ownerUid, job.videoId) !== jobId ||
@@ -51,6 +52,7 @@ export function buildTerminalCleanupQueue(
     processingVersion: job.processingVersion, state: job.state,
     providerState: job.providerState ?? null,
     externalJobName: job.externalJobName ?? null,
+    providerTerminalEvidence: job.providerTerminalEvidence ?? null,
     attempts: job.attempts,
     sourceStoragePath: job.sourceStoragePath,
     sourceGeneration: job.sourceGeneration ?? null,

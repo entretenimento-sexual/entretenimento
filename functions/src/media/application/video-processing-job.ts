@@ -16,6 +16,13 @@ export type VideoProcessingJobState =
   | 'CANCEL_REQUESTED'
   | 'CANCELLED';
 
+export interface VideoProviderTerminalEvidence {
+  readonly processingVersion: string;
+  readonly externalJobName: string;
+  readonly state: 'SUCCEEDED' | 'FAILED';
+  readonly observedAt: number;
+}
+
 export interface VideoProcessingJob {
   ownerUid: string;
   videoId: string;
@@ -48,6 +55,8 @@ export interface VideoProcessingJob {
   leaseUntil: number | null;
   externalJobName: string | null;
   providerState: string | null;
+  /** Evidence of a successful GET for this exact terminal provider job. */
+  providerTerminalEvidence?: VideoProviderTerminalEvidence | null;
   outputStoragePath: string | null;
   outputMimeType: string | null;
   outputSizeBytes: number | null;

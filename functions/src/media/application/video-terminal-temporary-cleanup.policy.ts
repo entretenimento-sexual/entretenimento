@@ -3,6 +3,7 @@
  * Original uploads and published derivatives never qualify as targets.
  */
 import type { VideoProcessingJob } from './video-processing-job';
+import { matchesProviderTerminalEvidence } from './video-provider-terminal-evidence.policy';
 import { selectTranscoderInputSource } from './video-immutable-input.policy';
 import {
   matchesImmutableCancellationObject,
@@ -18,7 +19,7 @@ export const VIDEO_TERMINAL_TEMP_CLEANUP_COLLECTION =
 
 export type TerminalTempCleanupJob = Pick<VideoProcessingJob,
   'ownerUid' | 'videoId' | 'processingVersion' | 'state' | 'providerState' |
-  'externalJobName' | 'attempts' | 'sourceStoragePath' | 'sourceGeneration' |
+  'externalJobName' | 'providerTerminalEvidence' | 'attempts' | 'sourceStoragePath' | 'sourceGeneration' |
   'sourceSizeBytes' | 'sourceMimeType' | 'sourceProbe' | 'immutableInput' | 'editRecipe'>;
 
 export function rotationDegreesForCleanup(job: TerminalTempCleanupJob): number {
@@ -32,12 +33,12 @@ export function hasTerminalTemporaryAssets(job: TerminalTempCleanupJob): boolean
 
 /** FAILED without verified provider completion may still be reading its input. */
 export function isConfirmedTerminalVideoJob(job: TerminalTempCleanupJob): boolean {
-  if (job.state === 'SUCCEEDED') {
-    return !!job.externalJobName && job.providerState === 'SUCCEEDED';
-  }
-  if (job.state !== 'FAILED') return false;
-  return (!!job.externalJobName && job.providerState === 'FAILED') ||
-    (job.attempts === 0 && !job.externalJobName && !job.providerState);
+  if (job.state !== 'SUCCEEDED' && job.state !== 'FAILED') return false;
+  // Only a successful, matching provider GET can authorize terminal deletion.
+  if (job.externalJobName) return matchesProviderTerminalEvidence(job);
+  // A never-submitted attempt cannot be reading a temporary GCS input.
+  return job.state === 'FAILED' && job.attempts === 0 &&
+    !job.providerState && !job.providerTerminalEvidence;
 }
 
 export interface TerminalTemporaryCleanupPorts {

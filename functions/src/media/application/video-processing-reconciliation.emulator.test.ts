@@ -58,6 +58,7 @@ import {
 import {
   backfillLegacyProcessingDueAt,
   claimProcessingJob,
+  recordProviderPollErrorIfCurrent,
   queryDueCancelledJobs,
   claimDueCancellation,
   deleteCancelledJobIfCurrent,
@@ -1789,6 +1790,11 @@ test('terminal cleanup snapshot survives atomic retry and new processingVersion'
   const old = {
     ...base, state: 'FAILED' as const, providerState: 'FAILED',
     editRecipe: { ...base.editRecipe!, rotationDegrees: 90 as const },
+    providerTerminalEvidence: {
+      processingVersion: base.processingVersion,
+      externalJobName: base.externalJobName!,
+      state: 'FAILED' as const, observedAt: now,
+    },
   };
   const jobId = old.ownerUid + '_' + old.videoId;
   const ref = jobs.doc(jobId);
@@ -1833,6 +1839,11 @@ test('pre-upgrade cleanup queue is retained for review after replacement', async
   const old = {
     ...base, state: 'FAILED' as const, providerState: 'FAILED',
     editRecipe: { ...base.editRecipe!, rotationDegrees: 90 as const },
+    providerTerminalEvidence: {
+      processingVersion: base.processingVersion,
+      externalJobName: base.externalJobName!,
+      state: 'FAILED' as const, observedAt: now,
+    },
   };
   const jobId = old.ownerUid + '_' + old.videoId;
   const ref = jobs.doc(jobId);
@@ -1862,6 +1873,11 @@ test('preserving terminal snapshot is idempotent across repeated administrative 
   const old = {
     ...base, state: 'FAILED' as const, providerState: 'FAILED',
     editRecipe: { ...base.editRecipe!, rotationDegrees: 90 as const },
+    providerTerminalEvidence: {
+      processingVersion: base.processingVersion,
+      externalJobName: base.externalJobName!,
+      state: 'FAILED' as const, observedAt: now,
+    },
   };
   const jobId = old.ownerUid + '_' + old.videoId;
   const cleanupRef = terminalCleanupRef(firestore, jobId, old.processingVersion);
@@ -1890,6 +1906,11 @@ test('concurrent terminal cleanup claims elect exactly one owner', async () => {
   const old = {
     ...base, state: 'FAILED' as const, providerState: 'FAILED',
     editRecipe: { ...base.editRecipe!, rotationDegrees: 90 as const },
+    providerTerminalEvidence: {
+      processingVersion: base.processingVersion,
+      externalJobName: base.externalJobName!,
+      state: 'FAILED' as const, observedAt: now,
+    },
   };
   const jobId = old.ownerUid + '_' + old.videoId;
   const ref = terminalCleanupRef(firestore, jobId, old.processingVersion);
@@ -1905,6 +1926,128 @@ test('concurrent terminal cleanup claims elect exactly one owner', async () => {
     assert.equal(await isTerminalTemporaryClaimCurrent(
       ref, owners.find(Boolean)!, now + 2
     ), true);
+  } finally {
+    await ref.delete();
+  }
+});
+
+test('unconfirmed local FAILED cannot enqueue cleanup or survive a retry as terminal proof', async () => {
+  const old = {
+    ...fixture('RUNNING'),
+    state: 'FAILED' as const,
+    providerState: 'FAILED',
+    editRecipe: { ...fixture('RUNNING').editRecipe!, rotationDegrees: 90 as const },
+    providerTerminalEvidence: null,
+  };
+  const jobId = old.ownerUid + '_' + old.videoId;
+  const ref = jobs.doc(jobId);
+  const cleanupRef = terminalCleanupRef(firestore, jobId, old.processingVersion);
+  assert.equal(buildTerminalCleanupQueue(jobId, old, now), null);
+  await ref.set(old);
+  try {
+    await firestore.runTransaction(async transaction => {
+      const data = await transaction.get(ref);
+      assert.equal(await preserveTerminalCleanupBeforeRetry(
+        firestore, transaction, jobId, data.data() as VideoProcessingJob, now
+      ), false);
+      transaction.update(ref, {
+        processingVersion: old.processingVersion + '-requeued',
+        state: 'QUEUED',
+      });
+    });
+    assert.equal((await cleanupRef.get()).exists, false);
+  } finally {
+    await Promise.all([ref.delete(), cleanupRef.delete()]);
+  }
+});
+
+test('persisted FAILED snapshot without matching provider evidence goes to review', async () => {
+  const old = {
+    ...fixture('FAILED'),
+    state: 'FAILED' as const,
+    providerState: 'FAILED',
+    editRecipe: { ...fixture('FAILED').editRecipe!, rotationDegrees: 90 as const },
+  };
+  const jobId = old.ownerUid + '_' + old.videoId;
+  const ref = terminalCleanupRef(firestore, jobId, old.processingVersion);
+  const proof = {
+    processingVersion: old.processingVersion,
+    externalJobName: old.externalJobName!,
+    state: 'FAILED' as const,
+    observedAt: now,
+  };
+  const verified = { ...old, providerTerminalEvidence: proof };
+  const queue = buildTerminalCleanupQueue(jobId, verified, now);
+  assert.ok(queue);
+  await ref.create({
+    ...queue,
+    snapshot: { ...queue.snapshot!, providerTerminalEvidence: {
+      ...proof, externalJobName: 'projects/demo/locations/us-central1/jobs/foreign',
+    } },
+  });
+  try {
+    assert.equal(await claimDueTerminalTemporaryCleanup(
+      firestore, ref, now + 1
+    ), null);
+    const pending = await ref.get();
+    assert.equal(pending.get('state'), 'review');
+    assert.equal(pending.get('leaseToken'), null);
+  } finally {
+    await ref.delete();
+  }
+});
+
+test('failed provider GET preserves PROCESSING for HTTP 403, 404 and local errors', async () => {
+  const current = fixture('RUNNING');
+  const jobRef = jobs.doc(current.ownerUid + '_' + current.videoId);
+  await jobRef.set(current);
+  try {
+    for (const code of ['PERMISSION_DENIED', 'NOT_FOUND', 'TRANSCODER_CLIENT_ERROR']) {
+      const applied = await recordProviderPollErrorIfCurrent(
+        firestore, jobRef, current, parseJob,
+        { code, message: 'Provider lookup did not confirm terminal state' }, now
+      );
+      assert.equal(applied, true);
+      const stored = await jobRef.get();
+      assert.equal(stored.get('state'), 'PROCESSING');
+      assert.equal(stored.get('providerState'), 'RUNNING');
+      assert.equal(stored.get('externalJobName'), current.externalJobName);
+      assert.equal(stored.get('processingVersion'), current.processingVersion);
+      assert.equal(stored.get('nextAttemptAt'), current.nextAttemptAt);
+      assert.equal(stored.get('lastErrorCode'), code);
+      assert.equal(stored.get('providerTerminalEvidence'), undefined);
+    }
+    await jobRef.update({ state: 'CANCEL_REQUESTED' });
+    assert.equal(await recordProviderPollErrorIfCurrent(
+      firestore, jobRef, current, parseJob,
+      { code: 'NOT_FOUND', message: 'late GET' }, now + 1
+    ), false);
+    assert.equal((await jobRef.get()).get('state'), 'CANCEL_REQUESTED');
+  } finally {
+    await jobRef.delete();
+  }
+});
+
+test('stale provider lookup error never alters another processing version or poll claim', async () => {
+  const original = fixture('RUNNING');
+  const ref = jobs.doc(original.ownerUid + '_' + original.videoId);
+  await ref.set(original);
+  try {
+    await ref.update({ nextAttemptAt: original.nextAttemptAt + 1 });
+    assert.equal(await recordProviderPollErrorIfCurrent(
+      firestore, ref, original, parseJob,
+      { code: 'NOT_FOUND', message: 'late 404' }, now
+    ), false);
+    assert.equal((await ref.get()).get('lastErrorCode'), original.lastErrorCode);
+    await ref.update({
+      nextAttemptAt: original.nextAttemptAt,
+      processingVersion: original.processingVersion + '-new',
+    });
+    assert.equal(await recordProviderPollErrorIfCurrent(
+      firestore, ref, original, parseJob,
+      { code: 'PERMISSION_DENIED', message: 'late 403' }, now
+    ), false);
+    assert.equal((await ref.get()).get('lastErrorCode'), original.lastErrorCode);
   } finally {
     await ref.delete();
   }
