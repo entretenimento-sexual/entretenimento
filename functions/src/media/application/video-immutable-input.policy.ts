@@ -12,7 +12,8 @@ import type { VideoProcessingJob } from './video-processing-job';
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 const VERSION = /^[A-Za-z0-9_-]{1,160}$/;
 const GENERATION = /^[1-9][0-9]{0,29}$/;
-const CRC32C = /^[A-Za-z0-9+/]{6,8}={0,2}$/;
+// CRC32C is exactly four bytes: six Base64 symbols (zero pad bits) plus '=='.
+const CRC32C = /^[A-Za-z0-9+/]{5}[AQgw]==$/;
 const MAX_BYTES = 500 * 1024 * 1024;
 
 export type ImmutableInputJob = Pick<VideoProcessingJob,

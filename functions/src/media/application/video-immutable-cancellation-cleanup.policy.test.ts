@@ -62,6 +62,38 @@ test('cleanup target is version scoped with exact string generation', () => {
   assert.equal(target.generation, '90071992547409944');
   assert.equal(matchesImmutableCancellationObject(target, object()), true);
 });
+test('canonical CRC32C permits all four valid final Base64 sextets', () => {
+  const current = job();
+  for (const crc32c of [
+    'AAAAAA==', 'AAAAAQ==', 'AAAAAg==', 'AAAAAw==',
+    'AQIDBA==', '/////w==',
+  ]) {
+    const target = selectImmutableCancellationTarget({
+      ...current, immutableInput: { ...current.immutableInput!, crc32c },
+    });
+    assert.equal(target?.crc32c, crc32c);
+  }
+});
+test('malformed and non-canonical CRC32C fail closed before GCS I/O', async () => {
+  const current = job();
+  for (const crc32c of [
+    'invalid', 'AAAAAA', 'AAAAAA=', 'AAAAAA===',
+    'AAAAAB==', 'AAAAA/==', 'AAAAAAA=', 'AAAAAA==\\n',
+  ]) {
+    const corrupt = {
+      ...current, immutableInput: { ...current.immutableInput!, crc32c },
+    };
+    assert.throws(() => selectImmutableCancellationTarget(corrupt),
+      /IMMUTABLE_CLEANUP_INVALID_SNAPSHOT/);
+    let contacted = false;
+    await assert.rejects(cleanupCancelledImmutableInput(corrupt, {
+      claimIsCurrent: async () => { contacted = true; return true; },
+      readObject: async () => { contacted = true; return object(); },
+      deletePinned: async () => { contacted = true; },
+    }), /IMMUTABLE_CLEANUP_INVALID_SNAPSHOT/);
+    assert.equal(contacted, false);
+  }
+});
 test('legacy cancellation requires no immutable deletion', async () => {
   const j = { ...job(), immutableInput: null };
   let called = false;
