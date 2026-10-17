@@ -99,13 +99,10 @@ test('stale transcoder results cannot finalize or fail another processing attemp
   assert.ok(policy.includes('current.nextAttemptAt === observed.nextAttemptAt'));
 });
 
-test('transient provider errors cannot mutate cancelled or replaced jobs', () => {
-  assert.ok(scheduler.includes(
-    'current.lastErrorCode === normalized.code'
-  ));
-  assert.ok(scheduler.includes(
-    '!isCurrentVideoProcessingAttempt(current, job)'
-  ));
+test('provider GET errors are recorded only under the current polling claim', () => {
+  assert.ok(scheduler.includes('recordProviderPollErrorIfCurrent('));
+  assert.ok(firestoreCore.includes('isCurrentVideoProcessingAttempt(current, observed)'));
+  assert.ok(firestoreCore.includes('current.lastErrorCode !== error.code'));
 });
 
 test('provider submission recovery supports processing jobs without external IDs', () => {
