@@ -11,7 +11,6 @@ import {
   clearProviderPollFailures,
   isProviderPollReviewRequired,
 } from './video-provider-poll-failure.policy';
-import { isCurrentVideoProcessingAttempt } from './video-processing-poll.policy';
 import {
   buildTerminalCleanupQueue,
   preserveTerminalCleanupBeforeRetry,
