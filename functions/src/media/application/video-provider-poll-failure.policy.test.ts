@@ -26,7 +26,7 @@ test('persistent HTTP 403/404 backs off, signals review and stops scheduled poll
     assert.equal(result.providerPollReviewRequired, attempt >= PROVIDER_POLL_REVIEW_AFTER);
     assert.ok(result.nextAttemptAt >= lastDue);
     lastDue = result.nextAttemptAt;
-    state = result;
+    state = { ...state, ...result };
   }
   assert.equal(lastDue, PROVIDER_POLL_REVIEW_HOLD_AT);
   assert.equal(nextProviderPollFailure(state, now + 100_000, false).nextAttemptAt,
@@ -40,10 +40,10 @@ test('transient failures back off with a bounded retry interval', () => {
     providerPollFailureCount: 0,
   }, now, true);
   assert.equal(first.nextAttemptAt, now + 9 * 60_000);
-  const second = nextProviderPollFailure(first, now, true);
+  const second = nextProviderPollFailure({ ...first, processingVersion: 'v' }, now, true);
   assert.equal(second.nextAttemptAt, now + 18 * 60_000);
   const seventh = nextProviderPollFailure({
-    ...second, providerPollFailureCount: 6,
+    ...second, processingVersion: 'v', providerPollFailureCount: 6,
   }, now, true);
   assert.equal(seventh.nextAttemptAt, now + 6 * 60 * 60_000);
 });
