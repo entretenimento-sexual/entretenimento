@@ -32,7 +32,8 @@ test('failure and backlog attention differ from successful empty cycles', () => 
 
 test('observability refuses identifiers, errors and raw private messages', () => {
   const payload = { selected: 3, taskRejected: 1, batchLimitReached: true,
-    ownerUid: 'private', lastError: 'secret', taskIndex: 44 } as unknown as Parameters<typeof safeVideoSchedulerMetrics>[0];
+    ownerUid: 'private', lastError: 'secret', taskIndex: 44,
+  } as unknown as Parameters<typeof safeVideoSchedulerMetrics>[0];
   assert.deepEqual(safeVideoSchedulerMetrics(payload), {
     selected: 3, taskRejected: 1, batchLimitReached: true,
   });

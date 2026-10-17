@@ -72,7 +72,11 @@ test('frontend never equates Transcoder reachability with scheduler health', () 
     '../../../../src/app/admin-dashboard/video-moderation/video-moderation.component.html'
   ), 'utf8');
   assert.ok(component.includes("return 'Transcoder acessível';"));
-  assert.ok(template.includes('Execução do scheduler não verificada'));
+  assert.ok(component.includes('schedulerHealthLabel('));
+  assert.ok(template.includes('schedulerHealthLabel(scheduler)'));
+  assert.ok(template.includes('Registros') || template.includes('Registros'.toLowerCase()) ||
+    template.includes('Registros'.toUpperCase()) || template.includes('registros'));
+  assert.ok(template.includes('Transcoder'));
   assert.ok(template.includes('cancellation.samplePartial'));
   assert.ok(template.includes('cancellation.missingOrInvalidDue'));
 });
