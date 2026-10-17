@@ -2176,6 +2176,7 @@ test('review recheck reuses immutable terminal snapshot and never touches a new 
   };
   const jobId = old.ownerUid + '_' + old.videoId;
   const ref = terminalCleanupRef(firestore, jobId, old.processingVersion);
+  const liveRef = jobs.doc(jobId);
   const auditRef = firestore.collection('admin_logs').doc();
   const prepared = buildTerminalCleanupQueue(jobId, terminal, now);
   assert.ok(prepared);
@@ -2190,7 +2191,12 @@ test('review recheck reuses immutable terminal snapshot and never touches a new 
     reason: 'Proveniência verificada para nova checagem',
     now: now + 1,
   };
-  await ref.set(held);
+  await Promise.all([
+    ref.set(held),
+    liveRef.set({ ...terminal, state: 'PROCESSING',
+      processingVersion: old.processingVersion + '-new',
+      providerTerminalEvidence: null }),
+  ]);
   try {
     assert.equal(terminalCleanupReviewBlocker(ref.id, held), null);
     assert.deepEqual(await recheckReviewedTerminalTemporaryCleanup(
@@ -2201,6 +2207,9 @@ test('review recheck reuses immutable terminal snapshot and never touches a new 
     assert.equal(actual['attempts'], 8);
     assert.equal(actual['nextAttemptAt'], now + 1);
     assert.equal(actual['processingVersion'], old.processingVersion);
+    assert.equal((await liveRef.get()).get('processingVersion'),
+      old.processingVersion + '-new');
+    assert.equal((await liveRef.get()).get('state'), 'PROCESSING');
     assert.deepEqual(actual['snapshot'], held.snapshot);
     assert.equal((await auditRef.get()).get('action'), 'videoTerminalCleanupRecheck');
     assert.deepEqual(await recheckReviewedTerminalTemporaryCleanup(
@@ -2212,7 +2221,7 @@ test('review recheck reuses immutable terminal snapshot and never touches a new 
     assert.equal(claimed.queue.attempts, 8);
     assert.equal(await isTerminalTemporaryClaimCurrent(ref, claimed, now + 3), true);
   } finally {
-    await Promise.all([ref.delete(), auditRef.delete()]);
+    await Promise.all([ref.delete(), auditRef.delete(), liveRef.delete()]);
   }
 });
 
