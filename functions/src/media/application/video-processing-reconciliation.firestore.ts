@@ -12,8 +12,36 @@ import {
   nextCancellationRetryAt,
 } from './video-cancellation-schedule.policy';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
+import { canSubmitCurrentTranscoderJob } from './video-transcoder-post-guard.policy';
 
 type NormalizeJob = (data: unknown) => VideoProcessingJob | null;
+
+/** Read-only transaction; never reserve a second submission or issue a POST. */
+export async function confirmTranscoderPostIsCurrent(
+  firestore: Firestore,
+  jobRef: DocumentReference,
+  observed: VideoProcessingJob,
+  normalizeJob: NormalizeJob,
+  now: number,
+  immutableRequired: boolean
+): Promise<boolean> {
+  const videoRef = firestore.doc(
+    `users/${observed.ownerUid}/videos/${observed.videoId}`
+  );
+  return firestore.runTransaction(async transaction => {
+    const [jobSnap, videoSnap] = await Promise.all([
+      transaction.get(jobRef),
+      transaction.get(videoRef),
+    ]);
+    return canSubmitCurrentTranscoderJob(
+      jobSnap.exists ? normalizeJob(jobSnap.data()) : null,
+      observed,
+      videoSnap.exists ? videoSnap.data() ?? null : null,
+      now,
+      immutableRequired
+    );
+  });
+}
 
 /** Production and tests share the same indexed query, not a test-only copy. */
 export function queryDueProcessingJobs(

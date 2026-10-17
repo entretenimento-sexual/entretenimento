@@ -18,6 +18,8 @@ import {
   type VideoProcessingJob,
 } from './video-processing-job';
 import { prepareVideoSourceForTranscoder } from './video-rotation-worker.service';
+import { videoSourceProbeCaptureEnabled } from './video-source-probe.service';
+import { submitAfterTranscoderPostGuard } from './video-transcoder-post-guard.policy';
 import { lookupUniqueTranscoderJob } from './google-video-transcoder-lookup.policy';
 import { deleteVideoTranscoderJobWithTransport } from './video-transcoder-delete.transport';
 
@@ -274,12 +276,18 @@ export async function probeGoogleVideoTranscoder(): Promise<GoogleVideoTranscode
 }
 
 export async function submitGoogleVideoTranscoderJob(
-  job: VideoProcessingJob
-): Promise<GoogleTranscoderJobSnapshot> {
+  job: VideoProcessingJob,
+  confirmBeforePost: () => Promise<boolean>
+): Promise<GoogleTranscoderJobSnapshot | null> {
   const processingVersion = normalizeProcessingVersion(job.processingVersion);
 
   if (!processingVersion) {
     throw new Error('Versão do processamento inválida para o Transcoder.');
+  }
+  // Do not enable immutable mode until the provider URI and generation-aware
+  // lifecycle cleanup are both integrated. Never POST the mutable original.
+  if (videoSourceProbeCaptureEnabled() && job.sourceGeneration) {
+    throw new Error('IMMUTABLE_TRANSCODER_POST_NOT_ENABLED');
   }
 
   const parent = parentName();
@@ -300,7 +308,9 @@ export async function submitGoogleVideoTranscoderJob(
   const editedConfig = buildEditedTranscoderJobConfig(configInput);
   const neutralConfig = editedConfig ? null : buildNeutralSingleMp4Config(configInput);
   const selectedConfig = editedConfig ?? neutralConfig;
-  const response = await axios.post<GoogleTranscoderJobResponse>(
+  const response = await submitAfterTranscoderPostGuard(
+    confirmBeforePost,
+    () => axios.post<GoogleTranscoderJobResponse>(
     `${TRANSCODER_API_BASE_URL}/${parent}/jobs`,
     {
       ...(selectedConfig
@@ -327,7 +337,9 @@ export async function submitGoogleVideoTranscoderJob(
       },
       timeout: 30_000,
     }
+    )
   );
+  if (!response) return null;
   const name = normalizeJobName(response.data?.name);
 
   if (!name) {

@@ -44,6 +44,7 @@ import {
   bindCancelledProviderJobIfCurrent,
   claimExpiredSubmissionLease,
   updateRecoveredSubmissionIfCurrent,
+  confirmTranscoderPostIsCurrent,
 } from './video-processing-reconciliation.firestore';
 import { prepareVideoSourceProbeBeforeSubmission, videoSourceProbeCaptureEnabled } from './video-source-probe.service';
 import { selectTranscoderInputSource } from './video-immutable-input.policy';
@@ -507,7 +508,14 @@ async function submitClaimedJob(
   job: VideoProcessingJob
 ): Promise<void> {
   try {
-    const providerJob = await submitGoogleVideoTranscoderJob(job);
+    const providerJob = await submitGoogleVideoTranscoderJob(
+      job,
+      () => confirmTranscoderPostIsCurrent(
+        db, jobRef, job, normalizeJob, Date.now(),
+        videoSourceProbeCaptureEnabled()
+      )
+    );
+    if (!providerJob) return;
     await persistSubmittedJob(
       jobRef,
       job,

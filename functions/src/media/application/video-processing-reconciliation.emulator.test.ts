@@ -58,6 +58,7 @@ import {
   bindCancelledProviderJobIfCurrent,
   claimExpiredSubmissionLease,
   updateRecoveredSubmissionIfCurrent,
+  confirmTranscoderPostIsCurrent,
 } from './video-processing-reconciliation.firestore';
 
 const PROJECT_ID = 'demo-entretenimento-video-reconciliation';
@@ -1737,4 +1738,40 @@ test('publication still accepts a valid registered video identity', async () => 
     .set({ ownerUid: f.video.ownerUid, videoId: f.publicationRef.id, state: 'REGISTERED' });
   await commitCopiedVideoPublicationIfCurrent(firestore, f.command('registered-' + randomUUID()));
   assert.equal((await f.publicationRef.get()).get('isPublished'), true);
+});
+
+test('final Transcoder POST guard denies cancellation, replacements and expired leases', async () => {
+  const job = {
+    ...fixture('post-fence'),
+    state: 'SUBMITTING' as const,
+    attempts: 1,
+    sourceGeneration: '90071992547409930',
+    externalJobName: null,
+    cancelRequestedAt: null,
+    leaseUntil: now + 60_000,
+  };
+  const ref = jobs.doc(job.ownerUid + '_' + job.videoId);
+  const videoRef = firestore.doc(`users/${job.ownerUid}/videos/${job.videoId}`);
+  try {
+    await Promise.all([
+      ref.set(job),
+      videoRef.set({ path: job.sourceStoragePath, sourceGeneration: job.sourceGeneration }),
+    ]);
+    const allows = () => confirmTranscoderPostIsCurrent(
+      firestore, ref, job, parseJob, now, false
+    );
+    assert.equal(await allows(), true);
+    await ref.update({ state: 'CANCEL_REQUESTED', cancelRequestedAt: now });
+    assert.equal(await allows(), false);
+    await ref.update({ state: 'SUBMITTING', cancelRequestedAt: null });
+    await videoRef.update({ sourceGeneration: '90071992547409931' });
+    assert.equal(await allows(), false);
+    await videoRef.update({ sourceGeneration: job.sourceGeneration });
+    await ref.update({ processingVersion: 'different-version' });
+    assert.equal(await allows(), false);
+    await ref.update({ processingVersion: job.processingVersion, leaseUntil: now });
+    assert.equal(await allows(), false);
+  } finally {
+    await Promise.all([ref.delete(), videoRef.delete()]);
+  }
 });
