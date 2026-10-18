@@ -85,6 +85,18 @@ describe('media-error.catalog', () => {
     expect(resolveMediaErrorMessage('video_publication_settings_failed')).toBe(
       'Não foi possível salvar as informações do vídeo.'
     );
+    expect(resolveMediaErrorMessage('video_comments_load_failed')).toBe(
+      'Não foi possível carregar os comentários do vídeo. Tente novamente.'
+    );
+    expect(resolveMediaErrorMessage('video_recovery_action_failed')).toBe(
+      'A ação de recuperação do processamento não pôde ser concluída.'
+    );
+    expect(resolveMediaErrorPresentation('video_comments_load_failed')).toMatchObject({
+      surface: 'inline',
+    });
+    expect(resolveMediaErrorPresentation('video_recovery_queue_load_failed')).toMatchObject({
+      surface: 'inline',
+    });
     for (const reason of [
       'video_upload_failed',
       'video_library_load_failed',

@@ -156,6 +156,16 @@ export class ProfileVideoLibraryFacade {
     );
   }
 
+  retry(): void {
+    if (!this.activeOwnerUid) return;
+    // Somente gesto explícito do usuário; reaproveita o effect existente.
+    this.store.dispatch(
+      ProfileVideoLibraryActions.watchRequested({
+        ownerUid: this.activeOwnerUid,
+      })
+    );
+  }
+
   stop(): void {
     this.activeOwnerUid = null;
     this.nearbyVideoIdsSubject.next(new Set());

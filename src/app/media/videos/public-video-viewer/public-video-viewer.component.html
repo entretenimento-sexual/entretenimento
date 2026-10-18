@@ -6,6 +6,8 @@
 @let liked = (likedByViewer$ | async) === true;
 @let likesCount = (likesCount$ | async) || 0;
 @let commentsCount = (commentsCount$ | async) || 0;
+@let commentState = (commentState$ | async);
+@let commentThreads = (commentThreads$ | async);
 @let ratingSummary = (ratingSummary$ | async);
 @let viewerRating = (viewerRating$ | async);
 @let togglingLike = (togglingLike$ | async) === true;
@@ -354,10 +356,21 @@
                 </form>
               }
 
-              @if (commentThreads$ | async; as threads) {
-                @if (threads.length > 0) {
+              @if (commentState?.status === 'loading') {
+                <p class="public-video-viewer__comments-empty" role="status">
+                  Carregando comentários...
+                </p>
+              } @else if (commentState?.status === 'error') {
+                <div class="public-video-viewer__comments-empty" role="alert">
+                  <p>{{ commentState?.message || 'Não foi possível carregar os comentários do vídeo.' }}</p>
+                  <button type="button" (click)="retryComments()">
+                    Tentar novamente
+                  </button>
+                </div>
+              } @else if (commentThreads) {
+                @if (commentThreads.length > 0) {
                   <div class="public-video-viewer__comment-list" role="list">
-                    @for (thread of threads; track thread.root.id) {
+                    @for (thread of commentThreads; track thread.root.id) {
                       <article class="public-video-viewer__comment" role="listitem">
                         <header>
                           <a

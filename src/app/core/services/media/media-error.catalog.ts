@@ -75,6 +75,12 @@ export const MEDIA_ERROR_MESSAGES = Object.freeze({
       'Não foi possível enviar a denúncia agora.',
     video_library_load_failed:
       'Não foi possível carregar seus vídeos agora.',
+    video_comments_load_failed:
+      'Não foi possível carregar os comentários do vídeo. Tente novamente.',
+    video_recovery_queue_load_failed:
+      'Não foi possível carregar a fila de recuperação de vídeos agora.',
+    video_recovery_action_failed:
+      'A ação de recuperação do processamento não pôde ser concluída.',
     video_editor_open_failed:
       'Não foi possível abrir o editor de vídeo agora.',
     video_publication_settings_failed:
@@ -493,6 +499,18 @@ export const MEDIA_ERROR_PRESENTATIONS:
       severity: 'error',
     },
     video_library_load_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    video_comments_load_failed: {
+      surface: 'inline',
+      severity: 'warning',
+    },
+    video_recovery_queue_load_failed: {
+      surface: 'inline',
+      severity: 'warning',
+    },
+    video_recovery_action_failed: {
       surface: 'snackbar',
       severity: 'error',
     },

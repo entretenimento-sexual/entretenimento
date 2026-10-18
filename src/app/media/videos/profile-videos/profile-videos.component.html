@@ -8,6 +8,8 @@
 @let selectedFileName = (selectedFileName$ | async);
 @let editorState = (editorState$ | async);
 @let canUpload = (canUpload$ | async) === true;
+@let libraryStatus = (videoLibraryStatus$ | async);
+@let libraryError = (videoLibraryError$ | async);
 
 <section class="profile-videos" aria-label="Vídeos">
   @if (isOwner$ | async) {
@@ -354,7 +356,19 @@
         }
       </dialog>
 
-      @if (items.length > 0) {
+      @if (libraryStatus === 'loading' || libraryStatus === 'idle') {
+        <p class="profile-videos__upload-status" role="status">
+          Carregando seus vídeos...
+        </p>
+      } @else if (libraryStatus === 'error') {
+        <div class="profile-videos__empty" role="alert">
+          <p>{{ libraryError || 'Não foi possível carregar seus vídeos agora.' }}</p>
+          <button type="button" class="app-action app-action--secondary"
+            (click)="retryVideoLibrary()">
+            Tentar novamente
+          </button>
+        </div>
+      } @else if (items.length > 0) {
         <div class="profile-videos__grid" aria-label="Meus vídeos">
           @for (item of items; track trackByVideoId($index, item)) {
             <article

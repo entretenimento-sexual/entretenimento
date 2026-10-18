@@ -549,3 +549,32 @@ Processamento técnico e moderação são responsabilidades distintas. O vídeo 
 passa pelo processamento normal é publicado; denúncias e sinais de risco são
 tratados pelo fluxo de moderação, que pode manter, colocar em quarentena ou
 remover conteúdo conforme a decisão registrada.
+## c15 — Feedback de falhas de Media e triagem simples
+
+A biblioteca privada distingue `loading`, `ready` com resultado vazio
+real e `error`, reaproveitando o reducer NgRx e a facade existentes.
+O serviço Firestore não converte mais falha em `of([])`; o effect
+registra diagnóstico sanitizado silencioso e o componente apresenta
+erro inline e botão **Tentar novamente**. O retry é disparado apenas
+pelo usuário, não por polling nem mutação automática.
+
+O painel de comentários do vídeo público segue o mesmo contrato:
+loading/ready/error e retry manual do listener. Uma falha de consulta
+não pode ser exibida como “Nenhum comentário”. O erro técnico é
+registrado silenciosamente uma vez pelo consumidor. A reprodução
+compartilha `NetworkStatusService` e `OFFLINE_USER_MESSAGE`,
+preservando regras de autorização, expiração, revogação e tratamento
+específico de erro de vídeo.
+
+No suporte administrativo, `video_recovery_queue_load_failed`
+identifica falha na consulta da fila, enquanto
+`video_recovery_action_failed` identifica falha em uma ação de
+recuperação. Não utilizar `video_upload_failed` para essas operações.
+
+Roteiro operacional com equipe reduzida: (1) conexão local;
+(2) resultado vazio legítimo versus erro de consulta; (3) código,
+reason e operação do diagnóstico sanitizado; (4) estado canônico do
+job/conta antes de recomendar reenvio; (5) checks CI e logs de E2E.
+Não copiar IDs, tokens, URLs assinadas ou mensagens do Transcoder.
+Sem novas varreduras de Firestore, chamadas externas, retries de
+escritas, polling ou storage de logs.

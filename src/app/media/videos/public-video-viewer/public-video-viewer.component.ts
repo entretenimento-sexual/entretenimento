@@ -48,6 +48,8 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { normalizeUserAccountLifecycleStatus } from 'src/app/core/services/autentication/auth/account-lifecycle.policy';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
+import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
+import { OFFLINE_USER_MESSAGE } from 'src/app/core/services/network/network-user-feedback.policy';
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
 import { MediaVideoCommentsService } from 'src/app/core/services/media/media-video-comments.service';
 import {
@@ -154,6 +156,7 @@ export class PublicVideoViewerComponent {
   private readonly ratings = inject(MediaVideoRatingsService);
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly mediaError = inject(MediaApplicationErrorService);
+  private readonly networkStatus = inject(NetworkStatusService);
   private readonly recordedViewKeys = new Set<string>();
   private readonly revokedVideoKeys = new Set<string>();
   private observedAvailableVideoKey: string | null = null;
@@ -182,6 +185,7 @@ export class PublicVideoViewerComponent {
   index = 0;
   readonly ratingOptions = [1, 2, 3, 4, 5] as const;
   readonly commentsExpanded = signal(false);
+  private readonly commentReloadSubject = new BehaviorSubject(0);
   readonly ratingsExpanded = signal(false);
   readonly navigationAnnouncement = signal('');
   readonly loadingContinuation = signal(false);
@@ -318,13 +322,54 @@ export class PublicVideoViewerComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly comments$ = this.currentVideo$.pipe(
-    switchMap((video) => video
-      ? this.comments.watchVisibleComments$(video.ownerUid, video.id)
-      : of([] as IVideoComment[])),
-    catchError(() => of([] as IVideoComment[])),
+  readonly commentState$ = combineLatest([
+    this.currentVideo$,
+    this.commentReloadSubject,
+  ]).pipe(
+    switchMap(([video]) => {
+      if (!video) {
+        return of({
+          status: 'ready' as const,
+          items: [] as IVideoComment[],
+          message: null as string | null,
+        });
+      }
+
+      return this.comments.watchVisibleComments$(video.ownerUid, video.id).pipe(
+        map((items) => ({
+          status: 'ready' as const,
+          items,
+          message: null as string | null,
+        })),
+        startWith({
+          status: 'loading' as const,
+          items: [] as IVideoComment[],
+          message: null as string | null,
+        }),
+        catchError((error: unknown) => {
+          const diagnostic = this.mediaError.reportSilently(
+            error, 'publicVideoViewer.watchVisibleComments', undefined,
+            { scope: 'PublicVideoViewerComponent' },
+            'video_comments_load_failed'
+          );
+          return of({
+            status: 'error' as const,
+            items: [] as IVideoComment[],
+            message: diagnostic.userMessage,
+          });
+        })
+      );
+    }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  readonly comments$ = this.commentState$.pipe(
+    map((state) => state.items)
+  );
+
+  retryComments(): void {
+    this.commentReloadSubject.next(this.commentReloadSubject.value + 1);
+  }
 
   readonly commentThreads$ = this.comments$.pipe(
     map((items) => this.buildCommentThreads(items)),
@@ -497,7 +542,7 @@ export class PublicVideoViewerComponent {
     });
     if (failure === 'offline') {
       this.playbackFeedback?.markError(
-        'Sem conexão. Reconecte-se e tente novamente.'
+        OFFLINE_USER_MESSAGE
       );
     } else if (failure === 'expired') {
       this.refreshCurrentVideoAccess('expiry');
@@ -1253,7 +1298,7 @@ export class PublicVideoViewerComponent {
 
     if (this.isNetworkOffline()) {
       this.playbackFeedback?.markError(
-        'Sem conexão. Reconecte-se e tente novamente.'
+        OFFLINE_USER_MESSAGE
       );
       return;
     }
@@ -1340,7 +1385,7 @@ export class PublicVideoViewerComponent {
   }
 
   private isNetworkOffline(): boolean {
-    return typeof navigator !== 'undefined' && navigator.onLine === false;
+    return !this.networkStatus.isOnlineSnapshot();
   }
 
   private handleAccessRefreshFailure(
@@ -1394,7 +1439,7 @@ export class PublicVideoViewerComponent {
     this.discardCurrentPlaybackAccess();
     this.pendingPlaybackResume = null;
     const message = this.isNetworkOffline()
-      ? 'Sem conexão. Reconecte-se e tente novamente.'
+      ? OFFLINE_USER_MESSAGE
       : failure !== 'unknown'
         ? MEDIA_ERROR_CODE_MESSAGES[failure]
         : reason === 'expiry'

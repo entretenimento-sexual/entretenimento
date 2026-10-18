@@ -95,11 +95,11 @@ export class ProfileVideoLibraryEffects {
             return from(nextActions);
           }),
           catchError((error) => {
-            const descriptor = this.mediaError.report(error, {
-              operation: 'profileVideoLibrary.watch',
-              reasonHint: 'video_library_load_failed',
-              metadata: { hasOwnerUid: true },
-            });
+            // Erro é apresentado inline pelo estado; o handler só diagnostica.
+            const descriptor = this.mediaError.reportSilently(
+              error, 'profileVideoLibrary.watch', undefined,
+              { hasOwnerUid: true }, 'video_library_load_failed'
+            );
             return of(
               ProfileVideoLibraryActions.watchFailed({
                 ownerUid,

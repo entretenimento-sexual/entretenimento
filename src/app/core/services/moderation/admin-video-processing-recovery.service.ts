@@ -123,7 +123,7 @@ export class AdminVideoProcessingRecoveryService {
           {
             scope: 'AdminVideoProcessingRecoveryService',
           },
-          'video_library_load_failed'
+          'video_recovery_queue_load_failed'
         );
         return throwError(() => error);
       })
@@ -182,7 +182,7 @@ export class AdminVideoProcessingRecoveryService {
       catchError((error) => {
         this.mediaError.report(error, {
           operation: 'adminVideoProcessing.recoverJob',
-          reasonHint: 'video_upload_failed',
+          reasonHint: 'video_recovery_action_failed',
           metadata: {
             scope: 'AdminVideoProcessingRecoveryService',
             action: payload.action,

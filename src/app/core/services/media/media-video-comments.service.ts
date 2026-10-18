@@ -118,19 +118,7 @@ export class MediaVideoCommentsService {
           )
           .sort((left, right) => left.createdAt - right.createdAt)
       ),
-      catchError((error) => {
-        this.reportError(
-          'Erro ao carregar comentários do vídeo.',
-          error,
-          {
-            op: 'watchVisibleComments$',
-            hasOwnerUid: !!safeOwnerUid,
-            hasVideoId: !!safeVideoId,
-          },
-          true
-        );
-        return of([]);
-      }),
+      // O consumer apresenta falha inline; não falsificar ausência de comentários.
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }

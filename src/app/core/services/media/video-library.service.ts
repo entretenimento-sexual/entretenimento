@@ -168,10 +168,7 @@ export class VideoLibraryService {
           .map((item) => this.mapVideoDoc(safeOwnerUid, item))
           .filter((item) => this.hasValidIdentityAndPath(item))
       ),
-      catchError((error) => {
-        this.handleReadError(error, safeOwnerUid);
-        return of([]);
-      }),
+      // Falha de leitura precisa chegar ao estado de erro do NgRx, não ao [].
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
@@ -618,21 +615,6 @@ export class VideoLibraryService {
         },
       }
     );
-  }
-
-  private handleReadError(error: unknown, ownerUid: string): void {
-    this.privacyDebug.log('media', 'VideoLibrary: erro ao carregar vídeos', {
-      hasOwnerUid: !!ownerUid,
-    });
-
-    this.globalErrorHandler.report(error, {
-      operation: 'watchOwnedVideoMetadata$',
-      reasonHint: 'video_library_load_failed',
-      metadata: {
-        scope: 'VideoLibraryService',
-        hasOwnerUid: !!ownerUid,
-      },
-    });
   }
 
   private reportSilent(

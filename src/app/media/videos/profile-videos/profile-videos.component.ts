@@ -276,6 +276,12 @@ export class ProfileVideosComponent {
 
   readonly viewItems$: Observable<IProfileVideoViewItem[]> =
     this.profileVideoLibrary.viewItems$;
+  readonly videoLibraryStatus$ = this.profileVideoLibrary.status$;
+  readonly videoLibraryError$ = this.profileVideoLibrary.errorMessage$;
+
+  retryVideoLibrary(): void {
+    this.profileVideoLibrary.retry();
+  }
 
   constructor() {
     combineLatest([this.ownerUid$, this.isOwner$]).pipe(
