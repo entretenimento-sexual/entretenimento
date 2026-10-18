@@ -234,7 +234,12 @@ export class AdminVideoModerationService {
         'submissionConfirmed', 'submissionUnconfirmed', 'submissionRetryScheduled',
         'submissionFailed', 'submissionDeferred', 'recoveryConfirmed',
         'recoveryUnconfirmed', 'recoveryPollErrors', 'providerPollErrors',
-        'providerReviewRequired', 'providerSucceededObserved', 'providerFailedObserved']) {
+        'providerReviewRequired', 'providerSucceededObserved', 'providerFailedObserved',
+        'providerSucceededApplied', 'providerFailedApplied',
+        'providerTerminalCancelRequested', 'providerNonterminalApplied',
+        'submissionCancelRequested', 'recoveryCancelRequested',
+        'processingReplaced', 'processingSkipped',
+        'submissionReplaced', 'recoveryReplaced']) {
         const metric = item?.metrics?.[key];
         if (typeof metric === 'boolean' ||
             (typeof metric === 'number' && Number.isSafeInteger(metric) && metric >= 0)) {

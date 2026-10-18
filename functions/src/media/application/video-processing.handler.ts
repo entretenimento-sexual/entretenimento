@@ -6,10 +6,17 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import {
+  commitTerminalVideoProcessingIfCurrent,
+  type VideoCommitDisposition,
+} from './video-processing-terminal-commit.firestore';
+import {
   runObservedVideoScheduler, bestEffortSaveVideoSchedulerCycle,
 } from './video-scheduler-observability.firestore';
 import { videoSchedulerRecord } from './video-scheduler-observability.policy';
-import { createVideoWorkOutcomeCounter, type VideoWorkOutcome } from './video-processing-outcomes.policy';
+import {
+  createVideoWorkOutcomeCounter, terminalVideoWorkOutcomes,
+  type VideoWorkOutcome,
+} from './video-processing-outcomes.policy';
 import {
   deleteGoogleVideoTranscoderJob,
   findGoogleVideoTranscoderJob,
@@ -388,7 +395,7 @@ async function persistSubmittedJob(
   job: VideoProcessingJob,
   externalJobName: string,
   providerState: string
-): Promise<boolean> {
+): Promise<VideoCommitDisposition> {
   const now = Date.now();
 
   return db.runTransaction(async (transaction) => {
@@ -403,7 +410,7 @@ async function persistSubmittedJob(
     if (!currentJob || !canAttachSubmittedProviderJob(
       currentJob, job, externalJobName
     )) {
-      return false;
+      return 'REPLACED';
     }
 
     if (
@@ -421,7 +428,7 @@ async function persistSubmittedJob(
         leaseUntil: null,
         updatedAt: now,
       });
-      return false;
+      return 'CANCEL_REQUESTED';
     }
 
     const video = videoSnapshot.data() as PrivateVideoDocument;
@@ -442,7 +449,7 @@ async function persistSubmittedJob(
         lastErrorCode: 'SOURCE_CHANGED',
         lastError: 'O arquivo privado associado ao vídeo foi alterado.',
       });
-      return false;
+      return 'CANCEL_REQUESTED';
     }
 
     transaction.update(jobRef, {
@@ -467,7 +474,7 @@ async function persistSubmittedJob(
       },
       { merge: true }
     );
-    return true;
+    return 'APPLIED';
   });
 }
 
@@ -547,7 +554,9 @@ async function submitClaimedJob(
     const persisted = await persistSubmittedJob(
       jobRef, job, providerJob.name, providerJob.state
     );
-    observe?.(persisted ? 'SUBMISSION_CONFIRMED' : 'SUBMISSION_REPLACED');
+    observe?.(persisted === 'APPLIED' ? 'SUBMISSION_CONFIRMED'
+      : persisted === 'CANCEL_REQUESTED' ? 'SUBMISSION_CANCEL_REQUESTED'
+        : 'SUBMISSION_REPLACED');
   } catch (error) {
     observe?.(await handleSubmissionFailure(jobRef, job, error));
   }
@@ -569,7 +578,9 @@ async function recoverExpiredSubmission(
       const persisted = await persistSubmittedJob(
         jobRef, job, recovered.name, recovered.state
       );
-      observe?.(persisted ? 'RECOVERY_CONFIRMED' : 'RECOVERY_REPLACED');
+      observe?.(persisted === 'APPLIED' ? 'RECOVERY_CONFIRMED'
+          : persisted === 'CANCEL_REQUESTED' ? 'RECOVERY_CANCEL_REQUESTED'
+            : 'RECOVERY_REPLACED');
       return;
     }
 
@@ -715,55 +726,19 @@ async function finalizeSucceededJob(
   jobRef: DocumentReference,
   job: VideoProcessingJob,
   evidence: VideoProviderTerminalEvidence
-): Promise<void> {
+): Promise<VideoCommitDisposition> {
   const candidate = await findProcessedVideoCandidate(job);
   const now = Date.now();
-
-  await db.runTransaction(async (transaction) => {
-    const [jobSnapshot, videoSnapshot] = await Promise.all([
-      transaction.get(jobRef),
-      transaction.get(db.doc(`users/${job.ownerUid}/videos/${job.videoId}`)),
-    ]);
-    const currentJob = jobSnapshot.exists
-      ? normalizeJob(jobSnapshot.data())
-      : null;
-
-    if (!currentJob || !isCurrentVideoProcessingAttempt(currentJob, job)) {
-      return;
-    }
-
-    if (!videoSnapshot.exists) {
-      transaction.update(jobRef, {
-        state: 'CANCEL_REQUESTED',
-        cancelRequestedAt: currentJob.cancelRequestedAt ?? now,
-        nextAttemptAt: now,
-        leaseUntil: null,
-        updatedAt: now,
-      });
-      return;
-    }
-
-    const video = videoSnapshot.data() as PrivateVideoDocument;
-
-    if (
-      privateSourcePath(job.ownerUid, job.videoId, video) !==
-      job.sourceStoragePath ||
-      (!!job.sourceGeneration && video.sourceGeneration !== job.sourceGeneration)
-    ) {
-      transaction.update(jobRef, {
-        state: 'CANCEL_REQUESTED',
-        cancelRequestedAt: now,
-        nextAttemptAt: now,
-        leaseUntil: null,
-        updatedAt: now,
-        lastErrorCode: 'SOURCE_CHANGED',
-        lastError: 'O arquivo privado associado ao vídeo foi alterado.',
-      });
-      return;
-    }
-
-    transaction.update(jobRef, {
-      state: 'SUCCEEDED',
+  return commitTerminalVideoProcessingIfCurrent(db, jobRef, job, {
+    state: 'SUCCEEDED',
+    now,
+    normalizeJob,
+    sourceMatches: raw => {
+      const video = raw as unknown as PrivateVideoDocument;
+      return privateSourcePath(job.ownerUid, job.videoId, video) === job.sourceStoragePath &&
+        (!job.sourceGeneration || video.sourceGeneration === job.sourceGeneration);
+    },
+    jobPatch: {
       providerState: 'SUCCEEDED',
       providerTerminalEvidence: evidence,
       ...clearProviderPollFailures(),
@@ -772,31 +747,28 @@ async function finalizeSucceededJob(
       outputSizeBytes: candidate.sizeBytes,
       completedAt: now,
       leaseUntil: null,
-      updatedAt: now,
       lastErrorCode: null,
       lastError: null,
-    });
-    transaction.set(
-      videoSnapshot.ref,
-      {
-        sourceMimeType: video.mimeType ?? job.sourceMimeType,
-        sourceSizeBytes: video.sizeBytes ?? job.sourceSizeBytes,
-        mimeType: candidate.mimeType,
-        sizeBytes: candidate.sizeBytes,
-        status: 'ready',
-        playbackPath: candidate.storagePath,
-        processedStoragePath: candidate.storagePath,
-        processedOutputPrefix: job.outputPrefix,
-        processedMimeType: candidate.mimeType,
-        processedSizeBytes: candidate.sizeBytes,
-        processingStage: 'ready',
-        processingErrorCode: null,
-        processingErrorMessage: null,
-        processingCompletedAt: now,
-        updatedAt: now,
-      },
-      { merge: true }
-    );
+    },
+    videoPatch: raw => {
+      const video = raw as unknown as PrivateVideoDocument;
+      return {
+      sourceMimeType: video.mimeType ?? job.sourceMimeType,
+      sourceSizeBytes: video.sizeBytes ?? job.sourceSizeBytes,
+      mimeType: candidate.mimeType,
+      sizeBytes: candidate.sizeBytes,
+      status: 'ready',
+      playbackPath: candidate.storagePath,
+      processedStoragePath: candidate.storagePath,
+      processedOutputPrefix: job.outputPrefix,
+      processedMimeType: candidate.mimeType,
+      processedSizeBytes: candidate.sizeBytes,
+      processingStage: 'ready',
+      processingErrorCode: null,
+      processingErrorMessage: null,
+      processingCompletedAt: now,
+      };
+    },
   });
 }
 
@@ -806,60 +778,34 @@ async function markProviderFailure(
   errorCode: string | null,
   errorMessage: string | null,
   evidence: VideoProviderTerminalEvidence
-): Promise<void> {
+): Promise<VideoCommitDisposition> {
   const now = Date.now();
-  const videoRef = db.doc(`users/${job.ownerUid}/videos/${job.videoId}`);
-
-  await db.runTransaction(async (transaction) => {
-    const [jobSnapshot, videoSnapshot] = await Promise.all([
-      transaction.get(jobRef),
-      transaction.get(videoRef),
-    ]);
-    const current = jobSnapshot.exists
-      ? normalizeJob(jobSnapshot.data())
-      : null;
-
-    if (!current || !isCurrentVideoProcessingAttempt(current, job)) {
-      return;
-    }
-
-    const video = videoSnapshot.exists
-      ? videoSnapshot.data() as PrivateVideoDocument
-      : null;
-    if (
-      !video ||
-      privateSourcePath(job.ownerUid, job.videoId, video) !== job.sourceStoragePath
-    ) {
-      transaction.update(jobRef, {
-        state: 'CANCEL_REQUESTED',
-        cancelRequestedAt: now,
-        nextAttemptAt: now,
-        leaseUntil: null,
-        updatedAt: now,
-      });
-      return;
-    }
-
-    const failureCode = errorCode || 'TRANSCODER_JOB_FAILED';
-    transaction.update(jobRef, {
-      state: 'FAILED',
+  const failureCode = errorCode || 'TRANSCODER_JOB_FAILED';
+  return commitTerminalVideoProcessingIfCurrent(db, jobRef, job, {
+    state: 'FAILED',
+    now,
+    normalizeJob,
+    sourceMatches: raw => {
+      const video = raw as unknown as PrivateVideoDocument;
+      return privateSourcePath(job.ownerUid, job.videoId, video) === job.sourceStoragePath &&
+        (!job.sourceGeneration || video.sourceGeneration === job.sourceGeneration);
+    },
+    jobPatch: {
       providerState: 'FAILED',
       providerTerminalEvidence: evidence,
       ...clearProviderPollFailures(),
       completedAt: now,
       leaseUntil: null,
-      updatedAt: now,
       lastErrorCode: failureCode,
       lastError: errorMessage || 'O job de transcodificação falhou.',
-    });
-    transaction.set(videoRef, {
+    },
+    videoPatch: {
       status: 'failed',
       processingStage: 'failed',
       processingErrorCode: failureCode,
       processingErrorMessage:
         'Não foi possível preparar uma versão compatível deste vídeo.',
-      updatedAt: now,
-    }, { merge: true });
+    },
   });
 }
 
@@ -897,23 +843,27 @@ async function reconcileProcessingJob(
   const now = Date.now();
   if (providerJob.state === 'SUCCEEDED') {
     const evidence = buildProviderTerminalEvidence(job, providerJob, now);
-    await finalizeSucceededJob(jobRef, job, evidence);
-    observe?.('PROVIDER_SUCCEEDED_OBSERVED');
+    const disposition = await finalizeSucceededJob(jobRef, job, evidence);
+    for (const outcome of terminalVideoWorkOutcomes('SUCCEEDED', disposition)) {
+      observe?.(outcome);
+    }
     return;
   }
   if (providerJob.state === 'FAILED') {
     const evidence = buildProviderTerminalEvidence(job, providerJob, now);
-    await markProviderFailure(
+    const disposition = await markProviderFailure(
       jobRef, job, providerJob.errorCode, providerJob.errorMessage, evidence
     );
-    observe?.('PROVIDER_FAILED_OBSERVED');
+    for (const outcome of terminalVideoWorkOutcomes('FAILED', disposition)) {
+      observe?.(outcome);
+    }
     return;
   }
 
   if (providerObservationChanged(job, providerJob.state) ||
       (job.providerPollFailureCount ?? 0) > 0 ||
       job.providerPollReviewRequired === true) {
-    await db.runTransaction(async transaction => {
+    const result = await db.runTransaction(async transaction => {
       const snapshot = await transaction.get(jobRef);
       const current = snapshot.exists
         ? normalizeJob(snapshot.data())
@@ -922,7 +872,7 @@ async function reconcileProcessingJob(
           !isCurrentVideoProcessingAttempt(current, job) ||
           !(providerObservationChanged(current, providerJob.state) ||
             (current.providerPollFailureCount ?? 0) > 0 ||
-            current.providerPollReviewRequired === true)) return;
+            current.providerPollReviewRequired === true)) return 'REPLACED' as const;
       transaction.update(jobRef, {
         providerState: providerJob.state,
         ...clearProviderPollFailures(),
@@ -930,7 +880,12 @@ async function reconcileProcessingJob(
         lastErrorCode: null,
         lastError: null,
       });
+      return 'APPLIED' as const;
     });
+    observe?.(result === 'APPLIED'
+      ? 'PROVIDER_NONTERMINAL_APPLIED' : 'PROCESSING_REPLACED');
+  } else {
+    observe?.('PROCESSING_SKIPPED');
   }
   observe?.('PROVIDER_NONTERMINAL');
 }

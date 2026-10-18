@@ -292,6 +292,39 @@ cancelamento, precondições de geração ou exclusões GCS e não adiciona
 permissões, jobs agendados, flags nem varreduras de coleções. A documentação
 se refere ao código da `main`, sem presumir implantação em produção.
 
+### Consistência transacional entre observação e persistência (1C2-A3b2b2c9)
+
+O Transcoder pode responder `SUCCEEDED` ou `FAILED` enquanto uma nova
+versão, cancelamento ou nova reserva de polling substitui o job consultado.
+Por isso, `providerSucceededObserved` e `providerFailedObserved` contam
+somente respostas externas. Os contadores `providerSucceededApplied` e
+`providerFailedApplied` são incrementados **somente após a conclusão bem-sucedida
+da transação Firestore** que confirma a versão, a reserva, a identidade do
+arquivo original e a geração quando fixada. `processingReplaced` separa
+resposta tardia de tentativa já substituída; `providerTerminalCancelRequested`
+registra cancelamento persistido devido ao original ausente, caminho alterado
+ou geração incompatível. Não confundir cancelamento solicitado com exclusão
+executada nem resultado terminal observado com publicação confirmada.
+
+Submissão e recuperação diferenciam `APPLIED`, `REPLACED` e
+`CANCEL_REQUESTED`: os contadores de submissão/recuperação confirmada
+representam apenas transações que realmente persistiram o vínculo do
+provedor na tentativa atual. Alteração do original encaminha ao mesmo
+caminho de cancelamento existente, sem publicar derivados ou remover arquivos.
+Uma resposta `FAILED` observada na versão antiga não é uma falha persistida
+do job corrente.
+
+A `video-processing-terminal-commit.firestore.ts` contém a transação
+compartilhada por produção e testes do Firestore Emulator. Não consulta
+Transcoder ou Storage nem acrescenta leituras: preserva as duas leituras
+transacionais originais de job/vídeo e os mesmos limites do scheduler.
+As métricas continuam best effort, e jamais comandam transições,
+exclusões, retentativas ou publicação. O campo `evidenceVersion: 3`
+impede interpretar registros da versão 2 como evidência de resultado
+transacional; estes permanecem `UNVERIFIED` até novo ciclo. A proteção
+contra concorrência se baseia no `processingVersion`, job externo e
+`nextAttemptAt`, não nos contadores de observabilidade.
+
 ### Auditoria offline do scheduler por logs exportados
 
 A analise de logs pode ser feita sob demanda sem novas permissoes nas Functions,

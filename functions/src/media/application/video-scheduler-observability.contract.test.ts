@@ -65,11 +65,29 @@ test('outcome telemetry records handled failures without new Firestore or provid
   assert.ok(scheduler.includes("'RECOVERY_POLL_ERROR'"));
   assert.ok(scheduler.includes("'SUBMISSION_RETRY'"));
   assert.ok(scheduler.includes("'PROVIDER_FAILED_OBSERVED'"));
-  assert.ok(scheduler.includes('persisted ? \'SUBMISSION_CONFIRMED\''));
+  assert.ok(scheduler.includes("persisted === 'APPLIED' ? 'SUBMISSION_CONFIRMED'"));
   assert.ok(outcomes.includes('ATTENTION_OUTCOMES'));
   assert.ok(!outcomes.includes('getGoogleVideoTranscoderJob('));
   assert.ok(!outcomes.includes('deletePinned('));
   assert.ok(client.includes('executionHealth:'));
   assert.ok(client.includes('jobsHealth:'));
   assert.ok(template.includes('schedulerJobsHealthLabel(scheduler)'));
+});
+
+test('terminal outcomes come from committed Firestore transaction, never just provider response', () => {
+  const core = file('src/media/application/video-processing-terminal-commit.firestore.ts');
+  assert.ok(core.includes('firestore.runTransaction(async transaction =>'));
+  assert.ok(core.includes('isCurrentVideoProcessingAttempt(current, observed)'));
+  assert.ok(core.includes("return 'REPLACED' as const"));
+  assert.ok(core.includes("return 'CANCEL_REQUESTED' as const"));
+  assert.ok(core.includes("return 'APPLIED' as const"));
+  assert.ok(core.includes('command.sourceMatches(video)'));
+  assert.ok(scheduler.includes('const disposition = await finalizeSucceededJob('));
+  assert.ok(scheduler.includes('const disposition = await markProviderFailure('));
+  assert.ok(scheduler.includes('terminalVideoWorkOutcomes('));
+  assert.ok(scheduler.includes("'SUBMISSION_CANCEL_REQUESTED'"));
+  assert.ok(scheduler.includes("'RECOVERY_CANCEL_REQUESTED'"));
+  assert.ok(template.includes("providerSucceededApplied"));
+  assert.ok(template.includes("providerFailedApplied"));
+  assert.ok(doc.includes('1C2-A3b2b2c9'));
 });

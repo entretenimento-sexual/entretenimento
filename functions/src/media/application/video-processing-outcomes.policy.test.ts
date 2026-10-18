@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createVideoWorkOutcomeCounter } from './video-processing-outcomes.policy';
+import {
+  createVideoWorkOutcomeCounter, terminalVideoWorkOutcomes,
+} from './video-processing-outcomes.policy';
 
 test('confirmed uploads and empty cycles have no job alerts', () => {
   const counts = createVideoWorkOutcomeCounter();
@@ -30,7 +32,7 @@ test('handled submission errors and ambiguous recovery require attention', () =>
 
 test('provider GET errors, manual review and terminal FAILED cannot be healthy', () => {
   for (const outcome of [
-    'PROVIDER_POLL_ERROR', 'PROVIDER_REVIEW', 'PROVIDER_FAILED_OBSERVED',
+    'PROVIDER_POLL_ERROR', 'PROVIDER_REVIEW', 'PROVIDER_FAILED_APPLIED',
   ] as const) {
     const counts = createVideoWorkOutcomeCounter();
     counts.observe(outcome);
@@ -47,4 +49,43 @@ test('superseded and cancelled versions do not fabricate a provider failure', ()
   assert.deepEqual(counts.metrics(), {
     processingReplaced: 1, submissionReplaced: 1, recoveryReplaced: 1,
   });
+});
+
+test('terminal observation is distinct from a successful Firestore commit', () => {
+  for (const state of ['SUCCEEDED', 'FAILED'] as const) {
+    for (const disposition of ['APPLIED', 'REPLACED', 'CANCEL_REQUESTED'] as const) {
+      const counts = createVideoWorkOutcomeCounter();
+      terminalVideoWorkOutcomes(state, disposition).forEach(counts.observe);
+      const metrics = counts.metrics();
+      assert.equal(metrics[state === 'SUCCEEDED'
+        ? 'providerSucceededObserved' : 'providerFailedObserved'], 1);
+      if (disposition === 'APPLIED') {
+        assert.equal(metrics[state === 'SUCCEEDED'
+          ? 'providerSucceededApplied' : 'providerFailedApplied'], 1);
+      } else {
+        assert.equal(metrics['providerSucceededApplied'] ?? 0, 0);
+        assert.equal(metrics['providerFailedApplied'] ?? 0, 0);
+      }
+      assert.equal(counts.needsAttention(), state === 'FAILED' && disposition === 'APPLIED');
+    }
+  }
+});
+
+test('submission and recovery cancellations are separate from confirmed submission', () => {
+  const counts = createVideoWorkOutcomeCounter();
+  counts.observe('SUBMISSION_CANCEL_REQUESTED');
+  counts.observe('RECOVERY_CANCEL_REQUESTED');
+  assert.deepEqual(counts.metrics(), {
+    submissionCancelRequested: 1, recoveryCancelRequested: 1,
+  });
+  assert.equal(counts.needsAttention(), false);
+});
+
+test('nonterminal observations can be skipped without claiming an applied update', () => {
+  const counts = createVideoWorkOutcomeCounter();
+  counts.observe('PROVIDER_NONTERMINAL');
+  counts.observe('PROCESSING_SKIPPED');
+  assert.equal(counts.metrics()['processingSkipped'], 1);
+  assert.equal(counts.metrics()['providerNonterminalApplied'] ?? 0, 0);
+  assert.equal(counts.needsAttention(), false);
 });

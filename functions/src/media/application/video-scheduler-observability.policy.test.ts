@@ -59,7 +59,7 @@ test('runtime completion and job evidence are independent and versioned', () => 
   assert.equal(diagnoseVideoScheduler(name, failed, now + 5).executionHealth, 'FAILED');
   assert.equal(diagnoseVideoScheduler(name, failed, now + 5).jobsHealth, 'UNVERIFIED');
 
-  const legacy = { ...successful, evidenceVersion: undefined };
+  const legacy = { ...successful, evidenceVersion: 2 };
   assert.equal(diagnoseVideoScheduler(name, legacy, now + 5).jobsHealth, 'UNVERIFIED');
   assert.equal(diagnoseVideoScheduler(name, successful, now + 30 * 60_000)
     .executionHealth, 'UNVERIFIED');

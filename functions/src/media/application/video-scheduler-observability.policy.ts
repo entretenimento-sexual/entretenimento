@@ -33,12 +33,16 @@ const METRIC_KEYS = [
   'recoveryReplaced', 'providerPollErrors', 'providerReviewRequired',
   'providerNonterminal', 'providerSucceededObserved',
   'providerFailedObserved', 'processingReplaced',
+  'providerSucceededApplied', 'providerFailedApplied',
+  'providerTerminalCancelRequested', 'providerNonterminalApplied',
+  'submissionCancelRequested', 'recoveryCancelRequested',
+  'processingSkipped',
 ] as const;
 
 export type VideoSchedulerMetrics = Partial<Record<typeof METRIC_KEYS[number], number | boolean>>;
 
 export interface VideoSchedulerCycleRecord {
-  evidenceVersion: 2;
+  evidenceVersion: 3;
   scheduler: VideoSchedulerName;
   cycleId: string;
   startedAt: number;
@@ -69,7 +73,7 @@ export function videoSchedulerRecord(
   phase: string, metrics: VideoSchedulerMetrics
 ): VideoSchedulerCycleRecord {
   return {
-    evidenceVersion: 2,
+    evidenceVersion: 3,
     scheduler, cycleId, startedAt, finishedAt, outcome,
     phase: /^[A-Z_]{1,32}$/.test(phase) ? phase : 'UNKNOWN',
     durationMs: Math.max(0, finishedAt - startedAt),
@@ -122,7 +126,7 @@ export function diagnoseVideoScheduler(
         : value.outcome === 'ATTENTION' ? 'DEGRADED' : 'FAILED',
     executionHealth: ageMs > horizonMs ? 'UNVERIFIED'
       : value.outcome === 'FAILED' ? 'FAILED' : 'EXECUTED',
-    jobsHealth: ageMs > horizonMs || value.evidenceVersion !== 2 ||
+    jobsHealth: ageMs > horizonMs || value.evidenceVersion !== 3 ||
       value.outcome === 'FAILED' ? 'UNVERIFIED'
       : value.outcome === 'ATTENTION' ? 'ATTENTION' : 'NO_ALERTS_OBSERVED',
     lastOutcome: value.outcome,

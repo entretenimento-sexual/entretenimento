@@ -8,7 +8,12 @@ import axios, { AxiosError, type AxiosResponse } from 'axios';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
 import { saveLastVideoSchedulerCycle } from './video-scheduler-observability.firestore';
-import { createVideoWorkOutcomeCounter } from './video-processing-outcomes.policy';
+import {
+  createVideoWorkOutcomeCounter, terminalVideoWorkOutcomes,
+} from './video-processing-outcomes.policy';
+import {
+  commitTerminalVideoProcessingIfCurrent,
+} from './video-processing-terminal-commit.firestore';
 import {
   diagnoseVideoScheduler, videoSchedulerRecord, VIDEO_SCHEDULER_COLLECTION,
 } from './video-scheduler-observability.policy';
@@ -2375,5 +2380,105 @@ test('handled provider errors produce persistent ATTENTION without touching a jo
     assert.equal(after?.['nextAttemptAt'], now + 60_000);
   } finally {
     await Promise.all([ref.delete(), jobRef.delete()]);
+  }
+});
+
+test('terminal commit returns only the Firestore-applied result under racing poll claims', async () => {
+  const initial = { ...fixture('RUNNING'), sourceGeneration: '9001' };
+  const jobRef = jobs.doc('terminal-disposition-' + randomUUID());
+  const videoRef = firestore.doc(`users/${initial.ownerUid}/videos/${initial.videoId}`);
+  await jobRef.set(initial);
+  await videoRef.set({
+    path: initial.sourceStoragePath, sourceGeneration: '9001', status: 'processing',
+  });
+  const commit = (
+    observed: VideoProcessingJob, state: 'SUCCEEDED' | 'FAILED'
+  ) => commitTerminalVideoProcessingIfCurrent(firestore, jobRef, observed, {
+    state, now: now + 10_000, normalizeJob: parseJob,
+    sourceMatches: video => video['path'] === observed.sourceStoragePath &&
+      video['sourceGeneration'] === observed.sourceGeneration,
+    jobPatch: {
+      providerState: state,
+      providerTerminalEvidence: {
+        processingVersion: observed.processingVersion,
+        externalJobName: observed.externalJobName,
+        state, observedAt: now,
+      },
+      completedAt: now + 10_000,
+    },
+    videoPatch: {
+      status: state === 'SUCCEEDED' ? 'ready' : 'failed',
+      processingStage: state === 'SUCCEEDED' ? 'ready' : 'failed',
+    },
+  });
+  try {
+    const first = await claimProcessingJob(firestore, jobRef, now, parseJob);
+    assert.ok(first);
+    const second = await claimProcessingJob(
+      firestore, jobRef, first.nextAttemptAt + 1_000, parseJob
+    );
+    assert.ok(second);
+    const observed = createVideoWorkOutcomeCounter();
+    assert.equal(await commit(first, 'FAILED'), 'REPLACED');
+    terminalVideoWorkOutcomes('FAILED', 'REPLACED').forEach(observed.observe);
+    assert.equal((await jobRef.get()).get('state'), 'PROCESSING');
+    assert.equal((await videoRef.get()).get('status'), 'processing');
+    assert.equal(await commit(second, 'SUCCEEDED'), 'APPLIED');
+    terminalVideoWorkOutcomes('SUCCEEDED', 'APPLIED').forEach(observed.observe);
+    assert.equal((await jobRef.get()).get('state'), 'SUCCEEDED');
+    assert.equal((await videoRef.get()).get('status'), 'ready');
+    assert.equal(await commit(first, 'FAILED'), 'REPLACED');
+    assert.equal(observed.metrics()['providerFailedApplied'] ?? 0, 0);
+    assert.equal(observed.metrics()['providerSucceededApplied'], 1);
+    assert.equal(observed.needsAttention(), false);
+    const evidence = videoSchedulerRecord('reconcileVideoProcessing',
+      'committed-version', now - 1_000, now, 'OK', 'EXECUTE', observed.metrics());
+    const diagnosis = diagnoseVideoScheduler('reconcileVideoProcessing', evidence, now + 1);
+    assert.equal(diagnosis.metrics.providerSucceededApplied, 1);
+    assert.equal(diagnosis.metrics.providerFailedApplied ?? 0, 0);
+  } finally {
+    await Promise.all([jobRef.delete(), videoRef.delete()]);
+  }
+});
+
+test('terminal commit requests cancellation if original is missing or generation changed', async () => {
+  for (const change of ['MISSING', 'GENERATION', 'PATH'] as const) {
+    const initial = { ...fixture('RUNNING'), sourceGeneration: '701' };
+    const jobRef = jobs.doc('terminal-source-changed-' + randomUUID());
+    const videoRef = firestore.doc(`users/${initial.ownerUid}/videos/${initial.videoId}`);
+    await jobRef.set(initial);
+    await videoRef.set({
+      path: change === 'PATH' ? initial.sourceStoragePath + '-new'
+        : initial.sourceStoragePath,
+      sourceGeneration: change === 'GENERATION' ? '702' : '701',
+      status: 'processing',
+      processedStoragePath: 'users/untouched/published/derivative.mp4',
+    });
+    if (change === 'MISSING') await videoRef.delete();
+    try {
+      const claimed = await claimProcessingJob(firestore, jobRef, now, parseJob);
+      assert.ok(claimed);
+      const disposition = await commitTerminalVideoProcessingIfCurrent(
+        firestore, jobRef, claimed, {
+          state: 'FAILED', now: now + 1, normalizeJob: parseJob,
+          sourceMatches: video => video['path'] === claimed.sourceStoragePath &&
+            video['sourceGeneration'] === claimed.sourceGeneration,
+          jobPatch: { providerState: 'FAILED', completedAt: now + 1 },
+          videoPatch: { status: 'failed', processedStoragePath: 'invalid-replacement' },
+        }
+      );
+      assert.equal(disposition, 'CANCEL_REQUESTED', change);
+      assert.equal((await jobRef.get()).get('state'), 'CANCEL_REQUESTED');
+      assert.notEqual((await jobRef.get()).get('providerState'), 'FAILED');
+      const actual = await videoRef.get();
+      if (change === 'MISSING') assert.equal(actual.exists, false);
+      else {
+        assert.equal(actual.get('status'), 'processing');
+        assert.equal(actual.get('processedStoragePath'),
+          'users/untouched/published/derivative.mp4');
+      }
+    } finally {
+      await Promise.all([jobRef.delete(), videoRef.delete()]);
+    }
   }
 });

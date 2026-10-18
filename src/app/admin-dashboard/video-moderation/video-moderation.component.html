@@ -141,13 +141,21 @@
                       Confirmados {{ scheduler.metrics['submissionConfirmed'] ?? 0 }};
                       reagendados {{ scheduler.metrics['submissionRetryScheduled'] ?? 0 }};
                       falhas {{ scheduler.metrics['submissionFailed'] ?? 0 }};
+                       cancelamentos {{ scheduler.metrics['submissionCancelRequested'] ?? 0 }};
                       reconferência pendente {{ scheduler.metrics['recoveryUnconfirmed'] ?? 0 }};
-                      erros de recuperação {{ scheduler.metrics['recoveryPollErrors'] ?? 0 }}.
+                      erros de recuperação {{ scheduler.metrics['recoveryPollErrors'] ?? 0 }};
+                       cancelamentos na recuperação {{ scheduler.metrics['recoveryCancelRequested'] ?? 0 }}.
                     }
                     @if (scheduler.scheduler === 'reconcileVideoProcessing') {
                       Erros de consulta {{ scheduler.metrics['providerPollErrors'] ?? 0 }};
                       revisão do provedor {{ scheduler.metrics['providerReviewRequired'] ?? 0 }};
-                      falha terminal observada {{ scheduler.metrics['providerFailedObserved'] ?? 0 }}.
+                      sucesso observado {{ scheduler.metrics['providerSucceededObserved'] ?? 0 }};
+                       sucesso persistido {{ scheduler.metrics['providerSucceededApplied'] ?? 0 }};
+                       falha observada {{ scheduler.metrics['providerFailedObserved'] ?? 0 }};
+                       falha persistida {{ scheduler.metrics['providerFailedApplied'] ?? 0 }};
+                       cancelamento confirmado {{ scheduler.metrics['providerTerminalCancelRequested'] ?? 0 }};
+                       versões substituídas {{ scheduler.metrics['processingReplaced'] ?? 0 }};
+                       sem atualização {{ scheduler.metrics['processingSkipped'] ?? 0 }}.
                     }
                   } @else {
                     Métricas de jobs não verificadas para este ciclo.
@@ -166,7 +174,7 @@
             }
           </div>
           <p class="video-moderation__operations-summary" role="status">
-            A execução do scheduler e os resultados dos jobs são diagnósticos distintos.
+            A execução do scheduler, a resposta do provedor e os estados persistidos são diagnósticos distintos.
             Sem alertas observados não significa que todos os vídeos foram processados.
             Registros ausentes ou antigos permanecem não verificados; não comprovam sucesso
             ou falha do Cloud Scheduler. Confira os ciclos correlacionados no

@@ -88,7 +88,12 @@ test('reconciliation only persists meaningful provider status changes', () => {
 });
 
 test('stale transcoder results cannot finalize or fail another processing attempt', () => {
-  assert.ok(scheduler.includes('!isCurrentVideoProcessingAttempt(currentJob, job)'));
+  const terminal = readFileSync(
+    resolve(__dirname, '../../../src/media/application/video-processing-terminal-commit.firestore.ts'),
+    'utf8'
+  );
+  assert.ok(terminal.includes('!isCurrentVideoProcessingAttempt(current, observed)'));
+  assert.ok(scheduler.includes('commitTerminalVideoProcessingIfCurrent('));
   assert.ok(scheduler.includes('!isCurrentVideoProcessingAttempt(current, job)'));
   assert.ok(scheduler.includes("state: 'CANCEL_REQUESTED'"));
   assert.ok(firestoreCore.includes('return { ...job, nextAttemptAt: reservedUntil };'));
