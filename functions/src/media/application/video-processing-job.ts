@@ -70,6 +70,13 @@ export interface VideoProcessingJob {
   cancelRequestedAt: number | null;
   createdAt: number;
   updatedAt: number;
+  /** c18c staged projection. No writers or readers activate this until
+   * global coverage, indexed readiness and recomputation are verified. */
+  adminTriageProjectionVersion?: 1;
+  adminTriageProcessingVersion?: string;
+  adminTriageTier?: number;
+  adminTriageSince?: number;
+  adminTriageReevaluateAt?: number | null;
   lastErrorCode: string | null;
   lastError: string | null;
   /** Campos opcionais preservam compatibilidade com jobs legados. */

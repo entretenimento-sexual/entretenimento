@@ -30,6 +30,9 @@ import {
 import { preserveTerminalCleanupBeforeRetry } from './video-terminal-temporary-cleanup.firestore';
 import { isProviderPollReviewRequired } from './video-provider-poll-failure.policy';
 import {
+  compareAdminTriageJobs, VIDEO_TRIAGE_STALE_AFTER_MS,
+} from './admin-video-global-triage.policy';
+import {
   auditRecoveryQueuePage, type RecoveryQueuePageAudit,
 } from './admin-video-queue-coverage.policy';
 import {
@@ -125,12 +128,6 @@ const ACTIONABLE_STATES: VideoProcessingJobState[] = [
   'PROCESSING',
   'CANCEL_REQUESTED',
 ];
-const STALE_AFTER_MS: Partial<Record<VideoProcessingJobState, number>> = {
-  QUEUED: 20 * 60 * 1000,
-  SUBMITTING: 20 * 60 * 1000,
-  PROCESSING: 3 * 60 * 60 * 1000,
-  CANCEL_REQUESTED: 90 * 60 * 1000,
-};
 const MAX_LIST_LIMIT = 60;
 const DEFAULT_LIST_LIMIT = 30;
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
@@ -253,7 +250,7 @@ function isStale(
   updatedAt: number,
   checkedAt: number
 ): boolean {
-  const threshold = STALE_AFTER_MS[state];
+  const threshold = VIDEO_TRIAGE_STALE_AFTER_MS[state];
   return threshold !== undefined && checkedAt - updatedAt > threshold;
 }
 
@@ -367,16 +364,6 @@ function encodeRecoveryCursor(positions: RecoveryCursor): string {
   return Buffer.from(JSON.stringify({ v: 1, p: positions })).toString('base64url');
 }
 
-function recoveryPriority(item: RecoveryJobItem): number {
-  if (item.providerPollReviewRequired || item.requiresProviderReview ||
-      item.requiresOperationalAttention) return 0;
-  if (item.timestampEvidence === 'UNVERIFIED') return 1;
-  if (item.state === 'FAILED') return 2;
-  if (item.stale) return 3;
-  if (item.timestampEvidence === 'CREATED_FALLBACK') return 4;
-  return 5;
-}
-
 async function listRecoveryItems(
   limit: number, checkedAt: number, cursor: RecoveryCursor
 ): Promise<Omit<ListRecoveryJobsResponse, 'checkedAt'>> {
@@ -407,11 +394,7 @@ async function listRecoveryItems(
       else skippedItems += 1;
     }
   }
-  items.sort((left, right) => {
-    const priority = recoveryPriority(left) - recoveryPriority(right);
-    return priority || right.ageMs - left.ageMs ||
-      left.jobId.localeCompare(right.jobId);
-  });
+  items.sort(compareAdminTriageJobs);
   return {
     items, skippedItems, scanned, hasMore,
     nextCursor: hasMore ? encodeRecoveryCursor(next) : null,

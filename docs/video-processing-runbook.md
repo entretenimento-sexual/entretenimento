@@ -215,6 +215,55 @@ conferir campos, ordenação e estado `READY`; o simples
 `firestore.indexes.json` no GitHub não valida implantação. Nenhuma migração
 retroativa dos dados foi realizada na c18b.
 
+### Modelo de priorização global preparado (1C2-A3b2b2c18c)
+
+A c18c centraliza a classificação na política pura
+`admin-video-global-triage.policy.ts`, utilizada para ordenar **somente os
+itens da página** já lida. Sua ordem total é:
+`(adminTriageTier ASC, adminTriageSince ASC, __name__ ASC)`.
+Tier 0 = revisão crítica do provedor, submissão incerta ou cancelamento
+vencido; tier 1 = data não verificável; tier 2 = falha; tier 3 = job
+atrasado; tier 4 = data substituída pela criação; tier 5 = ordinário.
+Alertas de risco não autorizam automaticamente retry, POST nem exclusão.
+
+O índice composto para a projeção
+`media_video_processing_jobs(adminTriageTier, adminTriageSince, __name__)`
+foi **somente declarado** em `firestore.indexes.json`. O protótipo
+`projectAdminTriageJob` calcula os campos `adminTriageProjectionVersion`,
+`adminTriageProcessingVersion`, `adminTriageTier`,
+`adminTriageSince` e `adminTriageReevaluateAt`; NÃO os persiste.
+Jobs sem data válida entram no tier 1 com `since=0` na projeção
+*simulada*. Estados terminais são excluídos pela política. Nenhum backfill,
+agendador adicional, nova query ou flag foi ativado.
+
+**Atenção:** `adminTriageTier` é temporal: processamentos tornam-se
+atrasados sem gravação, e cancelamentos podem completar 24 horas enquanto
+o documento não muda. Um índice materializado só será correto depois de
+implementar atualização transacional **em todos os writers** e
+reclassificação tempestiva por deadline, sem fan-out caro. Cada gravação
+deverá ser protegida por `processingVersion`, estado e autoridade canônica,
+incluindo remoção da projeção ao chegar a um estado terminal. Um backfill
+precisa percorrer de modo controlado os documentos ausentes, inclusive
+legados, sem alterar estado, timestamps de origem nem arquivos.
+
+Antes de liberar a leitura global, a verificação independente deve provar
+**simultaneamente**:
+- Índice `READY` no Firestore do projeto e database corretos;
+- 100% dos jobs acionáveis projetados, sem legados omitidos ou
+  projeções obsoletas, e zero projeções em estados terminais;
+- cobertura transacional de todos os writers, fence por versão e
+  recomputação de prioridades temporais;
+- cursores deterministicamente ordenados mesmo com empates, alterações de
+  estado/exclusões, sem promessa de snapshot imutável;
+- custo de leituras, ausência de consultas extra ao Transcoder e evidência
+  global independente; **PAGE_ONLY não é evidência global**.
+
+`assessAdminTriageActivation` é uma especificação testável de portões,
+não um mecanismo ativo ou uma permissão operacional. No estado atual,
+os portões NÃO foram demonstrados; a consulta por ID e os avisos de
+cobertura parcial permanecem inalterados. Em particular, a mera definição
+do índice no GitHub não comprova sua implantação.
+
 ## Recuperação administrativa
 
 A mesma tela apresenta jobs com falha, atraso ou cancelamento pendente. A lista é

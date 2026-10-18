@@ -102,7 +102,9 @@ test('c18 guards legacy timestamps without enabling unbuilt global indexes', () 
   assert.ok(handler.includes('orderBy(FieldPath.documentId())'));
   assert.ok(!handler.includes("orderBy('updatedAt')"));
   assert.ok(handler.includes("timestampEvidence !== 'UNVERIFIED'"));
-  assert.ok(handler.includes("timestampEvidence === 'UNVERIFIED'"));
+  const policy = readFileSync(resolve(root,
+    'src/media/application/admin-video-global-triage.policy.ts'), 'utf8');
+  assert.ok(policy.includes("timestampEvidence === 'UNVERIFIED'"));
   assert.ok(client.includes('timestampEvidence:'));
   assert.ok(template.includes('Data não verificada'));
 });
@@ -117,4 +119,19 @@ test('c18b recovery coverage is derived only from consumed page documents', () =
   assert.ok(component.includes("scope: 'PAGE_ONLY'"));
   assert.ok(template.includes('Auditoria das páginas consultadas'));
   assert.ok(template.includes('não atesta a prioridade global'));
+});
+
+test('c18c keeps production ID cursors while staging indexed severity projection', () => {
+  const index = JSON.parse(readFileSync(resolve(root, '../firestore.indexes.json'), 'utf8'));
+  assert.ok(index.indexes.some((entry: {
+    collectionGroup: string; fields: Array<{ fieldPath: string; order?: string }>;
+  }) => entry.collectionGroup === 'media_video_processing_jobs' &&
+    entry.fields.map(f => f.fieldPath).join(',') ===
+      'adminTriageTier,adminTriageSince,__name__' &&
+    entry.fields.every(f => f.order === 'ASCENDING')));
+  assert.ok(handler.includes('items.sort(compareAdminTriageJobs)'));
+  assert.ok(handler.includes('orderBy(FieldPath.documentId())'));
+  assert.ok(!handler.includes("orderBy('adminTriageTier')"));
+  assert.ok(handler.includes('query.startAfter(cursor[state])'));
+  assert.ok(!handler.includes('items: items.slice(0, limit)'));
 });
