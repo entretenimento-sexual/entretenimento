@@ -64,7 +64,7 @@ test('outcome telemetry records handled failures without new Firestore or provid
   assert.ok(scheduler.includes("'RECOVERY_UNCONFIRMED'"));
   assert.ok(scheduler.includes("'RECOVERY_POLL_ERROR'"));
   assert.ok(scheduler.includes("'SUBMISSION_RETRY'"));
-  assert.ok(scheduler.includes("'PROVIDER_FAILED_OBSERVED'"));
+  assert.ok(outcomes.includes("'PROVIDER_FAILED_OBSERVED'"));
   assert.ok(scheduler.includes("persisted === 'APPLIED' ? 'SUBMISSION_CONFIRMED'"));
   assert.ok(outcomes.includes('ATTENTION_OUTCOMES'));
   assert.ok(!outcomes.includes('getGoogleVideoTranscoderJob('));
@@ -87,7 +87,7 @@ test('terminal outcomes come from committed Firestore transaction, never just pr
   assert.ok(scheduler.includes('terminalVideoWorkOutcomes('));
   assert.ok(scheduler.includes("'SUBMISSION_CANCEL_REQUESTED'"));
   assert.ok(scheduler.includes("'RECOVERY_CANCEL_REQUESTED'"));
-  assert.ok(template.includes("providerSucceededApplied"));
-  assert.ok(template.includes("providerFailedApplied"));
+  assert.ok(template.includes('providerSucceededApplied'));
+  assert.ok(template.includes('providerFailedApplied'));
   assert.ok(doc.includes('1C2-A3b2b2c9'));
 });

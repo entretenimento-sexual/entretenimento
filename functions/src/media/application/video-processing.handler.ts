@@ -579,8 +579,8 @@ async function recoverExpiredSubmission(
         jobRef, job, recovered.name, recovered.state
       );
       observe?.(persisted === 'APPLIED' ? 'RECOVERY_CONFIRMED'
-          : persisted === 'CANCEL_REQUESTED' ? 'RECOVERY_CANCEL_REQUESTED'
-            : 'RECOVERY_REPLACED');
+        : persisted === 'CANCEL_REQUESTED' ? 'RECOVERY_CANCEL_REQUESTED'
+          : 'RECOVERY_REPLACED');
       return;
     }
 
@@ -753,20 +753,20 @@ async function finalizeSucceededJob(
     videoPatch: raw => {
       const video = raw as unknown as PrivateVideoDocument;
       return {
-      sourceMimeType: video.mimeType ?? job.sourceMimeType,
-      sourceSizeBytes: video.sizeBytes ?? job.sourceSizeBytes,
-      mimeType: candidate.mimeType,
-      sizeBytes: candidate.sizeBytes,
-      status: 'ready',
-      playbackPath: candidate.storagePath,
-      processedStoragePath: candidate.storagePath,
-      processedOutputPrefix: job.outputPrefix,
-      processedMimeType: candidate.mimeType,
-      processedSizeBytes: candidate.sizeBytes,
-      processingStage: 'ready',
-      processingErrorCode: null,
-      processingErrorMessage: null,
-      processingCompletedAt: now,
+        sourceMimeType: video.mimeType ?? job.sourceMimeType,
+        sourceSizeBytes: video.sizeBytes ?? job.sourceSizeBytes,
+        mimeType: candidate.mimeType,
+        sizeBytes: candidate.sizeBytes,
+        status: 'ready',
+        playbackPath: candidate.storagePath,
+        processedStoragePath: candidate.storagePath,
+        processedOutputPrefix: job.outputPrefix,
+        processedMimeType: candidate.mimeType,
+        processedSizeBytes: candidate.sizeBytes,
+        processingStage: 'ready',
+        processingErrorCode: null,
+        processingErrorMessage: null,
+        processingCompletedAt: now,
       };
     },
   });
