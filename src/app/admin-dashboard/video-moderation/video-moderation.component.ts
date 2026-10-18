@@ -46,6 +46,7 @@ import {
   AdminVideoProcessingRecoveryAction,
   AdminVideoProcessingRecoveryService,
   IAdminVideoProcessingRecoveryJob,
+  IAdminRecoveryPageAudit,
 } from 'src/app/core/services/moderation/admin-video-processing-recovery.service';
 
 type VideoProcessingPanelStatus = 'loading' | 'ready' | 'error';
@@ -63,6 +64,7 @@ interface VideoProcessingRecoveryPanelState {
   skippedItems: number;
   checkedAt: number;
   scanned: number;
+  audit: IAdminRecoveryPageAudit;
   hasMore: boolean;
   loadingMore: boolean;
 }
@@ -143,6 +145,12 @@ export class VideoModerationComponent {
         let scanned = 0;
         let checkedAt = 0;
         let hasMore = false;
+        let audit: IAdminRecoveryPageAudit = {
+          scope: 'PAGE_ONLY', observed: 0, invalidDocuments: 0,
+          updatedTimestamp: 0, createdFallback: 0, unverifiedTimestamp: 0,
+          failed: 0, stale: 0, providerReview: 0, providerPollReview: 0,
+          overdueCancellation: 0, unconfirmedSubmission: 0,
+        };
         return merge(of(undefined), this.moreRecoverySubject).pipe(
           exhaustMap(() => this.recovery.listRecoveryJobs$(30, cursor).pipe(
             map(page => {
@@ -152,23 +160,37 @@ export class VideoModerationComponent {
               loaded = Array.from(byId.values());
               skippedItems += page.skippedItems;
               scanned += page.scanned;
+              audit = {
+                scope: 'PAGE_ONLY',
+                observed: audit.observed + page.audit.observed,
+                invalidDocuments: audit.invalidDocuments + page.audit.invalidDocuments,
+                updatedTimestamp: audit.updatedTimestamp + page.audit.updatedTimestamp,
+                createdFallback: audit.createdFallback + page.audit.createdFallback,
+                unverifiedTimestamp: audit.unverifiedTimestamp + page.audit.unverifiedTimestamp,
+                failed: audit.failed + page.audit.failed,
+                stale: audit.stale + page.audit.stale,
+                providerReview: audit.providerReview + page.audit.providerReview,
+                providerPollReview: audit.providerPollReview + page.audit.providerPollReview,
+                overdueCancellation: audit.overdueCancellation + page.audit.overdueCancellation,
+                unconfirmedSubmission: audit.unconfirmedSubmission + page.audit.unconfirmedSubmission,
+              };
               checkedAt = page.checkedAt;
               cursor = page.nextCursor;
               hasMore = page.hasMore && cursor !== null;
               return {
                 status: loaded.length || hasMore ? 'ready' : 'empty',
-                items: loaded, skippedItems, checkedAt, scanned,
+                items: loaded, skippedItems, checkedAt, scanned, audit,
                 hasMore, loadingMore: false,
               } as VideoProcessingRecoveryPanelState;
             }),
             startWith({
               status: loaded.length ? 'ready' : 'loading',
-              items: loaded, skippedItems, checkedAt, scanned,
+              items: loaded, skippedItems, checkedAt, scanned, audit,
               hasMore: false, loadingMore: loaded.length > 0,
             } as VideoProcessingRecoveryPanelState),
             catchError(() => of({
               status: loaded.length ? 'ready' : 'error',
-              items: loaded, skippedItems, checkedAt, scanned,
+              items: loaded, skippedItems, checkedAt, scanned, audit,
               hasMore, loadingMore: false,
             } as VideoProcessingRecoveryPanelState))
           ))
@@ -190,7 +212,18 @@ export class VideoModerationComponent {
           map(page => {
             const byId = new Map((loaded?.items ?? []).map(item => [item.queueId, item]));
             for (const item of page.items) byId.set(item.queueId, item);
-            loaded = { ...page, items: Array.from(byId.values()) };
+            const previous = loaded?.audit;
+            loaded = {
+              ...page, items: Array.from(byId.values()),
+              audit: {
+                scope: 'PAGE_ONLY',
+                observed: (previous?.observed ?? 0) + (page.audit?.observed ?? 0),
+                unverifiedTimestamp: (previous?.unverifiedTimestamp ?? 0) +
+                  (page.audit?.unverifiedTimestamp ?? 0),
+                blocked: (previous?.blocked ?? 0) + (page.audit?.blocked ?? 0),
+                recheckable: (previous?.recheckable ?? 0) + (page.audit?.recheckable ?? 0),
+              },
+            };
             cursor = page.nextCursor;
             return {
               status: loaded.totalReview > 0 ? 'ready' : 'empty',

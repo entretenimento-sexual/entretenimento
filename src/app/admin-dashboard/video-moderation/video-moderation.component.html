@@ -270,6 +270,14 @@
           }
           A prioridade e a antiguidade são ordenadas apenas dentro de cada página consultada.
         </p>
+        <p class="video-moderation__operations-summary" role="status">
+          Auditoria das páginas consultadas:
+          {{ data.audit?.observed ?? 0 }} registro(s),
+          {{ data.audit?.unverifiedTimestamp ?? 0 }} sem data válida,
+          {{ data.audit?.blocked ?? 0 }} bloqueado(s) e
+          {{ data.audit?.recheckable ?? 0 }} reconferível(is).
+          Esses números não comprovam cobertura global nem snapshot consistente.
+        </p>
         @if (data.items.length > 0) {
           <div class="video-moderation__recovery-grid">
             @for (review of data.items; track review.queueId) {
@@ -382,6 +390,18 @@
           registro(s) consultado(s). Priorização apenas nas páginas carregadas;
           outros jobs podem exigir atenção.
           @if (recoveryState.hasMore) { Há mais resultados disponíveis. }
+        </p>
+        <p class="video-moderation__operations-summary" role="status">
+          Auditoria das páginas consultadas:
+          {{ recoveryState.audit.updatedTimestamp }} com data de atualização válida,
+          {{ recoveryState.audit.createdFallback }} estimado(s) pela criação e
+          {{ recoveryState.audit.unverifiedTimestamp }} sem data verificável.
+          Alertas observados: {{ recoveryState.audit.failed }} falha(s),
+          {{ recoveryState.audit.overdueCancellation }} cancelamento(s) vencido(s),
+          {{ recoveryState.audit.unconfirmedSubmission }} submissão(ões) inconclusiva(s),
+          {{ recoveryState.audit.providerPollReview }} revisão(ões) de consulta ao provedor.
+          A auditoria cobre somente documentos lidos e pode repetir observações
+          após mudanças concorrentes; não atesta a prioridade global.
         </p>
         @if (recoveryState.skippedItems > 0) {
           <p class="video-moderation__warning" role="status">
