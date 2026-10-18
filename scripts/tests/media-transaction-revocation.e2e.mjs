@@ -4,10 +4,14 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { performance } from 'node:perf_hooks';
+import { runBoundedRevocationCases } from './media-transaction-revocation-concurrency.mjs';
 
 const PROJECT_ID = 'demo-entretenimento-media-e2e';
 const FIRESTORE_EMULATOR = '127.0.0.1:18080';
 const MAX_WAIT_MS = 20_000;
+// Distinct per-case owners/viewers/block paths; bounded to avoid emulator overload.
+const MAX_CONCURRENT_REVOCATIONS = 3;
 
 if (process.env.FIRESTORE_EMULATOR_HOST !== FIRESTORE_EMULATOR) {
   throw new Error(
@@ -138,6 +142,7 @@ async function assertDeniedAfterConcurrentChange({
   code,
   reason,
 }) {
+  const startedAt = performance.now();
   const refs = await createCase(label);
   let attempts = 0;
   let signalRead;
@@ -161,6 +166,7 @@ async function assertDeniedAfterConcurrentChange({
     (error) => ({ committed: false, error })
   );
 
+  const timing = { firstReadWaitMs: 0, competingWriteWaitMs: 0, settleWaitMs: 0 };
   try {
     await withTimeout(
       Promise.race([
@@ -171,12 +177,22 @@ async function assertDeniedAfterConcurrentChange({
       ]),
       'primeira leitura: ' + label
     );
-    await change(refs);
+    const readReadyAt = performance.now();
+    try {
+      // This mutation may wait for the pessimistic emulator read lock.
+      // Keep the original ordering: never allow a pre-revocation commit.
+      await change(refs);
+    } finally {
+      timing.firstReadWaitMs = Math.round(readReadyAt - startedAt);
+      timing.competingWriteWaitMs = Math.round(performance.now() - readReadyAt);
+    }
   } finally {
     releaseFirstRead();
   }
 
+  const settledFrom = performance.now();
   const outcome = await withTimeout(settled, 'reexecução: ' + label);
+  timing.settleWaitMs = Math.round(performance.now() - settledFrom);
   assert.equal(outcome.committed, false, label + ': métrica indevida gravada');
   assert.equal(outcome.error?.code, code, label + ': código de erro');
   if (reason) {
@@ -184,10 +200,17 @@ async function assertDeniedAfterConcurrentChange({
   }
   assert.ok(attempts >= 2, label + ': Firestore não reexecutou a transação');
   assert.equal((await refs.metric.get()).exists, false, label + ': métrica persistiu');
+  // Numeric-only telemetry: no UIDs, paths, user content or exception bodies.
+  console.log('[media-tx:e2e] TIMING ' + JSON.stringify({
+    ...timing,
+    totalMs: Math.round(performance.now() - startedAt),
+    attempts,
+  }));
   console.log('[media-tx:e2e] PASS revoked: ' + label);
 }
 
 async function run() {
+  const suiteStartedAt = performance.now();
   await assertAllowed('video active viewer', 'video');
   await assertAllowed('photo active viewer', 'photo');
 
@@ -258,9 +281,13 @@ async function run() {
     },
   ];
 
-  for (const scenario of cases) {
-    await assertDeniedAfterConcurrentChange(scenario);
-  }
+  // Independent document sets, with every failure retained (no early-exit
+  // that might terminate the Firestore client while other cases are running).
+  await runBoundedRevocationCases(
+    cases, assertDeniedAfterConcurrentChange, MAX_CONCURRENT_REVOCATIONS
+  );
+  console.log('[media-tx:e2e] DURATION_MS ' +
+    Math.round(performance.now() - suiteStartedAt));
   console.log(
     '[media-tx:e2e] PASS: ' + (cases.length + 2) +
     ' cenários, transações reais e nenhuma métrica após revogação.'

@@ -13,6 +13,13 @@ export function newPhotoE2EContentionSummary() {
     transactionCasesObservedPassing: 0,
     revocationSuiteCompletedObserved: false,
     revocationSuiteExpectedCases: null,
+    revocationTimedCases: 0,
+    revocationMaxFirstReadWaitMs: 0,
+    revocationMaxCompetingWriteWaitMs: 0,
+    revocationMaxSettleWaitMs: 0,
+    revocationMaxScenarioMs: 0,
+    revocationMaxAttempts: 0,
+    revocationSuiteWallMs: null,
   };
 }
 
@@ -32,6 +39,43 @@ export function addPhotoE2ELogLine(summary, line) {
   if (match && Number.isSafeInteger(Number(match[1])) && Number(match[1]) < 1000) {
     summary.revocationSuiteCompletedObserved = true;
     summary.revocationSuiteExpectedCases = Number(match[1]);
+  }
+  // Only consume explicitly allowlisted numeric telemetry; never echo
+  // raw log lines, document IDs, exception bodies, or arbitrary JSON keys.
+  const timingMarker = '[media-tx:e2e] TIMING ';
+  const index = line.indexOf(timingMarker);
+  if (index !== -1) {
+    try {
+      const timing = JSON.parse(line.slice(index + timingMarker.length));
+      const fields = [
+        'firstReadWaitMs', 'competingWriteWaitMs', 'settleWaitMs',
+        'totalMs', 'attempts',
+      ];
+      if (fields.every((key) => Number.isSafeInteger(timing[key]) &&
+            timing[key] >= 0 && timing[key] < 3_600_000) &&
+          timing.attempts >= 2) {
+        summary.revocationTimedCases += 1;
+        summary.revocationMaxFirstReadWaitMs = Math.max(
+          summary.revocationMaxFirstReadWaitMs, timing.firstReadWaitMs);
+        summary.revocationMaxCompetingWriteWaitMs = Math.max(
+          summary.revocationMaxCompetingWriteWaitMs, timing.competingWriteWaitMs);
+        summary.revocationMaxSettleWaitMs = Math.max(
+          summary.revocationMaxSettleWaitMs, timing.settleWaitMs);
+        summary.revocationMaxScenarioMs = Math.max(
+          summary.revocationMaxScenarioMs, timing.totalMs);
+        summary.revocationMaxAttempts = Math.max(
+          summary.revocationMaxAttempts, timing.attempts);
+      }
+    } catch {
+      // Malformed or non-numeric diagnostic entries are never trusted.
+    }
+  }
+  const duration = line.match(/\\[media-tx:e2e\\] DURATION_MS (\\d+)(?:\\s|$)/);
+  if (duration) {
+    const ms = Number(duration[1]);
+    if (Number.isSafeInteger(ms) && ms < 3_600_000) {
+      summary.revocationSuiteWallMs = ms;
+    }
   }
   return summary;
 }

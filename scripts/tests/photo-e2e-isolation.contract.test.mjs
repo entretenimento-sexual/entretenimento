@@ -33,7 +33,13 @@ test('revocation tests keep real Firestore transactions, cases, and fail-closed 
   assert.match(source, /attempts >= 2/);
   assert.match(source, /metric\.get\(\)\)\.exists, false/);
   assert.match(source, /runTransaction\(/);
-  assert.match(source, /\[media-tx:e2e\] PASS:/);
+  assert.match(source, /\\[media-tx:e2e\\] PASS:/);
+  assert.match(source, /MAX_CONCURRENT_REVOCATIONS = 3/);
+  assert.match(source, /runBoundedRevocationCases\\(/);
+  assert.match(source, /\\[media-tx:e2e\\] TIMING /);
+  assert.match(source, /\\[media-tx:e2e\\] DURATION_MS /);
+  assert.match(source, /await change\\(refs\\)/);
+  assert.match(source, /releaseFirstRead\\(\\)/);
   assert.ok(!normal.includes('|| true'));
   assert.ok(!isolated.includes('|| true'));
 });
@@ -42,5 +48,7 @@ test('both E2E and emulator checks retain coverage and show diagnostic log summa
   assert.ok(mediaWorkflow.includes('npm run test:media:e2e 2>&1 | tee logs/photo-e2e.log'));
   assert.ok(mediaWorkflow.includes('set -o pipefail'));
   assert.ok(mediaWorkflow.includes('node scripts/quality/summarize-photo-e2e-contention.mjs logs/photo-e2e.log'));
-  assert.ok(reconWorkflow.includes('node --test scripts/tests/photo-e2e-isolation.contract.test.mjs scripts/tests/photo-e2e-contention-audit.test.mjs'));
+  assert.ok(reconWorkflow.includes('scripts/tests/photo-e2e-isolation.contract.test.mjs'));
+  assert.ok(reconWorkflow.includes('scripts/tests/photo-e2e-contention-audit.test.mjs'));
+  assert.ok(reconWorkflow.includes('scripts/tests/media-transaction-revocation-concurrency.test.mjs'));
 });

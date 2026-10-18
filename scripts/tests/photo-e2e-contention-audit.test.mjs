@@ -37,3 +37,42 @@ test('raw identifiers, private data and unexpected output never flow into the su
   }
   assert.equal(summary.abortedLines, 1);
 });
+
+test('summarizes bounded revocation performance using numeric allowlist only', () => {
+  const summary = newPhotoE2EContentionSummary();
+  addPhotoE2ELogLine(summary, '[media-tx:e2e] TIMING ' +
+    JSON.stringify({
+      firstReadWaitMs: 100, competingWriteWaitMs: 67000,
+      settleWaitMs: 15, totalMs: 67500, attempts: 2,
+      uid: 'private-client-123', email: 'user@example.test',
+    }));
+  addPhotoE2ELogLine(summary, '[media-tx:e2e] TIMING ' +
+    JSON.stringify({
+      firstReadWaitMs: 80, competingWriteWaitMs: 64000,
+      settleWaitMs: 22, totalMs: 64500, attempts: 3,
+    }));
+  addPhotoE2ELogLine(summary, '[media-tx:e2e] DURATION_MS 197000');
+  assert.equal(summary.revocationTimedCases, 2);
+  assert.equal(summary.revocationMaxCompetingWriteWaitMs, 67000);
+  assert.equal(summary.revocationMaxSettleWaitMs, 22);
+  assert.equal(summary.revocationMaxAttempts, 3);
+  assert.equal(summary.revocationSuiteWallMs, 197000);
+  assert.equal(summary.executionResult, 'NOT_INFERRED');
+  assert.ok(!JSON.stringify(summary).includes('private-client-123'));
+  assert.ok(!JSON.stringify(summary).includes('user@example.test'));
+});
+
+test('ignores missing or invalid timing rather than inferring test success', () => {
+  const summary = newPhotoE2EContentionSummary();
+  addPhotoE2ELogLine(summary,
+    '[media-tx:e2e] TIMING {"totalMs":12,"attempts":1}');
+  addPhotoE2ELogLine(summary,
+    '[media-tx:e2e] TIMING {"totalMs":-1,"attempts":2}');
+  addPhotoE2ELogLine(summary,
+    '[media-tx:e2e] TIMING invalid-private-data');
+  addPhotoE2ELogLine(summary,
+    '[media-tx:e2e] DURATION_MS private');
+  assert.equal(summary.revocationTimedCases, 0);
+  assert.equal(summary.revocationSuiteWallMs, null);
+  assert.equal(summary.executionResult, 'NOT_INFERRED');
+});
