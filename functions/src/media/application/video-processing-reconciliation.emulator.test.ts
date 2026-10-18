@@ -2541,3 +2541,51 @@ test('telemetry Firestore outage is best effort, not a clean processing result',
   assert.equal(calls, 2);
   assert.equal(diagnoseVideoScheduler(key, null, now).health, 'UNVERIFIED');
 });
+
+
+test('telemetry stays within one logical read and at most one write per cycle', async () => {
+  const name = 'submitQueuedVideoProcessing';
+  const good = videoSchedulerRecord(name, 'budget-latest', now - 1000,
+    now, 'OK', 'EXECUTE', { selected: 0 });
+  const lateOK = videoSchedulerRecord(name, 'budget-old-ok', now - 3000,
+    now - 2000, 'OK', 'EXECUTE', {});
+  const lateFailure = videoSchedulerRecord(name, 'budget-old-failure',
+    now - 4000, now - 3000, 'FAILED', 'QUERY', {});
+  let snapshot: Record<string, unknown> | null = null;
+  let reads = 0;
+  let writes = 0;
+  let attempts = 0;
+  const fake = {
+    collection: (collectionName: string) => {
+      assert.equal(collectionName, VIDEO_SCHEDULER_COLLECTION);
+      return { doc: (id: string) => {
+        assert.equal(id, name);
+        return { id };
+      } };
+    },
+    runTransaction: async (fn: (tx: {
+      get: (ref: unknown) => Promise<{ exists: boolean; data: () => unknown }>;
+      set: (ref: unknown, data: Record<string, unknown>) => void;
+    }) => Promise<boolean>) => {
+      attempts++;
+      let staged: Record<string, unknown> | null = null;
+      const result = await fn({
+        get: async () => {
+          reads++;
+          return { exists: snapshot !== null, data: () => snapshot };
+        },
+        set: (_ref, data) => { writes++; staged = data; },
+      });
+      if (staged) snapshot = staged;
+      return result;
+    },
+  } as unknown as typeof firestore;
+  assert.equal(await saveLastVideoSchedulerCycle(fake, good), true);
+  assert.equal(await saveLastVideoSchedulerCycle(fake, good), false);
+  assert.equal(await saveLastVideoSchedulerCycle(fake, lateOK), false);
+  assert.equal(await saveLastVideoSchedulerCycle(fake, lateFailure), true);
+  assert.equal(attempts, 4);
+  assert.equal(reads, 4);
+  assert.equal(writes, 2);
+  assert.equal(snapshot?.['cycleId'], good.cycleId);
+});

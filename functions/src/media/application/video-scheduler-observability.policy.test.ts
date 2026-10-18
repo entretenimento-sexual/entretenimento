@@ -106,8 +106,8 @@ test('history is deterministic for tied timestamps and pruned at fixed bounds', 
   }
   assert.equal(current?.recentIncidents.length, VIDEO_SCHEDULER_INCIDENT_LIMIT);
   const later = videoSchedulerRecord(name, 'after-window',
-    now + VIDEO_SCHEDULER_INCIDENT_WINDOW_MS + 2000,
-    now + VIDEO_SCHEDULER_INCIDENT_WINDOW_MS + 3000, 'OK', 'EXECUTE', {});
+    now + VIDEO_SCHEDULER_INCIDENT_WINDOW_MS + 12_000,
+    now + VIDEO_SCHEDULER_INCIDENT_WINDOW_MS + 13_000, 'OK', 'EXECUTE', {});
   assert.equal(mergeVideoSchedulerEvidence(current, later)?.recentIncidents.length, 0);
 });
 
