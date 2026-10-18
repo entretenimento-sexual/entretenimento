@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 
 import { deleteApp, initializeApp } from 'firebase-admin/app';
-import { getFirestore, type DocumentReference } from 'firebase-admin/firestore';
+import { FieldPath, getFirestore, type DocumentReference } from 'firebase-admin/firestore';
 import axios, { AxiosError, type AxiosResponse } from 'axios';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
@@ -2588,4 +2588,74 @@ test('telemetry stays within one logical read and at most one write per cycle', 
   assert.equal(reads, 4);
   assert.equal(writes, 2);
   assert.equal(snapshot?.['cycleId'], good.cycleId);
+});
+
+test('c17 admin state cursors traverse bounded legacy-safe pages under concurrent updates', async () => {
+  // Disposable test collection in the isolated demo emulator; no production jobs.
+  const cursorJobs = firestore.collection('c17_admin_video_queue_cursor_integration');
+  const batch = firestore.batch();
+  for (const state of ['QUEUED', 'SUBMITTING', 'PROCESSING',
+    'FAILED', 'CANCEL_REQUESTED'] as const) {
+    for (let n = 1; n <= 5; n++) {
+      batch.set(cursorJobs.doc(state.toLowerCase() + '-' + n), {
+        state,
+        ...(n === 2 ? {} : { updatedAt: now - n * 60_000 }),
+      });
+    }
+  }
+  await batch.commit();
+  async function page(state: string, after: string | null) {
+    let query = cursorJobs.where('state', '==', state)
+      .orderBy(FieldPath.documentId());
+    if (after) query = query.startAfter(after);
+    const docs = (await query.limit(3).get()).docs;
+    const consumed = docs.slice(0, 2);
+    return { ids: consumed.map(d => d.id), scanned: consumed.length,
+      more: docs.length > 2, cursor: consumed.at(-1)?.id ?? null };
+  }
+  const queuedFirst = await page('QUEUED', null);
+  assert.deepEqual(queuedFirst.ids, ['queued-1', 'queued-2']);
+  assert.equal(queuedFirst.more, true);
+  const queuedSecond = await page('QUEUED', queuedFirst.cursor);
+  assert.deepEqual(queuedSecond.ids, ['queued-3', 'queued-4']);
+  assert.equal(queuedSecond.scanned, 2);
+  const queuedLast = await page('QUEUED', queuedSecond.cursor);
+  assert.deepEqual(queuedLast.ids, ['queued-5']);
+  assert.equal(queuedLast.more, false);
+  const all = [...queuedFirst.ids, ...queuedSecond.ids, ...queuedLast.ids];
+  assert.equal(new Set(all).size, 5);
+  // A legacy record without updatedAt remains visible to ID-based traversal.
+  assert.ok(all.includes('queued-2'));
+  // State changes between pages are not an immutable snapshot.
+  await cursorJobs.doc('processing-4').update({ state: 'QUEUED' });
+  const refresh = await page('QUEUED', null);
+  assert.deepEqual(refresh.ids, ['processing-4', 'queued-1']);
+  // Emulate independent per-state windows: no forced global slice.
+  const lanes = await Promise.all(['SUBMITTING', 'PROCESSING', 'FAILED',
+    'CANCEL_REQUESTED'].map(state => page(state, null)));
+  assert.equal(lanes.length, 4);
+  assert.ok(lanes.every(lane => lane.scanned <= 2));
+});
+
+test('c17 terminal review cursor orders by ID and keeps legacy timestamps eligible', async () => {
+  const collection = firestore.collection('c17_admin_terminal_cursor_integration');
+  const ids = [
+    'a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64), 'd'.repeat(64),
+  ];
+  const batch = firestore.batch();
+  ids.forEach((id, i) => batch.set(collection.doc(id), {
+    state: 'review', ...(i === 1 ? {} : { updatedAt: now - i * 60_000 }),
+  }));
+  await batch.commit();
+  const query = collection.where('state', '==', 'review')
+    .orderBy(FieldPath.documentId());
+  const first = await query.limit(3).get();
+  assert.equal(first.docs.length, 3);
+  const consumed = first.docs.slice(0, 2);
+  assert.deepEqual(consumed.map(d => d.id), ids.slice(0, 2));
+  const after = await query.startAfter(consumed[1].id).limit(3).get();
+  assert.deepEqual(after.docs.map(d => d.id), ids.slice(2));
+  assert.equal((await collection.where('state', '==', 'review').count().get())
+    .data().count, 4);
+  assert.equal(new Set([...consumed, ...after.docs].map(d => d.id)).size, 4);
 });
