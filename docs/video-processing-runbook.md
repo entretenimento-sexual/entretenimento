@@ -65,8 +65,12 @@ O processamento local de MP4/WebM permanece independente desse acesso.
 
 ## Diagnóstico administrativo
 
-A rota administrativa de vídeos apresenta um painel de diagnóstico atualizado a
-cada minuto. O painel consulta a callable:
+A rota administrativa de vídeos apresenta um painel com consulta inicial,
+atualização manual, atualização ao voltar para uma aba visível e atualização
+periódica a cada **cinco minutos**, apenas com a aba visível. As três seções
+compartilham um único gatilho de atualização; não há polling enquanto a aba
+está oculta. Uma atualização ainda em andamento pode consumir recursos mesmo
+após a aba ficar oculta. O painel consulta a callable:
 
 ```text
 getVideoProcessingOperationalStatus
@@ -88,9 +92,25 @@ Ação necessária  API, região, projeto ou permissões falharam
 Emulator         consulta externa intencionalmente ignorada
 ```
 
-O diagnóstico não cria, altera nem exclui jobs do Transcoder. Um estado
-`Operacional` confirma conectividade e permissão de listagem, mas não substitui
-o teste de processamento completo com um arquivo real.
+O diagnóstico não cria, altera nem exclui jobs do Transcoder. A indicação
+`Transcoder acessível` confirma apenas conectividade e permissão de listagem.
+O resumo **Prioridade operacional** combina o estado do provedor com as
+execuções observadas dos schedulers, resultados de jobs, amostras de backlog,
+incidentes preservados e confiabilidade da telemetria. Trata amostra parcial,
+leitura indisponível, histórico antigo e jobs terminais FAILED como **verificação**
+sem presumir incidente em andamento. Falha recente de scheduler, alerta de jobs,
+indisponibilidade do provedor e atrasos observados demandam investigação.
+A indicação `Sem alertas nos dados consultados` não certifica saúde completa,
+nem execução de todos os agendamentos. O resumo é somente leitura e nunca
+autoriza retry, cancelamento ou exclusão.
+
+Erros da callable de diagnóstico, consulta de limpeza temporária e reconferência
+usam, respectivamente, os motivos canônicos `video_operational_diagnostic_load_failed`,
+`video_terminal_cleanup_queue_load_failed` e
+`video_terminal_cleanup_action_failed`. Os dois primeiros são diagnósticos
+inline; o terceiro gera feedback de ação. Não utilizar mensagens de upload
+ou biblioteca para essas operações. Logs de falhas do diagnóstico não devem
+incluir exceções brutas ou identificadores pessoais.
 
 ## Recuperação administrativa
 

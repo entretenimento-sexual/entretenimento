@@ -14,7 +14,7 @@
       (click)="retry()"
     >
       <i class="fas fa-rotate" aria-hidden="true"></i>
-      Atualizar fila
+      Atualizar diagnóstico e filas
     </button>
   </header>
 
@@ -62,6 +62,20 @@
         >
           {{ processingStateDescription(diagnostic) }}
         </p>
+
+        @if (assessVideoProcessingOperations(diagnostic); as triage) {
+          <section class="video-moderation__operations-summary"
+            [class.video-moderation__operations-summary--error]="triage.priority === 'ACTION_REQUIRED'"
+            role="status" aria-label="Prioridade operacional">
+            <strong>{{ triage.label }}</strong>
+            <ul>
+              @for (finding of triage.findings; track finding) {
+                <li>{{ finding }}</li>
+              }
+            </ul>
+            <small>Somente diagnóstico: nenhuma recuperação ou exclusão automática foi autorizada.</small>
+          </section>
+        }
 
         <div class="video-moderation__operations-grid">
           <article class="video-moderation__metric">

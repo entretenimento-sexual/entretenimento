@@ -81,6 +81,12 @@ export const MEDIA_ERROR_MESSAGES = Object.freeze({
       'Não foi possível carregar a fila de recuperação de vídeos agora.',
     video_recovery_action_failed:
       'A ação de recuperação do processamento não pôde ser concluída.',
+    video_operational_diagnostic_load_failed:
+      'Não foi possível consultar o diagnóstico operacional de vídeos agora.',
+    video_terminal_cleanup_queue_load_failed:
+      'Não foi possível consultar as revisões de limpeza temporária agora.',
+    video_terminal_cleanup_action_failed:
+      'Não foi possível agendar a reconferência da limpeza temporária.'
     video_editor_open_failed:
       'Não foi possível abrir o editor de vídeo agora.',
     video_publication_settings_failed:
@@ -511,6 +517,18 @@ export const MEDIA_ERROR_PRESENTATIONS:
       severity: 'warning',
     },
     video_recovery_action_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    video_operational_diagnostic_load_failed: {
+      surface: 'inline',
+      severity: 'warning',
+    },
+    video_terminal_cleanup_queue_load_failed: {
+      surface: 'inline',
+      severity: 'warning',
+    },
+    video_terminal_cleanup_action_failed: {
       surface: 'snackbar',
       severity: 'error',
     },

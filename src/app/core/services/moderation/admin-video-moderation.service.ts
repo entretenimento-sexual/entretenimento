@@ -135,7 +135,7 @@ export class AdminVideoModerationService {
           {
             scope: 'AdminVideoModerationService',
           },
-          'video_library_load_failed'
+          'video_operational_diagnostic_load_failed'
         );
         return throwError(() => error);
       })

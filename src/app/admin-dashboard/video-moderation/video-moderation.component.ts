@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule, DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -12,12 +12,14 @@ import { RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
   Observable,
+  fromEvent,
   merge,
   of,
   timer,
 } from 'rxjs';
 import {
   catchError,
+  filter,
   finalize,
   map,
   shareReplay,
@@ -26,6 +28,7 @@ import {
 } from 'rxjs/operators';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { assessVideoProcessingOperations } from './video-processing-triage.policy';
 import {
   AdminVideoModerationService,
   AdminVideoProcessingJobState,
@@ -64,7 +67,8 @@ interface PendingRecoveryConfirmation {
   action: AdminVideoProcessingRecoveryAction;
 }
 
-const PROCESSING_STATUS_REFRESH_INTERVAL_MS = 60 * 1000;
+// Bounded admin refresh: no costly provider probes while the tab is hidden.
+const PROCESSING_STATUS_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 @Component({
   selector: 'app-video-moderation',
@@ -79,12 +83,22 @@ const PROCESSING_STATUS_REFRESH_INTERVAL_MS = 60 * 1000;
 })
 export class VideoModerationComponent {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly document = inject(DOCUMENT);
   private readonly moderation = inject(AdminVideoModerationService);
   private readonly recovery = inject(AdminVideoProcessingRecoveryService);
   private readonly terminalCleanup = inject(AdminVideoTerminalTemporaryCleanupService);
   private readonly notification = inject(ErrorNotificationService);
 
   private readonly refreshSubject = new BehaviorSubject<number>(0);
+  private readonly visibleRefresh$ = merge(
+    this.refreshSubject,
+    timer(PROCESSING_STATUS_REFRESH_INTERVAL_MS, PROCESSING_STATUS_REFRESH_INTERVAL_MS),
+    fromEvent(this.document, 'visibilitychange')
+  ).pipe(
+    filter(() => !this.document.hidden),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+  readonly assessVideoProcessingOperations = assessVideoProcessingOperations;
   readonly busyRecoveryKey = signal<string | null>(null);
   readonly recoveryReasonDrafts = signal<RecoveryReasonDrafts>({});
   readonly terminalCleanupReasonDrafts = signal<Record<string, string>>({});
@@ -93,13 +107,7 @@ export class VideoModerationComponent {
   readonly pendingRecoveryConfirmation =
     signal<PendingRecoveryConfirmation | null>(null);
 
-  readonly processingState$: Observable<VideoProcessingPanelState> = merge(
-    this.refreshSubject,
-    timer(
-      PROCESSING_STATUS_REFRESH_INTERVAL_MS,
-      PROCESSING_STATUS_REFRESH_INTERVAL_MS
-    )
-  ).pipe(
+  readonly processingState$: Observable<VideoProcessingPanelState> = this.visibleRefresh$.pipe(
     switchMap(() =>
       this.moderation.getProcessingStatus$().pipe(
         map((data) => ({
@@ -119,13 +127,7 @@ export class VideoModerationComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly recoveryState$: Observable<VideoProcessingRecoveryPanelState> = merge(
-    this.refreshSubject,
-    timer(
-      PROCESSING_STATUS_REFRESH_INTERVAL_MS,
-      PROCESSING_STATUS_REFRESH_INTERVAL_MS
-    )
-  ).pipe(
+  readonly recoveryState$: Observable<VideoProcessingRecoveryPanelState> = this.visibleRefresh$.pipe(
     switchMap(() =>
       this.recovery.listRecoveryJobs$(30).pipe(
         map(({ items, skippedItems, checkedAt }) => ({
@@ -155,10 +157,7 @@ export class VideoModerationComponent {
   readonly terminalCleanupState$: Observable<{
     status: VideoRecoveryPanelStatus;
     data: IAdminVideoTerminalCleanupReviews | null;
-  }> = merge(
-    this.refreshSubject,
-    timer(PROCESSING_STATUS_REFRESH_INTERVAL_MS, PROCESSING_STATUS_REFRESH_INTERVAL_MS)
-  ).pipe(
+  }> = this.visibleRefresh$.pipe(
     switchMap(() => this.terminalCleanup.listReviews$(30).pipe(
       map(data => ({
         status: data.totalReview > 0 ? 'ready' : 'empty',

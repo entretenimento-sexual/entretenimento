@@ -62,7 +62,7 @@ export class AdminVideoTerminalTemporaryCleanupService {
       catchError(error => {
         this.mediaError.reportSilently(error, 'adminVideoTerminalCleanup.list',
           undefined, { scope: 'AdminVideoTerminalTemporaryCleanupService' },
-          'video_library_load_failed');
+          'video_terminal_cleanup_queue_load_failed');
         return throwError(() => error);
       })
     );
@@ -85,7 +85,7 @@ export class AdminVideoTerminalTemporaryCleanupService {
       catchError(error => {
         this.mediaError.report(error, {
           operation: 'adminVideoTerminalCleanup.recheck',
-          reasonHint: 'video_upload_failed',
+          reasonHint: 'video_terminal_cleanup_action_failed',
           metadata: { scope: 'AdminVideoTerminalTemporaryCleanupService' },
         });
         return throwError(() => error);

@@ -91,6 +91,18 @@ describe('media-error.catalog', () => {
     expect(resolveMediaErrorMessage('video_recovery_action_failed')).toBe(
       'A ação de recuperação do processamento não pôde ser concluída.'
     );
+    expect(resolveMediaErrorMessage('video_terminal_cleanup_action_failed')).toBe(
+      'Não foi possível agendar a reconferência da limpeza temporária.'
+    );
+    expect(resolveMediaErrorMessage('video_operational_diagnostic_load_failed')).toBe(
+      'Não foi possível consultar o diagnóstico operacional de vídeos agora.'
+    );
+    for (const reason of ['video_operational_diagnostic_load_failed',
+      'video_terminal_cleanup_queue_load_failed']) {
+      expect(resolveMediaErrorPresentation(reason)).toMatchObject({ surface: 'inline' });
+    }
+    expect(resolveMediaErrorPresentation('video_terminal_cleanup_action_failed'))
+      .toMatchObject({ surface: 'snackbar' });
     expect(resolveMediaErrorPresentation('video_comments_load_failed')).toMatchObject({
       surface: 'inline',
     });

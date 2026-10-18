@@ -319,11 +319,10 @@ export const getVideoProcessingOperationalStatus = onCall(
         },
       };
     } catch (error) {
+      // Avoid raw exception strings, identifiers and request metadata in operational logs.
       logger.error('[videoProcessingStatus] Falha no diagnóstico.', {
-        adminUid,
-        error: error instanceof Error
-          ? error.message
-          : String(error ?? ''),
+        event: 'VIDEO_MEDIA_ADMIN_DIAGNOSTIC_UNAVAILABLE',
+        failureCategory: error instanceof HttpsError ? error.code : 'internal',
       });
 
       throw new HttpsError(
