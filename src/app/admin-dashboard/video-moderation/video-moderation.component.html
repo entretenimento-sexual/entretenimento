@@ -125,6 +125,18 @@
                 <span>{{ schedulerLabel(scheduler) }}</span>
                 <strong>{{ schedulerHealthLabel(scheduler) }}</strong>
                 <small>{{ schedulerJobsHealthLabel(scheduler) }}</small>
+                <small>{{ schedulerEvidenceLabel(scheduler) }}</small>
+                @if (scheduler.recentIncident; as incident) {
+                  <small role="status">
+                    Incidente recente: {{ incident.outcome === 'FAILED'
+                      ? 'falha de execução' : 'atenção operacional' }};
+                    {{ incident.finishedAt | date:'dd/MM HH:mm' }};
+                    fase {{ incident.phase }}.
+                    {{ scheduler.recentIncidentCount ?? 0 }} registro(s) preservado(s).
+                  </small>
+                } @else if (scheduler.historyCoverage === 'LEGACY_OR_UNKNOWN') {
+                  <small>Histórico ainda não verificado nesta versão.</small>
+                }
                 <small>
                   @if (scheduler.lastFinishedAt !== null) {
                     Último registro: {{ scheduler.lastFinishedAt | date:'dd/MM HH:mm' }};
@@ -177,7 +189,8 @@
             A execução do scheduler, a resposta do provedor e os estados persistidos são diagnósticos distintos.
             Sem alertas observados não significa que todos os vídeos foram processados.
             Registros ausentes ou antigos permanecem não verificados; não comprovam sucesso
-            ou falha do Cloud Scheduler. Confira os ciclos correlacionados no
+            ou falha do Cloud Scheduler. O histórico é limitado e best effort:
+            falhas na própria telemetria podem estar apenas no Cloud Logging. Confira os ciclos correlacionados no
             Cloud Logging e o agendamento no Google Cloud.
             @if (diagnostic.queue.cancellation?.samplePartial) {
               O backlog de cancelamentos é uma amostra parcial.

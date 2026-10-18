@@ -271,6 +271,16 @@ export class VideoModerationComponent {
     }
   }
 
+  schedulerEvidenceLabel(value: IAdminVideoSchedulerDiagnostic): string {
+    switch (value.evidenceConfidence) {
+      case 'RECENT': return 'Registro recente; histórico não exaustivo';
+      case 'STALE': return 'Último registro desatualizado';
+      case 'READ_UNAVAILABLE': return 'Telemetria indisponível nesta consulta';
+      case 'INVALID': return 'Telemetria inválida';
+      default: return 'Sem registro confiável de telemetria';
+    }
+  }
+
   schedulerJobsHealthLabel(value: IAdminVideoSchedulerDiagnostic): string {
     switch (value.jobsHealth) {
       case 'NO_ALERTS_OBSERVED': return 'Sem alertas nos resultados observados';

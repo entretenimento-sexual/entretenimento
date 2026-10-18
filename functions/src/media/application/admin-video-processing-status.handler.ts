@@ -248,7 +248,10 @@ async function readSchedulerDiagnostics(checkedAt: number): Promise<VideoSchedul
         snapshots[index].exists ? snapshots[index].data() : null, checkedAt));
   } catch {
     logger.warn('[videoProcessingStatus] Evidência dos schedulers indisponível.');
-    return VIDEO_SCHEDULERS.map(name => diagnoseVideoScheduler(name, null, checkedAt));
+    return VIDEO_SCHEDULERS.map(name => ({
+      ...diagnoseVideoScheduler(name, null, checkedAt),
+      evidenceConfidence: 'READ_UNAVAILABLE' as const,
+    }));
   }
 }
 

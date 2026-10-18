@@ -91,3 +91,18 @@ test('terminal outcomes come from committed Firestore transaction, never just pr
   assert.ok(template.includes('providerFailedApplied'));
   assert.ok(doc.includes('1C2-A3b2b2c9'));
 });
+
+
+test('1C2-A3b2b2c10 preserves bounded incidents without driving media jobs', () => {
+  const policy = file('src/media/application/video-scheduler-observability.policy.ts');
+  assert.ok(core.includes('mergeVideoSchedulerEvidence('));
+  assert.ok(policy.includes('VIDEO_SCHEDULER_INCIDENT_LIMIT = 5'));
+  assert.ok(policy.includes('VIDEO_SCHEDULER_INCIDENT_WINDOW_MS = 24'));
+  assert.ok(status.includes("evidenceConfidence: 'READ_UNAVAILABLE'"));
+  assert.ok(client.includes('recentIncidentCount:'));
+  assert.ok(component.includes('schedulerEvidenceLabel('));
+  assert.ok(template.includes('scheduler.recentIncident'));
+  assert.ok(doc.includes('1C2-A3b2b2c10'));
+  assert.ok(!core.includes('getGoogleVideoTranscoderJob('));
+  assert.ok(!core.includes('deletePinned('));
+});

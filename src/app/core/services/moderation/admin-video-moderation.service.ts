@@ -77,6 +77,15 @@ export interface IAdminVideoSchedulerDiagnostic {
   ageMs: number | null;
   durationMs: number | null;
   metrics: Readonly<Record<string, number | boolean>>;
+  evidenceConfidence?: 'RECENT' | 'STALE' | 'MISSING' | 'INVALID' | 'READ_UNAVAILABLE';
+  historyCoverage?: 'BEST_EFFORT' | 'LEGACY_OR_UNKNOWN';
+  recentIncident?: {
+    startedAt: number;
+    finishedAt: number;
+    outcome: 'ATTENTION' | 'FAILED';
+    phase: string;
+  } | null;
+  recentIncidentCount?: number;
 }
 
 export interface IAdminVideoProcessingStatus {
@@ -256,6 +265,28 @@ export class AdminVideoModerationService {
         ageMs: this.normalizeOptionalNonNegativeInteger(item?.ageMs),
         durationMs: this.normalizeOptionalNonNegativeInteger(item?.durationMs),
         metrics: safeMetrics,
+        evidenceConfidence: item?.evidenceConfidence === 'RECENT' ||
+          item?.evidenceConfidence === 'STALE' ||
+          item?.evidenceConfidence === 'INVALID' ||
+          item?.evidenceConfidence === 'READ_UNAVAILABLE'
+          ? item.evidenceConfidence : 'MISSING',
+        historyCoverage: item?.historyCoverage === 'BEST_EFFORT'
+          ? 'BEST_EFFORT' : 'LEGACY_OR_UNKNOWN',
+        recentIncident: item?.recentIncident &&
+          (item.recentIncident.outcome === 'FAILED' ||
+            item.recentIncident.outcome === 'ATTENTION') &&
+          this.normalizeOptionalPositiveInteger(item.recentIncident.finishedAt) !== null &&
+          this.normalizeOptionalNonNegativeInteger(item.recentIncident.startedAt) !== null &&
+          typeof item.recentIncident.phase === 'string' &&
+          /^[A-Z_]{1,32}$/.test(item.recentIncident.phase)
+          ? {
+              startedAt: item.recentIncident.startedAt,
+              finishedAt: item.recentIncident.finishedAt,
+              outcome: item.recentIncident.outcome,
+              phase: item.recentIncident.phase,
+            } : null,
+        recentIncidentCount: Math.min(5,
+          this.normalizeNonNegativeInteger(item?.recentIncidentCount)),
       };
     });
   }
