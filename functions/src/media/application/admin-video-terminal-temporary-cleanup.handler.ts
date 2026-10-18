@@ -112,8 +112,8 @@ export const listVideoTerminalTemporaryCleanupReviews = onCall<{ limit?: number;
         updatedAt,
         ageMs: updatedAt > 0 ? Math.max(0, checkedAt - updatedAt) : 0,
         failureCode: safeFailureCode(queue.lastError),
-        recheckable: blocker === null,
-        blocker,
+        recheckable: blocker === null && updatedAt > 0,
+        blocker: blocker ?? (updatedAt === 0 ? 'timestamp_invalid' : null),
       };
     });
     const totalReview = count.data().count;

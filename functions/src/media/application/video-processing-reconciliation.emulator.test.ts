@@ -2659,3 +2659,60 @@ test('c17 terminal review cursor orders by ID and keeps legacy timestamps eligib
     .data().count, 4);
   assert.equal(new Set([...consumed, ...after.docs].map(d => d.id)).size, 4);
 });
+
+test('c18b bounded real Firestore audit observes legacy rows without a global claim', async () => {
+  const collection = firestore.collection('c18b_media_admin_queue_audit_integration');
+  const states = ['QUEUED', 'SUBMITTING', 'PROCESSING', 'FAILED',
+    'CANCEL_REQUESTED'];
+  const batch = firestore.batch();
+  for (const state of states) {
+    for (let index = 1; index <= 60; index++) {
+      batch.set(collection.doc(state.toLowerCase() + '-' +
+        String(index).padStart(3, '0')), {
+        state,
+        ...(index % 10 === 0 ? {} : { updatedAt: now - index * 60_000 }),
+        ...(index === 60 ? { cancellationReviewRequired: true } : {}),
+      });
+    }
+  }
+  await batch.commit();
+
+  let observed = 0;
+  let legacyWithoutTimestamp = 0;
+  let totalPages = 0;
+  const readSizes: number[] = [];
+  for (const state of states) {
+    let after: string | null = null;
+    while (true) {
+      let query = collection.where('state', '==', state)
+        .orderBy(FieldPath.documentId());
+      if (after) query = query.startAfter(after);
+      const docs = (await query.limit(11).get()).docs;
+      const page = docs.slice(0, 10);
+      totalPages++;
+      readSizes.push(docs.length);
+      observed += page.length;
+      legacyWithoutTimestamp += page.filter(doc =>
+        doc.get('updatedAt') === undefined).length;
+      if (docs.length <= 10) break;
+      after = page[page.length - 1].id;
+    }
+  }
+  assert.equal(observed, 300);
+  assert.equal(legacyWithoutTimestamp, 30);
+  assert.equal(totalPages, 30);
+  assert.ok(readSizes.every(n => n <= 11));
+  // A state change between requests means later pages are not a snapshot.
+  const first = (await collection.where('state', '==', 'QUEUED')
+    .orderBy(FieldPath.documentId()).limit(11).get()).docs.slice(0, 10);
+  const moved = collection.doc('failed-060');
+  await moved.update({ state: 'QUEUED' });
+  const after = (await collection.where('state', '==', 'QUEUED')
+    .orderBy(FieldPath.documentId()).startAfter(first[9].id)
+    .limit(11).get()).docs;
+  assert.equal(after.some(doc => doc.id === moved.id), false);
+  // A refresh can see a moved row; audit results never infer a global absence.
+  const failedRefresh = await collection.where('state', '==', 'QUEUED')
+    .orderBy(FieldPath.documentId()).limit(100).get();
+  assert.ok(failedRefresh.docs.some(doc => doc.id === moved.id));
+});
