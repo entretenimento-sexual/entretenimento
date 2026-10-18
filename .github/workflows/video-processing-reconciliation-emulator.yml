@@ -45,6 +45,10 @@ on:
       - 'scripts/dev/video-cancellation-log-audit.policy.mjs'
       - 'scripts/dev/inspect-video-cancellation-logs.mjs'
       - 'scripts/tests/video-cancellation-log-audit.test.mjs'
+      - 'package.json'
+      - 'scripts/tests/photo-e2e-isolation.contract.test.mjs'
+      - 'scripts/quality/summarize-photo-e2e-contention.mjs'
+      - 'scripts/tests/photo-e2e-contention-audit.test.mjs'
       - 'scripts/dev/video-scheduler-log-audit.policy.mjs'
       - 'scripts/dev/inspect-video-scheduler-logs.mjs'
       - 'scripts/tests/video-scheduler-log-audit.test.mjs'
@@ -81,6 +85,8 @@ jobs:
           npm --prefix functions ci
       - name: Verify read-only video inventory classification
         run: node --test scripts/tests/video-processing-job-inventory.test.mjs
+      - name: Verify photo E2E isolation and diagnostic-only log summary
+        run: node --test scripts/tests/photo-e2e-isolation.contract.test.mjs scripts/tests/photo-e2e-contention-audit.test.mjs
       - name: Verify offline scheduler log audit
         run: node --test scripts/tests/video-cancellation-log-audit.test.mjs
       - name: Verify unified offline Media scheduler correlation

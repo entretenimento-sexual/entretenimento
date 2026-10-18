@@ -106,6 +106,16 @@ jobs:
           set -o pipefail
           npm run test:media:e2e 2>&1 | tee logs/photo-e2e.log
 
+      - name: Summarize photo E2E emulator contention
+        if: always()
+        shell: bash
+        run: |
+          if [ -f logs/photo-e2e.log ]; then
+            node scripts/quality/summarize-photo-e2e-contention.mjs logs/photo-e2e.log
+          else
+            echo '[photo-e2e] No test log available; execution status is not inferred.'
+          fi
+
       - name: Upload failure logs
         if: failure()
         uses: actions/upload-artifact@v7
