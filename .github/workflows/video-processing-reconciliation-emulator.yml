@@ -49,6 +49,7 @@ on:
       - 'scripts/tests/photo-e2e-isolation.contract.test.mjs'
       - 'src/app/media/videos/state/video-error-state.architecture.spec.ts'
       - 'src/app/media/videos/state/profile-video-library.reducer.spec.ts'
+      - 'src/app/media/videos/public-video-viewer/public-video-viewer-lazy-playback.spec.ts'
       - 'scripts/quality/summarize-photo-e2e-contention.mjs'
       - 'scripts/tests/photo-e2e-contention-audit.test.mjs'
       - 'scripts/tests/photo-e2e-performance.policy.test.mjs'
