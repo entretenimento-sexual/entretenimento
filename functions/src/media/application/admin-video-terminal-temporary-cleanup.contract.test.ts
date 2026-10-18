@@ -43,3 +43,11 @@ test('admin recheck is CAS-fenced, auditable and delegates GCS deletion to exist
   assert.ok(index.includes('listVideoTerminalTemporaryCleanupReviews'));
   assert.ok(runbook.includes('recheckVideoTerminalTemporaryCleanup'));
 });
+
+test('c17 terminal review pagination uses bounded index-safe document ID cursors', () => {
+  assert.ok(handler.includes("orderBy(FieldPath.documentId())"));
+  assert.ok(handler.includes('query.startAfter(cursor)'));
+  assert.ok(handler.includes('query.limit(limit + 1).get()'));
+  assert.ok(handler.includes('nextCursor: hasMore && consumed.length'));
+  assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
+});

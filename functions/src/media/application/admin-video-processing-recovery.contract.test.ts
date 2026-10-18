@@ -70,3 +70,13 @@ test('explicit provider recheck is version-fenced, logged, rate-limited and not 
   assert.ok(template.includes('item.providerPollReviewRequired'));
   assert.ok(template.includes('item.providerPollFailureCount'));
 });
+
+test('c17 recovery consumes every document from bounded per-state cursor lanes', () => {
+  assert.ok(handler.includes("orderBy(FieldPath.documentId())"));
+  assert.ok(handler.includes('query.startAfter(cursor[state])'));
+  assert.ok(handler.includes('parseRecoveryCursor(request.data?.cursor)'));
+  assert.ok(handler.includes('documents.slice(0, perStateLimit)'));
+  assert.ok(handler.includes('nextCursor: hasMore ? encodeRecoveryCursor(next) : null'));
+  assert.ok(!handler.includes('items: items.slice(0, limit)'));
+  assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
+});

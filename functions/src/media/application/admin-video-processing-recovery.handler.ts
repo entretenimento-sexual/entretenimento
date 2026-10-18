@@ -1,6 +1,7 @@
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { FieldPath } from 'firebase-admin/firestore';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
@@ -36,6 +37,7 @@ import {
 
 interface ListRecoveryJobsRequest {
   limit?: number;
+  cursor?: string | null;
 }
 
 interface RecoveryJobItem {
@@ -64,6 +66,10 @@ interface ListRecoveryJobsResponse {
   items: RecoveryJobItem[];
   skippedItems: number;
   checkedAt: number;
+  scanned: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+  orderScope: 'WITHIN_PAGE';
 }
 
 interface RecoverVideoProcessingRequest {
@@ -299,55 +305,98 @@ function normalizeRecoveryItem(
   };
 }
 
-async function listRecoveryItems(
-  limit: number,
-  checkedAt: number
-): Promise<{ items: RecoveryJobItem[]; skippedItems: number }> {
-  const perStateLimit = Math.max(6, Math.ceil(limit / 2));
-  const collection = db.collection(VIDEO_PROCESSING_JOBS_COLLECTION);
-  const snapshots = await Promise.all([
-    ...ACTIONABLE_STATES.map((state) =>
-      collection.where('state', '==', state).limit(perStateLimit).get()
-    ),
-    collection.where('providerPollReviewRequired', '==', true)
-      .limit(perStateLimit).get(),
-  ]);
-  const items: RecoveryJobItem[] = [];
-  let skippedItems = 0;
-  const seen = new Set<string>();
+/**
+ * Cursor is a deterministic document-ID position for each actionable state.
+ * Consume every scanned document before advancing; never post-sort and slice.
+ * Priority and age ranking are scoped to each returned batch, not the queue.
+ */
+type RecoveryCursor = Partial<Record<VideoProcessingJobState, string>>;
+const CURSOR_MAX = 2048;
+const DOCUMENT_ID = /^[A-Za-z0-9_-]{1,260}$/;
 
-  for (const snapshot of snapshots) {
-    for (const document of snapshot.docs) {
-      if (seen.has(document.id)) continue;
-      seen.add(document.id);
-      const item = normalizeRecoveryItem(document.id, document.data(), checkedAt);
-
-      if (item) {
-        items.push(item);
-      } else {
-        skippedItems += 1;
+function parseRecoveryCursor(value: unknown): RecoveryCursor {
+  if (value == null || value === '') return {};
+  if (typeof value !== 'string' || value.length > CURSOR_MAX ||
+      !/^[A-Za-z0-9_-]+$/.test(value)) {
+    throw new HttpsError('invalid-argument', 'Cursor de recuperação inválido.');
+  }
+  try {
+    const input = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as {
+      v?: unknown; p?: Record<string, unknown>;
+    };
+    if (input?.v !== 1 || !input.p || typeof input.p !== 'object' ||
+        Array.isArray(input.p) ||
+        Object.keys(input.p).some(k =>
+          !ACTIONABLE_STATES.includes(k as VideoProcessingJobState))) {
+      throw new Error('Invalid cursor');
+    }
+    const positions: RecoveryCursor = {};
+    for (const state of ACTIONABLE_STATES) {
+      const id = input.p[state];
+      if (id !== undefined) {
+        if (typeof id !== 'string' || !DOCUMENT_ID.test(id)) {
+          throw new Error('Invalid cursor position');
+        }
+        positions[state] = id;
       }
     }
+    return positions;
+  } catch {
+    throw new HttpsError('invalid-argument', 'Cursor de recuperação inválido.');
   }
+}
 
+function encodeRecoveryCursor(positions: RecoveryCursor): string {
+  return Buffer.from(JSON.stringify({ v: 1, p: positions })).toString('base64url');
+}
+
+function recoveryPriority(item: RecoveryJobItem): number {
+  if (item.providerPollReviewRequired || item.requiresProviderReview ||
+      item.requiresOperationalAttention) return 0;
+  if (item.state === 'FAILED') return 1;
+  if (item.stale) return 2;
+  return 3;
+}
+
+async function listRecoveryItems(
+  limit: number, checkedAt: number, cursor: RecoveryCursor
+): Promise<Omit<ListRecoveryJobsResponse, 'checkedAt'>> {
+  const collection = db.collection(VIDEO_PROCESSING_JOBS_COLLECTION);
+  const perStateLimit = Math.max(1, Math.floor(limit / ACTIONABLE_STATES.length));
+  const snapshots = await Promise.all(ACTIONABLE_STATES.map(state => {
+    let query = collection.where('state', '==', state)
+      .orderBy(FieldPath.documentId());
+    if (cursor[state]) query = query.startAfter(cursor[state]);
+    return query.limit(perStateLimit + 1).get();
+  }));
+  const items: RecoveryJobItem[] = [];
+  let skippedItems = 0;
+  let scanned = 0;
+  let hasMore = false;
+  const next: RecoveryCursor = { ...cursor };
+  for (let index = 0; index < ACTIONABLE_STATES.length; index++) {
+    const documents = snapshots[index].docs;
+    if (documents.length > perStateLimit) hasMore = true;
+    const consumed = documents.slice(0, perStateLimit);
+    scanned += consumed.length;
+    if (consumed.length) {
+      next[ACTIONABLE_STATES[index]] = consumed[consumed.length - 1].id;
+    }
+    for (const document of consumed) {
+      const item = normalizeRecoveryItem(document.id, document.data(), checkedAt);
+      if (item) items.push(item);
+      else skippedItems += 1;
+    }
+  }
   items.sort((left, right) => {
-    if (left.providerPollReviewRequired !== right.providerPollReviewRequired) {
-      return left.providerPollReviewRequired ? -1 : 1;
-    }
-    if (left.state === 'FAILED' && right.state !== 'FAILED') {
-      return -1;
-    }
-
-    if (right.state === 'FAILED' && left.state !== 'FAILED') {
-      return 1;
-    }
-
-    return right.ageMs - left.ageMs;
+    const priority = recoveryPriority(left) - recoveryPriority(right);
+    return priority || right.ageMs - left.ageMs ||
+      left.jobId.localeCompare(right.jobId);
   });
-
   return {
-    items: items.slice(0, limit),
-    skippedItems,
+    items, skippedItems, scanned, hasMore,
+    nextCursor: hasMore ? encodeRecoveryCursor(next) : null,
+    orderScope: 'WITHIN_PAGE',
   };
 }
 
@@ -862,7 +911,8 @@ export const listVideoProcessingRecoveryJobs = onCall<ListRecoveryJobsRequest>(
       config: ADMIN_RECOVERY_LIST_RATE_LIMIT,
       message: 'Muitas consultas de recuperação de vídeo foram feitas em pouco tempo.',
     });
-    const result = await listRecoveryItems(limit, checkedAt);
+    const cursor = parseRecoveryCursor(request.data?.cursor);
+    const result = await listRecoveryItems(limit, checkedAt, cursor);
 
     return {
       ...result,

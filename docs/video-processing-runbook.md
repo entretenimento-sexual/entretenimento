@@ -112,6 +112,31 @@ inline; o terceiro gera feedback de ação. Não utilizar mensagens de upload
 ou biblioteca para essas operações. Logs de falhas do diagnóstico não devem
 incluir exceções brutas ou identificadores pessoais.
 
+### Paginação das filas administrativas (1C2-A3b2b2c17)
+
+As filas de recuperação e limpeza terminal agora aceitam cursores determinísticos
+e páginas limitadas. Os cursores avançam na ordem dos IDs dos documentos,
+com os índices Firestore já existentes e sem novas varreduras integrais.
+A recuperação percorre os cinco estados acionáveis independentemente,
+consumindo todos os documentos retornados antes de avançar cada posição.
+A limpeza terminal percorre apenas registros de revisão. Há lookahead
+de um documento por estado para indicar se existem mais páginas.
+
+**Limite importante:** a prioridade e a antiguidade são ordenadas apenas
+entre os documentos retornados em cada página, nunca globalmente.
+A primeira página não deve ser descrita como contendo o job mais crítico
+ou mais antigo de toda a coleção. Registros legados sem `updatedAt`
+continuam elegíveis à travessia por ID. Cursor não é snapshot imutável;
+mudanças de estado e exclusões entre páginas exigem uma atualização.
+
+Para limite de 30, a recuperação lê até 35 documentos por página,
+sem consulta separada por `providerPollReviewRequired`: seus alertas
+já são representados nas propriedades dos jobs acionáveis.
+A limpeza terminal lê até 31 documentos e preserva a contagem agregada.
+O avanço entre páginas deve ser explícito e submetido aos mesmos limites
+de autenticação, App Check e rate limit que a consulta inicial.
+Nenhum cursor autoriza recovery, reenvio ou exclusão.
+
 ## Recuperação administrativa
 
 A mesma tela apresenta jobs com falha, atraso ou cancelamento pendente. A lista é

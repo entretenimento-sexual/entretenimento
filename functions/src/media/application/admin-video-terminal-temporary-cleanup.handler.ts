@@ -1,5 +1,6 @@
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { FieldPath } from 'firebase-admin/firestore';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
@@ -30,6 +31,9 @@ interface CleanupReviewList {
   checkedAt: number;
   totalReview: number;
   samplePartial: boolean;
+  hasMore: boolean;
+  nextCursor: string | null;
+  orderScope: 'WITHIN_PAGE';
   items: CleanupReviewItem[];
 }
 interface CleanupReviewCommand {
@@ -62,7 +66,7 @@ function safeFailureCode(error: string | null): string | null {
   return String(error ?? '').match(/^[A-Z][A-Z0-9_]{2,79}/)?.[0] ?? null;
 }
 
-export const listVideoTerminalTemporaryCleanupReviews = onCall<{ limit?: number }>(
+export const listVideoTerminalTemporaryCleanupReviews = onCall<{ limit?: number; cursor?: string | null }>(
   { region: FUNCTIONS_REGION, enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK },
   async (request): Promise<CleanupReviewList> => {
     assertCallableAppCheck(request.app);
@@ -75,12 +79,22 @@ export const listVideoTerminalTemporaryCleanupReviews = onCall<{ limit?: number 
     const value = Number(request.data?.limit ?? 30);
     const limit = Number.isFinite(value) ? Math.max(1, Math.min(50, Math.trunc(value))) : 30;
     const checkedAt = Date.now();
-    const query = db.collection(VIDEO_TERMINAL_TEMP_CLEANUP_COLLECTION)
-      .where('state', '==', 'review');
+    const cursor = request.data?.cursor ?? null;
+    if (cursor !== null && (typeof cursor !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(cursor))) {
+      throw new HttpsError('invalid-argument', 'Cursor de limpeza terminal inválido.');
+    }
+    let query = db.collection(VIDEO_TERMINAL_TEMP_CLEANUP_COLLECTION)
+      .where('state', '==', 'review').orderBy(FieldPath.documentId());
+    if (cursor) query = query.startAfter(cursor);
     const [sample, count] = await Promise.all([
-      query.limit(limit).get(), query.count().get(),
+      query.limit(limit + 1).get(),
+      db.collection(VIDEO_TERMINAL_TEMP_CLEANUP_COLLECTION)
+        .where('state', '==', 'review').count().get(),
     ]);
-    const items: CleanupReviewItem[] = sample.docs.map(doc => {
+    const hasMore = sample.docs.length > limit;
+    const consumed = sample.docs.slice(0, limit);
+    const items: CleanupReviewItem[] = consumed.map(doc => {
       const queue = doc.data() as TerminalCleanupQueue;
       const blocker = terminalCleanupReviewBlocker(doc.id, queue);
       const updatedAt = Number.isSafeInteger(queue.updatedAt) && queue.updatedAt > 0
@@ -98,7 +112,14 @@ export const listVideoTerminalTemporaryCleanupReviews = onCall<{ limit?: number 
       };
     });
     const totalReview = count.data().count;
-    return { checkedAt, totalReview, samplePartial: totalReview > items.length, items };
+    items.sort((left, right) => right.ageMs - left.ageMs ||
+      left.queueId.localeCompare(right.queueId));
+    return {
+      checkedAt, totalReview, samplePartial: totalReview > items.length,
+      hasMore,
+      nextCursor: hasMore && consumed.length ? consumed[consumed.length - 1].id : null,
+      orderScope: 'WITHIN_PAGE', items,
+    };
   }
 );
 
