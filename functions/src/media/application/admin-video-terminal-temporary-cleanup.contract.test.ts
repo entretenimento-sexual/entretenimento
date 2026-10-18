@@ -18,7 +18,7 @@ const runbook = file('../docs/video-processing-runbook.md');
 test('admin cleanup diagnostics are bounded, rate-limited and do not trigger deletion', () => {
   assert.ok(handler.includes('listVideoTerminalTemporaryCleanupReviews = onCall'));
   assert.ok(handler.includes(".where('state', '==', 'review')"));
-  assert.ok(handler.includes('query.count().get()'));
+  assert.ok(handler.includes('.where(\'state\', \'==\', \'review\').count().get()'));
   assert.ok(handler.includes('samplePartial: totalReview > items.length'));
   assert.ok(handler.includes('assertCallableAppCheck(request.app)'));
   assert.ok(handler.includes('consumeBackendRateLimitQuota'));
@@ -45,7 +45,7 @@ test('admin recheck is CAS-fenced, auditable and delegates GCS deletion to exist
 });
 
 test('c17 terminal review pagination uses bounded index-safe document ID cursors', () => {
-  assert.ok(handler.includes("orderBy(FieldPath.documentId())"));
+  assert.ok(handler.includes('orderBy(FieldPath.documentId())'));
   assert.ok(handler.includes('query.startAfter(cursor)'));
   assert.ok(handler.includes('query.limit(limit + 1).get()'));
   assert.ok(handler.includes('nextCursor: hasMore && consumed.length'));

@@ -72,7 +72,7 @@ test('explicit provider recheck is version-fenced, logged, rate-limited and not 
 });
 
 test('c17 recovery consumes every document from bounded per-state cursor lanes', () => {
-  assert.ok(handler.includes("orderBy(FieldPath.documentId())"));
+  assert.ok(handler.includes('orderBy(FieldPath.documentId())'));
   assert.ok(handler.includes('query.startAfter(cursor[state])'));
   assert.ok(handler.includes('parseRecoveryCursor(request.data?.cursor)'));
   assert.ok(handler.includes('documents.slice(0, perStateLimit)'));
