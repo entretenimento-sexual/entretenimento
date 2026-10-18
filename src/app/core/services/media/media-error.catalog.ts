@@ -86,7 +86,7 @@ export const MEDIA_ERROR_MESSAGES = Object.freeze({
     video_terminal_cleanup_queue_load_failed:
       'Não foi possível consultar as revisões de limpeza temporária agora.',
     video_terminal_cleanup_action_failed:
-      'Não foi possível agendar a reconferência da limpeza temporária.'
+      'Não foi possível agendar a reconferência da limpeza temporária.',
     video_editor_open_failed:
       'Não foi possível abrir o editor de vídeo agora.',
     video_publication_settings_failed:
