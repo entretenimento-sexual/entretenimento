@@ -48,6 +48,7 @@ test('both E2E and emulator checks retain coverage and show diagnostic log summa
   assert.ok(mediaWorkflow.includes('npm run test:media:e2e 2>&1 | tee logs/photo-e2e.log'));
   assert.ok(mediaWorkflow.includes('set -o pipefail'));
   assert.ok(mediaWorkflow.includes('node scripts/quality/summarize-photo-e2e-contention.mjs logs/photo-e2e.log'));
+  assert.ok(mediaWorkflow.includes("'scripts/quality/summarize-photo-e2e-contention.mjs'"));
   assert.ok(reconWorkflow.includes('scripts/tests/photo-e2e-isolation.contract.test.mjs'));
   assert.ok(reconWorkflow.includes('scripts/tests/photo-e2e-contention-audit.test.mjs'));
   assert.ok(reconWorkflow.includes('scripts/tests/media-transaction-revocation-concurrency.test.mjs'));
