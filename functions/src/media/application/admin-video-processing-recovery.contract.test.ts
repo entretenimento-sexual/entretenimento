@@ -106,3 +106,15 @@ test('c18 guards legacy timestamps without enabling unbuilt global indexes', () 
   assert.ok(client.includes('timestampEvidence:'));
   assert.ok(template.includes('Data não verificada'));
 });
+
+test('c18b recovery coverage is derived only from consumed page documents', () => {
+  assert.ok(handler.includes('auditRecoveryQueuePage(items, skippedItems)'));
+  assert.ok(handler.includes('isUnconfirmedVideoSubmission({ ...job, state })'));
+  assert.ok(handler.includes('documents.slice(0, perStateLimit)'));
+  assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
+  assert.ok(!handler.includes("orderBy('updatedAt')"));
+  assert.ok(client.includes('normalizeAudit(response.data?.audit)'));
+  assert.ok(component.includes("scope: 'PAGE_ONLY'"));
+  assert.ok(template.includes('Auditoria das páginas consultadas'));
+  assert.ok(template.includes('não atesta a prioridade global'));
+});

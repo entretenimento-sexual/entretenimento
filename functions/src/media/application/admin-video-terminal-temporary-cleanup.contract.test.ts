@@ -57,3 +57,12 @@ test('c18 terminal reviews preserve legacy ID scans until indexes are deployed',
   assert.ok(!handler.includes("orderBy('updatedAt')"));
   assert.ok(template.includes('review.updatedAt > 0'));
 });
+
+test('c18b terminal coverage does not change read budgets or deletion behavior', () => {
+  assert.ok(handler.includes('audit: auditTerminalQueuePage(items)'));
+  assert.ok(handler.includes('queue.updatedAt <= checkedAt'));
+  assert.ok(handler.includes('query.limit(limit + 1).get()'));
+  assert.ok(handler.includes('.count().get()'));
+  assert.ok(!handler.includes("orderBy('updatedAt')"));
+  assert.ok(template.includes('não comprovam cobertura global'));
+});

@@ -175,6 +175,46 @@ A etapa c18 não introduz varreduras, escrita de backfill, novo polling
 ou operações de Transcoder. A fila continua explicitamente classificada
 como **ordem dentro da página**, não como prioridade global.
 
+### Auditoria progressiva de cobertura (1C2-A3b2b2c18b)
+
+O endpoint de recuperação e o de revisão de limpeza terminal agora retornam um
+objeto `audit` com `scope: PAGE_ONLY`, calculado **exclusivamente sobre os
+documentos já consumidos pela página**. Nenhuma consulta adicional, nova
+varredura, escrita, solicitação ao Transcoder ou índice novo é utilizado.
+
+**Recuperação:** `observed`, `invalidDocuments`, `updatedTimestamp`,
+`createdFallback`, `unverifiedTimestamp`, `failed`, `stale`,
+`providerReview`, `providerPollReview`, `overdueCancellation` e
+`unconfirmedSubmission`. Os indicadores de risco podem se sobrepor.
+Registros inválidos continuam fora dos cartões, mas são contabilizados.
+**Revisões terminais:** `observed`, `unverifiedTimestamp`, `blocked`
+e `recheckable`. Timestamp futuro é inválido para idade operacional.
+O bloqueio para reconferir continua governado pela política de segurança.
+
+Os painéis somam as observações de páginas carregadas. O total refere-se a
+**observações**, não a IDs únicos, pois a concorrência pode levar um job a
+ser visto em estados distintos. A tela deduplica cartões; as contagens não
+demonstram ausência de omissões. Mesmo quando `hasMore=false`, não afirmar
+snapshot, completude sob concorrência ou classificação de prioridade global.
+Atualizações periódicas reiniciam os cursores e a auditoria.
+
+Para investigação manual, percorra páginas com botão de carregamento e
+reavalie após novas mutações. Jobs fora dos cinco estados acionáveis
+não integram esse inventário. A contagem global do diagnóstico de status
+é outra fonte e não deve ser confundida com cobertura do inventário.
+Os limites seguem sendo até 35 documentos lidos por página na recuperação
+com `limit=30` (30 consumidos, até 5 de lookahead), e até 31 documentos
++ uma agregação `count()` na revisão terminal com `limit=30`.
+Não habilitar paginação automática.
+
+A ativação global continua **bloqueada** até verificar índices `READY` no
+Google Cloud, cobertura de timestamps legados e política de prioridade
+por gravidade. Para conferir índices sem deploy, executar leitura autorizada
+`gcloud firestore indexes composite list --project=PROJECT_ID --database='(default)'`,
+conferir campos, ordenação e estado `READY`; o simples
+`firestore.indexes.json` no GitHub não valida implantação. Nenhuma migração
+retroativa dos dados foi realizada na c18b.
+
 ## Recuperação administrativa
 
 A mesma tela apresenta jobs com falha, atraso ou cancelamento pendente. A lista é
