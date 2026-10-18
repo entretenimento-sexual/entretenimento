@@ -389,6 +389,48 @@ uma falha de execucao ao scheduler. A ferramenta tambem identifica ciclos
 sem evento terminal, eventos terminais sem inicio e exportacoes possivelmente
 truncadas, sem classificacoes precipitadas.
 
+### Auditoria cruzada offline dos três schedulers (1C2-A3b2b2c11)
+
+A ferramenta `inspect-video-scheduler-logs.mjs` analisa somente um arquivo local
+com eventos estruturados de submissão, reconciliação e cancelamento, além de
+`VIDEO_MEDIA_SCHEDULER_EVIDENCE_UNAVAILABLE`. Não executa consultas cloud,
+não gera gravações Firestore e não consulta o Transcoder. A auditoria legada
+de cancelamentos permanece disponível e com seu contrato preservado.
+
+Exemplo PowerShell, em um projeto explicitamente selecionado:
+
+```powershell
+$events = @('VIDEO_MEDIA_SCHEDULER_STARTED', 'VIDEO_MEDIA_SCHEDULER_FINISHED',
+  'VIDEO_MEDIA_SCHEDULER_FAILED', 'VIDEO_MEDIA_SCHEDULER_EVIDENCE_UNAVAILABLE',
+  'VIDEO_CANCELLATION_CYCLE_STARTED', 'VIDEO_CANCELLATION_CYCLE_FINISHED',
+  'VIDEO_CANCELLATION_CYCLE_FAILED')
+$filter = 'jsonPayload.event=(' + (($events | ForEach-Object { '"' + $_ + '"' }) -join ' OR ') + ')'
+$arquivo = Join-Path $env:TEMP 'video-media-scheduler-logs.json'
+gcloud logging read $filter --project=SEU_PROJECT_ID --freshness=48h --limit=1500 --format=json |
+  Set-Content -Encoding UTF8 $arquivo
+if ($LASTEXITCODE -ne 0) { throw 'Exportação do Cloud Logging falhou' }
+node scripts/dev/inspect-video-scheduler-logs.mjs $arquivo
+```
+
+O arquivo deve ter no máximo 8 MiB e 2.000 entradas. A amostra pode estar
+truncada por limites da exportação, retenção ou filtros; um limite atingido
+é explicitamente sinalizado. O resultado omite UIDs, nomes de jobs, caminhos,
+mensagens de erro e `cycleId`. Não compartilhe a exportação bruta.
+
+A correlação identifica pares STARTED/FINISHED/FAILED, duplicações, execuções
+sobrepostas, terminais contraditórios e avisos de falha de gravação. A partir
+desta versão, os avisos carregam `cycleId` aleatório para correlação exata.
+Avisos de versões antigas sem esse campo ficam como não correlacionados, nunca
+são interpretados como sucesso. `FAILED_CONFIRMED` significa que o log
+registrou falha da invocação, não uma falha do job nem a ausência de disparo.
+`SUSPECTED_GAP` requer dois inícios observados separados por mais de três
+intervalos esperados (5 ou 30 minutos). Sem início observável, o diagnóstico
+é `INSUFFICIENT_EVIDENCE`; com terminal positivo é `EXECUTION_OBSERVED`.
+Todas as classificações preservam `schedulerHealth: NOT_VERIFIED`: Cloud
+Scheduler, Cloud Run, filtros, versão implantada e retenção exigem conferência
+independente. Logs isolados jamais autorizam publicação, cancelamento,
+retentativa, movimentação de originais/derivados ou exclusão.
+
 ### Logs de execução do scheduler
 
 Cada execução agendada produz dois eventos estruturados correlacionados pelo

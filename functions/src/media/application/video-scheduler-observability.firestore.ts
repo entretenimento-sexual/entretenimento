@@ -37,7 +37,7 @@ export async function bestEffortSaveVideoSchedulerCycle(
   } catch {
     logger.warn('[videoScheduler] Registro de evidência indisponível.', {
       event: 'VIDEO_MEDIA_SCHEDULER_EVIDENCE_UNAVAILABLE',
-      scheduler: record.scheduler,
+      scheduler: record.scheduler, cycleId: record.cycleId,
       outcome: record.outcome, finishedAt: record.finishedAt,
       evidenceReliability: 'WRITE_UNCONFIRMED',
     });
