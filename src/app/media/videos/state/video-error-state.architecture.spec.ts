@@ -71,6 +71,16 @@ describe('Video errors: state and presentation boundaries', () => {
     expect(backend).toContain('VIDEO_MEDIA_ADMIN_DIAGNOSTIC_UNAVAILABLE');
     expect(backend).not.toContain('error.message');
   });
+  it('uses explicit bounded cursor pagination with no overlapping admin requests', () => {
+    const panel = source('admin-dashboard/video-moderation/video-moderation.component.ts');
+    const html = source('admin-dashboard/video-moderation/video-moderation.component.html');
+    expect(panel).toContain('exhaustMap(');
+    expect(panel).toContain('loadMoreRecovery()');
+    expect(panel).toContain('loadMoreTerminalCleanup()');
+    expect(html).toContain('recoveryState.hasMore');
+    expect(html).toContain('terminal.data?.hasMore');
+    expect(panel).toContain('new Map(loaded.map(item => [item.jobId, item]))');
+  });
   it('distinguishes operational recovery from user uploads', () => {
     const admin = source('core/services/moderation/admin-video-processing-recovery.service.ts');
     expect(admin).toContain("reasonHint: 'video_recovery_action_failed'");

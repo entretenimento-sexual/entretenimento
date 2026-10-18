@@ -12,6 +12,7 @@ import { RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
   Observable,
+  Subject,
   fromEvent,
   merge,
   of,
@@ -19,6 +20,7 @@ import {
 } from 'rxjs';
 import {
   catchError,
+  exhaustMap,
   filter,
   finalize,
   map,
@@ -60,6 +62,9 @@ interface VideoProcessingRecoveryPanelState {
   items: IAdminVideoProcessingRecoveryJob[];
   skippedItems: number;
   checkedAt: number;
+  scanned: number;
+  hasMore: boolean;
+  loadingMore: boolean;
 }
 
 interface PendingRecoveryConfirmation {
@@ -90,6 +95,8 @@ export class VideoModerationComponent {
   private readonly notification = inject(ErrorNotificationService);
 
   private readonly refreshSubject = new BehaviorSubject<number>(0);
+  private readonly moreRecoverySubject = new Subject<void>();
+  private readonly moreTerminalSubject = new Subject<void>();
   private readonly visibleRefresh$ = merge(
     this.refreshSubject,
     timer(PROCESSING_STATUS_REFRESH_INTERVAL_MS, PROCESSING_STATUS_REFRESH_INTERVAL_MS),
@@ -127,47 +134,90 @@ export class VideoModerationComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly recoveryState$: Observable<VideoProcessingRecoveryPanelState> = this.visibleRefresh$.pipe(
-    switchMap(() =>
-      this.recovery.listRecoveryJobs$(30).pipe(
-        map(({ items, skippedItems, checkedAt }) => ({
-          status: items.length > 0 ? 'ready' : 'empty',
-          items,
-          skippedItems,
-          checkedAt,
-        } as VideoProcessingRecoveryPanelState)),
-        startWith({
-          status: 'loading',
-          items: [],
-          skippedItems: 0,
-          checkedAt: 0,
-        } as VideoProcessingRecoveryPanelState),
-        catchError(() => of({
-          status: 'error',
-          items: [],
-          skippedItems: 0,
-          checkedAt: 0,
-        } as VideoProcessingRecoveryPanelState))
-      )
-    ),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
+  readonly recoveryState$: Observable<VideoProcessingRecoveryPanelState> =
+    this.visibleRefresh$.pipe(
+      switchMap(() => {
+        let cursor: string | null = null;
+        let loaded: IAdminVideoProcessingRecoveryJob[] = [];
+        let skippedItems = 0;
+        let scanned = 0;
+        let checkedAt = 0;
+        let hasMore = false;
+        return merge(of(undefined), this.moreRecoverySubject).pipe(
+          exhaustMap(() => this.recovery.listRecoveryJobs$(30, cursor).pipe(
+            map(page => {
+              // Crossing pages can see concurrent changes: never duplicate a card.
+              const byId = new Map(loaded.map(item => [item.jobId, item]));
+              for (const item of page.items) byId.set(item.jobId, item);
+              loaded = Array.from(byId.values());
+              skippedItems += page.skippedItems;
+              scanned += page.scanned;
+              checkedAt = page.checkedAt;
+              cursor = page.nextCursor;
+              hasMore = page.hasMore && cursor !== null;
+              return {
+                status: loaded.length || hasMore ? 'ready' : 'empty',
+                items: loaded, skippedItems, checkedAt, scanned,
+                hasMore, loadingMore: false,
+              } as VideoProcessingRecoveryPanelState;
+            }),
+            startWith({
+              status: loaded.length ? 'ready' : 'loading',
+              items: loaded, skippedItems, checkedAt, scanned,
+              hasMore: false, loadingMore: loaded.length > 0,
+            } as VideoProcessingRecoveryPanelState),
+            catchError(() => of({
+              status: loaded.length ? 'ready' : 'error',
+              items: loaded, skippedItems, checkedAt, scanned,
+              hasMore, loadingMore: false,
+            } as VideoProcessingRecoveryPanelState))
+          ))
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   readonly terminalCleanupState$: Observable<{
     status: VideoRecoveryPanelStatus;
     data: IAdminVideoTerminalCleanupReviews | null;
+    loadingMore: boolean;
   }> = this.visibleRefresh$.pipe(
-    switchMap(() => this.terminalCleanup.listReviews$(30).pipe(
-      map(data => ({
-        status: data.totalReview > 0 ? 'ready' : 'empty',
-        data,
-      } as const)),
-      startWith({ status: 'loading', data: null } as const),
-      catchError(() => of({ status: 'error', data: null } as const))
-    )),
+    switchMap(() => {
+      let cursor: string | null = null;
+      let loaded: IAdminVideoTerminalCleanupReviews | null = null;
+      return merge(of(undefined), this.moreTerminalSubject).pipe(
+        exhaustMap(() => this.terminalCleanup.listReviews$(30, cursor).pipe(
+          map(page => {
+            const byId = new Map((loaded?.items ?? []).map(item => [item.queueId, item]));
+            for (const item of page.items) byId.set(item.queueId, item);
+            loaded = { ...page, items: Array.from(byId.values()) };
+            cursor = page.nextCursor;
+            return {
+              status: loaded.totalReview > 0 ? 'ready' : 'empty',
+              data: loaded, loadingMore: false,
+            } as const;
+          }),
+          startWith({
+            status: loaded ? (loaded.totalReview > 0 ? 'ready' : 'empty') : 'loading',
+            data: loaded, loadingMore: loaded !== null,
+          } as const),
+          catchError(() => of({
+            status: loaded ? (loaded.totalReview > 0 ? 'ready' : 'empty') : 'error',
+            data: loaded, loadingMore: false,
+          } as const))
+        ))
+      );
+    }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  loadMoreRecovery(): void {
+    if (!this.document.hidden) this.moreRecoverySubject.next();
+  }
+
+  loadMoreTerminalCleanup(): void {
+    if (!this.document.hidden) this.moreTerminalSubject.next();
+  }
 
   terminalCleanupReason(review: IAdminVideoTerminalCleanupReview): string {
     return this.terminalCleanupReasonDrafts()[review.queueId] ?? '';

@@ -37,12 +37,17 @@ export interface IAdminVideoProcessingRecoveryJob {
 
 interface ListRecoveryJobsRequest {
   limit: number;
+  cursor?: string | null;
 }
 
 interface ListRecoveryJobsResponse {
   items: IAdminVideoProcessingRecoveryJob[];
   skippedItems: number;
   checkedAt: number;
+  scanned: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+  orderScope: 'WITHIN_PAGE';
 }
 
 interface RecoverVideoProcessingRequest {
@@ -68,6 +73,10 @@ export interface IAdminVideoProcessingRecoveryQueue {
   items: IAdminVideoProcessingRecoveryJob[];
   skippedItems: number;
   checkedAt: number;
+  scanned: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+  orderScope: 'WITHIN_PAGE';
 }
 
 const JOB_STATES: AdminVideoProcessingJobState[] = [
@@ -93,7 +102,7 @@ export class AdminVideoProcessingRecoveryService {
   private readonly functions = inject(Functions);
   private readonly mediaError = inject(MediaApplicationErrorService);
 
-  listRecoveryJobs$(limit = 30): Observable<IAdminVideoProcessingRecoveryQueue> {
+  listRecoveryJobs$(limit = 30, cursor: string | null = null): Observable<IAdminVideoProcessingRecoveryQueue> {
     const safeLimit = Math.max(1, Math.min(60, Math.trunc(limit)));
 
     return defer(() => {
@@ -102,7 +111,7 @@ export class AdminVideoProcessingRecoveryService {
         ListRecoveryJobsResponse
       >(this.functions, 'listVideoProcessingRecoveryJobs');
 
-      return from(callable({ limit: safeLimit }));
+      return from(callable({ limit: safeLimit, cursor }));
     }).pipe(
       map((response) => ({
         items: Array.isArray(response.data?.items)
@@ -114,6 +123,15 @@ export class AdminVideoProcessingRecoveryService {
           response.data?.skippedItems
         ),
         checkedAt: this.normalizeNonNegativeInteger(response.data?.checkedAt),
+        scanned: this.normalizeNonNegativeInteger(response.data?.scanned),
+        hasMore: response.data?.hasMore === true &&
+          typeof response.data?.nextCursor === 'string' &&
+          /^[A-Za-z0-9_-]{1,2048}$/.test(response.data.nextCursor),
+        nextCursor: response.data?.hasMore === true &&
+          typeof response.data?.nextCursor === 'string' &&
+          /^[A-Za-z0-9_-]{1,2048}$/.test(response.data.nextCursor)
+          ? response.data.nextCursor : null,
+        orderScope: 'WITHIN_PAGE' as const,
       })),
       catchError((error) => {
         this.mediaError.reportSilently(

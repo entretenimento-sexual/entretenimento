@@ -133,6 +133,11 @@ Para limite de 30, a recuperação lê até 35 documentos por página,
 sem consulta separada por `providerPollReviewRequired`: seus alertas
 já são representados nas propriedades dos jobs acionáveis.
 A limpeza terminal lê até 31 documentos e preserva a contagem agregada.
+Os botões administrativos `Carregar mais jobs` e `Carregar mais revisões`
+preservam os cartões existentes, deduplicam IDs após mudanças concorrentes
+e impedem consultas de páginas sobrepostas. Uma atualização do diagnóstico
+reinicia a paginação e descarta os cursores antigos.
+
 O avanço entre páginas deve ser explícito e submetido aos mesmos limites
 de autenticação, App Check e rate limit que a consulta inicial.
 Nenhum cursor autoriza recovery, reenvio ou exclusão.

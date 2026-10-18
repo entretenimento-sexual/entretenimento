@@ -268,6 +268,7 @@
           @if (data.samplePartial) {
             A lista é uma amostra parcial; a contagem considera toda a fila.
           }
+          A prioridade e a antiguidade são ordenadas apenas dentro de cada página consultada.
         </p>
         @if (data.items.length > 0) {
           <div class="video-moderation__recovery-grid">
@@ -328,6 +329,12 @@
             }
           </div>
         }
+        @if (terminal.data?.hasMore) {
+          <button type="button" class="app-action app-action--ghost"
+            (click)="loadMoreTerminalCleanup()" [disabled]="terminal.loadingMore">
+            {{ terminal.loadingMore ? 'Carregando mais revisões...' : 'Carregar mais revisões' }}
+          </button>
+        }
       }
     </section>
   }
@@ -367,9 +374,15 @@
       } @else if (recoveryState.status === 'empty') {
         <div class="video-moderation__operations-message" role="status">
           <i class="fas fa-circle-check" aria-hidden="true"></i>
-          <span>Nenhum job exige intervenção administrativa neste momento.</span>
+          <span>Nenhum job foi encontrado nos estados administrativos consultados.</span>
         </div>
       } @else {
+        <p class="video-moderation__operations-summary" role="status">
+          {{ recoveryState.items.length }} job(s) exibido(s) em {{ recoveryState.scanned }}
+          registro(s) consultado(s). Priorização apenas nas páginas carregadas;
+          outros jobs podem exigir atenção.
+          @if (recoveryState.hasMore) { Há mais resultados disponíveis. }
+        </p>
         @if (recoveryState.skippedItems > 0) {
           <p class="video-moderation__warning" role="status">
             {{ recoveryState.skippedItems }} job(s) inconsistente(s) foram
@@ -546,6 +559,12 @@
             </article>
           }
         </div>
+      }
+      @if (recoveryState.hasMore) {
+        <button type="button" class="app-action app-action--ghost"
+          (click)="loadMoreRecovery()" [disabled]="recoveryState.loadingMore">
+          {{ recoveryState.loadingMore ? 'Carregando mais jobs...' : 'Carregar mais jobs' }}
+        </button>
       }
     </section>
   }

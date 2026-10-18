@@ -19,6 +19,9 @@ export interface IAdminVideoTerminalCleanupReviews {
   checkedAt: number;
   totalReview: number;
   samplePartial: boolean;
+  hasMore: boolean;
+  nextCursor: string | null;
+  orderScope: 'WITHIN_PAGE';
   items: IAdminVideoTerminalCleanupReview[];
 }
 export interface IAdminVideoTerminalCleanupRecheckResult {
@@ -39,15 +42,23 @@ export class AdminVideoTerminalTemporaryCleanupService {
   private readonly functions = inject(Functions);
   private readonly mediaError = inject(MediaApplicationErrorService);
 
-  listReviews$(limit = 30): Observable<IAdminVideoTerminalCleanupReviews> {
+  listReviews$(limit = 30, cursor: string | null = null): Observable<IAdminVideoTerminalCleanupReviews> {
     const safeLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
     return defer(() => from(httpsCallable<
-      { limit: number }, IAdminVideoTerminalCleanupReviews
-    >(this.functions, 'listVideoTerminalTemporaryCleanupReviews')({ limit: safeLimit }))).pipe(
+      { limit: number; cursor: string | null }, IAdminVideoTerminalCleanupReviews
+    >(this.functions, 'listVideoTerminalTemporaryCleanupReviews')({ limit: safeLimit, cursor }))).pipe(
       map(response => ({
         checkedAt: this.nonNegative(response.data?.checkedAt),
         totalReview: this.nonNegative(response.data?.totalReview),
         samplePartial: response.data?.samplePartial === true,
+        hasMore: response.data?.hasMore === true &&
+          typeof response.data?.nextCursor === 'string' &&
+          /^[a-f0-9]{64}$/.test(response.data.nextCursor),
+        nextCursor: response.data?.hasMore === true &&
+          typeof response.data?.nextCursor === 'string' &&
+          /^[a-f0-9]{64}$/.test(response.data.nextCursor)
+          ? response.data.nextCursor : null,
+        orderScope: 'WITHIN_PAGE' as const,
         items: Array.isArray(response.data?.items) ? response.data.items.map(item => ({
           queueId: /^[a-f0-9]{64}$/.test(String(item.queueId)) ? item.queueId : '',
           processingVersion: String(item.processingVersion ?? '').slice(0, 160),
