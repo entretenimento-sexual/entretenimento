@@ -15,6 +15,7 @@ import {
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { OFFLINE_USER_MESSAGE } from 'src/app/core/services/network/network-user-feedback.policy';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
 import { MediaVideoCommentsService } from 'src/app/core/services/media/media-video-comments.service';
@@ -361,7 +362,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
 
     expect(context.refreshPublicVideoUrl$).not.toHaveBeenCalled();
     expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
-    expect(feedbackText()).toContain('Sem conexão.');
+    expect(feedbackText()).toContain(OFFLINE_USER_MESSAGE);
     expect(context.reportPlaybackError).not.toHaveBeenCalled();
   });
 
