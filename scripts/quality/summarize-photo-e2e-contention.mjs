@@ -70,7 +70,7 @@ export function addPhotoE2ELogLine(summary, line) {
       // Malformed or non-numeric diagnostic entries are never trusted.
     }
   }
-  const duration = line.match(/\\[media-tx:e2e\\] DURATION_MS (\\d+)(?:\\s|$)/);
+  const duration = line.match(/\[media-tx:e2e\] DURATION_MS (\d+)(?:\s|$)/);
   if (duration) {
     const ms = Number(duration[1]);
     if (Number.isSafeInteger(ms) && ms < 3_600_000) {
@@ -98,7 +98,7 @@ async function summarizeFile(path) {
 }
 
 if (process.argv[1] && import.meta.url === new URL(
-  'file://' + process.argv[1].replaceAll('\\', '/')
+  'file://' + process.argv[1].replaceAll('\', '/')
 ).href) {
   const path = process.argv[2];
   if (process.argv.length !== 3 || !path || path.startsWith('-')) {
