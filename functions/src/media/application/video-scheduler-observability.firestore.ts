@@ -9,6 +9,7 @@ import {
   type VideoSchedulerMetrics,
   type VideoSchedulerOutcome,
   videoSchedulerRecord,
+  mergeVideoSchedulerEvidence,
 } from './video-scheduler-observability.policy';
 
 export async function saveLastVideoSchedulerCycle(
@@ -17,10 +18,12 @@ export async function saveLastVideoSchedulerCycle(
   const ref = firestore.collection(VIDEO_SCHEDULER_COLLECTION).doc(record.scheduler);
   return firestore.runTransaction(async transaction => {
     const snapshot = await transaction.get(ref);
-    const previousAt = snapshot.exists ? snapshot.get('finishedAt') : null;
-    // Overlapping invocations must not overwrite more recent evidence.
-    if (typeof previousAt === 'number' && previousAt >= record.finishedAt) return false;
-    transaction.set(ref, record);
+    // A late failing cycle enriches history without replacing the latest.
+    const merged = mergeVideoSchedulerEvidence(
+      snapshot.exists ? snapshot.data() : null, record
+    );
+    if (!merged) return false;
+    transaction.set(ref, merged);
     return true;
   });
 }
@@ -35,6 +38,8 @@ export async function bestEffortSaveVideoSchedulerCycle(
     logger.warn('[videoScheduler] Registro de evidência indisponível.', {
       event: 'VIDEO_MEDIA_SCHEDULER_EVIDENCE_UNAVAILABLE',
       scheduler: record.scheduler,
+      outcome: record.outcome, finishedAt: record.finishedAt,
+      evidenceReliability: 'WRITE_UNCONFIRMED',
     });
   }
 }

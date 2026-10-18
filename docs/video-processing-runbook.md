@@ -325,6 +325,39 @@ transacional; estes permanecem `UNVERIFIED` até novo ciclo. A proteção
 contra concorrência se baseia no `processingVersion`, job externo e
 `nextAttemptAt`, não nos contadores de observabilidade.
 
+### Resiliência da observabilidade operacional (1C2-A3b2b2c10)
+
+A observabilidade permanece restrita a três documentos
+`media_video_scheduler_execution/{scheduler}`. O campo `recentIncidents`
+preserva no máximo cinco ocorrências `FAILED` ou `ATTENTION` na janela
+de 24 horas relativa ao último ciclo. `historyVersion: 1` identifica a
+migração gradual; um registro antigo sem histórico não prova ausência de
+incidentes. O histórico guarda apenas timestamps, fase, resultado e um
+identificador aleatório de ciclo, sem dados de vídeos ou mensagens de erro.
+
+O merge ordena `finishedAt`, `startedAt` e `cycleId` de modo determinístico.
+Ciclos encerrados fora de ordem podem acrescentar um incidente sem substituir
+o ciclo mais recente. Duplicatas não alteram a evidência. Cada tentativa
+lógica usa uma leitura transacional e no máximo uma escrita no **mesmo
+documento**. Contenção pode causar novas leituras internas pelo SDK; conferir
+taxas de retry e os custos físicos nas métricas do Firestore. O painel mantém
+três leituras de documento por consulta. Não há polling novo, varreduras
+nem chamadas externas adicionais.
+
+O diagnóstico separa último ciclo, incidente recente e confiabilidade:
+`RECENT`, `STALE`, `MISSING`, `INVALID`, `READ_UNAVAILABLE`.
+Quando a leitura da telemetria falha, o resultado é indisponibilidade de
+observabilidade, não falha do job. Gravações são best effort e falhas
+geram `VIDEO_MEDIA_SCHEDULER_EVIDENCE_UNAVAILABLE` no Cloud Logging.
+Não é possível persistir no mesmo Firestore indisponível uma prova de que
+ele recusou a gravação. Por isso mesmo `RECENT` não comprova histórico
+completo: incidentes perdidos devem ser investigados via logs.
+
+Nada nesse histórico modifica publicação, cancelamentos, lease, versão,
+geração, retentativa, Storage ou exclusões. Os testes cobrem concorrência,
+ordem de conclusão, timestamp empatado, recuperação, ciclo sem jobs e
+falha da gravação. Código publicado na main não significa deploy.
+
 ### Auditoria offline do scheduler por logs exportados
 
 A analise de logs pode ser feita sob demanda sem novas permissoes nas Functions,

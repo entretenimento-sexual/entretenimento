@@ -7,7 +7,8 @@ import { getFirestore, type DocumentReference } from 'firebase-admin/firestore';
 import axios, { AxiosError, type AxiosResponse } from 'axios';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
-import { saveLastVideoSchedulerCycle } from './video-scheduler-observability.firestore';
+import { saveLastVideoSchedulerCycle, bestEffortSaveVideoSchedulerCycle }
+  from './video-scheduler-observability.firestore';
 import {
   createVideoWorkOutcomeCounter, terminalVideoWorkOutcomes,
 } from './video-processing-outcomes.policy';
@@ -2481,4 +2482,62 @@ test('terminal commit requests cancellation if original is missing or generation
       await Promise.all([jobRef.delete(), videoRef.delete()]);
     }
   }
+});
+
+
+test('overlapping scheduler incidents survive a later OK, with one aggregate document', async () => {
+  const name = 'reconcileVideoProcessing' as const;
+  const ref = firestore.collection(VIDEO_SCHEDULER_COLLECTION).doc(name);
+  const old = videoSchedulerRecord(name, 'older-incident', now - 2000,
+    now - 1500, 'ATTENTION', 'EXECUTE', { providerReviewRequired: 1 });
+  const latest = videoSchedulerRecord(name, 'newer-clean', now - 1000,
+    now, 'OK', 'EXECUTE', { selected: 0 });
+  try {
+    await ref.delete();
+    assert.equal(await saveLastVideoSchedulerCycle(firestore, latest), true);
+    assert.equal(await saveLastVideoSchedulerCycle(firestore, old), true);
+    assert.equal(await saveLastVideoSchedulerCycle(firestore, old), false);
+    const stored = (await ref.get()).data();
+    assert.equal(stored?.['cycleId'], latest.cycleId);
+    assert.equal(stored?.['recentIncidents'].length, 1);
+    const diagnostic = diagnoseVideoScheduler(name, stored, now + 1);
+    assert.equal(diagnostic.jobsHealth, 'NO_ALERTS_OBSERVED');
+    assert.equal(diagnostic.recentIncident?.outcome, 'ATTENTION');
+  } finally {
+    await ref.delete();
+  }
+});
+
+test('real Firestore transaction resolves tied timestamps and preserves failure', async () => {
+  const name = 'cleanupCancelledVideoProcessing' as const;
+  const ref = firestore.collection(VIDEO_SCHEDULER_COLLECTION).doc(name);
+  const a = videoSchedulerRecord(name, 'tie-a', now - 1000, now, 'FAILED', 'QUERY', {});
+  const b = videoSchedulerRecord(name, 'tie-b', now - 1000, now, 'OK', 'EXECUTE', {});
+  try {
+    await ref.delete();
+    await Promise.all([
+      saveLastVideoSchedulerCycle(firestore, a),
+      saveLastVideoSchedulerCycle(firestore, b),
+    ]);
+    const stored = (await ref.get()).data();
+    assert.equal(stored?.['cycleId'], b.cycleId);
+    assert.equal(stored?.['recentIncidents'][0].outcome, 'FAILED');
+  } finally {
+    await ref.delete();
+  }
+});
+
+test('telemetry Firestore outage is best effort, not a clean processing result', async () => {
+  const key = 'reconcileVideoProcessing';
+  const record = videoSchedulerRecord(key, 'telemetry-down', now - 100,
+    now, 'FAILED', 'QUERY', {});
+  let calls = 0;
+  const unavailable = {
+    collection: () => { calls++; throw new Error('Firestore unavailable'); },
+  } as unknown as typeof firestore;
+  await assert.rejects(saveLastVideoSchedulerCycle(unavailable, record),
+    /Firestore unavailable/);
+  await assert.doesNotReject(bestEffortSaveVideoSchedulerCycle(unavailable, record));
+  assert.equal(calls, 2);
+  assert.equal(diagnoseVideoScheduler(key, null, now).health, 'UNVERIFIED');
 });
