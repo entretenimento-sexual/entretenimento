@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { assessPhotoE2EPerformance } from '../quality/photo-e2e-performance.policy.mjs';
 import { newPhotoE2EContentionSummary, addPhotoE2ELogLine } from
   '../quality/summarize-photo-e2e-contention.mjs';
 
@@ -75,4 +76,13 @@ test('ignores missing or invalid timing rather than inferring test success', () 
   assert.equal(summary.revocationTimedCases, 0);
   assert.equal(summary.revocationSuiteWallMs, null);
   assert.equal(summary.executionResult, 'NOT_INFERRED');
+});
+
+test('incomplete or aborted revocation run does not imply security health', () => {
+  const summary = newPhotoE2EContentionSummary();
+  addPhotoE2ELogLine(summary, 'ABORTED');
+  addPhotoE2ELogLine(summary, '[media-tx:e2e] DURATION_MS 1900');
+  const assessment = assessPhotoE2EPerformance(summary);
+  assert.equal(assessment.performanceSignal, 'NOT_ASSESSED');
+  assert.equal(assessment.securityResult, 'NOT_INFERRED');
 });

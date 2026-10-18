@@ -9,6 +9,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApplicationErrorService } from './application-error.service';
 import { ErrorNotificationService } from './error-notification.service';
 import { GlobalErrorHandlerService } from './global-error-handler.service';
+import { NetworkStatusService } from '../network/network-status.service';
+import { OFFLINE_USER_MESSAGE } from '../network/network-user-feedback.policy';
 
 describe('ApplicationErrorService', () => {
   const notifier = {
@@ -19,15 +21,18 @@ describe('ApplicationErrorService', () => {
   };
 
   let service: ApplicationErrorService;
+  let online = true;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    online = true;
 
     TestBed.configureTestingModule({
       providers: [
         ApplicationErrorService,
         { provide: ErrorNotificationService, useValue: notifier },
         { provide: GlobalErrorHandlerService, useValue: globalError },
+        { provide: NetworkStatusService, useValue: { isOnlineSnapshot: () => online } },
       ],
     });
 
@@ -347,4 +352,116 @@ describe('ApplicationErrorService', () => {
     );
     expect(globalError.handleError).toHaveBeenCalledTimes(1);
   });
+  it('prioriza conectividade canônica em falha transitória de vídeo offline', () => {
+    online = false;
+    const descriptor = service.report(
+      { code: 'functions/unavailable', message: 'internal video worker detail' },
+      {
+        feature: 'media',
+        operation: 'video.library.load',
+        fallbackMessage: 'Não foi possível carregar seus vídeos agora.',
+        codeMessages: { unavailable: 'Serviço de vídeo indisponível.' },
+      }
+    );
+    expect(descriptor.userMessage).toBe(OFFLINE_USER_MESSAGE);
+    expect(descriptor.retryable).toBe(true);
+    expect(descriptor.presentation).toEqual({
+      surface: 'snackbar', severity: 'warning',
+    });
+    expect(notifier.showApplicationError).toHaveBeenCalledTimes(1);
+    expect(notifier.showApplicationError).toHaveBeenCalledWith(
+      OFFLINE_USER_MESSAGE,
+      { surface: 'snackbar', severity: 'warning' }
+    );
+    expect(globalError.handleError).toHaveBeenCalledTimes(1);
+    expect(globalError.handleError.mock.calls[0]?.[0]).toMatchObject({
+      skipUserNotification: true,
+      code: 'unavailable',
+      context: { feature: 'media', operation: 'video.library.load' },
+    });
+  });
+
+  it('não oculta reason de suspensão, autorização ou domínio quando offline', () => {
+    online = false;
+    const descriptor = service.normalize(
+      {
+        code: 'functions/unavailable',
+        details: { reason: 'ACCOUNT_UNAVAILABLE' },
+      },
+      {
+        feature: 'media',
+        operation: 'video.access',
+        fallbackMessage: 'Falha na mídia.',
+        reasonMessages: {
+          ACCOUNT_UNAVAILABLE: 'A conta está temporariamente indisponível.',
+        },
+      }
+    );
+    expect(descriptor.userMessage).toBe(
+      'A conta está temporariamente indisponível.'
+    );
+    expect(descriptor.userMessage).not.toBe(OFFLINE_USER_MESSAGE);
+  });
+
+  it('conserva motivo específico de vídeo quando há rede', () => {
+    const descriptor = service.normalize(
+      { code: 'functions/unavailable' },
+      {
+        feature: 'media',
+        operation: 'video.upload',
+        fallbackMessage: 'Falha no upload do vídeo.',
+        codeMessages: { unavailable: 'O serviço de vídeo está indisponível.' },
+      }
+    );
+    expect(descriptor.userMessage).toBe(
+      'O serviço de vídeo está indisponível.'
+    );
+  });
+
+  it('não transforma erros de permissão em erro de internet offline', () => {
+    online = false;
+    const descriptor = service.normalize(
+      { code: 'functions/permission-denied' },
+      {
+        feature: 'media',
+        operation: 'video.delete',
+        fallbackMessage: 'Não foi possível excluir o vídeo.',
+      }
+    );
+    expect(descriptor.userMessage).toBe(
+      'Sua conta não tem permissão para realizar esta ação.'
+    );
+  });
+
+  it('respeita feedback silencioso offline e mantém diagnóstico único', () => {
+    online = false;
+    service.report(
+      { code: 'functions/unavailable' },
+      {
+        feature: 'media',
+        operation: 'video.feed.listen',
+        fallbackMessage: 'Atualizações indisponíveis.',
+        notification: 'none',
+      }
+    );
+    expect(notifier.showApplicationError).toHaveBeenCalledWith(
+      OFFLINE_USER_MESSAGE, { surface: 'none', severity: 'error' }
+    );
+    expect(globalError.handleError).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconhece falha sem código por transporte HTTP offline', () => {
+    online = false;
+    const descriptor = service.normalize(
+      { status: 0 },
+      {
+        feature: 'media',
+        operation: 'video.upload',
+        fallbackMessage: 'Não foi possível enviar o vídeo.',
+      }
+    );
+    expect(descriptor.userMessage).toBe(OFFLINE_USER_MESSAGE);
+    expect(descriptor.retryable).toBe(true);
+  });
+
 });

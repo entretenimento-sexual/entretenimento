@@ -49,6 +49,8 @@ on:
       - 'scripts/tests/photo-e2e-isolation.contract.test.mjs'
       - 'scripts/quality/summarize-photo-e2e-contention.mjs'
       - 'scripts/tests/photo-e2e-contention-audit.test.mjs'
+      - 'scripts/tests/photo-e2e-performance.policy.test.mjs'
+      - 'scripts/quality/photo-e2e-performance.policy.mjs'
       - 'scripts/dev/video-scheduler-log-audit.policy.mjs'
       - 'scripts/dev/inspect-video-scheduler-logs.mjs'
       - 'scripts/tests/video-scheduler-log-audit.test.mjs'
@@ -86,7 +88,7 @@ jobs:
       - name: Verify read-only video inventory classification
         run: node --test scripts/tests/video-processing-job-inventory.test.mjs
       - name: Verify photo E2E isolation and diagnostic-only log summary
-        run: node --test scripts/tests/photo-e2e-isolation.contract.test.mjs scripts/tests/photo-e2e-contention-audit.test.mjs scripts/tests/media-transaction-revocation-concurrency.test.mjs
+        run: node --test scripts/tests/photo-e2e-isolation.contract.test.mjs scripts/tests/photo-e2e-contention-audit.test.mjs scripts/tests/media-transaction-revocation-concurrency.test.mjs scripts/tests/photo-e2e-performance.policy.test.mjs
       - name: Verify offline scheduler log audit
         run: node --test scripts/tests/video-cancellation-log-audit.test.mjs
       - name: Verify unified offline Media scheduler correlation

@@ -75,4 +75,22 @@ describe('media-error.catalog', () => {
       'Não foi possível abrir ou concluir a edição da foto agora. Tente novamente.'
     );
   });
+  it('mantém motivos distintos de falha para vídeo, sem mensagem técnica', () => {
+    expect(resolveMediaErrorMessage('video_upload_failed')).toBe(
+      'Não foi possível concluir o upload do vídeo.'
+    );
+    expect(resolveMediaErrorMessage('video_library_load_failed')).toBe(
+      'Não foi possível carregar seus vídeos agora.'
+    );
+    expect(resolveMediaErrorMessage('video_publication_settings_failed')).toBe(
+      'Não foi possível salvar as informações do vídeo.'
+    );
+    for (const reason of [
+      'video_upload_failed',
+      'video_library_load_failed',
+      'video_publication_settings_failed',
+    ] as const) {
+      expect(resolveMediaErrorPresentation(reason)).not.toBeNull();
+    }
+  });
 });

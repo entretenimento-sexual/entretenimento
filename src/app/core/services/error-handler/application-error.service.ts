@@ -20,6 +20,12 @@
 
 import { Injectable, inject } from '@angular/core';
 
+import { NetworkStatusService } from '../network/network-status.service';
+import {
+  OFFLINE_USER_MESSAGE,
+  isOfflineTransportFailure,
+} from '../network/network-user-feedback.policy';
+
 import {
   resolveCommunityPublicErrorMessage,
   resolveCommunityPublicErrorPresentation,
@@ -136,6 +142,7 @@ function safeMessage(value: unknown, fallback: string): string {
 export class ApplicationErrorService {
   private readonly notifier = inject(ErrorNotificationService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly networkStatus = inject(NetworkStatusService);
 
   normalize(
     error: unknown,
@@ -155,7 +162,17 @@ export class ApplicationErrorService {
       'Não foi possível concluir a ação agora.'
     );
     const communityFeature = this.isCommunityFeature(options.feature);
-    const userMessage =
+    // Conserva decisões explícitas de domínio (acesso, moderação, termos).
+    // Somente uma falha de transporte transitória durante offline usa o
+    // feedback comum, inclusive quando Media informa fallback específico.
+    const offlineTransport = isOfflineTransportFailure(
+      error,
+      this.networkStatus.isOnlineSnapshot(),
+      !!reason || !!recommendedAction
+    );
+    const userMessage = offlineTransport
+      ? OFFLINE_USER_MESSAGE
+      :
       (reason ? safeString(options.reasonMessages?.[reason], 280) : null)
       ?? (communityFeature && reason
         ? safeString(resolveCommunityPublicErrorMessage(reason), 280)
@@ -172,19 +189,29 @@ export class ApplicationErrorService {
       ?? (code ? safeString(options.codeMessages?.[code], 280) : null)
       ?? (code ? COMMON_CODE_MESSAGES[code] : null)
       ?? fallbackMessage;
-    const presentation = this.resolvePresentation(
+    // Erros silenciosos/inline/page continuam sem toast duplicado.
+    const declaredPresentation = this.resolvePresentation(
       code,
       reason,
       recommendedAction,
       options
     );
+    const presentation = offlineTransport
+      && declaredPresentation.surface !== 'none'
+      && declaredPresentation.surface !== 'inline'
+      && declaredPresentation.surface !== 'page'
+      ? normalizeApplicationErrorPresentation({
+          surface: 'snackbar',
+          severity: 'warning',
+        })
+      : declaredPresentation;
 
     return {
       code,
       reason,
       recommendedAction,
       userMessage,
-      retryable: code ? RETRYABLE_CODES.has(code) : false,
+      retryable: offlineTransport || (code ? RETRYABLE_CODES.has(code) : false),
       presentation,
     };
   }

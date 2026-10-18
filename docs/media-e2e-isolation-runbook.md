@@ -1,4 +1,4 @@
-# Media E2E: contenção, isolamento e duração (1C2-A3b2b2c12–c13)
+# Media E2E: contenção, isolamento e duração (1C2-A3b2b2c12–c14)
 
 A análise da CI do commit `c513ec75` encontrou grande volume de avisos
 `Transaction lock timeout` e `ABORTED` no Firestore Emulator, embora os
@@ -83,3 +83,45 @@ tentativas >= 2 por cenário e a conclusão dos 11 cenários. Se houver
 contenção cruzada ou aumento de duração, reduzir o limite de
 paralelismo após diagnóstico. Não alterar o ciclo transacional para
 permitir o commit da primeira tentativa antes da revogação.
+
+## c14 — Variabilidade do E2E e suporte com equipe reduzida
+
+Base observada no c13: 202.487 ms de tempo da suíte isolada; 11/11 cenários,
+nove revogações com retry real (mínimo duas tentativas), sem gravação de
+métrica após a revogação. A nova política offline
+`photo-e2e-performance.policy.mjs` diferencia **integridade dos marcadores**
+de um **sinal consultivo de latência**. A referência de 202.487 ms é
+uma única execução, não uma média, tendência ou percentil de múltiplos runs.
+Por isso, a linha de revisão operacional de 360.000 ms é conservadora
+e **não reprova a CI**: um período lento do Firestore Emulator não prova
+regressão na segurança. O exit code e as asserções E2E continuam a autoridade.
+
+Procedimento para equipe enxuta: no job Photo publication and moderation E2E,
+verificar primeiro a conclusão dos 11 cenários e o check; depois ler
+`performanceReview`, `revocationSuiteWallMs`,
+`revocationMaxCompetingWriteWaitMs`, `revocationTimedCases` e
+`revocationMaxAttempts`. Em `REVIEW_LATENCY`, comparar pelo menos
+três execuções concluídas antes de ajustar o limite 3 de paralelismo.
+Em `NOT_ASSESSED`, checar logs e término da suíte; não confundir
+ausência de `ABORTED` com integridade.
+
+Para feedback ao usuário, a topologia é:
+- erro específico de vídeo/foto -> `MediaApplicationErrorService` com
+  reason do catálogo -> `ApplicationErrorService`;
+- erro de transporte transitório com o navegador efetivamente offline ->
+  mensagem canônica de conexão da camada Network;
+- `ApplicationErrorService` notifica uma vez via
+  `ErrorNotificationService` e envia diagnóstico sanitizado ao
+  `GlobalErrorHandlerService` com `skipUserNotification`;
+- motivos canônicos de suspensão, moderação, termos, permissão e
+  indisponibilidade de conteúdo não são substituídos por “offline” só
+  porque o navegador perdeu a conexão. `reportSilently` preserva
+  ausência de toast duplicado.
+
+Se ocorrer erro de vídeo, registrar para triagem apenas operação, código
+normalizado, reason e momento de execução do check. Não registrar URLs
+assinadas, tokens, IDs de usuários ou conteúdo; não inserir novos
+listeners, polling, retries em escritas, chamadas Transcoder nem novas
+coleções Firestore para diagnóstico. Depuração começa pelo resultado da CI,
+separa falha de produto de falha do emulador e escala apenas ocorrências
+reproduzíveis no fluxo real.

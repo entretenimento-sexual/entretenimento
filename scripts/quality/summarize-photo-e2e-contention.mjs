@@ -3,6 +3,7 @@
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
+import { assessPhotoE2EPerformance } from './photo-e2e-performance.policy.mjs';
 
 export function newPhotoE2EContentionSummary() {
   return {
@@ -108,7 +109,10 @@ if (process.argv[1] && import.meta.url === new URL(
     try {
       const result = await summarizeFile(path);
       console.log('[photo-e2e] Diagnostic-only summary (no user identifiers):');
-      console.log(JSON.stringify(result, null, 2));
+      console.log(JSON.stringify({
+        ...result,
+        performanceReview: assessPhotoE2EPerformance(result),
+      }, null, 2));
       console.log('[photo-e2e] Warnings are not failures; check the test job exit status.');
     } catch {
       console.error('[photo-e2e] Unable to inspect emulator log.');

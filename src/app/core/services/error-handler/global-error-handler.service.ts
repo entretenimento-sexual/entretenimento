@@ -11,6 +11,10 @@ import {
   isTransientNetworkError,
 } from '../network/network-retry.policy';
 import { NetworkStatusService } from '../network/network-status.service';
+import {
+  OFFLINE_USER_MESSAGE,
+  isOfflineTransportFailure,
+} from '../network/network-user-feedback.policy';
 
 interface SanitizedErrorLog {
   name: string;
@@ -74,8 +78,10 @@ export class GlobalErrorHandlerService implements ErrorHandler {
   public formatErrorMessage(error: Error | HttpErrorResponse): string {
     const networkStatus = this.injector.get(NetworkStatusService);
 
-    if (!networkStatus.isOnlineSnapshot()) {
-      return 'Você está offline. Verifique sua conexão com a internet.';
+    if (isOfflineTransportFailure(
+      error, networkStatus.isOnlineSnapshot()
+    )) {
+      return OFFLINE_USER_MESSAGE;
     }
 
     if (isTransientNetworkError(error)) {
