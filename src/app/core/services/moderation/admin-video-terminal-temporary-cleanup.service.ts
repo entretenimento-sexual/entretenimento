@@ -16,6 +16,13 @@ export interface IAdminVideoTerminalCleanupReview {
   blocker: string | null;
 }
 export interface IAdminVideoTerminalCleanupReviews {
+  audit?: {
+    scope: 'PAGE_ONLY';
+    observed: number;
+    unverifiedTimestamp: number;
+    blocked: number;
+    recheckable: number;
+  };
   checkedAt: number;
   totalReview: number;
   samplePartial: boolean;
@@ -59,6 +66,13 @@ export class AdminVideoTerminalTemporaryCleanupService {
           /^[a-f0-9]{64}$/.test(response.data.nextCursor)
           ? response.data.nextCursor : null,
         orderScope: 'WITHIN_PAGE' as const,
+        audit: {
+          scope: 'PAGE_ONLY' as const,
+          observed: this.nonNegative(response.data?.audit?.observed),
+          unverifiedTimestamp: this.nonNegative(response.data?.audit?.unverifiedTimestamp),
+          blocked: this.nonNegative(response.data?.audit?.blocked),
+          recheckable: this.nonNegative(response.data?.audit?.recheckable),
+        },
         items: Array.isArray(response.data?.items) ? response.data.items.map(item => ({
           queueId: /^[a-f0-9]{64}$/.test(String(item.queueId)) ? item.queueId : '',
           processingVersion: String(item.processingVersion ?? '').slice(0, 160),

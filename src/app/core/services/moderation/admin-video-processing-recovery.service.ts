@@ -31,9 +31,25 @@ export interface IAdminVideoProcessingRecoveryJob {
   providerPollFailureCount: number;
   providerPollLastFailedAt: number | null;
   providerPollReviewRequired: boolean;
+  unconfirmedSubmission: boolean;
   lastErrorCode: string | null;
   lastError: string | null;
   availableActions: AdminVideoProcessingRecoveryAction[];
+}
+
+export interface IAdminRecoveryPageAudit {
+  scope: 'PAGE_ONLY';
+  observed: number;
+  invalidDocuments: number;
+  updatedTimestamp: number;
+  createdFallback: number;
+  unverifiedTimestamp: number;
+  failed: number;
+  stale: number;
+  providerReview: number;
+  providerPollReview: number;
+  overdueCancellation: number;
+  unconfirmedSubmission: number;
 }
 
 interface ListRecoveryJobsRequest {
@@ -49,6 +65,7 @@ interface ListRecoveryJobsResponse {
   hasMore: boolean;
   nextCursor: string | null;
   orderScope: 'WITHIN_PAGE';
+  audit?: IAdminRecoveryPageAudit;
 }
 
 interface RecoverVideoProcessingRequest {
@@ -71,6 +88,7 @@ export interface IAdminVideoProcessingRecoveryResult {
 }
 
 export interface IAdminVideoProcessingRecoveryQueue {
+  audit: IAdminRecoveryPageAudit;
   items: IAdminVideoProcessingRecoveryJob[];
   skippedItems: number;
   checkedAt: number;
@@ -133,6 +151,7 @@ export class AdminVideoProcessingRecoveryService {
           /^[A-Za-z0-9_-]{1,2048}$/.test(response.data.nextCursor)
           ? response.data.nextCursor : null,
         orderScope: 'WITHIN_PAGE' as const,
+        audit: this.normalizeAudit(response.data?.audit),
       })),
       catchError((error) => {
         this.mediaError.reportSilently(
@@ -214,6 +233,25 @@ export class AdminVideoProcessingRecoveryService {
     );
   }
 
+  private normalizeAudit(value: IAdminRecoveryPageAudit | undefined): IAdminRecoveryPageAudit {
+    const number = (field: keyof Omit<IAdminRecoveryPageAudit, 'scope'>) =>
+      this.normalizeNonNegativeInteger(value?.[field]);
+    return {
+      scope: 'PAGE_ONLY',
+      observed: number('observed'),
+      invalidDocuments: number('invalidDocuments'),
+      updatedTimestamp: number('updatedTimestamp'),
+      createdFallback: number('createdFallback'),
+      unverifiedTimestamp: number('unverifiedTimestamp'),
+      failed: number('failed'),
+      stale: number('stale'),
+      providerReview: number('providerReview'),
+      providerPollReview: number('providerPollReview'),
+      overdueCancellation: number('overdueCancellation'),
+      unconfirmedSubmission: number('unconfirmedSubmission'),
+    };
+  }
+
   private normalizeItem(
     value: IAdminVideoProcessingRecoveryJob
   ): IAdminVideoProcessingRecoveryJob {
@@ -242,6 +280,7 @@ export class AdminVideoProcessingRecoveryService {
       providerPollLastFailedAt: value?.providerPollLastFailedAt == null
         ? null : this.normalizeNonNegativeInteger(value.providerPollLastFailedAt),
       providerPollReviewRequired: value?.providerPollReviewRequired === true,
+      unconfirmedSubmission: value?.unconfirmedSubmission === true,
       lastErrorCode: this.normalizeOptionalText(value?.lastErrorCode, 160),
       lastError: this.normalizeOptionalText(value?.lastError, 500),
       availableActions: Array.isArray(value?.availableActions)
