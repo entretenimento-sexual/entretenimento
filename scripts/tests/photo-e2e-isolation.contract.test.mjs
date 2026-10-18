@@ -53,3 +53,21 @@ test('both E2E and emulator checks retain coverage and show diagnostic log summa
   assert.ok(reconWorkflow.includes('scripts/tests/photo-e2e-contention-audit.test.mjs'));
   assert.ok(reconWorkflow.includes('scripts/tests/media-transaction-revocation-concurrency.test.mjs'));
 });
+
+test('video viewer uses canonical offline feedback and a stable retry contract', () => {
+  const viewer = readFileSync(resolve(
+    root, 'src/app/media/videos/public-video-viewer/public-video-viewer.component.ts'
+  ), 'utf8');
+  const lazyTest = readFileSync(resolve(
+    root, 'src/app/media/videos/public-video-viewer/public-video-viewer-lazy-playback.spec.ts'
+  ), 'utf8');
+  const networkPolicy = readFileSync(resolve(
+    root, 'src/app/core/services/network/network-user-feedback.policy.ts'
+  ), 'utf8');
+
+  assert.ok(viewer.includes('OFFLINE_USER_MESSAGE'));
+  assert.ok(viewer.includes('this.networkStatus.isOnlineSnapshot()'));
+  assert.ok(!viewer.includes('navigator.onLine'));
+  assert.ok(lazyTest.includes('expect(feedbackText()).toContain(OFFLINE_USER_MESSAGE)'));
+  assert.ok(networkPolicy.includes('Você está offline. Verifique sua conexão com a internet.'));
+});
