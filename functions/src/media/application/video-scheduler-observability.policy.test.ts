@@ -98,7 +98,7 @@ test('history is deterministic for tied timestamps and pruned at fixed bounds', 
   assert.equal(forward?.cycleId, good.cycleId);
   assert.equal(forward?.recentIncidents[0]?.outcome, 'FAILED');
   assert.equal(mergeVideoSchedulerEvidence(forward, bad), null);
-  let current = forward;
+  let current: ReturnType<typeof mergeVideoSchedulerEvidence> = forward;
   for (let index = 0; index < 9; index++) {
     const item = videoSchedulerRecord(name, 'new-' + index,
       now + index * 1000, now + index * 1000 + 1, 'FAILED', 'QUERY', {});

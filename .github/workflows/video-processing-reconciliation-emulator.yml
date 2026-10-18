@@ -5,6 +5,8 @@ on:
   push:
     paths:
       - 'functions/src/media/application/video-processing*'
+      - 'functions/src/media/application/video-scheduler-observability*'
+      - 'functions/src/media/application/admin-video-processing-status.handler.ts'
       - 'functions/src/media/application/google-video-transcoder.service.ts'
       - 'functions/src/media/application/video-rotation-worker.service.ts'
       - 'functions/src/media/application/video-source-probe*'
