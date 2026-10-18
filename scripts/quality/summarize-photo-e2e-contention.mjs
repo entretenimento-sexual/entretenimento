@@ -98,7 +98,7 @@ async function summarizeFile(path) {
 }
 
 if (process.argv[1] && import.meta.url === new URL(
-  'file://' + process.argv[1].replaceAll('\', '/')
+  'file://' + process.argv[1].replaceAll('\\', '/')
 ).href) {
   const path = process.argv[2];
   if (process.argv.length !== 3 || !path || path.startsWith('-')) {
