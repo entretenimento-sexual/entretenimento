@@ -16,6 +16,9 @@ import {
   type TerminalCleanupQueue,
 } from './video-terminal-temporary-cleanup.firestore';
 import { VIDEO_TERMINAL_TEMP_CLEANUP_COLLECTION } from './video-terminal-temporary-cleanup.policy';
+import {
+  auditTerminalQueuePage, type TerminalQueuePageAudit,
+} from './admin-video-queue-coverage.policy';
 
 interface CleanupReviewItem {
   queueId: string;
@@ -34,6 +37,7 @@ interface CleanupReviewList {
   hasMore: boolean;
   nextCursor: string | null;
   orderScope: 'WITHIN_PAGE';
+  audit: TerminalQueuePageAudit;
   items: CleanupReviewItem[];
 }
 interface CleanupReviewCommand {
@@ -97,7 +101,8 @@ export const listVideoTerminalTemporaryCleanupReviews = onCall<{ limit?: number;
     const items: CleanupReviewItem[] = consumed.map(doc => {
       const queue = doc.data() as TerminalCleanupQueue;
       const blocker = terminalCleanupReviewBlocker(doc.id, queue);
-      const updatedAt = Number.isSafeInteger(queue.updatedAt) && queue.updatedAt > 0
+      const updatedAt = Number.isSafeInteger(queue.updatedAt) &&
+        queue.updatedAt > 0 && queue.updatedAt <= checkedAt
         ? queue.updatedAt : 0;
       return {
         queueId: doc.id,
@@ -119,6 +124,7 @@ export const listVideoTerminalTemporaryCleanupReviews = onCall<{ limit?: number;
       hasMore,
       nextCursor: hasMore && consumed.length ? consumed[consumed.length - 1].id : null,
       orderScope: 'WITHIN_PAGE', items,
+      audit: auditTerminalQueuePage(items),
     };
   }
 );

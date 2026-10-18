@@ -30,6 +30,9 @@ import {
 import { preserveTerminalCleanupBeforeRetry } from './video-terminal-temporary-cleanup.firestore';
 import { isProviderPollReviewRequired } from './video-provider-poll-failure.policy';
 import {
+  auditRecoveryQueuePage, type RecoveryQueuePageAudit,
+} from './admin-video-queue-coverage.policy';
+import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
   normalizeOwnedProcessedVideoPrefix,
@@ -58,6 +61,7 @@ interface RecoveryJobItem {
   providerPollFailureCount: number;
   providerPollLastFailedAt: number | null;
   providerPollReviewRequired: boolean;
+  unconfirmedSubmission: boolean;
   lastErrorCode: string | null;
   lastError: string | null;
   availableActions: AdminVideoProcessingRecoveryAction[];
@@ -71,6 +75,7 @@ interface ListRecoveryJobsResponse {
   hasMore: boolean;
   nextCursor: string | null;
   orderScope: 'WITHIN_PAGE';
+  audit: RecoveryQueuePageAudit;
 }
 
 interface RecoverVideoProcessingRequest {
@@ -310,6 +315,7 @@ function normalizeRecoveryItem(
         job.providerPollLastFailedAt > 0
         ? job.providerPollLastFailedAt : null,
     providerPollReviewRequired: isProviderPollReviewRequired({ ...job, state }),
+    unconfirmedSubmission: isUnconfirmedVideoSubmission({ ...job, state }),
     lastErrorCode: String(job.lastErrorCode ?? '').trim() || null,
     lastError: String(job.lastError ?? '').trim().slice(0, 500) || null,
     availableActions: availableAdminVideoRecoveryActions({ ...job, state }, stale),
@@ -410,6 +416,7 @@ async function listRecoveryItems(
     items, skippedItems, scanned, hasMore,
     nextCursor: hasMore ? encodeRecoveryCursor(next) : null,
     orderScope: 'WITHIN_PAGE',
+    audit: auditRecoveryQueuePage(items, skippedItems),
   };
 }
 
