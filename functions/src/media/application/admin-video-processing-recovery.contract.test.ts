@@ -80,3 +80,29 @@ test('c17 recovery consumes every document from bounded per-state cursor lanes',
   assert.ok(!handler.includes('items: items.slice(0, limit)'));
   assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
 });
+
+test('c18 guards legacy timestamps without enabling unbuilt global indexes', () => {
+  const index = JSON.parse(readFileSync(resolve(root, '../firestore.indexes.json'), 'utf8'));
+  const indexes = index.indexes as Array<{
+    collectionGroup: string;
+    fields: Array<{ fieldPath: string }>;
+  }>;
+  for (const [collection, field] of [
+    ['media_video_processing_jobs', 'updatedAt'],
+    ['media_video_processing_jobs', 'createdAt'],
+    ['media_video_terminal_temp_cleanup_jobs', 'updatedAt'],
+  ]) {
+    assert.ok(indexes.some(entry =>
+      entry.collectionGroup === collection &&
+      entry.fields.map(f => f.fieldPath).join(',') ===
+        ['state', field, '__name__'].join(',')
+    ));
+  }
+  // Prepared definitions are not deployed; production stays on existing ID cursor.
+  assert.ok(handler.includes('orderBy(FieldPath.documentId())'));
+  assert.ok(!handler.includes("orderBy('updatedAt')"));
+  assert.ok(handler.includes("timestampEvidence !== 'UNVERIFIED'"));
+  assert.ok(handler.includes("timestampEvidence === 'UNVERIFIED'"));
+  assert.ok(client.includes('timestampEvidence:'));
+  assert.ok(template.includes('Data não verificada'));
+});

@@ -24,6 +24,7 @@ export interface IAdminVideoProcessingRecoveryJob {
   updatedAt: number;
   ageMs: number;
   stale: boolean;
+  timestampEvidence: 'UPDATED' | 'CREATED_FALLBACK' | 'UNVERIFIED';
   hasExternalJob: boolean;
   requiresProviderReview: boolean;
   requiresOperationalAttention: boolean;
@@ -229,6 +230,10 @@ export class AdminVideoProcessingRecoveryService {
       updatedAt: this.normalizeNonNegativeInteger(value?.updatedAt),
       ageMs: this.normalizeNonNegativeInteger(value?.ageMs),
       stale: value?.stale === true,
+      timestampEvidence: value?.timestampEvidence === 'UPDATED'
+        ? 'UPDATED'
+        : value?.timestampEvidence === 'CREATED_FALLBACK'
+          ? 'CREATED_FALLBACK' : 'UNVERIFIED',
       hasExternalJob: value?.hasExternalJob === true,
       requiresProviderReview: value?.requiresProviderReview === true,
       requiresOperationalAttention: value?.requiresOperationalAttention === true,

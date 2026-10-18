@@ -281,7 +281,7 @@
                   </span>
                 </header>
                 <dl class="video-moderation__recovery-meta">
-                  <div><dt>Idade do alerta</dt><dd>{{ formatAge(review.ageMs) }}</dd></div>
+                  <div><dt>Idade do alerta</dt><dd>{{ review.updatedAt > 0 ? formatAge(review.ageMs) : 'Data não verificada' }}</dd></div>
                   <div><dt>Tentativas</dt><dd>{{ review.attempts }}</dd></div>
                   <div><dt>Versão</dt><dd>{{ review.processingVersion }}</dd></div>
                   <div><dt>Falha</dt><dd>{{ review.failureCode || 'Não classificada' }}</dd></div>
@@ -414,7 +414,13 @@
               <dl class="video-moderation__recovery-meta">
                 <div>
                   <dt>Sem atualização</dt>
-                  <dd>{{ formatAge(item.ageMs) }}</dd>
+                  <dd>
+                    {{ item.timestampEvidence === 'UNVERIFIED'
+                      ? 'Data não verificada' : formatAge(item.ageMs) }}
+                    @if (item.timestampEvidence === 'CREATED_FALLBACK') {
+                      <small>(estimativa pela criação)</small>
+                    }
+                  </dd>
                 </div>
                 <div>
                   <dt>Tentativas</dt>
@@ -426,7 +432,8 @@
                 </div>
                 <div>
                   <dt>Situação</dt>
-                  <dd>{{ item.stale ? 'possivelmente atrasado' : 'dentro da janela' }}</dd>
+                  <dd>{{ item.timestampEvidence === 'UNVERIFIED'
+                    ? 'não verificado' : item.stale ? 'possivelmente atrasado' : 'dentro da janela' }}</dd>
                 </div>
               </dl>
 

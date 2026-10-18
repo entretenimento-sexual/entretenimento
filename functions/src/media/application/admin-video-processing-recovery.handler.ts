@@ -51,6 +51,7 @@ interface RecoveryJobItem {
   updatedAt: number;
   ageMs: number;
   stale: boolean;
+  timestampEvidence: 'UPDATED' | 'CREATED_FALLBACK' | 'UNVERIFIED';
   hasExternalJob: boolean;
   requiresProviderReview: boolean;
   requiresOperationalAttention: boolean;
@@ -271,10 +272,19 @@ function normalizeRecoveryItem(
     return null;
   }
 
-  const createdAt = normalizeNonNegativeInteger(job.createdAt);
-  const updatedAt = normalizeNonNegativeInteger(job.updatedAt) || createdAt;
-  const ageMs = Math.max(0, checkedAt - updatedAt);
-  const stale = isStale(state, updatedAt, checkedAt);
+  // Legacy records can lack updatedAt and sometimes createdAt. Never
+  // invent an ancient timestamp or claim freshness from zero/null.
+  const validTimestamp = (value: unknown): number | null =>
+    typeof value === 'number' && Number.isSafeInteger(value) &&
+      value > 0 && value <= checkedAt ? value : null;
+  const createdAt = validTimestamp(job.createdAt) ?? 0;
+  const lastUpdated = validTimestamp(job.updatedAt);
+  const timestampEvidence = lastUpdated !== null ? 'UPDATED' as const
+    : createdAt > 0 ? 'CREATED_FALLBACK' as const : 'UNVERIFIED' as const;
+  const updatedAt = lastUpdated ?? createdAt;
+  const ageMs = updatedAt > 0 ? checkedAt - updatedAt : 0;
+  const stale = timestampEvidence !== 'UNVERIFIED' &&
+    isStale(state, updatedAt, checkedAt);
 
   return {
     jobId,
@@ -287,6 +297,7 @@ function normalizeRecoveryItem(
     updatedAt,
     ageMs,
     stale,
+    timestampEvidence,
     hasExternalJob: !!String(job.externalJobName ?? '').trim(),
     requiresProviderReview: videoRecoveryRequiresProviderReview({ ...job, state }),
     requiresOperationalAttention: isOverdueVideoCancellation(
@@ -353,9 +364,11 @@ function encodeRecoveryCursor(positions: RecoveryCursor): string {
 function recoveryPriority(item: RecoveryJobItem): number {
   if (item.providerPollReviewRequired || item.requiresProviderReview ||
       item.requiresOperationalAttention) return 0;
-  if (item.state === 'FAILED') return 1;
-  if (item.stale) return 2;
-  return 3;
+  if (item.timestampEvidence === 'UNVERIFIED') return 1;
+  if (item.state === 'FAILED') return 2;
+  if (item.stale) return 3;
+  if (item.timestampEvidence === 'CREATED_FALLBACK') return 4;
+  return 5;
 }
 
 async function listRecoveryItems(

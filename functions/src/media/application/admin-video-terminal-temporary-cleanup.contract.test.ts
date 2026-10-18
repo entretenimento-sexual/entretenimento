@@ -51,3 +51,9 @@ test('c17 terminal review pagination uses bounded index-safe document ID cursors
   assert.ok(handler.includes('nextCursor: hasMore && consumed.length'));
   assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
 });
+
+test('c18 terminal reviews preserve legacy ID scans until indexes are deployed', () => {
+  assert.ok(handler.includes('orderBy(FieldPath.documentId())'));
+  assert.ok(!handler.includes("orderBy('updatedAt')"));
+  assert.ok(template.includes('review.updatedAt > 0'));
+});

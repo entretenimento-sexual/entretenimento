@@ -142,6 +142,39 @@ O avanço entre páginas deve ser explícito e submetido aos mesmos limites
 de autenticação, App Check e rate limit que a consulta inicial.
 Nenhum cursor autoriza recovery, reenvio ou exclusão.
 
+### Ordenação global: preparação segura (1C2-A3b2b2c18)
+
+Os índices `media_video_processing_jobs(state, updatedAt, __name__)`,
+`media_video_processing_jobs(state, createdAt, __name__)` e
+`media_video_terminal_temp_cleanup_jobs(state, updatedAt, __name__)`
+foram **declarados no repositório, mas não implantados**. Nenhuma callable
+passou a consultá-los: a navegação por ID da c17 continua sendo a fonte
+segura para cobrir registros legados. O simples merge na `main` não
+assegura que os índices existam em produção.
+
+A recuperação agora informa `timestampEvidence` por item:
+`UPDATED` (timestamp validado), `CREATED_FALLBACK` (estimativa a
+partir da criação) ou `UNVERIFIED` (sem evidência temporal).
+O painel nunca deve chamar um timestamp ausente de "dentro da janela"
+ou interpretar `0` como a idade real do registro. Essa é evidência
+**da página observada**, não atestado de cobertura global.
+
+Portões obrigatórios **antes** de habilitar uma consulta ordenada global:
+1. Confirmar a implantação e o estado `READY` dos índices no projeto/região.
+2. Auditar documentos legados sem timestamps válidos e preparar migração
+   segura, idempotente e verificável, sem alterar estado, versão ou arquivos.
+3. Demonstrar que flags críticas de cancelamento, submissão inconclusiva e
+   falha do provedor não ficam escondidas em páginas distantes. Ordenação
+   somente por `updatedAt` **não** garante prioridade global por gravidade.
+4. Validar cursores com empates, mutação e exclusão entre páginas, bem
+   como o orçamento máximo de leituras por abertura e por atualização.
+5. Somente após essas provas, autorizar separadamente a mudança do plano
+   de consultas; sem deploy ou autorização, a estratégia atual permanece.
+
+A etapa c18 não introduz varreduras, escrita de backfill, novo polling
+ou operações de Transcoder. A fila continua explicitamente classificada
+como **ordem dentro da página**, não como prioridade global.
+
 ## Recuperação administrativa
 
 A mesma tela apresenta jobs com falha, atraso ou cancelamento pendente. A lista é
