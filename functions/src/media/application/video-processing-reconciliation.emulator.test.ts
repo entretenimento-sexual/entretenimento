@@ -2751,13 +2751,22 @@ test('c18d real Firestore commit updates and clears triage with version-fenced t
   const videoRef = firestore.doc(
     `users/${start.ownerUid}/videos/${start.videoId}`);
   await videoRef.set({ path: start.sourceStoragePath });
+  const commitCommand = {
+    state: 'SUCCEEDED' as const, now: now + 2000, normalizeJob: parseJob,
+    sourceMatches: (video: Record<string, unknown>) =>
+      video['path'] === start.sourceStoragePath,
+    jobPatch: { completedAt: now + 2000 },
+    videoPatch: { status: 'ready' },
+  };
+  // A failed provider GET advances the polling reservation: older observations
+  // must be rejected, even if they belong to the same processingVersion.
+  assert.equal(await commitTerminalVideoProcessingIfCurrent(
+    firestore, ref, claimed, commitCommand
+  ), 'REPLACED');
+  const currentAfterError = parseJob(afterError.data());
+  assert.ok(currentAfterError);
   const terminal = await commitTerminalVideoProcessingIfCurrent(
-    firestore, ref, claimed, {
-      state: 'SUCCEEDED', now: now + 2000, normalizeJob: parseJob,
-      sourceMatches: video => video['path'] === start.sourceStoragePath,
-      jobPatch: { completedAt: now + 2000 },
-      videoPatch: { status: 'ready' },
-    }
+    firestore, ref, currentAfterError, commitCommand
   );
   assert.equal(terminal, 'APPLIED');
   const done = await ref.get();
