@@ -768,3 +768,44 @@ não executa backfill, não cobre registros legados históricos e não mantém
 `WITHIN_PAGE` por estado/ID até evidência global de prontidão. A c18e
 deve preparar backfill indexável com cursor e fencing; a c18f deve comprovar
 índices READY, reclassificação temporal, custo e integridade de cursores.
+
+ 
+### Backfill legado preparado, sem execução (1C2-A3b2b2c18e)
+
+Implementada a biblioteca interna
+`admin-video-triage-backfill.firestore.ts`. Não há exportação na raiz
+de Functions, endpoint callable, scheduler, CLI de produção, flag, deploy
+nem execução automática. **Nenhum dado existente foi migrado nesta etapa.**
+
+O operador só poderá executar uma página por chamada **após autorização
+separada**. O padrão `mode: 'DRY_RUN'` não escreve. `mode: 'APPLY'` precisa
+ser explicitamente selecionado num executor administrativo futuro e validado.
+As 7 lanes são QUEUED, SUBMITTING, PROCESSING, FAILED, CANCEL_REQUESTED,
+SUCCEEDED e CANCELLED. Cada página usa `state == lane` +
+`orderBy(documentId())` + `startAfter(afterId)`, com limite de **1 a 20**
+documentos consumidos e uma leitura adicional de lookahead (máximo de 21).
+Não há laço de continuação automática, consulta ao Transcoder, varredura
+global ou novas consultas por timestamp. É possível interromper ao fim
+de qualquer página sem efeitos colaterais sobre estados de processamento.
+
+Em APPLY cada documento é **relido em transação** e o `updateTime`
+deve corresponder exatamente à versão observada pela página, além de
+estado e `processingVersion`. Se qualquer writer gravou entretanto,
+inclusive sem trocar processingVersion, contabiliza-se REPLACED e não
+se sobrescreve sua projeção. Projeções idênticas são CURRENT/idempotentes.
+Timestamps ausentes são classificados UNVERIFIED e não reescritos;
+processingVersion ausente é contabilizado UNVERSIONED (sem inventar versão).
+Estados terminais com campos de triagem são limpos via FieldValue.delete,
+preservando imagens, derivados, snapshots e dados do job.
+
+Retorno com `scope: PAGE_ONLY`, `scanned`, `hasMore`, `nextCursor`,
+contagens para CURRENT, WOULD_PROJECT, PROJECTED, WOULD_CLEAR_TERMINAL,
+CLEARED_TERMINAL, UNVERSIONED, REPLACED, MISSING, e limites superiores de
+leitura/escrita. Erros do Firestore abortam a página sem mascarar falha;
+as páginas já concluídas são idempotentes. Um cursor por ID não captura
+documentos movidos entre estados antes do cursor nem garante snapshot
+global: resultados paginados **não comprovam cobertura completa**.
+Antes de qualquer execução real exigir autorização, auditoria independente,
+janela de operação e revisão do budget total. A c18f ainda precisa
+comprovar READY do índice implantado, reclassificação temporal, cobertura
+de todos os estados e segurança da ordenação global; manter WITHIN_PAGE.

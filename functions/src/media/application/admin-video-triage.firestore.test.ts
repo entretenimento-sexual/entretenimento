@@ -38,3 +38,23 @@ test('c18d legacy missing timestamps remain explicitly unverified', () => {
   assert.equal(result.adminTriageTier, 1);
   assert.equal(result.adminTriageSince, 0);
 });
+
+
+test('c18e bounded backfill rejects unsafe page/mode/cursor before any read', async () => {
+  const { prepareVideoTriageBackfillPage } =
+    await import('./admin-video-triage-backfill.firestore');
+  const unusable = {} as import('firebase-admin/firestore').Firestore;
+  const valid = { state: 'QUEUED' as const, now };
+  for (const patch of [
+    { limit: 0 }, { limit: 21 }, { limit: 1.5 },
+    { mode: 'AUTOMATIC' }, { afterId: 'a/b' },
+    { now: 0 }, { now: Number.POSITIVE_INFINITY },
+    { state: 'INVALID' },
+  ]) {
+    await assert.rejects(
+      prepareVideoTriageBackfillPage(unusable, { ...valid, ...patch } as
+        Parameters<typeof prepareVideoTriageBackfillPage>[1]),
+      RangeError
+    );
+  }
+});

@@ -152,3 +152,20 @@ test('c18d writes triage projections with existing job writes, not in a global q
   assert.ok(handler.includes('orderBy(FieldPath.documentId())'));
   assert.ok(!handler.includes("orderBy('adminTriageTier')"));
 });
+
+
+test('c18e backfill remains manual, page-bounded and never enables global order', () => {
+  const read = (name: string) => readFileSync(resolve(root,
+    'src/media/application/' + name), 'utf8');
+  const backfill = read('admin-video-triage-backfill.firestore.ts');
+  assert.ok(backfill.includes('VIDEO_TRIAGE_BACKFILL_MAX_PAGE = 20'));
+  assert.ok(backfill.includes("mode = request.mode ?? 'DRY_RUN'"));
+  assert.ok(backfill.includes("orderBy(FieldPath.documentId())"));
+  assert.ok(backfill.includes('query.limit(limit + 1).get()'));
+  assert.ok(backfill.includes('current.updateTime.isEqual(observed.updateTime)'));
+  assert.ok(backfill.includes('transaction.update(current.ref, withAdminTriageProjection('));
+  assert.ok(!backfill.includes('onSchedule('));
+  assert.ok(!backfill.includes('onCall('));
+  assert.ok(!backfill.includes("orderBy('adminTriageTier')"));
+  assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
+});

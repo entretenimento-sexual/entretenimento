@@ -8,6 +8,9 @@ import axios, { AxiosError, type AxiosResponse } from 'axios';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
+import {
+  prepareVideoTriageBackfillPage, applyObservedVideoTriageBackfillJob,
+} from './admin-video-triage-backfill.firestore';
 import { saveLastVideoSchedulerCycle, bestEffortSaveVideoSchedulerCycle }
   from './video-scheduler-observability.firestore';
 import {
@@ -2797,4 +2800,134 @@ test('c18d versionless and timestamp-less legacy updates remain non-destructive'
   assert.equal(legacy.get('adminTriageSince'), 0);
   assert.equal(legacy.get('updatedAt'), undefined);
   assert.equal(legacy.get('processingVersion'), 'legacy');
+});
+
+
+test('c18e dry-run pages cost-limit and legacy timestamp classification', async () => {
+  const prefix = 'c18e-preview-' + randomUUID();
+  const refs = Array.from({ length: 5 }, (_, i) =>
+    jobs.doc(prefix + '-' + String(i).padStart(2, '0')));
+  const batch = firestore.batch();
+  refs.forEach((ref, i) => batch.create(ref, {
+    state: 'QUEUED', processingVersion: 'legacy-' + i,
+    ...(i === 0 ? {} : { createdAt: now - 100_000 }),
+    nextAttemptAt: now,
+  }));
+  await batch.commit();
+  const first = await prepareVideoTriageBackfillPage(firestore, {
+    state: 'QUEUED', afterId: prefix + '-00', limit: 2, now,
+  });
+  assert.equal(first.mode, 'DRY_RUN');
+  assert.equal(first.scope, 'PAGE_ONLY');
+  assert.equal(first.scanned, 2);
+  assert.equal(first.hasMore, true);
+  assert.equal(first.outcomes.WOULD_PROJECT, 2);
+  assert.ok(first.maxQueryReads <= 3);
+  assert.equal(first.maxTransactionReads, 0);
+  assert.equal(first.maxWrites, 0);
+  assert.equal((await refs[1].get()).get('adminTriageTier'), undefined);
+  const second = await prepareVideoTriageBackfillPage(firestore, {
+    state: 'QUEUED', afterId: first.nextCursor, limit: 2, now,
+  });
+  assert.equal(second.scanned, 2);
+  assert.equal(second.hasMore, false);
+  assert.equal(second.nextCursor, null);
+
+  // Explicit one-page APPLY changes only metadata, not timestamps or state.
+  const applied = await prepareVideoTriageBackfillPage(firestore, {
+    state: 'QUEUED', afterId: prefix + '-00', limit: 2, mode: 'APPLY', now,
+  });
+  assert.equal(applied.outcomes.PROJECTED, 2);
+  assert.equal(applied.maxTransactionReads, 2);
+  assert.equal(applied.maxWrites, 2);
+  const job = await refs[1].get();
+  assert.equal(job.get('processingVersion'), 'legacy-1');
+  assert.equal(job.get('adminTriageProcessingVersion'), 'legacy-1');
+  assert.equal(job.get('adminTriageTier'), 4);
+  assert.equal(job.get('updatedAt'), undefined);
+  const replay = await prepareVideoTriageBackfillPage(firestore, {
+    state: 'QUEUED', afterId: prefix + '-00', limit: 2, mode: 'APPLY', now,
+  });
+  assert.equal(replay.outcomes.CURRENT, 2);
+  assert.equal(replay.outcomes.PROJECTED, 0);
+  assert.ok((await refs[1].get()).updateTime?.isEqual(job.updateTime!));
+});
+
+test('c18e transaction rejects stale version and same-version writer updates', async () => {
+  const ref = jobs.doc('c18e-race-' + randomUUID());
+  await ref.create({ state: 'FAILED', processingVersion: 'v1',
+    updatedAt: now - 5_000, lastErrorCode: null });
+  const observed = await ref.get();
+  assert.ok(observed.exists);
+  const race = await Promise.all([
+    applyObservedVideoTriageBackfillJob(firestore, observed, now),
+    applyObservedVideoTriageBackfillJob(firestore, observed, now),
+  ]);
+  assert.deepEqual(race.sort(), ['PROJECTED', 'REPLACED']);
+  const projected = await ref.get();
+  assert.equal(projected.get('adminTriageProcessingVersion'), 'v1');
+  assert.equal(projected.get('adminTriageTier'), 2);
+
+  // Even a same-version change, without state/version transition, blocks the
+  // old observed snapshot and cannot be silently overwritten by the backfill.
+  const sameVersionObserved = await ref.get();
+  await ref.update(withAdminTriageProjection(ref.id,
+    sameVersionObserved.data() as VideoProcessingJob, {
+      updatedAt: now + 1, lastErrorCode: 'PROVIDER_UNCONFIRMED',
+    }, now + 1));
+  assert.equal(await applyObservedVideoTriageBackfillJob(
+    firestore, sameVersionObserved, now + 2
+  ), 'REPLACED');
+  assert.equal((await ref.get()).get('updatedAt'), now + 1);
+
+  const older = await ref.get();
+  await ref.update(withAdminTriageProjection(ref.id,
+    older.data() as VideoProcessingJob, {
+      state: 'QUEUED', processingVersion: 'v2', updatedAt: now + 3,
+    }, now + 3));
+  assert.equal(await applyObservedVideoTriageBackfillJob(
+    firestore, older, now + 4
+  ), 'REPLACED');
+  assert.equal((await ref.get()).get('adminTriageProcessingVersion'), 'v2');
+});
+
+test('c18e terminal scrubbing, absent version and no unbounded retry', async () => {
+  const prefix = 'c18e-terminal-' + randomUUID();
+  const terminalRef = jobs.doc(prefix + '-a');
+  const cleanRef = jobs.doc(prefix + '-b');
+  await terminalRef.create({ state: 'SUCCEEDED', processingVersion: 'v1',
+    adminTriageProjectionVersion: 1, adminTriageProcessingVersion: 'v1',
+    adminTriageTier: 0, adminTriageSince: 1,
+    adminTriageReevaluateAt: null, outputStoragePath: 'preserved/output.mp4' });
+  await cleanRef.create({ state: 'SUCCEEDED', processingVersion: 'v2',
+    outputStoragePath: 'preserved/other.mp4' });
+  const preview = await prepareVideoTriageBackfillPage(firestore, {
+    state: 'SUCCEEDED', afterId: prefix, limit: 2, now,
+  });
+  assert.equal(preview.outcomes.WOULD_CLEAR_TERMINAL, 1);
+  assert.equal(preview.outcomes.CURRENT, 1);
+  assert.equal((await terminalRef.get()).get('adminTriageTier'), 0);
+  const apply = await prepareVideoTriageBackfillPage(firestore, {
+    state: 'SUCCEEDED', afterId: prefix, limit: 2, now, mode: 'APPLY',
+  });
+  assert.equal(apply.outcomes.CLEARED_TERMINAL, 1);
+  assert.equal(apply.outcomes.CURRENT, 1);
+  assert.equal((await terminalRef.get()).get('adminTriageTier'), undefined);
+  assert.equal((await terminalRef.get()).get('outputStoragePath'),
+    'preserved/output.mp4');
+
+  const unversioned = jobs.doc('c18e-unversioned-' + randomUUID());
+  await unversioned.create({ state: 'FAILED', createdAt: now - 50_000 });
+  const observed = await unversioned.get();
+  assert.equal(await applyObservedVideoTriageBackfillJob(
+    firestore, observed, now
+  ), 'UNVERSIONED');
+  assert.equal((await unversioned.get()).get('processingVersion'), undefined);
+  const vanished = jobs.doc('c18e-vanished-' + randomUUID());
+  await vanished.create({ state: 'FAILED', processingVersion: 'v1' });
+  const initial = await vanished.get();
+  await vanished.delete();
+  assert.equal(await applyObservedVideoTriageBackfillJob(
+    firestore, initial, now
+  ), 'MISSING');
 });
