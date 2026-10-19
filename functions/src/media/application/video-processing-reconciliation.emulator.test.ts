@@ -7,6 +7,7 @@ import { FieldPath, getFirestore, type DocumentReference } from 'firebase-admin/
 import axios, { AxiosError, type AxiosResponse } from 'axios';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
+import { withAdminTriageProjection } from './admin-video-triage.firestore';
 import { saveLastVideoSchedulerCycle, bestEffortSaveVideoSchedulerCycle }
   from './video-scheduler-observability.firestore';
 import {
@@ -2715,4 +2716,76 @@ test('c18b bounded real Firestore audit observes legacy rows without a global cl
   const failedRefresh = await collection.where('state', '==', 'QUEUED')
     .orderBy(FieldPath.documentId()).limit(100).get();
   assert.ok(failedRefresh.docs.some(doc => doc.id === moved.id));
+});
+
+
+test('c18d real Firestore commit updates and clears triage with version-fenced transitions', async () => {
+  const start = fixture('RUNNING');
+  const ref = jobs.doc('c18d-' + randomUUID());
+  await ref.create(withAdminTriageProjection(ref.id, null, start, now));
+  assert.equal((await ref.get()).get('adminTriageProcessingVersion'),
+    start.processingVersion);
+  assert.equal((await ref.get()).get('adminTriageTier'), 5);
+
+  const claims = await Promise.all([
+    claimProcessingJob(firestore, ref, now, parseJob),
+    claimProcessingJob(firestore, ref, now, parseJob),
+  ]);
+  assert.equal(claims.filter(Boolean).length, 1);
+  const claimed = claims.find(Boolean)!;
+  const reserved = await ref.get();
+  assert.equal(reserved.get('adminTriageProcessingVersion'),
+    claimed.processingVersion);
+  assert.equal(reserved.get('adminTriageSince'), start.updatedAt);
+
+  assert.equal(await recordProviderPollErrorIfCurrent(
+    firestore, ref, claimed, parseJob,
+    { code: 'PROVIDER_TIMEOUT', message: 'Provider temporarily unavailable',
+      retryable: true }, now + 1000
+  ), true);
+  const afterError = await ref.get();
+  assert.equal(afterError.get('adminTriageProcessingVersion'),
+    claimed.processingVersion);
+  assert.equal(afterError.get('adminTriageSince'), now + 1000);
+
+  const videoRef = firestore.doc(
+    `users/${start.ownerUid}/videos/${start.videoId}`);
+  await videoRef.set({ path: start.sourceStoragePath });
+  const terminal = await commitTerminalVideoProcessingIfCurrent(
+    firestore, ref, claimed, {
+      state: 'SUCCEEDED', now: now + 2000, normalizeJob: parseJob,
+      sourceMatches: video => video['path'] === start.sourceStoragePath,
+      jobPatch: { completedAt: now + 2000 },
+      videoPatch: { status: 'ready' },
+    }
+  );
+  assert.equal(terminal, 'APPLIED');
+  const done = await ref.get();
+  assert.equal(done.get('state'), 'SUCCEEDED');
+  for (const field of ['adminTriageTier', 'adminTriageSince',
+    'adminTriageProjectionVersion', 'adminTriageProcessingVersion',
+    'adminTriageReevaluateAt']) assert.equal(done.get(field), undefined);
+  assert.equal((await videoRef.get()).get('status'), 'ready');
+  assert.equal(await recordProviderPollErrorIfCurrent(
+    firestore, ref, claimed, parseJob,
+    { code: 'STALE', message: 'obsolete result' }, now + 3000
+  ), false);
+  assert.equal((await ref.get()).get('adminTriageTier'), undefined);
+});
+
+test('c18d versionless and timestamp-less legacy updates remain non-destructive', async () => {
+  const ref = jobs.doc('c18d-legacy-' + randomUUID());
+  await ref.create({ state: 'QUEUED', processingVersion: 'legacy',
+    nextAttemptAt: now - 100 });
+  await firestore.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    tx.update(ref, withAdminTriageProjection(
+      ref.id, snap.data() as Partial<VideoProcessingJob>,
+      { nextAttemptAt: now }, now));
+  });
+  const legacy = await ref.get();
+  assert.equal(legacy.get('adminTriageTier'), 1);
+  assert.equal(legacy.get('adminTriageSince'), 0);
+  assert.equal(legacy.get('updatedAt'), undefined);
+  assert.equal(legacy.get('processingVersion'), 'legacy');
 });
