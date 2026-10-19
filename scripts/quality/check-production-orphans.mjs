@@ -468,6 +468,12 @@ const functionsOperationalArtifacts = new Set([
     functionsSourceRoot,
     'media/application/private-photo-storage-consistency.service.ts'
   )),
+  // c18e: biblioteca offline de backfill por página, sem função exportável,
+  // scheduler, endpoint público ou ativação automática na aplicação.
+  posix(path.join(
+    functionsSourceRoot,
+    'media/application/admin-video-triage-backfill.firestore.ts'
+  )),
 ]);
 
 const functionOrphans = functionsProductionTs
