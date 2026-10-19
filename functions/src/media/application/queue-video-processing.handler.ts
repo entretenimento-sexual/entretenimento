@@ -144,13 +144,13 @@ async function requestCancellationIfPresent(
       jobRef,
       withAdminTriageProjection(jobRef.id,
         snapshot.data() as Partial<VideoProcessingJob>, {
-        state: 'CANCEL_REQUESTED',
-        cancelRequestedAt: now,
-        leaseUntil: null,
-        updatedAt: now,
-        lastErrorCode: 'VIDEO_DELETED',
-        lastError: 'O vídeo foi excluído da plataforma.',
-      }, now),
+          state: 'CANCEL_REQUESTED',
+          cancelRequestedAt: now,
+          leaseUntil: null,
+          updatedAt: now,
+          lastErrorCode: 'VIDEO_DELETED',
+          lastError: 'O vídeo foi excluído da plataforma.',
+        }, now),
       { merge: true }
     );
   });
@@ -225,13 +225,13 @@ export async function ensurePrivateVideoProcessingQueued(
             jobRef,
             withAdminTriageProjection(jobRef.id,
               jobSnap.data() as Partial<VideoProcessingJob>, {
-              state: 'FAILED',
-              completedAt: now,
-              leaseUntil: null,
-              updatedAt: now,
-              lastErrorCode: INVALID_EDIT_RECIPE_CODE,
-              lastError: message,
-            }, now),
+                state: 'FAILED',
+                completedAt: now,
+                leaseUntil: null,
+                updatedAt: now,
+                lastErrorCode: INVALID_EDIT_RECIPE_CODE,
+                lastError: message,
+              }, now),
             { merge: true }
           );
         }
