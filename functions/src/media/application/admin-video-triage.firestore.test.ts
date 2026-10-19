@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { FieldValue } from 'firebase-admin/firestore';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
+import { prepareVideoTriageBackfillPage } from './admin-video-triage-backfill.firestore';
 
 const now = 1_800_000_000_000;
 
@@ -41,8 +42,6 @@ test('c18d legacy missing timestamps remain explicitly unverified', () => {
 
 
 test('c18e bounded backfill rejects unsafe page/mode/cursor before any read', async () => {
-  const { prepareVideoTriageBackfillPage } =
-    await import('./admin-video-triage-backfill.firestore');
   const unusable = {} as import('firebase-admin/firestore').Firestore;
   const valid = { state: 'QUEUED' as const, now };
   for (const patch of [
