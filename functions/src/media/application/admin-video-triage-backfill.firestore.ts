@@ -149,7 +149,7 @@ export async function applyObservedVideoTriageBackfillJob(
     ));
     return required === 'PROJECT' ? 'PROJECTED' as const
       : 'CLEARED_TERMINAL' as const;
-  });
+  }, { maxAttempts: 2 });
 }
 
 /**
@@ -185,7 +185,7 @@ export async function prepareVideoTriageBackfillPage(
     nextCursor: hasMore ? consumed[consumed.length - 1].id : null,
     outcomes,
     maxQueryReads: limit + 1,
-    maxTransactionReads: mode === 'APPLY' ? consumed.length : 0,
+    maxTransactionReads: mode === 'APPLY' ? consumed.length * 2 : 0,
     maxWrites: mode === 'APPLY' ? consumed.length : 0,
     checkedAt: now,
   };

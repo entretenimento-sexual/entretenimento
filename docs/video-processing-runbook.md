@@ -809,3 +809,8 @@ Antes de qualquer execução real exigir autorização, auditoria independente,
 janela de operação e revisão do budget total. A c18f ainda precisa
 comprovar READY do índice implantado, reclassificação temporal, cobertura
 de todos os estados e segurança da ordenação global; manter WITHIN_PAGE.
+
+O contrato de custo c18e limita cada transação a no máximo **duas tentativas**;
+assim, por página de 20 documentos, a cota declarada é de até 21 leituras
+de consulta e 40 leituras transacionais, com até 20 gravações efetivadas.
+Conflitos persistentes propagam erro, sem novo ciclo implícito.

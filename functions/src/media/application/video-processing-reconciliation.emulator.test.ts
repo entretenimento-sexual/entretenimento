@@ -2838,7 +2838,7 @@ test('c18e dry-run pages cost-limit and legacy timestamp classification', async 
     state: 'QUEUED', afterId: prefix + '-00', limit: 2, mode: 'APPLY', now,
   });
   assert.equal(applied.outcomes.PROJECTED, 2);
-  assert.equal(applied.maxTransactionReads, 2);
+  assert.equal(applied.maxTransactionReads, 4);
   assert.equal(applied.maxWrites, 2);
   const job = await refs[1].get();
   assert.equal(job.get('processingVersion'), 'legacy-1');
