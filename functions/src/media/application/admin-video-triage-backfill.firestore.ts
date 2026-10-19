@@ -3,7 +3,7 @@
  * Not exported as a Cloud Function, scheduler, CLI task, or application route.
  * NO production invocation, automatic iteration, provider calls or deployment.
  */
-import { FieldPath, type Firestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import { FieldPath, type DocumentSnapshot, type Firestore } from 'firebase-admin/firestore';
 
 import {
   VIDEO_PROCESSING_JOBS_COLLECTION,
@@ -110,7 +110,7 @@ function requiredWrite(
 }
 
 function preview(
-  snapshot: QueryDocumentSnapshot, now: number
+  snapshot: DocumentSnapshot, now: number
 ): VideoTriageBackfillDisposition {
   const action = requiredWrite(snapshot.id,
     snapshot.data() as Partial<VideoProcessingJob>, now);
@@ -125,11 +125,12 @@ function preview(
  * backfill never tramples an up-to-date live-writer projection.
  */
 export async function applyObservedVideoTriageBackfillJob(
-  firestore: Firestore, observed: QueryDocumentSnapshot, now: number
+  firestore: Firestore, observed: DocumentSnapshot, now: number
 ): Promise<VideoTriageBackfillDisposition> {
   if (!Number.isSafeInteger(now) || now <= 0) {
     throw new RangeError('Invalid video triage backfill evaluation clock.');
   }
+  if (!observed.exists) return 'MISSING';
   return firestore.runTransaction(async transaction => {
     const current = await transaction.get(observed.ref);
     if (!current.exists) return 'MISSING' as const;
