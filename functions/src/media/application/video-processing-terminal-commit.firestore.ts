@@ -1,6 +1,7 @@
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 
 import type { VideoProcessingJob } from './video-processing-job';
+import { withAdminTriageProjection } from './admin-video-triage.firestore';
 import { isCurrentVideoProcessingAttempt } from './video-processing-poll.policy';
 
 /** An observed provider result is not necessarily a committed job transition. */
@@ -42,7 +43,7 @@ export async function commitTerminalVideoProcessingIfCurrent(
       ? videoSnapshot.data() as Record<string, unknown> : null;
     if (!video || !command.sourceMatches(video)) {
       const sourceChanged = !!video;
-      transaction.update(jobRef, {
+      transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: sourceChanged
           ? command.now : current.cancelRequestedAt ?? command.now,
@@ -54,14 +55,14 @@ export async function commitTerminalVideoProcessingIfCurrent(
             lastErrorCode: 'SOURCE_CHANGED',
             lastError: 'O arquivo privado associado ao vídeo foi alterado.',
           } : {}),
-      });
+      }, command.now));
       return 'CANCEL_REQUESTED' as const;
     }
-    transaction.update(jobRef, {
+    transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, {
       state: command.state,
       ...command.jobPatch,
       updatedAt: command.now,
-    });
+    }, command.now));
     transaction.set(videoRef, {
       ...(typeof command.videoPatch === 'function' ? command.videoPatch(video) : command.videoPatch),
       updatedAt: command.now,

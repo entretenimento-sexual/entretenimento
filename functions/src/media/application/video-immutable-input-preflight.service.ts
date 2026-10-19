@@ -9,6 +9,7 @@ import * as logger from 'firebase-functions/logger';
 
 import { db } from '../../firebaseApp';
 import type { VideoProcessingJob } from './video-processing-job';
+import { withAdminTriageProjection } from './admin-video-triage.firestore';
 import { videoSourceProbeCaptureEnabled } from './video-source-probe.service';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 import {
@@ -99,13 +100,13 @@ export async function prepareImmutableInputPreflightWithPorts(
     const videoRef = firestore.doc(`users/${job.ownerUid}/videos/${job.videoId}`);
     const video = await transaction.get(videoRef);
     if (!privateVideoMatches(job, video.data())) {
-      transaction.update(jobRef, {
+      transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, {
         state: 'CANCEL_REQUESTED', cancelRequestedAt: now,
         nextAttemptAt: now, leaseUntil: null,
         immutableInputClaimId: null, updatedAt: now,
         lastErrorCode: 'SOURCE_CHANGED',
         lastError: 'O arquivo privado associado ao vídeo foi alterado.',
-      });
+      }, now));
       return { kind: 'deferred' as const };
     }
     if (matchesPersistedImmutableInput(job, job.immutableInput)) {
@@ -115,12 +116,12 @@ export async function prepareImmutableInputPreflightWithPorts(
     const reservedUntil = now + RESERVATION_MS;
     const attempts = Math.min(1000,
       Math.max(0, Math.trunc(Number(job.immutableInputAttempts ?? 0) || 0)) + 1);
-    transaction.update(jobRef, {
+    transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, {
       immutableInputClaimId: token,
       immutableInputAttempts: attempts,
       nextAttemptAt: reservedUntil,
       updatedAt: now,
-    });
+    }, now));
     transaction.set(videoRef, {
       status: 'queued', processingStage: 'preparing',
       processingErrorCode: null, processingErrorMessage: null,
@@ -147,20 +148,20 @@ export async function prepareImmutableInputPreflightWithPorts(
       ]);
       if (!stillClaimed(jobSnapshot.data(), claim)) return false;
       if (!privateVideoMatches(claim.job, videoSnapshot.data())) {
-        transaction.update(jobRef, {
+        transaction.update(jobRef, withAdminTriageProjection(jobRef.id, jobSnapshot.data() as Job, {
           state: 'CANCEL_REQUESTED', cancelRequestedAt: finishedAt,
           nextAttemptAt: finishedAt, leaseUntil: null,
           immutableInputClaimId: null, updatedAt: finishedAt,
           lastErrorCode: 'SOURCE_CHANGED',
-        });
+        }, finishedAt));
         return false;
       }
-      transaction.update(jobRef, {
+      transaction.update(jobRef, withAdminTriageProjection(jobRef.id, jobSnapshot.data() as Job, {
         immutableInput: prepared,
         immutableInputClaimId: null,
         nextAttemptAt: finishedAt, updatedAt: finishedAt,
         lastErrorCode: null, lastError: null,
-      });
+      }, finishedAt));
       transaction.set(videoRef, {
         status: 'queued', processingStage: 'queued',
         processingErrorCode: null, processingErrorMessage: null,
@@ -184,7 +185,7 @@ export async function prepareImmutableInputPreflightWithPorts(
       const message = canRetry
         ? 'Preparação técnica temporariamente indisponível.'
         : 'O arquivo original não pôde ser preparado para processamento.';
-      transaction.update(jobRef, {
+      transaction.update(jobRef, withAdminTriageProjection(jobRef.id, jobSnapshot.data() as Job, {
         state: status,
         ...(changed ? { cancelRequestedAt: failedAt } : {}),
         ...(!changed && !canRetry ? { completedAt: failedAt } : {}),
@@ -193,7 +194,7 @@ export async function prepareImmutableInputPreflightWithPorts(
         leaseUntil: null, updatedAt: failedAt,
         lastErrorCode: changed ? 'SOURCE_CHANGED' : code,
         lastError: message,
-      });
+      }, failedAt));
       if (!changed && videoSnapshot.exists) {
         transaction.set(videoRef, {
           status: canRetry ? 'queued' : 'failed',

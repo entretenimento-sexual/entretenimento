@@ -70,8 +70,8 @@ export interface VideoProcessingJob {
   cancelRequestedAt: number | null;
   createdAt: number;
   updatedAt: number;
-  /** c18c staged projection. No writers or readers activate this until
-   * global coverage, indexed readiness and recomputation are verified. */
+  /** c18d: writers persist the projection atomically; global ordering remains
+   * blocked until index readiness, legacy coverage and timed refresh pass. */
   adminTriageProjectionVersion?: 1;
   adminTriageProcessingVersion?: string;
   adminTriageTier?: number;

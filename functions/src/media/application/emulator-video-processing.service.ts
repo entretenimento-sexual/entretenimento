@@ -3,6 +3,7 @@ import * as logger from 'firebase-functions/logger';
 
 import { db, getDefaultStorageBucket } from '../../firebaseApp';
 import type { VideoProcessingJob } from './video-processing-job';
+import { withAdminTriageProjection } from './admin-video-triage.firestore';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 
 interface PrivateVideoDocument {
@@ -81,7 +82,7 @@ async function markProcessingFailure(
       return;
     }
 
-    transaction.update(jobRef, {
+    transaction.update(jobRef, withAdminTriageProjection(jobRef.id, jobSnapshot.data() as VideoProcessingJob, {
       state: 'FAILED',
       providerState: 'EMULATOR_FAILED',
       completedAt: now,
@@ -89,7 +90,7 @@ async function markProcessingFailure(
       updatedAt: now,
       lastErrorCode: errorCode,
       lastError: technicalMessage,
-    });
+    }, now));
 
     if (!videoSnapshot.exists) {
       return;
@@ -204,7 +205,7 @@ export async function completeVideoProcessingInEmulator(
         return false;
       }
 
-      transaction.update(jobRef, {
+      transaction.update(jobRef, withAdminTriageProjection(jobRef.id, jobSnapshot.data() as VideoProcessingJob, {
         state: 'SUCCEEDED',
         attempts: 1,
         externalJobName: `emulator/${job.processingVersion}`,
@@ -218,7 +219,7 @@ export async function completeVideoProcessingInEmulator(
         updatedAt: now,
         lastErrorCode: null,
         lastError: null,
-      });
+      }, now));
       transaction.set(
         videoRef,
         {

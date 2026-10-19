@@ -4,6 +4,7 @@ import * as logger from 'firebase-functions/logger';
 
 import { db } from '../../firebaseApp';
 import type { VideoProcessingJob } from './video-processing-job';
+import { withAdminTriageProjection } from './admin-video-triage.firestore';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 import { probeVideoSource } from './video-rotation-worker.service';
 import {
@@ -95,7 +96,7 @@ export async function prepareVideoSourceProbeWithPorts(
     const videoRef = firestore.doc(`users/${job.ownerUid}/videos/${job.videoId}`);
     const videoSnapshot = await transaction.get(videoRef);
     if (!privateVideoMatches(job, videoSnapshot.data())) {
-      transaction.update(jobRef, {
+      transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: now,
         nextAttemptAt: now,
@@ -104,7 +105,7 @@ export async function prepareVideoSourceProbeWithPorts(
         updatedAt: now,
         lastErrorCode: 'SOURCE_CHANGED',
         lastError: 'A origem privada foi substituída ou removida.',
-      });
+      }, now));
       return { kind: 'deferred' as const };
     }
 
@@ -112,12 +113,12 @@ export async function prepareVideoSourceProbeWithPorts(
     const reservedUntil = now + PROBE_RESERVATION_MS;
     const attempts = Math.min(1000,
       Math.max(0, Math.trunc(Number(job.sourceProbeAttempts ?? 0) || 0)) + 1);
-    transaction.update(jobRef, {
+    transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, {
       sourceProbeClaimId: token,
       sourceProbeAttempts: attempts,
       nextAttemptAt: reservedUntil,
       updatedAt: now,
-    });
+    }, now));
     transaction.set(videoRef, {
       status: 'queued',
       processingStage: 'verifying',
@@ -147,7 +148,7 @@ export async function prepareVideoSourceProbeWithPorts(
       ]);
       if (!currentClaim(snapshot.data(), claim)) return false;
       if (!privateVideoMatches(claim.job, videoSnapshot.data())) {
-        transaction.update(jobRef, {
+        transaction.update(jobRef, withAdminTriageProjection(jobRef.id, snapshot.data() as JobData, {
           state: 'CANCEL_REQUESTED',
           cancelRequestedAt: checkedAt,
           nextAttemptAt: checkedAt,
@@ -155,17 +156,17 @@ export async function prepareVideoSourceProbeWithPorts(
           leaseUntil: null,
           updatedAt: checkedAt,
           lastErrorCode: 'SOURCE_CHANGED',
-        });
+        }, checkedAt));
         return false;
       }
-      transaction.update(jobRef, {
+      transaction.update(jobRef, withAdminTriageProjection(jobRef.id, snapshot.data() as JobData, {
         sourceProbe: probeSnapshot,
         sourceProbeClaimId: null,
         nextAttemptAt: checkedAt,
         updatedAt: checkedAt,
         lastErrorCode: null,
         lastError: null,
-      });
+      }, checkedAt));
       transaction.set(videoRef, {
         status: 'queued',
         processingStage: 'queued',
@@ -189,7 +190,7 @@ export async function prepareVideoSourceProbeWithPorts(
       const message = retryable
         ? 'Verificação técnica temporariamente indisponível.'
         : 'O arquivo original não pôde ser validado.';
-      transaction.update(jobRef, {
+      transaction.update(jobRef, withAdminTriageProjection(jobRef.id, snapshot.data() as JobData, {
         state: sourceChanged ? 'CANCEL_REQUESTED'
           : retryable ? 'QUEUED' : 'FAILED',
         ...(sourceChanged ? { cancelRequestedAt: failedAt } : {}),
@@ -201,7 +202,7 @@ export async function prepareVideoSourceProbeWithPorts(
         updatedAt: failedAt,
         lastErrorCode: code,
         lastError: message,
-      });
+      }, failedAt));
       if (!sourceChanged && videoSnapshot.exists) {
         transaction.set(videoRef, retryable
           ? {

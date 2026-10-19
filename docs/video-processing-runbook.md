@@ -750,3 +750,21 @@ job/conta antes de recomendar reenvio; (5) checks CI e logs de E2E.
 Não copiar IDs, tokens, URLs assinadas ou mensagens do Transcoder.
 Sem novas varreduras de Firestore, chamadas externas, retries de
 escritas, polling ou storage de logs.
+
+
+### Persistência transacional da triagem (1C2-A3b2b2c18d)
+
+Os writers incluem a projeção `adminTriage*` na mesma gravação
+(`update/set/create` ou batch atômico) que modifica o estado e versão do job,
+por meio de `withAdminTriageProjection`. Fluxos de submissão, processamento,
+falhas do provedor, cancelamento, exclusão, recuperação administrativa,
+source probe e preflight usam a pós-imagem efetivamente persistida.
+Estados terminais e versões inválidas removem os cinco campos indexáveis.
+Não há novas consultas ao Firestore ou Transcoder nem alteração de arquivos.
+
+**BLOQUEADO:** a leitura global continua inativa. c18d não implanta índice,
+não executa backfill, não cobre registros legados históricos e não mantém
+`adminTriageReevaluateAt` automaticamente atualizado. A fila continua
+`WITHIN_PAGE` por estado/ID até evidência global de prontidão. A c18e
+deve preparar backfill indexável com cursor e fencing; a c18f deve comprovar
+índices READY, reclassificação temporal, custo e integridade de cursores.

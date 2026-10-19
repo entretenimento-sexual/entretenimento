@@ -19,6 +19,7 @@ import {
   type VideoProcessingJob,
   type VideoProcessingJobState,
 } from './video-processing-job';
+import { withAdminTriageProjection } from './admin-video-triage.firestore';
 import {
   availableAdminVideoRecoveryActions,
   isUnconfirmedVideoSubmission,
@@ -588,13 +589,13 @@ async function retryFailedJob(command: {
     const tempCleanupQueued = await preserveTerminalCleanupBeforeRetry(
       db, transaction, jobId, currentJob as VideoProcessingJob, now
     );
-    transaction.set(jobRef, {
+    transaction.set(jobRef, withAdminTriageProjection(jobId, null, {
       ...retryJob,
       lastAdminOperationId: command.operationId,
       lastAdminAction: 'RETRY_FAILED',
       lastAdminBy: command.adminUid,
       lastAdminAt: now,
-    });
+    }, now));
     transaction.set(
       videoRef,
       {
@@ -832,7 +833,7 @@ async function mutateExistingJob(command: {
         'O processamento foi cancelado pela administração.';
     }
 
-    transaction.set(jobRef, jobPatch, { merge: true });
+    transaction.set(jobRef, withAdminTriageProjection(jobId, job, jobPatch, now), { merge: true });
     transaction.set(videoRef, videoPatch, { merge: true });
     transaction.set(adminLogRef, {
       adminUid: command.adminUid,

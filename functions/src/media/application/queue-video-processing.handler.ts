@@ -17,6 +17,7 @@ import {
   VIDEO_PROCESSING_JOBS_COLLECTION,
   type VideoProcessingJob,
 } from './video-processing-job';
+import { withAdminTriageProjection } from './admin-video-triage.firestore';
 import {
   hasPersistedInvalidProcessingSourceFailure,
   INVALID_PROCESSING_SOURCE_CODE,
@@ -141,14 +142,15 @@ async function requestCancellationIfPresent(
     const now = Date.now();
     transaction.set(
       jobRef,
-      {
+      withAdminTriageProjection(jobRef.id,
+        snapshot.data() as Partial<VideoProcessingJob>, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: now,
         leaseUntil: null,
         updatedAt: now,
         lastErrorCode: 'VIDEO_DELETED',
         lastError: 'O vídeo foi excluído da plataforma.',
-      },
+      }, now),
       { merge: true }
     );
   });
@@ -221,14 +223,15 @@ export async function ensurePrivateVideoProcessingQueued(
         if (jobSnap.exists) {
           transaction.set(
             jobRef,
-            {
+            withAdminTriageProjection(jobRef.id,
+              jobSnap.data() as Partial<VideoProcessingJob>, {
               state: 'FAILED',
               completedAt: now,
               leaseUntil: null,
               updatedAt: now,
               lastErrorCode: INVALID_EDIT_RECIPE_CODE,
               lastError: message,
-            },
+            }, now),
             { merge: true }
           );
         }
@@ -325,7 +328,7 @@ export async function ensurePrivateVideoProcessingQueued(
         now,
       });
 
-      transaction.create(jobRef, job);
+      transaction.create(jobRef, withAdminTriageProjection(jobRef.id, null, job, now));
       transaction.set(
         videoRef,
         {

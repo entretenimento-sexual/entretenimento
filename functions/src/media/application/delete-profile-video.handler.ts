@@ -35,7 +35,9 @@ import {
 import {
   buildVideoProcessingJobId,
   VIDEO_PROCESSING_JOBS_COLLECTION,
+  type VideoProcessingJob,
 } from './video-processing-job';
+import { withAdminTriageProjection } from './admin-video-triage.firestore';
 import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
@@ -87,12 +89,7 @@ interface VideoPublicationDoc {
   reviewEvidenceRetention?: string;
 }
 
-interface VideoProcessingJobDoc {
-  sourceStoragePath?: string;
-  sourcePosterStoragePath?: string | null;
-  outputPrefix?: string;
-  state?: string;
-}
+type VideoProcessingJobDoc = Partial<VideoProcessingJob>;
 
 const DELETION_JOBS_COLLECTION = 'media_video_deletion_jobs';
 const CLEANUP_BATCH_SIZE = 50;
@@ -394,14 +391,14 @@ function requestProcessingCancellation(
 
   batch.set(
     processingJobRef,
-    {
+    withAdminTriageProjection(processingJobRef.id, processingJob, {
       state: 'CANCEL_REQUESTED',
       cancelRequestedAt: now,
       leaseUntil: null,
       updatedAt: now,
       lastErrorCode: 'VIDEO_DELETED',
       lastError: 'O vídeo foi excluído da plataforma.',
-    },
+    }, now),
     { merge: true }
   );
 

@@ -135,3 +135,20 @@ test('c18c keeps production ID cursors while staging indexed severity projection
   assert.ok(handler.includes('query.startAfter(cursor[state])'));
   assert.ok(!handler.includes('items: items.slice(0, limit)'));
 });
+
+
+test('c18d writes triage projections with existing job writes, not in a global query', () => {
+  const read = (name: string) => readFileSync(resolve(root,
+    'src/media/application/' + name), 'utf8');
+  for (const name of [
+    'video-processing-reconciliation.firestore.ts',
+    'video-processing-terminal-commit.firestore.ts',
+    'video-processing.handler.ts', 'queue-video-processing.handler.ts',
+    'admin-video-processing-recovery.handler.ts',
+    'video-source-probe.service.ts', 'video-immutable-input-preflight.service.ts',
+    'emulator-video-processing.service.ts', 'delete-profile-video.handler.ts',
+  ]) assert.ok(read(name).includes('withAdminTriageProjection('), name);
+  assert.ok(read('admin-video-triage.firestore.ts').includes('FieldValue.delete()'));
+  assert.ok(handler.includes('orderBy(FieldPath.documentId())'));
+  assert.ok(!handler.includes("orderBy('adminTriageTier')"));
+});

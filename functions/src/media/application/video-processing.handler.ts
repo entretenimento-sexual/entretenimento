@@ -30,6 +30,7 @@ import {
   type VideoProcessingJob,
   type VideoProviderTerminalEvidence,
 } from './video-processing-job';
+import { withAdminTriageProjection } from './admin-video-triage.firestore';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 import { buildProviderTerminalEvidence } from './video-provider-terminal-evidence.policy';
 import { clearProviderPollFailures, nextProviderPollFailure } from './video-provider-poll-failure.policy';
@@ -299,7 +300,7 @@ async function claimQueuedJob(
     const videoSnapshot = await transaction.get(videoRef);
 
     if (!videoSnapshot.exists) {
-      transaction.update(jobRef, {
+      transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: now,
         nextAttemptAt: now,
@@ -307,7 +308,7 @@ async function claimQueuedJob(
         updatedAt: now,
         lastErrorCode: 'PRIVATE_VIDEO_DELETED',
         lastError: 'O vídeo privado foi excluído.',
-      });
+      }, now));
       return null;
     }
 
@@ -318,7 +319,7 @@ async function claimQueuedJob(
       job.sourceStoragePath ||
       (!!job.sourceGeneration && video.sourceGeneration !== job.sourceGeneration)
     ) {
-      transaction.update(jobRef, {
+      transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: now,
         nextAttemptAt: now,
@@ -326,19 +327,19 @@ async function claimQueuedJob(
         updatedAt: now,
         lastErrorCode: 'SOURCE_CHANGED',
         lastError: 'O arquivo privado associado ao vídeo foi alterado.',
-      });
+      }, now));
       return null;
     }
 
     if (job.attempts >= VIDEO_PROCESSING_MAX_ATTEMPTS) {
-      transaction.update(jobRef, {
+      transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, {
         state: 'FAILED',
         leaseUntil: null,
         completedAt: now,
         updatedAt: now,
         lastErrorCode: 'MAX_ATTEMPTS_EXCEEDED',
         lastError: 'O limite de tentativas de processamento foi atingido.',
-      });
+      }, now));
       transaction.set(
         videoRef,
         {
@@ -365,7 +366,7 @@ async function claimQueuedJob(
       lastError: null,
     };
 
-    transaction.update(jobRef, {
+    transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, {
       state: claimed.state,
       attempts: claimed.attempts,
       submissionLookupMisses: 0,
@@ -373,7 +374,7 @@ async function claimQueuedJob(
       updatedAt: now,
       lastErrorCode: null,
       lastError: null,
-    });
+    }, now));
     transaction.set(
       videoRef,
       {
@@ -417,7 +418,7 @@ async function persistSubmittedJob(
       currentJob.state === 'CANCEL_REQUESTED' ||
       !videoSnapshot.exists
     ) {
-      transaction.update(jobRef, {
+      transaction.update(jobRef, withAdminTriageProjection(jobRef.id, currentJob, {
         state: 'CANCEL_REQUESTED',
         externalJobName,
         providerState,
@@ -427,7 +428,7 @@ async function persistSubmittedJob(
           : now,
         leaseUntil: null,
         updatedAt: now,
-      });
+      }, now));
       return 'CANCEL_REQUESTED';
     }
 
@@ -438,7 +439,7 @@ async function persistSubmittedJob(
       job.sourceStoragePath ||
       (!!job.sourceGeneration && video.sourceGeneration !== job.sourceGeneration)
     ) {
-      transaction.update(jobRef, {
+      transaction.update(jobRef, withAdminTriageProjection(jobRef.id, currentJob, {
         state: 'CANCEL_REQUESTED',
         externalJobName,
         providerState,
@@ -448,11 +449,11 @@ async function persistSubmittedJob(
         updatedAt: now,
         lastErrorCode: 'SOURCE_CHANGED',
         lastError: 'O arquivo privado associado ao vídeo foi alterado.',
-      });
+      }, now));
       return 'CANCEL_REQUESTED';
     }
 
-    transaction.update(jobRef, {
+    transaction.update(jobRef, withAdminTriageProjection(jobRef.id, currentJob, {
       state: 'PROCESSING',
       externalJobName,
       providerState,
@@ -462,7 +463,7 @@ async function persistSubmittedJob(
       updatedAt: now,
       lastErrorCode: null,
       lastError: null,
-    });
+    }, now));
     transaction.set(
       videoSnapshot.ref,
       {
@@ -873,13 +874,13 @@ async function reconcileProcessingJob(
           !(providerObservationChanged(current, providerJob.state) ||
             (current.providerPollFailureCount ?? 0) > 0 ||
             current.providerPollReviewRequired === true)) return 'REPLACED' as const;
-      transaction.update(jobRef, {
+      transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, {
         providerState: providerJob.state,
         ...clearProviderPollFailures(),
         updatedAt: now,
         lastErrorCode: null,
         lastError: null,
-      });
+      }, now));
       return 'APPLIED' as const;
     });
     observe?.(result === 'APPLIED'

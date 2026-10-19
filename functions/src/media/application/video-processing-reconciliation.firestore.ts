@@ -4,6 +4,7 @@ import {
   VIDEO_PROCESSING_JOBS_COLLECTION,
   type VideoProcessingJob,
 } from './video-processing-job';
+import { withAdminTriageProjection } from './admin-video-triage.firestore';
 import {
   nextVideoProcessingPollAt,
   isCurrentVideoProcessingAttempt,
@@ -77,7 +78,7 @@ export async function claimProcessingJob(
     }
 
     const reservedUntil = nextVideoProcessingPollAt(job, now);
-    transaction.update(jobRef, { nextAttemptAt: reservedUntil });
+    transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, { nextAttemptAt: reservedUntil }, now));
     return { ...job, nextAttemptAt: reservedUntil };
   });
 }
@@ -101,12 +102,12 @@ export async function recordProviderPollErrorIfCurrent(
       return false;
     }
     const decision = nextProviderPollFailure(current, now, error.retryable === true);
-    transaction.update(jobRef, {
+    transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, {
       ...decision,
       updatedAt: now,
       lastErrorCode: error.code,
       lastError: error.message,
-    });
+    }, now));
     return true;
   });
 }
@@ -135,7 +136,7 @@ export async function backfillLegacyProcessingDueAt(
       return false;
     }
 
-    transaction.update(jobRef, { nextAttemptAt: now });
+    transaction.update(jobRef, withAdminTriageProjection(jobRef.id, data, { nextAttemptAt: now }, now));
     return true;
   });
 }
@@ -176,7 +177,7 @@ export async function claimDueCancellation(
     }
 
     const reservedAt = now + CANCELLATION_RESERVATION_MS;
-    transaction.update(jobRef, { nextAttemptAt: reservedAt });
+    transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, { nextAttemptAt: reservedAt }, now));
     return { ...current, nextAttemptAt: reservedAt };
   });
 }
@@ -213,7 +214,7 @@ export async function recordCancellationErrorIfCurrent(
 
     if (!isCurrentCancellationClaim(current, started)) return false;
     const attempts = (current?.cancellationCleanupAttempts ?? 0) + 1;
-    transaction.update(jobRef, {
+    transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, {
       cancellationCleanupAttempts: attempts,
       cancellationReviewRequired: current?.cancellationReviewRequired === true ||
         cancellationNeedsReview(attempts, error.code),
@@ -221,7 +222,7 @@ export async function recordCancellationErrorIfCurrent(
       updatedAt: now,
       lastErrorCode: error.code,
       lastError: error.message,
-    });
+    }, now));
     return true;
   });
 }
@@ -252,7 +253,7 @@ export async function claimExpiredSubmissionLease(
     }
 
     const reservedUntil = now + recoveryLeaseMs;
-    transaction.update(jobRef, { leaseUntil: reservedUntil });
+    transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, { leaseUntil: reservedUntil }, now));
     return { ...current, leaseUntil: reservedUntil };
   });
 }
@@ -322,7 +323,7 @@ export async function updateRecoveredSubmissionIfCurrent(
         : null;
 
       if (source !== observed.sourceStoragePath) {
-        transaction.update(jobRef, {
+        transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, {
           state: 'CANCEL_REQUESTED',
           cancelRequestedAt: update.now,
           nextAttemptAt: update.now,
@@ -330,12 +331,12 @@ export async function updateRecoveredSubmissionIfCurrent(
           updatedAt: update.now,
           lastErrorCode: 'SOURCE_CHANGED',
           lastError: 'A fonte privada mudou durante a recuperação.',
-        });
+        }, update.now));
         return false;
       }
     }
 
-    transaction.update(jobRef, update.jobPatch);
+    transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, update.jobPatch, update.now));
     if (update.videoPatch) {
       transaction.set(videoRef, update.videoPatch, { merge: true });
     }
@@ -366,12 +367,12 @@ export async function bindCancelledProviderJobIfCurrent(
       return false;
     }
 
-    transaction.update(jobRef, {
+    transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, {
       externalJobName: providerJobName,
       updatedAt: now,
       lastErrorCode: null,
       lastError: null,
-    });
+    }, now));
     return true;
   });
 }
