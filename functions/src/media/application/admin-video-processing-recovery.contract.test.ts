@@ -201,8 +201,8 @@ test('c18g readiness is offline fail-closed and never promotes production orderi
     'src/media/application/' + name), 'utf8');
   const gate = read('admin-video-triage-readiness.policy.ts');
   const probe = read('admin-video-triage-readiness.firestore.ts');
-  assert.ok(gate.includes("activationAuthorized: false"));
-  assert.ok(gate.includes("globalOrderingEnabled: false"));
+  assert.ok(gate.includes('activationAuthorized: false'));
+  assert.ok(gate.includes('globalOrderingEnabled: false'));
   assert.ok(gate.includes('FIRESTORE_ADMIN_API'));
   assert.ok(gate.includes('GLOBAL_CONSISTENT'));
   assert.ok(probe.includes("mode: 'DRY_RUN'"));
