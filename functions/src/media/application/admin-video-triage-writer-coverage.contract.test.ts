@@ -67,7 +67,7 @@ const WRITERS: readonly Writer[] = [
   },
   {
     path: 'account_lifecycle/account-owned-media-deletion.firestore.ts',
-    sites: ['DELETE', 'STATE', 'STATE', 'DELETE'], events: 4, creations: 0,
+    sites: ['DELETE', 'DYNAMIC', 'DYNAMIC', 'DELETE'], events: 4, creations: 0,
   },
 ] as const;
 
@@ -134,7 +134,7 @@ function kind(site: Observed): Site {
   if (site.method === 'create') return 'CREATE';
   if (site.patch.includes('...retryJob')) return 'VERSION';
   if (site.patch.includes('update.jobPatch') ||
-      site.patch.includes(', jobPatch,')) return 'DYNAMIC';
+      /,\s*(?:jobPatch|patch)\s*,/.test(site.patch)) return 'DYNAMIC';
   if (site.ref === 'current.ref') return 'PROJECTION';
   if (/(?:^|[^A-Za-z0-9_])state\s*:/.test(site.patch)) return 'STATE';
   return 'METADATA';
@@ -166,7 +166,12 @@ function verify(entry: Writer, source: string): void {
 
 test('c18w audited job writer sites and event counts are fail closed', () => {
   for (const writer of WRITERS) {
-    verify(writer, readFileSync(resolve(root, writer.path), 'utf8'));
+    const source = readFileSync(resolve(root, writer.path), 'utf8');
+    verify(writer, source);
+    if (writer.path.startsWith('account_lifecycle/')) {
+      // Both indirect patches must still explicitly request cancellation.
+      assert.equal((source.match(/state: 'CANCEL_REQUESTED' as const/g) ?? []).length, 2);
+    }
   }
   assert.equal(WRITERS.reduce((sum, x) => sum + x.sites.length, 0), 43);
   assert.equal(WRITERS.reduce((sum, x) => sum + x.events + x.creations, 0), 30);
