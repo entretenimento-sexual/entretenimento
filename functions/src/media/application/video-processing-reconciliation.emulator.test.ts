@@ -3239,7 +3239,9 @@ test('c18i failed read reserves budget without cursor advance and needs manual r
   assert.equal(recovered.report.reservedDocumentReads, 6);
   await assert.rejects(
     runOneVideoTriageAuditPage(
-      firestore, app, { ...resume, expectedProjectId: 'demo-other-project' }, recovered.checkpoint, signer, () => now + 3),
+      firestore, app,
+      { ...resume, expectedProjectId: 'demo-other-project' },
+      recovered.checkpoint, signer, () => now + 3),
     /only supports/
   );
 });
