@@ -479,6 +479,11 @@ const functionsOperationalArtifacts = new Set([
     functionsSourceRoot,
     'media/application/admin-video-triage-consistency.firestore.ts'
   )),
+  // c18g: readiness assessment and sampler remain offline operational tools.
+  ...[
+    'media/application/admin-video-triage-readiness.policy.ts',
+    'media/application/admin-video-triage-readiness.firestore.ts',
+  ].map((relativePath) => posix(path.join(functionsSourceRoot, relativePath))),
 ]);
 
 const functionOrphans = functionsProductionTs

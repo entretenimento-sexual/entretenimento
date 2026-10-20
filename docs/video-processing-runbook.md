@@ -852,3 +852,40 @@ global, nem decisão automática de ativação; o gate
 de índice READY, cobertura legada, reavaliação contínua e segurança
 de leitura global. Até obter todas, continuar a fila administrativa
 em \`WITHIN_PAGE\`.
+
+
+### Gate preparatório de prontidão operacional (1C2-A3b2b2c18g)
+
+**Apenas código e testes, sem comprovação de produção.** O avaliador puro
+\`admin-video-triage-readiness.policy.ts\` exige nove critérios,
+incluindo ambos os índices compostos em \`READY\` na **API administrativa
+real de Firestore**, cobertura consistente das sete lanes, zero projeções
+faltantes/incompatíveis ou legados sem versão, exclusão dos terminais,
+version fencing, reclassificação por ciclos efetivamente ativos,
+segurança dos cursores sob concorrência e orçamento limitado.
+
+A evidência tem validade de até **15 minutos**. A reclassificação
+operacional reportada precisa ter ao menos dois ciclos bem-sucedidos,
+zero falhas recentes e atraso máximo de 15 minutos. Consultas no
+Emulator, a declaração em \`firestore.indexes.json\` e qualquer relatório
+de escopo \`PAGE_ONLY\` **não confirmam** índice implantado nem censo
+global. Dados de evidência são entradas externas **não autenticadas**
+pelo avaliador; um relatório favorável significa somente
+\`REQUIRES_MANUAL_PRODUCTION_APPROVAL\`, nunca autorização de ativação.
+
+O amostrador \`admin-video-triage-readiness.firestore.ts\` consulta
+somente uma página de estado (1–20 itens, mais um de lookahead) e uma
+página de tamanho 1 do índice de vencimentos (mais lookahead). O teto
+por chamada é **23 leituras de consulta, nenhuma transação nem escrita**.
+O erro de índice/consulta é propagado, não mascarado como lista vazia.
+Retorna \`PAGE_ONLY\`, \`provesGlobalCoverage: false\` e gate \`BLOCKED\`
+sem provas independentes. Não há scheduler, callable, CLI de produção
+nem continuação automática.
+
+**Go/no-go:** coletar metadados reais dos índices em produção,
+provas auditáveis com corte temporal consistente e reconciliação das
+mudanças concorrentes, confirmar reclassificação contínua, controles
+de custos e revisão operacional externa. Até isso ocorrer, não
+executar backfill de produção, não promover ordenação global e
+continuar \`WITHIN_PAGE\`. Mesmo aprovação dos nove campos reportados
+não altera flags, leitura global ou permissões.

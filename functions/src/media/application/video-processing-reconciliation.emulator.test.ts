@@ -8,6 +8,7 @@ import axios, { AxiosError, type AxiosResponse } from 'axios';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
+import { sampleVideoTriageReadinessPage } from './admin-video-triage-readiness.firestore';
 import { projectAdminTriageJob } from './admin-video-global-triage.policy';
 import {
   auditVideoTriageIntegrityPage, reclassifyDueVideoTriagePage,
@@ -3051,6 +3052,42 @@ test('c18f due cursor ties remain ordered and rejects invalid budgets', async ()
     await assert.rejects(
       reclassifyDueVideoTriagePage(firestore, { now, ...bad } as
         Parameters<typeof reclassifyDueVideoTriagePage>[1]),
+      RangeError
+    );
+  }
+});
+
+
+test('c18g one-page readiness probe is read-only, bounded and fails closed', async () => {
+  const ref = jobs.doc('c18g-probe-' + randomUUID());
+  await ref.create({ state: 'FAILED', processingVersion: 'v1',
+    updatedAt: now - 30_000, outputStoragePath: 'keep/derived.mp4' });
+  const before = await ref.get();
+  const sample = await sampleVideoTriageReadinessPage(firestore, {
+    state: 'FAILED', afterId: ref.id.slice(0, -1), now, limit: 2,
+  });
+  assert.equal(sample.scope, 'PAGE_ONLY');
+  assert.equal(sample.provesGlobalCoverage, false);
+  assert.equal(sample.maxQueryReads, 5);
+  assert.equal(sample.maxTransactionReads, 0);
+  assert.equal(sample.maxWrites, 0);
+  assert.equal(sample.readiness.phase, 'BLOCKED');
+  assert.equal(sample.readiness.blockedBy.length, 9);
+  assert.equal(sample.readiness.activationAuthorized, false);
+  assert.equal(sample.deadlineSample.mode, 'DRY_RUN');
+  assert.ok(sample.stateAudit.observed >= 1);
+  const afterRead = await ref.get();
+  assert.ok(before.updateTime?.isEqual(afterRead.updateTime!));
+  assert.equal(afterRead.get('outputStoragePath'), 'keep/derived.mp4');
+  for (const bad of [
+    { limit: 0 }, { limit: 21 }, { state: 'ARCHIVED' },
+    { now: 0 }, { now: Number.POSITIVE_INFINITY },
+    { afterId: 'not/a/document-id' },
+  ]) {
+    await assert.rejects(
+      sampleVideoTriageReadinessPage(firestore, {
+        state: 'FAILED', now, ...bad,
+      } as Parameters<typeof sampleVideoTriageReadinessPage>[1]),
       RangeError
     );
   }

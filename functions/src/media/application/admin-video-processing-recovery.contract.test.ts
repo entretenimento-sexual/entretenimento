@@ -194,3 +194,21 @@ test('c18f due time read is offline and index driven, with no global promotion',
     'adminTriageReevaluateAt,__name__' &&
     item.fields.every(f => f.order === 'ASCENDING')));
 });
+
+
+test('c18g readiness is offline fail-closed and never promotes production ordering', () => {
+  const read = (name: string) => readFileSync(resolve(root,
+    'src/media/application/' + name), 'utf8');
+  const gate = read('admin-video-triage-readiness.policy.ts');
+  const probe = read('admin-video-triage-readiness.firestore.ts');
+  assert.ok(gate.includes("activationAuthorized: false"));
+  assert.ok(gate.includes("globalOrderingEnabled: false"));
+  assert.ok(gate.includes('FIRESTORE_ADMIN_API'));
+  assert.ok(gate.includes('GLOBAL_CONSISTENT'));
+  assert.ok(probe.includes("mode: 'DRY_RUN'"));
+  assert.ok(probe.includes('provesGlobalCoverage: false'));
+  assert.ok(!probe.includes('onSchedule('));
+  assert.ok(!probe.includes('onCall('));
+  assert.ok(!handler.includes("orderBy('adminTriageTier')"));
+  assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
+});
