@@ -484,6 +484,11 @@ const functionsOperationalArtifacts = new Set([
     'media/application/admin-video-triage-readiness.policy.ts',
     'media/application/admin-video-triage-readiness.firestore.ts',
   ].map((relativePath) => posix(path.join(functionsSourceRoot, relativePath))),
+  // c18h: offline authenticated index preflight and two-read audit; no export.
+  ...[
+    'media/application/admin-video-triage-evidence.firestore.ts',
+    'media/application/admin-video-triage-evidence-audit.firestore.ts',
+  ].map((relativePath) => posix(path.join(functionsSourceRoot, relativePath))),
 ]);
 
 const functionOrphans = functionsProductionTs

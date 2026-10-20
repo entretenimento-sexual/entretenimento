@@ -212,3 +212,24 @@ test('c18g readiness is offline fail-closed and never promotes production orderi
   assert.ok(!handler.includes("orderBy('adminTriageTier')"));
   assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
 });
+
+
+test('c18h authenticated index evidence has explicit approval, fixed REST URL and no global activation', () => {
+  const read = (name: string) => readFileSync(resolve(root,
+    'src/media/application/' + name), 'utf8');
+  const evidence = read('admin-video-triage-evidence.firestore.ts');
+  const audit = read('admin-video-triage-evidence-audit.firestore.ts');
+  assert.ok(evidence.includes('approval.expectedProjectId !== project'));
+  assert.ok(evidence.includes('app.options.credential.getAccessToken()'));
+  assert.ok(evidence.includes('https://firestore.googleapis.com/v1/'));
+  assert.ok(evidence.includes("method: 'GET'"));
+  assert.ok(evidence.includes("redirect: 'error'"));
+  assert.ok(evidence.includes('maxDocumentReads: 0, maxWrites: 0'));
+  assert.ok(audit.includes("consistency: 'BEST_EFFORT_NOT_SNAPSHOT'"));
+  assert.ok(audit.includes('concurrentCursorSafetyVerified: false'));
+  assert.ok(audit.includes('maxWrites: 0, provesGlobalCoverage: false'));
+  assert.ok(!evidence.includes('onSchedule('));
+  assert.ok(!evidence.includes('onCall('));
+  assert.ok(!handler.includes("orderBy('adminTriageTier')"));
+  assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
+});

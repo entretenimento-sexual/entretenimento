@@ -9,6 +9,8 @@ import axios, { AxiosError, type AxiosResponse } from 'axios';
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
 import { sampleVideoTriageReadinessPage } from './admin-video-triage-readiness.firestore';
+import { auditVideoTriageConcurrentPage } from './admin-video-triage-evidence-audit.firestore';
+import { readAuthenticatedTriageIndexPage } from './admin-video-triage-evidence.firestore';
 import { projectAdminTriageJob } from './admin-video-global-triage.policy';
 import {
   auditVideoTriageIntegrityPage, reclassifyDueVideoTriagePage,
@@ -3091,4 +3093,65 @@ test('c18g one-page readiness probe is read-only, bounded and fails closed', asy
       RangeError
     );
   }
+});
+
+
+test('c18h two-stage offline evidence audit detects concurrent same-version mutation', async () => {
+  const ref = jobs.doc('c18h-race-' + randomUUID());
+  const initial = { state: 'FAILED', processingVersion: 'v1',
+    updatedAt: now - 50_000, outputStoragePath: 'preserve/derived.mp4' };
+  await ref.create(initial);
+  let changed = false;
+  const db = new Proxy(firestore, {
+    get(target, prop) {
+      if (prop === 'getAll') {
+        return async (...refs: Parameters<typeof firestore.getAll>) => {
+          if (!changed) {
+            changed = true;
+            await ref.update({ lastErrorCode: 'SAME_VERSION_UPDATE' });
+          }
+          return target.getAll(...refs);
+        };
+      }
+      const value = Reflect.get(target, prop, target) as unknown;
+      return typeof value === 'function' ? value.bind(target) as unknown : value;
+    },
+  });
+  const page = await auditVideoTriageConcurrentPage(db, {
+    state: 'FAILED', afterId: ref.id.slice(0, -1), limit: 1, now,
+  });
+  assert.equal(page.scope, 'PAGE_ONLY');
+  assert.equal(page.consistency, 'BEST_EFFORT_NOT_SNAPSHOT');
+  assert.equal(page.observed, 1);
+  assert.equal(page.changedOnReread, 1);
+  assert.equal(page.stableOnReread, 0);
+  assert.equal(page.maxDocumentReads, 3);
+  assert.equal(page.maxWrites, 0);
+  assert.equal(page.concurrentCursorSafetyVerified, false);
+  assert.equal(page.provesGlobalCoverage, false);
+  assert.equal((await ref.get()).get('outputStoragePath'),
+    'preserve/derived.mp4');
+});
+
+test('c18h metadata retrieval rejects emulator and missing authorization before HTTP', async () => {
+  await assert.rejects(
+    readAuthenticatedTriageIndexPage(app, {
+      approved: true, purpose: 'READ_ONLY_TRIAGE_INDEX_PREFLIGHT',
+      expectedProjectId: PROJECT_ID, expectedDatabaseId: '(default)',
+    }, now),
+    /not authorized/
+  );
+  const page = await auditVideoTriageConcurrentPage(firestore, {
+    state: 'FAILED', afterId: 'zzzzzzzzzzzzzzzz', limit: 1, now,
+  });
+  assert.equal(page.observed, 0);
+  assert.equal(page.maxWrites, 0);
+  assert.equal(page.provesGlobalCoverage, false);
+  for (const bad of [
+    { limit: 0 }, { limit: 21 }, { state: 'ARCHIVED' },
+    { afterId: 'invalid/document-id' }, { now: 0 },
+  ]) await assert.rejects(
+    auditVideoTriageConcurrentPage(firestore, {
+      state: 'FAILED', now, ...bad,
+    } as Parameters<typeof auditVideoTriageConcurrentPage>[1]), RangeError);
 });

@@ -889,3 +889,45 @@ de custos e revisão operacional externa. Até isso ocorrer, não
 executar backfill de produção, não promover ordenação global e
 continuar \`WITHIN_PAGE\`. Mesmo aprovação dos nove campos reportados
 não altera flags, leitura global ou permissões.
+
+
+### Coleta autenticada e reconciliação de evidências (1C2-A3b2b2c18h)
+
+Bibliotecas internas sem exportação da raiz Functions, sem trigger, callable,
+scheduler, CLI automático, deploy, consultas reais ou migração. O pré-check
+\`readAuthenticatedTriageIndexPage\` requer **aprovação explícita em cada
+chamada**, projeto e banco \`(default)\` esperados, Firebase Admin App com
+credencial própria e ausência de emuladores. O token OAuth é extraído da
+credencial do próprio Admin SDK (não de JSON do operador). A consulta
+restringe-se a **uma GET autenticada** para o endpoint oficial
+\`firestore.googleapis.com/v1/projects/{project}/databases/(default)/
+collectionGroups/media_video_processing_jobs/indexes\`, com até 100 índices,
+resposta de até 256 KB, timeout de 5 segundos, sem redirecionamentos e
+sem continuar paginação. Nomes de índices de outro projeto ou banco são
+rejeitados. Não registrar URL com token, valores do token ou documentos.
+
+Se a API devolver \`nextPageToken\`, a listagem é INCOMPLETA e não
+produz evidência de índice pronto. Somente listagem integral retornada
+pela API real pode informar o critério dos dois índices em estado
+\`READY\`. Os outros critérios permanecem bloqueados e nenhum resultado
+habilita ordenação ou autoriza a publicação.
+
+\`auditVideoTriageConcurrentPage\` usa uma consulta paginada por
+estado/ID de 1–20 jobs (mais um lookahead) e relê explicitamente no
+máximo os 20 consumidos via \`getAll\`. Compara \`updateTime\`, estado e
+\`processingVersion\`, diferenciando estáveis, alterados e removidos.
+O teto conservador é **41 leituras de documentos por página**, nenhuma
+escrita e nenhuma chamada ao Transcoder. Uma segunda leitura **não é
+snapshot global**: mudanças após as leituras, movimentos entre estados,
+IDs anteriores ao cursor e novos registros não são integralmente
+detectáveis. Por isso o retorno é \`PAGE_ONLY\`,
+\`BEST_EFFORT_NOT_SNAPSHOT\`, \`provesGlobalCoverage: false\` e
+\`concurrentCursorSafetyVerified: false\`. Erros interrompem a chamada,
+sem tratar ausência de evidência como sucesso.
+
+**Operação:** qualquer coleta em produção exige autorização operacional
+separada e verificação do projeto/alvo/credencial e orçamento. Esta
+intervenção não executou qualquer consulta de produção e não atesta
+índices já implantados. Exigir auditoria com corte consistente e
+reconciliação de mudanças concorrentes para futuro go/no-go. A fila
+permanece \`WITHIN_PAGE\`, sem flags nem ativação global.
