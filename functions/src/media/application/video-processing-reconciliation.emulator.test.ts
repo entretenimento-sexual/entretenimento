@@ -3034,7 +3034,12 @@ test('c18f due cursor ties remain ordered and rejects invalid budgets', async ()
   });
   assert.equal(second.observed, 1);
   assert.equal(second.provesGlobalCoverage, false);
-  assert.deepEqual(second.nextCursor, null);
+  // Other due records can follow the fixture; only the cursor identity is
+  // deterministic, never global exhaustion inferred from a sample.
+  if (second.hasMore) assert.deepEqual(second.nextCursor, {
+    dueAt: now - 100, jobId: refs[2].id,
+  });
+  else assert.equal(second.nextCursor, null);
   // A previously seen page is NOT a consistent collection snapshot.
   const current = await refs[1].get();
   await refs[1].update({ updatedAt: now, adminTriageReevaluateAt: null });
