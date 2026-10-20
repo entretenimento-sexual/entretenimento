@@ -286,10 +286,18 @@ export function videoTriageAuditCanRead(
 export function settleVideoTriageAuditPage(
   ledger: VideoTriageAuditLedger,
   now: number,
-  page: VideoTriageConcurrentAuditPage | null
+  page: VideoTriageConcurrentAuditPage | null,
+  reservationAlreadyCharged = false
 ): VideoTriageAuditLedger {
   const permit = videoTriageAuditCanRead(ledger, now);
-  if (!permit.allowed) throw new Error('Audit cannot consume another page.');
+  const fee = 2 * ledger.budget.pageSize + 1;
+  if (reservationAlreadyCharged) {
+    if (ledger.pagesAttempted < 1 || ledger.reservedDocumentReads < fee) {
+      throw new Error('Audit page has no prior durable reservation.');
+    }
+  } else if (!permit.allowed) {
+    throw new Error('Audit cannot consume another page.');
+  }
   const laneIndex = ledger.nextLaneIndex;
   const lane = ledger.lanes[laneIndex];
   if (page && (page.state !== lane.state ||
@@ -306,8 +314,10 @@ export function settleVideoTriageAuditPage(
   }
   const next = structuredClone(ledger);
   next.lastStepAt = now;
-  next.pagesAttempted++;
-  next.reservedDocumentReads += 2 * next.budget.pageSize + 1;
+  if (!reservationAlreadyCharged) {
+    next.pagesAttempted++;
+    next.reservedDocumentReads += fee;
+  }
   if (!page) {
     next.failedPages++;
     next.consecutiveFailures++;
