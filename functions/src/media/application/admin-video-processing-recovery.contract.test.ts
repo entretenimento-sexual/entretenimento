@@ -169,3 +169,28 @@ test('c18e backfill remains manual, page-bounded and never enables global order'
   assert.ok(!backfill.includes("orderBy('adminTriageTier')"));
   assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
 });
+
+
+test('c18f due time read is offline and index driven, with no global promotion', () => {
+  const read = (name: string) => readFileSync(resolve(root,
+    'src/media/application/' + name), 'utf8');
+  const triage = read('admin-video-triage-consistency.firestore.ts');
+  assert.ok(triage.includes("mode = request.mode ?? 'DRY_RUN'"));
+  assert.ok(triage.includes("where('adminTriageReevaluateAt', '>', 0)"));
+  assert.ok(triage.includes("where('adminTriageReevaluateAt', '<=', now)"));
+  assert.ok(triage.includes("orderBy('adminTriageReevaluateAt')"));
+  assert.ok(triage.includes('query.limit(limit + 1).get()'));
+  assert.ok(triage.includes('applyObservedVideoTriageBackfillJob(db, doc, now)'));
+  assert.ok(triage.includes('provesGlobalCoverage: false'));
+  assert.ok(!triage.includes('onCall('));
+  assert.ok(!triage.includes('onSchedule('));
+  assert.ok(!handler.includes("orderBy('adminTriageTier')"));
+  const index = JSON.parse(readFileSync(resolve(root,
+    '../firestore.indexes.json'), 'utf8'));
+  assert.ok(index.indexes.some((item: {
+    collectionGroup: string; fields: Array<{ fieldPath: string; order: string }>;
+  }) => item.collectionGroup === 'media_video_processing_jobs' &&
+    item.fields.map(f => f.fieldPath).join(',') ===
+    'adminTriageReevaluateAt,__name__' &&
+    item.fields.every(f => f.order === 'ASCENDING')));
+});

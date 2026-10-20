@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { auditVideoTriageIntegrity } from './admin-video-triage-consistency.firestore';
 import {
   adminTriageKey, compareAdminTriageJobs, projectAdminTriageJob,
   assessAdminTriageActivation, type AdminTriageCandidate,
@@ -115,4 +116,31 @@ test('c18c readiness remains blocked until independent global proofs exist', () 
     assert.equal(result.ready, false);
     assert.deepEqual(result.blockedBy, [key]);
   }
+});
+
+
+test('c18f temporal audit discriminates due from corrupt and version drift', () => {
+  const job = { state: 'QUEUED' as const, processingVersion: 'v1',
+    updatedAt: now - 19 * 60_000 };
+  const projected = projectAdminTriageJob('a', job, now)!;
+  assert.equal(auditVideoTriageIntegrity('a', {
+    ...job, ...projected,
+  }, now), 'CURRENT');
+  assert.equal(auditVideoTriageIntegrity('a', {
+    ...job, ...projected,
+  }, now + 2 * 60_000), 'TIME_DUE');
+  assert.equal(auditVideoTriageIntegrity('a', {
+    ...job, ...projected, adminTriageTier: 1,
+  }, now), 'DIVERGENT');
+  assert.equal(auditVideoTriageIntegrity('a', {
+    ...job, ...projected, adminTriageProcessingVersion: 'old',
+  }, now), 'STALE_VERSION');
+  assert.equal(auditVideoTriageIntegrity('a', job, now),
+    'MISSING_PROJECTION');
+  assert.equal(auditVideoTriageIntegrity('a',
+    { state: 'FAILED' }, now), 'UNVERSIONED');
+  assert.equal(auditVideoTriageIntegrity('a',
+    { state: 'SUCCEEDED', ...projected }, now), 'TERMINAL_RESIDUE');
+  assert.equal(auditVideoTriageIntegrity('a',
+    { state: 'CANCELLED' }, now), 'TERMINAL_CLEAR');
 });

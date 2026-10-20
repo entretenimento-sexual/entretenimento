@@ -474,6 +474,11 @@ const functionsOperationalArtifacts = new Set([
     functionsSourceRoot,
     'media/application/admin-video-triage-backfill.firestore.ts'
   )),
+  // c18f offline audit/deadline library, not a deployable Cloud Function.
+  posix(path.join(
+    functionsSourceRoot,
+    'media/application/admin-video-triage-consistency.firestore.ts'
+  )),
 ]);
 
 const functionOrphans = functionsProductionTs

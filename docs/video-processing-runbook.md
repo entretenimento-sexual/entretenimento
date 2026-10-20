@@ -814,3 +814,41 @@ O contrato de custo c18e limita cada transação a no máximo **duas tentativas*
 assim, por página de 20 documentos, a cota declarada é de até 21 leituras
 de consulta e 40 leituras transacionais, com até 20 gravações efetivadas.
 Conflitos persistentes propagam erro, sem novo ciclo implícito.
+
+
+### Auditoria de integridade e vencimentos preparados (1C2-A3b2b2c18f)
+
+A biblioteca offline \`admin-video-triage-consistency.firestore.ts\` contém
+duas rotinas por **uma única página explícita**. Nenhum scheduler, callable,
+ativação de fila global, migração ou deploy foi realizado.
+
+- \`auditVideoTriageIntegrityPage\`: consulta limitada por **state + documentId**
+  (1–20 itens, mais 1 de lookahead), compara os cinco campos indexáveis
+  contra \`projectAdminTriageJob\`, e distingue CURRENT, MISSING_PROJECTION,
+  STALE_VERSION, DIVERGENT, TIME_DUE, TERMINAL_RESIDUE, UNVERSIONED
+  e TERMINAL_CLEAR. É somente leitura e audita legados não indexados.
+- \`reclassifyDueVideoTriagePage\`: consulta o índice
+  \`adminTriageReevaluateAt ASC, __name__ ASC\` com vencimento numérico
+  estritamente positivo e menor ou igual a \`now\`. O cursor composto
+  \`{dueAt, jobId}\` resolve empates, sem offset nem varredura global.
+  Modo padrão \`DRY_RUN\` não escreve. No \`APPLY\` explícito reutiliza a
+  gravação c18e, relendo o job em transação e exigindo \`updateTime\`,
+  estado e versão originais. Apenas campos de projeção são modificados.
+  Até 21 leituras de consulta, 40 leituras transacionais (2 tentativas)
+  e 20 gravações máximas por página, quando \`APPLY\`.
+
+**O novo índice é apenas declarativo.** Sua presença em
+\`firestore.indexes.json\` NÃO comprova implantação nem estado \`READY\`.
+Consultas contra um Firestore sem índice pronto podem falhar e seu erro
+não pode ser tratado como fila vazia. Executar a reclassificação apenas
+depois de uma autorização de operação separada e verificação do índice.
+
+**Bloqueio fail-closed:** as duas rotinas retornam
+\`scope: PAGE_ONLY\` e \`provesGlobalCoverage: false\`. Mudanças de estado,
+projeções ausentes, reordenação pela atualização e inserções concorrentes
+podem escapar a uma passagem por cursor. Não existe prova de snapshot
+global, nem decisão automática de ativação; o gate
+\`assessAdminTriageActivation\` exige evidências externas verificadas
+de índice READY, cobertura legada, reavaliação contínua e segurança
+de leitura global. Até obter todas, continuar a fila administrativa
+em \`WITHIN_PAGE\`.

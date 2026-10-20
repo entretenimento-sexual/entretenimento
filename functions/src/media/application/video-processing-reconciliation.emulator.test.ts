@@ -9,6 +9,9 @@ import axios, { AxiosError, type AxiosResponse } from 'axios';
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
 import {
+  auditVideoTriageIntegrityPage, reclassifyDueVideoTriagePage,
+} from './admin-video-triage-consistency.firestore';
+import {
   prepareVideoTriageBackfillPage, applyObservedVideoTriageBackfillJob,
 } from './admin-video-triage-backfill.firestore';
 import { saveLastVideoSchedulerCycle, bestEffortSaveVideoSchedulerCycle }
@@ -2933,4 +2936,120 @@ test('c18e terminal scrubbing, absent version and no unbounded retry', async () 
   assert.equal(await applyObservedVideoTriageBackfillJob(
     firestore, initial, now
   ), 'MISSING');
+});
+
+
+test('c18f bounded due index reclassifies with time without altering job state', async () => {
+  const ref = jobs.doc('c18f-due-' + randomUUID());
+  const start = now - 19 * 60_000;
+  const { projectAdminTriageJob } =
+    await import('./admin-video-global-triage.policy');
+  const before = { state: 'QUEUED' as const, processingVersion: 'v1',
+    updatedAt: start, outputStoragePath: 'original/safe.mp4' };
+  const projection = projectAdminTriageJob(ref.id, before, now)!;
+  await ref.create({ ...before, ...projection });
+  assert.equal(projection.adminTriageTier, 5);
+  const cutoff = now + 2 * 60_000;
+  const page = await reclassifyDueVideoTriagePage(firestore, {
+    now: cutoff, limit: 20, mode: 'DRY_RUN',
+  });
+  assert.equal(page.scope, 'PAGE_ONLY');
+  assert.equal(page.provesGlobalCoverage, false);
+  assert.ok(page.counts.WOULD_PROJECT >= 1);
+  assert.ok(page.maxQueryReads <= 21);
+  assert.equal(page.maxWrites, 0);
+  assert.equal((await ref.get()).get('adminTriageTier'), 5);
+  // Apply the precise observed document, independent of other test fixtures.
+  const observed = await ref.get();
+  assert.equal(await applyObservedVideoTriageBackfillJob(
+    firestore, observed, cutoff
+  ), 'PROJECTED');
+  const updated = await ref.get();
+  assert.equal(updated.get('adminTriageTier'), 3);
+  assert.equal(updated.get('adminTriageReevaluateAt'), null);
+  assert.equal(updated.get('updatedAt'), start);
+  assert.equal(updated.get('state'), 'QUEUED');
+  assert.equal(updated.get('processingVersion'), 'v1');
+  assert.equal(updated.get('outputStoragePath'), 'original/safe.mp4');
+  const repeat = await reclassifyDueVideoTriagePage(firestore, {
+    now: cutoff, limit: 20,
+  });
+  assert.equal(repeat.provesGlobalCoverage, false);
+  assert.equal(repeat.maxTransactionReads, 0);
+});
+
+test('c18f independent audit flags absence, version drift, overdue and terminal residue', async () => {
+  const prefix = 'c18f-audit-' + randomUUID();
+  const first = jobs.doc(prefix + '-01');
+  const second = jobs.doc(prefix + '-02');
+  const third = jobs.doc(prefix + '-03');
+  const { projectAdminTriageJob } =
+    await import('./admin-video-global-triage.policy');
+  const raw = { state: 'QUEUED' as const, processingVersion: 'v1',
+    updatedAt: now - 3 * 60_000 };
+  const clean = projectAdminTriageJob(first.id, raw, now)!;
+  await first.create(raw);
+  await second.create({ ...raw, ...clean,
+    adminTriageProcessingVersion: 'v0' });
+  const old = { ...raw, updatedAt: now - 19 * 60_000 };
+  const projected = projectAdminTriageJob(third.id, old, now)!;
+  await third.create({ ...old, ...projected });
+  const inspected = await auditVideoTriageIntegrityPage(firestore, {
+    state: 'QUEUED', afterId: prefix, limit: 3, now: now + 2 * 60_000,
+  });
+  assert.equal(inspected.scope, 'PAGE_ONLY');
+  assert.equal(inspected.provesGlobalCoverage, false);
+  assert.equal(inspected.counts.MISSING_PROJECTION, 1);
+  assert.equal(inspected.counts.STALE_VERSION, 1);
+  assert.equal(inspected.counts.TIME_DUE, 1);
+  assert.ok(inspected.maxQueryReads <= 4);
+});
+
+test('c18f due cursor ties remain ordered and rejects invalid budgets', async () => {
+  const prefix = 'c18f-tie-' + randomUUID();
+  const refs = Array.from({ length: 3 }, (_, i) =>
+    jobs.doc(prefix + '-' + String(i).padStart(2, '0')));
+  const at = now - 500;
+  const batch = firestore.batch();
+  refs.forEach((ref, i) => batch.create(ref, {
+    state: 'PROCESSING', processingVersion: 'v' + i, updatedAt: at,
+    adminTriageProjectionVersion: 1,
+    adminTriageProcessingVersion: 'v' + i,
+    adminTriageTier: 5, adminTriageSince: at,
+    adminTriageReevaluateAt: now - 100,
+  }));
+  await batch.commit();
+  // Explicit tied deadline + ID cursor must be stable and deterministic.
+  const first = await reclassifyDueVideoTriagePage(firestore, {
+    now, limit: 1, after: { dueAt: now - 100,
+      jobId: refs[0].id },
+  });
+  assert.equal(first.observed, 1);
+  assert.ok(first.hasMore);
+  assert.deepEqual(first.nextCursor, {
+    dueAt: now - 100, jobId: refs[1].id,
+  });
+  const second = await reclassifyDueVideoTriagePage(firestore, {
+    now, limit: 1, after: first.nextCursor,
+  });
+  assert.equal(second.observed, 1);
+  assert.equal(second.provesGlobalCoverage, false);
+  assert.deepEqual(second.nextCursor, null);
+  // A previously seen page is NOT a consistent collection snapshot.
+  const current = await refs[1].get();
+  await refs[1].update({ updatedAt: now, adminTriageReevaluateAt: null });
+  assert.equal(await applyObservedVideoTriageBackfillJob(
+    firestore, current, now
+  ), 'REPLACED');
+  for (const bad of [
+    { limit: 21 }, { limit: 0 }, { mode: 'ON' },
+    { after: { dueAt: now + 1, jobId: refs[0].id } },
+    { after: { dueAt: now, jobId: 'bad/id' } },
+  ]) {
+    await assert.rejects(
+      reclassifyDueVideoTriagePage(firestore, { now, ...bad } as
+        Parameters<typeof reclassifyDueVideoTriagePage>[1]),
+      RangeError
+    );
+  }
 });
