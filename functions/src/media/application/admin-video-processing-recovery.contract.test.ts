@@ -432,3 +432,15 @@ test('c18p tombstones and account cancellation share Firestore transactions', ()
   assert.ok(reconciliation.includes('stageVideoTriageMutationInTransaction('));
   assert.ok(!outbox.includes('globalCoverageVerified: true'));
 });
+
+
+test('c18p account-owned video job writes trigger isolated Firestore reconciliation', () => {
+  const workflow = readFileSync(resolve(root,
+    '../.github/workflows/video-processing-reconciliation-emulator.yml'), 'utf8');
+  assert.ok(workflow.includes(
+    "'functions/src/account_lifecycle/account-owned-media-deletion.firestore.ts'"));
+  assert.ok(workflow.includes(
+    "'.github/workflows/video-processing-reconciliation-emulator.yml'"));
+  assert.ok(workflow.includes(
+    "'functions/src/media/application/admin-video-triage-*'"));
+});
