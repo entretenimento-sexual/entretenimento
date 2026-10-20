@@ -835,6 +835,15 @@ test('a confirmed missing submission transitions job and video atomically', asyn
   ), true);
   assert.equal((await jobRef.get()).get('state'), 'QUEUED');
   assert.equal((await videoRef.get()).get('processingStage'), 'retry_wait');
+  const hash = createHash('sha256').update(jobRef.path).digest('hex');
+  const events = () => firestore
+    .collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  const firstTransition = await events();
+  assert.equal(firstTransition.size, 1);
+  assert.equal(firstTransition.docs[0].get('source'), 'SUBMISSION_RECOVERY');
+  assert.equal(firstTransition.docs[0].get('previousState'), 'SUBMITTING');
+  assert.equal(firstTransition.docs[0].get('nextState'), 'QUEUED');
 
   // If the source file changes while a lookup is in flight, fail closed.
   await jobRef.set(old);
@@ -848,6 +857,11 @@ test('a confirmed missing submission transitions job and video atomically', asyn
   ), false);
   assert.equal((await jobRef.get()).get('state'), 'CANCEL_REQUESTED');
   assert.equal((await videoRef.get()).get('status'), 'queued');
+  const secondTransition = await events();
+  assert.equal(secondTransition.size, 2);
+  assert.ok(secondTransition.docs.some(event =>
+    event.get('nextState') === 'CANCEL_REQUESTED' &&
+    event.get('source') === 'SUBMISSION_RECOVERY'));
 });
 
 test('late submit failure cannot override cancellation, retry or a new lease', async () => {
@@ -3900,4 +3914,89 @@ test('c18q state transition event rejects forged same-state and missing jobs', a
   assert.equal(event.get('source'), 'SUBMISSION_CONFIRMATION');
   assert.equal(event.get('scope'), 'PARTIAL_WRITER_COVERAGE');
   assert.equal((await jobRef.get()).get('state'), 'PROCESSING');
+});
+
+
+test('c18r administrative retry writes one version replacement with both versions', async () => {
+  const jobRef = jobs.doc('c18r-retry-' + randomUUID());
+  const original = { ...fixture('FAILED'), state: 'FAILED' as const };
+  const nextVersion = randomUUID();
+  await jobRef.create(original);
+  const eventId = randomUUID();
+  const eventRef = firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .doc(eventId);
+  const replace = async (abort: boolean) => firestore.runTransaction(
+    async transaction => {
+      const before = await transaction.get(jobRef);
+      stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+        eventId, source: 'ADMIN_RECOVERY', kind: 'VERSION_REPLACED',
+        before, afterState: 'QUEUED',
+        nextProcessingVersion: nextVersion,
+      });
+      transaction.update(jobRef, { state: 'QUEUED',
+        processingVersion: nextVersion });
+      if (abort) throw new Error('SIMULATED_ADMIN_RETRY_ABORT');
+    }, { maxAttempts: 1 });
+  await assert.rejects(replace(true), /SIMULATED_ADMIN_RETRY_ABORT/);
+  assert.equal((await jobRef.get()).get('state'), 'FAILED');
+  assert.equal((await eventRef.get()).exists, false);
+  await replace(false);
+  const event = await eventRef.get();
+  assert.equal((await jobRef.get()).get('processingVersion'), nextVersion);
+  assert.equal(event.get('source'), 'ADMIN_RECOVERY');
+  assert.equal(event.get('kind'), 'VERSION_REPLACED');
+  assert.equal(event.get('processingVersion'), original.processingVersion);
+  assert.equal(event.get('nextProcessingVersion'), nextVersion);
+  assert.equal(event.get('globalCoverageVerified'), false);
+  await assert.rejects(replace(false));
+  const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==',
+      createHash('sha256').update(jobRef.path).digest('hex')).get();
+  assert.equal(events.size, 1);
+});
+
+test('c18r polling metadata updates do not create extra state-transition events', async () => {
+  const jobRef = jobs.doc('c18r-poll-' + randomUUID());
+  const original = fixture('RUNNING');
+  await jobRef.create(original);
+  const claimed = await claimProcessingJob(
+    firestore, jobRef, now, parseJob);
+  assert.ok(claimed);
+  assert.equal(await recordProviderPollErrorIfCurrent(
+    firestore, jobRef, claimed, parseJob, {
+      code: 'POLL_TIMEOUT', message: 'Transient provider error',
+      retryable: true,
+    }, now + 1), true);
+  const hash = createHash('sha256').update(jobRef.path).digest('hex');
+  const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  assert.equal(events.size, 0);
+  assert.equal((await jobRef.get()).get('state'), 'PROCESSING');
+});
+
+test('c18r version replacement rejects unchanged, malformed or untrusted attempts', async () => {
+  const jobRef = jobs.doc('c18r-fence-' + randomUUID());
+  const original = fixture('FAILED');
+  await jobRef.create({ ...original, state: 'FAILED' });
+  const old = await jobRef.get();
+  const wrongVersions = [
+    original.processingVersion, '', 'bad space',
+  ];
+  for (const version of wrongVersions) {
+    await assert.rejects(firestore.runTransaction(async tx => {
+      stageVideoTriageMutationInTransaction(firestore, tx, jobRef, {
+        eventId: randomUUID(), source: 'ADMIN_RECOVERY',
+        kind: 'VERSION_REPLACED', before: old,
+        afterState: 'QUEUED', nextProcessingVersion: version,
+      });
+    }), /Invalid video job mutation outbox intent/);
+  }
+  await assert.rejects(firestore.runTransaction(async tx => {
+    stageVideoTriageMutationInTransaction(firestore, tx, jobRef, {
+      eventId: randomUUID(), source: 'SUBMISSION_RECOVERY',
+      kind: 'VERSION_REPLACED', before: old,
+      afterState: 'QUEUED', nextProcessingVersion: randomUUID(),
+    });
+  }), /Invalid video job mutation outbox intent/);
+  assert.equal((await jobRef.get()).get('state'), 'FAILED');
 });

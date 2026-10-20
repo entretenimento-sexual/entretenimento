@@ -23,10 +23,12 @@ export const VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION =
 export type VideoTriageMutationSource =
   'ACCOUNT_DELETION_PAGE' | 'ACCOUNT_DELETION_PRIVATE_VIDEO' |
   'CANCELLATION_RECONCILIATION' | 'QUEUE_CREATION' |
-  'SUBMISSION_CLAIM' | 'SUBMISSION_CONFIRMATION' | 'TERMINAL_COMMIT';
+  'SUBMISSION_CLAIM' | 'SUBMISSION_CONFIRMATION' | 'TERMINAL_COMMIT' |
+  'ADMIN_RECOVERY' | 'SUBMISSION_RECOVERY';
 
 export type VideoTriageMutationKind =
-  'CANCEL_REQUESTED' | 'DELETE' | 'STATE_TRANSITION' | 'CREATE';
+  'CANCEL_REQUESTED' | 'DELETE' | 'STATE_TRANSITION' | 'CREATE' |
+  'VERSION_REPLACED';
 
 export interface VideoTriageMutationIntent {
   eventId: string;
@@ -39,6 +41,8 @@ export interface VideoTriageMutationIntent {
    * tokens, file paths, video metadata, owner UID or personal data.
    */
   afterState: VideoProcessingJobState | null;
+  /** Version on a retry that replaces the processing attempt. */
+  nextProcessingVersion?: string;
 }
 
 const VALID_STATES: ReadonlySet<string> = new Set([
@@ -72,6 +76,15 @@ export function stageVideoTriageMutationInTransaction(
       (intent.kind === 'CANCEL_REQUESTED' &&
         intent.afterState !== 'CANCEL_REQUESTED') ||
       intent.kind === 'CREATE' ||
+      (intent.kind === 'VERSION_REPLACED' &&
+        (intent.source !== 'ADMIN_RECOVERY' ||
+        intent.afterState !== 'QUEUED' ||
+        !intent.nextProcessingVersion ||
+        safeVersion(intent.nextProcessingVersion) !==
+          intent.nextProcessingVersion ||
+        intent.nextProcessingVersion === intent.before.get('processingVersion'))) ||
+      (intent.kind !== 'VERSION_REPLACED' &&
+        intent.nextProcessingVersion !== undefined) ||
       (intent.kind === 'STATE_TRANSITION' &&
         (!intent.afterState || !VALID_STATES.has(intent.afterState) ||
         intent.afterState === intent.before.get('state')))) {
@@ -90,6 +103,8 @@ export function stageVideoTriageMutationInTransaction(
     previousState: safeState(before.state),
     nextState: intent.afterState,
     processingVersion: safeVersion(before.processingVersion),
+    ...(intent.kind === 'VERSION_REPLACED'
+      ? { nextProcessingVersion: intent.nextProcessingVersion } : {}),
     previousUpdateTime: intent.before.updateTime?.toMillis() ?? null,
     recordedAt: FieldValue.serverTimestamp(),
     // Claim is only that this event shares the caller's job transaction.

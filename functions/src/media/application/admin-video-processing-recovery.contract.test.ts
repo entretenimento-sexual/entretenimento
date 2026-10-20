@@ -469,3 +469,27 @@ test('c18q queue, submission and terminal writers stage partial mutation events 
   assert.ok(!outbox.includes('globalCoverageVerified: true'));
   assert.ok(!handler.includes("orderBy('adminTriageTier')"));
 });
+
+
+test('c18r administrative replacement and recovery only journal actual transitions', () => {
+  const read = (name: string) => readFileSync(resolve(root,
+    'src/media/application/' + name), 'utf8');
+  const admin = read('admin-video-processing-recovery.handler.ts');
+  const recovery = read('video-processing-reconciliation.firestore.ts');
+  const outbox = read('admin-video-triage-mutation-outbox.firestore.ts');
+  const retry = admin.slice(admin.indexOf('async function retryFailedJob('),
+    admin.indexOf('async function mutateExistingJob('));
+  const existing = admin.slice(admin.indexOf('async function mutateExistingJob('));
+
+  assert.ok(retry.includes("kind: 'VERSION_REPLACED'"));
+  assert.ok(retry.includes('nextProcessingVersion: retryJob.processingVersion'));
+  assert.ok(retry.includes('eventId: mutationEventId'));
+  assert.ok(retry.includes('currentJob.lastAdminOperationId === command.operationId'));
+  assert.ok(existing.includes('if (nextState !== state)'));
+  assert.ok(existing.includes("source: 'ADMIN_RECOVERY'"));
+  assert.ok(recovery.includes("source: 'SUBMISSION_RECOVERY'"));
+  assert.ok(recovery.includes("if (typeof nextState === 'string' && nextState !== current?.state)"));
+  assert.ok(outbox.includes('nextProcessingVersion: intent.nextProcessingVersion'));
+  assert.ok(outbox.includes('globallySequenced: false'));
+  assert.ok(!outbox.includes('globalCoverageVerified: true'));
+});

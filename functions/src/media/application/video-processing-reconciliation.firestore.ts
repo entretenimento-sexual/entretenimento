@@ -312,6 +312,7 @@ export async function updateRecoveredSubmissionIfCurrent(
   const videoRef = firestore.doc(
     `users/${observed.ownerUid}/videos/${observed.videoId}`
   );
+  const eventId = randomUUID();
   return firestore.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(jobRef);
     const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
@@ -332,6 +333,13 @@ export async function updateRecoveredSubmissionIfCurrent(
         : null;
 
       if (source !== observed.sourceStoragePath) {
+        if (current?.state !== 'CANCEL_REQUESTED') {
+          stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+            eventId, source: 'SUBMISSION_RECOVERY',
+            kind: 'CANCEL_REQUESTED', before: snapshot,
+            afterState: 'CANCEL_REQUESTED',
+          });
+        }
         transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, {
           state: 'CANCEL_REQUESTED',
           cancelRequestedAt: update.now,
@@ -345,6 +353,16 @@ export async function updateRecoveredSubmissionIfCurrent(
       }
     }
 
+    const nextState = update.jobPatch['state'];
+    if (typeof nextState === 'string' && nextState !== current?.state) {
+      stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+        eventId, source: 'SUBMISSION_RECOVERY',
+        kind: nextState === 'CANCEL_REQUESTED'
+          ? 'CANCEL_REQUESTED' : 'STATE_TRANSITION',
+        before: snapshot, afterState:
+          nextState as VideoProcessingJob['state'],
+      });
+    }
     transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, update.jobPatch, update.now));
     if (update.videoPatch) {
       transaction.set(videoRef, update.videoPatch, { merge: true });

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -20,6 +22,8 @@ import {
   type VideoProcessingJobState,
 } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
+import { stageVideoTriageMutationInTransaction }
+  from './admin-video-triage-mutation-outbox.firestore';
 import {
   availableAdminVideoRecoveryActions,
   isUnconfirmedVideoSubmission,
@@ -527,6 +531,7 @@ async function retryFailedJob(command: {
     videoSnapshot.data() as PrivateVideoDocument
   );
   const adminLogRef = db.collection('admin_logs').doc();
+  const mutationEventId = randomUUID();
   const cleanupRef = db.collection(OUTPUT_CLEANUP_COLLECTION).doc(
     cleanupJobId(jobId, String(previousJob.processingVersion ?? 'legacy'))
   );
@@ -589,6 +594,12 @@ async function retryFailedJob(command: {
     const tempCleanupQueued = await preserveTerminalCleanupBeforeRetry(
       db, transaction, jobId, currentJob as VideoProcessingJob, now
     );
+    stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+      eventId: mutationEventId, source: 'ADMIN_RECOVERY',
+      kind: 'VERSION_REPLACED', before: currentJobSnapshot,
+      afterState: 'QUEUED',
+      nextProcessingVersion: retryJob.processingVersion,
+    });
     transaction.set(jobRef, withAdminTriageProjection(jobId, null, {
       ...retryJob,
       lastAdminOperationId: command.operationId,
@@ -674,6 +685,7 @@ async function mutateExistingJob(command: {
   const jobRef = db.collection(VIDEO_PROCESSING_JOBS_COLLECTION).doc(jobId);
   const videoRef = db.doc(`users/${command.ownerUid}/videos/${command.videoId}`);
   const adminLogRef = db.collection('admin_logs').doc();
+  const mutationEventId = randomUUID();
 
   return db.runTransaction(async (transaction) => {
     const [jobSnapshot, videoSnapshot] = await Promise.all([
@@ -833,6 +845,13 @@ async function mutateExistingJob(command: {
         'O processamento foi cancelado pela administração.';
     }
 
+    if (nextState !== state) {
+      stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+        eventId: mutationEventId, source: 'ADMIN_RECOVERY',
+        kind: 'STATE_TRANSITION', before: jobSnapshot,
+        afterState: nextState,
+      });
+    }
     transaction.set(jobRef, withAdminTriageProjection(jobId, job, jobPatch, now), { merge: true });
     transaction.set(videoRef, videoPatch, { merge: true });
     transaction.set(adminLogRef, {
