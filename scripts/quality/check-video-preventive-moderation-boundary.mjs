@@ -118,18 +118,27 @@ for (const fragment of [
 const deletion = read(
   'functions/src/media/application/delete-profile-video.handler.ts'
 );
+const deletionCommit = read(
+  'functions/src/media/application/video-profile-deletion-commit.firestore.ts'
+);
+requireIncludes(
+  deletion,
+  'await commitProfileVideoDeletionRequest(db, {',
+  'profile deletion must use the transactional commit'
+);
 for (const fragment of [
-  "moderationStatus !== 'PENDING_REVIEW'",
-  "publication?.isPublished === true",
+  "moderationStatus === 'FLAGGED'",
+  "moderationStatus === 'PENDING_REVIEW'",
+  "snapshot.get('isPublished') === true",
   "evidenceRetention === 'PUBLISHED_ASSET_LOCKED'",
+  'checkPublicationHold(publication, command.allowQuarantined === true)',
 ]) {
   requireIncludes(
-    deletion,
+    deletionCommit,
     fragment,
-    'published pending review asset must remain protected while failed unpublished uploads stay cleanable'
+    'restricted publications remain protected in transaction'
   );
 }
-
 const review = read(
   'functions/src/media/application/review-video-content-report.handler.ts'
 );
