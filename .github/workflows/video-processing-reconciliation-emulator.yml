@@ -38,6 +38,7 @@ on:
       - 'functions/src/media/application/public-video-access-resolution.contract.test.ts'
       - 'functions/src/media/application/admin-video-processing-recovery.*'
       - 'functions/src/media/application/admin-video-triage-*'
+      - 'functions/src/account_lifecycle/account-owned-media-deletion.firestore.ts'
       - 'scripts/quality/run-video-processing-reconciliation-emulator.mjs'
       - 'firestore.indexes.json'
       - 'scripts/dev/inspect-video-processing-jobs-emulator.mjs'
