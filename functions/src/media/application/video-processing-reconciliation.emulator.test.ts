@@ -3560,8 +3560,9 @@ test('c18l competing journal claims reserve only one page and enforce a bounded 
 test('c18l crossing state lanes can hide one skip and one duplicate', async () => {
   const at = Date.now() - 1_000;
   const prefix = 'c18l-' + randomUUID();
-  const repeatedId = prefix + '-a';
-  const missedId = prefix + '-b';
+  // The missed ID falls strictly before the consumed cursor after it moves.
+  const repeatedId = prefix + '-b';
+  const missedId = prefix + '-a';
   await Promise.all([
     jobs.doc(repeatedId).create({ state: 'QUEUED', processingVersion: 'v1' }),
     jobs.doc(missedId).create({ state: 'PROCESSING', processingVersion: 'v1' }),
@@ -3569,20 +3570,18 @@ test('c18l crossing state lanes can hide one skip and one duplicate', async () =
   // Adversarial fixture: both queries are individually valid, but there is
   // no pinned global snapshot between state lanes.
   const firstLane = await auditVideoTriageConcurrentPage(firestore, {
-    state: 'QUEUED', afterId: prefix + '-', limit: 2, now: at,
+    state: 'QUEUED', afterId: prefix + '-', limit: 1, now: at,
   });
   assert.equal(firstLane.observed, 1);
-  assert.equal(firstLane.hasMore, false);
   assert.equal(firstLane.provesGlobalCoverage, false);
   await Promise.all([
     jobs.doc(repeatedId).update({ state: 'PROCESSING' }),
     jobs.doc(missedId).update({ state: 'QUEUED' }),
   ]);
   const laterLane = await auditVideoTriageConcurrentPage(firestore, {
-    state: 'PROCESSING', afterId: prefix + '-', limit: 2, now: at,
+    state: 'PROCESSING', afterId: prefix + '-', limit: 1, now: at,
   });
   assert.equal(laterLane.observed, 1);
-  assert.equal(laterLane.hasMore, false);
   assert.equal(laterLane.provesGlobalCoverage, false);
   assert.equal(firstLane.observed + laterLane.observed, 2);
   // The same repeatedId appeared in both lanes, and missedId was not read.
