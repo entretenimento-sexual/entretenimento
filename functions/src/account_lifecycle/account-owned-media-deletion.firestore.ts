@@ -512,6 +512,7 @@ export class FirestoreAccountDataDeletionOrchestratorAdapter
       await db.runTransaction(async transaction => {
         const current = await transaction.get(processingRef);
         if (!current.exists || !current.updateTime ||
+            !processingSnapshot.updateTime ||
             !current.updateTime.isEqual(processingSnapshot.updateTime) ||
             current.get('ownerUid') !== uid ||
             !TERMINAL_PROCESSING_STATES.has(
