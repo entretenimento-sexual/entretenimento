@@ -76,7 +76,7 @@ export async function auditVideoTriageConcurrentPage(
   observe?: (result: VideoTriagePageReadObservation) => void
 ): Promise<VideoTriageConcurrentAuditPage> {
   // Never expose diagnostic IDs or SDK metrics outside the local emulator.
-  if (observe && (!/^127\\.0\\.0\\.1:\\d{2,5}$/.test(
+  if (observe && (!/^127\.0\.0\.1:\d{2,5}$/.test(
     process.env.FIRESTORE_EMULATOR_HOST ?? '') ||
     db.databaseId !== '(default)')) {
     throw new Error('Triage SDK observation requires local Firestore Emulator.');
