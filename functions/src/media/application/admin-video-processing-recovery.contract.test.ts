@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, readdirSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
 import test from 'node:test';
 
 const root = resolve(__dirname, '../../../');
@@ -285,4 +285,113 @@ test('c18j triage journal source changes trigger the isolated reconciliation CI'
   'utf8');
   assert.ok(workflow.includes(
     'functions/src/media/application/admin-video-triage-*'));
+});
+
+
+/**
+ * c18o source-only census. The contract checks the repository's known
+ * collection bindings, not an authenticated change feed or Firestore history.
+ * Unknown bindings fail CI until manually classified; direct reference
+ * aliases are covered by explicit mutation-site checks below.
+ */
+const VIDEO_TRIAGE_JOB_COLLECTION_BINDINGS = [
+  'account_lifecycle/account-owned-media-deletion.firestore.ts',
+  'media/application/admin-video-processing-recovery.handler.ts',
+  'media/application/admin-video-processing-status.handler.ts',
+  'media/application/admin-video-triage-backfill.firestore.ts',
+  'media/application/admin-video-triage-evidence-audit.firestore.ts',
+  'media/application/admin-video-triage-evidence.firestore.ts',
+  'media/application/admin-video-triage-readiness.firestore.ts',
+  'media/application/delete-profile-video.handler.ts',
+  'media/application/queue-video-processing.handler.ts',
+  'media/application/video-processing.handler.ts',
+  'media/application/video-processing-job.ts',
+  'media/application/video-processing-reconciliation.firestore.ts',
+  'media/application/video-terminal-temporary-cleanup.firestore.ts',
+] as const;
+
+function productionTypescriptFiles(dir: string): string[] {
+  const files: string[] = [];
+  for (const item of readdirSync(dir, { withFileTypes: true })) {
+    const path = resolve(dir, item.name);
+    if (item.isDirectory()) {
+      files.push(...productionTypescriptFiles(path));
+    } else if (item.isFile() && item.name.endsWith('.ts') &&
+        !item.name.endsWith('.test.ts') &&
+        !item.name.endsWith('.spec.ts')) {
+      files.push(path);
+    }
+  }
+  return files;
+}
+
+test('c18o fails closed when an unclassified production source binds the video jobs collection', () => {
+  const sourceRoot = resolve(root, 'src');
+  const actual = productionTypescriptFiles(sourceRoot)
+    .filter(file => {
+      const body = readFileSync(file, 'utf8');
+      return body.includes('VIDEO_PROCESSING_JOBS_COLLECTION') ||
+        body.includes('media_video_processing_jobs');
+    })
+    .map(file => relative(sourceRoot, file).replace(/\\/g, '/')).sort();
+  const expected = [...VIDEO_TRIAGE_JOB_COLLECTION_BINDINGS].sort();
+  assert.deepEqual(actual, expected,
+    'Video job collection reference inventory changed: inspect and classify every new source.');
+});
+
+test('c18o writer provenance is not a complete atomic mutation feed', () => {
+  const read = (name: string) => readFileSync(
+    resolve(root, 'src/' + name), 'utf8');
+  const required: Array<[string, readonly string[]]> = [
+    ['media/application/queue-video-processing.handler.ts', [
+      'transaction.create(jobRef, withAdminTriageProjection(',
+      'transaction.set(',
+    ]],
+    ['media/application/video-processing.handler.ts', [
+      'transaction.update(jobRef, withAdminTriageProjection(',
+    ]],
+    ['media/application/video-processing-reconciliation.firestore.ts', [
+      'transaction.update(jobRef, withAdminTriageProjection(',
+      'transaction.delete(jobRef);',
+    ]],
+    ['media/application/video-processing-terminal-commit.firestore.ts', [
+      'transaction.update(jobRef, withAdminTriageProjection(',
+    ]],
+    ['media/application/admin-video-processing-recovery.handler.ts', [
+      'transaction.set(jobRef, withAdminTriageProjection(',
+    ]],
+    ['media/application/admin-video-triage-backfill.firestore.ts', [
+      'transaction.update(current.ref, withAdminTriageProjection(',
+    ]],
+    ['media/application/video-source-probe.service.ts', [
+      'transaction.update(jobRef, withAdminTriageProjection(',
+    ]],
+    ['media/application/video-immutable-input-preflight.service.ts', [
+      'transaction.update(jobRef, withAdminTriageProjection(',
+    ]],
+    ['media/application/emulator-video-processing.service.ts', [
+      'transaction.update(jobRef, withAdminTriageProjection(',
+    ]],
+    ['account_lifecycle/account-owned-media-deletion.firestore.ts', [
+      'await jobSnapshot.ref.delete();',
+      'await jobSnapshot.ref.set(',
+      'hideBatch.set(',
+    ]],
+  ];
+  for (const [file, markers] of required) {
+    const content = read(file);
+    for (const marker of markers) {
+      assert.ok(content.includes(marker), file + ': missing ' + marker);
+    }
+  }
+  // A durable triage audit journal is not a job mutation feed.
+  const journal = read('media/application/admin-video-triage-audit-journal.firestore.ts');
+  assert.ok(journal.includes("'media_video_triage_audit_sessions'"));
+  assert.ok(!journal.includes('transaction.create(jobMutationRef'));
+  const scope = read('media/application/admin-video-triage-audit-session.policy.ts');
+  assert.ok(scope.includes('EMULATOR_CLOSED_EPOCH_FIXTURE_ONLY'));
+  assert.ok(scope.includes('globalCoverageVerified: false'));
+  const gate = read('media/application/admin-video-triage-readiness.policy.ts');
+  assert.ok(gate.includes("coverage.scope === 'GLOBAL_CONSISTENT'"));
+  assert.ok(gate.includes('activationAuthorized: false'));
 });
