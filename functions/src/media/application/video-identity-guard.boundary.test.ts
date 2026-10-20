@@ -20,19 +20,17 @@ test('all private video registrations claim an identity and check legacy deletio
   assert.match(guard, /tx\.set\(input\.publicationRef,/);
 });
 
-test('video deletion retires the identity in the unpublication batch', () => {
-  assert.match(deletion, /removalBatch\.create\(jobRef,/);
-  assert.match(deletion, /retireVideoIdentityInBatch\s*\(db, removalBatch, ownerUid, videoId, now, identitySnap\)/);
-  assert.match(guard, /batch\.create\(ref, /);
-  assert.match(guard, /lastUpdateTime: identitySnapshot\.updateTime/);
-  assert.match(deletion, /await removalBatch\.commit\(\)/);
-  assert.match(deletion, /retireVideoIdentityForActiveClaim\s*\(/);
-  assert.match(deletion, /identity === 'CONFLICT'/);
-  assert.match(deletion, /kind: 'BLOCKED'/);
-  assert.match(guard, /state: 'RETIRED'/);
-  assert.doesNotMatch(deletion, /video_identity_guards[^\n]*\.delete\(/);
+test('video deletion uses atomic commit and preserves identity guard', () => {
+  const transaction = fromSource('video-profile-deletion-commit.firestore.ts');
+  assert.match(deletion, /commitProfileVideoDeletionRequest/);
+  assert.match(transaction, /retireVideoIdentityInTransaction/);
+  assert.match(transaction, /transaction.create\(deletionJobRef/);
+  assert.match(transaction, /transaction.get\(identityRef/);
+  assert.match(transaction, /stageVideoTriageMutationInTransaction/);
+  assert.match(guard, /lastUpdateTime: identitySnapshot.updateTime/);
+  assert.match(deletion, /retireVideoIdentityForActiveClaim/);
+  assert.doesNotMatch(deletion, /removalBatch.commit/);
 });
-
 test('duplicate video registration preserves idempotency without reviving retired IDs', () => {
   assert.match(register,
     /if\s*\(createError instanceof VideoIdentityUnavailableError\s*\|\|\s*isAlreadyExistsError\(createError\)\)/);
