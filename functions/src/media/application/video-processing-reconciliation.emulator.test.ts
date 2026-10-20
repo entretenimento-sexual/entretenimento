@@ -19,7 +19,7 @@ import {
   VIDEO_TRIAGE_AUDIT_LEASE_MS, VIDEO_TRIAGE_AUDIT_JOURNAL_COLLECTION,
 } from './admin-video-triage-audit-journal.firestore';
 import {
-  createVideoTriageAuditSession, openVideoTriageAuditCheckpoint,
+  createVideoTriageAuditSession,
 } from './admin-video-triage-audit-session.policy';
 import { projectAdminTriageJob } from './admin-video-global-triage.policy';
 import {
@@ -3252,7 +3252,7 @@ test('c18j concurrent claims reserve one page, commit only once and reject repla
   assert.equal(stale.kind, 'STALE_CHECKPOINT');
   const sample = await auditVideoTriageConcurrentPage(firestore, {
     state: claimed.lane as 'QUEUED', limit: 1,
-    afterId: claimed.afterId, at: claimed.evaluationAt,
+    afterId: claimed.afterId, now: claimed.evaluationAt,
   });
   const results = await Promise.all([
     settleDurableVideoTriageAuditPage(
