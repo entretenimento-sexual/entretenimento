@@ -1,4 +1,4 @@
-import type { DocumentReference, DocumentSnapshot, Firestore, WriteBatch } from 'firebase-admin/firestore';
+import type { DocumentReference, DocumentSnapshot, Firestore, Transaction, WriteBatch } from 'firebase-admin/firestore';
 
 const VIDEO_DELETION_COLLECTION = 'media_video_deletion_jobs';
 const GUARD_COLLECTION = 'video_identity_guards';
@@ -155,5 +155,42 @@ export async function retireVideoIdentityForActiveClaim(
       });
     }
     return 'READY';
+  });
+}
+
+/**
+ * c18v transaction variant. Identity is read in the same transaction as the
+ * deletion queue and job mutation; a stale guard cannot be overwritten.
+ */
+export function retireVideoIdentityInTransaction(
+  firestore: Firestore,
+  transaction: Transaction,
+  ownerUid: string,
+  videoId: string,
+  now: number,
+  identitySnapshot: DocumentSnapshot
+): void {
+  if (!Number.isFinite(now)) throw new Error('Invalid video identity retirement time.');
+  const ref = identityRef(firestore, ownerUid, videoId);
+  if (identitySnapshot.ref.path !== ref.path ||
+      identitySnapshot.ref.firestore !== firestore) {
+    throw new Error('Video identity snapshot points to another video.');
+  }
+  const retirement = {
+    ownerUid, videoId, state: 'RETIRED', retiredAt: now, updatedAt: now,
+  };
+  if (!identitySnapshot.exists) {
+    transaction.create(ref, { ...retirement, createdAt: now });
+    return;
+  }
+  if (!identitySnapshot.updateTime ||
+      identitySnapshot.get('ownerUid') !== ownerUid ||
+      identitySnapshot.get('videoId') !== videoId ||
+      !['REGISTERED', 'RETIRED'].includes(
+        String(identitySnapshot.get('state')))) {
+    throw new Error('Video identity is not valid for this owner and video.');
+  }
+  transaction.update(ref, retirement, {
+    lastUpdateTime: identitySnapshot.updateTime,
   });
 }

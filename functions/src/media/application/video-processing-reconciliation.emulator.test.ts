@@ -99,6 +99,8 @@ import {
   resolvePublicVideoSignedAccessItem,
   type PublicVideoSignedAccessRequest,
 } from './public-video-access-resolution.firestore';
+import { commitProfileVideoDeletionRequest }
+  from './video-profile-deletion-commit.firestore';
 import { isBilateralBlockActive } from '../../friendship/application/bilateral-block-access.policy';
 import {
   executeVideoCancellation,
@@ -4051,5 +4053,176 @@ test('c18u selected emulator terminal events are atomic and omit stale attempts'
     assert.equal((await firestore.collection(
       VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION).doc(abortedId).get()).exists, false);
     assert.equal((await ref.get()).get('state'), target);
+  }
+});
+
+function c18vFixture() {
+  const ownerUid = 'profile-del-' + randomUUID();
+  const videoId = 'v-' + randomUUID();
+  const privateVideoRef = firestore.doc(`users/${ownerUid}/videos/${videoId}`);
+  const publicationRef = firestore.doc(
+    `users/${ownerUid}/video_publications/${videoId}`);
+  const publicVideoRef = firestore.doc(
+    `public_profiles/${ownerUid}/public_videos/${videoId}`);
+  const processingJobRef = jobs.doc(ownerUid + '_' + videoId);
+  const identityRef = firestore.doc(
+    `users/${ownerUid}/video_identity_guards/${videoId}`);
+  const deletionJobRef = firestore.collection('media_video_deletion_jobs')
+    .doc(ownerUid + '_' + videoId);
+  return {
+    ownerUid, videoId, privateVideoRef, publicationRef, publicVideoRef,
+    processingJobRef, identityRef, deletionJobRef,
+    command: (eventId = randomUUID()) => ({
+      ownerUid, videoId, now, eventId, privateVideoRef, publicationRef,
+      publicVideoRef, processingJobRef, identityRef, deletionJobRef,
+      buildJob: (snapshots: {
+        privateVideo: { get(field: string): unknown };
+        publication: { get(field: string): unknown };
+        processingJob: { get(field: string): unknown };
+      }, pending: boolean) => ({
+        ownerUid, videoId, processingCleanupPending: pending,
+        privateVideoStoragePath: snapshots.privateVideo.get('path') ?? null,
+        publishedVideoStoragePath:
+          snapshots.publication.get('publishedStoragePath') ?? null,
+        processedOutputPrefix:
+          snapshots.processingJob.get('outputPrefix') ?? null,
+        attempts: 0, lastError: null, createdAt: now, updatedAt: now,
+      }),
+    }),
+  };
+}
+
+test('c18v deletion atomically records cancellation, tombstone, queue and unpublication', async () => {
+  const f = c18vFixture();
+  const job = { ...fixture('c18v'), ownerUid: f.ownerUid, videoId: f.videoId,
+    state: 'PROCESSING' };
+  await Promise.all([
+    f.privateVideoRef.set({ path: 'source-one' }),
+    f.publicationRef.set({ isPublished: true, publishedStoragePath: 'published-one' }),
+    f.publicVideoRef.set({ state: 'VISIBLE' }),
+    f.processingJobRef.set(job),
+  ]);
+  const eventId = randomUUID();
+  assert.deepEqual(await commitProfileVideoDeletionRequest(
+    firestore, f.command(eventId)), {
+    kind: 'CREATED', processingCleanupPending: true,
+  });
+  const [queue, guard, currentJob, publication, publicVideo, event] =
+    await Promise.all([
+      f.deletionJobRef.get(), f.identityRef.get(), f.processingJobRef.get(),
+      f.publicationRef.get(), f.publicVideoRef.get(),
+      firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+        .doc(eventId).get(),
+    ]);
+  assert.equal(queue.get('state'), 'retryable');
+  assert.equal(queue.get('privateVideoStoragePath'), 'source-one');
+  assert.equal(queue.get('publishedVideoStoragePath'), 'published-one');
+  assert.equal(queue.get('processingCleanupPending'), true);
+  assert.equal(guard.get('state'), 'RETIRED');
+  assert.equal(currentJob.get('state'), 'CANCEL_REQUESTED');
+  assert.equal(publication.exists, false);
+  assert.equal(publicVideo.exists, false);
+  assert.equal(event.get('source'), 'PROFILE_VIDEO_DELETION');
+  assert.equal(event.get('kind'), 'CANCEL_REQUESTED');
+  assert.equal(event.get('processingVersion'), job.processingVersion);
+  assert.equal(event.get('previousState'), 'PROCESSING');
+  assert.equal(event.get('nextState'), 'CANCEL_REQUESTED');
+});
+
+test('c18v duplicate concurrent deletions preserve the first job and single event', async () => {
+  const f = c18vFixture();
+  const job = { ...fixture('c18v-dupe'), ownerUid: f.ownerUid,
+    videoId: f.videoId, state: 'QUEUED' };
+  await f.processingJobRef.create(job);
+  const firstId = randomUUID();
+  const secondId = randomUUID();
+  const [first, second] = await Promise.all([
+    commitProfileVideoDeletionRequest(firestore, f.command(firstId)),
+    commitProfileVideoDeletionRequest(firestore, f.command(secondId)),
+  ]);
+  assert.deepEqual([first.kind, second.kind].sort(), ['CREATED', 'EXISTING']);
+  const firstEvent = await firestore.collection(
+    VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION).doc(firstId).get();
+  const secondEvent = await firestore.collection(
+    VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION).doc(secondId).get();
+  assert.equal(Number(firstEvent.exists) + Number(secondEvent.exists), 1);
+  assert.equal((await f.processingJobRef.get()).get('state'), 'CANCEL_REQUESTED');
+  assert.equal((await f.identityRef.get()).get('state'), 'RETIRED');
+  assert.equal((await f.deletionJobRef.get()).get('leaseToken'), null);
+  await assert.rejects(commitPrivateVideoRegistrationIfUnused(firestore, {
+    ownerUid: f.ownerUid, videoId: f.videoId,
+    videoRef: f.privateVideoRef, publicationRef: f.publicationRef,
+    videoDocument: { path: 'resurrected' },
+    publicationDocument: { isPublished: false }, now,
+  }), VideoIdentityUnavailableError);
+});
+
+test('c18v terminal cancellation and missing job do not invent events', async () => {
+  for (const state of ['CANCEL_REQUESTED', 'CANCELLED', 'MISSING'] as const) {
+    const f = c18vFixture();
+    if (state !== 'MISSING') {
+      await f.processingJobRef.create({ ...fixture('c18v-existing'),
+        ownerUid: f.ownerUid, videoId: f.videoId, state });
+    }
+    const eventId = randomUUID();
+    const result = await commitProfileVideoDeletionRequest(
+      firestore, f.command(eventId));
+    assert.equal(result.kind, 'CREATED');
+    assert.equal((await firestore.collection(
+      VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION).doc(eventId).get()).exists, false);
+    assert.equal((await f.identityRef.get()).get('state'), 'RETIRED');
+    if (state !== 'MISSING') {
+      assert.equal((await f.processingJobRef.get()).get('state'), state);
+    }
+  }
+});
+
+test('c18v blocked publication, identity conflict and aborted callback leave no writes', async () => {
+  for (const invalid of ['FLAGGED', 'GUARD', 'ABORTED'] as const) {
+    const f = c18vFixture();
+    const eventId = randomUUID();
+    await f.publicationRef.create({
+      isPublished: true, moderationStatus: invalid === 'FLAGGED'
+        ? 'FLAGGED' : 'APPROVED',
+    });
+    if (invalid === 'GUARD') {
+      await f.identityRef.create({
+        state: 'RETIRED', ownerUid: 'other', videoId: f.videoId,
+      });
+    }
+    const command = f.command(eventId);
+    if (invalid === 'ABORTED') {
+      command.buildJob = () => { throw new Error('injected rollback'); };
+    }
+    await assert.rejects(commitProfileVideoDeletionRequest(
+      firestore, command));
+    assert.equal((await f.deletionJobRef.get()).exists, false);
+    assert.equal((await f.publicationRef.get()).exists, true);
+    assert.equal((await f.publicVideoRef.get()).exists, false);
+    assert.equal((await firestore.collection(
+      VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION).doc(eventId).get()).exists, false);
+    if (invalid !== 'GUARD') assert.equal(
+      (await f.identityRef.get()).exists, false);
+  }
+});
+
+test('c18v fresh registration and deletion remain generation fenced', async () => {
+  const f = c18vFixture();
+  const create = commitPrivateVideoRegistrationIfUnused(firestore, {
+    ownerUid: f.ownerUid, videoId: f.videoId,
+    videoRef: f.privateVideoRef, publicationRef: f.publicationRef,
+    videoDocument: { ownerUid: f.ownerUid, path: 'new-source' },
+    publicationDocument: { isPublished: false }, now,
+  });
+  const deleting = commitProfileVideoDeletionRequest(
+    firestore, f.command());
+  await Promise.allSettled([create, deleting]);
+  const guard = await f.identityRef.get();
+  const queue = await f.deletionJobRef.get();
+  if (queue.exists) {
+    assert.equal(guard.get('state'), 'RETIRED');
+    assert.equal((await f.publicationRef.get()).exists, false);
+  } else {
+    assert.equal(guard.get('state'), 'REGISTERED');
   }
 });

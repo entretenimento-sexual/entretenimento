@@ -23,7 +23,6 @@ import { claimVideoDeletionJob, settleVideoDeletionJob } from './video-deletion-
 import { processPendingVideoOriginalCleanupJobs } from './cleanup-published-video-originals.handler';
 import {
   retireVideoIdentityForActiveClaim,
-  retireVideoIdentityInBatch,
 } from './video-identity-guard.firestore';
 import { migrateLegacyPublishedVideoCleanupJobs } from './published-video-cleanup-migration.firestore';
 import { deletePublishedVideoAssetOrQueueWithResult } from './published-video-asset.service';
@@ -37,7 +36,8 @@ import {
   VIDEO_PROCESSING_JOBS_COLLECTION,
   type VideoProcessingJob,
 } from './video-processing-job';
-import { withAdminTriageProjection } from './admin-video-triage.firestore';
+import { commitProfileVideoDeletionRequest }
+  from './video-profile-deletion-commit.firestore';
 import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
@@ -138,29 +138,6 @@ function assertOwner(requesterUid: string | null, ownerUid: string): void {
       'Você só pode excluir vídeos do seu próprio perfil.'
     );
   }
-}
-
-function isQuarantinedPublication(
-  publication: VideoPublicationDoc | null
-): boolean {
-  const moderationStatus = String(publication?.moderationStatus ?? '')
-    .trim()
-    .toUpperCase();
-
-  if (moderationStatus === 'FLAGGED') {
-    return true;
-  }
-
-  if (moderationStatus !== 'PENDING_REVIEW') {
-    return false;
-  }
-
-  const evidenceRetention = String(
-    publication?.reviewEvidenceRetention ?? ''
-  ).trim().toUpperCase();
-
-  return publication?.isPublished === true ||
-    evidenceRetention === 'PUBLISHED_ASSET_LOCKED';
 }
 
 function buildDeletionJobId(ownerUid: string, videoId: string): string {
@@ -373,38 +350,6 @@ async function processVideoDeletionJob(
   }
 }
 
-function requestProcessingCancellation(
-  batch: FirebaseFirestore.WriteBatch,
-  processingJobRef: FirebaseFirestore.DocumentReference,
-  processingJob: VideoProcessingJobDoc | null,
-  now: number
-): boolean {
-  if (!processingJob) {
-    return false;
-  }
-
-  const state = String(processingJob.state ?? '').trim().toUpperCase();
-
-  if (state === 'CANCELLED' || state === 'CANCEL_REQUESTED') {
-    return true;
-  }
-
-  batch.set(
-    processingJobRef,
-    withAdminTriageProjection(processingJobRef.id, processingJob, {
-      state: 'CANCEL_REQUESTED',
-      cancelRequestedAt: now,
-      leaseUntil: null,
-      updatedAt: now,
-      lastErrorCode: 'VIDEO_DELETED',
-      lastError: 'O vídeo foi excluído da plataforma.',
-    }, now),
-    { merge: true }
-  );
-
-  return true;
-}
-
 /**
  * Exclusão canônica de um vídeo do produto.
  *
@@ -442,122 +387,73 @@ export async function deleteProfileVideoResources(
   const identityRef = db.doc(
     `users/${ownerUid}/video_identity_guards/${videoId}`
   );
-  const [privateVideoSnap, publicationSnap, processingJobSnap, identitySnap] =
-    await Promise.all([
-      privateVideoRef.get(),
-      publicationRef.get(),
-      processingJobRef.get(),
-      identityRef.get(),
-    ]);
-  const privateVideo = privateVideoSnap.exists
-    ? (privateVideoSnap.data() as PrivateVideoDoc)
-    : null;
-  const publication = publicationSnap.exists
-    ? (publicationSnap.data() as VideoPublicationDoc)
-    : null;
-  const processingJob = processingJobSnap.exists
-    ? (processingJobSnap.data() as VideoProcessingJobDoc)
-    : null;
-
-  if (isQuarantinedPublication(publication) && options.allowQuarantined !== true) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Este vídeo está temporariamente preservado durante uma análise de segurança.'
-    );
-  }
-
   const now = Date.now();
-  const privateVideoStoragePath =
-    extractOwnedPrivateVideoPathForId(
-      ownerUid,
-      videoId,
-      privateVideo?.path
-    ) ??
-    extractOwnedPrivateVideoPathForId(
-      ownerUid,
-      videoId,
-      privateVideo?.url
-    ) ??
-    extractOwnedPrivateVideoPathForId(
-      ownerUid,
-      videoId,
-      processingJob?.sourceStoragePath
-    );
-  const privatePosterStoragePath =
-    extractOwnedPrivateVideoPosterPath(
-      ownerUid,
-      videoId,
-      privateVideo?.thumbnailPath
-    ) ??
-    extractOwnedPrivateVideoPosterPath(
-      ownerUid,
-      videoId,
-      privateVideo?.thumbnailUrl
-    ) ??
-    extractOwnedPrivateVideoPosterPath(
-      ownerUid,
-      videoId,
-      processingJob?.sourcePosterStoragePath
-    );
-  const processedOutputPrefix =
-    normalizeOwnedProcessedVideoPrefix(
-      ownerUid,
-      videoId,
-      privateVideo?.processedOutputPrefix
-    ) ??
-    normalizeOwnedProcessedVideoPrefix(
-      ownerUid,
-      videoId,
-      processingJob?.outputPrefix
-    );
   const jobId = buildDeletionJobId(ownerUid, videoId);
   const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
-  const removalBatch = db.batch();
-  const processingCleanupPending = requestProcessingCancellation(
-    removalBatch,
-    processingJobRef,
-    processingJob,
-    now
-  );
-  const job: VideoDeletionJob = {
-    ownerUid,
-    videoId,
-    privateVideoStoragePath,
-    privatePosterStoragePath,
-    processedOutputPrefix,
-    publishedVideoStoragePath:
-      publication?.publishedStoragePath ?? null,
-    publishedPosterStoragePath:
-      publication?.publishedPosterStoragePath ?? null,
-    processingCleanupPending,
-    createdAt: now,
-    updatedAt: now,
-    attempts: 0,
-    lastError: null,
-  };
-
-  // Create atomically with unpublication, never overwrite an active retry/lease.
-  removalBatch.create(jobRef, {
-    ...job,
-    state: 'retryable',
-    nextAttemptAt: now,
-    deadLetterExpiresAt: null,
-    leaseToken: null,
-    leaseUntil: null,
-  });
-  retireVideoIdentityInBatch(db, removalBatch, ownerUid, videoId, now, identitySnap);
-  if (publicationSnap.exists && publicationSnap.updateTime) {
-    removalBatch.delete(publicationRef, {
-      lastUpdateTime: publicationSnap.updateTime,
-    });
-  } else {
-    removalBatch.delete(publicationRef);
-  }
-  removalBatch.delete(publicVideoRef);
+  // Reused by Firestore on retries; only committed mutations stage an event.
+  const eventId = randomUUID();
+  let processingCleanupPending = false;
   try {
-    await removalBatch.commit();
+    const committed = await commitProfileVideoDeletionRequest(db, {
+      ownerUid, videoId, now, eventId,
+      privateVideoRef, publicationRef, publicVideoRef,
+      processingJobRef, identityRef, deletionJobRef: jobRef,
+      allowQuarantined: options.allowQuarantined,
+      buildJob: ({ privateVideo, publication, processingJob },
+        cleanupPending): VideoDeletionJob => {
+        const video = privateVideo.exists
+          ? privateVideo.data() as PrivateVideoDoc : null;
+        const publicationData = publication.exists
+          ? publication.data() as VideoPublicationDoc : null;
+        const processing = processingJob.exists
+          ? processingJob.data() as VideoProcessingJobDoc : null;
+        return {
+          ownerUid, videoId,
+          privateVideoStoragePath:
+            extractOwnedPrivateVideoPathForId(
+              ownerUid, videoId, video?.path
+            ) ??
+            extractOwnedPrivateVideoPathForId(
+              ownerUid, videoId, video?.url
+            ) ??
+            extractOwnedPrivateVideoPathForId(
+              ownerUid, videoId, processing?.sourceStoragePath
+            ),
+          privatePosterStoragePath:
+            extractOwnedPrivateVideoPosterPath(
+              ownerUid, videoId, video?.thumbnailPath
+            ) ??
+            extractOwnedPrivateVideoPosterPath(
+              ownerUid, videoId, video?.thumbnailUrl
+            ) ??
+            extractOwnedPrivateVideoPosterPath(
+              ownerUid, videoId, processing?.sourcePosterStoragePath
+            ),
+          processedOutputPrefix:
+            normalizeOwnedProcessedVideoPrefix(
+              ownerUid, videoId, video?.processedOutputPrefix
+            ) ??
+            normalizeOwnedProcessedVideoPrefix(
+              ownerUid, videoId, processing?.outputPrefix
+            ),
+          publishedVideoStoragePath:
+            publicationData?.publishedStoragePath ?? null,
+          publishedPosterStoragePath:
+            publicationData?.publishedPosterStoragePath ?? null,
+          processingCleanupPending: cleanupPending,
+          createdAt: now,
+          updatedAt: now,
+          attempts: 0,
+          lastError: null,
+        };
+      },
+    });
+    if (committed.kind === 'EXISTING') {
+      return { videoId, cleanupPending: true };
+    }
+    processingCleanupPending = committed.processingCleanupPending;
   } catch (error) {
-    // If another invocation already registered the job, preserve its state.
+    // Preserve existing retry/lease when another invocation won creation.
     if ((await jobRef.get()).exists) {
       return { videoId, cleanupPending: true };
     }

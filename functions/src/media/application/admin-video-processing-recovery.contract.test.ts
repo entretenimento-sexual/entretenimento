@@ -312,6 +312,7 @@ const VIDEO_TRIAGE_JOB_COLLECTION_BINDINGS = [
   'media/application/video-processing.handler.ts',
   'media/application/video-processing-job.ts',
   'media/application/video-processing-reconciliation.firestore.ts',
+  'media/application/video-profile-deletion-commit.firestore.ts',
   'media/application/video-terminal-temporary-cleanup.firestore.ts',
 ] as const;
 
@@ -377,6 +378,11 @@ test('c18o writer provenance is not a complete atomic mutation feed', () => {
     ]],
     ['media/application/emulator-video-processing.service.ts', [
       'transaction.update(jobRef, withAdminTriageProjection(',
+    ]],
+    ['media/application/video-profile-deletion-commit.firestore.ts', [
+      'transaction.create(deletionJobRef, {',
+      'transaction.set(processingJobRef, withAdminTriageProjection(',
+      'stageVideoTriageMutationInTransaction(',
     ]],
     ['account_lifecycle/account-owned-media-deletion.firestore.ts', [
       'transaction.delete(jobSnapshot.ref);',
@@ -560,14 +566,31 @@ test('c18u local emulator terminal transitions share the outbox transaction', ()
   assert.ok(!outbox.includes('globalCoverageVerified: true'));
 });
 
-test('c18u known direct profile deletion batch is not misreported as covered', () => {
-  const deletion = readFileSync(resolve(root,
-    'src/media/application/delete-profile-video.handler.ts'), 'utf8');
-  assert.ok(deletion.includes('function requestProcessingCancellation('));
-  assert.ok(deletion.includes('const removalBatch = db.batch();'));
-  assert.ok(deletion.includes('requestProcessingCancellation(\n    removalBatch,'));
-  assert.ok(deletion.includes('await removalBatch.commit();'));
-  assert.ok(!deletion.includes('stageVideoTriageMutationInTransaction('));
+test('c18v deletion is one fenced transaction, never a stale WriteBatch', () => {
+  const read = (file: string) => readFileSync(resolve(root,
+    'src/media/application/' + file), 'utf8');
+  const handler = read('delete-profile-video.handler.ts');
+  const commit = read('video-profile-deletion-commit.firestore.ts');
+  const identity = read('video-identity-guard.firestore.ts');
+  const outbox = read('admin-video-triage-mutation-outbox.firestore.ts');
+  assert.ok(handler.includes('await commitProfileVideoDeletionRequest(db, {'));
+  assert.ok(handler.includes('buildJob: ({ privateVideo, publication, processingJob }'));
+  assert.ok(!handler.includes('removalBatch.commit()'));
+  assert.ok(!handler.includes('requestProcessingCancellation('));
+  assert.ok(commit.includes('return firestore.runTransaction(async transaction => {'));
+  assert.ok(commit.includes('transaction.get(processingJobRef)'));
+  assert.ok(commit.includes('transaction.get(identityRef)'));
+  assert.ok(commit.includes('transaction.get(publicationRef)'));
+  assert.ok(commit.includes('transaction.create(deletionJobRef, {'));
+  assert.ok(commit.includes('retireVideoIdentityInTransaction('));
+  assert.ok(commit.includes('stageVideoTriageMutationInTransaction('));
+  assert.ok(commit.includes("source: 'PROFILE_VIDEO_DELETION'"));
+  assert.ok(commit.includes("state !== 'CANCEL_REQUESTED' && state !== 'CANCELLED'"));
+  assert.ok(commit.includes('lastUpdateTime: publication.updateTime'));
+  assert.ok(identity.includes('export function retireVideoIdentityInTransaction('));
+  assert.ok(identity.includes('lastUpdateTime: identitySnapshot.updateTime'));
+  assert.ok(outbox.includes("'PROFILE_VIDEO_DELETION'"));
+  assert.ok(!outbox.includes('globalCoverageVerified: true'));
 });
 
 test('c18u Functions dependency changes retrigger isolated reconciliation', () => {
