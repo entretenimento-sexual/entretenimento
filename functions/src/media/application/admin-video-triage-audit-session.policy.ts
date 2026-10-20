@@ -397,3 +397,148 @@ export function reportVideoTriageAudit(
     eligibleForIndependentReview: false, globalOrderingEnabled: false,
   };
 }
+
+/** c18m emulator fixture reconciliation; never production coverage proof. */
+export const VIDEO_TRIAGE_COVERAGE_FIXTURE_MAX_IDS = 20;
+export const VIDEO_TRIAGE_COVERAGE_FIXTURE_MAX_PAGES = 100;
+
+export interface VideoTriageFixtureRecord {
+  id: string;
+  state: VideoTriageBackfillState;
+  revision: string;
+}
+
+export interface VideoTriageFixturePage {
+  state: VideoTriageBackfillState;
+  afterId: string | null;
+  ids: readonly string[];
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+
+export interface VideoTriageFixtureReconciliation {
+  scope: 'EMULATOR_FIXTURE_ONLY';
+  status: 'FIXTURE_RECONCILED' | 'GAPS_OR_DUPLICATES' | 'INCONCLUSIVE';
+  baselineSize: number;
+  observedTotal: number;
+  uniqueObserved: number;
+  missingCount: number;
+  duplicateCount: number;
+  unexpectedCount: number;
+  changedCount: number;
+  invalidCursorPages: number;
+  lanesComplete: boolean;
+  globalCoverageVerified: false;
+  concurrentCursorSafetyVerified: false;
+  productionCostVerified: false;
+  globalOrderingEnabled: false;
+}
+
+function validId(id: string): boolean {
+  return typeof id === 'string' && /^[A-Za-z0-9_-]{1,257}$/.test(id);
+}
+
+function knownState(state: string): state is VideoTriageBackfillState {
+  return VIDEO_TRIAGE_BACKFILL_STATES.some(item => item === state);
+}
+
+function mapFixture(records: readonly VideoTriageFixtureRecord[]) {
+  if (!Array.isArray(records) || records.length > VIDEO_TRIAGE_COVERAGE_FIXTURE_MAX_IDS) {
+    throw new RangeError('Unbounded emulator coverage fixture.');
+  }
+  const byId = new Map<string, VideoTriageFixtureRecord>();
+  for (const item of records) {
+    if (!item || !validId(item.id) || !knownState(item.state) ||
+        typeof item.revision !== 'string' ||
+        item.revision.length < 1 || item.revision.length > 128 ||
+        byId.has(item.id)) {
+      throw new Error('Invalid or repeated fixture identity.');
+    }
+    byId.set(item.id, item);
+  }
+  return byId;
+}
+
+/** Never derives global proof, even when an emulator fixture matches. */
+export function reconcileVideoTriageFixture(
+  baseline: readonly VideoTriageFixtureRecord[],
+  after: readonly VideoTriageFixtureRecord[],
+  pages: readonly VideoTriageFixturePage[]
+): VideoTriageFixtureReconciliation {
+  const before = mapFixture(baseline);
+  const final = mapFixture(after);
+  if (!Array.isArray(pages) ||
+      pages.length > VIDEO_TRIAGE_COVERAGE_FIXTURE_MAX_PAGES) {
+    throw new RangeError('Unbounded emulator coverage pages.');
+  }
+
+  const observed = new Map<string, number>();
+  let invalidCursorPages = 0;
+  const progress = new Map<VideoTriageBackfillState, {
+    cursor: string | null; complete: boolean;
+  }>();
+  for (const page of pages) {
+    if (!page || !knownState(page.state) || !Array.isArray(page.ids) ||
+        page.ids.length > VIDEO_TRIAGE_COVERAGE_FIXTURE_MAX_IDS ||
+        !page.ids.every(validId)) {
+      throw new Error('Malformed emulator coverage page.');
+    }
+    const previous = progress.get(page.state);
+    let invalid = previous?.complete === true ||
+      (previous !== undefined && previous.cursor !== page.afterId) ||
+      // A bounded emulator fixture may start after an explicit ID fence.
+      (page.afterId !== null && !validId(page.afterId));
+    let cursor = page.afterId;
+    for (const id of page.ids) {
+      if (cursor !== null && id <= cursor) invalid = true;
+      cursor = id;
+      observed.set(id, (observed.get(id) ?? 0) + 1);
+    }
+    if (typeof page.hasMore !== 'boolean' ||
+        (page.hasMore && (page.ids.length === 0 ||
+          page.nextCursor !== cursor)) ||
+        (!page.hasMore && page.nextCursor !== null)) {
+      invalid = true;
+    }
+    if (invalid) invalidCursorPages++;
+    progress.set(page.state, {
+      cursor: page.hasMore ? page.nextCursor : null,
+      complete: !page.hasMore,
+    });
+  }
+
+  let missingCount = 0;
+  let duplicateCount = 0;
+  let unexpectedCount = 0;
+  let changedCount = 0;
+  for (const [id, record] of before) {
+    const seen = observed.get(id) ?? 0;
+    if (seen === 0) missingCount++;
+    if (seen > 1) duplicateCount += seen - 1;
+    const updated = final.get(id);
+    if (!updated || updated.state !== record.state ||
+        updated.revision !== record.revision) changedCount++;
+  }
+  for (const [id, count] of observed) {
+    if (!before.has(id)) unexpectedCount += count;
+  }
+  for (const id of final.keys()) {
+    if (!before.has(id)) changedCount++;
+  }
+  const lanesComplete = VIDEO_TRIAGE_BACKFILL_STATES.every(
+    lane => progress.get(lane)?.complete === true);
+  const consistent = missingCount === 0 && duplicateCount === 0 &&
+    unexpectedCount === 0 && invalidCursorPages === 0;
+  const status = !consistent ? 'GAPS_OR_DUPLICATES' :
+    changedCount !== 0 || !lanesComplete ? 'INCONCLUSIVE' :
+      'FIXTURE_RECONCILED';
+
+  return {
+    scope: 'EMULATOR_FIXTURE_ONLY', status, baselineSize: before.size,
+    observedTotal: [...observed.values()].reduce((n, count) => n + count, 0),
+    uniqueObserved: observed.size, missingCount, duplicateCount,
+    unexpectedCount, changedCount, invalidCursorPages, lanesComplete,
+    globalCoverageVerified: false, concurrentCursorSafetyVerified: false,
+    productionCostVerified: false, globalOrderingEnabled: false,
+  };
+}

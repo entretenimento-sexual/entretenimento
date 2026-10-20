@@ -30,6 +30,15 @@ export const VIDEO_TRIAGE_AUDIT_JOURNAL_COLLECTION =
   'media_video_triage_audit_sessions';
 export const VIDEO_TRIAGE_AUDIT_LEASE_MS = 60_000;
 export const VIDEO_TRIAGE_AUDIT_TX_MAX_ATTEMPTS = 2;
+/**
+ * c18m SDK-call instrumentation. Events count call attempts, not billable
+ * Firestore operations. Opt-in and emulator-only; no IDs or tokens emitted.
+ */
+export type VideoTriageAuditSdkEvent =
+  'TX_ATTEMPT' | 'TX_GET' | 'TX_WRITE' | 'DIRECT_GET';
+export type VideoTriageAuditSdkObserver =
+  (event: VideoTriageAuditSdkEvent) => void;
+
 export const VIDEO_TRIAGE_AUDIT_MAX_CLOCK_SKEW_MS = 120_000;
 // One bounded read and write per transaction attempt, plus one recovery read.
 export const VIDEO_TRIAGE_JOURNAL_OPERATIONS_PER_PAGE =
@@ -206,7 +215,8 @@ function refFor(db: Firestore, id: string) {
  */
 export async function registerSignedVideoTriageAuditJournal(
   db: Firestore, app: App, approval: VideoTriageAuditApproval,
-  checkpoint: string, key: Buffer
+  checkpoint: string, key: Buffer,
+  observer?: VideoTriageAuditSdkObserver
 ): Promise<VideoTriageAuditReport> {
   const id = guard(db, app, approval);
   const ledger = openVideoTriageAuditCheckpoint(checkpoint, key, approval);
@@ -215,7 +225,9 @@ export async function registerSignedVideoTriageAuditJournal(
     throw new Error('Durable journal requires a pristine signed session.');
   }
   await db.runTransaction(async tx => {
+    observer?.('TX_ATTEMPT');
     const ref = refFor(db, id);
+    observer?.('TX_GET');
     if ((await tx.get(ref)).exists) {
       throw new Error('Audit session is already registered.');
     }
@@ -228,6 +240,7 @@ export async function registerSignedVideoTriageAuditJournal(
       maxJournalOperations: ledger.budget.maxPages *
         VIDEO_TRIAGE_JOURNAL_OPERATIONS_PER_PAGE,
     };
+    observer?.('TX_WRITE');
     tx.create(ref, record);
   }, { maxAttempts: VIDEO_TRIAGE_AUDIT_TX_MAX_ATTEMPTS });
   return reportVideoTriageAudit(ledger);
@@ -236,10 +249,11 @@ export async function registerSignedVideoTriageAuditJournal(
 /** Read-only recovery of the canonical checkpoint; no job reads. */
 export async function readDurableVideoTriageAuditJournal(
   db: Firestore, app: App, approval: VideoTriageAuditApproval,
-  key: Buffer
+  key: Buffer, observer?: VideoTriageAuditSdkObserver
 ): Promise<{ checkpoint: string; report: VideoTriageAuditReport;
   generation: number; inFlight: boolean; journalReservedOperations: number }> {
   const id = guard(db, app, approval);
+  observer?.('DIRECT_GET');
   const doc = await refFor(db, id).get();
   if (!doc.exists) throw new Error('Audit journal not registered.');
   const entry = readDocument(doc.data(), approval, key);
@@ -259,12 +273,14 @@ export type VideoTriageAuditRecovery =
 /** Recovery never queries jobs, and never credits a counter. */
 export async function recoverDurableVideoTriageAuditAttempt(
   db: Firestore, app: App, approval: VideoTriageAuditApproval,
-  key: Buffer, claim: VideoTriageAuditClaim
+  key: Buffer, claim: VideoTriageAuditClaim,
+  observer?: VideoTriageAuditSdkObserver
 ): Promise<VideoTriageAuditRecovery> {
   const id = guard(db, app, approval);
   if (claim.sessionId !== id || claim.fence !== claim.attemptId) {
     throw new Error('Audit attempt recovery identity mismatch.');
   }
+  observer?.('DIRECT_GET');
   const doc = await refFor(db, id).get();
   if (!doc.exists) throw new Error('Audit journal missing.');
   const entry = readDocument(doc.data(), approval, key);
@@ -297,7 +313,8 @@ export async function recoverDurableVideoTriageAuditAttempt(
 export async function claimDurableVideoTriageAuditPage(
   db: Firestore, app: App, approval: VideoTriageAuditApproval,
   expectedCheckpoint: string, key: Buffer,
-  ownerId: string, now: number
+  ownerId: string, now: number,
+  observer?: VideoTriageAuditSdkObserver
 ): Promise<VideoTriageAuditClaimOutcome> {
   const id = guard(db, app, approval);
   checkedClock(now);
@@ -309,7 +326,9 @@ export async function claimDurableVideoTriageAuditPage(
   if (submitted.sessionId !== id) throw new Error('Audit checkpoint session mismatch.');
 
   return db.runTransaction(async tx => {
+    observer?.('TX_ATTEMPT');
     const ref = refFor(db, id);
+    observer?.('TX_GET');
     const doc = await tx.get(ref);
     if (!doc.exists) throw new Error('Audit journal not registered.');
     const entry = readDocument(doc.data(), approval, key);
@@ -341,6 +360,7 @@ export async function claimDurableVideoTriageAuditPage(
         permission.reason === 'STOPPED_BUDGET' ? 'STOPPED_BUDGET' :
           ledger.status;
       const updated = sealVideoTriageAuditCheckpoint(ledger, key);
+      observer?.('TX_WRITE');
       tx.update(ref, {
         ledger, checkpointDigest: digest(updated), active: null, receipts,
         generation: entry.active ? entry.generation + 1 : entry.generation,
@@ -372,6 +392,7 @@ export async function claimDurableVideoTriageAuditPage(
       afterId: ledger.lanes[ledger.nextLaneIndex].afterId,
     };
     const checkpoint = sealVideoTriageAuditCheckpoint(ledger, key);
+    observer?.('TX_WRITE');
     tx.update(ref, {
       ledger, checkpointDigest: digest(checkpoint),
       active: lease, generation, receipts,
@@ -392,13 +413,16 @@ export async function claimDurableVideoTriageAuditPage(
 export async function settleDurableVideoTriageAuditPage(
   db: Firestore, app: App, approval: VideoTriageAuditApproval,
   key: Buffer, claim: VideoTriageAuditClaim,
-  page: VideoTriageConcurrentAuditPage | null, now: number
+  page: VideoTriageConcurrentAuditPage | null, now: number,
+  observer?: VideoTriageAuditSdkObserver
 ): Promise<VideoTriageAuditSettlement> {
   const id = guard(db, app, approval);
   checkedClock(now);
   if (claim.sessionId !== id) throw new Error('Audit settlement session mismatch.');
   return db.runTransaction(async tx => {
+    observer?.('TX_ATTEMPT');
     const ref = refFor(db, id);
+    observer?.('TX_GET');
     const doc = await tx.get(ref);
     if (!doc.exists) throw new Error('Audit journal missing.');
     const entry = readDocument(doc.data(), approval, key);
@@ -431,6 +455,7 @@ export async function settleDurableVideoTriageAuditPage(
     const ledger = settleVideoTriageAuditPage(
       entry.ledger, at, page, true);
     const checkpoint = sealVideoTriageAuditCheckpoint(ledger, key);
+    observer?.('TX_WRITE');
     tx.update(ref, {
       ledger, checkpointDigest: digest(checkpoint), active: null,
       receipts: {
@@ -452,11 +477,12 @@ export async function runOneDurableVideoTriageAuditPage(
   db: Firestore, app: App, approval: VideoTriageAuditApproval,
   checkpoint: string, key: Buffer,
   clock: () => number = Date.now,
-  readPage: typeof auditVideoTriageConcurrentPage = auditVideoTriageConcurrentPage
+  readPage: typeof auditVideoTriageConcurrentPage = auditVideoTriageConcurrentPage,
+  observer?: VideoTriageAuditSdkObserver
 ): Promise<VideoTriageJournalStep> {
   const owner = randomUUID();
   const claimed = await claimDurableVideoTriageAuditPage(
-    db, app, approval, checkpoint, key, owner, clock());
+    db, app, approval, checkpoint, key, owner, clock(), observer);
   if (claimed.kind !== 'CLAIMED') {
     return {
       kind: claimed.kind, report: claimed.report,
@@ -476,7 +502,7 @@ export async function runOneDurableVideoTriageAuditPage(
   }
   try {
     const settled = await settleDurableVideoTriageAuditPage(
-      db, app, approval, key, claimed.claim, page, clock());
+      db, app, approval, key, claimed.claim, page, clock(), observer);
     return {
       ...settled, readFailed,
       page: settled.kind === 'APPLIED' ? page : null,
@@ -484,7 +510,7 @@ export async function runOneDurableVideoTriageAuditPage(
   } catch {
     // A lost commit response is never permission to reread the jobs.
     const recovered = await recoverDurableVideoTriageAuditAttempt(
-      db, app, approval, key, claimed.claim);
+      db, app, approval, key, claimed.claim, observer);
     return {
       kind: recovered.kind === 'APPLIED' ? 'DUPLICATE' as const :
         recovered.kind,
@@ -492,4 +518,130 @@ export async function runOneDurableVideoTriageAuditPage(
       readFailed, page: null,
     };
   }
+}
+
+/** c18l offline consistency report; never authorizes a live audit. */
+export interface VideoTriageAuditCostEvidence {
+  /** External, explicitly bounded operator observation; never inferred. */
+  source: 'EMULATOR_INSTRUMENTATION';
+  jobQueryReads: number;
+  jobPointReads: number;
+  journalDocumentReads: number;
+  journalDocumentWrites: number;
+  transactionRetries: number;
+  recoveryReads: number;
+  statusReads: number;
+  registrationOperations: number;
+}
+
+export interface VideoTriageAuditValidation {
+  scope: 'OFFLINE_SESSION_ONLY';
+  globalCoverageVerified: false;
+  concurrentCursorSafetyVerified: false;
+  productionCostVerified: false;
+  globalOrderingEnabled: false;
+  measuredOperationsVerified: false;
+  consistency: 'CONSISTENT' | 'INCONSISTENT';
+  coverage: 'CONCURRENT_CHANGES_OBSERVED' | 'NOT_PROVEN';
+  cost: 'NOT_MEASURED' | 'MEASUREMENT_REVIEW' | 'INCONSISTENT';
+  blockingReasons: string[];
+  limits: {
+    maxJobReadsPerPage: number;
+    jobReadsReserved: number;
+    maxJournalOperationsPerPage: number;
+    journalOperationsReserved: number;
+    maxJournalOperations: number;
+    /** Ceiling for reservations, not actual costs or a full billing cap. */
+    combinedReservationUpperBound: number;
+  };
+}
+
+function whole(value: number): boolean {
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
+/**
+ * Checks consistency between an HMAC-authenticated ledger and a separately
+ * read journal reservation. Both are only an internal, partial audit.
+ */
+export function validateVideoTriageAuditSession(
+  signedCheckpoint: string,
+  key: Buffer,
+  approval: VideoTriageAuditApproval,
+  journalReservedOperations: number,
+  evidence?: VideoTriageAuditCostEvidence
+): VideoTriageAuditValidation {
+  const ledger = openVideoTriageAuditCheckpoint(
+    signedCheckpoint, key, approval);
+  const { budget } = ledger;
+  const maxJobReadsPerPage = 2 * budget.pageSize + 1;
+  const journalPerPage = VIDEO_TRIAGE_JOURNAL_OPERATIONS_PER_PAGE;
+  const maxJournalOperations = budget.maxPages * journalPerPage;
+  const problems: string[] = [];
+  if (ledger.pagesAttempted > budget.maxPages ||
+      ledger.pagesCompleted > ledger.pagesAttempted ||
+      ledger.documentsObserved > budget.maxDocuments ||
+      ledger.failedPages > ledger.pagesAttempted ||
+      ledger.reservedDocumentReads > budget.maxDocumentReads ||
+      ledger.reservedDocumentReads !==
+        ledger.pagesAttempted * maxJobReadsPerPage ||
+      !whole(journalReservedOperations) ||
+      journalReservedOperations > maxJournalOperations ||
+      journalReservedOperations !== ledger.pagesAttempted * journalPerPage) {
+    problems.push('RESERVATION_LEDGER_INCONSISTENT');
+  }
+  if (ledger.changedOnReread > 0 || ledger.removedOnReread > 0 ||
+      ledger.movedOnReread > 0) {
+    problems.push('CONCURRENT_CHANGES_OBSERVED');
+  }
+  // Every lane is only a best-effort page sequence, not a pinned snapshot.
+  problems.push('NO_GLOBAL_SNAPSHOT_OR_CROSS_LANE_RECONCILIATION');
+  if (!evidence) {
+    problems.push('JOURNAL_AND_QUERY_ACTUAL_COST_NOT_MEASURED');
+  } else if (evidence.source !== 'EMULATOR_INSTRUMENTATION' ||
+      ![
+        evidence.jobQueryReads, evidence.jobPointReads,
+        evidence.journalDocumentReads, evidence.journalDocumentWrites,
+        evidence.transactionRetries, evidence.recoveryReads,
+        evidence.statusReads, evidence.registrationOperations,
+      ].every(whole) ||
+      evidence.jobQueryReads + evidence.jobPointReads >
+        ledger.reservedDocumentReads ||
+      evidence.transactionRetries >
+        (ledger.pagesAttempted * 2 + 1) *
+          (VIDEO_TRIAGE_AUDIT_TX_MAX_ATTEMPTS - 1) ||
+      evidence.recoveryReads > evidence.journalDocumentReads ||
+      evidence.statusReads > evidence.journalDocumentReads ||
+      evidence.registrationOperations >
+        2 * VIDEO_TRIAGE_AUDIT_TX_MAX_ATTEMPTS) {
+    problems.push('COST_MEASUREMENT_INCONSISTENT');
+  } else {
+    // Emulated instrumentation is informative, never a production bill.
+    problems.push('EMULATOR_MEASUREMENT_NOT_PRODUCTION_BILLING');
+  }
+  const inconsistent = problems.includes('RESERVATION_LEDGER_INCONSISTENT') ||
+    problems.includes('COST_MEASUREMENT_INCONSISTENT');
+  return {
+    scope: 'OFFLINE_SESSION_ONLY',
+    globalCoverageVerified: false,
+    concurrentCursorSafetyVerified: false,
+    productionCostVerified: false,
+    globalOrderingEnabled: false,
+    measuredOperationsVerified: false,
+    consistency: inconsistent ? 'INCONSISTENT' : 'CONSISTENT',
+    coverage: problems.includes('CONCURRENT_CHANGES_OBSERVED') ?
+      'CONCURRENT_CHANGES_OBSERVED' : 'NOT_PROVEN',
+    cost: !evidence ? 'NOT_MEASURED' :
+      inconsistent ? 'INCONSISTENT' : 'MEASUREMENT_REVIEW',
+    blockingReasons: problems,
+    limits: {
+      maxJobReadsPerPage,
+      jobReadsReserved: ledger.reservedDocumentReads,
+      maxJournalOperationsPerPage: journalPerPage,
+      journalOperationsReserved: journalReservedOperations,
+      maxJournalOperations,
+      combinedReservationUpperBound:
+        ledger.reservedDocumentReads + journalReservedOperations,
+    },
+  };
 }

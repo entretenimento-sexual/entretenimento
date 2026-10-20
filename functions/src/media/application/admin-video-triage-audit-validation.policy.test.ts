@@ -7,7 +7,7 @@ import {
   sealVideoTriageAuditCheckpoint, type VideoTriageAuditApproval,
   type VideoTriageAuditLedger,
 } from './admin-video-triage-audit-session.policy';
-import { validateVideoTriageAuditSession } from './admin-video-triage-audit-validation.policy';
+import { validateVideoTriageAuditSession } from './admin-video-triage-audit-journal.firestore';
 
 const key = randomBytes(32);
 const at = 1_800_000_000_000;

@@ -45,6 +45,24 @@ export interface VideoTriageConcurrentAuditPage {
   concurrentCursorSafetyVerified: false;
 }
 
+/**
+ * Optional c18m emulator-only SDK-call observation. Returned document count
+ * is measured after query completion; this is NOT Firestore billing evidence.
+ * IDs stay inside the isolated test process and must never enter logs.
+ */
+export interface VideoTriagePageReadObservation {
+  scope: 'EMULATOR_SDK_PAGE';
+  state: VideoTriageBackfillState;
+  afterId: string | null;
+  ids: readonly string[];
+  queryGetCalls: 1;
+  queryDocumentsReturned: number;
+  pointGetAllCalls: 0 | 1;
+  pointDocumentsRequested: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+
 function identical(first: DocumentSnapshot, second: DocumentSnapshot): boolean {
   return first.exists && second.exists &&
     !!first.updateTime && !!second.updateTime &&
@@ -54,8 +72,15 @@ function identical(first: DocumentSnapshot, second: DocumentSnapshot): boolean {
 }
 
 export async function auditVideoTriageConcurrentPage(
-  db: Firestore, request: VideoTriageConcurrentAuditRequest
+  db: Firestore, request: VideoTriageConcurrentAuditRequest,
+  observe?: (result: VideoTriagePageReadObservation) => void
 ): Promise<VideoTriageConcurrentAuditPage> {
+  // Never expose diagnostic IDs or SDK metrics outside the local emulator.
+  if (observe && (!/^127\\.0\\.0\\.1:\\d{2,5}$/.test(
+    process.env.FIRESTORE_EMULATOR_HOST ?? '') ||
+    db.databaseId !== '(default)')) {
+    throw new Error('Triage SDK observation requires local Firestore Emulator.');
+  }
   const now = request.now ?? Date.now();
   const limit = request.limit ?? 10;
   if (!VIDEO_TRIAGE_BACKFILL_STATES.includes(request.state) ||
@@ -96,6 +121,17 @@ export async function auditVideoTriageConcurrentPage(
     }
   }
   const hasMore = docs.length > limit;
+  if (observe) {
+    observe({
+      scope: 'EMULATOR_SDK_PAGE', state: request.state,
+      afterId: request.afterId ?? null,
+      ids: consumed.map(doc => doc.id),
+      queryGetCalls: 1, queryDocumentsReturned: docs.length,
+      pointGetAllCalls: consumed.length ? 1 : 0,
+      pointDocumentsRequested: consumed.length,
+      hasMore, nextCursor: hasMore ? consumed[consumed.length - 1].id : null,
+    });
+  }
   return {
     scope: 'PAGE_ONLY', consistency: 'BEST_EFFORT_NOT_SNAPSHOT',
     state: request.state, checkedAt: now, observed: consumed.length,
