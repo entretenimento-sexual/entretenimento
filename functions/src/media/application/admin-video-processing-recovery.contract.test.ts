@@ -281,5 +281,5 @@ test('c18j triage journal source changes trigger the isolated reconciliation CI'
     '../.github/workflows/video-processing-reconciliation-emulator.yml'),
   'utf8');
   assert.ok(workflow.includes(
-    "functions/src/media/application/admin-video-triage-*"));
+    'functions/src/media/application/admin-video-triage-*'));
 });
