@@ -78,3 +78,16 @@ nenhum TTL, expurgo, consumer ou limpeza automática foi autorizado.
 `cleanupAuthorized=false`.
 
 A c19, a ordenação global, deploy e flags permanecem bloqueados.
+
+## Correção subsequente do gate canônico
+
+Na primeira publicação da c18u, os três checks funcionais passaram, mas
+o gate canônico falhou em `functions_audit`: o lockfile mantinha a
+dependência transitiva `follow-redirects@1.16.0` com advisories de
+exposição de credenciais por redirecionamento. Atualizados
+`functions/package.json` (override explícito) e
+`functions/package-lock.json` para `1.16.1`, preservando o
+hash de integridade oficial da distribuição. Nenhuma versão major,
+alteração de dependências não relacionadas ou execução de deploy foi
+autorizada. A revisão só deve ser marcada como concluída após CI 4/4
+na nova cabeça da main.
