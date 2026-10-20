@@ -32,6 +32,8 @@ export interface VideoTriageConcurrentAuditPage {
   stableOnReread: number;
   changedOnReread: number;
   removedOnReread: number;
+  /** State transitions observed by the second read; not all lane moves. */
+  movedOnReread: number;
   counts: Record<VideoTriageIntegrity, number>;
   hasMore: boolean;
   nextCursor: string | null;
@@ -84,17 +86,21 @@ export async function auditVideoTriageConcurrentPage(
   let stableOnReread = 0;
   let changedOnReread = 0;
   let removedOnReread = 0;
+  let movedOnReread = 0;
   for (let i = 0; i < consumed.length; i++) {
     if (!current[i]?.exists) removedOnReread++;
     else if (identical(consumed[i], current[i])) stableOnReread++;
-    else changedOnReread++;
+    else {
+      changedOnReread++;
+      if (current[i].get('state') !== request.state) movedOnReread++;
+    }
   }
   const hasMore = docs.length > limit;
   return {
     scope: 'PAGE_ONLY', consistency: 'BEST_EFFORT_NOT_SNAPSHOT',
     state: request.state, checkedAt: now, observed: consumed.length,
     stableOnReread, changedOnReread, removedOnReread,
-    counts, hasMore,
+    movedOnReread, counts, hasMore,
     nextCursor: hasMore ? consumed[consumed.length - 1].id : null,
     maxQueryReads: limit + 1, maxPointReads: consumed.length,
     maxDocumentReads: limit + 1 + consumed.length,

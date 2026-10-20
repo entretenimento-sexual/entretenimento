@@ -931,3 +931,48 @@ intervenção não executou qualquer consulta de produção e não atesta
 índices já implantados. Exigir auditoria com corte consistente e
 reconciliação de mudanças concorrentes para futuro go/no-go. A fila
 permanece \`WITHIN_PAGE\`, sem flags nem ativação global.
+
+
+### Sessão de auditoria limitada, com checkpoints autenticados (1C2-A3b2b2c18i)
+
+As bibliotecas internas \`admin-video-triage-audit-session.policy.ts\` e
+\`admin-video-triage-audit-session.firestore.ts\` permitem criar e avançar
+**manualmente uma página por invocação**, exclusivamente no Firestore
+Emulator local (\`127.0.0.1:porta\`), com projeto e banco \`(default)\`
+verificados no objeto Firestore. Não possuem CLI automático, scheduler,
+callable, exportação em Functions, deploy, acesso a produção ou alterações
+de documentos. Chave HMAC com ao menos 32 bytes fica com o operador;
+checkpoints são autenticados, NÃO criptografados, não devem aparecer em logs.
+Exige-se autorização explícita e \`sessionId\` da mesma execução na retomada.
+
+O envelope de segurança possui sete lanes de estado, cursor ID por lane,
+data de avaliação fixa, páginas tentadas/concluídas, documentos observados,
+leituras máximas RESERVADAS, falhas de leitura, mudanças e remoções detectadas,
+movimentos de estado observados e contadores de divergência c18f. O
+orçamento configurado é imutável no token: máximo de 100 páginas, 2.000
+documentos, 4.100 leituras reservadas, 30 minutos e 2 falhas; uma página
+consume antecipadamente limite de \`2 * pageSize + 1\` leituras, inclusive
+quando Firestore falha. Sem orçamento restante a biblioteca interrompe
+ANTES da próxima leitura. Falha não avança o cursor; é contabilizada e
+requer uma nova chamada expressa. Tempo é validado também após a leitura.
+Não há retry automático nem looping entre páginas.
+
+A releitura c18h agora diferencia também transição de \`state\` observada
+entre as duas leituras; não detecta todas as mudanças antes do cursor ou
+entre estados. Mesmo que as sete lanes sejam visitadas, o relatório
+permanece \`scope: SESSION_PARTIAL\`,
+\`globalCoverageVerified: false\`,
+\`concurrentCursorSafetyVerified: false\`,
+\`eligibleForIndependentReview: false\` e
+\`globalOrderingEnabled: false\`. O estado \`LANES_EXAMINED\` NÃO significa
+snapshot global comprovado, e mudanças podem produzir \`INCONCLUSIVE\`.
+
+**Limitação explícita:** HMAC evita adulteração e troca de projeto/sessão,
+mas NÃO substitui armazenamento transacional de checkpoint/lease. Reusar
+em paralelo o mesmo checkpoint assinado pode repetir leituras e duplicar
+contagens se o operador mesclar manualmente resultados. A operação requer
+executor único/serializado, armazenamento externo protegido do token e
+chave, retenção por execução e autorização separada para qualquer futuro
+trabalho em produção. Contadores são tetos reservados e não faturamento
+real comprovado. Nenhuma prova de READY, cobertura integral ou promoção
+global foi realizada; \`WITHIN_PAGE\` permanece.

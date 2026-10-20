@@ -233,3 +233,23 @@ test('c18h authenticated index evidence has explicit approval, fixed REST URL an
   assert.ok(!handler.includes("orderBy('adminTriageTier')"));
   assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
 });
+
+
+test('c18i offline audit session cannot activate ordering or gain production reachability', () => {
+  const read = (name: string) => readFileSync(resolve(root,
+    'src/media/application/' + name), 'utf8');
+  const policy = read('admin-video-triage-audit-session.policy.ts');
+  const runner = read('admin-video-triage-audit-session.firestore.ts');
+  assert.ok(policy.includes('createHmac('));
+  assert.ok(policy.includes('timingSafeEqual('));
+  assert.ok(policy.includes('globalOrderingEnabled: false'));
+  assert.ok(policy.includes('globalCoverageVerified: false'));
+  assert.ok(runner.includes('process.env.FIRESTORE_EMULATOR_HOST'));
+  assert.ok(runner.includes('db.projectId !== approval.expectedProjectId'));
+  assert.ok(runner.includes('db.databaseId !== approval.expectedDatabaseId'));
+  assert.ok(runner.includes('auditVideoTriageConcurrentPage(db, {'));
+  assert.ok(!runner.includes('onSchedule('));
+  assert.ok(!runner.includes('onCall('));
+  assert.ok(!handler.includes("orderBy('adminTriageTier')"));
+  assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
+});

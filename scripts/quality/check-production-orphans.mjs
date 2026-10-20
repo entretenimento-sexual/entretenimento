@@ -489,6 +489,11 @@ const functionsOperationalArtifacts = new Set([
     'media/application/admin-video-triage-evidence.firestore.ts',
     'media/application/admin-video-triage-evidence-audit.firestore.ts',
   ].map((relativePath) => posix(path.join(functionsSourceRoot, relativePath))),
+  // c18i: manually advanced emulator-only signed session/checkpoint ledger.
+  ...[
+    'media/application/admin-video-triage-audit-session.policy.ts',
+    'media/application/admin-video-triage-audit-session.firestore.ts',
+  ].map((relativePath) => posix(path.join(functionsSourceRoot, relativePath))),
 ]);
 
 const functionOrphans = functionsProductionTs
