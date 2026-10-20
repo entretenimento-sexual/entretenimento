@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 
 import { deleteApp, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
 import { buildQueuedVideoProcessingJob } from './video-processing-job';
+import { VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION }
+  from './admin-video-triage-mutation-outbox.firestore';
 import { prepareVideoSourceProbeWithPorts } from './video-source-probe.service';
 import { VideoSourceProbeFailure } from './video-source-probe.policy';
 import type { AuthoritativeVideoProbeResult } from './video-rotation-worker.service';
@@ -53,6 +55,12 @@ function fixture(generation: string | null = '90071992547409935') {
   return { job, jobRef, videoRef, video, observed };
 }
 
+async function mutationEvents(path: string) {
+  const hash = createHash('sha256').update(path).digest('hex');
+  return firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+}
+
 function barrier() {
   let enter!: () => void;
   let release!: () => void;
@@ -90,6 +98,7 @@ test('real transaction: one probe reservation and a bound silent snapshot', asyn
   assert.equal(current.get('sourceProbe.hasAudio'), false);
   assert.equal(current.get('sourceProbeClaimId'), null);
   assert.equal(current.get('state'), 'QUEUED');
+  assert.equal((await mutationEvents(f.jobRef.path)).size, 0);
   assert.equal(await prepareVideoSourceProbeWithPorts(
     f.jobRef, now + 1000, firestore, async () => { calls += 1; return f.observed; }
   ), true);
@@ -112,6 +121,7 @@ test('real transaction: stale response after processing version replacement is i
   gate.release();
   assert.equal(await pending, false);
   assert.equal((await f.jobRef.get()).get('sourceProbe'), undefined);
+  assert.equal((await mutationEvents(f.jobRef.path)).size, 0);
 });
 
 test('real transaction: replacement of original source cancels old claim', async () => {
@@ -133,6 +143,12 @@ test('real transaction: replacement of original source cancels old claim', async
   assert.equal(current.get('state'), 'CANCEL_REQUESTED');
   assert.equal(current.get('lastErrorCode'), 'SOURCE_CHANGED');
   assert.equal(current.get('sourceProbe'), undefined);
+  const events = await mutationEvents(f.jobRef.path);
+  assert.equal(events.size, 1);
+  assert.equal(events.docs[0].get('source'), 'SOURCE_PROBE');
+  assert.equal(events.docs[0].get('kind'), 'CANCEL_REQUESTED');
+  assert.equal(events.docs[0].get('previousState'), 'QUEUED');
+  assert.equal(events.docs[0].get('nextState'), 'CANCEL_REQUESTED');
 });
 
 test('real transaction: late response from expired lease cannot overwrite newer claim', async () => {
@@ -166,6 +182,11 @@ test('real transaction: permanent metadata error fails without Transcoder submis
   ), false);
   assert.equal((await f.jobRef.get()).get('state'), 'FAILED');
   assert.equal((await f.videoRef.get()).get('processingErrorCode'), 'VIDEO_PROBE_NO_VIDEO_STREAM');
+  const events = await mutationEvents(f.jobRef.path);
+  assert.equal(events.size, 1);
+  assert.equal(events.docs[0].get('kind'), 'STATE_TRANSITION');
+  assert.equal(events.docs[0].get('nextState'), 'FAILED');
+  assert.equal(events.docs[0].get('globalCoverageVerified'), false);
 });
 
 test('real transaction: service outage queues retry without marking video failed', async () => {
@@ -181,6 +202,7 @@ test('real transaction: service outage queues retry without marking video failed
   assert.equal(state.get('lastErrorCode'), 'VIDEO_PROBE_UNAVAILABLE');
   assert.ok(state.get('nextAttemptAt') > Date.now());
   assert.equal((await f.videoRef.get()).get('status'), 'queued');
+  assert.equal((await mutationEvents(f.jobRef.path)).size, 0);
 });
 
 test('real transaction: source bytes mismatch cannot be persisted', async () => {

@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { after, afterEach, test } from 'node:test';
 
 import { deleteApp, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
 import { buildQueuedVideoProcessingJob } from './video-processing-job';
+import { VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION }
+  from './admin-video-triage-mutation-outbox.firestore';
 import { createVideoSourceProbeSnapshot } from './video-source-probe.policy';
 import { ImmutableInputPreparationError, buildImmutableTranscoderInputPath,
   type ImmutableTranscoderInput } from './video-immutable-input.policy';
@@ -78,6 +80,12 @@ function fixture(hasGeneration = true) {
   };
   return { now, job, jobRef, videoRef, video, input };
 }
+async function mutationEvents(path: string) {
+  const hash = createHash('sha256').update(path).digest('hex');
+  return firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+}
+
 function barrier() {
   let signal!: () => void;
   let release!: () => void;
@@ -120,6 +128,7 @@ test('preflight: copies once and persists exact version and generation', async (
     f.jobRef, Date.now() + 1000, firestore, async () => { copies++; return f.input; }
   ), true);
   assert.equal(copies, 1);
+  assert.equal((await mutationEvents(f.jobRef.path)).size, 0);
 });
 
 test('preflight: two schedulers cannot copy concurrently on same live claim', async () => {
@@ -159,6 +168,7 @@ test('preflight: response from replaced version never attaches an old input', as
   gate.release();
   assert.equal(await pending, false);
   assert.equal((await f.jobRef.get()).get('immutableInput'), undefined);
+  assert.equal((await mutationEvents(f.jobRef.path)).size, 0);
 });
 
 test('preflight: cancelled claim cannot resurrect or persist immutable input', async () => {
@@ -208,6 +218,11 @@ test('preflight: changed private generation cancels and never copies', async () 
   ), false);
   assert.equal(copies, 0);
   assert.equal((await f.jobRef.get()).get('state'), 'CANCEL_REQUESTED');
+  const events = await mutationEvents(f.jobRef.path);
+  assert.equal(events.size, 1);
+  assert.equal(events.docs[0].get('source'), 'IMMUTABLE_PREFLIGHT');
+  assert.equal(events.docs[0].get('kind'), 'CANCEL_REQUESTED');
+  assert.equal(events.docs[0].get('nextState'), 'CANCEL_REQUESTED');
 });
 
 test('preflight: transient copy outage stays queued with a future retry', async () => {
@@ -222,6 +237,7 @@ test('preflight: transient copy outage stays queued with a future retry', async 
   assert.equal(stored.get('state'), 'QUEUED');
   assert.ok(stored.get('nextAttemptAt') > Date.now());
   assert.equal(stored.get('immutableInput'), undefined);
+  assert.equal((await mutationEvents(f.jobRef.path)).size, 0);
 });
 
 test('preflight: identity conflict is terminal and never permits POST', async () => {
@@ -236,6 +252,12 @@ test('preflight: identity conflict is terminal and never permits POST', async ()
   assert.equal(stored.get('state'), 'FAILED');
   assert.equal((await f.videoRef.get()).get('status'), 'failed');
   assert.equal(stored.get('immutableInput'), undefined);
+  const events = await mutationEvents(f.jobRef.path);
+  assert.equal(events.size, 1);
+  assert.equal(events.docs[0].get('source'), 'IMMUTABLE_PREFLIGHT');
+  assert.equal(events.docs[0].get('kind'), 'STATE_TRANSITION');
+  assert.equal(events.docs[0].get('nextState'), 'FAILED');
+  assert.equal(events.docs[0].get('globallySequenced'), false);
 });
 
 test('preflight: invalid copy identity cannot be recorded', async () => {

@@ -493,3 +493,34 @@ test('c18r administrative replacement and recovery only journal actual transitio
   assert.ok(outbox.includes('globallySequenced: false'));
   assert.ok(!outbox.includes('globalCoverageVerified: true'));
 });
+
+
+test('c18s probe and immutable input preflight journal only terminal state changes', () => {
+  const src = (name: string) => readFileSync(resolve(root,
+    'src/media/application/' + name), 'utf8');
+  const probe = src('video-source-probe.service.ts');
+  const preflight = src('video-immutable-input-preflight.service.ts');
+  const backfill = src('admin-video-triage-backfill.firestore.ts');
+  const outbox = src('admin-video-triage-mutation-outbox.firestore.ts');
+
+  for (const body of [probe, preflight]) {
+    assert.equal(
+      body.split('stageVideoTriageMutationInTransaction(').length - 1, 3);
+    assert.ok(body.includes("kind: 'CANCEL_REQUESTED'"));
+    assert.ok(body.includes("kind: sourceChanged ? 'CANCEL_REQUESTED'") ||
+      body.includes("kind: changed ? 'CANCEL_REQUESTED'"));
+    assert.ok(body.includes("afterState: 'CANCEL_REQUESTED'"));
+    assert.ok(body.includes("afterState: sourceChanged ?") ||
+      body.includes("afterState: status"));
+    assert.ok(body.includes('const initialMutationEventId = randomUUID();'));
+    assert.ok(body.includes('const completionMutationEventId = randomUUID();'));
+    assert.ok(body.includes('const failureMutationEventId = randomUUID();'));
+  }
+  assert.ok(outbox.includes("'SOURCE_PROBE'"));
+  assert.ok(outbox.includes("'IMMUTABLE_PREFLIGHT'"));
+  assert.ok(!backfill.includes('stageVideoTriageMutationInTransaction('));
+  assert.ok(backfill.includes('current.updateTime.isEqual(observed.updateTime)'));
+  assert.ok(backfill.includes("return required === 'PROJECT'"));
+  assert.ok(!outbox.includes('globalCoverageVerified: true'));
+  assert.ok(!outbox.includes('globallySequenced: true'));
+});

@@ -10,6 +10,8 @@ import * as logger from 'firebase-functions/logger';
 import { db } from '../../firebaseApp';
 import type { VideoProcessingJob } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
+import { stageVideoTriageMutationInTransaction }
+  from './admin-video-triage-mutation-outbox.firestore';
 import { videoSourceProbeCaptureEnabled } from './video-source-probe.service';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 import {
@@ -83,6 +85,9 @@ export async function prepareImmutableInputPreflightWithPorts(
   firestore: Firestore,
   copyInput: typeof prepareImmutableTranscoderInput
 ): Promise<boolean> {
+  const initialMutationEventId = randomUUID();
+  const completionMutationEventId = randomUUID();
+  const failureMutationEventId = randomUUID();
   const decision = await firestore.runTransaction(async transaction => {
     const snapshot = await transaction.get(jobRef);
     if (!snapshot.exists) return { kind: 'deferred' as const };
@@ -100,6 +105,11 @@ export async function prepareImmutableInputPreflightWithPorts(
     const videoRef = firestore.doc(`users/${job.ownerUid}/videos/${job.videoId}`);
     const video = await transaction.get(videoRef);
     if (!privateVideoMatches(job, video.data())) {
+      stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+        eventId: initialMutationEventId, source: 'IMMUTABLE_PREFLIGHT',
+        kind: 'CANCEL_REQUESTED', before: snapshot,
+        afterState: 'CANCEL_REQUESTED',
+      });
       transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, {
         state: 'CANCEL_REQUESTED', cancelRequestedAt: now,
         nextAttemptAt: now, leaseUntil: null,
@@ -148,6 +158,11 @@ export async function prepareImmutableInputPreflightWithPorts(
       ]);
       if (!stillClaimed(jobSnapshot.data(), claim)) return false;
       if (!privateVideoMatches(claim.job, videoSnapshot.data())) {
+        stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+          eventId: completionMutationEventId, source: 'IMMUTABLE_PREFLIGHT',
+          kind: 'CANCEL_REQUESTED', before: jobSnapshot,
+          afterState: 'CANCEL_REQUESTED',
+        });
         transaction.update(jobRef, withAdminTriageProjection(jobRef.id, jobSnapshot.data() as Job, {
           state: 'CANCEL_REQUESTED', cancelRequestedAt: finishedAt,
           nextAttemptAt: finishedAt, leaseUntil: null,
@@ -185,6 +200,13 @@ export async function prepareImmutableInputPreflightWithPorts(
       const message = canRetry
         ? 'Preparação técnica temporariamente indisponível.'
         : 'O arquivo original não pôde ser preparado para processamento.';
+      if (!canRetry) {
+        stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+          eventId: failureMutationEventId, source: 'IMMUTABLE_PREFLIGHT',
+          kind: changed ? 'CANCEL_REQUESTED' : 'STATE_TRANSITION',
+          before: jobSnapshot, afterState: status,
+        });
+      }
       transaction.update(jobRef, withAdminTriageProjection(jobRef.id, jobSnapshot.data() as Job, {
         state: status,
         ...(changed ? { cancelRequestedAt: failedAt } : {}),

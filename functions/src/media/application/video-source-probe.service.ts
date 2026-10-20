@@ -5,6 +5,8 @@ import * as logger from 'firebase-functions/logger';
 import { db } from '../../firebaseApp';
 import type { VideoProcessingJob } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
+import { stageVideoTriageMutationInTransaction }
+  from './admin-video-triage-mutation-outbox.firestore';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 import { probeVideoSource } from './video-rotation-worker.service';
 import {
@@ -77,6 +79,9 @@ export async function prepareVideoSourceProbeWithPorts(
   firestore: Firestore,
   inspectSource: typeof probeVideoSource
 ): Promise<boolean> {
+  const initialMutationEventId = randomUUID();
+  const completionMutationEventId = randomUUID();
+  const failureMutationEventId = randomUUID();
   const decision = await firestore.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(jobRef);
     if (!snapshot.exists) return { kind: 'deferred' as const };
@@ -96,6 +101,11 @@ export async function prepareVideoSourceProbeWithPorts(
     const videoRef = firestore.doc(`users/${job.ownerUid}/videos/${job.videoId}`);
     const videoSnapshot = await transaction.get(videoRef);
     if (!privateVideoMatches(job, videoSnapshot.data())) {
+      stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+        eventId: initialMutationEventId, source: 'SOURCE_PROBE',
+        kind: 'CANCEL_REQUESTED', before: snapshot,
+        afterState: 'CANCEL_REQUESTED',
+      });
       transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: now,
@@ -148,6 +158,11 @@ export async function prepareVideoSourceProbeWithPorts(
       ]);
       if (!currentClaim(snapshot.data(), claim)) return false;
       if (!privateVideoMatches(claim.job, videoSnapshot.data())) {
+        stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+          eventId: completionMutationEventId, source: 'SOURCE_PROBE',
+          kind: 'CANCEL_REQUESTED', before: snapshot,
+          afterState: 'CANCEL_REQUESTED',
+        });
         transaction.update(jobRef, withAdminTriageProjection(jobRef.id, snapshot.data() as JobData, {
           state: 'CANCEL_REQUESTED',
           cancelRequestedAt: checkedAt,
@@ -190,6 +205,14 @@ export async function prepareVideoSourceProbeWithPorts(
       const message = retryable
         ? 'Verificação técnica temporariamente indisponível.'
         : 'O arquivo original não pôde ser validado.';
+      if (!retryable) {
+        stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+          eventId: failureMutationEventId, source: 'SOURCE_PROBE',
+          kind: sourceChanged ? 'CANCEL_REQUESTED' : 'STATE_TRANSITION',
+          before: snapshot, afterState: sourceChanged ?
+            'CANCEL_REQUESTED' : 'FAILED',
+        });
+      }
       transaction.update(jobRef, withAdminTriageProjection(jobRef.id, snapshot.data() as JobData, {
         state: sourceChanged ? 'CANCEL_REQUESTED'
           : retryable ? 'QUEUED' : 'FAILED',
