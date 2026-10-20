@@ -19,8 +19,10 @@ PROCESSING volta a observar o primeiro, enquanto o segundo migrou para a
 faixa que já passou. Foram vistas duas observações, mas apenas um ID
 distinto: a duplicação e a omissão compensam-se numericamente.
 
-Esse resultado é possível mesmo que cada consulta individual tenha
-`hasMore = false` e os documentos estejam estáveis na sua releitura.
+A fixture posiciona o ID que migra para a faixa anterior antes do cursor
+já consumido. Assim, não será encontrado na continuação dessa faixa mesmo
+quando `hasMore = true`; se a faixa já terminou, também não será lido.
+Mesmo páginas válidas e releituras estáveis não bastam para provar cobertura.
 Logo, `pagesCompleted`, `lanesExamined`, somatórios e sucesso transacional
 não provam que todos os jobs foram cobertos. Uma verificação global requer
 um snapshot realmente consistente ou mecanismo de reconciliação de
