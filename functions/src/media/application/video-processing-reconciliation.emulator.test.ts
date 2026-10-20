@@ -8,6 +8,7 @@ import axios, { AxiosError, type AxiosResponse } from 'axios';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
+import { projectAdminTriageJob } from './admin-video-global-triage.policy';
 import {
   auditVideoTriageIntegrityPage, reclassifyDueVideoTriagePage,
 } from './admin-video-triage-consistency.firestore';
@@ -2942,8 +2943,6 @@ test('c18e terminal scrubbing, absent version and no unbounded retry', async () 
 test('c18f bounded due index reclassifies with time without altering job state', async () => {
   const ref = jobs.doc('c18f-due-' + randomUUID());
   const start = now - 19 * 60_000;
-  const { projectAdminTriageJob } =
-    await import('./admin-video-global-triage.policy');
   const before = { state: 'QUEUED' as const, processingVersion: 'v1',
     updatedAt: start, outputStoragePath: 'original/safe.mp4' };
   const projection = projectAdminTriageJob(ref.id, before, now)!;
@@ -2983,8 +2982,6 @@ test('c18f independent audit flags absence, version drift, overdue and terminal 
   const first = jobs.doc(prefix + '-01');
   const second = jobs.doc(prefix + '-02');
   const third = jobs.doc(prefix + '-03');
-  const { projectAdminTriageJob } =
-    await import('./admin-video-global-triage.policy');
   const raw = { state: 'QUEUED' as const, processingVersion: 'v1',
     updatedAt: now - 3 * 60_000 };
   const clean = projectAdminTriageJob(first.id, raw, now)!;
