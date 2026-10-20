@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { DocumentReference } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
@@ -18,6 +20,10 @@ import {
   type VideoProcessingJob,
 } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
+import {
+  stageVideoTriageCreatedJobInTransaction,
+  stageVideoTriageMutationInTransaction,
+} from './admin-video-triage-mutation-outbox.firestore';
 import {
   hasPersistedInvalidProcessingSourceFailure,
   INVALID_PROCESSING_SOURCE_CODE,
@@ -126,6 +132,7 @@ function resolvePersistedEditRecipe(
 async function requestCancellationIfPresent(
   jobRef: DocumentReference
 ): Promise<void> {
+  const eventId = randomUUID();
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(jobRef);
 
@@ -140,6 +147,10 @@ async function requestCancellationIfPresent(
     }
 
     const now = Date.now();
+    stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+      eventId, source: 'SUBMISSION_CLAIM', kind: 'CANCEL_REQUESTED',
+      before: snapshot, afterState: 'CANCEL_REQUESTED',
+    });
     transaction.set(
       jobRef,
       withAdminTriageProjection(jobRef.id,
@@ -177,6 +188,7 @@ export async function ensurePrivateVideoProcessingQueued(
   const processingJobId = buildVideoProcessingJobId(ownerUid, videoId);
   const videoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
   const jobRef = processingJobReference(ownerUid, videoId);
+  const eventId = randomUUID();
   const queuedJob = await db.runTransaction<VideoProcessingJob | null>(
     async (transaction) => {
       const [videoSnap, jobSnap] = await Promise.all([
@@ -221,6 +233,12 @@ export async function ensurePrivateVideoProcessingQueued(
         );
 
         if (jobSnap.exists) {
+          if (jobSnap.get('state') !== 'FAILED') {
+            stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+              eventId, source: 'SUBMISSION_CLAIM', kind: 'STATE_TRANSITION',
+              before: jobSnap, afterState: 'FAILED',
+            });
+          }
           transaction.set(
             jobRef,
             withAdminTriageProjection(jobRef.id,
@@ -328,6 +346,8 @@ export async function ensurePrivateVideoProcessingQueued(
         now,
       });
 
+      stageVideoTriageCreatedJobInTransaction(
+        db, transaction, jobRef, jobSnap, eventId, job.processingVersion);
       transaction.create(jobRef, withAdminTriageProjection(jobRef.id, null, job, now));
       transaction.set(
         videoRef,

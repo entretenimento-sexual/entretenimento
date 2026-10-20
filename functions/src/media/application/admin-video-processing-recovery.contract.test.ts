@@ -444,3 +444,28 @@ test('c18p account-owned video job writes trigger isolated Firestore reconciliat
   assert.ok(workflow.includes(
     "'functions/src/media/application/admin-video-triage-*'"));
 });
+
+
+test('c18q queue, submission and terminal writers stage partial mutation events in the same transaction', () => {
+  const read = (name: string) => readFileSync(resolve(root,
+    'src/media/application/' + name), 'utf8');
+  const queue = read('queue-video-processing.handler.ts');
+  const submit = read('video-processing.handler.ts');
+  const terminal = read('video-processing-terminal-commit.firestore.ts');
+  const outbox = read('admin-video-triage-mutation-outbox.firestore.ts');
+
+  assert.ok(queue.includes('stageVideoTriageCreatedJobInTransaction('));
+  assert.ok(queue.includes('transaction.create(jobRef, withAdminTriageProjection('));
+  assert.ok(queue.includes("source: 'SUBMISSION_CLAIM'"));
+  assert.ok(submit.includes("source: 'SUBMISSION_CLAIM'"));
+  assert.ok(submit.includes("source: 'SUBMISSION_CONFIRMATION'"));
+  assert.ok(terminal.includes("source: 'TERMINAL_COMMIT'"));
+  assert.ok(terminal.includes("kind: 'STATE_TRANSITION'"));
+  assert.ok(terminal.includes("kind: 'CANCEL_REQUESTED'"));
+  assert.ok(outbox.includes("kind: 'CREATE'"));
+  assert.ok(outbox.includes('before.exists || before.ref.path !== jobRef.path'));
+  assert.ok(outbox.includes('globallySequenced: false'));
+  assert.ok(outbox.includes('globalCoverageVerified: false'));
+  assert.ok(!outbox.includes('globalCoverageVerified: true'));
+  assert.ok(!handler.includes("orderBy('adminTriageTier')"));
+});

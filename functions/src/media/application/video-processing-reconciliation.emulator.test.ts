@@ -10,6 +10,7 @@ import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
 import {
   stageVideoTriageMutationInTransaction,
+  stageVideoTriageCreatedJobInTransaction,
   VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION,
 } from './admin-video-triage-mutation-outbox.firestore';
 import { sampleVideoTriageReadinessPage } from './admin-video-triage-readiness.firestore';
@@ -2463,6 +2464,11 @@ test('terminal commit returns only the Firestore-applied result under racing pol
     assert.ok(second);
     const observed = createVideoWorkOutcomeCounter();
     assert.equal(await commit(first, 'FAILED'), 'REPLACED');
+    const hash = createHash('sha256').update(jobRef.path).digest('hex');
+    const eventsForJob = () => firestore
+      .collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+      .where('jobKeySha256', '==', hash).get();
+    assert.equal((await eventsForJob()).size, 0);
     terminalVideoWorkOutcomes('FAILED', 'REPLACED').forEach(observed.observe);
     assert.equal((await jobRef.get()).get('state'), 'PROCESSING');
     assert.equal((await videoRef.get()).get('status'), 'processing');
@@ -2470,7 +2476,14 @@ test('terminal commit returns only the Firestore-applied result under racing pol
     terminalVideoWorkOutcomes('SUCCEEDED', 'APPLIED').forEach(observed.observe);
     assert.equal((await jobRef.get()).get('state'), 'SUCCEEDED');
     assert.equal((await videoRef.get()).get('status'), 'ready');
+    const appliedEvents = await eventsForJob();
+    assert.equal(appliedEvents.size, 1);
+    assert.equal(appliedEvents.docs[0].get('source'), 'TERMINAL_COMMIT');
+    assert.equal(appliedEvents.docs[0].get('kind'), 'STATE_TRANSITION');
+    assert.equal(appliedEvents.docs[0].get('nextState'), 'SUCCEEDED');
+    assert.equal(appliedEvents.docs[0].get('globallySequenced'), false);
     assert.equal(await commit(first, 'FAILED'), 'REPLACED');
+    assert.equal((await eventsForJob()).size, 1);
     assert.equal(observed.metrics()['providerFailedApplied'] ?? 0, 0);
     assert.equal(observed.metrics()['providerSucceededApplied'], 1);
     assert.equal(observed.needsAttention(), false);
@@ -2512,6 +2525,14 @@ test('terminal commit requests cancellation if original is missing or generation
       );
       assert.equal(disposition, 'CANCEL_REQUESTED', change);
       assert.equal((await jobRef.get()).get('state'), 'CANCEL_REQUESTED');
+      const hash = createHash('sha256').update(jobRef.path).digest('hex');
+      const events = await firestore
+        .collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+        .where('jobKeySha256', '==', hash).get();
+      assert.equal(events.size, 1);
+      assert.equal(events.docs[0].get('source'), 'TERMINAL_COMMIT');
+      assert.equal(events.docs[0].get('kind'), 'CANCEL_REQUESTED');
+      assert.equal(events.docs[0].get('nextState'), 'CANCEL_REQUESTED');
       assert.notEqual((await jobRef.get()).get('providerState'), 'FAILED');
       const actual = await videoRef.get();
       if (change === 'MISSING') assert.equal(actual.exists, false);
@@ -3807,4 +3828,76 @@ test('c18p deletion tombstones are not written for a missing job', async () => {
   const event = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
     .doc(eventId).get();
   assert.equal(event.exists, false);
+});
+
+
+test('c18q queue creation event is atomic, idempotent and rejects existing jobs', async () => {
+  const jobRef = jobs.doc('c18q-create-' + randomUUID());
+  const job = buildQueuedVideoProcessingJob({
+    ownerUid: 'c18q-emulator-owner', videoId: 'v-' + randomUUID(),
+    sourceStoragePath: 'users/c18q-emulator-owner/uploads/videos/fixture.mp4',
+    sourcePosterStoragePath: null, sourceMimeType: 'video/mp4',
+    sourceSizeBytes: 20000, sourceDurationMs: 10000, now,
+  });
+  const eventId = randomUUID();
+  const eventRef = firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .doc(eventId);
+  const create = async (abort = false) =>
+    firestore.runTransaction(async tx => {
+      const before = await tx.get(jobRef);
+      if (before.exists) return false;
+      stageVideoTriageCreatedJobInTransaction(
+        firestore, tx, jobRef, before, eventId, job.processingVersion);
+      tx.create(jobRef, withAdminTriageProjection(jobRef.id, null, job, now));
+      if (abort) throw new Error('SIMULATED_QUEUE_ROLLBACK');
+      return true;
+    }, { maxAttempts: 1 });
+  await assert.rejects(create(true), /SIMULATED_QUEUE_ROLLBACK/);
+  assert.equal((await eventRef.get()).exists, false);
+  assert.equal((await jobRef.get()).exists, false);
+  assert.equal(await create(), true);
+  assert.equal((await jobRef.get()).get('state'), 'QUEUED');
+  const recorded = await eventRef.get();
+  assert.equal(recorded.get('source'), 'QUEUE_CREATION');
+  assert.equal(recorded.get('kind'), 'CREATE');
+  assert.equal(recorded.get('previousState'), null);
+  assert.equal(recorded.get('nextState'), 'QUEUED');
+  assert.equal(recorded.get('processingVersion'), job.processingVersion);
+  assert.equal(recorded.get('globalCoverageVerified'), false);
+  assert.equal(await create(), false);
+  const hash = createHash('sha256').update(jobRef.path).digest('hex');
+  const events = await firestore
+    .collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  assert.equal(events.size, 1);
+});
+
+test('c18q state transition event rejects forged same-state and missing jobs', async () => {
+  const jobRef = jobs.doc('c18q-transition-' + randomUUID());
+  const before = { ...fixture('PENDING'), state: 'SUBMITTING' as const };
+  await jobRef.create(before);
+  const snapshot = await jobRef.get();
+  await assert.rejects(firestore.runTransaction(async tx => {
+    stageVideoTriageMutationInTransaction(firestore, tx, jobRef, {
+      eventId: randomUUID(), source: 'SUBMISSION_CONFIRMATION',
+      kind: 'STATE_TRANSITION', before: snapshot, afterState: 'SUBMITTING',
+    });
+  }), /Invalid video job mutation outbox intent/);
+  const eventId = randomUUID();
+  await firestore.runTransaction(async tx => {
+    const current = await tx.get(jobRef);
+    stageVideoTriageMutationInTransaction(firestore, tx, jobRef, {
+      eventId, source: 'SUBMISSION_CONFIRMATION',
+      kind: 'STATE_TRANSITION', before: current,
+      afterState: 'PROCESSING',
+    });
+    tx.update(jobRef, { state: 'PROCESSING' });
+  });
+  const event = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .doc(eventId).get();
+  assert.equal(event.get('previousState'), 'SUBMITTING');
+  assert.equal(event.get('nextState'), 'PROCESSING');
+  assert.equal(event.get('source'), 'SUBMISSION_CONFIRMATION');
+  assert.equal(event.get('scope'), 'PARTIAL_WRITER_COVERAGE');
+  assert.equal((await jobRef.get()).get('state'), 'PROCESSING');
 });

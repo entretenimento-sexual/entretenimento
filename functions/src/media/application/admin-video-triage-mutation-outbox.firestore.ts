@@ -13,16 +13,20 @@ import {
   type Firestore, type Transaction,
 } from 'firebase-admin/firestore';
 
-import { VIDEO_PROCESSING_JOBS_COLLECTION } from './video-processing-job';
+import {
+  VIDEO_PROCESSING_JOBS_COLLECTION, type VideoProcessingJobState,
+} from './video-processing-job';
 
 export const VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION =
   'media_video_processing_mutation_events';
 
 export type VideoTriageMutationSource =
   'ACCOUNT_DELETION_PAGE' | 'ACCOUNT_DELETION_PRIVATE_VIDEO' |
-  'CANCELLATION_RECONCILIATION';
+  'CANCELLATION_RECONCILIATION' | 'QUEUE_CREATION' |
+  'SUBMISSION_CLAIM' | 'SUBMISSION_CONFIRMATION' | 'TERMINAL_COMMIT';
 
-export type VideoTriageMutationKind = 'CANCEL_REQUESTED' | 'DELETE';
+export type VideoTriageMutationKind =
+  'CANCEL_REQUESTED' | 'DELETE' | 'STATE_TRANSITION' | 'CREATE';
 
 export interface VideoTriageMutationIntent {
   eventId: string;
@@ -34,8 +38,13 @@ export interface VideoTriageMutationIntent {
    * UPDATE: CANCEL_REQUESTED; DELETE: null. No arbitrary after-image data,
    * tokens, file paths, video metadata, owner UID or personal data.
    */
-  afterState: 'CANCEL_REQUESTED' | null;
+  afterState: VideoProcessingJobState | null;
 }
+
+const VALID_STATES: ReadonlySet<string> = new Set([
+  'QUEUED', 'SUBMITTING', 'PROCESSING', 'SUCCEEDED', 'FAILED',
+  'CANCEL_REQUESTED', 'CANCELLED',
+]);
 
 function safeState(value: unknown): string {
   return typeof value === 'string' && /^[A-Z_]{1,40}$/.test(value) ?
@@ -61,7 +70,11 @@ export function stageVideoTriageMutationInTransaction(
       intent.before.ref.path !== jobRef.path ||
       (intent.kind === 'DELETE' && intent.afterState !== null) ||
       (intent.kind === 'CANCEL_REQUESTED' &&
-        intent.afterState !== 'CANCEL_REQUESTED')) {
+        intent.afterState !== 'CANCEL_REQUESTED') ||
+      intent.kind === 'CREATE' ||
+      (intent.kind === 'STATE_TRANSITION' &&
+        (!intent.afterState || !VALID_STATES.has(intent.afterState) ||
+        intent.afterState === intent.before.get('state')))) {
     throw new Error('Invalid video job mutation outbox intent.');
   }
 
@@ -80,6 +93,44 @@ export function stageVideoTriageMutationInTransaction(
     previousUpdateTime: intent.before.updateTime?.toMillis() ?? null,
     recordedAt: FieldValue.serverTimestamp(),
     // Claim is only that this event shares the caller's job transaction.
+    globalCoverageVerified: false,
+    globallySequenced: false,
+  });
+}
+
+
+/**
+ * Stage the QUEUED creation only after reading the absent job inside the
+ * caller's transaction. No separate reads, retries or provider calls.
+ */
+export function stageVideoTriageCreatedJobInTransaction(
+  firestore: Firestore,
+  transaction: Transaction,
+  jobRef: DocumentReference,
+  before: DocumentSnapshot,
+  eventId: string,
+  processingVersion: string
+): void {
+  if (jobRef.firestore !== firestore ||
+      jobRef.parent.id !== VIDEO_PROCESSING_JOBS_COLLECTION ||
+      !/^[a-f0-9-]{36}$/i.test(eventId) ||
+      before.exists || before.ref.path !== jobRef.path ||
+      safeVersion(processingVersion) !== processingVersion) {
+    throw new Error('Invalid video job creation outbox intent.');
+  }
+  const ref = firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .doc(eventId);
+  transaction.create(ref, {
+    schemaVersion: 1,
+    scope: 'PARTIAL_WRITER_COVERAGE',
+    source: 'QUEUE_CREATION',
+    kind: 'CREATE',
+    jobKeySha256: createHash('sha256').update(jobRef.path).digest('hex'),
+    previousState: null,
+    nextState: 'QUEUED',
+    processingVersion,
+    previousUpdateTime: null,
+    recordedAt: FieldValue.serverTimestamp(),
     globalCoverageVerified: false,
     globallySequenced: false,
   });

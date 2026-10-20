@@ -1,7 +1,11 @@
+import { randomUUID } from 'node:crypto';
+
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 
 import type { VideoProcessingJob } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
+import { stageVideoTriageMutationInTransaction }
+  from './admin-video-triage-mutation-outbox.firestore';
 import { isCurrentVideoProcessingAttempt } from './video-processing-poll.policy';
 
 /** An observed provider result is not necessarily a committed job transition. */
@@ -30,6 +34,7 @@ export async function commitTerminalVideoProcessingIfCurrent(
   command: TerminalVideoCommitCommand
 ): Promise<VideoCommitDisposition> {
   const videoRef = firestore.doc(`users/${observed.ownerUid}/videos/${observed.videoId}`);
+  const eventId = randomUUID();
   return firestore.runTransaction(async transaction => {
     const [jobSnapshot, videoSnapshot] = await Promise.all([
       transaction.get(jobRef),
@@ -43,6 +48,13 @@ export async function commitTerminalVideoProcessingIfCurrent(
       ? videoSnapshot.data() as Record<string, unknown> : null;
     if (!video || !command.sourceMatches(video)) {
       const sourceChanged = !!video;
+      if (jobSnapshot.get('state') !== 'CANCEL_REQUESTED') {
+        stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+          eventId, source: 'TERMINAL_COMMIT',
+          kind: 'CANCEL_REQUESTED', before: jobSnapshot,
+          afterState: 'CANCEL_REQUESTED',
+        });
+      }
       transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: sourceChanged
@@ -57,6 +69,12 @@ export async function commitTerminalVideoProcessingIfCurrent(
           } : {}),
       }, command.now));
       return 'CANCEL_REQUESTED' as const;
+    }
+    if (jobSnapshot.get('state') !== command.state) {
+      stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+        eventId, source: 'TERMINAL_COMMIT', kind: 'STATE_TRANSITION',
+        before: jobSnapshot, afterState: command.state,
+      });
     }
     transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, {
       state: command.state,

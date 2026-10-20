@@ -31,6 +31,8 @@ import {
   type VideoProviderTerminalEvidence,
 } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
+import { stageVideoTriageMutationInTransaction }
+  from './admin-video-triage-mutation-outbox.firestore';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 import { buildProviderTerminalEvidence } from './video-provider-terminal-evidence.policy';
 import { clearProviderPollFailures, nextProviderPollFailure } from './video-provider-poll-failure.policy';
@@ -281,6 +283,7 @@ async function claimQueuedJob(
   jobRef: DocumentReference,
   now: number
 ): Promise<VideoProcessingJob | null> {
+  const eventId = randomUUID();
   return db.runTransaction(async (transaction) => {
     const jobSnapshot = await transaction.get(jobRef);
     const job = jobSnapshot.exists
@@ -300,6 +303,10 @@ async function claimQueuedJob(
     const videoSnapshot = await transaction.get(videoRef);
 
     if (!videoSnapshot.exists) {
+      stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+        eventId, source: 'SUBMISSION_CLAIM', kind: 'CANCEL_REQUESTED',
+        before: jobSnapshot, afterState: 'CANCEL_REQUESTED',
+      });
       transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: now,
@@ -319,6 +326,10 @@ async function claimQueuedJob(
       job.sourceStoragePath ||
       (!!job.sourceGeneration && video.sourceGeneration !== job.sourceGeneration)
     ) {
+      stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+        eventId, source: 'SUBMISSION_CLAIM', kind: 'CANCEL_REQUESTED',
+        before: jobSnapshot, afterState: 'CANCEL_REQUESTED',
+      });
       transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, {
         state: 'CANCEL_REQUESTED',
         cancelRequestedAt: now,
@@ -332,6 +343,10 @@ async function claimQueuedJob(
     }
 
     if (job.attempts >= VIDEO_PROCESSING_MAX_ATTEMPTS) {
+      stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+        eventId, source: 'SUBMISSION_CLAIM', kind: 'STATE_TRANSITION',
+        before: jobSnapshot, afterState: 'FAILED',
+      });
       transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, {
         state: 'FAILED',
         leaseUntil: null,
@@ -366,6 +381,10 @@ async function claimQueuedJob(
       lastError: null,
     };
 
+    stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+      eventId, source: 'SUBMISSION_CLAIM', kind: 'STATE_TRANSITION',
+      before: jobSnapshot, afterState: 'SUBMITTING',
+    });
     transaction.update(jobRef, withAdminTriageProjection(jobRef.id, job, {
       state: claimed.state,
       attempts: claimed.attempts,
@@ -398,6 +417,7 @@ async function persistSubmittedJob(
   providerState: string
 ): Promise<VideoCommitDisposition> {
   const now = Date.now();
+  const eventId = randomUUID();
 
   return db.runTransaction(async (transaction) => {
     const [jobSnapshot, videoSnapshot] = await Promise.all([
@@ -418,6 +438,13 @@ async function persistSubmittedJob(
       currentJob.state === 'CANCEL_REQUESTED' ||
       !videoSnapshot.exists
     ) {
+      if (jobSnapshot.get('state') !== 'CANCEL_REQUESTED') {
+        stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+          eventId, source: 'SUBMISSION_CONFIRMATION',
+          kind: 'CANCEL_REQUESTED', before: jobSnapshot,
+          afterState: 'CANCEL_REQUESTED',
+        });
+      }
       transaction.update(jobRef, withAdminTriageProjection(jobRef.id, currentJob, {
         state: 'CANCEL_REQUESTED',
         externalJobName,
@@ -439,6 +466,13 @@ async function persistSubmittedJob(
       job.sourceStoragePath ||
       (!!job.sourceGeneration && video.sourceGeneration !== job.sourceGeneration)
     ) {
+      if (jobSnapshot.get('state') !== 'CANCEL_REQUESTED') {
+        stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+          eventId, source: 'SUBMISSION_CONFIRMATION',
+          kind: 'CANCEL_REQUESTED', before: jobSnapshot,
+          afterState: 'CANCEL_REQUESTED',
+        });
+      }
       transaction.update(jobRef, withAdminTriageProjection(jobRef.id, currentJob, {
         state: 'CANCEL_REQUESTED',
         externalJobName,
@@ -453,6 +487,13 @@ async function persistSubmittedJob(
       return 'CANCEL_REQUESTED';
     }
 
+    if (jobSnapshot.get('state') !== 'PROCESSING') {
+      stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+        eventId, source: 'SUBMISSION_CONFIRMATION',
+        kind: 'STATE_TRANSITION', before: jobSnapshot,
+        afterState: 'PROCESSING',
+      });
+    }
     transaction.update(jobRef, withAdminTriageProjection(jobRef.id, currentJob, {
       state: 'PROCESSING',
       externalJobName,
