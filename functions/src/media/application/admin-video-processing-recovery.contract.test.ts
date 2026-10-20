@@ -569,3 +569,11 @@ test('c18u known direct profile deletion batch is not misreported as covered', (
   assert.ok(deletion.includes('await removalBatch.commit();'));
   assert.ok(!deletion.includes('stageVideoTriageMutationInTransaction('));
 });
+
+test('c18u Functions dependency changes retrigger isolated reconciliation', () => {
+  const workflow = readFileSync(resolve(root,
+    '../.github/workflows/video-processing-reconciliation-emulator.yml'),
+  'utf8');
+  assert.ok(workflow.includes("'functions/package.json'"));
+  assert.ok(workflow.includes("'functions/package-lock.json'"));
+});
