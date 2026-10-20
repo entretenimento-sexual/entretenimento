@@ -3186,7 +3186,7 @@ test('c18k c18i compatibility facade requires a registered durable journal', asy
   };
   await assert.rejects(runOneVideoTriageAuditPage(
     firestore, app, context, created.checkpoint, key, () => at + 1, reader),
-    /not registered/);
+  /not registered/);
   assert.equal(reads, 0);
   await registerSignedVideoTriageAuditJournal(
     firestore, app, context, created.checkpoint, key);
@@ -3487,7 +3487,7 @@ test('c18k skew and malformed page evidence cannot advance a reserved cursor', a
   for (const forged of invalid) {
     await assert.rejects(settleDurableVideoTriageAuditPage(
       firestore, app, context, key, first.claim, forged, at + 2),
-      /Malformed audit page/);
+    /Malformed audit page/);
   }
   const mid = await readDurableVideoTriageAuditJournal(
     firestore, app, context, key);
