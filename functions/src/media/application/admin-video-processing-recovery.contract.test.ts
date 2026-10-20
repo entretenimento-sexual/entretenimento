@@ -426,7 +426,9 @@ test('c18p tombstones and account cancellation share Firestore transactions', ()
   assert.ok(!lifecycle.includes('await jobSnapshot.ref.delete();'));
   assert.ok(!lifecycle.includes('await jobSnapshot.ref.set('));
   assert.ok(!lifecycle.includes('hideBatch.set('));
-  assert.ok(lifecycle.split('stageVideoTriageMutationInTransaction(').length === 4);
+  assert.equal(lifecycle.split('stageVideoTriageMutationInTransaction(').length - 1, 4);
+  assert.ok(lifecycle.includes('transaction.delete(processingRef);'));
+  assert.ok(!lifecycle.includes('await processingRef.delete();'));
   assert.ok(reconciliation.includes('stageVideoTriageMutationInTransaction('));
   assert.ok(!outbox.includes('globalCoverageVerified: true'));
 });

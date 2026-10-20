@@ -410,6 +410,9 @@ export class FirestoreAccountDataDeletionOrchestratorAdapter
     const processing = processingSnapshot.exists
       ? (processingSnapshot.data() as VideoProcessingDocument)
       : null;
+    const processingState = normalizeProcessingState(processing?.state);
+    const activeProcessing = processingSnapshot.exists &&
+      !TERMINAL_PROCESSING_STATES.has(processingState);
     const privateVideoPath =
       extractOwnedPrivateVideoPath(uid, privateVideo.path) ??
       extractOwnedPrivateVideoPath(uid, privateVideo.url);
@@ -505,7 +508,22 @@ export class FirestoreAccountDataDeletionOrchestratorAdapter
     }
 
     if (processingSnapshot.exists && !activeProcessing) {
-      await processingRef.delete();
+      const deleteEventId = randomUUID();
+      await db.runTransaction(async transaction => {
+        const current = await transaction.get(processingRef);
+        if (!current.exists || !current.updateTime ||
+            !current.updateTime.isEqual(processingSnapshot.updateTime) ||
+            current.get('ownerUid') !== uid ||
+            !TERMINAL_PROCESSING_STATES.has(
+              normalizeProcessingState(current.get('state')))) return;
+        stageVideoTriageMutationInTransaction(
+          db, transaction, processingRef, {
+            eventId: deleteEventId,
+            source: 'ACCOUNT_DELETION_PRIVATE_VIDEO',
+            kind: 'DELETE', before: current, afterState: null,
+          });
+        transaction.delete(processingRef);
+      }, { maxAttempts: 2 });
     }
 
     await Promise.all([

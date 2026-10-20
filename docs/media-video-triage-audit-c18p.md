@@ -3,7 +3,7 @@
 ## Escopo efetivamente instrumentado
 
 Esta intervenção **não é um change feed global**. Ela adiciona somente uma
-fonte de evidências backend-only às três transações de
+fonte de evidências backend-only às quatro transações de
 `account-owned-media-deletion.firestore.ts` e à exclusão protegida em
 `video-processing-reconciliation.firestore.ts`.
 
@@ -14,6 +14,9 @@ As mudanças selecionadas são:
   página, com projeção transacional;
 - encerramento de conta: ocultação das publicações e marcação condicional
   de `CANCEL_REQUESTED` na mesma transação;
+- encerramento de conta: remoção terminal do job privado com fencing por
+  `updateTime` e tombstone na mesma transação; o storage continua sujeito
+  ao fluxo de limpeza existente;
 - reconciliação de cancelamento: tombstone no mesmo commit que executa
   `transaction.delete(jobRef)`, sob o fencing já existente.
 
