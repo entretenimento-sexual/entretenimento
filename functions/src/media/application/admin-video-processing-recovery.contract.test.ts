@@ -510,8 +510,8 @@ test('c18s probe and immutable input preflight journal only terminal state chang
     assert.ok(body.includes('kind: sourceChanged ? \'CANCEL_REQUESTED\'') ||
       body.includes('kind: changed ? \'CANCEL_REQUESTED\''));
     assert.ok(body.includes("afterState: 'CANCEL_REQUESTED'"));
-    assert.ok(body.includes("afterState: sourceChanged ?") ||
-      body.includes("afterState: status"));
+    assert.ok(body.includes('afterState: sourceChanged ?') ||
+      body.includes('afterState: status'));
     assert.ok(body.includes('const initialMutationEventId = randomUUID();'));
     assert.ok(body.includes('const completionMutationEventId = randomUUID();'));
     assert.ok(body.includes('const failureMutationEventId = randomUUID();'));
