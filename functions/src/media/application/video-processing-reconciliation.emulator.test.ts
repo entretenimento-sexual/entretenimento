@@ -15,7 +15,8 @@ import { runOneVideoTriageAuditPage } from './admin-video-triage-audit-session.f
 import {
   registerSignedVideoTriageAuditJournal, readDurableVideoTriageAuditJournal,
   claimDurableVideoTriageAuditPage, settleDurableVideoTriageAuditPage,
-  runOneDurableVideoTriageAuditPage, VIDEO_TRIAGE_AUDIT_LEASE_MS,
+  recoverDurableVideoTriageAuditAttempt, runOneDurableVideoTriageAuditPage,
+  VIDEO_TRIAGE_AUDIT_LEASE_MS, VIDEO_TRIAGE_AUDIT_JOURNAL_COLLECTION,
 } from './admin-video-triage-audit-journal.firestore';
 import {
   createVideoTriageAuditSession, openVideoTriageAuditCheckpoint,
@@ -3166,93 +3167,46 @@ test('c18h metadata retrieval rejects emulator and missing authorization before 
 });
 
 
-test('c18i emulator-only signed session resume, cumulative budget and no job mutation', async () => {
-  const signer = randomBytes(32);
-  const permission = {
+test('c18k c18i compatibility facade requires a registered durable journal', async () => {
+  const key = randomBytes(32);
+  const at = Date.now() - 1_000;
+  const approval = {
     approved: true as const, purpose: 'MANUAL_EMULATOR_TRIAGE_AUDIT' as const,
     expectedProjectId: PROJECT_ID, expectedDatabaseId: '(default)' as const,
   };
-  const { checkpoint, sessionId } = createVideoTriageAuditSession(
-    permission, { pageSize: 1, maxPages: 2,
-      maxDocuments: 2, maxDocumentReads: 6,
-      maxDurationMs: 60_000, maxFailures: 1,
-    }, signer, now);
-  const resume = { ...permission, expectedSessionId: sessionId };
-  const ref = jobs.doc('c18i-preserve-' + randomUUID());
-  await ref.create({ state: 'QUEUED', processingVersion: 'v1',
-    updatedAt: now, outputStoragePath: 'never/edit.mp4' });
-  const observed = await ref.get();
-  let first = await runOneVideoTriageAuditPage(
-    firestore, app, resume, checkpoint, signer, () => now + 1);
-  assert.equal(first.readFailed, false);
-  assert.equal(first.stopped, false);
-  assert.equal(first.report.pagesAttempted, 1);
-  assert.equal(first.report.reservedDocumentReads, 3);
-  assert.equal(first.report.globalOrderingEnabled, false);
-  const accepted = openVideoTriageAuditCheckpoint(
-    first.checkpoint, signer, resume);
-  assert.equal(accepted.sessionId, sessionId);
-  first = await runOneVideoTriageAuditPage(
-    firestore, app, resume, first.checkpoint, signer, () => now + 2);
-  assert.equal(first.report.pagesAttempted, 2);
-  assert.equal(first.report.reservedDocumentReads, 6);
-  assert.equal(first.report.status, 'STOPPED_BUDGET');
-  assert.equal(first.stopped, true);
-  const noMore = await runOneVideoTriageAuditPage(
-    firestore, app, resume, first.checkpoint, signer, () => now + 3);
-  assert.equal(noMore.report.pagesAttempted, 2);
-  assert.equal(noMore.report.reservedDocumentReads, 6);
-  assert.equal(noMore.page, null);
-  assert.equal(noMore.report.globalCoverageVerified, false);
-  const after = await ref.get();
-  assert.ok(observed.updateTime?.isEqual(after.updateTime!));
-  assert.equal(after.get('outputStoragePath'), 'never/edit.mp4');
-});
-
-test('c18i failed read reserves budget without cursor advance and needs manual retry', async () => {
-  const signer = randomBytes(32);
-  const permission = {
-    approved: true as const, purpose: 'MANUAL_EMULATOR_TRIAGE_AUDIT' as const,
-    expectedProjectId: PROJECT_ID, expectedDatabaseId: '(default)' as const,
+  const created = createVideoTriageAuditSession(approval, {
+    pageSize: 1, maxPages: 2, maxDocuments: 2,
+    maxDocumentReads: 6, maxDurationMs: 120_000, maxFailures: 1,
+  }, key, at);
+  const context = { ...approval, expectedSessionId: created.sessionId };
+  let reads = 0;
+  const reader: typeof auditVideoTriageConcurrentPage = async (db, request) => {
+    reads++;
+    return auditVideoTriageConcurrentPage(db, request);
   };
-  const created = createVideoTriageAuditSession(
-    permission, { pageSize: 1, maxPages: 3, maxDocuments: 3,
-      maxDocumentReads: 9, maxDurationMs: 60_000, maxFailures: 1,
-    }, signer, now);
-  const resume = { ...permission, expectedSessionId: created.sessionId };
-  const failingReader: typeof auditVideoTriageConcurrentPage = async () => {
-    throw new Error('Simulated Firestore read failure');
-  };
-  const failed = await runOneVideoTriageAuditPage(
-    firestore, app, resume, created.checkpoint, signer, () => now + 1,
-    failingReader);
-  assert.equal(failed.readFailed, true);
-  assert.equal(failed.page, null);
-  assert.equal(failed.report.failedPages, 1);
-  assert.equal(failed.report.pagesCompleted, 0);
-  assert.equal(failed.report.reservedDocumentReads, 3);
-  assert.equal(failed.report.status, 'PAUSED_FAILURE');
-  const checkpoint = openVideoTriageAuditCheckpoint(
-    failed.checkpoint, signer, resume);
-  assert.equal(checkpoint.nextLaneIndex, 0);
-  assert.equal(checkpoint.lanes[0].afterId, null);
-  const recovered = await runOneVideoTriageAuditPage(
-    firestore, app, resume, failed.checkpoint, signer, () => now + 2);
-  assert.equal(recovered.readFailed, false);
-  assert.equal(recovered.report.pagesAttempted, 2);
-  assert.equal(recovered.report.pagesCompleted, 1);
-  assert.equal(recovered.report.reservedDocumentReads, 6);
-  await assert.rejects(
-    runOneVideoTriageAuditPage(
-      firestore, app,
-      { ...resume, expectedProjectId: 'demo-other-project' },
-      recovered.checkpoint, signer, () => now + 3),
-    /only supports/
-  );
+  await assert.rejects(runOneVideoTriageAuditPage(
+    firestore, app, context, created.checkpoint, key, () => at + 1, reader),
+    /not registered/);
+  assert.equal(reads, 0);
+  await registerSignedVideoTriageAuditJournal(
+    firestore, app, context, created.checkpoint, key);
+  const before = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  const applied = await runOneVideoTriageAuditPage(
+    firestore, app, context, before.checkpoint, key,
+    () => Date.now(), reader);
+  assert.equal(reads, 1);
+  assert.equal(applied.report.pagesAttempted, 1);
+  assert.equal(applied.report.reservedDocumentReads, 3);
+  assert.equal(applied.report.globalCoverageVerified, false);
+  const after = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  assert.equal(after.report.pagesCompleted, 1);
+  assert.equal(after.inFlight, false);
 });
-
 
 test('c18j concurrent claims reserve one page, commit only once and reject replay', async () => {
+  const at = Date.now() - 1_000;
   const key = randomBytes(32);
   const approval = {
     approved: true as const, purpose: 'MANUAL_EMULATOR_TRIAGE_AUDIT' as const,
@@ -3261,7 +3215,7 @@ test('c18j concurrent claims reserve one page, commit only once and reject repla
   const created = createVideoTriageAuditSession(approval, {
     pageSize: 1, maxPages: 3, maxDocuments: 3,
     maxDocumentReads: 9, maxDurationMs: 180_000, maxFailures: 1,
-  }, key, now);
+  }, key, at);
   const context = { ...approval, expectedSessionId: created.sessionId };
   await registerSignedVideoTriageAuditJournal(
     firestore, app, context, created.checkpoint, key);
@@ -3274,9 +3228,9 @@ test('c18j concurrent claims reserve one page, commit only once and reject repla
   const ownerB = randomUUID();
   const attempts = await Promise.all([
     claimDurableVideoTriageAuditPage(
-      firestore, app, context, created.checkpoint, key, ownerA, now + 1),
+      firestore, app, context, created.checkpoint, key, ownerA, at + 1),
     claimDurableVideoTriageAuditPage(
-      firestore, app, context, created.checkpoint, key, ownerB, now + 1),
+      firestore, app, context, created.checkpoint, key, ownerB, at + 1),
   ]);
   assert.deepEqual(attempts.map(a => a.kind).sort(),
     ['CLAIMED', 'STALE_CHECKPOINT']);
@@ -3291,20 +3245,20 @@ test('c18j concurrent claims reserve one page, commit only once and reject repla
   assert.equal(pending.report.reservedDocumentReads, 3);
   assert.equal(pending.report.pagesCompleted, 0);
   const busy = await claimDurableVideoTriageAuditPage(
-    firestore, app, context, pending.checkpoint, key, randomUUID(), now + 2);
+    firestore, app, context, pending.checkpoint, key, randomUUID(), at + 2);
   assert.equal(busy.kind, 'BUSY');
   const stale = await claimDurableVideoTriageAuditPage(
-    firestore, app, context, created.checkpoint, key, randomUUID(), now + 2);
+    firestore, app, context, created.checkpoint, key, randomUUID(), at + 2);
   assert.equal(stale.kind, 'STALE_CHECKPOINT');
   const sample = await auditVideoTriageConcurrentPage(firestore, {
     state: claimed.lane as 'QUEUED', limit: 1,
-    afterId: claimed.afterId, now: claimed.evaluationAt,
+    afterId: claimed.afterId, at: claimed.evaluationAt,
   });
   const results = await Promise.all([
     settleDurableVideoTriageAuditPage(
-      firestore, app, context, key, claimed, sample, now + 3),
+      firestore, app, context, key, claimed, sample, at + 3),
     settleDurableVideoTriageAuditPage(
-      firestore, app, context, key, claimed, sample, now + 3),
+      firestore, app, context, key, claimed, sample, at + 3),
   ]);
   assert.deepEqual(results.map(a => a.kind).sort(), ['APPLIED', 'DUPLICATE']);
   const recovered = await readDurableVideoTriageAuditJournal(
@@ -3318,6 +3272,7 @@ test('c18j concurrent claims reserve one page, commit only once and reject repla
 });
 
 test('c18j expired lease recovery charges lost page and fences delayed completion', async () => {
+  const at = Date.now() - 1_000;
   const key = randomBytes(32);
   const approval = {
     approved: true as const, purpose: 'MANUAL_EMULATOR_TRIAGE_AUDIT' as const,
@@ -3326,29 +3281,32 @@ test('c18j expired lease recovery charges lost page and fences delayed completio
   const created = createVideoTriageAuditSession(approval, {
     pageSize: 1, maxPages: 4, maxDocuments: 4,
     maxDocumentReads: 12, maxDurationMs: 180_000, maxFailures: 1,
-  }, key, now);
+  }, key, at);
   const context = { ...approval, expectedSessionId: created.sessionId };
   await registerSignedVideoTriageAuditJournal(
     firestore, app, context, created.checkpoint, key);
   const first = await claimDurableVideoTriageAuditPage(
-    firestore, app, context, created.checkpoint, key, randomUUID(), now + 1);
+    firestore, app, context, created.checkpoint, key, randomUUID(), at + 1);
   assert.equal(first.kind, 'CLAIMED');
   if (first.kind !== 'CLAIMED') throw new Error('No claim');
   const recovered = await readDurableVideoTriageAuditJournal(
     firestore, app, context, key);
+  // Emulator-only forced expiry: the server clock is never forged.
+  await firestore.collection(VIDEO_TRIAGE_AUDIT_JOURNAL_COLLECTION)
+    .doc(created.sessionId).update({ 'active.until': at - 1 });
   const second = await claimDurableVideoTriageAuditPage(
     firestore, app, context, recovered.checkpoint, key,
-    randomUUID(), now + VIDEO_TRIAGE_AUDIT_LEASE_MS + 2);
+    randomUUID(), at + 2);
   assert.equal(second.kind, 'CLAIMED');
   if (second.kind !== 'CLAIMED') throw new Error('No recovered claim');
   assert.ok(second.claim.generation > first.claim.generation);
   const displaced = await settleDurableVideoTriageAuditPage(
     firestore, app, context, key, first.claim, null,
-    now + VIDEO_TRIAGE_AUDIT_LEASE_MS + 3);
+    at + VIDEO_TRIAGE_AUDIT_LEASE_MS + 3);
   assert.equal(displaced.kind, 'SUPERSEDED');
   const final = await settleDurableVideoTriageAuditPage(
     firestore, app, context, key, second.claim, null,
-    now + VIDEO_TRIAGE_AUDIT_LEASE_MS + 3);
+    at + VIDEO_TRIAGE_AUDIT_LEASE_MS + 3);
   assert.equal(final.kind, 'APPLIED');
   const evidence = await readDurableVideoTriageAuditJournal(
     firestore, app, context, key);
@@ -3359,11 +3317,12 @@ test('c18j expired lease recovery charges lost page and fences delayed completio
   assert.equal(evidence.report.globalCoverageVerified, false);
   const repeated = await settleDurableVideoTriageAuditPage(
     firestore, app, context, key, first.claim, null,
-    now + VIDEO_TRIAGE_AUDIT_LEASE_MS + 4);
+    at + VIDEO_TRIAGE_AUDIT_LEASE_MS + 4);
   assert.equal(repeated.kind, 'SUPERSEDED');
 });
 
 test('c18j read errors consume reservation and no document content is mutated', async () => {
+  const at = Date.now() - 1_000;
   const key = randomBytes(32);
   const approval = {
     approved: true as const, purpose: 'MANUAL_EMULATOR_TRIAGE_AUDIT' as const,
@@ -3372,20 +3331,20 @@ test('c18j read errors consume reservation and no document content is mutated', 
   const created = createVideoTriageAuditSession(approval, {
     pageSize: 1, maxPages: 2, maxDocuments: 2,
     maxDocumentReads: 6, maxDurationMs: 120_000, maxFailures: 1,
-  }, key, now);
+  }, key, at);
   const context = { ...approval, expectedSessionId: created.sessionId };
   await registerSignedVideoTriageAuditJournal(
     firestore, app, context, created.checkpoint, key);
   const ref = jobs.doc('c18j-unchanged-' + randomUUID());
   await ref.create({ state: 'QUEUED', processingVersion: 'v1',
-    updatedAt: now, outputStoragePath: 'untouched/original.mp4' });
+    updatedAt: at, outputStoragePath: 'untouched/original.mp4' });
   const before = await ref.get();
   const failingReader: typeof auditVideoTriageConcurrentPage = async () => {
     throw new Error('Simulated error after reservation');
   };
   const result = await runOneDurableVideoTriageAuditPage(
     firestore, app, context, created.checkpoint, key,
-    () => now + 1, failingReader);
+    () => at + 1, failingReader);
   assert.equal(result.kind, 'APPLIED');
   assert.equal(result.readFailed, true);
   assert.equal(result.page, null);
@@ -3402,4 +3361,141 @@ test('c18j read errors consume reservation and no document content is mutated', 
   const other = { ...context, expectedProjectId: 'demo-other-project' };
   await assert.rejects(readDurableVideoTriageAuditJournal(
     firestore, app, other, key), /local emulator/);
+});
+
+test('c18k expiry at exhausted budget never acknowledges an unapplied attempt', async () => {
+  const at = Date.now() - 1_000;
+  const key = randomBytes(32);
+  const approval = {
+    approved: true as const, purpose: 'MANUAL_EMULATOR_TRIAGE_AUDIT' as const,
+    expectedProjectId: PROJECT_ID, expectedDatabaseId: '(default)' as const,
+  };
+  const created = createVideoTriageAuditSession(approval, {
+    pageSize: 1, maxPages: 1, maxDocuments: 1,
+    maxDocumentReads: 3, maxDurationMs: 120_000, maxFailures: 0,
+  }, key, at);
+  const context = { ...approval, expectedSessionId: created.sessionId };
+  await registerSignedVideoTriageAuditJournal(
+    firestore, app, context, created.checkpoint, key);
+  const first = await claimDurableVideoTriageAuditPage(
+    firestore, app, context, created.checkpoint, key, randomUUID(), at + 1);
+  assert.equal(first.kind, 'CLAIMED');
+  if (first.kind !== 'CLAIMED') return;
+  const canonical = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  const beforeRecovery = await recoverDurableVideoTriageAuditAttempt(
+    firestore, app, context, key, first.claim);
+  assert.equal(beforeRecovery.kind, 'INCONCLUSIVE');
+  await firestore.collection(VIDEO_TRIAGE_AUDIT_JOURNAL_COLLECTION)
+    .doc(created.sessionId).update({ 'active.until': at - 1 });
+  const stopped = await claimDurableVideoTriageAuditPage(
+    firestore, app, context, canonical.checkpoint, key,
+    randomUUID(), at + 2);
+  assert.equal(stopped.kind, 'STOPPED');
+  const replay = await settleDurableVideoTriageAuditPage(
+    firestore, app, context, key, first.claim, null, at + 3);
+  assert.equal(replay.kind, 'SUPERSEDED');
+  const recovery = await recoverDurableVideoTriageAuditAttempt(
+    firestore, app, context, key, first.claim);
+  assert.equal(recovery.kind, 'NOT_APPLIED');
+  const after = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  assert.equal(after.report.pagesCompleted, 0);
+  assert.equal(after.report.pagesAttempted, 1);
+  assert.equal(after.report.failedPages, 1);
+  assert.equal(after.report.reservedDocumentReads, 3);
+  assert.equal(after.generation, 2);
+});
+
+test('c18k commit without observed response is recovered by exact attempt receipt', async () => {
+  const at = Date.now() - 1_000;
+  const key = randomBytes(32);
+  const approval = {
+    approved: true as const, purpose: 'MANUAL_EMULATOR_TRIAGE_AUDIT' as const,
+    expectedProjectId: PROJECT_ID, expectedDatabaseId: '(default)' as const,
+  };
+  const created = createVideoTriageAuditSession(approval, {
+    pageSize: 1, maxPages: 2, maxDocuments: 2,
+    maxDocumentReads: 6, maxDurationMs: 120_000, maxFailures: 1,
+  }, key, at);
+  const context = { ...approval, expectedSessionId: created.sessionId };
+  await registerSignedVideoTriageAuditJournal(
+    firestore, app, context, created.checkpoint, key);
+  const first = await claimDurableVideoTriageAuditPage(
+    firestore, app, context, created.checkpoint, key, randomUUID(), at + 1);
+  assert.equal(first.kind, 'CLAIMED');
+  if (first.kind !== 'CLAIMED') return;
+  const page = await auditVideoTriageConcurrentPage(firestore, {
+    state: first.claim.lane as 'QUEUED',
+    afterId: first.claim.afterId, limit: 1, now: first.claim.evaluationAt,
+  });
+  // The transaction commits; its reply is intentionally disregarded.
+  await settleDurableVideoTriageAuditPage(
+    firestore, app, context, key, first.claim, page, at + 2);
+  const recovered = await recoverDurableVideoTriageAuditAttempt(
+    firestore, app, context, key, first.claim);
+  assert.equal(recovered.kind, 'APPLIED');
+  if (recovered.kind !== 'APPLIED') return;
+  assert.match(recovered.resultId, /^[a-f0-9]{64}$/);
+  const duplicate = await settleDurableVideoTriageAuditPage(
+    firestore, app, context, key, first.claim, page, at + 3);
+  assert.equal(duplicate.kind, 'DUPLICATE');
+  const altered = await settleDurableVideoTriageAuditPage(
+    firestore, app, context, key, first.claim,
+    { ...page, checkedAt: page.checkedAt + 1 }, at + 4);
+  assert.equal(altered.kind, 'SUPERSEDED');
+  const durable = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  assert.equal(durable.report.pagesCompleted, 1);
+  assert.equal(durable.report.pagesAttempted, 1);
+  assert.equal(durable.report.reservedDocumentReads, 3);
+  assert.equal(durable.journalReservedOperations, 9);
+});
+
+test('c18k skew and malformed page evidence cannot advance a reserved cursor', async () => {
+  const at = Date.now() - 1_000;
+  const key = randomBytes(32);
+  const approval = {
+    approved: true as const, purpose: 'MANUAL_EMULATOR_TRIAGE_AUDIT' as const,
+    expectedProjectId: PROJECT_ID, expectedDatabaseId: '(default)' as const,
+  };
+  const created = createVideoTriageAuditSession(approval, {
+    pageSize: 1, maxPages: 2, maxDocuments: 2,
+    maxDocumentReads: 6, maxDurationMs: 120_000, maxFailures: 1,
+  }, key, at);
+  const context = { ...approval, expectedSessionId: created.sessionId };
+  await registerSignedVideoTriageAuditJournal(
+    firestore, app, context, created.checkpoint, key);
+  await assert.rejects(claimDurableVideoTriageAuditPage(
+    firestore, app, context, created.checkpoint, key,
+    randomUUID(), at + 500_000), /clock skew/);
+  const first = await claimDurableVideoTriageAuditPage(
+    firestore, app, context, created.checkpoint, key, randomUUID(), at + 1);
+  assert.equal(first.kind, 'CLAIMED');
+  if (first.kind !== 'CLAIMED') return;
+  const page = await auditVideoTriageConcurrentPage(firestore, {
+    state: first.claim.lane as 'QUEUED',
+    afterId: first.claim.afterId, limit: 1, now: first.claim.evaluationAt,
+  });
+  const invalid = [
+    { ...page, hasMore: true, nextCursor: null },
+    { ...page, checkedAt: at + 50 },
+    { ...page, maxPointReads: page.maxPointReads + 2 },
+    { ...page, movedOnReread: page.observed + 1 },
+    { ...page, counts: { ...page.counts, CURRENT: -1 } },
+  ];
+  for (const forged of invalid) {
+    await assert.rejects(settleDurableVideoTriageAuditPage(
+      firestore, app, context, key, first.claim, forged, at + 2),
+      /Malformed audit page/);
+  }
+  const mid = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  assert.equal(mid.inFlight, true);
+  assert.equal(mid.report.pagesCompleted, 0);
+  await settleDurableVideoTriageAuditPage(
+    firestore, app, context, key, first.claim, page, at + 3);
+  const after = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  assert.equal(after.report.pagesCompleted, 1);
 });

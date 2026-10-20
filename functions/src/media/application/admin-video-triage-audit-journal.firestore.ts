@@ -30,6 +30,21 @@ export const VIDEO_TRIAGE_AUDIT_JOURNAL_COLLECTION =
   'media_video_triage_audit_sessions';
 export const VIDEO_TRIAGE_AUDIT_LEASE_MS = 60_000;
 export const VIDEO_TRIAGE_AUDIT_TX_MAX_ATTEMPTS = 2;
+export const VIDEO_TRIAGE_AUDIT_MAX_CLOCK_SKEW_MS = 120_000;
+// One bounded read and write per transaction attempt, plus one recovery read.
+export const VIDEO_TRIAGE_JOURNAL_OPERATIONS_PER_PAGE =
+  4 * VIDEO_TRIAGE_AUDIT_TX_MAX_ATTEMPTS + 1;
+
+interface AuditAttemptReceipt {
+  attemptId: string;
+  ownerId: string;
+  generation: number;
+  outcome: 'APPLIED' | 'ABANDONED';
+  evidenceDigest: string | null;
+  resultId: string | null;
+  resolvedAt: number;
+}
+
 
 interface ActiveAuditLease {
   attemptId: string;
@@ -42,7 +57,7 @@ interface ActiveAuditLease {
 }
 
 interface DurableAuditSession {
-  schemaVersion: 1;
+  schemaVersion: 2;
   projectId: string;
   databaseId: '(default)';
   sessionId: string;
@@ -50,6 +65,10 @@ interface DurableAuditSession {
   generation: number;
   ledger: VideoTriageAuditLedger;
   active: ActiveAuditLease | null;
+  /** Maximum 100 receipts, bounded by the session's maxPages. */
+  receipts: Record<string, AuditAttemptReceipt>;
+  journalReservedOperations: number;
+  maxJournalOperations: number;
 }
 
 export interface VideoTriageAuditClaim {
@@ -75,7 +94,7 @@ export type VideoTriageAuditSettlement =
 
 export interface VideoTriageJournalStep {
   kind: 'STOPPED' | 'BUSY' | 'STALE_CHECKPOINT' |
-    'APPLIED' | 'SUPERSEDED' | 'DUPLICATE';
+    'APPLIED' | 'SUPERSEDED' | 'DUPLICATE' | 'NOT_APPLIED' | 'INCONCLUSIVE';
   checkpoint?: string;
   report: VideoTriageAuditReport;
   readFailed: boolean;
@@ -112,16 +131,60 @@ function checkedClock(now: number): number {
   return now;
 }
 
+function transactionalClock(
+  readTime: { toMillis(): number }, supplied: number, lastStepAt: number
+): number {
+  const serverNow = checkedClock(readTime.toMillis());
+  if (Math.abs(serverNow - supplied) > VIDEO_TRIAGE_AUDIT_MAX_CLOCK_SKEW_MS ||
+      serverNow < lastStepAt) {
+    throw new Error('Audit journal clock skew or regression.');
+  }
+  return serverNow;
+}
+
+function receiptFor(
+  lease: ActiveAuditLease, outcome: AuditAttemptReceipt['outcome'],
+  at: number, evidenceDigest: string | null = null
+): AuditAttemptReceipt {
+  return {
+    attemptId: lease.attemptId, ownerId: lease.ownerId,
+    generation: lease.generation, outcome, evidenceDigest,
+    resultId: outcome === 'APPLIED' ?
+      digest(JSON.stringify({
+        attemptId: lease.attemptId, generation: lease.generation,
+        evidenceDigest,
+      })) : null,
+    resolvedAt: at,
+  };
+}
+
+function sameAttempt(
+  receipt: AuditAttemptReceipt, claim: VideoTriageAuditClaim
+): boolean {
+  return receipt.attemptId === claim.attemptId &&
+    receipt.ownerId === claim.ownerId &&
+    receipt.generation === claim.generation &&
+    claim.fence === claim.attemptId;
+}
+
 function readDocument(
   data: unknown, approval: VideoTriageAuditApproval,
   key: Buffer
 ): DurableAuditSession {
   const entry = data as DurableAuditSession | null;
-  if (!entry || entry.schemaVersion !== 1 ||
+  if (!entry || entry.schemaVersion !== 2 ||
       entry.projectId !== approval.expectedProjectId ||
       entry.databaseId !== approval.expectedDatabaseId ||
       entry.sessionId !== approval.expectedSessionId ||
-      !Number.isSafeInteger(entry.generation) || entry.generation < 0) {
+      !Number.isSafeInteger(entry.generation) || entry.generation < 0 ||
+      !entry.receipts || typeof entry.receipts !== 'object' ||
+      !Number.isSafeInteger(entry.journalReservedOperations) ||
+      !Number.isSafeInteger(entry.maxJournalOperations) ||
+      entry.journalReservedOperations < 0 ||
+      entry.journalReservedOperations > entry.maxJournalOperations ||
+      entry.maxJournalOperations !== entry.ledger?.budget?.maxPages *
+        VIDEO_TRIAGE_JOURNAL_OPERATIONS_PER_PAGE ||
+      Object.keys(entry.receipts).length > entry.ledger.budget.maxPages) {
     throw new Error('Audit journal identity mismatch.');
   }
   const token = sealVideoTriageAuditCheckpoint(entry.ledger, key);
@@ -157,10 +220,13 @@ export async function registerSignedVideoTriageAuditJournal(
       throw new Error('Audit session is already registered.');
     }
     const record: DurableAuditSession = {
-      schemaVersion: 1, projectId: ledger.projectId,
+      schemaVersion: 2, projectId: ledger.projectId,
       databaseId: '(default)', sessionId: id,
       checkpointDigest: digest(checkpoint), generation: 0,
-      ledger, active: null,
+      ledger, active: null, receipts: {},
+      journalReservedOperations: 0,
+      maxJournalOperations: ledger.budget.maxPages *
+        VIDEO_TRIAGE_JOURNAL_OPERATIONS_PER_PAGE,
     };
     tx.create(ref, record);
   }, { maxAttempts: VIDEO_TRIAGE_AUDIT_TX_MAX_ATTEMPTS });
@@ -172,7 +238,7 @@ export async function readDurableVideoTriageAuditJournal(
   db: Firestore, app: App, approval: VideoTriageAuditApproval,
   key: Buffer
 ): Promise<{ checkpoint: string; report: VideoTriageAuditReport;
-  generation: number; inFlight: boolean }> {
+  generation: number; inFlight: boolean; journalReservedOperations: number }> {
   const id = guard(db, app, approval);
   const doc = await refFor(db, id).get();
   if (!doc.exists) throw new Error('Audit journal not registered.');
@@ -181,7 +247,46 @@ export async function readDurableVideoTriageAuditJournal(
     checkpoint: sealVideoTriageAuditCheckpoint(entry.ledger, key),
     report: reportVideoTriageAudit(entry.ledger),
     generation: entry.generation, inFlight: !!entry.active,
+    journalReservedOperations: entry.journalReservedOperations,
   };
+}
+
+export type VideoTriageAuditRecovery =
+  | { kind: 'APPLIED'; resultId: string; checkpoint: string; report: VideoTriageAuditReport }
+  | { kind: 'NOT_APPLIED' | 'SUPERSEDED' | 'INCONCLUSIVE';
+      checkpoint: string; report: VideoTriageAuditReport };
+
+/** Recovery never queries jobs, and never credits a counter. */
+export async function recoverDurableVideoTriageAuditAttempt(
+  db: Firestore, app: App, approval: VideoTriageAuditApproval,
+  key: Buffer, claim: VideoTriageAuditClaim
+): Promise<VideoTriageAuditRecovery> {
+  const id = guard(db, app, approval);
+  if (claim.sessionId !== id || claim.fence !== claim.attemptId) {
+    throw new Error('Audit attempt recovery identity mismatch.');
+  }
+  const doc = await refFor(db, id).get();
+  if (!doc.exists) throw new Error('Audit journal missing.');
+  const entry = readDocument(doc.data(), approval, key);
+  const checkpoint = sealVideoTriageAuditCheckpoint(entry.ledger, key);
+  const report = reportVideoTriageAudit(entry.ledger);
+  const receipt = entry.receipts[claim.attemptId];
+  if (receipt) {
+    if (!sameAttempt(receipt, claim)) {
+      return { kind: 'SUPERSEDED', checkpoint, report };
+    }
+    if (receipt.outcome === 'APPLIED' && receipt.resultId) {
+      return { kind: 'APPLIED', resultId: receipt.resultId, checkpoint, report };
+    }
+    return { kind: 'NOT_APPLIED', checkpoint, report };
+  }
+  if (entry.active?.attemptId === claim.attemptId &&
+      entry.active.ownerId === claim.ownerId &&
+      entry.active.generation === claim.generation) {
+    return { kind: 'INCONCLUSIVE', checkpoint, report };
+  }
+  return { kind: entry.generation > claim.generation ?
+    'SUPERSEDED' : 'INCONCLUSIVE', checkpoint, report };
 }
 
 /**
@@ -208,49 +313,60 @@ export async function claimDurableVideoTriageAuditPage(
     const doc = await tx.get(ref);
     if (!doc.exists) throw new Error('Audit journal not registered.');
     const entry = readDocument(doc.data(), approval, key);
+    const at = transactionalClock(doc.readTime, now, entry.ledger.lastStepAt);
     if (entry.checkpointDigest !== digest(expectedCheckpoint)) {
       return { kind: 'STALE_CHECKPOINT' as const,
         report: reportVideoTriageAudit(entry.ledger) };
     }
-    if (entry.active && entry.active.until > now) {
+    if (entry.active && entry.active.until > at) {
       return { kind: 'BUSY' as const,
         report: reportVideoTriageAudit(entry.ledger) };
     }
 
     const ledger = structuredClone(entry.ledger);
+    const receipts = { ...entry.receipts };
     if (entry.active) {
       ledger.failedPages++;
       ledger.consecutiveFailures++;
       ledger.lastReadFailed = true;
-      ledger.lastStepAt = now;
+      ledger.lastStepAt = at;
+      receipts[entry.active.attemptId] =
+        receiptFor(entry.active, 'ABANDONED', at);
       ledger.status = ledger.failedPages > ledger.budget.maxFailures ?
         'STOPPED_BUDGET' : 'PAUSED_FAILURE';
     }
-    const permission = videoTriageAuditCanRead(ledger, now);
+    const permission = videoTriageAuditCanRead(ledger, at);
     if (!permission.allowed) {
       ledger.status = permission.reason === 'EXPIRED' ? 'EXPIRED' :
         permission.reason === 'STOPPED_BUDGET' ? 'STOPPED_BUDGET' :
           ledger.status;
       const updated = sealVideoTriageAuditCheckpoint(ledger, key);
       tx.update(ref, {
-        ledger, checkpointDigest: digest(updated), active: null,
+        ledger, checkpointDigest: digest(updated), active: null, receipts,
+        generation: entry.active ? entry.generation + 1 : entry.generation,
       });
       return { kind: 'STOPPED' as const,
         report: reportVideoTriageAudit(ledger) };
     }
 
     // Reserve the complete upper bound before the query can execute.
+    if (entry.journalReservedOperations +
+          VIDEO_TRIAGE_JOURNAL_OPERATIONS_PER_PAGE >
+          entry.maxJournalOperations) {
+      return { kind: 'STOPPED' as const,
+        report: reportVideoTriageAudit(entry.ledger) };
+    }
     const cost = 2 * ledger.budget.pageSize + 1;
     ledger.pagesAttempted++;
     ledger.reservedDocumentReads += cost;
-    ledger.lastStepAt = now;
+    ledger.lastStepAt = at;
     ledger.status = 'OPEN';
     ledger.lastReadFailed = false;
     const generation = entry.generation + 1;
     const lease: ActiveAuditLease = {
       ownerId, attemptId: randomUUID(), generation,
-      claimedAt: now, until: Math.min(
-        now + VIDEO_TRIAGE_AUDIT_LEASE_MS,
+      claimedAt: at, until: Math.min(
+        at + VIDEO_TRIAGE_AUDIT_LEASE_MS,
         ledger.createdAt + ledger.budget.maxDurationMs),
       lane: ledger.lanes[ledger.nextLaneIndex].state,
       afterId: ledger.lanes[ledger.nextLaneIndex].afterId,
@@ -258,7 +374,9 @@ export async function claimDurableVideoTriageAuditPage(
     const checkpoint = sealVideoTriageAuditCheckpoint(ledger, key);
     tx.update(ref, {
       ledger, checkpointDigest: digest(checkpoint),
-      active: lease, generation,
+      active: lease, generation, receipts,
+      journalReservedOperations: entry.journalReservedOperations +
+        VIDEO_TRIAGE_JOURNAL_OPERATIONS_PER_PAGE,
     });
     return { kind: 'CLAIMED' as const, claim: {
       sessionId: id, generation, attemptId: lease.attemptId,
@@ -284,11 +402,21 @@ export async function settleDurableVideoTriageAuditPage(
     const doc = await tx.get(ref);
     if (!doc.exists) throw new Error('Audit journal missing.');
     const entry = readDocument(doc.data(), approval, key);
+    const at = transactionalClock(doc.readTime, now, entry.ledger.lastStepAt);
+    const receipt = entry.receipts[claim.attemptId];
+    if (receipt) {
+      return {
+        kind: sameAttempt(receipt, claim) &&
+          receipt.outcome === 'APPLIED' &&
+          receipt.evidenceDigest === digest(JSON.stringify(page)) ?
+          'DUPLICATE' as const : 'SUPERSEDED' as const,
+        report: reportVideoTriageAudit(entry.ledger),
+      };
+    }
     const active = entry.active;
     if (!active) {
-      return { kind: entry.generation === claim.generation ?
-        'DUPLICATE' as const : 'SUPERSEDED' as const,
-      report: reportVideoTriageAudit(entry.ledger) };
+      return { kind: 'SUPERSEDED' as const,
+        report: reportVideoTriageAudit(entry.ledger) };
     }
     if (entry.generation !== claim.generation ||
         active.attemptId !== claim.fence ||
@@ -296,16 +424,20 @@ export async function settleDurableVideoTriageAuditPage(
         active.generation !== claim.generation ||
         active.lane !== claim.lane ||
         active.afterId !== claim.afterId ||
-        active.until <= now) {
+        active.until <= at) {
       return { kind: 'SUPERSEDED' as const,
         report: reportVideoTriageAudit(entry.ledger) };
     }
     const ledger = settleVideoTriageAuditPage(
-      entry.ledger, now, page, true);
+      entry.ledger, at, page, true);
     const checkpoint = sealVideoTriageAuditCheckpoint(ledger, key);
     tx.update(ref, {
-      ledger, checkpointDigest: digest(checkpoint),
-      active: null,
+      ledger, checkpointDigest: digest(checkpoint), active: null,
+      receipts: {
+        ...entry.receipts,
+        [active.attemptId]: receiptFor(
+          active, 'APPLIED', at, digest(JSON.stringify(page))),
+      },
     });
     return { kind: 'APPLIED' as const, checkpoint,
       report: reportVideoTriageAudit(ledger) };
@@ -342,10 +474,22 @@ export async function runOneDurableVideoTriageAuditPage(
   } catch {
     readFailed = true;
   }
-  const settled = await settleDurableVideoTriageAuditPage(
-    db, app, approval, key, claimed.claim, page, clock());
-  return {
-    ...settled, readFailed,
-    page: settled.kind === 'APPLIED' ? page : null,
-  };
+  try {
+    const settled = await settleDurableVideoTriageAuditPage(
+      db, app, approval, key, claimed.claim, page, clock());
+    return {
+      ...settled, readFailed,
+      page: settled.kind === 'APPLIED' ? page : null,
+    };
+  } catch {
+    // A lost commit response is never permission to reread the jobs.
+    const recovered = await recoverDurableVideoTriageAuditAttempt(
+      db, app, approval, key, claimed.claim);
+    return {
+      kind: recovered.kind === 'APPLIED' ? 'DUPLICATE' as const :
+        recovered.kind,
+      checkpoint: recovered.checkpoint, report: recovered.report,
+      readFailed, page: null,
+    };
+  }
 }

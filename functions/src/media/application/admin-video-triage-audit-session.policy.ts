@@ -308,8 +308,30 @@ export function settleVideoTriageAuditPage(
       !validNumber(page.observed, 0, ledger.budget.pageSize) ||
       !validNumber(page.maxDocumentReads, 0,
         2 * ledger.budget.pageSize + 1) ||
+      page.checkedAt !== ledger.evaluationAt ||
+      !validNumber(page.stableOnReread, 0, page.observed) ||
+      !validNumber(page.changedOnReread, 0, page.observed) ||
+      !validNumber(page.removedOnReread, 0, page.observed) ||
+      !validNumber(page.movedOnReread, 0, page.changedOnReread) ||
+      !validNumber(page.maxQueryReads, 0, ledger.budget.pageSize + 1) ||
+      !validNumber(page.maxPointReads, 0, ledger.budget.pageSize) ||
+      page.maxQueryReads !== ledger.budget.pageSize + 1 ||
+      page.maxPointReads !== page.observed ||
+      page.maxDocumentReads !== page.maxQueryReads + page.maxPointReads ||
       page.stableOnReread + page.changedOnReread +
-        page.removedOnReread !== page.observed)) {
+        page.removedOnReread !== page.observed ||
+      typeof page.hasMore !== 'boolean' ||
+      (page.hasMore && (page.observed !== ledger.budget.pageSize ||
+        typeof page.nextCursor !== 'string' ||
+        !/^[A-Za-z0-9_-]{1,257}$/.test(page.nextCursor) ||
+        (lane.afterId !== null && page.nextCursor <= lane.afterId))) ||
+      (!page.hasMore && page.nextCursor !== null) ||
+      !page.counts || typeof page.counts !== 'object' ||
+      Object.keys(page.counts).length !== Object.keys(ledger.integrity).length ||
+      Object.keys(ledger.integrity).some(key =>
+        !validNumber(page.counts[key as VideoTriageIntegrity], 0, page.observed)) ||
+      Object.values(page.counts).reduce((sum, value) => sum + value, 0) !==
+        page.observed)) {
     throw new Error('Malformed audit page cannot update checkpoint.');
   }
   const next = structuredClone(ledger);
