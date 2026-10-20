@@ -84,9 +84,7 @@ export async function runOneVideoTriageAuditPage(
     failed = true;
   }
   const end = clock();
-  const settlementClock = Number.isSafeInteger(end) &&
-    end >= start ? start : start;
-  const next = settleVideoTriageAuditPage(ledger, settlementClock, page);
+  const next = settleVideoTriageAuditPage(ledger, start, page);
   if (Number.isSafeInteger(end) && end >= start &&
       end - next.createdAt >= next.budget.maxDurationMs) {
     next.status = 'EXPIRED';
