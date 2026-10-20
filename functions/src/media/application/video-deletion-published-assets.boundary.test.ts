@@ -10,6 +10,11 @@ const source = readFileSync(
   'utf8'
 );
 
+const transaction = readFileSync(
+  join(__dirname, '../../../src/media/application/video-profile-deletion-commit.firestore.ts'),
+  'utf8'
+);
+
 test('profile-video deletion never sweeps published storage by prefix', () => {
   assert.doesNotMatch(source, /deletePublishedAssetsByPrefix|publishedVideoPrefix/);
   assert.match(source, /await cleanupPublishedAssets\(job\)/);
@@ -19,7 +24,11 @@ test('profile-video deletion never sweeps published storage by prefix', () => {
 });
 
 test('profile-video deletion has a single transactional queue entrypoint', () => {
-  assert.match(source, /removalBatch\.create\(jobRef/);
+  assert.match(source, /await commitProfileVideoDeletionRequest\(db,/);
+  assert.match(transaction, /transaction\.create\(deletionJobRef/);
+  assert.match(transaction, /retireVideoIdentityInTransaction\(/);
+  assert.match(transaction, /stageVideoTriageMutationInTransaction\(/);
+  assert.doesNotMatch(source, /removalBatch\.commit\(\)/);
   assert.match(source, /claimVideoDeletionJob</);
   assert.match(source, /settleVideoDeletionJob\(/);
   assert.match(source, /await processVideoDeletionJob\(jobRef\)/);
