@@ -6,14 +6,20 @@
 // próprio usuário. Mensagens, denúncias, evidências e registros financeiros não
 // são tocados por este adaptador.
 // -----------------------------------------------------------------------------
+import { randomUUID } from 'node:crypto';
+
 import { db, storage } from '../firebaseApp';
 import { deletePublishedPhotoAssetOrQueue } from '../media/application/published-photo-asset.service';
 import { deletePublishedVideoAssetOrQueue } from '../media/application/published-video-asset.service';
 import { extractOwnedPrivatePhotoPath } from '../media/application/photo-storage-path';
 import {
   buildVideoProcessingJobId,
-  VIDEO_PROCESSING_JOBS_COLLECTION,
+  VIDEO_PROCESSING_JOBS_COLLECTION, type VideoProcessingJob,
 } from '../media/application/video-processing-job';
+import { withAdminTriageProjection }
+  from '../media/application/admin-video-triage.firestore';
+import { stageVideoTriageMutationInTransaction }
+  from '../media/application/admin-video-triage-mutation-outbox.firestore';
 import {
   extractOwnedPrivateVideoPath,
   extractOwnedPrivateVideoPosterPath,
@@ -241,23 +247,56 @@ export class FirestoreAccountDataDeletionOrchestratorAdapter
           await deleteStoragePrefix(outputPrefix);
         }
 
-        await jobSnapshot.ref.delete();
-        processed += 1;
+        const eventId = randomUUID();
+        const deleted = await db.runTransaction(async transaction => {
+          const current = await transaction.get(jobSnapshot.ref);
+          if (!current.exists || !current.updateTime ||
+              !current.updateTime.isEqual(jobSnapshot.updateTime) ||
+              current.get('ownerUid') !== safeUid ||
+              !TERMINAL_PROCESSING_STATES.has(
+                normalizeProcessingState(current.get('state')))) {
+            return false;
+          }
+          stageVideoTriageMutationInTransaction(
+            db, transaction, jobSnapshot.ref, {
+              eventId, source: 'ACCOUNT_DELETION_PAGE', kind: 'DELETE',
+              before: current, afterState: null,
+            });
+          transaction.delete(jobSnapshot.ref);
+          return true;
+        }, { maxAttempts: 2 });
+        if (deleted) processed += 1;
+        else blocking += 1;
         continue;
       }
 
       if (state !== 'CANCEL_REQUESTED') {
-        await jobSnapshot.ref.set(
-          {
-            state: 'CANCEL_REQUESTED',
-            cancelRequestedAt: Date.now(),
-            leaseUntil: null,
-            updatedAt: Date.now(),
+        const eventId = randomUUID();
+        await db.runTransaction(async transaction => {
+          const current = await transaction.get(jobSnapshot.ref);
+          if (!current.exists || current.get('ownerUid') !== safeUid ||
+              TERMINAL_PROCESSING_STATES.has(
+                normalizeProcessingState(current.get('state'))) ||
+              normalizeProcessingState(current.get('state')) ===
+                'CANCEL_REQUESTED') return;
+          const now = Date.now();
+          const patch = {
+            state: 'CANCEL_REQUESTED' as const,
+            cancelRequestedAt: now, leaseUntil: null,
+            updatedAt: now,
             lastErrorCode: 'ACCOUNT_DELETION_REQUESTED',
             lastError: 'A conta proprietária entrou em exclusão definitiva.',
-          },
-          { merge: true }
-        );
+          };
+          transaction.update(jobSnapshot.ref, withAdminTriageProjection(
+            jobSnapshot.id, current.data() as Partial<VideoProcessingJob>,
+            patch, now));
+          stageVideoTriageMutationInTransaction(
+            db, transaction, jobSnapshot.ref, {
+              eventId, source: 'ACCOUNT_DELETION_PAGE',
+              kind: 'CANCEL_REQUESTED', before: current,
+              afterState: 'CANCEL_REQUESTED',
+            });
+        }, { maxAttempts: 2 });
       }
 
       blocking += 1;
@@ -371,10 +410,6 @@ export class FirestoreAccountDataDeletionOrchestratorAdapter
     const processing = processingSnapshot.exists
       ? (processingSnapshot.data() as VideoProcessingDocument)
       : null;
-    const processingState = normalizeProcessingState(processing?.state);
-    const activeProcessing =
-      processingSnapshot.exists &&
-      !TERMINAL_PROCESSING_STATES.has(processingState);
     const privateVideoPath =
       extractOwnedPrivateVideoPath(uid, privateVideo.path) ??
       extractOwnedPrivateVideoPath(uid, privateVideo.url);
@@ -396,27 +431,35 @@ export class FirestoreAccountDataDeletionOrchestratorAdapter
         privateVideo.processedOutputPrefix
       ) ??
       normalizeOwnedProcessedVideoPrefix(uid, videoId, processing?.outputPrefix);
-    const hideBatch = db.batch();
+    const eventId = randomUUID();
+    await db.runTransaction(async transaction => {
+      const current = await transaction.get(processingRef);
+      transaction.delete(publicationRef);
+      transaction.delete(publicVideoRef);
+      if (!current.exists || current.get('ownerUid') !== uid ||
+          TERMINAL_PROCESSING_STATES.has(
+            normalizeProcessingState(current.get('state'))) ||
+          normalizeProcessingState(current.get('state')) ===
+            'CANCEL_REQUESTED') return;
 
-    hideBatch.delete(publicationRef);
-    hideBatch.delete(publicVideoRef);
-
-    if (activeProcessing) {
-      hideBatch.set(
-        processingRef,
-        {
-          state: 'CANCEL_REQUESTED',
-          cancelRequestedAt: Date.now(),
-          leaseUntil: null,
-          updatedAt: Date.now(),
-          lastErrorCode: 'ACCOUNT_DELETION_REQUESTED',
-          lastError: 'A conta proprietária entrou em exclusão definitiva.',
-        },
-        { merge: true }
-      );
-    }
-
-    await hideBatch.commit();
+      const now = Date.now();
+      const patch = {
+        state: 'CANCEL_REQUESTED' as const,
+        cancelRequestedAt: now, leaseUntil: null,
+        updatedAt: now,
+        lastErrorCode: 'ACCOUNT_DELETION_REQUESTED',
+        lastError: 'A conta proprietária entrou em exclusão definitiva.',
+      };
+      transaction.set(processingRef, withAdminTriageProjection(
+        processingRef.id, current.data() as Partial<VideoProcessingJob>,
+        patch, now), { merge: true });
+      stageVideoTriageMutationInTransaction(
+        db, transaction, processingRef, {
+          eventId, source: 'ACCOUNT_DELETION_PRIVATE_VIDEO',
+          kind: 'CANCEL_REQUESTED', before: current,
+          afterState: 'CANCEL_REQUESTED',
+        });
+    }, { maxAttempts: 2 });
 
     await Promise.all([
       deletePublishedVideoAssetOrQueue({

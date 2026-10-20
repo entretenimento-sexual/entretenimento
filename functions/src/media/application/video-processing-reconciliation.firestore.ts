@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 
 import {
@@ -5,6 +7,8 @@ import {
   type VideoProcessingJob,
 } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
+import { stageVideoTriageMutationInTransaction }
+  from './admin-video-triage-mutation-outbox.firestore';
 import {
   nextVideoProcessingPollAt,
   isCurrentVideoProcessingAttempt,
@@ -189,11 +193,16 @@ export async function deleteCancelledJobIfCurrent(
   started: VideoProcessingJob,
   normalizeJob: NormalizeJob
 ): Promise<boolean> {
+  const eventId = randomUUID();
   return firestore.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(jobRef);
     const current = snapshot.exists ? normalizeJob(snapshot.data()) : null;
 
     if (!isCurrentCancellationClaim(current, started)) return false;
+    stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+      eventId, source: 'CANCELLATION_RECONCILIATION',
+      kind: 'DELETE', before: snapshot, afterState: null,
+    });
     transaction.delete(jobRef);
     return true;
   });

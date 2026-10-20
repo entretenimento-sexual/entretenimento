@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 
 import { deleteApp, initializeApp } from 'firebase-admin/app';
@@ -8,6 +8,10 @@ import axios, { AxiosError, type AxiosResponse } from 'axios';
 
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
+import {
+  stageVideoTriageMutationInTransaction,
+  VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION,
+} from './admin-video-triage-mutation-outbox.firestore';
 import { sampleVideoTriageReadinessPage } from './admin-video-triage-readiness.firestore';
 import {
   auditVideoTriageConcurrentPage, type VideoTriagePageReadObservation,
@@ -716,6 +720,15 @@ test('delayed cancellation cannot delete, alter or recreate a newer attempt', as
     firestore, ref, original, parseJob
   ), true);
   assert.equal((await ref.get()).exists, false);
+  const tombstoneKey = createHash('sha256').update(ref.path).digest('hex');
+  const tombstones = await firestore
+    .collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', tombstoneKey).get();
+  assert.equal(tombstones.size, 1);
+  assert.equal(tombstones.docs[0].get('source'), 'CANCELLATION_RECONCILIATION');
+  assert.equal(tombstones.docs[0].get('kind'), 'DELETE');
+  assert.equal(tombstones.docs[0].get('nextState'), null);
+  assert.equal(tombstones.docs[0].get('globalCoverageVerified'), false);
   assert.equal(await recordCancellationErrorIfCurrent(
     firestore, ref, original, parseJob,
     { code: 'TIMEOUT', message: 'Late provider response' }, now
@@ -3732,4 +3745,66 @@ test('c18m records SDK call attempts and returned docs without claiming billing'
   assert.equal(measured.cost, 'MEASUREMENT_REVIEW');
   assert.equal(measured.productionCostVerified, false);
   assert.equal(measured.globalOrderingEnabled, false);
+});
+
+
+test('c18p outbox shares a transaction and rejects ambiguous duplicate event IDs', async () => {
+  const ref = jobs.doc('c18p-' + randomUUID());
+  await ref.create({ ...fixture('PENDING'), state: 'PROCESSING' });
+  const eventId = randomUUID();
+  const eventRef = firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .doc(eventId);
+  const stage = async (failAfterWrite: boolean): Promise<void> =>
+    firestore.runTransaction(async transaction => {
+      const before = await transaction.get(ref);
+      assert.equal(before.exists, true);
+      stageVideoTriageMutationInTransaction(firestore, transaction, ref, {
+        eventId, source: 'ACCOUNT_DELETION_PAGE',
+        kind: 'CANCEL_REQUESTED', before,
+        afterState: 'CANCEL_REQUESTED',
+      });
+      transaction.update(ref, { state: 'CANCEL_REQUESTED' });
+      if (failAfterWrite) throw new Error('SIMULATED_ABORT');
+    }, { maxAttempts: 1 });
+
+  await assert.rejects(stage(true), /SIMULATED_ABORT/);
+  assert.equal((await ref.get()).get('state'), 'PROCESSING');
+  assert.equal((await eventRef.get()).exists, false);
+
+  await stage(false);
+  const [job, event] = await Promise.all([ref.get(), eventRef.get()]);
+  assert.equal(job.get('state'), 'CANCEL_REQUESTED');
+  assert.equal(event.exists, true);
+  assert.equal(event.get('kind'), 'CANCEL_REQUESTED');
+  assert.equal(event.get('previousState'), 'PROCESSING');
+  assert.equal(event.get('nextState'), 'CANCEL_REQUESTED');
+  assert.equal(event.get('scope'), 'PARTIAL_WRITER_COVERAGE');
+  assert.equal(event.get('globallySequenced'), false);
+  const hashed = createHash('sha256').update(ref.path).digest('hex');
+  assert.equal(event.get('jobKeySha256'), hashed);
+  assert.ok(!JSON.stringify(event.data()).includes(ref.id));
+
+  await assert.rejects(stage(false));
+  assert.equal((await ref.get()).get('state'), 'CANCEL_REQUESTED');
+  assert.equal((await eventRef.get()).get('jobKeySha256'), hashed);
+  const same = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hashed).get();
+  assert.equal(same.size, 1);
+});
+
+test('c18p deletion tombstones are not written for a missing job', async () => {
+  const ref = jobs.doc('c18p-absent-' + randomUUID());
+  const eventId = randomUUID();
+  await firestore.runTransaction(async transaction => {
+    const before = await transaction.get(ref);
+    if (!before.exists) return;
+    stageVideoTriageMutationInTransaction(firestore, transaction, ref, {
+      eventId, source: 'ACCOUNT_DELETION_PAGE', kind: 'DELETE',
+      before, afterState: null,
+    });
+    transaction.delete(ref);
+  });
+  const event = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .doc(eventId).get();
+  assert.equal(event.exists, false);
 });

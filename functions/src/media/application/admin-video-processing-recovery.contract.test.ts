@@ -299,10 +299,15 @@ const VIDEO_TRIAGE_JOB_COLLECTION_BINDINGS = [
   'media/application/admin-video-processing-recovery.handler.ts',
   'media/application/admin-video-processing-status.handler.ts',
   'media/application/admin-video-triage-backfill.firestore.ts',
+  'media/application/admin-video-triage-consistency.firestore.ts',
   'media/application/admin-video-triage-evidence-audit.firestore.ts',
   'media/application/admin-video-triage-evidence.firestore.ts',
-  'media/application/admin-video-triage-readiness.firestore.ts',
+  'media/application/admin-video-triage-mutation-outbox.firestore.ts',
+  'media/application/admin-video-triage-readiness.policy.ts',
+  'media/application/cleanup-published-video-originals.handler.ts',
+  'media/application/cleanup-video-rotation-input.handler.ts',
   'media/application/delete-profile-video.handler.ts',
+  'media/application/google-video-transcoder.service.ts',
   'media/application/queue-video-processing.handler.ts',
   'media/application/video-processing.handler.ts',
   'media/application/video-processing-job.ts',
@@ -353,6 +358,7 @@ test('c18o writer provenance is not a complete atomic mutation feed', () => {
     ['media/application/video-processing-reconciliation.firestore.ts', [
       'transaction.update(jobRef, withAdminTriageProjection(',
       'transaction.delete(jobRef);',
+      'stageVideoTriageMutationInTransaction(',
     ]],
     ['media/application/video-processing-terminal-commit.firestore.ts', [
       'transaction.update(jobRef, withAdminTriageProjection(',
@@ -373,9 +379,10 @@ test('c18o writer provenance is not a complete atomic mutation feed', () => {
       'transaction.update(jobRef, withAdminTriageProjection(',
     ]],
     ['account_lifecycle/account-owned-media-deletion.firestore.ts', [
-      'await jobSnapshot.ref.delete();',
-      'await jobSnapshot.ref.set(',
-      'hideBatch.set(',
+      'transaction.delete(jobSnapshot.ref);',
+      'transaction.update(jobSnapshot.ref, withAdminTriageProjection(',
+      'transaction.set(processingRef, withAdminTriageProjection(',
+      'stageVideoTriageMutationInTransaction(',
     ]],
   ];
   for (const [file, markers] of required) {
@@ -394,4 +401,32 @@ test('c18o writer provenance is not a complete atomic mutation feed', () => {
   const gate = read('media/application/admin-video-triage-readiness.policy.ts');
   assert.ok(gate.includes("coverage.scope === 'GLOBAL_CONSISTENT'"));
   assert.ok(gate.includes('activationAuthorized: false'));
+});
+
+
+test('c18p tombstones and account cancellation share Firestore transactions', () => {
+  const src = (name: string) => readFileSync(
+    resolve(root, 'src/' + name), 'utf8');
+  const outbox = src('media/application/admin-video-triage-mutation-outbox.firestore.ts');
+  const lifecycle = src('account_lifecycle/account-owned-media-deletion.firestore.ts');
+  const reconciliation = src('media/application/video-processing-reconciliation.firestore.ts');
+
+  assert.ok(outbox.includes('transaction.create(ref, {'));
+  assert.ok(outbox.includes('PARTIAL_WRITER_COVERAGE'));
+  assert.ok(outbox.includes('globalCoverageVerified: false'));
+  assert.ok(outbox.includes('globallySequenced: false'));
+  assert.ok(!outbox.includes('onSchedule('));
+  assert.ok(!outbox.includes('onCall('));
+  assert.ok(!outbox.includes('transcoder'));
+
+  assert.ok(lifecycle.includes('current.updateTime.isEqual(jobSnapshot.updateTime)'));
+  assert.ok(lifecycle.includes('transaction.delete(jobSnapshot.ref);'));
+  assert.ok(lifecycle.includes('transaction.update(jobSnapshot.ref, withAdminTriageProjection('));
+  assert.ok(lifecycle.includes('transaction.set(processingRef, withAdminTriageProjection('));
+  assert.ok(!lifecycle.includes('await jobSnapshot.ref.delete();'));
+  assert.ok(!lifecycle.includes('await jobSnapshot.ref.set('));
+  assert.ok(!lifecycle.includes('hideBatch.set('));
+  assert.ok(lifecycle.split('stageVideoTriageMutationInTransaction(').length === 4);
+  assert.ok(reconciliation.includes('stageVideoTriageMutationInTransaction('));
+  assert.ok(!outbox.includes('globalCoverageVerified: true'));
 });
