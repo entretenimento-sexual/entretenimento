@@ -112,8 +112,10 @@ function checkedClock(now: number): number {
   return now;
 }
 
-function readDocument(data: unknown, approval: VideoTriageAuditApproval,
-                      key: Buffer): DurableAuditSession {
+function readDocument(
+  data: unknown, approval: VideoTriageAuditApproval,
+  key: Buffer
+): DurableAuditSession {
   const entry = data as DurableAuditSession | null;
   if (!entry || entry.schemaVersion !== 1 ||
       entry.projectId !== approval.expectedProjectId ||
