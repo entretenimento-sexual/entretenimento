@@ -1,9 +1,13 @@
+import { randomUUID } from 'node:crypto';
+
 import type { DocumentReference } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
 
 import { db, getDefaultStorageBucket } from '../../firebaseApp';
 import type { VideoProcessingJob } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
+import { stageVideoTriageMutationInTransaction }
+  from './admin-video-triage-mutation-outbox.firestore';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 
 interface PrivateVideoDocument {
@@ -70,6 +74,8 @@ async function markProcessingFailure(
   userMessage: string
 ): Promise<void> {
   const now = Date.now();
+  // Reused across Firestore transaction retries: one event per committed change.
+  const mutationEventId = randomUUID();
 
   await db.runTransaction(async (transaction) => {
     const videoRef = db.doc(`users/${job.ownerUid}/videos/${job.videoId}`);
@@ -78,10 +84,15 @@ async function markProcessingFailure(
       transaction.get(videoRef),
     ]);
 
-    if (!jobSnapshot.exists || jobSnapshot.get('state') !== 'QUEUED') {
+    if (!jobSnapshot.exists || jobSnapshot.get('state') !== 'QUEUED' ||
+        jobSnapshot.get('processingVersion') !== job.processingVersion) {
       return;
     }
 
+    stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+      eventId: mutationEventId, source: 'EMULATOR_PROCESSING',
+      kind: 'STATE_TRANSITION', before: jobSnapshot, afterState: 'FAILED',
+    });
     transaction.update(jobRef, withAdminTriageProjection(jobRef.id, jobSnapshot.data() as VideoProcessingJob, {
       state: 'FAILED',
       providerState: 'EMULATOR_FAILED',
@@ -183,6 +194,7 @@ export async function completeVideoProcessingInEmulator(
     const outputSizeBytes =
       normalizePositiveInteger(outputMetadata.size) ?? job.sourceSizeBytes;
     const now = Date.now();
+    const mutationEventId = randomUUID();
 
     const applied = await db.runTransaction(async (transaction) => {
       const videoRef = db.doc(`users/${job.ownerUid}/videos/${job.videoId}`);
@@ -194,6 +206,7 @@ export async function completeVideoProcessingInEmulator(
       if (
         !jobSnapshot.exists ||
         jobSnapshot.get('state') !== 'QUEUED' ||
+        jobSnapshot.get('processingVersion') !== job.processingVersion ||
         !videoSnapshot.exists
       ) {
         return false;
@@ -205,6 +218,11 @@ export async function completeVideoProcessingInEmulator(
         return false;
       }
 
+      stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+        eventId: mutationEventId, source: 'EMULATOR_PROCESSING',
+        kind: 'STATE_TRANSITION', before: jobSnapshot,
+        afterState: 'SUCCEEDED',
+      });
       transaction.update(jobRef, withAdminTriageProjection(jobRef.id, jobSnapshot.data() as VideoProcessingJob, {
         state: 'SUCCEEDED',
         attempts: 1,

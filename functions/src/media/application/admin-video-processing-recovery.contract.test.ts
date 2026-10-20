@@ -540,3 +540,32 @@ test('c18t outbox diagnostic is non-destructive and does not grant global readin
   assert.ok(!outbox.includes('ttlPolicy'));
   assert.ok(outbox.includes('VIDEO_TRIAGE_MUTATION_OUTBOX_SCHEMA_VERSION'));
 });
+
+test('c18u local emulator terminal transitions share the outbox transaction', () => {
+  const emu = readFileSync(resolve(root,
+    'src/media/application/emulator-video-processing.service.ts'), 'utf8');
+  const outbox = readFileSync(resolve(root,
+    'src/media/application/admin-video-triage-mutation-outbox.firestore.ts'), 'utf8');
+  assert.equal(
+    emu.split('stageVideoTriageMutationInTransaction(').length - 1, 2);
+  assert.equal(
+    emu.split("source: 'EMULATOR_PROCESSING'").length - 1, 2);
+  assert.equal(
+    emu.split("jobSnapshot.get('processingVersion') !== job.processingVersion")
+      .length - 1, 2);
+  assert.ok(emu.includes("afterState: 'FAILED'"));
+  assert.ok(emu.includes("afterState: 'SUCCEEDED'"));
+  assert.ok(emu.includes('const mutationEventId = randomUUID();'));
+  assert.ok(outbox.includes("'EMULATOR_PROCESSING'"));
+  assert.ok(!outbox.includes('globalCoverageVerified: true'));
+});
+
+test('c18u known direct profile deletion batch is not misreported as covered', () => {
+  const deletion = readFileSync(resolve(root,
+    'src/media/application/delete-profile-video.handler.ts'), 'utf8');
+  assert.ok(deletion.includes('function requestProcessingCancellation('));
+  assert.ok(deletion.includes('const removalBatch = db.batch();'));
+  assert.ok(deletion.includes('requestProcessingCancellation(\n    removalBatch,'));
+  assert.ok(deletion.includes('await removalBatch.commit();'));
+  assert.ok(!deletion.includes('stageVideoTriageMutationInTransaction('));
+});

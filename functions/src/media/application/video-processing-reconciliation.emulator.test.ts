@@ -4000,3 +4000,56 @@ test('c18r version replacement rejects unchanged, malformed or untrusted attempt
   }), /Invalid video job mutation outbox intent/);
   assert.equal((await jobRef.get()).get('state'), 'FAILED');
 });
+
+test('c18u selected emulator terminal events are atomic and omit stale attempts', async () => {
+  for (const target of ['FAILED', 'SUCCEEDED'] as const) {
+    const job: VideoProcessingJob = { ...fixture('c18u'), state: 'QUEUED' };
+    const ref = jobs.doc(randomUUID());
+    const id = randomUUID();
+    await ref.create(job);
+    await firestore.runTransaction(async tx => {
+      const before = await tx.get(ref);
+      if (!before.exists || before.get('state') !== 'QUEUED' ||
+          before.get('processingVersion') !== job.processingVersion) return;
+      stageVideoTriageMutationInTransaction(firestore, tx, ref, {
+        eventId: id, source: 'EMULATOR_PROCESSING',
+        kind: 'STATE_TRANSITION', before, afterState: target,
+      });
+      tx.update(ref, { state: target });
+    });
+    const [stored, event] = await Promise.all([
+      ref.get(), firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+        .doc(id).get(),
+    ]);
+    assert.equal(stored.get('state'), target);
+    assert.equal(event.get('nextState'), target);
+    assert.equal(event.get('source'), 'EMULATOR_PROCESSING');
+
+    const staleId = randomUUID();
+    await firestore.runTransaction(async tx => {
+      const before = await tx.get(ref);
+      if (before.get('state') !== 'QUEUED' ||
+          before.get('processingVersion') !== job.processingVersion) return;
+      stageVideoTriageMutationInTransaction(firestore, tx, ref, {
+        eventId: staleId, source: 'EMULATOR_PROCESSING',
+        kind: 'STATE_TRANSITION', before, afterState: target,
+      });
+    });
+    assert.equal((await firestore.collection(
+      VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION).doc(staleId).get()).exists, false);
+
+    const abortedId = randomUUID();
+    await assert.rejects(firestore.runTransaction(async tx => {
+      const before = await tx.get(ref);
+      stageVideoTriageMutationInTransaction(firestore, tx, ref, {
+        eventId: abortedId, source: 'EMULATOR_PROCESSING',
+        kind: 'STATE_TRANSITION', before, afterState: 'QUEUED',
+      });
+      tx.update(ref, { state: 'QUEUED' });
+      throw new Error('forced transaction abort');
+    }), /forced transaction abort/);
+    assert.equal((await firestore.collection(
+      VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION).doc(abortedId).get()).exists, false);
+    assert.equal((await ref.get()).get('state'), target);
+  }
+});
