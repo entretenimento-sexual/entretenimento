@@ -20,6 +20,8 @@ import {
 export const VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION =
   'media_video_processing_mutation_events';
 
+export const VIDEO_TRIAGE_MUTATION_OUTBOX_SCHEMA_VERSION = 1;
+
 export type VideoTriageMutationSource =
   'ACCOUNT_DELETION_PAGE' | 'ACCOUNT_DELETION_PRIVATE_VIDEO' |
   'CANCELLATION_RECONCILIATION' | 'QUEUE_CREATION' |
@@ -96,7 +98,7 @@ export function stageVideoTriageMutationInTransaction(
   const ref = firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
     .doc(intent.eventId);
   transaction.create(ref, {
-    schemaVersion: 1,
+    schemaVersion: VIDEO_TRIAGE_MUTATION_OUTBOX_SCHEMA_VERSION,
     scope: 'PARTIAL_WRITER_COVERAGE',
     source: intent.source,
     kind: intent.kind,
@@ -137,7 +139,7 @@ export function stageVideoTriageCreatedJobInTransaction(
   const ref = firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
     .doc(eventId);
   transaction.create(ref, {
-    schemaVersion: 1,
+    schemaVersion: VIDEO_TRIAGE_MUTATION_OUTBOX_SCHEMA_VERSION,
     scope: 'PARTIAL_WRITER_COVERAGE',
     source: 'QUEUE_CREATION',
     kind: 'CREATE',
@@ -150,4 +152,152 @@ export function stageVideoTriageCreatedJobInTransaction(
     globalCoverageVerified: false,
     globallySequenced: false,
   });
+}
+
+/**
+ * c18t deterministic OFFLINE budget/retention assessment. No Firestore reads,
+ * cleanup permission, deployment flags, financial rates or job lifecycle
+ * writes may depend on this diagnostic. Caller-supplied observations are not
+ * certified billing or a complete writer feed.
+ */
+export interface VideoTriageOutboxCostObservation {
+  scope: 'OFFLINE_EMULATOR_OR_MANUAL_REPORT';
+  windowStartMs: number;
+  windowEndMs: number;
+  /** Count of new committed outbox event documents in this window. */
+  newEventDocuments: number;
+  /** Sampled, cumulative stored bytes; not billed storage size. */
+  sampledStoredBytes: number;
+  /** Count of event documents actually included in the byte sample. */
+  sampledDocuments: number;
+  /** Optional observation of total documents retained at window end. */
+  retainedDocumentsAtEnd: number | null;
+}
+
+export interface VideoTriageOutboxBudgetLimits {
+  /** Explicit, reviewable offline thresholds, not runtime write quotas. */
+  maxNewEventDocuments: number;
+  maxEventsPerHour: number;
+  maxSampledStoredBytes: number;
+  maxObservationHours: number;
+}
+
+export type VideoTriageOutboxBudgetStatus =
+  'WITHIN_OFFLINE_THRESHOLDS' | 'EXCEEDS_OFFLINE_THRESHOLDS' |
+  'MISSING_APPROVED_LIMITS' | 'INVALID_OBSERVATION';
+
+export interface VideoTriageOutboxBudgetReport {
+  scope: 'OFFLINE_ONLY';
+  status: VideoTriageOutboxBudgetStatus;
+  eventWritesObserved: number | null;
+  eventsPerHourCeiling: number | null;
+  sampledStoredBytes: number | null;
+  /** This is NOT a certified Firestore invoice or usage calculation. */
+  productionCostVerified: false;
+  globalCoverageVerified: false;
+  cleanupAuthorized: false;
+  globalOrderingEnabled: false;
+}
+
+function nonNegativeSafe(value: number): boolean {
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
+/**
+ * Explicit limits are compulsory. A green offline report never authorizes
+ * retention expiry and must not block a cancellation or account deletion.
+ */
+export function assessVideoTriageOutboxCostWindow(
+  observation: VideoTriageOutboxCostObservation,
+  limits: VideoTriageOutboxBudgetLimits | null
+): VideoTriageOutboxBudgetReport {
+  const base = {
+    scope: 'OFFLINE_ONLY' as const, eventWritesObserved: null,
+    eventsPerHourCeiling: null, sampledStoredBytes: null,
+    productionCostVerified: false as const,
+    globalCoverageVerified: false as const,
+    cleanupAuthorized: false as const, globalOrderingEnabled: false as const,
+  };
+  if (!observation ||
+      observation.scope !== 'OFFLINE_EMULATOR_OR_MANUAL_REPORT' ||
+      !Number.isSafeInteger(observation.windowStartMs) ||
+      !Number.isSafeInteger(observation.windowEndMs) ||
+      observation.windowStartMs <= 0 ||
+      observation.windowEndMs <= observation.windowStartMs ||
+      !nonNegativeSafe(observation.newEventDocuments) ||
+      !nonNegativeSafe(observation.sampledStoredBytes) ||
+      !nonNegativeSafe(observation.sampledDocuments) ||
+      (observation.retainedDocumentsAtEnd !== null &&
+       !nonNegativeSafe(observation.retainedDocumentsAtEnd)) ||
+      (observation.retainedDocumentsAtEnd !== null &&
+       observation.sampledDocuments > observation.retainedDocumentsAtEnd)) {
+    return { ...base, status: 'INVALID_OBSERVATION' };
+  }
+  const duration = observation.windowEndMs - observation.windowStartMs;
+  const rate = Math.ceil(observation.newEventDocuments * 3_600_000 / duration);
+  if (!Number.isSafeInteger(rate)) {
+    return { ...base, status: 'INVALID_OBSERVATION' };
+  }
+  const metrics = {
+    ...base, eventWritesObserved: observation.newEventDocuments,
+    eventsPerHourCeiling: rate, sampledStoredBytes: observation.sampledStoredBytes,
+  };
+  if (!limits ||
+      !nonNegativeSafe(limits.maxNewEventDocuments) ||
+      !nonNegativeSafe(limits.maxEventsPerHour) ||
+      !nonNegativeSafe(limits.maxSampledStoredBytes) ||
+      !Number.isSafeInteger(limits.maxObservationHours) ||
+      limits.maxObservationHours < 1 || limits.maxObservationHours > 24) {
+    return { ...metrics, status: 'MISSING_APPROVED_LIMITS' };
+  }
+  const outside = duration > limits.maxObservationHours * 3_600_000 ||
+    observation.newEventDocuments > limits.maxNewEventDocuments ||
+    rate > limits.maxEventsPerHour ||
+    observation.sampledStoredBytes > limits.maxSampledStoredBytes;
+  return {
+    ...metrics,
+    status: outside ? 'EXCEEDS_OFFLINE_THRESHOLDS' :
+      'WITHIN_OFFLINE_THRESHOLDS',
+  };
+}
+
+/**
+ * Retention has no automated safe deletion path. A witnessed consumer
+ * checkpoint is necessary but NOT sufficient: complete global writer proof,
+ * verified history, legal retention, privacy and cost authorization remain
+ * unavailable. A caller must never convert this into a destructive action.
+ */
+export function assessVideoTriageOutboxRetentionPrerequisites(
+  evidence: {
+    completeWriterCoverageVerified: boolean;
+    immutableGlobalSequenceVerified: boolean;
+    independentConsumerCheckpointVerified: boolean;
+    tombstoneHorizonApproved: boolean;
+    privacyAndLegalRetentionApproved: boolean;
+  }
+): {
+  status: 'RETAIN_AND_REVIEW';
+  cleanupAuthorized: false;
+  productionCostVerified: false;
+  globalCoverageVerified: false;
+  globalOrderingEnabled: false;
+  unresolvedRequirements: readonly string[];
+} {
+  const unresolvedRequirements = [
+    ...(!evidence?.completeWriterCoverageVerified ?
+      ['completeWriterCoverage'] : []),
+    ...(!evidence?.immutableGlobalSequenceVerified ?
+      ['immutableGlobalSequence'] : []),
+    ...(!evidence?.independentConsumerCheckpointVerified ?
+      ['independentConsumerCheckpoint'] : []),
+    ...(!evidence?.tombstoneHorizonApproved ?
+      ['tombstoneHorizon'] : []),
+    ...(!evidence?.privacyAndLegalRetentionApproved ?
+      ['privacyAndLegalRetention'] : []),
+  ];
+  return {
+    status: 'RETAIN_AND_REVIEW', cleanupAuthorized: false,
+    productionCostVerified: false, globalCoverageVerified: false,
+    globalOrderingEnabled: false, unresolvedRequirements,
+  };
 }

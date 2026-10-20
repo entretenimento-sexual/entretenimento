@@ -506,9 +506,9 @@ test('c18s probe and immutable input preflight journal only terminal state chang
   for (const body of [probe, preflight]) {
     assert.equal(
       body.split('stageVideoTriageMutationInTransaction(').length - 1, 3);
-    assert.ok(body.includes("kind: 'CANCEL_REQUESTED'"));
-    assert.ok(body.includes("kind: sourceChanged ? 'CANCEL_REQUESTED'") ||
-      body.includes("kind: changed ? 'CANCEL_REQUESTED'"));
+    assert.ok(body.includes('kind: \'CANCEL_REQUESTED\''));
+    assert.ok(body.includes('kind: sourceChanged ? \'CANCEL_REQUESTED\'') ||
+      body.includes('kind: changed ? \'CANCEL_REQUESTED\''));
     assert.ok(body.includes("afterState: 'CANCEL_REQUESTED'"));
     assert.ok(body.includes("afterState: sourceChanged ?") ||
       body.includes("afterState: status"));
@@ -523,4 +523,20 @@ test('c18s probe and immutable input preflight journal only terminal state chang
   assert.ok(backfill.includes("return required === 'PROJECT'"));
   assert.ok(!outbox.includes('globalCoverageVerified: true'));
   assert.ok(!outbox.includes('globallySequenced: true'));
+});
+
+
+test('c18t outbox diagnostic is non-destructive and does not grant global readiness', () => {
+  const outbox = readFileSync(resolve(root,
+    'src/media/application/admin-video-triage-mutation-outbox.firestore.ts'), 'utf8');
+  assert.ok(outbox.includes('assessVideoTriageOutboxCostWindow('));
+  assert.ok(outbox.includes('assessVideoTriageOutboxRetentionPrerequisites('));
+  assert.ok(outbox.includes('cleanupAuthorized: false'));
+  assert.ok(outbox.includes('productionCostVerified: false'));
+  assert.ok(outbox.includes('globalCoverageVerified: false'));
+  assert.ok(!outbox.includes('transaction.delete(ref)'));
+  assert.ok(!outbox.includes('deleteAll('));
+  assert.ok(!outbox.includes('onSchedule('));
+  assert.ok(!outbox.includes('ttlPolicy'));
+  assert.ok(outbox.includes('VIDEO_TRIAGE_MUTATION_OUTBOX_SCHEMA_VERSION'));
 });
