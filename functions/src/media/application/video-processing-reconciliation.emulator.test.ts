@@ -21,6 +21,7 @@ import {
 import {
   createVideoTriageAuditSession,
 } from './admin-video-triage-audit-session.policy';
+import { validateVideoTriageAuditSession } from './admin-video-triage-audit-validation.policy';
 import { projectAdminTriageJob } from './admin-video-global-triage.policy';
 import {
   auditVideoTriageIntegrityPage, reclassifyDueVideoTriagePage,
@@ -3498,4 +3499,97 @@ test('c18k skew and malformed page evidence cannot advance a reserved cursor', a
   const after = await readDurableVideoTriageAuditJournal(
     firestore, app, context, key);
   assert.equal(after.report.pagesCompleted, 1);
+});
+
+
+test('c18l competing journal claims reserve only one page and enforce a bounded stop', async () => {
+  const at = Date.now() - 1_000;
+  const key = randomBytes(32);
+  const approval = {
+    approved: true as const, purpose: 'MANUAL_EMULATOR_TRIAGE_AUDIT' as const,
+    expectedProjectId: PROJECT_ID, expectedDatabaseId: '(default)' as const,
+  };
+  const created = createVideoTriageAuditSession(approval, {
+    pageSize: 1, maxPages: 1, maxDocuments: 1,
+    maxDocumentReads: 3, maxDurationMs: 120_000, maxFailures: 0,
+  }, key, at);
+  const context = { ...approval, expectedSessionId: created.sessionId };
+  await registerSignedVideoTriageAuditJournal(
+    firestore, app, context, created.checkpoint, key);
+  const claims = await Promise.allSettled(Array.from({ length: 4 }, () =>
+    claimDurableVideoTriageAuditPage(
+      firestore, app, context, created.checkpoint, key,
+      randomUUID(), Date.now())
+  ));
+  const successes = claims.filter((item): item is PromiseFulfilledResult<
+    Awaited<ReturnType<typeof claimDurableVideoTriageAuditPage>>> =>
+      item.status === 'fulfilled').map(item => item.value);
+  assert.equal(successes.filter(item => item.kind === 'CLAIMED').length, 1);
+  const claimed = successes.find(item => item.kind === 'CLAIMED');
+  assert.ok(claimed && claimed.kind === 'CLAIMED');
+  if (claimed.kind !== 'CLAIMED') return;
+  const current = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  assert.equal(current.report.pagesAttempted, 1);
+  assert.equal(current.report.reservedDocumentReads, 3);
+  assert.equal(current.journalReservedOperations, 9);
+  const validation = validateVideoTriageAuditSession(
+    current.checkpoint, key, context, current.journalReservedOperations);
+  assert.equal(validation.consistency, 'CONSISTENT');
+  assert.equal(validation.globalCoverageVerified, false);
+  const page = await auditVideoTriageConcurrentPage(firestore, {
+    state: claimed.claim.lane as 'QUEUED',
+    afterId: claimed.claim.afterId, limit: 1,
+    now: claimed.claim.evaluationAt,
+  });
+  const result = await settleDurableVideoTriageAuditPage(
+    firestore, app, context, key, claimed.claim, page, Date.now());
+  assert.equal(result.kind, 'APPLIED');
+  const after = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  const stopped = await claimDurableVideoTriageAuditPage(
+    firestore, app, context, after.checkpoint, key, randomUUID(), Date.now());
+  assert.equal(stopped.kind, 'STOPPED');
+  const end = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  assert.equal(end.report.pagesAttempted, 1);
+  assert.equal(end.report.pagesCompleted, 1);
+  assert.equal(end.journalReservedOperations, 9);
+});
+
+test('c18l crossing state lanes can hide one skip and one duplicate', async () => {
+  const at = Date.now() - 1_000;
+  const prefix = 'c18l-' + randomUUID();
+  const repeatedId = prefix + '-a';
+  const missedId = prefix + '-b';
+  await Promise.all([
+    jobs.doc(repeatedId).create({ state: 'QUEUED', processingVersion: 'v1' }),
+    jobs.doc(missedId).create({ state: 'PROCESSING', processingVersion: 'v1' }),
+  ]);
+  // Adversarial fixture: both queries are individually valid, but there is
+  // no pinned global snapshot between state lanes.
+  const firstLane = await auditVideoTriageConcurrentPage(firestore, {
+    state: 'QUEUED', afterId: prefix + '-', limit: 2, now: at,
+  });
+  assert.equal(firstLane.observed, 1);
+  assert.equal(firstLane.hasMore, false);
+  assert.equal(firstLane.provesGlobalCoverage, false);
+  await Promise.all([
+    jobs.doc(repeatedId).update({ state: 'PROCESSING' }),
+    jobs.doc(missedId).update({ state: 'QUEUED' }),
+  ]);
+  const laterLane = await auditVideoTriageConcurrentPage(firestore, {
+    state: 'PROCESSING', afterId: prefix + '-', limit: 2, now: at,
+  });
+  assert.equal(laterLane.observed, 1);
+  assert.equal(laterLane.hasMore, false);
+  assert.equal(laterLane.provesGlobalCoverage, false);
+  assert.equal(firstLane.observed + laterLane.observed, 2);
+  // The same repeatedId appeared in both lanes, and missedId was not read.
+  // Matching observed counts are insufficient to certify any global coverage.
+  const latest = await Promise.all([
+    jobs.doc(repeatedId).get(), jobs.doc(missedId).get(),
+  ]);
+  assert.equal(latest[0].get('state'), 'PROCESSING');
+  assert.equal(latest[1].get('state'), 'QUEUED');
 });
