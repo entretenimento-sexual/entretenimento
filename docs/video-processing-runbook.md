@@ -976,3 +976,7 @@ chave, retenção por execução e autorização separada para qualquer futuro
 trabalho em produção. Contadores são tetos reservados e não faturamento
 real comprovado. Nenhuma prova de READY, cobertura integral ou promoção
 global foi realizada; \`WITHIN_PAGE\` permanece.
+
+O executor c18i confirma vínculo do `Firestore` ao Firebase Admin App
+(`getFirestore(app)`), projeto do App e banco `(default)`, sem supor que
+`db.projectId` exista no tipo público do SDK.

@@ -245,9 +245,10 @@ test('c18i offline audit session cannot activate ordering or gain production rea
   assert.ok(policy.includes('globalOrderingEnabled: false'));
   assert.ok(policy.includes('globalCoverageVerified: false'));
   assert.ok(runner.includes('process.env.FIRESTORE_EMULATOR_HOST'));
-  assert.ok(runner.includes('db.projectId !== approval.expectedProjectId'));
+  assert.ok(runner.includes('app.options.projectId !== approval.expectedProjectId'));
+  assert.ok(runner.includes('getFirestore(app) !== db'));
   assert.ok(runner.includes('db.databaseId !== approval.expectedDatabaseId'));
-  assert.ok(runner.includes('auditVideoTriageConcurrentPage(db, {'));
+  assert.ok(runner.includes('readPage(db, {'));
   assert.ok(!runner.includes('onSchedule('));
   assert.ok(!runner.includes('onCall('));
   assert.ok(!handler.includes("orderBy('adminTriageTier')"));

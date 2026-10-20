@@ -138,7 +138,7 @@ test('c18i refuses mismatched lane and unsupported page evidence', () => {
     emptyPage('FAILED')));
   assert.throws(() => settleVideoTriageAuditPage(ledger, now + 1, {
     ...emptyPage('QUEUED'), maxWrites: 1,
-  }));
+  } as unknown as VideoTriageConcurrentAuditPage));
   assert.throws(() => settleVideoTriageAuditPage(ledger, now + 1, {
     ...emptyPage('QUEUED'), observed: 2,
   }));

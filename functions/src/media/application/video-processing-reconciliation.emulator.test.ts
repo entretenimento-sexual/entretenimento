@@ -3178,7 +3178,7 @@ test('c18i emulator-only signed session resume, cumulative budget and no job mut
     updatedAt: now, outputStoragePath: 'never/edit.mp4' });
   const observed = await ref.get();
   let first = await runOneVideoTriageAuditPage(
-    firestore, resume, checkpoint, signer, () => now + 1);
+    firestore, app, resume, checkpoint, signer, () => now + 1);
   assert.equal(first.readFailed, false);
   assert.equal(first.stopped, false);
   assert.equal(first.report.pagesAttempted, 1);
@@ -3188,13 +3188,13 @@ test('c18i emulator-only signed session resume, cumulative budget and no job mut
     first.checkpoint, signer, resume);
   assert.equal(accepted.sessionId, sessionId);
   first = await runOneVideoTriageAuditPage(
-    firestore, resume, first.checkpoint, signer, () => now + 2);
+    firestore, app, resume, first.checkpoint, signer, () => now + 2);
   assert.equal(first.report.pagesAttempted, 2);
   assert.equal(first.report.reservedDocumentReads, 6);
   assert.equal(first.report.status, 'STOPPED_BUDGET');
   assert.equal(first.stopped, true);
   const noMore = await runOneVideoTriageAuditPage(
-    firestore, resume, first.checkpoint, signer, () => now + 3);
+    firestore, app, resume, first.checkpoint, signer, () => now + 3);
   assert.equal(noMore.report.pagesAttempted, 2);
   assert.equal(noMore.report.reservedDocumentReads, 6);
   assert.equal(noMore.page, null);
@@ -3215,17 +3215,12 @@ test('c18i failed read reserves budget without cursor advance and needs manual r
       maxDocumentReads: 9, maxDurationMs: 60_000, maxFailures: 1,
     }, signer, now);
   const resume = { ...permission, expectedSessionId: created.sessionId };
-  const broken = new Proxy(firestore, {
-    get(target, property) {
-      if (property === 'collection') {
-        return () => { throw new Error('Simulated Firestore read failure'); };
-      }
-      const value = Reflect.get(target, property, target) as unknown;
-      return typeof value === 'function' ? value.bind(target) as unknown : value;
-    },
-  });
+  const failingReader: typeof auditVideoTriageConcurrentPage = async () => {
+    throw new Error('Simulated Firestore read failure');
+  };
   const failed = await runOneVideoTriageAuditPage(
-    broken, resume, created.checkpoint, signer, () => now + 1);
+    firestore, app, resume, created.checkpoint, signer, () => now + 1,
+    failingReader);
   assert.equal(failed.readFailed, true);
   assert.equal(failed.page, null);
   assert.equal(failed.report.failedPages, 1);
@@ -3237,21 +3232,14 @@ test('c18i failed read reserves budget without cursor advance and needs manual r
   assert.equal(checkpoint.nextLaneIndex, 0);
   assert.equal(checkpoint.lanes[0].afterId, null);
   const recovered = await runOneVideoTriageAuditPage(
-    firestore, resume, failed.checkpoint, signer, () => now + 2);
+    firestore, app, resume, failed.checkpoint, signer, () => now + 2);
   assert.equal(recovered.readFailed, false);
   assert.equal(recovered.report.pagesAttempted, 2);
   assert.equal(recovered.report.pagesCompleted, 1);
   assert.equal(recovered.report.reservedDocumentReads, 6);
-  const invalidHost = new Proxy(firestore, {
-    get(target, property) {
-      if (property === 'projectId') return 'demo-other-project';
-      const value = Reflect.get(target, property, target) as unknown;
-      return typeof value === 'function' ? value.bind(target) as unknown : value;
-    },
-  });
   await assert.rejects(
     runOneVideoTriageAuditPage(
-      invalidHost, resume, recovered.checkpoint, signer, () => now + 3),
+      firestore, app, { ...resume, expectedProjectId: 'demo-other-project' }, recovered.checkpoint, signer, () => now + 3),
     /only supports/
   );
 });

@@ -3,7 +3,8 @@
  * It is intentionally not connected to production Functions, schedulers or UI.
  * Requires an actual local Firestore Emulator and a signed checkpoint.
  */
-import type { Firestore } from 'firebase-admin/firestore';
+import type { App } from 'firebase-admin/app';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
 import {
   auditVideoTriageConcurrentPage,
@@ -26,11 +27,14 @@ export interface VideoTriageAuditStepResult {
   readFailed: boolean;
 }
 
-function checkEmulatorIdentity(db: Firestore, approval: VideoTriageAuditApproval) {
+function checkEmulatorIdentity(
+  db: Firestore, app: App, approval: VideoTriageAuditApproval
+) {
   const host = process.env.FIRESTORE_EMULATOR_HOST;
   if (typeof host !== 'string' ||
       !/^127\.0\.0\.1:\d{2,5}$/.test(host) ||
-      db.projectId !== approval.expectedProjectId ||
+      app.options.projectId !== approval.expectedProjectId ||
+      getFirestore(app) !== db ||
       db.databaseId !== approval.expectedDatabaseId) {
     throw new Error('Triage audit only supports the explicitly bound local emulator.');
   }
@@ -50,13 +54,16 @@ function finalized(
 
 export async function runOneVideoTriageAuditPage(
   db: Firestore,
+  app: App,
   approval: VideoTriageAuditApproval,
   checkpoint: string,
   secret: Buffer,
-  clock: () => number = Date.now
+  clock: () => number = Date.now,
+  /** Emulator-only injected read for deterministic failure tests. */
+  readPage: typeof auditVideoTriageConcurrentPage = auditVideoTriageConcurrentPage
 ): Promise<VideoTriageAuditStepResult> {
   // Reject production/remote databases before any Firestore operation.
-  checkEmulatorIdentity(db, approval);
+  checkEmulatorIdentity(db, app, approval);
   const ledger = openVideoTriageAuditCheckpoint(checkpoint, secret, approval);
   const start = clock();
   const permit = videoTriageAuditCanRead(ledger, start);
@@ -74,7 +81,7 @@ export async function runOneVideoTriageAuditPage(
   let page: VideoTriageConcurrentAuditPage | null = null;
   let failed = false;
   try {
-    page = await auditVideoTriageConcurrentPage(db, {
+    page = await readPage(db, {
       state: lane.state, afterId: lane.afterId,
       limit: ledger.budget.pageSize, now: ledger.evaluationAt,
     });
