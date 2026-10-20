@@ -146,7 +146,8 @@ test('c18d writes triage projections with existing job writes, not in a global q
     'video-processing.handler.ts', 'queue-video-processing.handler.ts',
     'admin-video-processing-recovery.handler.ts',
     'video-source-probe.service.ts', 'video-immutable-input-preflight.service.ts',
-    'emulator-video-processing.service.ts', 'delete-profile-video.handler.ts',
+    'emulator-video-processing.service.ts',
+    'video-profile-deletion-commit.firestore.ts',
   ]) assert.ok(read(name).includes('withAdminTriageProjection('), name);
   assert.ok(read('admin-video-triage.firestore.ts').includes('FieldValue.delete()'));
   assert.ok(handler.includes('orderBy(FieldPath.documentId())'));
