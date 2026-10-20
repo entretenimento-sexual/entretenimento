@@ -13,6 +13,11 @@ import { auditVideoTriageConcurrentPage } from './admin-video-triage-evidence-au
 import { readAuthenticatedTriageIndexPage } from './admin-video-triage-evidence.firestore';
 import { runOneVideoTriageAuditPage } from './admin-video-triage-audit-session.firestore';
 import {
+  registerSignedVideoTriageAuditJournal, readDurableVideoTriageAuditJournal,
+  claimDurableVideoTriageAuditPage, settleDurableVideoTriageAuditPage,
+  runOneDurableVideoTriageAuditPage, VIDEO_TRIAGE_AUDIT_LEASE_MS,
+} from './admin-video-triage-audit-journal.firestore';
+import {
   createVideoTriageAuditSession, openVideoTriageAuditCheckpoint,
 } from './admin-video-triage-audit-session.policy';
 import { projectAdminTriageJob } from './admin-video-global-triage.policy';
@@ -3244,4 +3249,153 @@ test('c18i failed read reserves budget without cursor advance and needs manual r
       recovered.checkpoint, signer, () => now + 3),
     /only supports/
   );
+});
+
+
+test('c18j concurrent claims reserve one page, commit only once and reject replay', async () => {
+  const key = randomBytes(32);
+  const approval = {
+    approved: true as const, purpose: 'MANUAL_EMULATOR_TRIAGE_AUDIT' as const,
+    expectedProjectId: PROJECT_ID, expectedDatabaseId: '(default)' as const,
+  };
+  const created = createVideoTriageAuditSession(approval, {
+    pageSize: 1, maxPages: 3, maxDocuments: 3,
+    maxDocumentReads: 9, maxDurationMs: 180_000, maxFailures: 1,
+  }, key, now);
+  const context = { ...approval, expectedSessionId: created.sessionId };
+  await registerSignedVideoTriageAuditJournal(
+    firestore, app, context, created.checkpoint, key);
+  await assert.rejects(
+    registerSignedVideoTriageAuditJournal(
+      firestore, app, context, created.checkpoint, key),
+    /already registered/
+  );
+  const ownerA = randomUUID();
+  const ownerB = randomUUID();
+  const attempts = await Promise.all([
+    claimDurableVideoTriageAuditPage(
+      firestore, app, context, created.checkpoint, key, ownerA, now + 1),
+    claimDurableVideoTriageAuditPage(
+      firestore, app, context, created.checkpoint, key, ownerB, now + 1),
+  ]);
+  assert.deepEqual(attempts.map(a => a.kind).sort(), ['BUSY', 'CLAIMED']);
+  const selected = attempts.find(a => a.kind === 'CLAIMED');
+  assert.ok(selected && selected.kind === 'CLAIMED');
+  const claimed = selected.claim;
+  const pending = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  assert.equal(pending.inFlight, true);
+  assert.equal(pending.generation, 1);
+  assert.equal(pending.report.pagesAttempted, 1);
+  assert.equal(pending.report.reservedDocumentReads, 3);
+  assert.equal(pending.report.pagesCompleted, 0);
+  const stale = await claimDurableVideoTriageAuditPage(
+    firestore, app, context, created.checkpoint, key, randomUUID(), now + 2);
+  assert.equal(stale.kind, 'STALE_CHECKPOINT');
+  const sample = await auditVideoTriageConcurrentPage(firestore, {
+    state: claimed.lane as 'QUEUED', limit: 1,
+    afterId: claimed.afterId, now: claimed.evaluationAt,
+  });
+  const results = await Promise.all([
+    settleDurableVideoTriageAuditPage(
+      firestore, app, context, key, claimed, sample, now + 3),
+    settleDurableVideoTriageAuditPage(
+      firestore, app, context, key, claimed, sample, now + 3),
+  ]);
+  assert.deepEqual(results.map(a => a.kind).sort(), ['APPLIED', 'DUPLICATE']);
+  const recovered = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  assert.equal(recovered.inFlight, false);
+  assert.equal(recovered.report.pagesCompleted, 1);
+  assert.equal(recovered.report.documentsObserved, sample.observed);
+  assert.equal(recovered.report.reservedDocumentReads, 3);
+  assert.equal(recovered.report.globalCoverageVerified, false);
+  assert.equal(recovered.report.globalOrderingEnabled, false);
+});
+
+test('c18j expired lease recovery charges lost page and fences delayed completion', async () => {
+  const key = randomBytes(32);
+  const approval = {
+    approved: true as const, purpose: 'MANUAL_EMULATOR_TRIAGE_AUDIT' as const,
+    expectedProjectId: PROJECT_ID, expectedDatabaseId: '(default)' as const,
+  };
+  const created = createVideoTriageAuditSession(approval, {
+    pageSize: 1, maxPages: 4, maxDocuments: 4,
+    maxDocumentReads: 12, maxDurationMs: 180_000, maxFailures: 1,
+  }, key, now);
+  const context = { ...approval, expectedSessionId: created.sessionId };
+  await registerSignedVideoTriageAuditJournal(
+    firestore, app, context, created.checkpoint, key);
+  const first = await claimDurableVideoTriageAuditPage(
+    firestore, app, context, created.checkpoint, key, randomUUID(), now + 1);
+  assert.equal(first.kind, 'CLAIMED');
+  if (first.kind !== 'CLAIMED') throw new Error('No claim');
+  const recovered = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  const second = await claimDurableVideoTriageAuditPage(
+    firestore, app, context, recovered.checkpoint, key,
+    randomUUID(), now + VIDEO_TRIAGE_AUDIT_LEASE_MS + 2);
+  assert.equal(second.kind, 'CLAIMED');
+  if (second.kind !== 'CLAIMED') throw new Error('No recovered claim');
+  assert.ok(second.claim.generation > first.claim.generation);
+  const displaced = await settleDurableVideoTriageAuditPage(
+    firestore, app, context, key, first.claim, null,
+    now + VIDEO_TRIAGE_AUDIT_LEASE_MS + 3);
+  assert.equal(displaced.kind, 'SUPERSEDED');
+  const final = await settleDurableVideoTriageAuditPage(
+    firestore, app, context, key, second.claim, null,
+    now + VIDEO_TRIAGE_AUDIT_LEASE_MS + 3);
+  assert.equal(final.kind, 'APPLIED');
+  const evidence = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  assert.equal(evidence.report.pagesAttempted, 2);
+  assert.equal(evidence.report.pagesCompleted, 0);
+  assert.equal(evidence.report.reservedDocumentReads, 6);
+  assert.equal(evidence.report.failedPages, 2);
+  assert.equal(evidence.report.globalCoverageVerified, false);
+  const repeated = await settleDurableVideoTriageAuditPage(
+    firestore, app, context, key, first.claim, null,
+    now + VIDEO_TRIAGE_AUDIT_LEASE_MS + 4);
+  assert.equal(repeated.kind, 'SUPERSEDED');
+});
+
+test('c18j read errors consume reservation and no document content is mutated', async () => {
+  const key = randomBytes(32);
+  const approval = {
+    approved: true as const, purpose: 'MANUAL_EMULATOR_TRIAGE_AUDIT' as const,
+    expectedProjectId: PROJECT_ID, expectedDatabaseId: '(default)' as const,
+  };
+  const created = createVideoTriageAuditSession(approval, {
+    pageSize: 1, maxPages: 2, maxDocuments: 2,
+    maxDocumentReads: 6, maxDurationMs: 120_000, maxFailures: 1,
+  }, key, now);
+  const context = { ...approval, expectedSessionId: created.sessionId };
+  await registerSignedVideoTriageAuditJournal(
+    firestore, app, context, created.checkpoint, key);
+  const ref = jobs.doc('c18j-unchanged-' + randomUUID());
+  await ref.create({ state: 'QUEUED', processingVersion: 'v1',
+    updatedAt: now, outputStoragePath: 'untouched/original.mp4' });
+  const before = await ref.get();
+  const failingReader: typeof auditVideoTriageConcurrentPage = async () => {
+    throw new Error('Simulated error after reservation');
+  };
+  const result = await runOneDurableVideoTriageAuditPage(
+    firestore, app, context, created.checkpoint, key,
+    () => now + 1, failingReader);
+  assert.equal(result.kind, 'APPLIED');
+  assert.equal(result.readFailed, true);
+  assert.equal(result.page, null);
+  assert.equal(result.report.failedPages, 1);
+  assert.equal(result.report.pagesCompleted, 0);
+  assert.equal(result.report.reservedDocumentReads, 3);
+  const persisted = await readDurableVideoTriageAuditJournal(
+    firestore, app, context, key);
+  assert.equal(persisted.inFlight, false);
+  assert.equal(persisted.report.pagesAttempted, 1);
+  const after = await ref.get();
+  assert.ok(before.updateTime?.isEqual(after.updateTime!));
+  assert.equal(after.get('outputStoragePath'), 'untouched/original.mp4');
+  const other = { ...context, expectedProjectId: 'demo-other-project' };
+  await assert.rejects(readDurableVideoTriageAuditJournal(
+    firestore, app, other, key), /local emulator/);
 });

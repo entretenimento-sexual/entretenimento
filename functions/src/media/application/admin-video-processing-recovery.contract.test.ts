@@ -254,3 +254,23 @@ test('c18i offline audit session cannot activate ordering or gain production rea
   assert.ok(!handler.includes("orderBy('adminTriageTier')"));
   assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
 });
+
+
+test('c18j journal reserves before read and requires generation + fence to settle', () => {
+  const read = (name: string) => readFileSync(resolve(root,
+    'src/media/application/' + name), 'utf8');
+  const journal = read('admin-video-triage-audit-journal.firestore.ts');
+  const policy = read('admin-video-triage-audit-session.policy.ts');
+  assert.ok(journal.includes('ledger.reservedDocumentReads += cost'));
+  assert.ok(journal.includes('tx.update(ref, {'));
+  assert.ok(journal.includes('active.attemptId !== claim.fence'));
+  assert.ok(journal.includes('entry.generation !== claim.generation'));
+  assert.ok(journal.includes('VIDEO_TRIAGE_AUDIT_TX_MAX_ATTEMPTS = 2'));
+  assert.ok(journal.includes('auditVideoTriageConcurrentPage'));
+  assert.ok(journal.includes('getFirestore(app) !== db'));
+  assert.ok(policy.includes('reservationAlreadyCharged'));
+  assert.ok(!journal.includes('onSchedule('));
+  assert.ok(!journal.includes('onCall('));
+  assert.ok(!handler.includes("orderBy('adminTriageTier')"));
+  assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
+});

@@ -19,10 +19,10 @@ import {
   type VideoTriageConcurrentAuditPage,
 } from './admin-video-triage-evidence-audit.firestore';
 import {
-  createVideoTriageAuditSession, openVideoTriageAuditCheckpoint,
+  openVideoTriageAuditCheckpoint,
   reportVideoTriageAudit, sealVideoTriageAuditCheckpoint,
   settleVideoTriageAuditPage, videoTriageAuditCanRead,
-  type VideoTriageAuditApproval, type VideoTriageAuditBudget,
+  type VideoTriageAuditApproval,
   type VideoTriageAuditLedger, type VideoTriageAuditReport,
 } from './admin-video-triage-audit-session.policy';
 
@@ -135,34 +135,6 @@ function refFor(db: Firestore, id: string) {
 }
 
 /** Registration is explicit; never silently creates a record from a replay. */
-export async function registerVideoTriageAuditJournal(
-  db: Firestore, app: App, approval: VideoTriageAuditApproval,
-  budget: VideoTriageAuditBudget, key: Buffer, now: number
-): Promise<{ checkpoint: string; report: VideoTriageAuditReport }> {
-  const id = guard(db, app, approval);
-  checkedClock(now);
-  const created = createVideoTriageAuditSession(approval, budget, key, now);
-  // Session identifiers are not selected by the caller: allow only a
-  // registration whose own signed checkpoint matches the intended session.
-  if (created.sessionId !== id) {
-    throw new Error('Register using an already-created signed session.');
-  }
-  const ledger = openVideoTriageAuditCheckpoint(created.checkpoint, key, approval);
-  await db.runTransaction(async tx => {
-    const ref = refFor(db, id);
-    const existing = await tx.get(ref);
-    if (existing.exists) throw new Error('Audit session is already registered.');
-    const record: DurableAuditSession = {
-      schemaVersion: 1, projectId: ledger.projectId,
-      databaseId: '(default)', sessionId: id,
-      checkpointDigest: digest(created.checkpoint),
-      generation: 0, ledger, active: null,
-    };
-    tx.create(ref, record);
-  }, { maxAttempts: VIDEO_TRIAGE_AUDIT_TX_MAX_ATTEMPTS });
-  return { checkpoint: created.checkpoint, report: reportVideoTriageAudit(ledger) };
-}
-
 /**
  * Explicit registration from c18i's issued signed checkpoint; no additional
  * random session is generated. This is the supported c18i -> c18j bridge.

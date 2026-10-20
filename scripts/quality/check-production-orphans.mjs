@@ -494,6 +494,11 @@ const functionsOperationalArtifacts = new Set([
     'media/application/admin-video-triage-audit-session.policy.ts',
     'media/application/admin-video-triage-audit-session.firestore.ts',
   ].map((relativePath) => posix(path.join(functionsSourceRoot, relativePath))),
+  // c18j: transactional emulator-only audit session journal and fencing.
+  posix(path.join(
+    functionsSourceRoot,
+    'media/application/admin-video-triage-audit-journal.firestore.ts'
+  )),
 ]);
 
 const functionOrphans = functionsProductionTs

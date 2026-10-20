@@ -980,3 +980,46 @@ global foi realizada; \`WITHIN_PAGE\` permanece.
 O executor c18i confirma vínculo do `Firestore` ao Firebase Admin App
 (`getFirestore(app)`), projeto do App e banco `(default)`, sem supor que
 `db.projectId` exista no tipo público do SDK.
+
+
+### Registro transacional e fencing de sessões de auditoria (1C2-A3b2b2c18j)
+
+Biblioteca interna não implantável
+\`admin-video-triage-audit-journal.firestore.ts\` mantém documento canônico
+por sessão em \`media_video_triage_audit_sessions/{sessionId}\`, **somente
+Firestore Emulator local** vinculado à instância Firebase Admin e ao
+projeto/banco declarados. O operador deve registrar um checkpoint c18i
+**intocado** usando \`registerSignedVideoTriageAuditJournal\` antes de
+iniciar. \`readDurableVideoTriageAuditJournal\` permite recuperar a versão
+canônica após perda do processo local, sem ler jobs. Os dados do journal
+não contêm chave HMAC nem mídia privada; checkpoint digest detecta
+alteração incongruente do documento.
+
+Cada \`claimDurableVideoTriageAuditPage\` usa transação de no máximo duas
+tentativas. Verifica digest do checkpoint, validade temporal, orçamento,
+lease ativo, projeto, banco e status, e então **reserva integralmente**
+\`2 * pageSize + 1\` leituras máximas ANTES de permitir consulta dos jobs.
+Incrementa \`generation\`, emite \`attemptId\` aleatório e lease
+de até 60 segundos, limitado pela duração total da sessão. Outro
+executor vê BUSY ou STALE_CHECKPOINT e não consome página. Lease
+abandonado/expirado é contabilizado como tentativa perdida, sem
+avançar cursor; nova reserva só se orçamento e prazo permitirem.
+
+Somente \`settleDurableVideoTriageAuditPage\` da geração, dono,
+\`attemptId\` e cursor originais pode persistir contadores de uma página.
+Execuções substituídas retornam SUPERSEDED; repetição de confirmação
+retorna DUPLICATE. Resultado de leitura com falha registra custo
+reservado, incrementa \`failedPages\` e preserva cursor. Nenhum
+resultado de página atualiza documento de processamento ou Storage.
+
+\`runOneDurableVideoTriageAuditPage\` executa **no máximo uma página**
+por chamada explícita. Não há scheduler, retry implícito, flag, backfill,
+deploy, chamadas Transcoder, consulta de produção ou decisão de
+ativação. Limites c18i continuam vigentes; escritas transacionais do
+journal e leituras de metadados administrativas são custo adicional
+limitado por no máximo duas tentativas por transação, e devem ser
+consideradas no orçamento total do ambiente em futura execução real.
+
+Mesmo com exclusão mútua e recuperação da sessão, observações entre
+estados continuam sem snapshot global. Nenhuma cobertura global foi
+comprovada; ordenação administrativa permanece \`WITHIN_PAGE\`.
