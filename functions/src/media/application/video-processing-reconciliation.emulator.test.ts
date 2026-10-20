@@ -3278,7 +3278,8 @@ test('c18j concurrent claims reserve one page, commit only once and reject repla
     claimDurableVideoTriageAuditPage(
       firestore, app, context, created.checkpoint, key, ownerB, now + 1),
   ]);
-  assert.deepEqual(attempts.map(a => a.kind).sort(), ['BUSY', 'CLAIMED']);
+  assert.deepEqual(attempts.map(a => a.kind).sort(),
+    ['CLAIMED', 'STALE_CHECKPOINT']);
   const selected = attempts.find(a => a.kind === 'CLAIMED');
   assert.ok(selected && selected.kind === 'CLAIMED');
   const claimed = selected.claim;
@@ -3289,6 +3290,9 @@ test('c18j concurrent claims reserve one page, commit only once and reject repla
   assert.equal(pending.report.pagesAttempted, 1);
   assert.equal(pending.report.reservedDocumentReads, 3);
   assert.equal(pending.report.pagesCompleted, 0);
+  const busy = await claimDurableVideoTriageAuditPage(
+    firestore, app, context, pending.checkpoint, key, randomUUID(), now + 2);
+  assert.equal(busy.kind, 'BUSY');
   const stale = await claimDurableVideoTriageAuditPage(
     firestore, app, context, created.checkpoint, key, randomUUID(), now + 2);
   assert.equal(stale.kind, 'STALE_CHECKPOINT');
