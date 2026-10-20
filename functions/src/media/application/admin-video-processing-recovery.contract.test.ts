@@ -274,3 +274,12 @@ test('c18j journal reserves before read and requires generation + fence to settl
   assert.ok(!handler.includes("orderBy('adminTriageTier')"));
   assert.ok(handler.includes("orderScope: 'WITHIN_PAGE'"));
 });
+
+
+test('c18j triage journal source changes trigger the isolated reconciliation CI', () => {
+  const workflow = readFileSync(resolve(root,
+    '../.github/workflows/video-processing-reconciliation-emulator.yml'),
+  'utf8');
+  assert.ok(workflow.includes(
+    "functions/src/media/application/admin-video-triage-*"));
+});
