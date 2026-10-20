@@ -26,7 +26,9 @@ import {
 import {
   validateVideoTriageAuditSession, type VideoTriageAuditSdkEvent,
 } from './admin-video-triage-audit-journal.firestore';
-import { reconcileVideoTriageFixture } from './admin-video-triage-audit-session.policy';
+import {
+  reconcileVideoTriageFixture, reconcileVideoTriageClosedEpochFixture,
+} from './admin-video-triage-audit-session.policy';
 import { projectAdminTriageJob } from './admin-video-global-triage.policy';
 import {
   auditVideoTriageIntegrityPage, reclassifyDueVideoTriagePage,
@@ -3587,10 +3589,9 @@ test('c18l crossing state lanes can hide one skip and one duplicate', async () =
   }, result => observations.push(result));
   assert.equal(firstLane.observed, 1);
   assert.equal(firstLane.provesGlobalCoverage, false);
-  await Promise.all([
-    jobs.doc(repeatedId).update({ state: 'PROCESSING' }),
-    jobs.doc(missedId).update({ state: 'QUEUED' }),
-  ]);
+  // Ordered fixture writers emulate a complete, local mutation witness.
+  await jobs.doc(repeatedId).update({ state: 'PROCESSING' });
+  await jobs.doc(missedId).update({ state: 'QUEUED' });
   const laterLane = await auditVideoTriageConcurrentPage(firestore, {
     state: 'PROCESSING', afterId: prefix + '-', limit: 1, now: at,
   }, result => observations.push(result));
@@ -3626,6 +3627,51 @@ test('c18l crossing state lanes can hide one skip and one duplicate', async () =
   assert.equal(reconciled.changedCount, 2);
   assert.equal(reconciled.status, 'GAPS_OR_DUPLICATES');
   assert.equal(reconciled.globalCoverageVerified, false);
+
+  // A second post-close read is bounded to these two fixture IDs only.
+  // It does not bypass the journal for any real operator audit.
+  const repairSnapshots = await firestore.getAll(
+    jobs.doc(repeatedId), jobs.doc(missedId));
+  const repaired = repairSnapshots.map(doc => ({
+    id: doc.id,
+    state: doc.get('state') as 'QUEUED' | 'PROCESSING',
+    revision: doc.get('processingVersion') as string,
+  }));
+  const mutations = [
+    { sequence: 1, id: repeatedId, before: baseline[0], after: after[0] },
+    { sequence: 2, id: missedId, before: baseline[1], after: after[1] },
+  ];
+  const pages = observations.map(item => ({
+    state: item.state, afterId: item.afterId,
+    ids: item.ids, hasMore: item.hasMore,
+    nextCursor: item.nextCursor,
+  }));
+  // This test only exercises two of the seven states; supply explicit
+  // empty, complete fixture lanes for the others, never production evidence.
+  const allStates = [
+    'QUEUED', 'SUBMITTING', 'PROCESSING', 'FAILED',
+    'CANCEL_REQUESTED', 'SUCCEEDED', 'CANCELLED',
+  ] as const;
+  for (const state of allStates) {
+    if (state !== 'QUEUED' && state !== 'PROCESSING') {
+      pages.push({
+        state, afterId: null, ids: [], hasMore: false, nextCursor: null,
+      });
+    }
+  }
+  // Real fixture page queries may have more documents outside this prefix.
+  // Hence a bounded prefix alone must NOT be treated as a closed epoch proof.
+  const verdict = reconcileVideoTriageClosedEpochFixture(
+    baseline, after, pages, {
+      source: 'EMULATOR_TEST_WRITER_FENCE',
+      openedAt: at, closedAt: Date.now(),
+      allFixtureWritersFenced: true, mutationCount: mutations.length,
+    }, mutations, repaired);
+  assert.equal(verdict.globalCoverageVerified, false);
+  assert.equal(verdict.productionCostVerified, false);
+  const incompleteLane = observations.some(item => item.hasMore);
+  assert.equal(verdict.status, incompleteLane ?
+    'INCONCLUSIVE' : 'FIXTURE_RECONCILED');
 });
 
 test('c18m records SDK call attempts and returned docs without claiming billing', async () => {

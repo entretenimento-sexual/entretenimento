@@ -542,3 +542,164 @@ export function reconcileVideoTriageFixture(
     productionCostVerified: false, globalOrderingEnabled: false,
   };
 }
+
+
+/**
+ * c18n: closed-epoch reconstruction for bounded EMULATOR FIXTURES only.
+ * "Closed" is supplied by the fixture harness, not cryptographically
+ * authenticated by this policy. No result is production coverage evidence.
+ */
+export const VIDEO_TRIAGE_COVERAGE_MAX_MUTATIONS = 40;
+
+export interface VideoTriageFixtureMutation {
+  sequence: number;
+  id: string;
+  before: VideoTriageFixtureRecord | null;
+  after: VideoTriageFixtureRecord | null;
+}
+
+export interface VideoTriageFixtureEpoch {
+  source: 'EMULATOR_TEST_WRITER_FENCE';
+  openedAt: number;
+  closedAt: number;
+  /** These assertions are not evidence of production writer completeness. */
+  allFixtureWritersFenced: boolean;
+  mutationCount: number;
+}
+
+export interface VideoTriageClosedEpochReconciliation {
+  scope: 'EMULATOR_CLOSED_EPOCH_FIXTURE_ONLY';
+  status: 'FIXTURE_RECONCILED' | 'REPAIR_REQUIRED' | 'INCONCLUSIVE';
+  reason: 'NONE' | 'EPOCH_UNTRUSTED' | 'MUTATION_LOG_INVALID' |
+    'CURSOR_OR_LANE_INVALID' | 'UNEXPLAINED_OBSERVATION' |
+    'REPAIR_INVALID' | 'REPAIR_MISSING';
+  baselineSize: number;
+  finalSize: number;
+  mutationsObserved: number;
+  detectedMissing: number;
+  detectedDuplicates: number;
+  requiredRepairReads: number;
+  validatedRepairReads: number;
+  globalCoverageVerified: false;
+  concurrentCursorSafetyVerified: false;
+  productionCostVerified: false;
+  globalOrderingEnabled: false;
+}
+
+function sameFixtureRecord(
+  a: VideoTriageFixtureRecord | undefined | null,
+  b: VideoTriageFixtureRecord | undefined | null
+): boolean {
+  if (!a || !b) return a == null && b == null;
+  return a.id === b.id && a.state === b.state &&
+    a.revision === b.revision;
+}
+
+/**
+ * Replays every fixture mutation and validates a post-close reread for
+ * each record that was skipped, changed, or created. Duplicates must have
+ * a witnessed transition. No document is read or mutated by this function.
+ */
+export function reconcileVideoTriageClosedEpochFixture(
+  baseline: readonly VideoTriageFixtureRecord[],
+  final: readonly VideoTriageFixtureRecord[],
+  pages: readonly VideoTriageFixturePage[],
+  epoch: VideoTriageFixtureEpoch,
+  mutations: readonly VideoTriageFixtureMutation[],
+  repaired: readonly VideoTriageFixtureRecord[]
+): VideoTriageClosedEpochReconciliation {
+  const before = mapFixture(baseline);
+  const end = mapFixture(final);
+  const repairs = mapFixture(repaired);
+  const compared = reconcileVideoTriageFixture(baseline, final, pages);
+  if (!Array.isArray(mutations) ||
+      mutations.length > VIDEO_TRIAGE_COVERAGE_MAX_MUTATIONS) {
+    throw new RangeError('Unbounded emulator fixture mutation log.');
+  }
+  const report = (
+    status: VideoTriageClosedEpochReconciliation['status'],
+    reason: VideoTriageClosedEpochReconciliation['reason'],
+    required = 0, validated = 0
+  ): VideoTriageClosedEpochReconciliation => ({
+    scope: 'EMULATOR_CLOSED_EPOCH_FIXTURE_ONLY',
+    status, reason, baselineSize: before.size, finalSize: end.size,
+    mutationsObserved: mutations.length,
+    detectedMissing: compared.missingCount,
+    detectedDuplicates: compared.duplicateCount,
+    requiredRepairReads: required, validatedRepairReads: validated,
+    globalCoverageVerified: false, concurrentCursorSafetyVerified: false,
+    productionCostVerified: false, globalOrderingEnabled: false,
+  });
+
+  if (!epoch || epoch.source !== 'EMULATOR_TEST_WRITER_FENCE' ||
+      epoch.allFixtureWritersFenced !== true ||
+      !Number.isSafeInteger(epoch.openedAt) || epoch.openedAt <= 0 ||
+      !Number.isSafeInteger(epoch.closedAt) ||
+      epoch.closedAt < epoch.openedAt ||
+      epoch.mutationCount !== mutations.length) {
+    return report('INCONCLUSIVE', 'EPOCH_UNTRUSTED');
+  }
+  if (compared.invalidCursorPages !== 0 || !compared.lanesComplete) {
+    return report('INCONCLUSIVE', 'CURSOR_OR_LANE_INVALID');
+  }
+
+  const replay = new Map(before);
+  const touched = new Set<string>();
+  for (let i = 0; i < mutations.length; i++) {
+    const mutation = mutations[i];
+    if (!mutation || mutation.sequence !== i + 1 ||
+        !validId(mutation.id) ||
+        !sameFixtureRecord(replay.get(mutation.id), mutation.before) ||
+        (mutation.after === null && mutation.before === null) ||
+        (mutation.after !== null && (
+          mutation.after.id !== mutation.id ||
+          !validId(mutation.after.id) ||
+          !knownState(mutation.after.state) ||
+          typeof mutation.after.revision !== 'string' ||
+          mutation.after.revision.length < 1 ||
+          mutation.after.revision.length > 128)) ||
+        (mutation.after !== null &&
+          sameFixtureRecord(mutation.before, mutation.after))) {
+      return report('INCONCLUSIVE', 'MUTATION_LOG_INVALID');
+    }
+    touched.add(mutation.id);
+    if (mutation.after === null) replay.delete(mutation.id);
+    else replay.set(mutation.id, mutation.after);
+  }
+  if (replay.size !== end.size ||
+      [...replay].some(([id, value]) =>
+        !sameFixtureRecord(value, end.get(id)))) {
+    return report('INCONCLUSIVE', 'MUTATION_LOG_INVALID');
+  }
+
+  const observed = new Map<string, number>();
+  for (const page of pages) {
+    for (const id of page.ids) {
+      observed.set(id, (observed.get(id) ?? 0) + 1);
+    }
+  }
+  for (const [id, count] of observed) {
+    if (count > 1 && !touched.has(id)) {
+      return report('INCONCLUSIVE', 'UNEXPLAINED_OBSERVATION');
+    }
+    if (!before.has(id) && !touched.has(id)) {
+      return report('INCONCLUSIVE', 'UNEXPLAINED_OBSERVATION');
+    }
+  }
+
+  const required = new Set<string>();
+  for (const id of end.keys()) {
+    if (!observed.has(id) || touched.has(id)) required.add(id);
+  }
+  if ([...repairs].some(([id, value]) =>
+    !required.has(id) || !sameFixtureRecord(value, end.get(id)))) {
+    return report('INCONCLUSIVE', 'REPAIR_INVALID',
+      required.size, repairs.size);
+  }
+  if (repairs.size !== required.size) {
+    return report('REPAIR_REQUIRED', 'REPAIR_MISSING',
+      required.size, repairs.size);
+  }
+  return report('FIXTURE_RECONCILED', 'NONE',
+    required.size, repairs.size);
+}
