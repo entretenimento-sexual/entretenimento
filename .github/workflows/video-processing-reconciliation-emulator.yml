@@ -49,6 +49,8 @@ on:
       - 'scripts/dev/video-cancellation-log-audit.policy.mjs'
       - 'scripts/dev/inspect-video-cancellation-logs.mjs'
       - 'scripts/tests/video-cancellation-log-audit.test.mjs'
+      - 'functions/package.json'
+      - 'functions/package-lock.json'
       - 'package.json'
       - 'scripts/tests/photo-e2e-isolation.contract.test.mjs'
       - 'src/app/media/videos/state/video-error-state.architecture.spec.ts'
