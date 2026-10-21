@@ -50,7 +50,10 @@ import {
   type VideoReportCounterEvent,
 } from './video-report-safety';
 import type { VideoReportTargetType } from './report-video-content.handler';
-import { canReleaseVideoReportQuarantine, canRestoreReportedVideoComment } from './video-report-quarantine-release.policy';
+import {
+  canReleaseVideoReportQuarantine,
+  canRestoreReportedVideoComment,
+} from './video-report-quarantine-release.policy';
 
 export type VideoContentReportDecision = 'KEEP' | 'REMOVE';
 
