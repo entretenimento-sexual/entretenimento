@@ -1,3 +1,4 @@
+import type { Firestore } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
@@ -49,17 +50,29 @@ export async function synchronizePublishedVideoSettings(
     throw new Error('Identificadores inválidos para sincronização do vídeo.');
   }
 
-  const publicationRef = db.doc(
+  const outcome = await synchronizePublishedVideoSettingsInFirestore(db, ownerUid, videoId);
+  if (outcome === 'PUBLIC_PROJECTION_MISSING') {
+    logger.debug('[syncPublishedVideoSettings] Projeção pública ainda ausente.', {
+      ownerUid, videoId,
+    });
+  }
+}
+
+/** Shared transactional implementation for production and emulator concurrency tests. */
+export async function synchronizePublishedVideoSettingsInFirestore(
+  firestore: Firestore, ownerUid: string, videoId: string
+): Promise<SynchronizationOutcome> {
+  const publicationRef = firestore.doc(
     `users/${ownerUid}/video_publications/${videoId}`
   );
-  const publicVideoRef = db.doc(
+  const publicVideoRef = firestore.doc(
     `public_profiles/${ownerUid}/public_videos/${videoId}`
   );
-  const privateVideoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
-  const identityRef = db.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
-  const deletionRef = db.collection('media_video_deletion_jobs').doc(`${ownerUid}_${videoId}`);
+  const privateVideoRef = firestore.doc(`users/${ownerUid}/videos/${videoId}`);
+  const identityRef = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  const deletionRef = firestore.collection('media_video_deletion_jobs').doc(`${ownerUid}_${videoId}`);
 
-  const outcome = await db.runTransaction<SynchronizationOutcome>(
+  return firestore.runTransaction<SynchronizationOutcome>(
     async (transaction) => {
       const [publicationSnap, publicVideoSnap, privateVideoSnap, identitySnap, deletionSnap] =
         await Promise.all([
@@ -121,12 +134,6 @@ export async function synchronizePublishedVideoSettings(
     }
   );
 
-  if (outcome === 'PUBLIC_PROJECTION_MISSING') {
-    logger.debug('[syncPublishedVideoSettings] Projeção pública ainda ausente.', {
-      ownerUid,
-      videoId,
-    });
-  }
 }
 
 export const syncPublishedVideoSettings = onDocumentWritten(

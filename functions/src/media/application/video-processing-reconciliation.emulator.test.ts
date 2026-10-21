@@ -6,6 +6,7 @@ import { deleteApp, initializeApp } from 'firebase-admin/app';
 import { FieldPath, getFirestore, type DocumentReference } from 'firebase-admin/firestore';
 import axios, { AxiosError, type AxiosResponse } from 'axios';
 
+import { synchronizePublishedVideoSettingsInFirestore } from './sync-published-video-settings.handler';
 import { buildQueuedVideoProcessingJob, type VideoProcessingJob } from './video-processing-job';
 import { withAdminTriageProjection } from './admin-video-triage.firestore';
 import {
@@ -5135,4 +5136,30 @@ test('VF1-A status mismatch cannot create publication or review', async () => {
   );
   assert.equal((await f.publicationRef.get()).exists, false);
   assert.equal((await f.publicRef.get()).exists, false);
+});
+
+
+test('VF1-B3.4.6 delayed settings event cannot resurrect a retired video projection', async () => {
+  const ownerUid = 'vf1-sync-' + randomUUID();
+  const videoId = 'video-' + randomUUID();
+  const publicationRef = firestore.doc(`users/${ownerUid}/video_publications/${videoId}`);
+  const publicRef = firestore.doc(`public_profiles/${ownerUid}/public_videos/${videoId}`);
+  const guardRef = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  await Promise.all([
+    publicationRef.set({ ownerUid, videoId, isPublished: true, moderationStatus: 'APPROVED' }),
+    publicRef.set({ id: videoId, ownerUid, moderationStatus: 'APPROVED', title: 'before' }),
+    guardRef.set({ ownerUid, videoId, state: 'REGISTERED' }),
+  ]);
+  assert.equal(await synchronizePublishedVideoSettingsInFirestore(firestore, ownerUid, videoId), 'UPDATED');
+  await firestore.runTransaction(async tx => {
+    const snap = await tx.get(guardRef);
+    assert.equal(snap.get('state'), 'REGISTERED');
+    tx.update(guardRef, { state: 'RETIRED' });
+    tx.delete(publicationRef);
+    tx.delete(publicRef);
+  });
+  for (let i = 0; i < 2; i += 1) {
+    assert.equal(await synchronizePublishedVideoSettingsInFirestore(firestore, ownerUid, videoId), 'IGNORED_UNPUBLISHED');
+    assert.equal((await publicRef.get()).exists, false);
+  }
 });
