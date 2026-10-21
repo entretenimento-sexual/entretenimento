@@ -52,9 +52,6 @@ export class ProfileVideoLibraryEffects {
             const visibleVideos = videos.filter(
               (video) => video.status !== 'failed'
             );
-            const visibleVideoIds = new Set(
-              visibleVideos.map((video) => video.id)
-            );
             const nextActions: Action[] = [
               ProfileVideoLibraryActions.snapshotReceived({
                 ownerUid,
