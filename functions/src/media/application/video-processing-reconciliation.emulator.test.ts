@@ -5029,3 +5029,22 @@ test('c18x-B4 unsealed or inconsistent witness is never global evidence', async 
   assert.equal(unbounded.status, 'INCONCLUSIVE');
   assert.ok(unbounded.issues.includes('UNBOUNDED_OR_INVALID_INPUT'));
 });
+
+
+test('c18x-B4 unknown jobs and duplicated event IDs fail the closed scope', async () => {
+  const e = await c18xB4Epoch();
+  const { events, jobs } = await e.read();
+  const otherHash = createHash('sha256').update(randomUUID()).digest('hex');
+  const outside = reconcileClosedVideoTriageOutbox(e.epoch, events, [
+    ...jobs, { jobKeySha256: otherHash, state: 'QUEUED',
+      processingVersion: randomUUID() },
+  ]);
+  assert.equal(outside.status, 'DIVERGENT');
+  assert.ok(outside.issues.includes('UNEXPECTED_JOB'));
+  const repeatedId = reconcileClosedVideoTriageOutbox(
+    e.epoch, [...events, events[0]], jobs);
+  assert.equal(repeatedId.status, 'INCONCLUSIVE');
+  assert.ok(repeatedId.issues.includes('INVALID_OBSERVED_EVENT_SET'));
+  assert.equal(repeatedId.cleanupAuthorized, false);
+  assert.equal(repeatedId.globalCoverageVerified, false);
+});
