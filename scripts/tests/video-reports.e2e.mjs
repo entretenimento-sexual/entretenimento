@@ -325,6 +325,16 @@ async function run() {
         state.video?.scoreBreakdown?.safetyScore === 100
     );
     assert.equal(keptState.video.reportsCount, 1);
+    await expectCallableFailure(reviewAsAdmin, {
+      reportId: videoReportA.data.reportId,
+      decision: 'KEEP',
+      resolution: 'Repetição da decisão já aplicada.',
+    });
+    const afterDuplicateKeep = await readDocumentData(publicVideoRef);
+    assert.equal(afterDuplicateKeep.reportsCount, keptState.video.reportsCount);
+    assert.equal(afterDuplicateKeep.openReportsCount, keptState.video.openReportsCount);
+    assert.equal(afterDuplicateKeep.confirmedReportsCount,
+      keptState.video.confirmedReportsCount);
 
     const commentReport = await reportAsOwner({
       targetType: 'video_comment',
@@ -543,6 +553,16 @@ async function run() {
         state.legalReview?.authorityDisclosureStatus === 'NOT_EVALUATED' &&
         state.legalReview?.automaticDisclosure === false
     );
+
+    await expectCallableFailure(reviewAsAdmin, {
+      reportId,
+      decision: 'REMOVE',
+      resolution: 'Decisão duplicada não deve produzir nova exclusão.',
+    });
+    assert.equal(await readDocumentData(publicVideoRef), null);
+    assert.equal(await readDocumentData(publicationRef), null);
+    assert.equal((await readDocumentData(videoReportBRef)).moderationAction,
+      'REMOVE');
 
     console.log('✔ denúncia duplicada e decisão por usuário comum foram bloqueadas');
     console.log('✔ denúncia comum isolada não retirou conteúdo legítimo');
