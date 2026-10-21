@@ -26,6 +26,7 @@ const testCommand = [
   'node scripts/tests/video-social.e2e.mjs',
   'node scripts/tests/video-ratings.e2e.mjs',
   'node scripts/tests/video-reports.e2e.mjs',
+  'node scripts/tests/moderation-evidence-recovery.e2e.mjs',
   'node scripts/tests/media-callables-revocation.e2e.mjs',
 ].join(' && ');
 
