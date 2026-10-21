@@ -38,8 +38,10 @@ test('publication uses the transactional source fence shared with emulator tests
   assert.ok(core.includes('assertPublicationCanStart(currentPublication)'));
   assert.ok(core.includes('assertSourceWasNotRejected(currentPublication, sourceVideoStoragePath)'));
   assert.ok(core.includes('isCurrentVideoPublicationSource('));
-  assert.ok(core.includes('transaction.set(publicationRef, publicationPatch, { merge: true })'));
-  assert.ok(core.includes('transaction.set(publicVideoRef, publicVideoPatch, { merge: true })'));
+  assert.ok(core.includes('...publicationPatch, ...reviewLink,'));
+  assert.ok(core.includes('transaction.set(publicationRef, {'));
+  assert.ok(core.includes('...publicVideoPatch, ...reviewLink,'));
+  assert.ok(core.includes('transaction.set(publicVideoRef, {'));
   assert.ok(!handler.includes('const batch = db.batch()'));
   assert.ok(handler.includes('await rollbackPublishedAssets(ownerUid, videoId, publishedAssets)'));
 });

@@ -123,11 +123,19 @@ const coldReconciliationCallers = new Set([
   'functions/src/media/application/delete-profile-photo.handler.ts',
   'functions/src/media/application/delete-profile-video.handler.ts',
   'functions/src/media/application/sync-published-photo-on-private-update.handler.ts',
-  'functions/src/media/application/normalize-legacy-video-moderation.handler.ts',
   'functions/src/media/application/normalize-legacy-photo-moderation.handler.ts',
   'functions/src/media/application/review-photo-content-report.handler.ts',
   'functions/src/media/application/review-video-content-report.handler.ts',
 ]);
+
+// The legacy video callable is now read-only: its old cold-path
+// reconciliation would create work on an unauthorized owner promotion.
+const legacyVideoNormalization = read(
+  'functions/src/media/application/normalize-legacy-video-moderation.handler.ts'
+);
+if (legacyVideoNormalization.includes('refreshPublicProfileMediaMetrics')) {
+  throw new Error('[media-profile-metrics-cost] legacy video normalization must remain read-only');
+}
 
 const mediaApplicationRoot = path.join(
   root,

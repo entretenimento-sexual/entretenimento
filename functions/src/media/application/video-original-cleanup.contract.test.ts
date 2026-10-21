@@ -17,7 +17,7 @@ test('publication enqueues cleanup in the same fenced Firestore transaction', ()
   const publication = src('video-publication-commit.firestore.ts');
   assert.match(publication, /buildVideoOriginalCleanupJob\(/);
   assert.match(publication, /transaction\.create\(cleanupRef, originalCleanup\)/);
-  assert.match(publication, /transaction\.set\(publicationRef, publicationPatch/);
+  assert.match(publication, /transaction\.set\(publicationRef,\s*\{\s*\.\.\.publicationPatch,\s*\.\.\.reviewLink/);
 });
 
 test('only the exact video original can be deleted after lease and GCS generation checks', () => {
