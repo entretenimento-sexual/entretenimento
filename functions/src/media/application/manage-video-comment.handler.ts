@@ -346,11 +346,13 @@ export const moderateVideoComment = onCall<ModerateVideoCommentRequest>(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
     const commentRef = videoRef.collection('comments').doc(commentId);
+    const publicationRef = db.doc(`users/${ownerUid}/video_publications/${videoId}`);
 
     const outcome = await db.runTransaction(async (transaction) => {
-      const [videoSnap, commentSnap] = await Promise.all([
+      const [videoSnap, commentSnap, publicationSnap] = await Promise.all([
         transaction.get(videoRef),
         transaction.get(commentRef),
+        transaction.get(publicationRef),
       ]);
 
       if (!videoSnap.exists || !commentSnap.exists) {
@@ -403,6 +405,11 @@ export const moderateVideoComment = onCall<ModerateVideoCommentRequest>(
       }
 
       if (action === 'RESTORE') {
+        assertCurrentPublicVideoTransactionExposure({
+          publicVideo: video as Record<string, unknown>,
+          publication: publicationSnap.data(),
+          nowMs: Date.now(),
+        });
         if (comment.status !== 'HIDDEN') {
           throw new HttpsError(
             'failed-precondition',
