@@ -1,3 +1,4 @@
+import { isVideoModerationIdentityCurrent } from './video-moderation-identity-fence';
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -399,11 +400,9 @@ export const reviewVideoContentReport = onCall<
         const identitySnap = snapshots[2];
         const deletionSnap = snapshots[3];
         const targetSnap = targetRef ? snapshots[4] : null;
-        if (deletionSnap.exists || (identitySnap.exists && (
-          identitySnap.get('state') !== 'REGISTERED' ||
-          identitySnap.get('ownerUid') !== ownerUid ||
-          identitySnap.get('videoId') !== videoId
-        ))) {
+        if (!isVideoModerationIdentityCurrent(
+          ownerUid, videoId, identitySnap, deletionSnap
+        )) {
           throw new HttpsError(
             'failed-precondition',
             'O vídeo está em exclusão ou sua identidade foi aposentada.'

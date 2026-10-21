@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { isVideoModerationIdentityCurrent } from './video-moderation-identity-fence';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 
@@ -5214,4 +5215,37 @@ test('VF1-B3.4.6 retirement before writer reads prevents stale projection mutati
   assert.equal(await staleWriter, 'BLOCKED');
   assert.equal((await guard.get()).get('state'), 'RETIRED');
   assert.equal((await projection.get()).exists, false);
+});
+
+test('VF1-B3.4.7 real review guard rejects retired identity and deletion', async () => {
+  const ownerUid = 'vf1-review-' + randomUUID();
+  const videoId = 'vid-' + randomUUID();
+  const guard = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  const job = firestore.collection('media_video_deletion_jobs')
+    .doc(`${ownerUid}_${videoId}`);
+  const projection = firestore.doc(
+    `public_profiles/${ownerUid}/public_videos/${videoId}`
+  );
+  await Promise.all([
+    guard.set({ state: 'REGISTERED', ownerUid, videoId }),
+    projection.set({ moderationStatus: 'PENDING_REVIEW' }),
+  ]);
+  const review = async () => firestore.runTransaction(async tx => {
+    const [identitySnap, deletionSnap] = await Promise.all([
+      tx.get(guard), tx.get(job),
+    ]);
+    if (!isVideoModerationIdentityCurrent(
+      ownerUid, videoId, identitySnap, deletionSnap
+    )) return false;
+    tx.update(projection, { moderationStatus: 'APPROVED' });
+    return true;
+  });
+  assert.equal(await review(), true);
+  await guard.update({ state: 'RETIRED' });
+  assert.equal(await review(), false);
+  assert.equal((await projection.get()).get('moderationStatus'), 'APPROVED');
+  await guard.update({ state: 'REGISTERED' });
+  await job.set({ state: 'PENDING' });
+  assert.equal(await review(), false);
+  assert.equal((await projection.get()).get('moderationStatus'), 'APPROVED');
 });
