@@ -393,6 +393,80 @@ async function run() {
         state.video?.confirmedReportsCount === 2
     );
 
+    // Administrative KEEP must resolve the report without republishing a
+    // quarantined comment after canonical publication revocation.
+    const keepCommentRef = publicVideoRef.collection('comments').doc(
+      'revoked-keep-' + runId
+    );
+    const removeCommentRef = publicVideoRef.collection('comments').doc(
+      'revoked-remove-' + runId
+    );
+    const socialComment = (content) => ({
+      ownerUid,
+      videoId,
+      authorUid: visitorAUid,
+      authorNickname: 'Visitante A',
+      content,
+      status: 'VISIBLE',
+      parentCommentId: null,
+      reportsCount: 0,
+      openReportsCount: 0,
+      confirmedReportsCount: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    await Promise.all([
+      keepCommentRef.set(socialComment('Comentário KEEP sob revogação')),
+      removeCommentRef.set(socialComment('Comentário REMOVE sob revogação')),
+      publicVideoRef.update({ commentsCount: 2 }),
+    ]);
+    const keepReport = await reportAsOwner({
+      targetType: 'video_comment',
+      ownerUid, videoId,
+      targetId: keepCommentRef.id,
+      reason: 'harassment',
+      details: 'Regressão de restauração administrativa.',
+    });
+    const removeReport = await reportVideoAsB({
+      targetType: 'video_comment',
+      ownerUid, videoId,
+      targetId: removeCommentRef.id,
+      reason: 'harassment',
+      details: 'Regressão de remoção administrativa.',
+    });
+    const keepReportRef = db.doc(
+      'moderation_reports/' + keepReport.data.reportId
+    );
+    await Promise.all([
+      keepReportRef.update({ contentQuarantined: true }),
+      keepCommentRef.update({ status: 'HIDDEN' }),
+      publicVideoRef.update({ commentsCount: 1 }),
+    ]);
+    await publicationRef.update({ isPublished: false });
+    await reviewAsAdmin({
+      reportId: keepReport.data.reportId,
+      decision: 'KEEP',
+      resolution: 'Denúncia improcedente com publicação revogada.',
+    });
+    const keptRevokedComment = await readDocumentData(keepCommentRef);
+    const keptRevokedReport = await readDocumentData(keepReportRef);
+    assert.equal(keptRevokedReport?.status, 'rejected');
+    assert.equal(keptRevokedComment?.status, 'HIDDEN');
+    assert.equal((await readDocumentData(publicVideoRef)).commentsCount, 1);
+    console.log('✔ KEEP não restaura comentário de publicação revogada');
+
+    await reviewAsAdmin({
+      reportId: removeReport.data.reportId,
+      decision: 'REMOVE',
+      resolution: 'Remoção legítima após revogação da publicação.',
+    });
+    const removedRevokedComment = await readDocumentData(removeCommentRef);
+    assert.equal(removedRevokedComment?.status, 'DELETED');
+    assert.equal(removedRevokedComment?.content, '');
+    assert.equal((await readDocumentData(publicVideoRef)).commentsCount, 0);
+    console.log('✔ REMOVE continua operacional após revogação canônica');
+    await publicationRef.update({ isPublished: true });
+
     const videoReportB = await reportVideoAsB({
       targetType: 'video',
       ownerUid,
