@@ -31,9 +31,9 @@ test('VF1-B3.4 retired deletion permits idempotent cleanup without publication',
 test('cleanup trigger re-reads canonical publication and identity before deletion', () => {
   const handler = readFileSync(resolve(__dirname,
     '../../../src/media/application/cleanup-unpublished-video-interactions.handler.ts'), 'utf8');
-  assert.match(handler, /publicationRef\.get\(\)/);
-  assert.match(handler, /identityRef\.get\(\)/);
-  assert.match(handler, /deletionRef\.get\(\)/);
+  assert.match(handler, /transaction\.get\(publicationRef\)/);
+  assert.match(handler, /transaction\.get\(identityRef\)/);
+  assert.match(handler, /transaction\.get\(deletionRef\)/);
   assert.match(handler, /publicationExists: publication\.exists/);
 });
 
