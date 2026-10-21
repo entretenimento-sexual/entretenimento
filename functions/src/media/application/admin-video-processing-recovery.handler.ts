@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { FieldPath } from 'firebase-admin/firestore';
+import { FieldPath, type Firestore } from 'firebase-admin/firestore';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
@@ -490,16 +490,25 @@ function cleanupJobId(jobId: string, processingVersion: string): string {
   return `${jobId}_${processingVersion}`.slice(0, 500);
 }
 
-async function retryFailedJob(command: {
+export async function retryFailedJob(command: {
   adminUid: string;
   ownerUid: string;
   videoId: string;
   operationId: string;
   reason: string;
+}, injected?: {
+  firestore: Firestore;
+  prepareRetry: typeof buildRetryJob;
 }): Promise<RecoverVideoProcessingResponse> {
+  const firestore = injected?.firestore ?? db;
+  const prepareRetry = injected?.prepareRetry ?? buildRetryJob;
   const jobId = buildVideoProcessingJobId(command.ownerUid, command.videoId);
-  const jobRef = db.collection(VIDEO_PROCESSING_JOBS_COLLECTION).doc(jobId);
-  const videoRef = db.doc(`users/${command.ownerUid}/videos/${command.videoId}`);
+  const jobRef = firestore.collection(VIDEO_PROCESSING_JOBS_COLLECTION).doc(jobId);
+  const videoRef = firestore.doc(`users/${command.ownerUid}/videos/${command.videoId}`);
+  const deletionRef = firestore.collection('media_video_deletion_jobs')
+    .doc(jobId);
+  const identityRef = firestore.doc(
+    `users/${command.ownerUid}/video_identity_guards/${command.videoId}`);
   const [jobSnapshot, videoSnapshot] = await Promise.all([
     jobRef.get(),
     videoRef.get(),
@@ -525,22 +534,35 @@ async function retryFailedJob(command: {
     );
   }
 
-  const retryJob = await buildRetryJob(
+  const retryJob = await prepareRetry(
     command.ownerUid,
     command.videoId,
     videoSnapshot.data() as PrivateVideoDocument
   );
-  const adminLogRef = db.collection('admin_logs').doc();
+  const adminLogRef = firestore.collection('admin_logs').doc();
   const mutationEventId = randomUUID();
-  const cleanupRef = db.collection(OUTPUT_CLEANUP_COLLECTION).doc(
+  const cleanupRef = firestore.collection(OUTPUT_CLEANUP_COLLECTION).doc(
     cleanupJobId(jobId, String(previousJob.processingVersion ?? 'legacy'))
   );
 
-  return db.runTransaction(async (transaction) => {
-    const [currentJobSnapshot, currentVideoSnapshot] = await Promise.all([
-      transaction.get(jobRef),
-      transaction.get(videoRef),
-    ]);
+  return firestore.runTransaction(async (transaction) => {
+    const [currentJobSnapshot, currentVideoSnapshot, pendingDeletion, identity] =
+      await Promise.all([
+        transaction.get(jobRef),
+        transaction.get(videoRef),
+        transaction.get(deletionRef),
+        transaction.get(identityRef),
+      ]);
+    // A deletion queue or permanently retired identity always wins over
+    // an administrative retry, including an idempotent operation replay.
+    // Reading inside this transaction fences concurrent profile deletion.
+    if (pendingDeletion.exists || (identity.exists && (
+      identity.get('state') !== 'REGISTERED' ||
+      identity.get('ownerUid') !== command.ownerUid ||
+      identity.get('videoId') !== command.videoId))) {
+      throw new HttpsError('failed-precondition',
+        'A identidade do vídeo está em exclusão ou já foi aposentada.');
+    }
 
     if (!currentJobSnapshot.exists || !currentVideoSnapshot.exists) {
       throw new HttpsError('not-found', 'Job ou vídeo privado não encontrado.');
@@ -592,9 +614,9 @@ async function retryFailedJob(command: {
     const now = Date.now();
     // Commit the old version's cleanup proof atomically with replacement.
     const tempCleanupQueued = await preserveTerminalCleanupBeforeRetry(
-      db, transaction, jobId, currentJob as VideoProcessingJob, now
+      firestore, transaction, jobId, currentJob as VideoProcessingJob, now
     );
-    stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+    stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
       eventId: mutationEventId, source: 'ADMIN_RECOVERY',
       kind: 'VERSION_REPLACED', before: currentJobSnapshot,
       afterState: 'QUEUED',

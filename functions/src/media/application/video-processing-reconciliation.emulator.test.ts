@@ -101,6 +101,8 @@ import {
 } from './public-video-access-resolution.firestore';
 import { commitProfileVideoDeletionRequest }
   from './video-profile-deletion-commit.firestore';
+import { retryFailedJob }
+  from './admin-video-processing-recovery.handler';
 import { isBilateralBlockActive } from '../../friendship/application/bilateral-block-access.policy';
 import {
   executeVideoCancellation,
@@ -4396,4 +4398,133 @@ test('c18x-A rollback and three competing retries emit only one event', async ()
   assert.ok(ids.some(id => id === events.docs[0].id));
   assert.equal((await abortedRef.get()).exists, false);
   assert.equal((await jobRef.get()).get('state'), 'CANCEL_REQUESTED');
+});
+
+
+function c18xB1Retry(f: ReturnType<typeof c18vFixture>) {
+  return {
+    command: {
+      adminUid: 'c18xb1-admin',
+      ownerUid: f.ownerUid,
+      videoId: f.videoId,
+      operationId: 'retry-' + randomUUID(),
+      reason: 'Controlled emulator retry',
+    },
+    ports: {
+      firestore,
+      // No Cloud Storage, metadata request, provider call or Function export.
+      prepareRetry: async (ownerUid: string, videoId: string) =>
+        buildQueuedVideoProcessingJob({
+          ownerUid, videoId,
+          sourceStoragePath: 'users/' + ownerUid +
+            '/uploads/videos/' + videoId + '-source.mp4',
+          sourcePosterStoragePath: null,
+          sourceMimeType: 'video/mp4',
+          sourceSizeBytes: 10_000,
+          sourceDurationMs: 10_000,
+          now,
+        }),
+    },
+  };
+}
+
+async function c18xB1SeedFailed(f: ReturnType<typeof c18vFixture>): Promise<void> {
+  const original = {
+    ...fixture('c18xb1-failed'), ownerUid: f.ownerUid, videoId: f.videoId,
+    state: 'FAILED' as const,
+    sourceStoragePath: 'users/' + f.ownerUid +
+      '/uploads/videos/' + f.videoId + '-source.mp4',
+  };
+  await Promise.all([
+    f.processingJobRef.create(original),
+    f.privateVideoRef.create({ ownerUid: f.ownerUid, path: original.sourceStoragePath,
+      status: 'failed' }),
+    f.publicationRef.create({ isPublished: true, moderationStatus: 'APPROVED' }),
+  ]);
+}
+
+test('c18x-B1 retry-first then deletion leaves no active processing version', async () => {
+  const f = c18vFixture();
+  await c18xB1SeedFailed(f);
+  const input = c18xB1Retry(f);
+  const retry = await retryFailedJob(input.command, input.ports);
+  assert.equal(retry.alreadyApplied, false);
+  assert.equal(retry.nextState, 'QUEUED');
+  const replacedVersion = (await f.processingJobRef.get()).get('processingVersion');
+  const deletionId = randomUUID();
+  assert.equal((await commitProfileVideoDeletionRequest(
+    firestore, f.command(deletionId))).kind, 'CREATED');
+  const actual = await f.processingJobRef.get();
+  assert.equal(actual.get('state'), 'CANCEL_REQUESTED');
+  assert.equal(actual.get('processingVersion'), replacedVersion);
+  assert.equal((await f.identityRef.get()).get('state'), 'RETIRED');
+  assert.equal((await f.publicationRef.get()).exists, false);
+  const hash = createHash('sha256').update(f.processingJobRef.path).digest('hex');
+  const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  assert.equal(events.size, 2);
+  assert.equal(events.docs.filter(d => d.get('kind') === 'VERSION_REPLACED').length, 1);
+  assert.equal(events.docs.filter(d => d.get('kind') === 'CANCEL_REQUESTED').length, 1);
+  const again = await assert.rejects(retryFailedJob(input.command, input.ports));
+  assert.equal(again, undefined);
+  assert.equal((await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get()).size, 2);
+});
+
+test('c18x-B1 actual retry racing profile deletion cannot revive retired video', async () => {
+  const f = c18vFixture();
+  await c18xB1SeedFailed(f);
+  const input = c18xB1Retry(f);
+  const deletionId = randomUUID();
+  const results = await Promise.allSettled([
+    retryFailedJob(input.command, input.ports),
+    commitProfileVideoDeletionRequest(firestore, f.command(deletionId)),
+  ]);
+  assert.equal(results[1].status, 'fulfilled');
+  const retryWon = results[0].status === 'fulfilled';
+  if (retryWon) {
+    assert.equal(results[0].value.nextState, 'QUEUED');
+  } else {
+    assert.equal(results[0].status, 'rejected');
+  }
+  assert.equal((await f.processingJobRef.get()).get('state'), 'CANCEL_REQUESTED');
+  assert.equal((await f.identityRef.get()).get('state'), 'RETIRED');
+  assert.equal((await f.deletionJobRef.get()).get('state'), 'retryable');
+  assert.equal((await f.publicationRef.get()).exists, false);
+  const hash = createHash('sha256').update(f.processingJobRef.path).digest('hex');
+  const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  assert.equal(events.docs.filter(d => d.get('kind') === 'CANCEL_REQUESTED').length, 1);
+  assert.equal(events.docs.filter(d => d.get('kind') === 'VERSION_REPLACED').length,
+    retryWon ? 1 : 0);
+  assert.equal(events.size, retryWon ? 2 : 1);
+});
+
+test('c18x-B1 legacy FAILED with pending deletion or retired guard cannot retry', async () => {
+  for (const kind of ['DELETION_ONLY', 'RETIRED_ONLY'] as const) {
+    const f = c18vFixture();
+    await c18xB1SeedFailed(f);
+    if (kind === 'DELETION_ONLY') {
+      await f.deletionJobRef.create({
+        ownerUid: f.ownerUid, videoId: f.videoId,
+        state: 'retryable', nextAttemptAt: now,
+      });
+    } else {
+      await f.identityRef.create({
+        ownerUid: f.ownerUid, videoId: f.videoId, state: 'RETIRED',
+      });
+    }
+    const before = await f.processingJobRef.get();
+    const input = c18xB1Retry(f);
+    await assert.rejects(retryFailedJob(input.command, input.ports),
+      (error: unknown) => !!error && typeof error === 'object' &&
+        'code' in error && error.code === 'failed-precondition');
+    assert.equal((await f.processingJobRef.get()).get('processingVersion'),
+      before.get('processingVersion'));
+    assert.equal((await f.processingJobRef.get()).get('state'), 'FAILED');
+    const hash = createHash('sha256').update(f.processingJobRef.path).digest('hex');
+    assert.equal((await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+      .where('jobKeySha256', '==', hash).get()).size, 0);
+    assert.equal((await f.privateVideoRef.get()).get('status'), 'failed');
+  }
 });
