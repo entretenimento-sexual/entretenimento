@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   canReleaseVideoReportQuarantine,
+  canRestoreReportedVideoComment,
   VIDEO_REPORT_QUARANTINE_REASON,
 } from './video-report-quarantine-release.policy';
 
@@ -135,5 +136,42 @@ describe('causal video quarantine release', () => {
     assert.equal(canReleaseVideoReportQuarantine({
       ...input, report: { ...report, quarantinedAssetVersion: null },
     }), false);
+  });
+});
+
+describe('reported video comment KEEP restoration', () => {
+  const video = { visibility: 'PUBLIC', moderationStatus: 'APPROVED' };
+  const publication = {
+    isPublished: true,
+    visibility: 'PUBLIC',
+    moderationStatus: 'APPROVED',
+  };
+  const input = {
+    reportContentQuarantined: true,
+    commentStatus: 'HIDDEN',
+    publicVideo: video,
+    publication,
+    nowMs: Date.now(),
+  };
+  it('restores only a quarantined hidden comment on a current publication', () => {
+    assert.equal(canRestoreReportedVideoComment(input), true);
+    assert.equal(canRestoreReportedVideoComment({
+      ...input, reportContentQuarantined: false,
+    }), false);
+    assert.equal(canRestoreReportedVideoComment({
+      ...input, commentStatus: 'VISIBLE',
+    }), false);
+  });
+  it('never restores against a revoked publication or stale projection', () => {
+    for (const changes of [
+      { publication: { ...publication, isPublished: false } },
+      { publication: { ...publication, moderationStatus: 'FLAGGED' } },
+      { publication: { ...publication, visibility: 'PRIVATE' } },
+      { publicVideo: { ...video, moderationStatus: 'HIDDEN' } },
+      { publicVideo: { ...video, visibility: 'PRIVATE' } },
+      { publication: null },
+    ]) {
+      assert.equal(canRestoreReportedVideoComment({ ...input, ...changes }), false);
+    }
   });
 });
