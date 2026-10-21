@@ -36,3 +36,14 @@ test('cleanup trigger re-reads canonical publication and identity before deletio
   assert.match(handler, /deletionRef\.get\(\)/);
   assert.match(handler, /publicationExists: publication\.exists/);
 });
+
+test('VF1-B3.4 cleanup retires identity in transaction before recursive deletion', () => {
+  const handler = readFileSync(resolve(__dirname,
+    '../../../src/media/application/cleanup-unpublished-video-interactions.handler.ts'), 'utf8');
+  assert.match(handler, /db\.runTransaction\(async \(transaction\)/);
+  assert.match(handler, /transaction\.get\(publicationRef\)/);
+  assert.match(handler, /transaction\.get\(identityRef\)/);
+  assert.match(handler, /transaction\.update\(identityRef/);
+  assert.match(handler, /transaction\.create\(identityRef/);
+  assert.match(handler, /if \(!permitted\) return;\s*await db\.recursiveDelete\(publicVideoRef\)/);
+});

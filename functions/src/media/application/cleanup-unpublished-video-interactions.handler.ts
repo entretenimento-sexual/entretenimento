@@ -49,17 +49,45 @@ export const cleanupUnpublishedVideoInteractions = onDocumentWritten(
     const identityRef = db.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
     const deletionRef = db.collection('media_video_deletion_jobs')
       .doc(`${ownerUid}_${videoId}`);
-    const [publication, identity, deletion] = await Promise.all([
-      publicationRef.get(), identityRef.get(), deletionRef.get(),
-    ]);
-    if (!canCleanupUnpublishedVideoInteractions({
-      publicationExists: publication.exists,
-      isPublished: publication.exists ? publication.get('isPublished') : null,
-      identityState: identity.exists ? identity.get('state') : null,
-      deletionRequested: deletion.exists,
-    })) {
-      return;
-    }
+    // The retirement is committed with the publication read. A concurrent
+    // canonical republish must retry and observes RETIRED, so a stale event
+    // cannot remove a later authorized generation.
+    const permitted = await db.runTransaction(async (transaction) => {
+      const [publication, identity, deletion] = await Promise.all([
+        transaction.get(publicationRef), transaction.get(identityRef),
+        transaction.get(deletionRef),
+      ]);
+      const allowed = canCleanupUnpublishedVideoInteractions({
+        publicationExists: publication.exists,
+        isPublished: publication.exists ? publication.get('isPublished') : null,
+        identityState: identity.exists ? identity.get('state') : null,
+        deletionRequested: deletion.exists,
+      });
+      if (!allowed) return false;
+      // The legacy false transition permanently retires this identity.
+      // Supported product flows already delete rather than unpublish.
+      if (identity.exists) {
+        if (identity.get('state') === 'REGISTERED') {
+          if (identity.get('ownerUid') !== ownerUid ||
+              identity.get('videoId') !== videoId) return false;
+          transaction.update(identityRef, {
+            state: 'RETIRED', retiredAt: Date.now(), updatedAt: Date.now(),
+          });
+        } else if (identity.get('state') !== 'RETIRED' ||
+                   identity.get('ownerUid') !== ownerUid ||
+                   identity.get('videoId') !== videoId) {
+          return false;
+        }
+      } else {
+        const now = Date.now();
+        transaction.create(identityRef, {
+          ownerUid, videoId, state: 'RETIRED',
+          createdAt: now, retiredAt: now, updatedAt: now,
+        });
+      }
+      return true;
+    });
+    if (!permitted) return;
 
     await db.recursiveDelete(publicVideoRef);
 
