@@ -4226,3 +4226,174 @@ test('c18v fresh registration and deletion remain generation fenced', async () =
     assert.equal(guard.get('state'), 'REGISTERED');
   }
 });
+
+
+test('c18x-A concurrent scheduler claims and profile deletion cannot resurrect a job', async () => {
+  const f = c18vFixture();
+  const initial = {
+    ...fixture('c18x-scheduler'), ownerUid: f.ownerUid, videoId: f.videoId,
+    state: 'PROCESSING' as const,
+  };
+  await Promise.all([
+    f.processingJobRef.create(initial),
+    f.privateVideoRef.create({ path: initial.sourceStoragePath }),
+    f.publicationRef.create({ isPublished: true, moderationStatus: 'APPROVED' }),
+  ]);
+  const eventId = randomUUID();
+  const [a, b, deletion] = await Promise.all([
+    claimProcessingJob(firestore, f.processingJobRef, now, parseJob),
+    claimProcessingJob(firestore, f.processingJobRef, now, parseJob),
+    commitProfileVideoDeletionRequest(firestore, f.command(eventId)),
+  ]);
+  assert.equal(deletion.kind, 'CREATED');
+  assert.ok(Number(!!a) + Number(!!b) <= 1);
+  assert.equal((await f.processingJobRef.get()).get('state'), 'CANCEL_REQUESTED');
+  assert.equal((await f.identityRef.get()).get('state'), 'RETIRED');
+  assert.equal((await f.deletionJobRef.get()).get('state'), 'retryable');
+  const hash = createHash('sha256').update(f.processingJobRef.path).digest('hex');
+  const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  assert.equal(events.size, 1);
+  assert.equal(events.docs[0].id, eventId);
+  assert.equal(events.docs[0].get('kind'), 'CANCEL_REQUESTED');
+  assert.equal(await claimProcessingJob(
+    firestore, f.processingJobRef, now + 600_000, parseJob), null);
+});
+
+test('c18x-A racing terminal result and profile deletion end in cancellation', async () => {
+  const f = c18vFixture();
+  const original = {
+    ...fixture('c18x-terminal'), ownerUid: f.ownerUid, videoId: f.videoId,
+    sourceGeneration: '9001', state: 'PROCESSING' as const,
+  };
+  await Promise.all([
+    f.processingJobRef.create(original),
+    f.privateVideoRef.create({
+      path: original.sourceStoragePath, sourceGeneration: '9001',
+      status: 'processing',
+    }),
+    f.publicationRef.create({ isPublished: true, moderationStatus: 'APPROVED' }),
+    f.publicVideoRef.create({ status: 'visible' }),
+  ]);
+  const terminalCommand = {
+    state: 'SUCCEEDED' as const, now: now + 2_000, normalizeJob: parseJob,
+    sourceMatches: (video: Record<string, unknown>) =>
+      video['path'] === original.sourceStoragePath &&
+      video['sourceGeneration'] === original.sourceGeneration,
+    jobPatch: { providerState: 'SUCCEEDED', completedAt: now + 2_000 },
+    videoPatch: { status: 'ready', processingStage: 'ready' },
+  };
+  const deletionId = randomUUID();
+  const [terminal, deletion] = await Promise.all([
+    commitTerminalVideoProcessingIfCurrent(
+      firestore, f.processingJobRef, original, terminalCommand),
+    commitProfileVideoDeletionRequest(firestore, f.command(deletionId)),
+  ]);
+  assert.equal(deletion.kind, 'CREATED');
+  assert.ok(terminal === 'APPLIED' || terminal === 'REPLACED');
+  assert.equal((await f.processingJobRef.get()).get('state'), 'CANCEL_REQUESTED');
+  assert.equal((await f.publicationRef.get()).exists, false);
+  assert.equal((await f.publicVideoRef.get()).exists, false);
+  assert.equal((await f.identityRef.get()).get('state'), 'RETIRED');
+  const hash = createHash('sha256').update(f.processingJobRef.path).digest('hex');
+  const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  assert.equal(events.docs.filter(e => e.get('kind') === 'CANCEL_REQUESTED').length, 1);
+  assert.equal(events.docs.filter(e => e.get('nextState') === 'SUCCEEDED').length,
+    terminal === 'APPLIED' ? 1 : 0);
+  assert.equal(events.size, terminal === 'APPLIED' ? 2 : 1);
+  assert.equal(await commitTerminalVideoProcessingIfCurrent(
+    firestore, f.processingJobRef, original, terminalCommand), 'REPLACED');
+  assert.equal((await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get()).size, events.size);
+});
+
+test('c18x-A newer processingVersion fences concurrent obsolete terminal callbacks', async () => {
+  const jobRef = jobs.doc('c18x-replaced-' + randomUUID());
+  const old = { ...fixture('c18x-old'), sourceGeneration: '9001' };
+  const videoRef = firestore.doc(
+    'users/' + old.ownerUid + '/videos/' + old.videoId);
+  await Promise.all([
+    jobRef.create(old),
+    videoRef.create({
+      path: old.sourceStoragePath, sourceGeneration: '9001', status: 'processing',
+    }),
+  ]);
+  const nextVersion = randomUUID();
+  const replacementId = randomUUID();
+  await firestore.runTransaction(async transaction => {
+    const before = await transaction.get(jobRef);
+    stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+      eventId: replacementId, source: 'ADMIN_RECOVERY',
+      kind: 'VERSION_REPLACED', before, afterState: 'QUEUED',
+      nextProcessingVersion: nextVersion,
+    });
+    transaction.set(jobRef, {
+      ...old, state: 'QUEUED', processingVersion: nextVersion,
+      nextAttemptAt: now + 90_000,
+    });
+  });
+  const command = {
+    state: 'FAILED' as const, now: now + 1_000, normalizeJob: parseJob,
+    sourceMatches: (video: Record<string, unknown>) =>
+      video['path'] === old.sourceStoragePath,
+    jobPatch: { completedAt: now + 1_000 },
+    videoPatch: { status: 'failed' },
+  };
+  const results = await Promise.all([
+    commitTerminalVideoProcessingIfCurrent(firestore, jobRef, old, command),
+    commitTerminalVideoProcessingIfCurrent(firestore, jobRef, old, command),
+  ]);
+  assert.deepEqual(results, ['REPLACED', 'REPLACED']);
+  const after = await jobRef.get();
+  assert.equal(after.get('state'), 'QUEUED');
+  assert.equal(after.get('processingVersion'), nextVersion);
+  assert.equal((await videoRef.get()).get('status'), 'processing');
+  const hash = createHash('sha256').update(jobRef.path).digest('hex');
+  const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  assert.equal(events.size, 1);
+  assert.equal(events.docs[0].id, replacementId);
+  assert.equal(events.docs[0].get('kind'), 'VERSION_REPLACED');
+  assert.equal(events.docs[0].get('nextProcessingVersion'), nextVersion);
+});
+
+test('c18x-A rollback and three competing retries emit only one event', async () => {
+  const jobRef = jobs.doc('c18x-rollback-' + randomUUID());
+  await jobRef.create(fixture('c18x-rollback'));
+  const abortedId = randomUUID();
+  const abortedRef = firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .doc(abortedId);
+  await assert.rejects(firestore.runTransaction(async transaction => {
+    const before = await transaction.get(jobRef);
+    stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+      eventId: abortedId, source: 'SUBMISSION_RECOVERY',
+      kind: 'CANCEL_REQUESTED', before, afterState: 'CANCEL_REQUESTED',
+    });
+    transaction.update(jobRef, { state: 'CANCEL_REQUESTED' });
+    throw new Error('c18x-forced-abort');
+  }, { maxAttempts: 1 }), /c18x-forced-abort/);
+  assert.equal((await abortedRef.get()).exists, false);
+  assert.equal((await jobRef.get()).get('state'), 'PROCESSING');
+  const ids = [randomUUID(), randomUUID(), randomUUID()];
+  const results = await Promise.all(ids.map(eventId =>
+    firestore.runTransaction(async transaction => {
+      const before = await transaction.get(jobRef);
+      if (!before.exists || before.get('state') !== 'PROCESSING') return false;
+      stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+        eventId, source: 'SUBMISSION_RECOVERY', kind: 'CANCEL_REQUESTED',
+        before, afterState: 'CANCEL_REQUESTED',
+      });
+      transaction.update(jobRef, { state: 'CANCEL_REQUESTED' });
+      return true;
+    })
+  ));
+  assert.equal(results.filter(Boolean).length, 1);
+  const hash = createHash('sha256').update(jobRef.path).digest('hex');
+  const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  assert.equal(events.size, 1);
+  assert.ok(ids.includes(events.docs[0].id));
+  assert.equal((await abortedRef.get()).exists, false);
+  assert.equal((await jobRef.get()).get('state'), 'CANCEL_REQUESTED');
+});
