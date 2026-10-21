@@ -177,6 +177,8 @@ async function run() {
         viewScore: 0,
         reactionsCount: 0,
         commentsCount: 0,
+        reactionsEnabled: true,
+        commentsEnabled: true,
         ratingsCount: 0,
         retentionContributorsCount: 0,
         scoreBreakdown: { audienceScore: 0, retentionScore: 0 },
@@ -188,6 +190,8 @@ async function run() {
     const photoView = httpsCallable(viewer.functions, 'recordPhotoView');
     const videoView = httpsCallable(viewer.functions, 'recordVideoView');
     const retention = httpsCallable(viewer.functions, 'recordVideoRetention');
+    const reaction = httpsCallable(viewer.functions, 'toggleVideoReaction');
+    const comment = httpsCallable(viewer.functions, 'createVideoComment');
     const videoPayload = { ownerUid, videoId };
     const photoPayload = { ownerUid, photoId, source: 'profile' };
 
@@ -307,6 +311,14 @@ async function run() {
     );
     await videoRef.update({ moderationStatus: 'APPROVED' });
     await expectError(start, videoPayload, 'not-found');
+    const socialBefore = (await videoRef.get()).data();
+    await expectError(reaction, videoPayload, 'not-found');
+    await expectError(comment, { ...videoPayload, content: 'Blocked after hold' }, 'not-found');
+    const socialAfter = (await videoRef.get()).data();
+    assert.equal(socialAfter.reactionsCount, socialBefore.reactionsCount);
+    assert.equal(socialAfter.commentsCount, socialBefore.commentsCount);
+    assert.equal(socialAfter.score, socialBefore.score);
+    console.log('[media-callables:e2e] PASS canonical hold revokes reactions/comments without score changes');
     await expectError(retention, retentionPayload, 'not-found');
     await sleep(Math.max(0, sessionBeforeHold.earliestQualifiedAt - Date.now() + 250));
     const postHoldEvidence = {
@@ -327,7 +339,9 @@ async function run() {
 
     await publicationRef.update({ moderationStatus: 'APPROVED', isPublished: false });
     await expectError(start, videoPayload, 'not-found');
-    console.log('[media-callables:e2e] PASS unpublish denies stale public projection');
+    await expectError(reaction, videoPayload, 'not-found');
+    await expectError(comment, { ...videoPayload, content: 'Blocked after unpublish' }, 'not-found');
+    console.log('[media-callables:e2e] PASS unpublish denies stale public projection and social writes');
     console.log('[media-callables:e2e] PASS all authenticated media callable boundaries');
   } finally {
     await Promise.allSettled(clients.map((value) => deleteApp(value.app)));
