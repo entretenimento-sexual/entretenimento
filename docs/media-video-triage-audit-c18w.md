@@ -52,3 +52,20 @@ c19, sequencing global, consumidor, TTL, deploy e flags continuam bloqueados.
 Próxima intervenção sugerida: c18x, ensaios adversariais em branches
 dinâmicos no Firestore Emulator e prova de reconciliação em época fechada;
 isso não certifica cobertura de produção.
+
+## Atualização após c18x-B3 (commit c3918a7)
+
+O inventário histórico acima descreve a versão c18w. A proteção contra
+exclusão definitiva da conta adicionou mais **um site de escrita terminal**
+(CANCEL_REQUESTED), com o evento criado atomicamente pela mesma transação.
+A classificação foi revisada explicitamente para não enfraquecer o censo:
+
+- Escritas diretas: **44** (antes 43).
+- Stage de mutação: **30** (antes 29).
+- Stage de criação: **1** (inalterado).
+- Escritas operacionais/projeções sem evento: **13** (inalterado).
+- Commit terminal: **3** escritas / **3** pontos de stage.
+
+Essas são contagens estáticas de sites, não auditoria global, métricas de
+Firestore de produção ou autorização de c19. A lista de escritores permanece
+parcial, e eventos globais continuam sem ordenação comprovada.
