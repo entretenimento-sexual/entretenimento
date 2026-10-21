@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { rearmBlockedModerationEvidenceInFirestore } from './moderation-evidence-preservation.service';
+import { MODERATION_EVIDENCE_JOBS_COLLECTION } from './moderation-evidence-preservation.service';
 import { isVideoModerationIdentityCurrent } from './video-moderation-identity-fence';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
@@ -5248,4 +5250,44 @@ test('VF1-B3.4.7 real review guard rejects retired identity and deletion', async
   await job.set({ state: 'PENDING' });
   assert.equal(await review(), false);
   assert.equal((await projection.get()).get('moderationStatus'), 'APPROVED');
+});
+
+test('VF1-B3.4.7.7 blocked evidence rearms only from live canonical publication', async () => {
+  const ownerUid = 'evidence-' + randomUUID();
+  const videoId = 'vid-' + randomUUID();
+  const reportId = 'report-' + randomUUID();
+  const job = firestore.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId);
+  const report = firestore.collection('moderation_reports').doc(reportId);
+  const publication = firestore.doc(
+    `users/${ownerUid}/video_publications/${videoId}`
+  );
+  const publishedPath = `users/${ownerUid}/published/videos/${videoId}/assets/v1`;
+  await Promise.all([
+    job.set({
+      reportId, ownerUid, mediaId: videoId, mediaType: 'VIDEO',
+      status: 'BLOCKED_SOURCE_PATH', sourceStoragePath: null,
+    }),
+    report.set({ moderationAction: 'REMOVE', status: 'resolved' }),
+  ]);
+  assert.equal(await rearmBlockedModerationEvidenceInFirestore(
+    firestore, reportId
+  ), false);
+  await publication.set({ isPublished: true, publishedStoragePath: 'invalid' });
+  assert.equal(await rearmBlockedModerationEvidenceInFirestore(
+    firestore, reportId
+  ), false);
+  await publication.update({ publishedStoragePath: publishedPath });
+  assert.equal(await rearmBlockedModerationEvidenceInFirestore(
+    firestore, reportId
+  ), true);
+  assert.equal((await job.get()).get('status'), 'PENDING');
+  assert.equal((await job.get()).get('sourceStoragePath'), publishedPath);
+  assert.equal(await rearmBlockedModerationEvidenceInFirestore(
+    firestore, reportId
+  ), false);
+  await job.update({ status: 'BLOCKED_SOURCE_PATH', sourceStoragePath: null });
+  await report.update({ moderationAction: 'KEEP' });
+  assert.equal(await rearmBlockedModerationEvidenceInFirestore(
+    firestore, reportId
+  ), false);
 });

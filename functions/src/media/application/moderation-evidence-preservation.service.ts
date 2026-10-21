@@ -1,3 +1,4 @@
+import type { Firestore } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
 
 import { db, FieldValue, storage } from '../../firebaseApp';
@@ -228,11 +229,17 @@ export async function queueModerationEvidencePreservation(
 export async function rearmBlockedModerationEvidenceFromPublication(
   reportIdValue: unknown
 ): Promise<boolean> {
+  return rearmBlockedModerationEvidenceInFirestore(db, reportIdValue);
+}
+
+export async function rearmBlockedModerationEvidenceInFirestore(
+  firestore: Firestore, reportIdValue: unknown
+): Promise<boolean> {
   const reportId = cleanId(reportIdValue);
   if (!reportId) return false;
-  const jobRef = db.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId);
-  const reportRef = db.collection('moderation_reports').doc(reportId);
-  return db.runTransaction(async (tx) => {
+  const jobRef = firestore.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId);
+  const reportRef = firestore.collection('moderation_reports').doc(reportId);
+  return firestore.runTransaction(async (tx) => {
     const [jobSnap, reportSnap] = await Promise.all([
       tx.get(jobRef), tx.get(reportRef),
     ]);
@@ -245,7 +252,7 @@ export async function rearmBlockedModerationEvidenceFromPublication(
     if (!ownerUid || !mediaId ||
         (job.mediaType !== 'PHOTO' && job.mediaType !== 'VIDEO')) return false;
     const kind = job.mediaType === 'VIDEO' ? 'video' : 'photo';
-    const publicationRef = db.doc(
+    const publicationRef = firestore.doc(
       `users/${ownerUid}/${kind}_publications/${mediaId}`
     );
     const publicationSnap = await tx.get(publicationRef);
