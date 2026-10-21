@@ -5053,15 +5053,18 @@ test('VF1-A pending video publication atomically creates one preventive review',
   const f = readyPublicationFixture();
   await f.ownerRef.set(f.video);
   const base = f.command('vf1-' + randomUUID());
+  const assetVersion = 1700000000000;
   const command = {
     ...base,
     publicationPatch: {
       ...base.publicationPatch,
       moderationStatus: 'PENDING_REVIEW',
+      assetVersion,
     },
     publicVideoPatch: {
       ...base.publicVideoPatch,
       moderationStatus: 'PENDING_REVIEW',
+      assetVersion,
     },
   };
   await commitCopiedVideoPublicationIfCurrent(firestore, command);
@@ -5079,6 +5082,7 @@ test('VF1-A pending video publication atomically creates one preventive review',
   assert.equal(report.get('reason'), 'preventive_media_review');
   assert.equal(report.get('status'), 'open');
   assert.equal(report.get('contentQuarantined'), true);
+  assert.equal(report.get('quarantinedAssetVersion'), assetVersion);
   assert.equal(report.get('targetOwnerUid'), command.ownerUid);
   assert.equal(report.get('targetId'), command.videoId);
   await assert.rejects(
@@ -5088,6 +5092,31 @@ test('VF1-A pending video publication atomically creates one preventive review',
   );
   assert.equal((await firestore.collection('moderation_reports')
     .where('targetId', '==', command.videoId).get()).size, 1);
+});
+
+test('VF1-B1 preventive review rejects inconsistent asset versions', async () => {
+  const f = readyPublicationFixture();
+  await f.ownerRef.set(f.video);
+  const base = f.command('vf1-version-mismatch-' + randomUUID());
+  await assert.rejects(
+    commitCopiedVideoPublicationIfCurrent(firestore, {
+      ...base,
+      publicationPatch: {
+        ...base.publicationPatch,
+        moderationStatus: 'PENDING_REVIEW',
+        assetVersion: 1700000000000,
+      },
+      publicVideoPatch: {
+        ...base.publicVideoPatch,
+        moderationStatus: 'PENDING_REVIEW',
+        assetVersion: 1700000000001,
+      },
+    }),
+    (error: unknown) => !!error && typeof error === 'object' &&
+      'code' in error && error.code === 'failed-precondition'
+  );
+  assert.equal((await f.publicationRef.get()).exists, false);
+  assert.equal((await f.publicRef.get()).exists, false);
 });
 
 test('VF1-A status mismatch cannot create publication or review', async () => {

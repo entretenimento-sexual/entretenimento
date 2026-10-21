@@ -144,12 +144,45 @@ const review = read(
 for (const fragment of [
   "'preventive_media_review'",
   "moderationStatus: 'APPROVED'",
-  'preventiveReviewReportId: FieldValue.delete()',
+  'canReleaseVideoReportQuarantine({',
+  "if (isPreventiveReview && decision === 'KEEP' && !releaseQuarantine)",
+  "[quarantineLinkField]: FieldValue.delete()",
+  "if (releaseQuarantine && publicationSnap.exists)",
   "reviewEvidenceRetention: 'RELEASED_AFTER_REVIEW'",
 ]) {
   requireIncludes(review, fragment, 'explicit review release drift');
 }
 
+
+for (const fragment of [
+  "const quarantineLinkField = isPreventiveReview",
+  "'preventiveReviewReportId'",
+  "'activeVideoQuarantineReportId'",
+]) {
+  requireIncludes(review, fragment, 'review must clear only the causal hold');
+}
+const report = read(
+  'functions/src/media/application/report-video-content.handler.ts'
+);
+for (const fragment of [
+  'activeVideoQuarantineReportId: reportId',
+  'quarantinedAssetVersion',
+]) {
+  requireIncludes(report, fragment, 'reported video quarantine must be fenced');
+}
+const causalReleasePolicy = read(
+  'functions/src/media/application/video-report-quarantine-release.policy.ts'
+);
+for (const fragment of [
+  'export function canReleaseVideoReportQuarantine',
+  'video.activeVideoQuarantineReportId === reportId',
+  'publication.activeVideoQuarantineReportId === reportId',
+  'video.preventiveReviewReportId === reportId',
+  'publication.preventiveReviewReportId === reportId',
+  'publication.isPublished !== true',
+]) {
+  requireIncludes(causalReleasePolicy, fragment, 'causal release authority drift');
+}
 
 const photoGallery = read(
   'src/app/media/photos/profile-photos/profile-photos.component.html'

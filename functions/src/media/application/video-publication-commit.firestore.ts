@@ -150,6 +150,18 @@ export async function commitCopiedVideoPublicationIfCurrent(
     throw new HttpsError('failed-precondition',
       'A publicacao e sua projecao divergem na moderacao preventiva.');
   }
+  const publicationAssetVersion = publicationPatch['assetVersion'];
+  const projectionAssetVersion = publicVideoPatch['assetVersion'];
+  const hasVersion = publicationAssetVersion !== undefined ||
+    projectionAssetVersion !== undefined;
+  if (pendingReview && hasVersion &&
+      (typeof publicationAssetVersion !== 'number' ||
+       !Number.isSafeInteger(publicationAssetVersion) ||
+       publicationAssetVersion <= 0 ||
+       projectionAssetVersion !== publicationAssetVersion)) {
+    throw new HttpsError('failed-precondition',
+      'A revisao preventiva exige versoes publicadas consistentes.');
+  }
   return firestore.runTransaction(async (transaction) => {
     const [ownerSnap, publicationSnap, identitySnap, deletionSnap] =
       await Promise.all([
@@ -232,7 +244,9 @@ export async function commitCopiedVideoPublicationIfCurrent(
         status: 'open',
         moderationAction: null,
         contentQuarantined: true,
-        quarantinedAssetVersion: publicationPatch['assetVersion'],
+        ...(hasVersion
+          ? { quarantinedAssetVersion: publicationAssetVersion }
+          : {}),
         evidencePreservationStatus: 'NOT_REQUIRED',
         legalReviewStatus: null,
         createdAt: FieldValue.serverTimestamp(),
