@@ -14,6 +14,7 @@ import {
   type MediaScoreBreakdown,
 } from './media-engagement-score';
 import { observeMediaTrendScoreShadow } from './media-trend-score-shadow-observation.service';
+import { assertCurrentPublicVideoTransactionExposure } from './public-video-transaction-exposure.policy';
 import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
   assertPublicMediaCallableAppCheck,
@@ -121,6 +122,7 @@ export const rateVideo = onCall<RateVideoRequest>(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
     const ratingRef = videoRef.collection('ratings').doc(viewerUid);
+    const publicationRef = db.doc(`users/${ownerUid}/video_publications/${videoId}`);
 
     const outcome = await db.runTransaction(async (transaction) => {
       await assertInteractionAccessInTransaction(transaction, viewerUid);
@@ -131,9 +133,10 @@ export const rateVideo = onCall<RateVideoRequest>(
         'Vídeo público não encontrado.'
       );
 
-      const [videoSnap, ratingSnap] = await Promise.all([
+      const [videoSnap, ratingSnap, publicationSnap] = await Promise.all([
         transaction.get(videoRef),
         transaction.get(ratingRef),
+        transaction.get(publicationRef),
       ]);
 
       if (!videoSnap.exists) {
@@ -147,6 +150,11 @@ export const rateVideo = onCall<RateVideoRequest>(
       }
 
       assertRateableVideo(video);
+      assertCurrentPublicVideoTransactionExposure({
+        publicVideo: video as Record<string, unknown>,
+        publication: publicationSnap.data(),
+        nowMs: Date.now(),
+      });
 
       const currentRating = ratingSnap.exists
         ? ratingSnap.data() as VideoRatingDoc
