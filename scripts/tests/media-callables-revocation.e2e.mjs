@@ -179,6 +179,7 @@ async function run() {
         commentsCount: 0,
         reactionsEnabled: true,
         commentsEnabled: true,
+        ratingsEnabled: true,
         ratingsCount: 0,
         retentionContributorsCount: 0,
         scoreBreakdown: { audienceScore: 0, retentionScore: 0 },
@@ -192,6 +193,7 @@ async function run() {
     const retention = httpsCallable(viewer.functions, 'recordVideoRetention');
     const reaction = httpsCallable(viewer.functions, 'toggleVideoReaction');
     const comment = httpsCallable(viewer.functions, 'createVideoComment');
+    const rate = httpsCallable(viewer.functions, 'rateVideo');
     const videoPayload = { ownerUid, videoId };
     const photoPayload = { ownerUid, photoId, source: 'profile' };
 
@@ -314,9 +316,13 @@ async function run() {
     const socialBefore = (await videoRef.get()).data();
     await expectError(reaction, videoPayload, 'not-found');
     await expectError(comment, { ...videoPayload, content: 'Blocked after hold' }, 'not-found');
+    await expectError(rate, { ...videoPayload, rating: 5 }, 'not-found');
     const socialAfter = (await videoRef.get()).data();
     assert.equal(socialAfter.reactionsCount, socialBefore.reactionsCount);
     assert.equal(socialAfter.commentsCount, socialBefore.commentsCount);
+    assert.equal(socialAfter.ratingsCount, socialBefore.ratingsCount);
+    assert.equal(socialAfter.ratingAverage, socialBefore.ratingAverage);
+    assert.equal((await videoRef.collection('ratings').doc(viewerUid).get()).exists, false);
     assert.equal(socialAfter.score, socialBefore.score);
     console.log('[media-callables:e2e] PASS canonical hold revokes reactions/comments without score changes');
     await expectError(retention, retentionPayload, 'not-found');
@@ -341,6 +347,7 @@ async function run() {
     await expectError(start, videoPayload, 'not-found');
     await expectError(reaction, videoPayload, 'not-found');
     await expectError(comment, { ...videoPayload, content: 'Blocked after unpublish' }, 'not-found');
+    await expectError(rate, { ...videoPayload, rating: 4 }, 'not-found');
     console.log('[media-callables:e2e] PASS unpublish denies stale public projection and social writes');
     console.log('[media-callables:e2e] PASS all authenticated media callable boundaries');
   } finally {
