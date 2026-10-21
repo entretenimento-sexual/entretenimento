@@ -103,6 +103,8 @@ import { commitProfileVideoDeletionRequest }
   from './video-profile-deletion-commit.firestore';
 import { retryFailedJob, mutateExistingJob }
   from './admin-video-processing-recovery.handler';
+import { FirestoreAccountDataDeletionOrchestratorAdapter }
+  from '../../account_lifecycle/account-owned-media-deletion.firestore';
 import { isBilateralBlockActive } from '../../friendship/application/bilateral-block-access.policy';
 import {
   executeVideoCancellation,
@@ -4662,4 +4664,198 @@ test('c18x-B2 deletion and unconfirmed recheck cannot revive video or event', as
   assert.equal(events.size, 1);
   assert.equal(events.docs[0].id, eventId);
   assert.equal(events.docs[0].get('kind'), 'CANCEL_REQUESTED');
+});
+
+
+test('c18x-B3 pending account deletion prevents terminal publication and restores no state', async () => {
+  const f = c18vFixture();
+  const original = {
+    ...fixture('c18xb3-terminal'), ownerUid: f.ownerUid,
+    videoId: f.videoId, sourceGeneration: '9001',
+  };
+  const ownerRef = firestore.doc('users/' + f.ownerUid);
+  await Promise.all([
+    ownerRef.create({ accountStatus: 'pending_deletion' }),
+    f.processingJobRef.create(original),
+    f.privateVideoRef.create({
+      path: original.sourceStoragePath, sourceGeneration: '9001',
+      status: 'processing',
+    }),
+    f.publicationRef.create({ isPublished: false }),
+  ]);
+  const terminal = await commitTerminalVideoProcessingIfCurrent(
+    firestore, f.processingJobRef, original, {
+      state: 'SUCCEEDED', now: now + 1_000, normalizeJob: parseJob,
+      sourceMatches: video =>
+        video['path'] === original.sourceStoragePath &&
+        video['sourceGeneration'] === '9001',
+      jobPatch: { providerState: 'SUCCEEDED', completedAt: now + 1_000 },
+      videoPatch: { status: 'ready', processedStoragePath: 'resurrected' },
+    }
+  );
+  assert.equal(terminal, 'CANCEL_REQUESTED');
+  assert.equal((await f.processingJobRef.get()).get('state'), 'CANCEL_REQUESTED');
+  assert.equal((await f.privateVideoRef.get()).get('status'), 'processing');
+  assert.equal((await f.privateVideoRef.get()).get('processedStoragePath'), undefined);
+  assert.equal((await f.publicationRef.get()).get('isPublished'), false);
+  const hash = createHash('sha256').update(f.processingJobRef.path).digest('hex');
+  const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  assert.equal(events.size, 1);
+  assert.equal(events.docs[0].get('kind'), 'CANCEL_REQUESTED');
+  assert.equal(events.docs[0].get('source'), 'TERMINAL_COMMIT');
+  assert.equal(events.docs[0].get('globalCoverageVerified'), false);
+  assert.equal(await commitTerminalVideoProcessingIfCurrent(
+    firestore, f.processingJobRef, original, {
+      state: 'SUCCEEDED', now: now + 2_000, normalizeJob: parseJob,
+      sourceMatches: () => true, jobPatch: {}, videoPatch: { status: 'ready' },
+    }
+  ), 'REPLACED');
+  assert.equal((await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get()).size, 1);
+});
+
+test('c18x-B3 account deletion cancellation races terminal commit without orphan events', async () => {
+  const f = c18vFixture();
+  const job = { ...fixture('c18xb3-race'), ownerUid: f.ownerUid,
+    videoId: f.videoId, sourceGeneration: '9001' };
+  await Promise.all([
+    firestore.doc('users/' + f.ownerUid).create({ accountStatus: 'pending_deletion' }),
+    f.processingJobRef.create(job),
+    f.privateVideoRef.create({
+      path: job.sourceStoragePath, sourceGeneration: '9001', status: 'processing',
+    }),
+    f.publicationRef.create({ isPublished: false }),
+  ]);
+  const adapter = new FirestoreAccountDataDeletionOrchestratorAdapter();
+  const [terminal, page] = await Promise.all([
+    commitTerminalVideoProcessingIfCurrent(firestore, f.processingJobRef, job, {
+      state: 'SUCCEEDED', now: now + 5_000, normalizeJob: parseJob,
+      sourceMatches: video => video['path'] === job.sourceStoragePath,
+      jobPatch: { providerState: 'SUCCEEDED' },
+      videoPatch: { status: 'ready' },
+    }),
+    adapter.resolveOwnedVideoProcessingJobsPage(f.ownerUid, 10),
+  ]);
+  assert.ok(terminal === 'REPLACED' || terminal === 'CANCEL_REQUESTED');
+  assert.equal(page.blocking, 1);
+  assert.equal((await f.processingJobRef.get()).get('state'), 'CANCEL_REQUESTED');
+  assert.equal((await f.privateVideoRef.get()).get('status'), 'processing');
+  const hash = createHash('sha256').update(f.processingJobRef.path).digest('hex');
+  const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  assert.equal(events.size, 1);
+  assert.equal(events.docs[0].get('kind'), 'CANCEL_REQUESTED');
+  assert.ok(['ACCOUNT_DELETION_PAGE', 'TERMINAL_COMMIT'].includes(
+    events.docs[0].get('source') as string));
+});
+
+test('c18x-B3 administrative retry and rechecks reject an owner pending deletion', async () => {
+  const failed = c18vFixture();
+  await c18xB1SeedFailed(failed);
+  await firestore.doc('users/' + failed.ownerUid)
+    .create({ accountStatus: 'pending_deletion' });
+  const input = c18xB1Retry(failed);
+  await assert.rejects(retryFailedJob(input.command, input.ports),
+    (err: unknown) => !!err && typeof err === 'object' &&
+      'code' in err && err.code === 'failed-precondition');
+  assert.equal((await failed.processingJobRef.get()).get('state'), 'FAILED');
+  const hashFailed = createHash('sha256')
+    .update(failed.processingJobRef.path).digest('hex');
+  assert.equal((await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hashFailed).get()).size, 0);
+
+  const active = c18vFixture();
+  const job = { ...fixture('c18xb3-admin'), ownerUid: active.ownerUid,
+    videoId: active.videoId, state: 'QUEUED' as const };
+  await Promise.all([
+    firestore.doc('users/' + active.ownerUid).create({ accountStatus: 'deleted' }),
+    active.processingJobRef.create(job),
+    active.privateVideoRef.create({ path: job.sourceStoragePath }),
+  ]);
+  for (const action of ['RECHECK_STALE', 'CANCEL_ACTIVE'] as const) {
+    await assert.rejects(mutateExistingJob({
+      adminUid: 'c18xb3-admin', ownerUid: active.ownerUid,
+      videoId: active.videoId, action, operationId: randomUUID(),
+      expectedProcessingVersion: job.processingVersion,
+      reason: 'Account deletion adversarial test',
+    }, { firestore }), (err: unknown) => !!err && typeof err === 'object' &&
+      'code' in err && err.code === 'failed-precondition');
+  }
+  assert.equal((await active.processingJobRef.get()).get('state'), 'QUEUED');
+  const hash = createHash('sha256').update(active.processingJobRef.path).digest('hex');
+  assert.equal((await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get()).size, 0);
+});
+
+test('c18x-B3 post-purge tombstone prevents delayed terminal commit', async () => {
+  const f = c18vFixture();
+  const old = { ...fixture('c18xb3-tombstone'), ownerUid: f.ownerUid,
+    videoId: f.videoId, sourceGeneration: '1' };
+  await Promise.all([
+    firestore.collection('deleted_accounts_audit').doc(f.ownerUid)
+      .create({ status: 'deleted', purgePhase: 'completed' }),
+    f.processingJobRef.create(old),
+    f.privateVideoRef.create({ path: old.sourceStoragePath, status: 'processing' }),
+  ]);
+  const result = await commitTerminalVideoProcessingIfCurrent(
+    firestore, f.processingJobRef, old, {
+      state: 'SUCCEEDED', now: now + 2_000, normalizeJob: parseJob,
+      sourceMatches: () => true,
+      jobPatch: { providerState: 'SUCCEEDED' },
+      videoPatch: { status: 'ready' },
+    });
+  assert.equal(result, 'CANCEL_REQUESTED');
+  assert.equal((await f.processingJobRef.get()).get('state'), 'CANCEL_REQUESTED');
+  assert.equal((await f.privateVideoRef.get()).get('status'), 'processing');
+  const hash = createHash('sha256').update(f.processingJobRef.path).digest('hex');
+  const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  assert.equal(events.size, 1);
+  assert.equal(events.docs[0].get('kind'), 'CANCEL_REQUESTED');
+});
+
+test('c18x-B3 account deletion begins while terminal result commits', async () => {
+  const f = c18vFixture();
+  const initial = { ...fixture('c18xb3-timing'), ownerUid: f.ownerUid,
+    videoId: f.videoId, sourceGeneration: '99' };
+  const ownerRef = firestore.doc('users/' + f.ownerUid);
+  await Promise.all([
+    ownerRef.create({ accountStatus: 'active' }),
+    f.processingJobRef.create(initial),
+    f.privateVideoRef.create({
+      path: initial.sourceStoragePath, sourceGeneration: '99',
+      status: 'processing',
+    }),
+  ]);
+  const [terminal, lifecycle] = await Promise.all([
+    commitTerminalVideoProcessingIfCurrent(firestore, f.processingJobRef,
+      initial, {
+        state: 'SUCCEEDED', now: now + 4_000, normalizeJob: parseJob,
+        sourceMatches: video => video['path'] === initial.sourceStoragePath,
+        jobPatch: { providerState: 'SUCCEEDED' },
+        videoPatch: { status: 'ready' },
+      }),
+    firestore.runTransaction(async tx => {
+      const owner = await tx.get(ownerRef);
+      assert.equal(owner.get('accountStatus'), 'active');
+      tx.update(ownerRef, { accountStatus: 'pending_deletion' });
+      return true;
+    }),
+  ]);
+  assert.equal(lifecycle, true);
+  assert.ok(terminal === 'APPLIED' || terminal === 'CANCEL_REQUESTED');
+  assert.equal((await ownerRef.get()).get('accountStatus'), 'pending_deletion');
+  const finalState = (await f.processingJobRef.get()).get('state');
+  if (terminal === 'APPLIED') {
+    assert.equal(finalState, 'SUCCEEDED');
+  } else {
+    assert.equal(finalState, 'CANCEL_REQUESTED');
+  }
+  const hash = createHash('sha256').update(f.processingJobRef.path).digest('hex');
+  const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  assert.equal(events.size, 1);
+  assert.equal(events.docs[0].get('nextState'),
+    terminal === 'APPLIED' ? 'SUCCEEDED' : 'CANCEL_REQUESTED');
 });

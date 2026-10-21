@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
+import { isOwnerDeletingForVideoMutationInTransaction }
+  from '../../account_lifecycle/owner-video-lifecycle-fence.firestore';
+
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -564,6 +567,13 @@ export async function retryFailedJob(command: {
         'A identidade do vídeo está em exclusão ou já foi aposentada.');
     }
 
+    if (await isOwnerDeletingForVideoMutationInTransaction(
+      firestore, transaction, command.ownerUid
+    )) {
+      throw new HttpsError('failed-precondition',
+        'A conta proprietária está em exclusão definitiva.');
+    }
+
     if (!currentJobSnapshot.exists || !currentVideoSnapshot.exists) {
       throw new HttpsError('not-found', 'Job ou vídeo privado não encontrado.');
     }
@@ -728,6 +738,13 @@ export async function mutateExistingJob(command: {
       identity.get('videoId') !== command.videoId))) {
       throw new HttpsError('failed-precondition',
         'O vídeo está em exclusão ou sua identidade foi aposentada.');
+    }
+
+    if (await isOwnerDeletingForVideoMutationInTransaction(
+      firestore, transaction, command.ownerUid
+    )) {
+      throw new HttpsError('failed-precondition',
+        'A conta proprietária está em exclusão definitiva.');
     }
 
     if (!jobSnapshot.exists || !videoSnapshot.exists) {

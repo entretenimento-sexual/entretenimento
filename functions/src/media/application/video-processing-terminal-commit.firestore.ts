@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
+import { isOwnerDeletingForVideoMutationInTransaction }
+  from '../../account_lifecycle/owner-video-lifecycle-fence.firestore';
+
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 
 import type { VideoProcessingJob } from './video-processing-job';
@@ -43,6 +46,29 @@ export async function commitTerminalVideoProcessingIfCurrent(
     const current = jobSnapshot.exists ? command.normalizeJob(jobSnapshot.data()) : null;
     if (!current || !isCurrentVideoProcessingAttempt(current, observed)) {
       return 'REPLACED' as const;
+    }
+    // A terminal result can arrive after deletion was requested, even while
+    // its version/lease still matches. Do not update the private video.
+    if (await isOwnerDeletingForVideoMutationInTransaction(
+      firestore, transaction, observed.ownerUid
+    )) {
+      if (jobSnapshot.get('state') !== 'CANCEL_REQUESTED') {
+        stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
+          eventId, source: 'TERMINAL_COMMIT',
+          kind: 'CANCEL_REQUESTED', before: jobSnapshot,
+          afterState: 'CANCEL_REQUESTED',
+        });
+        transaction.update(jobRef, withAdminTriageProjection(jobRef.id, current, {
+          state: 'CANCEL_REQUESTED',
+          cancelRequestedAt: command.now,
+          nextAttemptAt: command.now,
+          leaseUntil: null,
+          updatedAt: command.now,
+          lastErrorCode: 'ACCOUNT_DELETION_REQUESTED',
+          lastError: 'A conta proprietária entrou em exclusão definitiva.',
+        }, command.now));
+      }
+      return 'CANCEL_REQUESTED' as const;
     }
     const video = videoSnapshot.exists
       ? videoSnapshot.data() as Record<string, unknown> : null;
