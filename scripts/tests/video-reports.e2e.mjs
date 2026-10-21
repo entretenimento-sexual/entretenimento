@@ -468,6 +468,11 @@ async function run() {
     assert.equal((await readDocumentData(publicVideoRef)).commentsCount, 0);
     console.log('✔ REMOVE continua operacional após revogação canônica');
     await publicationRef.update({ moderationStatus: 'APPROVED' });
+    await waitFor(
+      'projeção pública recuperada após teste de revogação',
+      async () => (await readDocumentData(publicVideoRef))?.moderationStatus,
+      (status) => status === 'APPROVED'
+    );
 
     const videoReportB = await reportVideoAsB({
       targetType: 'video',
