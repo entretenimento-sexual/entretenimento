@@ -4482,7 +4482,7 @@ test('c18x-B1 actual retry racing profile deletion cannot revive retired video',
   ]);
   assert.equal(results[1].status, 'fulfilled');
   const retryWon = results[0].status === 'fulfilled';
-  if (retryWon) {
+  if (results[0].status === 'fulfilled') {
     assert.equal(results[0].value.nextState, 'QUEUED');
   } else {
     assert.equal(results[0].status, 'rejected');
