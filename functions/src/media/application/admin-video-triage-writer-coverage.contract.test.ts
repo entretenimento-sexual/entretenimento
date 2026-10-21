@@ -37,7 +37,7 @@ const WRITERS: readonly Writer[] = [
   },
   {
     path: 'media/application/video-processing-terminal-commit.firestore.ts',
-    sites: ['STATE', 'STATE'], events: 2, creations: 0,
+    sites: ['STATE', 'STATE', 'STATE'], events: 3, creations: 0,
   },
   {
     path: 'media/application/admin-video-processing-recovery.handler.ts',
@@ -173,8 +173,8 @@ test('c18w audited job writer sites and event counts are fail closed', () => {
       assert.equal((source.match(/state: 'CANCEL_REQUESTED' as const/g) ?? []).length, 2);
     }
   }
-  assert.equal(WRITERS.reduce((sum, x) => sum + x.sites.length, 0), 43);
-  assert.equal(WRITERS.reduce((sum, x) => sum + x.events + x.creations, 0), 30);
+  assert.equal(WRITERS.reduce((sum, x) => sum + x.sites.length, 0), 44);
+  assert.equal(WRITERS.reduce((sum, x) => sum + x.events + x.creations, 0), 31);
 });
 
 test('c18w mutation fixtures reject new writers and orphan transitions', () => {
