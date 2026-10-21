@@ -579,7 +579,7 @@ requireIncludes(profileVideosTemplate, [
 ], 'profile video automatic publication action');
 
 requireIncludes(profileVideosComponent, [
-  "this.errorNotification.showSuccess('Vídeo adicionado.')",
+  "this.errorNotification.showSuccess('Vídeo recebido. Publicação sujeita à revisão.')",
   "return 'Vídeo em preparação.'",
   "return 'Vídeo indisponível.'",
   "return 'Finalizando vídeo.'",
