@@ -1,3 +1,5 @@
+import { isCurrentPublicMediaAssetExposure } from './public-media-exposure.policy';
+
 /**
  * Causal, document-local release authority for a video quarantine.
  * Consumes snapshots already read inside the moderator Firestore transaction:
@@ -89,4 +91,23 @@ export function canReleaseVideoReportQuarantine(input: {
     publication.moderationStatus === 'FLAGGED' &&
     video.moderationReason === VIDEO_REPORT_QUARANTINE_REASON &&
     publication.moderationReason === VIDEO_REPORT_QUARANTINE_REASON;
+}
+
+/** A KEEP decision may restore a hidden comment only while the video is public. */
+export function canRestoreReportedVideoComment(input: {
+  reportContentQuarantined: boolean;
+  commentStatus: string;
+  publicVideo: Record<string, unknown> | null;
+  publication: Record<string, unknown> | null;
+  nowMs: number;
+}): boolean {
+  return input.reportContentQuarantined &&
+    input.commentStatus === 'HIDDEN' &&
+    isCurrentPublicMediaAssetExposure({
+      publicMedia: input.publicVideo,
+      publication: input.publication,
+      ownerExposureAllowed: true,
+      nowMs: input.nowMs,
+      allowedVisibilities: ['PUBLIC'],
+    });
 }
