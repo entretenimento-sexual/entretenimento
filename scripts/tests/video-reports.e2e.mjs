@@ -442,7 +442,9 @@ async function run() {
       keepCommentRef.update({ status: 'HIDDEN' }),
       publicVideoRef.update({ commentsCount: 1 }),
     ]);
-    await publicationRef.update({ isPublished: false });
+    // A moderation hold revokes exposure without triggering unpublish cleanup.
+    // Unpublish recursively deletes public interaction documents instead.
+    await publicationRef.update({ moderationStatus: 'FLAGGED' });
     await reviewAsAdmin({
       reportId: keepReport.data.reportId,
       decision: 'KEEP',
@@ -465,7 +467,7 @@ async function run() {
     assert.equal(removedRevokedComment?.content, '');
     assert.equal((await readDocumentData(publicVideoRef)).commentsCount, 0);
     console.log('✔ REMOVE continua operacional após revogação canônica');
-    await publicationRef.update({ isPublished: true });
+    await publicationRef.update({ moderationStatus: 'APPROVED' });
 
     const videoReportB = await reportVideoAsB({
       targetType: 'video',
