@@ -5166,3 +5166,55 @@ test('VF1-B3.4.6 delayed settings event cannot resurrect a retired video project
     assert.equal((await publicRef.get()).exists, false);
   }
 });
+
+
+test('VF1-B3.4.6 concurrent retirement forces stale projection writer to revalidate', async () => {
+  const ownerUid = 'vf1-race-' + randomUUID();
+  const videoId = 'video-' + randomUUID();
+  const guard = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  const publication = firestore.doc(`users/${ownerUid}/video_publications/${videoId}`);
+  const projection = firestore.doc(`public_profiles/${ownerUid}/public_videos/${videoId}`);
+  await Promise.all([
+    guard.set({ ownerUid, videoId, state: 'REGISTERED' }),
+    publication.set({ ownerUid, videoId, isPublished: true }),
+    projection.set({ ownerUid, videoId, title: 'original' }),
+  ]);
+  let releaseFirstRead!: () => void;
+  let observedFirstRead!: () => void;
+  const firstRead = new Promise<void>(resolve => { observedFirstRead = resolve; });
+  const resume = new Promise<void>(resolve => { releaseFirstRead = resolve; });
+  let attempts = 0;
+  const staleWriter = firestore.runTransaction(async tx => {
+    const [identity, canonical] = await Promise.all([
+      tx.get(guard), tx.get(publication),
+    ]);
+    attempts += 1;
+    if (attempts === 1) {
+      observedFirstRead();
+      await resume;
+    }
+    if (identity.get('state') !== 'REGISTERED' ||
+        canonical.get('isPublished') !== true) return 'BLOCKED';
+    tx.update(projection, { title: 'stale-write' });
+    return 'UPDATED';
+  });
+  await firstRead;
+  try {
+    await firestore.runTransaction(async tx => {
+      const [identity, canonical] = await Promise.all([
+        tx.get(guard), tx.get(publication),
+      ]);
+      assert.equal(identity.get('state'), 'REGISTERED');
+      assert.equal(canonical.get('isPublished'), true);
+      tx.update(guard, { state: 'RETIRED' });
+      tx.delete(publication);
+      tx.delete(projection);
+    });
+  } finally {
+    releaseFirstRead();
+  }
+  assert.equal(await staleWriter, 'BLOCKED');
+  assert.ok(attempts >= 2, 'A transação antiga deve ser repetida após conflito');
+  assert.equal((await guard.get()).get('state'), 'RETIRED');
+  assert.equal((await projection.get()).exists, false);
+});
