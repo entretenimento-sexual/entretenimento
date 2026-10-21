@@ -5048,3 +5048,62 @@ test('c18x-B4 unknown jobs and duplicated event IDs fail the closed scope', asyn
   assert.equal(repeatedId.cleanupAuthorized, false);
   assert.equal(repeatedId.globalCoverageVerified, false);
 });
+
+test('VF1-A pending video publication atomically creates one preventive review', async () => {
+  const f = readyPublicationFixture();
+  await f.ownerRef.set(f.video);
+  const base = f.command('vf1-' + randomUUID());
+  const command = {
+    ...base,
+    publicationPatch: {
+      ...base.publicationPatch,
+      moderationStatus: 'PENDING_REVIEW',
+    },
+    publicVideoPatch: {
+      ...base.publicVideoPatch,
+      moderationStatus: 'PENDING_REVIEW',
+    },
+  };
+  await commitCopiedVideoPublicationIfCurrent(firestore, command);
+  const [publication, projection] = await Promise.all([
+    f.publicationRef.get(), f.publicRef.get(),
+  ]);
+  const reportId = publication.get('preventiveReviewReportId');
+  assert.equal(typeof reportId, 'string');
+  assert.ok(reportId);
+  assert.equal(publication.get('moderationStatus'), 'PENDING_REVIEW');
+  assert.equal(projection.get('moderationStatus'), 'PENDING_REVIEW');
+  assert.equal(projection.get('preventiveReviewReportId'), reportId);
+  const report = await firestore.collection('moderation_reports')
+    .doc(reportId).get();
+  assert.equal(report.get('reason'), 'preventive_media_review');
+  assert.equal(report.get('status'), 'open');
+  assert.equal(report.get('contentQuarantined'), true);
+  assert.equal(report.get('targetOwnerUid'), command.ownerUid);
+  assert.equal(report.get('targetId'), command.videoId);
+  await assert.rejects(
+    commitCopiedVideoPublicationIfCurrent(firestore, command),
+    (error: unknown) => !!error && typeof error === 'object' &&
+      'code' in error && error.code === 'failed-precondition'
+  );
+  assert.equal((await firestore.collection('moderation_reports')
+    .where('targetId', '==', command.videoId).get()).size, 1);
+});
+
+test('VF1-A status mismatch cannot create publication or review', async () => {
+  const f = readyPublicationFixture();
+  await f.ownerRef.set(f.video);
+  const base = f.command('vf1-mismatch-' + randomUUID());
+  await assert.rejects(
+    commitCopiedVideoPublicationIfCurrent(firestore, {
+      ...base,
+      publicationPatch: {
+        ...base.publicationPatch, moderationStatus: 'PENDING_REVIEW',
+      },
+    }),
+    (error: unknown) => !!error && typeof error === 'object' &&
+      'code' in error && error.code === 'failed-precondition'
+  );
+  assert.equal((await f.publicationRef.get()).exists, false);
+  assert.equal((await f.publicRef.get()).exists, false);
+});
