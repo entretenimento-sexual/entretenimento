@@ -3,6 +3,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
+import { canCleanupUnpublishedVideoInteractions } from './video-unpublication-cleanup.policy';
 
 interface VideoPublicationState {
   isPublished?: boolean;
@@ -40,6 +41,24 @@ export const cleanupUnpublishedVideoInteractions = onDocumentWritten(
     const publicVideoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
+
+    // Revalidate current canonical state: Cloud Events are at-least-once and
+    // may arrive after a later write. A registered identity is never cleaned
+    // merely because a historical event says it was unpublished.
+    const publicationRef = db.doc(`users/${ownerUid}/video_publications/${videoId}`);
+    const identityRef = db.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+    const deletionRef = db.collection('media_video_deletion_jobs')
+      .doc(`${ownerUid}_${videoId}`);
+    const [publication, identity, deletion] = await Promise.all([
+      publicationRef.get(), identityRef.get(), deletionRef.get(),
+    ]);
+    if (!canCleanupUnpublishedVideoInteractions({
+      isPublished: publication.exists ? publication.get('isPublished') : null,
+      identityState: identity.exists ? identity.get('state') : null,
+      deletionRequested: deletion.exists,
+    })) {
+      return;
+    }
 
     await db.recursiveDelete(publicVideoRef);
 
