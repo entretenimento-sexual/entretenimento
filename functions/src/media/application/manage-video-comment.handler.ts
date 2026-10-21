@@ -14,6 +14,7 @@ import {
   type MediaScoreBreakdown,
 } from './media-engagement-score';
 import { observeMediaTrendScoreShadow } from './media-trend-score-shadow-observation.service';
+import { assertCurrentPublicVideoTransactionExposure } from './public-video-transaction-exposure.policy';
 import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
   assertPublicMediaCallableAppCheck,
@@ -157,6 +158,7 @@ export const createVideoComment = onCall<CreateVideoCommentRequest>(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
     const authorProfileRef = db.doc(`public_profiles/${authorUid}`);
+    const publicationRef = db.doc(`users/${ownerUid}/video_publications/${videoId}`);
     const commentsCollection = videoRef.collection('comments');
     const newCommentRef = commentsCollection.doc();
 
@@ -168,9 +170,10 @@ export const createVideoComment = onCall<CreateVideoCommentRequest>(
         'Vídeo público não encontrado.'
       );
 
-      const [videoSnap, authorProfileSnap] = await Promise.all([
+      const [videoSnap, authorProfileSnap, publicationSnap] = await Promise.all([
         transaction.get(videoRef),
         transaction.get(authorProfileRef),
+        transaction.get(publicationRef),
       ]);
 
       if (!videoSnap.exists) {
@@ -184,6 +187,11 @@ export const createVideoComment = onCall<CreateVideoCommentRequest>(
       }
 
       assertVideoAllowsComments(video);
+      assertCurrentPublicVideoTransactionExposure({
+        publicVideo: video as Record<string, unknown>,
+        publication: publicationSnap.data(),
+        nowMs: Date.now(),
+      });
 
       const authorNickname = resolveNickname(
         authorProfileSnap.exists
