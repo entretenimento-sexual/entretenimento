@@ -39,6 +39,7 @@ import {
   assertPublicMediaCallableAppCheck,
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
+import { isCurrentPublicMediaAssetExposure } from './public-media-exposure.policy';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import {
   buildVideoRatingAggregateAfterRemoval,
@@ -501,7 +502,14 @@ export const reviewVideoContentReport = onCall<
             if (
               targetType === 'video_comment' &&
               report.contentQuarantined === true &&
-              target.status === 'HIDDEN'
+              target.status === 'HIDDEN' &&
+              isCurrentPublicMediaAssetExposure({
+                publicMedia: video as unknown as Record<string, unknown>,
+                publication: publication as unknown as Record<string, unknown> | null,
+                ownerExposureAllowed: true,
+                nowMs: now,
+                allowedVisibilities: ['PUBLIC'],
+              })
             ) {
               targetPatch['status'] = 'VISIBLE';
 
