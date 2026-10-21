@@ -321,6 +321,21 @@ export async function preserveModerationEvidence(
   }
 
   const [evidenceMetadata] = await destinationFile.getMetadata();
+  // Existing evidence must never be accepted merely because its object exists.
+  // Otherwise a previous partial attempt or concurrent copy could bless
+  // unrelated bytes and enable deletion of the reported publication.
+  const sourceMd5 = safeMetadataString(sourceMetadata.md5Hash);
+  const evidenceMd5 = safeMetadataString(evidenceMetadata.md5Hash);
+  const sourceCrc32c = safeMetadataString(sourceMetadata.crc32c);
+  const evidenceCrc32c = safeMetadataString(evidenceMetadata.crc32c);
+  if (
+    (sourceMd5 && evidenceMd5 && sourceMd5 !== evidenceMd5) ||
+    (sourceCrc32c && evidenceCrc32c && sourceCrc32c !== evidenceCrc32c) ||
+    Number(sourceMetadata.size) !== Number(evidenceMetadata.size)
+  ) {
+    throw new Error('Evidência preservada diverge do arquivo denunciado.');
+  }
+
   const evidenceRef = db.collection(MODERATION_EVIDENCE_COLLECTION).doc(reportId);
   const reportRef = db.collection('moderation_reports').doc(reportId);
   const timestamp = FieldValue.serverTimestamp();
