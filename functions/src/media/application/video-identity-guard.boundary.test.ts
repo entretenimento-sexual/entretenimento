@@ -52,3 +52,11 @@ test('async video settings writers fence retired identity and deletion', () => {
     assert.match(source, /deletionSnap\.exists/);
   }
 });
+
+test('report moderation cannot write to a retired or deleting video', () => {
+  const source = fromSource('review-video-content-report.handler.ts');
+  assert.match(source, /transaction\.get\(reference\)/);
+  assert.match(source, /identitySnap\.get\('state'\) !== 'REGISTERED'/);
+  assert.match(source, /deletionSnap\.exists/);
+  assert.match(source, /users\/\$\{ownerUid\}\/video_identity_guards\/\$\{videoId\}/);
+});

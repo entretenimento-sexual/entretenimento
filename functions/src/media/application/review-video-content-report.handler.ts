@@ -383,15 +383,32 @@ export const reviewVideoContentReport = onCall<
           : targetType === 'video_rating'
             ? videoRef.collection('ratings').doc(targetId)
             : null;
+        const identityRef = db.doc(
+          `users/${ownerUid}/video_identity_guards/${videoId}`
+        );
+        const deletionRef = db.collection('media_video_deletion_jobs')
+          .doc(`${ownerUid}_${videoId}`);
         const readRefs = targetRef
-          ? [videoRef, publicationRef, targetRef]
-          : [videoRef, publicationRef];
+          ? [videoRef, publicationRef, identityRef, deletionRef, targetRef]
+          : [videoRef, publicationRef, identityRef, deletionRef];
         const snapshots = await Promise.all(
           readRefs.map((reference) => transaction.get(reference))
         );
         const videoSnap = snapshots[0];
         const publicationSnap = snapshots[1];
-        const targetSnap = targetRef ? snapshots[2] : null;
+        const identitySnap = snapshots[2];
+        const deletionSnap = snapshots[3];
+        const targetSnap = targetRef ? snapshots[4] : null;
+        if (deletionSnap.exists || (identitySnap.exists && (
+          identitySnap.get('state') !== 'REGISTERED' ||
+          identitySnap.get('ownerUid') !== ownerUid ||
+          identitySnap.get('videoId') !== videoId
+        ))) {
+          throw new HttpsError(
+            'failed-precondition',
+            'O vídeo está em exclusão ou sua identidade foi aposentada.'
+          );
+        }
         const contentAvailableAtReview = videoSnap.exists;
 
         if (!videoSnap.exists && targetType !== 'video') {
