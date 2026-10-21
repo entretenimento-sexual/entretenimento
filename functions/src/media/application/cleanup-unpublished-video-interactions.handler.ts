@@ -53,6 +53,7 @@ export const cleanupUnpublishedVideoInteractions = onDocumentWritten(
       publicationRef.get(), identityRef.get(), deletionRef.get(),
     ]);
     if (!canCleanupUnpublishedVideoInteractions({
+      publicationExists: publication.exists,
       isPublished: publication.exists ? publication.get('isPublished') : null,
       identityState: identity.exists ? identity.get('state') : null,
       deletionRequested: deletion.exists,
