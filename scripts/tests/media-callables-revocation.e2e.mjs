@@ -297,6 +297,15 @@ async function run() {
     await ownerRef.update({ suspended: false });
     const sessionBeforeHold = (await start(videoPayload)).data;
     await publicationRef.update({ moderationStatus: 'FLAGGED' });
+    // Let the projection synchronization finish, then deliberately model its
+    // lag behind an already committed canonical restriction. The transaction
+    // must still deny new sessions and accounting for the pre-hold token.
+    await waitFor(
+      'projeção sincronizada com moderação',
+      async () => (await videoRef.get()).get('moderationStatus'),
+      (status) => status === 'FLAGGED'
+    );
+    await videoRef.update({ moderationStatus: 'APPROVED' });
     await expectError(start, videoPayload, 'not-found');
     await expectError(retention, retentionPayload, 'not-found');
     await sleep(Math.max(0, sessionBeforeHold.earliestQualifiedAt - Date.now() + 250));
