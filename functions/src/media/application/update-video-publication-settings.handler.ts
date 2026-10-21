@@ -130,8 +130,8 @@ export const updateVideoPublicationSettings =
             transaction.get(privateVideoRef),
             transaction.get(publicationRef),
             transaction.get(publicVideoRef),
-          transaction.get(identityRef),
-          transaction.get(deletionRef),
+            transaction.get(identityRef),
+            transaction.get(deletionRef),
           ]);
 
         if (deletionSnap.exists || (identitySnap.exists && (
