@@ -103,6 +103,12 @@ import { commitProfileVideoDeletionRequest }
   from './video-profile-deletion-commit.firestore';
 import { retryFailedJob, mutateExistingJob }
   from './admin-video-processing-recovery.handler';
+import {
+  reconcileClosedVideoTriageOutbox,
+  type ClosedOutboxEpochWitness,
+  type ClosedOutboxObservedEvent,
+  type ClosedOutboxObservedJob,
+} from './admin-video-triage-closed-outbox.policy';
 import { FirestoreAccountDataDeletionOrchestratorAdapter }
   from '../../account_lifecycle/account-owned-media-deletion.firestore';
 import { isBilateralBlockActive } from '../../friendship/application/bilateral-block-access.policy';
@@ -4858,4 +4864,168 @@ test('c18x-B3 account deletion begins while terminal result commits', async () =
   assert.equal(events.size, 1);
   assert.equal(events.docs[0].get('nextState'),
     terminal === 'APPLIED' ? 'SUCCEEDED' : 'CANCEL_REQUESTED');
+});
+
+
+async function c18xB4Epoch() {
+  const f = c18vFixture();
+  const job = buildQueuedVideoProcessingJob({
+    ownerUid: f.ownerUid, videoId: f.videoId,
+    sourceStoragePath: 'users/' + f.ownerUid +
+      '/uploads/videos/' + f.videoId + '-original.mp4',
+    sourcePosterStoragePath: null, sourceMimeType: 'video/mp4',
+    sourceSizeBytes: 10_000, sourceDurationMs: 10_000, now,
+  });
+  const createId = randomUUID();
+  const deleteId = randomUUID();
+  await firestore.runTransaction(async tx => {
+    const absent = await tx.get(f.processingJobRef);
+    assert.equal(absent.exists, false);
+    stageVideoTriageCreatedJobInTransaction(
+      firestore, tx, f.processingJobRef, absent, createId,
+      job.processingVersion);
+    tx.create(f.processingJobRef, withAdminTriageProjection(
+      f.processingJobRef.id, null, job, now));
+  });
+  await Promise.all([
+    f.privateVideoRef.create({ path: job.sourceStoragePath }),
+    f.publicationRef.create({
+      isPublished: true, moderationStatus: 'APPROVED',
+    }),
+  ]);
+  assert.equal((await commitProfileVideoDeletionRequest(
+    firestore, f.command(deleteId))).kind, 'CREATED');
+  const hash = createHash('sha256').update(f.processingJobRef.path).digest('hex');
+  // The manifest is constructed from the harness's confirmed commands, not
+  // from the outbox, enabling independent detection of a missing event.
+  const epoch: ClosedOutboxEpochWitness = {
+    scope: 'FENCED_EMULATOR_EPOCH',
+    openedAt: now - 1_000, closedAt: now + 1_000,
+    allWritersStopped: true, allScopedEventsRead: true,
+    allScopedJobsRead: true,
+    jobs: [{ jobKeySha256: hash, initialState: null, initialVersion: null }],
+    committed: [
+      {
+        id: createId, jobKeySha256: hash, source: 'QUEUE_CREATION',
+        kind: 'CREATE', previousState: null, nextState: 'QUEUED',
+        processingVersion: job.processingVersion,
+      },
+      {
+        id: deleteId, jobKeySha256: hash, source: 'PROFILE_VIDEO_DELETION',
+        kind: 'CANCEL_REQUESTED', previousState: 'QUEUED',
+        nextState: 'CANCEL_REQUESTED', processingVersion: job.processingVersion,
+      },
+    ],
+  };
+  const read = async (): Promise<{
+    events: ClosedOutboxObservedEvent[];
+    jobs: ClosedOutboxObservedJob[];
+  }> => {
+    const [events, current] = await Promise.all([
+      firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+        .where('jobKeySha256', '==', hash).get(),
+      f.processingJobRef.get(),
+    ]);
+    return {
+      events: events.docs.map(doc => ({
+        id: doc.id, fields: doc.data(),
+      })),
+      jobs: [{
+        jobKeySha256: hash,
+        state: current.exists
+          ? current.get('state') as ClosedOutboxObservedJob['state'] : null,
+        processingVersion: current.exists
+          ? current.get('processingVersion') as string : null,
+      }],
+    };
+  };
+  return { f, epoch, read, createId, deleteId };
+}
+
+test('c18x-B4 closed epoch reconciles independent creation and deletion witnesses', async () => {
+  const e = await c18xB4Epoch();
+  const { events, jobs } = await e.read();
+  const report = reconcileClosedVideoTriageOutbox(e.epoch, events, jobs);
+  assert.equal(report.scope, 'EMULATOR_CLOSED_OUTBOX_ONLY');
+  assert.equal(report.status, 'RECONCILED');
+  assert.deepEqual(report.issues, []);
+  assert.equal(report.expectedEvents, 2);
+  assert.equal(report.observedEvents, 2);
+  assert.equal(report.globalCoverageVerified, false);
+  assert.equal(report.globallySequenced, false);
+  assert.equal(report.productionCostVerified, false);
+  assert.equal(report.cleanupAuthorized, false);
+  const reversed = reconcileClosedVideoTriageOutbox(
+    e.epoch, [...events].reverse(), jobs);
+  assert.deepEqual(reversed, report);
+});
+
+test('c18x-B4 missing and tampered outbox events are detected independently', async () => {
+  const e = await c18xB4Epoch();
+  const eventRef = firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .doc(e.createId);
+  await eventRef.delete();
+  const missing = e.read();
+  const a = await missing;
+  const report = reconcileClosedVideoTriageOutbox(e.epoch, a.events, a.jobs);
+  assert.equal(report.status, 'DIVERGENT');
+  assert.equal(report.missingEvents, 1);
+  assert.ok(report.issues.includes('MISSING_EVENT'));
+  await eventRef.create({
+    schemaVersion: 1, scope: 'PARTIAL_WRITER_COVERAGE',
+    globalCoverageVerified: false, globallySequenced: false,
+    jobKeySha256: e.epoch.jobs[0].jobKeySha256,
+    source: 'QUEUE_CREATION', kind: 'CREATE', previousState: null,
+    nextState: 'FAILED', processingVersion: e.epoch.committed[0].processingVersion,
+  });
+  const b = await e.read();
+  const tampered = reconcileClosedVideoTriageOutbox(e.epoch, b.events, b.jobs);
+  assert.equal(tampered.status, 'DIVERGENT');
+  assert.equal(tampered.payloadMismatches, 1);
+  assert.ok(tampered.issues.includes('EVENT_PAYLOAD_MISMATCH'));
+});
+
+test('c18x-B4 duplicate, extra event and unjournaled job write fail closed', async () => {
+  const e = await c18xB4Epoch();
+  const copied = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .doc(e.createId).get();
+  const extraId = randomUUID();
+  await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .doc(extraId).create(copied.data()!);
+  await e.f.processingJobRef.update({ state: 'PROCESSING' });
+  const { events, jobs } = await e.read();
+  const report = reconcileClosedVideoTriageOutbox(e.epoch, events, jobs);
+  assert.equal(report.status, 'DIVERGENT');
+  assert.equal(report.unexpectedEvents, 1);
+  assert.equal(report.finalJobMismatches, 1);
+  assert.ok(report.issues.includes('DUPLICATE_LOGICAL_EVENT'));
+  assert.ok(report.issues.includes('UNEXPECTED_EVENT'));
+  assert.ok(report.issues.includes('FINAL_JOB_MISMATCH'));
+  assert.equal(report.globalCoverageVerified, false);
+});
+
+test('c18x-B4 unsealed or inconsistent witness is never global evidence', async () => {
+  const e = await c18xB4Epoch();
+  const { events, jobs } = await e.read();
+  const unsealed = reconcileClosedVideoTriageOutbox({
+    ...e.epoch, allWritersStopped: false,
+  }, events, jobs);
+  assert.equal(unsealed.status, 'INCONCLUSIVE');
+  assert.ok(unsealed.issues.includes('EPOCH_NOT_CLOSED'));
+  const inconsistent = reconcileClosedVideoTriageOutbox({
+    ...e.epoch, committed: [
+      e.epoch.committed[1], e.epoch.committed[0],
+    ],
+  }, events, jobs);
+  assert.equal(inconsistent.status, 'INCONCLUSIVE');
+  assert.ok(inconsistent.issues.includes('INVALID_COMMIT_CHAIN'));
+  const incomplete = reconcileClosedVideoTriageOutbox({
+    ...e.epoch, allScopedEventsRead: false,
+  }, events, jobs);
+  assert.equal(incomplete.status, 'INCONCLUSIVE');
+  const unbounded = reconcileClosedVideoTriageOutbox({
+    ...e.epoch, committed: Array(65).fill(e.epoch.committed[0]),
+  }, events, jobs);
+  assert.equal(unbounded.status, 'INCONCLUSIVE');
+  assert.ok(unbounded.issues.includes('UNBOUNDED_OR_INVALID_INPUT'));
 });
