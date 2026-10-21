@@ -39,7 +39,7 @@ import {
   assertPublicMediaCallableAppCheck,
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
-import { isCurrentPublicMediaAssetExposure } from './public-media-exposure.policy';
+
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import {
   buildVideoRatingAggregateAfterRemoval,
@@ -50,7 +50,7 @@ import {
   type VideoReportCounterEvent,
 } from './video-report-safety';
 import type { VideoReportTargetType } from './report-video-content.handler';
-import { canReleaseVideoReportQuarantine } from './video-report-quarantine-release.policy';
+import { canReleaseVideoReportQuarantine, canRestoreReportedVideoComment } from './video-report-quarantine-release.policy';
 
 export type VideoContentReportDecision = 'KEEP' | 'REMOVE';
 
@@ -501,14 +501,12 @@ export const reviewVideoContentReport = onCall<
 
             if (
               targetType === 'video_comment' &&
-              report.contentQuarantined === true &&
-              target.status === 'HIDDEN' &&
-              isCurrentPublicMediaAssetExposure({
-                publicMedia: video as unknown as Record<string, unknown>,
+              canRestoreReportedVideoComment({
+                reportContentQuarantined: report.contentQuarantined === true,
+                commentStatus: target.status,
+                publicVideo: video as unknown as Record<string, unknown>,
                 publication: publication as unknown as Record<string, unknown> | null,
-                ownerExposureAllowed: true,
                 nowMs: now,
-                allowedVisibilities: ['PUBLIC'],
               })
             ) {
               targetPatch['status'] = 'VISIBLE';
