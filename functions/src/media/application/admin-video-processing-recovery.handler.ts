@@ -694,7 +694,7 @@ export async function retryFailedJob(command: {
   });
 }
 
-async function mutateExistingJob(command: {
+export async function mutateExistingJob(command: {
   adminUid: string;
   ownerUid: string;
   videoId: string;
@@ -702,18 +702,33 @@ async function mutateExistingJob(command: {
   operationId: string;
   expectedProcessingVersion?: string;
   reason: string;
-}): Promise<RecoverVideoProcessingResponse> {
+}, injected?: { firestore: Firestore }): Promise<RecoverVideoProcessingResponse> {
+  const firestore = injected?.firestore ?? db;
   const jobId = buildVideoProcessingJobId(command.ownerUid, command.videoId);
-  const jobRef = db.collection(VIDEO_PROCESSING_JOBS_COLLECTION).doc(jobId);
-  const videoRef = db.doc(`users/${command.ownerUid}/videos/${command.videoId}`);
-  const adminLogRef = db.collection('admin_logs').doc();
+  const jobRef = firestore.collection(VIDEO_PROCESSING_JOBS_COLLECTION).doc(jobId);
+  const videoRef = firestore.doc(`users/${command.ownerUid}/videos/${command.videoId}`);
+  const deletionRef = firestore.collection('media_video_deletion_jobs').doc(jobId);
+  const identityRef = firestore.doc(
+    `users/${command.ownerUid}/video_identity_guards/${command.videoId}`);
+  const adminLogRef = firestore.collection('admin_logs').doc();
   const mutationEventId = randomUUID();
 
-  return db.runTransaction(async (transaction) => {
-    const [jobSnapshot, videoSnapshot] = await Promise.all([
-      transaction.get(jobRef),
-      transaction.get(videoRef),
-    ]);
+  return firestore.runTransaction(async (transaction) => {
+    const [jobSnapshot, videoSnapshot, pendingDeletion, identity] =
+      await Promise.all([
+        transaction.get(jobRef),
+        transaction.get(videoRef),
+        transaction.get(deletionRef),
+        transaction.get(identityRef),
+      ]);
+    // A retired identity or pending deletion fences even a same-state recheck.
+    if (pendingDeletion.exists || (identity.exists && (
+      identity.get('state') !== 'REGISTERED' ||
+      identity.get('ownerUid') !== command.ownerUid ||
+      identity.get('videoId') !== command.videoId))) {
+      throw new HttpsError('failed-precondition',
+        'O vídeo está em exclusão ou sua identidade foi aposentada.');
+    }
 
     if (!jobSnapshot.exists || !videoSnapshot.exists) {
       throw new HttpsError('not-found', 'Job ou vídeo privado não encontrado.');
@@ -721,6 +736,7 @@ async function mutateExistingJob(command: {
 
     const job = jobSnapshot.data() as Partial<VideoProcessingJob> & {
       lastAdminOperationId?: string;
+      lastAdminAction?: string;
     };
     const state = normalizeState(job.state);
 
@@ -728,13 +744,19 @@ async function mutateExistingJob(command: {
       throw new HttpsError('failed-precondition', 'Estado do job inválido.');
     }
 
-    if (command.action === 'RECHECK_PROVIDER' &&
-        (!command.expectedProcessingVersion ||
-          job.processingVersion !== command.expectedProcessingVersion)) {
+    // All actions originate from a versioned admin row, not only provider
+    // rechecks. Versionless legacy commands fail closed against new retries.
+    if (!command.expectedProcessingVersion ||
+        job.processingVersion !== command.expectedProcessingVersion) {
       throw new HttpsError(
         'failed-precondition',
-        'Versão do processamento alterada antes da reconferência.'
+        'Versão do processamento alterada antes da ação administrativa.'
       );
+    }
+    if (job.lastAdminOperationId === command.operationId &&
+        job.lastAdminAction !== command.action) {
+      throw new HttpsError('failed-precondition',
+        'Identificador de operação já utilizado para outra ação.');
     }
 
     if (job.lastAdminOperationId === command.operationId) {
@@ -868,7 +890,7 @@ async function mutateExistingJob(command: {
     }
 
     if (nextState !== state) {
-      stageVideoTriageMutationInTransaction(db, transaction, jobRef, {
+      stageVideoTriageMutationInTransaction(firestore, transaction, jobRef, {
         eventId: mutationEventId, source: 'ADMIN_RECOVERY',
         kind: 'STATE_TRANSITION', before: jobSnapshot,
         afterState: nextState,

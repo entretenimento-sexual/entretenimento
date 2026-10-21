@@ -101,7 +101,7 @@ import {
 } from './public-video-access-resolution.firestore';
 import { commitProfileVideoDeletionRequest }
   from './video-profile-deletion-commit.firestore';
-import { retryFailedJob }
+import { retryFailedJob, mutateExistingJob }
   from './admin-video-processing-recovery.handler';
 import { isBilateralBlockActive } from '../../friendship/application/bilateral-block-access.policy';
 import {
@@ -4527,4 +4527,139 @@ test('c18x-B1 legacy FAILED with pending deletion or retired guard cannot retry'
       .where('jobKeySha256', '==', hash).get()).size, 0);
     assert.equal((await f.privateVideoRef.get()).get('status'), 'failed');
   }
+});
+
+
+test('c18x-B2 cancellation wins against stale, unconfirmed and provider rechecks', async () => {
+  for (const action of [
+    'RECHECK_STALE', 'RECHECK_UNCONFIRMED', 'RECHECK_PROVIDER',
+  ] as const) {
+    const f = c18vFixture();
+    const initial = fixture('c18xb2-' + action);
+    const state = action === 'RECHECK_STALE' ? 'QUEUED'
+      : action === 'RECHECK_UNCONFIRMED' ? 'SUBMITTING' : 'PROCESSING';
+    const job = {
+      ...initial, ownerUid: f.ownerUid, videoId: f.videoId, state,
+      updatedAt: Date.now() - 3 * 24 * 60 * 60_000,
+      ...(action === 'RECHECK_UNCONFIRMED'
+        ? { lastErrorCode: 'SUBMISSION_UNCONFIRMED', leaseUntil: null,
+            externalJobName: null } : {}),
+      ...(action === 'RECHECK_PROVIDER'
+        ? { providerPollFailureVersion: initial.processingVersion,
+            providerPollFailureCount: 4, providerPollReviewRequired: true } : {}),
+    };
+    await Promise.all([
+      f.processingJobRef.create(job),
+      f.privateVideoRef.create({ path: job.sourceStoragePath, status: 'processing' }),
+    ]);
+    const baseCommand = {
+      adminUid: 'c18xb2-admin', ownerUid: f.ownerUid,
+      videoId: f.videoId, expectedProcessingVersion: job.processingVersion,
+      reason: 'Adversarial administrative cancellation',
+    };
+    const [cancel, recheck] = await Promise.allSettled([
+      mutateExistingJob({
+        ...baseCommand, action: 'CANCEL_ACTIVE', operationId: randomUUID(),
+      }, { firestore }),
+      mutateExistingJob({
+        ...baseCommand, action, operationId: randomUUID(),
+      }, { firestore }),
+    ]);
+    assert.equal(cancel.status, 'fulfilled', action);
+    if (cancel.status === 'fulfilled') {
+      assert.equal(cancel.value.nextState, 'CANCEL_REQUESTED', action);
+    }
+    assert.ok(recheck.status === 'fulfilled' || recheck.status === 'rejected');
+    assert.equal((await f.processingJobRef.get()).get('state'),
+      'CANCEL_REQUESTED', action);
+    assert.equal((await f.privateVideoRef.get()).get('status'), 'failed', action);
+    const hash = createHash('sha256').update(f.processingJobRef.path).digest('hex');
+    const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+      .where('jobKeySha256', '==', hash).get();
+    assert.equal(events.size, 1, action);
+    assert.equal(events.docs[0].get('source'), 'ADMIN_RECOVERY');
+    assert.equal(events.docs[0].get('nextState'), 'CANCEL_REQUESTED');
+    assert.equal(events.docs[0].get('previousState'), state);
+  }
+});
+
+test('c18x-B2 stale admin version and operation collision never touch new retry', async () => {
+  const f = c18vFixture();
+  await c18xB1SeedFailed(f);
+  const original = (await f.processingJobRef.get()).get('processingVersion') as string;
+  const retry = c18xB1Retry(f);
+  const applied = await retryFailedJob(retry.command, retry.ports);
+  assert.equal(applied.nextState, 'QUEUED');
+  const newVersion = (await f.processingJobRef.get()).get('processingVersion') as string;
+  assert.notEqual(newVersion, original);
+  const command = {
+    adminUid: 'c18xb2-admin', ownerUid: f.ownerUid, videoId: f.videoId,
+    reason: 'Adversarial old version cancellation',
+    action: 'CANCEL_ACTIVE' as const, operationId: randomUUID(),
+  };
+  await assert.rejects(mutateExistingJob({
+    ...command, expectedProcessingVersion: original,
+  }, { firestore }), (e: unknown) =>
+    !!e && typeof e === 'object' && 'code' in e &&
+    e.code === 'failed-precondition');
+  await assert.rejects(mutateExistingJob({
+    ...command, expectedProcessingVersion: '',
+  }, { firestore }));
+  assert.equal((await f.processingJobRef.get()).get('state'), 'QUEUED');
+  const cancel = await mutateExistingJob({
+    ...command, expectedProcessingVersion: newVersion,
+  }, { firestore });
+  assert.equal(cancel.nextState, 'CANCEL_REQUESTED');
+  const replay = await mutateExistingJob({
+    ...command, expectedProcessingVersion: newVersion,
+  }, { firestore });
+  assert.equal(replay.alreadyApplied, true);
+  await assert.rejects(mutateExistingJob({
+    ...command, action: 'RECHECK_STALE',
+    expectedProcessingVersion: newVersion,
+  }, { firestore }));
+  const hash = createHash('sha256').update(f.processingJobRef.path).digest('hex');
+  const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  assert.equal(events.size, 2);
+  assert.equal(events.docs.filter(e => e.get('kind') === 'VERSION_REPLACED').length, 1);
+  assert.equal(events.docs.filter(e => e.get('nextState') === 'CANCEL_REQUESTED').length, 1);
+});
+
+test('c18x-B2 deletion and unconfirmed recheck cannot revive video or event', async () => {
+  const f = c18vFixture();
+  const base = fixture('c18xb2-deletion');
+  const job = { ...base, ownerUid: f.ownerUid, videoId: f.videoId,
+    state: 'SUBMITTING' as const, leaseUntil: null,
+    lastErrorCode: 'SUBMISSION_UNCONFIRMED', externalJobName: null };
+  await Promise.all([
+    f.processingJobRef.create(job),
+    f.privateVideoRef.create({ path: job.sourceStoragePath, status: 'processing' }),
+    f.publicationRef.create({ isPublished: true, moderationStatus: 'APPROVED' }),
+  ]);
+  const admin = {
+    adminUid: 'c18xb2-admin', ownerUid: f.ownerUid, videoId: f.videoId,
+    action: 'RECHECK_UNCONFIRMED' as const,
+    expectedProcessingVersion: job.processingVersion,
+    operationId: randomUUID(), reason: 'Adversarial deletion check',
+  };
+  const eventId = randomUUID();
+  const outcomes = await Promise.allSettled([
+    mutateExistingJob(admin, { firestore }),
+    commitProfileVideoDeletionRequest(firestore, f.command(eventId)),
+  ]);
+  assert.equal(outcomes[1].status, 'fulfilled');
+  assert.equal((await f.processingJobRef.get()).get('state'), 'CANCEL_REQUESTED');
+  assert.equal((await f.identityRef.get()).get('state'), 'RETIRED');
+  assert.equal((await f.deletionJobRef.get()).get('state'), 'retryable');
+  assert.equal((await f.publicationRef.get()).exists, false);
+  await assert.rejects(mutateExistingJob({
+    ...admin, operationId: randomUUID(),
+  }, { firestore }));
+  const hash = createHash('sha256').update(f.processingJobRef.path).digest('hex');
+  const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
+    .where('jobKeySha256', '==', hash).get();
+  assert.equal(events.size, 1);
+  assert.equal(events.docs[0].id, eventId);
+  assert.equal(events.docs[0].get('kind'), 'CANCEL_REQUESTED');
 });
