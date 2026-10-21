@@ -519,6 +519,14 @@ async function run() {
         state.evidenceFileExists === true
     );
     assert.equal(quarantinedState.publication.isPublished, true);
+    // The evidence must contain the actual published bytes, not merely an
+    // existing placeholder document or a Storage object with another payload.
+    const [sourceBytesBeforeRemoval] = await bucket.file(publishedStoragePath).download();
+    const [evidenceBytesBeforeRemoval] = await bucket.file(evidenceStoragePath).download();
+    assert.ok(sourceBytesBeforeRemoval.length > 0);
+    assert.deepEqual(evidenceBytesBeforeRemoval, sourceBytesBeforeRemoval);
+    assert.equal(quarantinedState.evidence.sourceMd5Hash,
+      quarantinedState.evidence.evidenceMd5Hash);
 
     await expectCallableFailure(
       httpsCallable(ownerClient.functions, 'deleteProfileVideo'),
@@ -570,6 +578,8 @@ async function run() {
     console.log('✔ avaliação denunciada foi removida e reagrupada');
     console.log('✔ denúncia grave colocou o vídeo em quarentena e preservou o ativo');
     console.log('✔ proprietário não removeu conteúdo FLAGGED durante a análise');
+    const [retainedEvidenceBytes] = await bucket.file(evidenceStoragePath).download();
+    assert.deepEqual(retainedEvidenceBytes, sourceBytesBeforeRemoval);
     console.log('✔ REMOVE excluiu o produto sem destruir evidência preservada');
     console.log('✔ caso grave confirmado abriu revisão jurídica sem disclosure automático');
   } finally {
