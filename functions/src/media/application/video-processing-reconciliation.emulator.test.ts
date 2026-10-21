@@ -4543,10 +4543,10 @@ test('c18x-B2 cancellation wins against stale, unconfirmed and provider rechecks
       updatedAt: Date.now() - 3 * 24 * 60 * 60_000,
       ...(action === 'RECHECK_UNCONFIRMED'
         ? { lastErrorCode: 'SUBMISSION_UNCONFIRMED', leaseUntil: null,
-            externalJobName: null } : {}),
+          externalJobName: null } : {}),
       ...(action === 'RECHECK_PROVIDER'
         ? { providerPollFailureVersion: initial.processingVersion,
-            providerPollFailureCount: 4, providerPollReviewRequired: true } : {}),
+          providerPollFailureCount: 4, providerPollReviewRequired: true } : {}),
     };
     await Promise.all([
       f.processingJobRef.create(job),
