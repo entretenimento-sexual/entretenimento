@@ -5168,7 +5168,7 @@ test('VF1-B3.4.6 delayed settings event cannot resurrect a retired video project
 });
 
 
-test('VF1-B3.4.6 concurrent retirement forces stale projection writer to revalidate', async () => {
+test('VF1-B3.4.6 retirement before writer reads prevents stale projection mutation', async () => {
   const ownerUid = 'vf1-race-' + randomUUID();
   const videoId = 'video-' + randomUUID();
   const guard = firestore.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
@@ -5179,26 +5179,24 @@ test('VF1-B3.4.6 concurrent retirement forces stale projection writer to revalid
     publication.set({ ownerUid, videoId, isPublished: true }),
     projection.set({ ownerUid, videoId, title: 'original' }),
   ]);
-  let releaseFirstRead!: () => void;
-  let observedFirstRead!: () => void;
-  const firstRead = new Promise<void>(resolve => { observedFirstRead = resolve; });
-  const resume = new Promise<void>(resolve => { releaseFirstRead = resolve; });
-  let attempts = 0;
+  // Pause before acquiring read locks: the emulator pessimistically locks
+  // documents read within a transaction, so pausing afterwards deadlocks retirement.
+  let releaseWriter!: () => void;
+  let writerReady!: () => void;
+  const ready = new Promise<void>(resolve => { writerReady = resolve; });
+  const resume = new Promise<void>(resolve => { releaseWriter = resolve; });
   const staleWriter = firestore.runTransaction(async tx => {
+    writerReady();
+    await resume;
     const [identity, canonical] = await Promise.all([
       tx.get(guard), tx.get(publication),
     ]);
-    attempts += 1;
-    if (attempts === 1) {
-      observedFirstRead();
-      await resume;
-    }
     if (identity.get('state') !== 'REGISTERED' ||
         canonical.get('isPublished') !== true) return 'BLOCKED';
     tx.update(projection, { title: 'stale-write' });
     return 'UPDATED';
   });
-  await firstRead;
+  await ready;
   try {
     await firestore.runTransaction(async tx => {
       const [identity, canonical] = await Promise.all([
@@ -5211,10 +5209,9 @@ test('VF1-B3.4.6 concurrent retirement forces stale projection writer to revalid
       tx.delete(projection);
     });
   } finally {
-    releaseFirstRead();
+    releaseWriter();
   }
   assert.equal(await staleWriter, 'BLOCKED');
-  assert.ok(attempts >= 2, 'A transação antiga deve ser repetida após conflito');
   assert.equal((await guard.get()).get('state'), 'RETIRED');
   assert.equal((await projection.get()).exists, false);
 });
