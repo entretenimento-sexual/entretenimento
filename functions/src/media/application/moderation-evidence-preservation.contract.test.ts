@@ -30,3 +30,10 @@ test('blocked evidence rearms exclusively from published canonical media', () =>
   assert.match(source, /publicationSnap\.get\('isPublished'\) !== true/);
   assert.match(retry, /\.where\('status', '==', 'BLOCKED_SOURCE_PATH'\)/);
 });
+
+test('physical evidence mismatch prevents preservation finalization', () => {
+  assert.match(source, /sourceMd5 !== evidenceMd5/);
+  assert.match(source, /sourceCrc32c !== evidenceCrc32c/);
+  assert.match(source, /Number\(sourceMetadata\.size\) !== Number\(evidenceMetadata\.size\)/);
+  assert.match(source, /Evidência preservada diverge do arquivo denunciado/);
+});
