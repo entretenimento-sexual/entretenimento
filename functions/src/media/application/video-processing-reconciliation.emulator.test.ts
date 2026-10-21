@@ -5159,7 +5159,10 @@ test('VF1-B3.4.6 delayed settings event cannot resurrect a retired video project
     tx.delete(publicRef);
   });
   for (let i = 0; i < 2; i += 1) {
-    assert.equal(await synchronizePublishedVideoSettingsInFirestore(firestore, ownerUid, videoId), 'IGNORED_UNPUBLISHED');
+    assert.equal(
+      await synchronizePublishedVideoSettingsInFirestore(firestore, ownerUid, videoId),
+      'IGNORED_UNPUBLISHED'
+    );
     assert.equal((await publicRef.get()).exists, false);
   }
 });
