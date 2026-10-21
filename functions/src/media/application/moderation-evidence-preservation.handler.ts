@@ -8,6 +8,7 @@ import { deleteProfileVideoResources } from './delete-profile-video.handler';
 import {
   MODERATION_EVIDENCE_JOBS_COLLECTION,
   preserveModerationEvidence,
+  rearmBlockedModerationEvidenceFromPublication,
 } from './moderation-evidence-preservation.service';
 
 const RETRY_BATCH_SIZE = 20;
@@ -81,6 +82,25 @@ export const retryPendingModerationEvidencePreservation = onSchedule(
       .where('status', '==', 'PENDING')
       .limit(RETRY_BATCH_SIZE)
       .get();
+
+    const blockedSnapshot = await db
+      .collection(MODERATION_EVIDENCE_JOBS_COLLECTION)
+      .where('status', '==', 'BLOCKED_SOURCE_PATH')
+      .limit(RETRY_BATCH_SIZE)
+      .get();
+    for (const blocked of blockedSnapshot.docs) {
+      try {
+        if (await rearmBlockedModerationEvidenceFromPublication(blocked.id)) {
+          await preserveModerationEvidence(blocked.id);
+          await cleanupResolvedRemovedMedia(blocked.id);
+        }
+      } catch (error) {
+        logger.error('[retryPendingModerationEvidencePreservation] Rearme falhou.', {
+          reportId: blocked.id,
+          error: error instanceof Error ? error.message.slice(0, 500) : String(error),
+        });
+      }
+    }
 
     for (const jobDoc of jobsSnapshot.docs) {
       try {

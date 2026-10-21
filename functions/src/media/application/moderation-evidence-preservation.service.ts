@@ -223,6 +223,49 @@ export async function queueModerationEvidencePreservation(
   }
 }
 
+
+/** Re-arm only from the canonical publication, never from operator-supplied paths. */
+export async function rearmBlockedModerationEvidenceFromPublication(
+  reportIdValue: unknown
+): Promise<boolean> {
+  const reportId = cleanId(reportIdValue);
+  if (!reportId) return false;
+  const jobRef = db.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId);
+  const reportRef = db.collection('moderation_reports').doc(reportId);
+  return db.runTransaction(async (tx) => {
+    const [jobSnap, reportSnap] = await Promise.all([
+      tx.get(jobRef), tx.get(reportRef),
+    ]);
+    if (!jobSnap.exists || jobSnap.get('status') !== 'BLOCKED_SOURCE_PATH' ||
+        !reportSnap.exists || isReleasedReport(reportSnap.data()) ||
+        reportSnap.get('moderationAction') !== 'REMOVE') return false;
+    const job = jobSnap.data() as ModerationEvidenceJob;
+    const ownerUid = cleanId(job.ownerUid);
+    const mediaId = cleanId(job.mediaId);
+    if (!ownerUid || !mediaId ||
+        (job.mediaType !== 'PHOTO' && job.mediaType !== 'VIDEO')) return false;
+    const kind = job.mediaType === 'VIDEO' ? 'video' : 'photo';
+    const publicationRef = db.doc(
+      `users/${ownerUid}/${kind}_publications/${mediaId}`
+    );
+    const publicationSnap = await tx.get(publicationRef);
+    const sourceStoragePath = normalizeSourcePath(
+      job.mediaType, ownerUid, mediaId,
+      publicationSnap.get('publishedStoragePath')
+    );
+    if (!sourceStoragePath || publicationSnap.get('isPublished') !== true) {
+      return false;
+    }
+    tx.update(jobRef, {
+      status: 'PENDING',
+      sourceStoragePath,
+      lastErrorCode: null,
+      updatedAt: Date.now(),
+    });
+    return true;
+  });
+}
+
 export async function preserveModerationEvidence(
   reportIdValue: unknown
 ): Promise<void> {

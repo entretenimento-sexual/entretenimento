@@ -22,3 +22,11 @@ test('retry scans actionable pending jobs without starvation from blocked eviden
   assert.match(retry, /await preserveModerationEvidence\(jobDoc\.id\)/);
   assert.match(retry, /await cleanupResolvedRemovedMedia\(jobDoc\.id\)/);
 });
+
+test('blocked evidence rearms exclusively from published canonical media', () => {
+  assert.match(source, /rearmBlockedModerationEvidenceFromPublication/);
+  assert.match(source, /reportSnap\.get\('moderationAction'\) !== 'REMOVE'/);
+  assert.match(source, /publicationSnap\.get\('publishedStoragePath'\)/);
+  assert.match(source, /publicationSnap\.get\('isPublished'\) !== true/);
+  assert.match(retry, /\.where\('status', '==', 'BLOCKED_SOURCE_PATH'\)/);
+});
