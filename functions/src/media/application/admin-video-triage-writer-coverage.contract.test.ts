@@ -222,4 +222,16 @@ test('c18w audit never promotes partial writer coverage to global readiness', ()
   assert.ok(recovered.includes(
     "typeof nextState === 'string' && nextState !== current?.state"));
   assert.ok(!outbox.includes('globalCoverageVerified: true'));
+
+  // c18x-B3: account lifecycle remains the source of deletion authority.
+  const terminal = readFileSync(resolve(root,
+    'media/application/video-processing-terminal-commit.firestore.ts'), 'utf8');
+  const lifecycle = readFileSync(resolve(root,
+    'account_lifecycle/owner-video-lifecycle-fence.firestore.ts'), 'utf8');
+  assert.ok(terminal.includes('isOwnerDeletingForVideoMutationInTransaction('));
+  assert.ok(admin.includes('isOwnerDeletingForVideoMutationInTransaction('));
+  assert.ok(lifecycle.includes("status === 'pending_deletion'"));
+  assert.ok(lifecycle.includes("status === 'deleted'"));
+  assert.ok(lifecycle.includes("'deleted_accounts_audit'"));
+  assert.ok(lifecycle.includes('transaction.get('));
 });
