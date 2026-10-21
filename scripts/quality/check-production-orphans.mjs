@@ -499,6 +499,12 @@ const functionsOperationalArtifacts = new Set([
     functionsSourceRoot,
     'media/application/admin-video-triage-audit-journal.firestore.ts'
   )),
+  // c18x-B4: test-owned closed-epoch outbox reconciler, intentionally
+  // offline/read-only; not an export, trigger or deployable Cloud Function.
+  posix(path.join(
+    functionsSourceRoot,
+    'media/application/admin-video-triage-closed-outbox.policy.ts'
+  )),
 ]);
 
 const functionOrphans = functionsProductionTs
