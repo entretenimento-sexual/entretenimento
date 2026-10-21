@@ -14,6 +14,7 @@ import {
   type MediaScoreBreakdown,
 } from './media-engagement-score';
 import { observeMediaTrendScoreShadow } from './media-trend-score-shadow-observation.service';
+import { assertCurrentPublicVideoTransactionExposure } from './public-video-transaction-exposure.policy';
 import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
   assertPublicMediaCallableAppCheck,
@@ -84,6 +85,7 @@ export const toggleVideoReaction = onCall<ToggleVideoReactionRequest>(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
     const likeRef = videoRef.collection('likes').doc(viewerUid);
+    const publicationRef = db.doc(`users/${ownerUid}/video_publications/${videoId}`);
 
     const outcome = await db.runTransaction(async (transaction) => {
       await assertInteractionAccessInTransaction(transaction, viewerUid);
@@ -94,9 +96,10 @@ export const toggleVideoReaction = onCall<ToggleVideoReactionRequest>(
         'Vídeo público não encontrado.'
       );
 
-      const [videoSnap, likeSnap] = await Promise.all([
+      const [videoSnap, likeSnap, publicationSnap] = await Promise.all([
         transaction.get(videoRef),
         transaction.get(likeRef),
+        transaction.get(publicationRef),
       ]);
 
       if (!videoSnap.exists) {
@@ -119,6 +122,12 @@ export const toggleVideoReaction = onCall<ToggleVideoReactionRequest>(
           'Este vídeo ainda não está aprovado para curtidas.'
         );
       }
+
+      assertCurrentPublicVideoTransactionExposure({
+        publicVideo: video as Record<string, unknown>,
+        publication: publicationSnap.data(),
+        nowMs: Date.now(),
+      });
 
       if (video.reactionsEnabled !== true) {
         throw new HttpsError(
