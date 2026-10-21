@@ -3,9 +3,9 @@
 // MEDIA MODERATION TIMING BOUNDARY
 // -----------------------------------------------------------------------------
 // Garante paridade de timing e segurança entre Foto e Vídeo:
-// - publicação entra ativa por padrão, sem fila humana preventiva;
+// - novos vídeos entram em PENDING_REVIEW e exigem revisão;
 // - safetyScore pode permanecer desconhecido até existir sinal real;
-// - denúncia ou mecanismo em tempo real pode mover conteúdo para quarentena;
+// - reprodução pública exige APPROVED e mantém quarentena;
 // - edição do proprietário nunca libera estado restrito imposto por moderação;
 // - upload ainda não publicado permanece PRIVATE;
 // - discovery público continua aceitando apenas APPROVED.
@@ -42,8 +42,7 @@ const policy = read(
 );
 
 for (const fragment of [
-  "defaultVideoPublicationModerationStatus(): 'APPROVED'",
-  "return 'APPROVED';",
+  "defaultVideoPublicationModerationStatus(): 'PENDING_REVIEW'",
   'safetyScore: null,',
   'isRestrictedVideoModerationStatus',
 ]) {
@@ -86,7 +85,7 @@ for (const fragment of [
   'moderationReason: null',
   'safetyScore: null,',
 ]) {
-  requireIncludes(publication, fragment, 'immediate publication wiring drift');
+  requireIncludes(publication, fragment, 'video publication boundary drift');
 }
 
 for (const forbidden of [
@@ -98,7 +97,7 @@ for (const forbidden of [
   forbidIncludes(
     publication,
     forbidden,
-    'publication must not create preventive moderation work'
+    'publisher transaction owns preventive review'
   );
 }
 
@@ -194,6 +193,16 @@ requireIncludes(
   'public discovery must remain approval-gated'
 );
 
+const commit = read('functions/src/media/application/video-publication-commit.firestore.ts');
+for (const fragment of [
+  'transaction.create(preventiveReviewRef, {',
+  "reason: 'preventive_media_review'",
+  'preventiveReviewReportId: preventiveReviewRef.id',
+]) requireIncludes(commit, fragment, 'atomic preventive review');
+const legacy = read('functions/src/media/application/normalize-legacy-video-moderation.handler.ts');
+forbidIncludes(legacy, "moderationStatus: 'APPROVED'", 'legacy normalization must not approve');
+requireIncludes(settings, "normalizedPublicationStatus !== 'APPROVED'", 'owner edit must preserve quarantine');
+
 console.log(
-  '[media-moderation-timing] OK: publicação é imediata; moderação atua depois ou em tempo real, e estados restritos continuam fail-closed.'
+  '[media-moderation-timing] OK: vídeos não avaliados exigem revisão preventiva.'
 );
