@@ -23,7 +23,6 @@ export class ProfileVideoLibraryEffects {
   private readonly videoPublication = inject(VideoPublicationService);
   private readonly mediaError = inject(MediaApplicationErrorService);
   private readonly failedCleanupRequested = new Set<string>();
-  private readonly legacyModerationNormalizationRequested = new Set<string>();
 
   readonly watch$ = createEffect(() =>
     this.actions$.pipe(
@@ -56,14 +55,6 @@ export class ProfileVideoLibraryEffects {
             const visibleVideoIds = new Set(
               visibleVideos.map((video) => video.id)
             );
-            const legacyPendingVideoIds = publications
-              .filter((publication) =>
-                visibleVideoIds.has(publication.videoId) &&
-                publication.isPublished === true &&
-                publication.visibility === 'PUBLIC' &&
-                publication.moderationStatus === 'PENDING_REVIEW'
-              )
-              .map((publication) => publication.videoId);
             const nextActions: Action[] = [
               ProfileVideoLibraryActions.snapshotReceived({
                 ownerUid,
@@ -83,14 +74,6 @@ export class ProfileVideoLibraryEffects {
               );
             }
 
-            if (legacyPendingVideoIds.length > 0) {
-              nextActions.push(
-                ProfileVideoLibraryActions.legacyPendingModerationDetected({
-                  ownerUid,
-                  videoIds: legacyPendingVideoIds,
-                })
-              );
-            }
 
             return from(nextActions);
           }),
@@ -180,51 +163,12 @@ export class ProfileVideoLibraryEffects {
     { dispatch: false }
   );
 
-  readonly normalizeLegacyModeration$ = createEffect(
-    () =>
-      this.actions$.pipe(
-        ofType(ProfileVideoLibraryActions.legacyPendingModerationDetected),
-        mergeMap(({ ownerUid, videoIds }) => {
-          const pendingVideoIds = videoIds.filter((videoId) => {
-            const key = this.videoKey(ownerUid, videoId);
-
-            if (this.legacyModerationNormalizationRequested.has(key)) {
-              return false;
-            }
-
-            this.legacyModerationNormalizationRequested.add(key);
-            return true;
-          });
-
-          if (pendingVideoIds.length === 0) {
-            return EMPTY;
-          }
-
-          return this.videoPublication
-            .normalizeLegacyVideoModeration$(ownerUid, pendingVideoIds)
-            .pipe(
-              catchError(() => {
-                pendingVideoIds.forEach((videoId) =>
-                  this.legacyModerationNormalizationRequested.delete(
-                    this.videoKey(ownerUid, videoId)
-                  )
-                );
-                return EMPTY;
-              }),
-              ignoreElements()
-            );
-        })
-      ),
-    { dispatch: false }
-  );
-
   readonly resetLocalTracking$ = createEffect(
     () =>
       this.actions$.pipe(
         ofType(ProfileVideoLibraryActions.watchStopped),
         tap(() => {
           this.failedCleanupRequested.clear();
-          this.legacyModerationNormalizationRequested.clear();
         })
       ),
     { dispatch: false }

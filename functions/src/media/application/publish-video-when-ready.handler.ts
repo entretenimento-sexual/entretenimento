@@ -6,6 +6,7 @@ import {
   assertInteractionAccess,
 } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import { isRestrictedVideoModerationStatus } from './video-publication-moderation.policy';
 import { db } from '../../firebaseApp';
 import {
   publishVideo as publishVideoCore,
@@ -138,8 +139,8 @@ async function claimDeferredPublication(
     const now = Date.now();
 
     if (
-      String(publication.moderationStatus ?? '').trim().toUpperCase() ===
-      'REJECTED'
+      publication.isPublished !== true &&
+      isRestrictedVideoModerationStatus(publication.moderationStatus)
     ) {
       transaction.set(
         publicationRef,
@@ -147,7 +148,7 @@ async function claimDeferredPublication(
           publishWhenReady: false,
           autoPublishState: 'BLOCKED',
           autoPublishLeaseUntil: null,
-          autoPublishError: 'SOURCE_REJECTED',
+          autoPublishError: 'MODERATION_RESTRICTED',
           updatedAt: now,
         },
         { merge: true }

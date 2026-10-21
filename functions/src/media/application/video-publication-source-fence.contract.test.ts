@@ -11,6 +11,18 @@ const core = readFileSync(
   resolve(__dirname, '../../../src/media/application/video-publication-commit.firestore.ts'),
   'utf8'
 );
+const moderation = readFileSync(
+  resolve(__dirname, '../../../src/media/application/video-publication-moderation.policy.ts'),
+  'utf8'
+);
+const legacy = readFileSync(
+  resolve(__dirname, '../../../src/media/application/normalize-legacy-video-moderation.handler.ts'),
+  'utf8'
+);
+const ownerEdit = readFileSync(
+  resolve(__dirname, '../../../src/media/application/update-video-publication-settings.handler.ts'),
+  'utf8'
+);
 const asset = readFileSync(
   resolve(__dirname, '../../../src/media/application/published-video-asset.service.ts'),
   'utf8'
@@ -41,4 +53,14 @@ test('publisher must never copy processed bytes into a second video object', () 
   assert.ok(!asset.includes('sourceVideo.copy(destinationVideo'));
   assert.ok(asset.includes('videoStoragePath: processedStoragePath'));
   assert.ok(handler.includes("assetStorageMode: 'PROCESSED_CANONICAL'"));
+});
+
+test('VF1-A prevents owner and legacy approval of unreviewed video', () => {
+  assert.ok(moderation.includes("return 'PENDING_REVIEW';"));
+  assert.ok(moderation.includes("normalized === 'PENDING_REVIEW'"));
+  assert.ok(core.includes('transaction.create(preventiveReviewRef, {'));
+  assert.ok(core.includes('preventiveReviewReportId: preventiveReviewRef.id'));
+  assert.ok(handler.includes('defaultVideoPublicationModerationStatus()'));
+  assert.ok(ownerEdit.includes("normalizedPublicationStatus !== 'APPROVED'"));
+  assert.ok(!legacy.includes("moderationStatus: 'APPROVED'"));
 });

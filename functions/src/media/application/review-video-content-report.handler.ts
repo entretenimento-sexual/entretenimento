@@ -400,6 +400,21 @@ export const reviewVideoContentReport = onCall<
             })
             : null;
 
+        // A delayed preventive decision must never release a newer or
+        // independently quarantined version of the video.
+        if (isPreventiveReview && decision === 'KEEP' && (
+          !publicationSnap.exists || !videoSnap.exists ||
+          publicationSnap.get('preventiveReviewReportId') !== reportId ||
+          videoSnap.get('preventiveReviewReportId') !== reportId ||
+          publicationSnap.get('moderationStatus') !== 'PENDING_REVIEW' ||
+          videoSnap.get('moderationStatus') !== 'PENDING_REVIEW'
+        )) {
+          throw new HttpsError(
+            'failed-precondition',
+            'A revisão preventiva não corresponde à publicação atual.'
+          );
+        }
+
         if (decision === 'KEEP' && targetType === 'video') {
           if (video) {
             transaction.update(videoRef, {

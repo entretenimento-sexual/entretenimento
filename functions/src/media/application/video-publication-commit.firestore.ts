@@ -1,4 +1,4 @@
-import type { Firestore } from 'firebase-admin/firestore';
+import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import { isRestrictedVideoModerationStatus } from './video-publication-moderation.policy';
@@ -141,6 +141,15 @@ export async function commitCopiedVideoPublicationIfCurrent(
   );
   const deletionRef = firestore.collection('media_video_deletion_jobs')
     .doc(`${ownerUid}_${videoId}`);
+  // Allocate once, outside the retried Firestore callback.
+  const preventiveReviewRef = firestore.collection('moderation_reports').doc();
+  const pendingReview =
+    publicationPatch['moderationStatus'] === 'PENDING_REVIEW';
+  if (pendingReview !==
+      (publicVideoPatch['moderationStatus'] === 'PENDING_REVIEW')) {
+    throw new HttpsError('failed-precondition',
+      'A publicacao e sua projecao divergem na moderacao preventiva.');
+  }
   return firestore.runTransaction(async (transaction) => {
     const [ownerSnap, publicationSnap, identitySnap, deletionSnap] =
       await Promise.all([
@@ -208,8 +217,36 @@ export async function commitCopiedVideoPublicationIfCurrent(
       const pendingCleanup = await transaction.get(cleanupRef);
       if (!pendingCleanup.exists) transaction.create(cleanupRef, originalCleanup);
     }
-    transaction.set(publicationRef, publicationPatch, { merge: true });
-    transaction.set(publicVideoRef, publicVideoPatch, { merge: true });
+    if (pendingReview) {
+      transaction.create(preventiveReviewRef, {
+        reporterUid: 'system',
+        targetType: 'video',
+        targetId: videoId,
+        parentTargetId: videoId,
+        targetOwnerUid: ownerUid,
+        targetAuthorUid: ownerUid,
+        reason: 'preventive_media_review',
+        details: 'Publicacao de video aguardando revisao preventiva.',
+        route: 'video',
+        source: 'system',
+        status: 'open',
+        moderationAction: null,
+        contentQuarantined: true,
+        evidencePreservationStatus: 'NOT_REQUIRED',
+        legalReviewStatus: null,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    const reviewLink = pendingReview
+      ? { preventiveReviewReportId: preventiveReviewRef.id }
+      : {};
+    transaction.set(publicationRef, {
+      ...publicationPatch, ...reviewLink,
+    }, { merge: true });
+    transaction.set(publicVideoRef, {
+      ...publicVideoPatch, ...reviewLink,
+    }, { merge: true });
     return currentPublication;
   });
 }

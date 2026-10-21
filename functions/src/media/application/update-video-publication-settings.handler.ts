@@ -65,17 +65,16 @@ function resolvePublicModerationAfterOwnerEdit(
   const normalizedPublicationStatus =
     normalizeVideoPublicationModerationStatus(publicationStatus);
 
-  if (!isRestrictedVideoModerationStatus(normalizedPublicationStatus)) {
-    return 'APPROVED';
+  // Never turn a pending or unknown status into APPROVED on owner edits.
+  if (normalizedPublicationStatus !== 'APPROVED') {
+    return normalizedPublicationStatus;
   }
 
   const normalizedPublicStatus = normalizeVideoPublicationModerationStatus(
     publicStatus
   );
 
-  return isRestrictedVideoModerationStatus(normalizedPublicStatus)
-    ? normalizedPublicStatus
-    : 'HIDDEN';
+  return normalizedPublicStatus;
 }
 
 export const updateVideoPublicationSettings =

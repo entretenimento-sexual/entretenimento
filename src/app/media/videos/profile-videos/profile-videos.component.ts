@@ -927,7 +927,7 @@ export class ProfileVideosComponent {
     this.uploadPhaseSubject.next('DONE');
     this.uploadProgressSubject.next(100);
     this.uploadStepSubject.next('');
-    this.errorNotification.showSuccess('Vídeo adicionado.');
+    this.errorNotification.showSuccess('Vídeo recebido. Publicação sujeita à revisão.');
 
     this.closeUploadDialog();
     this.resetSelection(this.videoInputRef()?.nativeElement);

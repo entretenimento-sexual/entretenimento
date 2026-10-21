@@ -8,6 +8,7 @@ export type VideoPublicationModerationStatus =
   | 'UNKNOWN';
 
 export type RestrictedVideoModerationStatus =
+  | 'PENDING_REVIEW'
   | 'FLAGGED'
   | 'HIDDEN'
   | 'REJECTED';
@@ -43,19 +44,18 @@ export function isRestrictedVideoModerationStatus(
   value: unknown
 ): value is RestrictedVideoModerationStatus {
   const normalized = normalizeVideoPublicationModerationStatus(value);
-  return normalized === 'FLAGGED' ||
+  return normalized === 'PENDING_REVIEW' ||
+    normalized === 'FLAGGED' ||
     normalized === 'HIDDEN' ||
     normalized === 'REJECTED';
 }
 
 /**
- * Nova publicação entra ativa por padrão.
- *
- * PENDING_REVIEW continua existindo como estado de quarentena posterior,
- * acionável por denúncia ou por mecanismos automáticos/tempo-real.
+ * Processamento e intenção de publicação não equivalem à liberação pública.
+ * A revisão administrativa deve liberar explicitamente cada novo vídeo.
  */
-export function defaultVideoPublicationModerationStatus(): 'APPROVED' {
-  return 'APPROVED';
+export function defaultVideoPublicationModerationStatus(): 'PENDING_REVIEW' {
+  return 'PENDING_REVIEW';
 }
 
 export function buildUnassessedVideoScoreBreakdown():
@@ -71,19 +71,12 @@ UnassessedVideoScoreBreakdown {
 }
 
 /**
- * Edição do proprietário preserva restrições impostas pela moderação.
- * Estados não restritos permanecem publicáveis sem fila preventiva.
+ * Edições do proprietário não aprovam vídeos, inclusive legados sem status.
  */
 export function resolveVideoModerationAfterOwnerEdit(
   currentStatus: unknown
-): 'APPROVED' | RestrictedVideoModerationStatus {
-  const normalized = normalizeVideoPublicationModerationStatus(currentStatus);
-
-  if (isRestrictedVideoModerationStatus(normalized)) {
-    return normalized;
-  }
-
-  return 'APPROVED';
+): VideoPublicationModerationStatus {
+  return normalizeVideoPublicationModerationStatus(currentStatus);
 }
 
 /**

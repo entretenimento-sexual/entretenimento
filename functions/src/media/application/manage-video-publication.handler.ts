@@ -37,7 +37,7 @@ import {
 } from './video-publication-commit.firestore';
 
 type VideoVisibility = AvailableMediaPublicationVisibility;
-type ModerationStatus = 'APPROVED';
+type ModerationStatus = 'PENDING_REVIEW';
 type PublishedVideoAssets = Awaited<
   ReturnType<typeof prepareProcessedVideoForPublication>
 >;

@@ -10,8 +10,8 @@ import {
 } from './video-publication-moderation.policy';
 
 test('video-publication-moderation policy', async (t) => {
-  await t.test('new publication starts active without implicit safety score', () => {
-    assert.equal(defaultVideoPublicationModerationStatus(), 'APPROVED');
+  await t.test('new publication requires preventive review', () => {
+    assert.equal(defaultVideoPublicationModerationStatus(), 'PENDING_REVIEW');
     assert.equal(buildUnassessedVideoScoreBreakdown().safetyScore, null);
   });
 
@@ -20,11 +20,12 @@ test('video-publication-moderation policy', async (t) => {
     assert.equal(isLegacyPendingVideoModeration('APPROVED'), false);
   });
 
-  await t.test('non-restricted owner edits remain publishable', () => {
-    assert.equal(resolveVideoModerationAfterOwnerEdit('PRIVATE'), 'APPROVED');
-    assert.equal(resolveVideoModerationAfterOwnerEdit(''), 'APPROVED');
+  await t.test('owner edits never promote pending, private or unknown media', () => {
+    assert.equal(resolveVideoModerationAfterOwnerEdit('PRIVATE'), 'PRIVATE');
+    assert.equal(resolveVideoModerationAfterOwnerEdit(''), 'UNKNOWN');
     assert.equal(resolveVideoModerationAfterOwnerEdit('APPROVED'), 'APPROVED');
-    assert.equal(resolveVideoModerationAfterOwnerEdit('PENDING_REVIEW'), 'APPROVED');
+    assert.equal(resolveVideoModerationAfterOwnerEdit('PENDING_REVIEW'), 'PENDING_REVIEW');
+    assert.equal(isRestrictedVideoModerationStatus('PENDING_REVIEW'), true);
   });
 
   await t.test('owner edit cannot release moderation restrictions', () => {
