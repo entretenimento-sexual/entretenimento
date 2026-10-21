@@ -503,7 +503,7 @@ export const reviewVideoContentReport = onCall<
               targetType === 'video_comment' &&
               canRestoreReportedVideoComment({
                 reportContentQuarantined: report.contentQuarantined === true,
-                commentStatus: target.status,
+                commentStatus: target.status ?? '',
                 publicVideo: video as unknown as Record<string, unknown>,
                 publication: publication as unknown as Record<string, unknown> | null,
                 nowMs: now,
