@@ -232,6 +232,7 @@ export async function commitCopiedVideoPublicationIfCurrent(
         status: 'open',
         moderationAction: null,
         contentQuarantined: true,
+        quarantinedAssetVersion: publicationPatch['assetVersion'],
         evidencePreservationStatus: 'NOT_REQUIRED',
         legalReviewStatus: null,
         createdAt: FieldValue.serverTimestamp(),

@@ -49,6 +49,7 @@ import {
   type VideoReportCounterEvent,
 } from './video-report-safety';
 import type { VideoReportTargetType } from './report-video-content.handler';
+import { canReleaseVideoReportQuarantine } from './video-report-quarantine-release.policy';
 
 export type VideoContentReportDecision = 'KEEP' | 'REMOVE';
 
@@ -70,13 +71,19 @@ interface ModerationReportDocument {
   status?: string;
   moderationAction?: string | null;
   contentQuarantined?: boolean;
+  quarantinedAssetVersion?: number;
   evidencePreservationStatus?: string;
 }
 
 interface PublicVideoDocument {
+  id?: string;
   ownerUid?: string;
   visibility?: string;
   moderationStatus?: string;
+  moderationReason?: string | null;
+  preventiveReviewReportId?: string;
+  activeVideoQuarantineReportId?: string;
+  assetVersion?: number;
   reactionsCount?: number;
   likesCount?: number;
   commentsCount?: number;
@@ -90,6 +97,15 @@ interface PublicVideoDocument {
 }
 
 interface VideoPublicationDocument {
+  ownerUid?: string;
+  videoId?: string;
+  isPublished?: boolean;
+  visibility?: string;
+  moderationStatus?: string;
+  moderationReason?: string | null;
+  preventiveReviewReportId?: string;
+  activeVideoQuarantineReportId?: string;
+  assetVersion?: number;
   publishedStoragePath?: string;
 }
 
@@ -400,40 +416,52 @@ export const reviewVideoContentReport = onCall<
             })
             : null;
 
-        // A delayed preventive decision must never release a newer or
-        // independently quarantined version of the video.
-        if (isPreventiveReview && decision === 'KEEP' && (
-          !publicationSnap.exists || !videoSnap.exists ||
-          publicationSnap.get('preventiveReviewReportId') !== reportId ||
-          videoSnap.get('preventiveReviewReportId') !== reportId ||
-          publicationSnap.get('moderationStatus') !== 'PENDING_REVIEW' ||
-          videoSnap.get('moderationStatus') !== 'PENDING_REVIEW'
-        )) {
+        // This is evaluated on the same Firestore snapshots and transaction
+        // that commit the administrative decision. Never release a different
+        // or superseded quarantine, nor an independently restricted version.
+        const releaseQuarantine = decision === 'KEEP' &&
+          targetType === 'video' &&
+          canReleaseVideoReportQuarantine({
+            reportId,
+            ownerUid,
+            videoId,
+            report,
+            video,
+            publication,
+          });
+        if (isPreventiveReview && decision === 'KEEP' && !releaseQuarantine) {
           throw new HttpsError(
             'failed-precondition',
             'A revisão preventiva não corresponde à publicação atual.'
           );
         }
+        const quarantineLinkField = isPreventiveReview
+          ? 'preventiveReviewReportId'
+          : 'activeVideoQuarantineReportId';
+        const mayClearSafetyAssessment = releaseQuarantine ||
+          (report.contentQuarantined !== true &&
+            video?.moderationStatus === 'APPROVED' &&
+            publication?.moderationStatus === 'APPROVED');
 
         if (decision === 'KEEP' && targetType === 'video') {
           if (video) {
             transaction.update(videoRef, {
               ...scorePatch(video, event),
-              ...(contentSafetyAssessment
+              ...(mayClearSafetyAssessment && contentSafetyAssessment
                 ? { contentSafetyAssessment }
                 : {}),
-              ...(report.contentQuarantined === true
+              ...(releaseQuarantine
                 ? {
                   moderationStatus: 'APPROVED',
                   moderationReason: null,
-                  preventiveReviewReportId: FieldValue.delete(),
+                  [quarantineLinkField]: FieldValue.delete(),
                 }
                 : {}),
               updatedAt: now,
             });
           }
 
-          if (report.contentQuarantined === true && publicationSnap.exists) {
+          if (releaseQuarantine && publicationSnap.exists) {
             transaction.set(
               publicationRef,
               {
@@ -441,10 +469,10 @@ export const reviewVideoContentReport = onCall<
                 publishWhenReady: false,
                 moderationStatus: 'APPROVED',
                 moderationReason: null,
-                ...(contentSafetyAssessment
+                ...(mayClearSafetyAssessment && contentSafetyAssessment
                   ? { contentSafetyAssessment }
                   : {}),
-                preventiveReviewReportId: FieldValue.delete(),
+                [quarantineLinkField]: FieldValue.delete(),
                 ...(isPreventiveReview
                   ? { reviewEvidenceRetention: 'RELEASED_AFTER_REVIEW' }
                   : {}),

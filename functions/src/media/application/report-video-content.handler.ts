@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import { VIDEO_REPORT_QUARANTINE_REASON } from './video-report-quarantine-release.policy';
+
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
@@ -70,6 +72,7 @@ interface PublicVideoDocument {
   ownerUid?: string;
   visibility?: string;
   moderationStatus?: string;
+  assetVersion?: number;
   reactionsCount?: number;
   likesCount?: number;
   commentsCount?: number;
@@ -83,6 +86,10 @@ interface PublicVideoDocument {
 
 interface VideoPublicationDocument {
   publishedStoragePath?: string;
+  isPublished?: boolean;
+  visibility?: string;
+  moderationStatus?: string;
+  assetVersion?: number;
 }
 
 interface VideoCommentDocument {
@@ -123,8 +130,6 @@ const ALLOWED_REASONS = new Set<VideoReportReason>([
   'minor_content_safety',
   'other',
 ]);
-const QUARANTINE_REASON =
-  'Conteúdo temporariamente indisponível durante análise de segurança.';
 
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
@@ -301,6 +306,15 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
               'A publicação deste vídeo não está disponível para moderação.'
             );
           }
+          const publicationData = publicationSnap.data() as VideoPublicationDocument;
+          if (publicationData.isPublished !== true ||
+              publicationData.visibility !== 'PUBLIC' ||
+              publicationData.moderationStatus !== 'APPROVED') {
+            throw new HttpsError(
+              'failed-precondition',
+              'A publicação já está indisponível ou sob moderação.'
+            );
+          }
         } else if (targetType === 'video_comment') {
           if (!targetSnap?.exists || !targetRef) {
             throw new HttpsError('not-found', 'Comentário não encontrado.');
@@ -389,6 +403,13 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
           },
         });
         const timestamp = FieldValue.serverTimestamp();
+        const quarantinedAssetVersion = videoQuarantine &&
+          typeof video.assetVersion === 'number' &&
+          Number.isSafeInteger(video.assetVersion) &&
+          video.assetVersion > 0 &&
+          publicationSnap?.get('assetVersion') === video.assetVersion
+          ? video.assetVersion
+          : null;
 
         transaction.create(reportRef, {
           reporterUid,
@@ -403,6 +424,9 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
           status: 'open',
           moderationAction: null,
           contentQuarantined: quarantine,
+          ...(quarantinedAssetVersion !== null
+            ? { quarantinedAssetVersion }
+            : {}),
           safetySeverity: mediaSafetySeverity(reason),
           criticalMinorSafety,
           evidencePreservationStatus: binaryEvidenceRequired
@@ -445,7 +469,8 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
           ...(videoQuarantine
             ? {
               moderationStatus: 'HIDDEN',
-              moderationReason: QUARANTINE_REASON,
+              moderationReason: VIDEO_REPORT_QUARANTINE_REASON,
+              activeVideoQuarantineReportId: reportId,
             }
             : {}),
           ...(commentQuarantine
@@ -462,7 +487,8 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
               publishWhenReady: false,
               visibility: 'PUBLIC',
               moderationStatus: 'FLAGGED',
-              moderationReason: QUARANTINE_REASON,
+              moderationReason: VIDEO_REPORT_QUARANTINE_REASON,
+              activeVideoQuarantineReportId: reportId,
               ...(contentSafetyAssessment
                 ? { contentSafetyAssessment }
                 : {}),
