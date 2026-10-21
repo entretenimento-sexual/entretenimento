@@ -27,6 +27,9 @@ import {
   hashPublicVideoPlaybackToken,
 } from './public-video-playback-session';
 import { calculateRequiredVideoPlaybackMs } from './video-view-qualification';
+import {
+  assertCurrentPublicVideoTransactionExposure,
+} from './public-video-transaction-exposure.policy';
 
 interface StartPublicVideoPlaybackSessionRequest {
   ownerUid?: string;
@@ -170,6 +173,9 @@ export const startPublicVideoPlaybackSession = onCall<
     // when the playback token is persisted, not only during preflight.
     const ownerAccountRef = db.doc(`users/${ownerUid}`);
     const ownerPublicProfileRef = db.doc(`public_profiles/${ownerUid}`);
+    const publicationRef = db.doc(
+      `users/${ownerUid}/video_publications/${videoId}`
+    );
     await db.runTransaction(async (transaction) => {
       await Promise.all([
         assertPublicMediaConsumptionAccessInTransaction(transaction, viewerUid),
@@ -177,12 +183,13 @@ export const startPublicVideoPlaybackSession = onCall<
           transaction, viewerUid, ownerUid, 'Vídeo público não encontrado.'
         ),
       ]);
-      const [ownerAccountSnap, ownerPublicProfileSnap, currentVideoSnap] =
-        await Promise.all([
-          transaction.get(ownerAccountRef),
-          transaction.get(ownerPublicProfileRef),
-          transaction.get(publicVideoRef),
-        ]);
+      const [ownerAccountSnap, ownerPublicProfileSnap,
+        currentVideoSnap, publicationSnap] = await Promise.all([
+        transaction.get(ownerAccountRef),
+        transaction.get(ownerPublicProfileRef),
+        transaction.get(publicVideoRef),
+        transaction.get(publicationRef),
+      ]);
       assertCurrentPublicMediaOwnerLifecycle(ownerAccountSnap.data());
       if (!ownerPublicProfileSnap.exists) {
         throw new HttpsError('not-found', 'Vídeo público não encontrado.');
@@ -197,6 +204,11 @@ export const startPublicVideoPlaybackSession = onCall<
           currentVersion !== videoVersion) {
         throw new HttpsError('not-found', 'Vídeo público não encontrado.');
       }
+      assertCurrentPublicVideoTransactionExposure({
+        publicVideo: currentVideo,
+        publication: publicationSnap.data(),
+        nowMs: Date.now(),
+      });
       transaction.set(playbackSessionRef, {
         schemaVersion: PUBLIC_VIDEO_PLAYBACK_SESSION_SCHEMA_VERSION,
         viewerUid,

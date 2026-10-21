@@ -7,6 +7,9 @@ import {
 } from '../../friendship/application/bilateral-block-access.policy';
 import { buildMediaEngagementScore } from './media-engagement-score';
 import {
+  assertCurrentPublicVideoTransactionExposure,
+} from './public-video-transaction-exposure.policy';
+import {
   assertPublicMediaConsumptionAccess,
   assertPublicMediaConsumptionAccessInTransaction,
 } from './public-media-consumption-access.policy';
@@ -204,6 +207,9 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
     const publicVideoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
+    const publicationRef = db.doc(
+      `users/${ownerUid}/video_publications/${videoId}`
+    );
     const playbackSessionRef = publicVideoRef
       .collection(PUBLIC_VIDEO_PLAYBACK_SESSION_COLLECTION)
       .doc(viewerUid);
@@ -268,6 +274,7 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
       assertCurrentPublicMediaOwnerLifecycle(ownerAccountSnap.data());
       const publicProfileSnap = await transaction.get(publicProfileRef);
       const publicVideoSnap = await transaction.get(publicVideoRef);
+      const publicationSnap = await transaction.get(publicationRef);
       const playbackSessionSnap = await transaction.get(playbackSessionRef);
       const videoViewerSnap = await transaction.get(videoViewerRef);
       const profileViewerSnap = await transaction.get(profileViewerRef);
@@ -280,6 +287,11 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
         publicVideoSnap.exists,
         publicVideoSnap.data()
       );
+      assertCurrentPublicVideoTransactionExposure({
+        publicVideo: publicVideoSnap.data(),
+        publication: publicationSnap.data(),
+        nowMs: now,
+      });
 
       const publicProfile = publicProfileSnap.data() ?? {};
       const publicVideo = publicVideoSnap.data() ?? {};

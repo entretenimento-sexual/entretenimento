@@ -7,6 +7,9 @@ import {
 } from '../../friendship/application/bilateral-block-access.policy';
 import { buildMediaEngagementScore } from './media-engagement-score';
 import {
+  assertCurrentPublicVideoTransactionExposure,
+} from './public-video-transaction-exposure.policy';
+import {
   assertPublicMediaConsumptionAccess,
   assertPublicMediaConsumptionAccessInTransaction,
 } from './public-media-consumption-access.policy';
@@ -109,6 +112,9 @@ export const recordVideoRetention = onCall<RecordVideoRetentionRequest>(
     const publicVideoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
+    const publicationRef = db.doc(
+      `users/${ownerUid}/video_publications/${videoId}`
+    );
     const viewerRef = publicVideoRef.collection('views').doc(viewerUid);
     const now = Date.now();
     const expectedTokenHash = hashVideoRetentionToken(retentionToken);
@@ -121,14 +127,21 @@ export const recordVideoRetention = onCall<RecordVideoRetentionRequest>(
           transaction, viewerUid, ownerUid, 'Vídeo público não encontrado.'
         ),
       ]);
-      const [ownerAccountSnap, videoSnap, viewerSnap] = await Promise.all([
+      const [ownerAccountSnap, videoSnap,
+        publicationSnap, viewerSnap] = await Promise.all([
         transaction.get(ownerAccountRef),
         transaction.get(publicVideoRef),
+        transaction.get(publicationRef),
         transaction.get(viewerRef),
       ]);
 
       assertCurrentPublicMediaOwnerLifecycle(ownerAccountSnap.data());
       assertPublicApprovedVideo(videoSnap.exists, videoSnap.data());
+      assertCurrentPublicVideoTransactionExposure({
+        publicVideo: videoSnap.data(),
+        publication: publicationSnap.data(),
+        nowMs: now,
+      });
 
       if (!viewerSnap.exists) {
         throw new HttpsError(
