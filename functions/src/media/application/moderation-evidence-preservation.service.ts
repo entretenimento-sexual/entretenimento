@@ -25,8 +25,8 @@ interface ModerationEvidenceJob {
   ownerUid: string;
   mediaId: string;
   reason: MediaReportSafetyReason;
-  sourceStoragePath: string;
-  status: 'PENDING';
+  sourceStoragePath: string | null;
+  status: 'PENDING' | 'BLOCKED_SOURCE_PATH';
   attempts: number;
   createdAt: number;
   updatedAt: number;
@@ -149,13 +149,27 @@ export async function queueModerationEvidencePreservation(
   );
 
   if (!sourceStoragePath) {
-    await reportRef.set(
-      {
-        evidencePreservationStatus: 'PENDING',
-        evidencePreservationUpdatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+    // Durable blocked job: never silently leave a PENDING report without a
+    // corresponding record. A later valid request may replace/rearm this job.
+    const now = Date.now();
+    const batch = db.batch();
+    batch.set(db.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId), {
+      reportId,
+      mediaType: input.mediaType,
+      ownerUid,
+      mediaId,
+      reason: input.reason,
+      sourceStoragePath: null,
+      status: 'BLOCKED_SOURCE_PATH',
+      updatedAt: now,
+      createdAt: now,
+      lastErrorCode: 'INVALID_SOURCE_PATH',
+    }, { merge: true });
+    batch.set(reportRef, {
+      evidencePreservationStatus: 'PENDING',
+      evidencePreservationUpdatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    await batch.commit();
 
     logger.error('[moderationEvidence] Source path inválido para preservação.', {
       reportId,
@@ -163,7 +177,6 @@ export async function queueModerationEvidencePreservation(
       ownerUid,
       mediaId,
     });
-
     return { required: true, preserved: false };
   }
 

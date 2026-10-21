@@ -78,7 +78,7 @@ export const retryPendingModerationEvidencePreservation = onSchedule(
   async () => {
     const jobsSnapshot = await db
       .collection(MODERATION_EVIDENCE_JOBS_COLLECTION)
-      .orderBy('updatedAt', 'asc')
+      .where('status', '==', 'PENDING')
       .limit(RETRY_BATCH_SIZE)
       .get();
 
