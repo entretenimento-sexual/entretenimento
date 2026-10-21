@@ -4393,7 +4393,7 @@ test('c18x-A rollback and three competing retries emit only one event', async ()
   const events = await firestore.collection(VIDEO_TRIAGE_MUTATION_OUTBOX_COLLECTION)
     .where('jobKeySha256', '==', hash).get();
   assert.equal(events.size, 1);
-  assert.ok(ids.includes(events.docs[0].id));
+  assert.ok(ids.some(id => id === events.docs[0].id));
   assert.equal((await abortedRef.get()).exists, false);
   assert.equal((await jobRef.get()).get('state'), 'CANCEL_REQUESTED');
 });
