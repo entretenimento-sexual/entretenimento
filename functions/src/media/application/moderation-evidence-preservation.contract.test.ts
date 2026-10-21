@@ -37,3 +37,12 @@ test('physical evidence mismatch prevents preservation finalization', () => {
   assert.match(source, /Number\(sourceMetadata\.size\) !== Number\(evidenceMetadata\.size\)/);
   assert.match(source, /Evidência preservada diverge do arquivo denunciado/);
 });
+
+test('evidence release fails closed and commits Firestore state atomically', () => {
+  const release = source.slice(source.indexOf('export async function releaseModerationEvidence('));
+  assert.match(release, /await Promise\.all\(/);
+  assert.doesNotMatch(release, /Promise\.allSettled/);
+  assert.match(release, /batch\.delete\(evidenceRef\)/);
+  assert.match(release, /batch\.delete\(db\.collection\(MODERATION_EVIDENCE_JOBS_COLLECTION\)/);
+  assert.match(release, /await batch\.commit\(\)/);
+});

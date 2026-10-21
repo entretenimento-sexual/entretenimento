@@ -432,22 +432,26 @@ export async function releaseModerationEvidence(
     )
   );
 
-  await Promise.allSettled(
+  // Do not claim the evidence was released if any protected object could
+  // not be deleted. A failed release remains retryable with its Firestore
+  // evidence reference and retention status intact.
+  await Promise.all(
     [...pathsToDelete].map((path) =>
       bucket.file(path).delete({ ignoreNotFound: true })
     )
   );
 
-  await Promise.all([
-    evidenceRef.delete(),
-    db.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId).delete(),
-    db.collection('moderation_reports').doc(reportId).set(
-      {
-        evidencePreservationStatus: 'RELEASED',
-        evidenceReleaseReason: releaseReason,
-        evidencePreservationUpdatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    ),
-  ]);
+  const batch = db.batch();
+  batch.delete(evidenceRef);
+  batch.delete(db.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId));
+  batch.set(
+    db.collection('moderation_reports').doc(reportId),
+    {
+      evidencePreservationStatus: 'RELEASED',
+      evidenceReleaseReason: releaseReason,
+      evidencePreservationUpdatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+  await batch.commit();
 }
