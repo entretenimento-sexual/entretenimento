@@ -56,15 +56,25 @@ export async function synchronizePublishedVideoSettings(
     `public_profiles/${ownerUid}/public_videos/${videoId}`
   );
   const privateVideoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
+  const identityRef = db.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+  const deletionRef = db.collection('media_video_deletion_jobs').doc(`${ownerUid}_${videoId}`);
 
   const outcome = await db.runTransaction<SynchronizationOutcome>(
     async (transaction) => {
-      const [publicationSnap, publicVideoSnap, privateVideoSnap] =
+      const [publicationSnap, publicVideoSnap, privateVideoSnap, identitySnap, deletionSnap] =
         await Promise.all([
           transaction.get(publicationRef),
           transaction.get(publicVideoRef),
           transaction.get(privateVideoRef),
+          transaction.get(identityRef),
+          transaction.get(deletionRef),
         ]);
+
+      if (deletionSnap.exists || (identitySnap.exists && (
+        identitySnap.get('state') !== 'REGISTERED' ||
+        identitySnap.get('ownerUid') !== ownerUid ||
+        identitySnap.get('videoId') !== videoId
+      ))) return 'IGNORED_UNPUBLISHED';
 
       if (!publicationSnap.exists) {
         return 'IGNORED_UNPUBLISHED';

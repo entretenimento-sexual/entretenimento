@@ -119,16 +119,29 @@ export const updateVideoPublicationSettings =
       const publicVideoRef = db.doc(
         `public_profiles/${ownerUid}/public_videos/${videoId}`
       );
+      const identityRef = db.doc(`users/${ownerUid}/video_identity_guards/${videoId}`);
+      const deletionRef = db.collection('media_video_deletion_jobs').doc(`${ownerUid}_${videoId}`);
 
       return db.runTransaction(async (transaction) => {
         await assertInteractionAccessInTransaction(transaction, ownerUid);
 
-        const [privateVideoSnap, publicationSnap, publicVideoSnap] =
+        const [privateVideoSnap, publicationSnap, publicVideoSnap, identitySnap, deletionSnap] =
           await Promise.all([
             transaction.get(privateVideoRef),
             transaction.get(publicationRef),
             transaction.get(publicVideoRef),
+          transaction.get(identityRef),
+          transaction.get(deletionRef),
           ]);
+
+        if (deletionSnap.exists || (identitySnap.exists && (
+          identitySnap.get('state') !== 'REGISTERED' ||
+          identitySnap.get('ownerUid') !== ownerUid ||
+          identitySnap.get('videoId') !== videoId
+        ))) {
+          throw new HttpsError('failed-precondition',
+            'A identidade deste vídeo foi aposentada ou está em exclusão.');
+        }
 
         if (!privateVideoSnap.exists) {
           throw new HttpsError('not-found', 'Vídeo não encontrado.');

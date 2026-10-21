@@ -39,3 +39,16 @@ test('duplicate video registration preserves idempotency without reviving retire
   assert.match(register,
     /if\s*\(createError instanceof VideoIdentityUnavailableError\)\s*\{\s*throw new HttpsError\(/);
 });
+
+test('async video settings writers fence retired identity and deletion', () => {
+  for (const name of [
+    'sync-published-video-settings.handler.ts',
+    'update-video-publication-settings.handler.ts',
+  ]) {
+    const source = fromSource(name);
+    assert.match(source, /transaction\.get\(identityRef\)/);
+    assert.match(source, /transaction\.get\(deletionRef\)/);
+    assert.match(source, /identitySnap\.get\('state'\) !== 'REGISTERED'/);
+    assert.match(source, /deletionSnap\.exists/);
+  }
+});
