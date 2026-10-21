@@ -120,6 +120,9 @@ async function run() {
     const profileRef = db.doc('public_profiles/' + ownerUid);
     const photoRef = profileRef.collection('public_photos').doc(photoId);
     const videoRef = profileRef.collection('public_videos').doc(videoId);
+    const publicationRef = db.doc(
+      `users/${ownerUid}/video_publications/${videoId}`
+    );
     const viewRef = videoRef.collection('views').doc(viewerUid);
     const sessionRef = videoRef.collection('playback_sessions').doc(viewerUid);
     const ownerBlockRef = ownerRef.collection('blocks').doc(viewerUid);
@@ -151,6 +154,14 @@ async function run() {
         uniqueViewersCount: 0,
         reactionsCount: 0,
         publishedAt: Date.now(),
+      }),
+      publicationRef.set({
+        ownerUid,
+        videoId,
+        isPublished: true,
+        visibility: 'PUBLIC',
+        moderationStatus: 'APPROVED',
+        assetVersion,
       }),
       videoRef.set({
         id: videoId,
@@ -280,6 +291,34 @@ async function run() {
     await expectError(start, videoPayload, 'not-found');
     assert.equal((await videoRef.get()).data().viewsCount, 1);
     console.log('[media-callables:e2e] PASS owner suspension revokes new session');
+
+    // An approved public projection is not sufficient when the authoritative
+    // publication is flagged. This also fences tokens issued before the hold.
+    await ownerRef.update({ suspended: false });
+    const sessionBeforeHold = (await start(videoPayload)).data;
+    await publicationRef.update({ moderationStatus: 'FLAGGED' });
+    await expectError(start, videoPayload, 'not-found');
+    await expectError(retention, retentionPayload, 'not-found');
+    await sleep(Math.max(0, sessionBeforeHold.earliestQualifiedAt - Date.now() + 250));
+    const postHoldEvidence = {
+      sessionId: randomUUID().replaceAll('-', ''),
+      playbackMs: sessionBeforeHold.requiredPlaybackMs,
+      durationMs: DURATION_MS,
+      qualifiedAt: Date.now(),
+    };
+    await expectError(videoView, {
+      ...videoPayload,
+      playbackToken: sessionBeforeHold.playbackToken,
+      evidence: postHoldEvidence,
+      source: 'profile',
+    }, 'not-found');
+    assert.equal((await videoRef.get()).data().viewsCount, 1);
+    assert.equal((await videoRef.get()).data().retentionBasisPointsTotal, retentionBefore);
+    console.log('[media-callables:e2e] PASS canonical publication hold revokes playback and metrics');
+
+    await publicationRef.update({ moderationStatus: 'APPROVED', isPublished: false });
+    await expectError(start, videoPayload, 'not-found');
+    console.log('[media-callables:e2e] PASS unpublish denies stale public projection');
     console.log('[media-callables:e2e] PASS all authenticated media callable boundaries');
   } finally {
     await Promise.allSettled(clients.map((value) => deleteApp(value.app)));
