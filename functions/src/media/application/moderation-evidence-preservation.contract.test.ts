@@ -53,3 +53,10 @@ test('preserved REMOVE retains retryable cleanup obligation', () => {
   assert.match(retry, /await finishPreservedCleanup\(cleanup\.id\)/);
   assert.match(retry, /if \(job\.get\('status'\) === 'CLEANUP_PENDING'\)/);
 });
+
+test('moderation cleanup acknowledges only completed physical deletion', () => {
+  assert.match(retry, /const result = await deleteProfilePhotoResources/);
+  assert.match(retry, /const result = await deleteProfileVideoResources/);
+  assert.match(retry, /return result\.cleanupPending === false/g);
+  assert.match(retry, /if \(!await cleanupResolvedRemovedMedia\(reportId\)\) return/);
+});

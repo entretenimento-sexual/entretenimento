@@ -58,16 +58,16 @@ async function cleanupResolvedRemovedMedia(reportId: string): Promise<boolean> {
   }
 
   if (targetType === 'photo') {
-    await deleteProfilePhotoResources(ownerUid, mediaId, {
+    const result = await deleteProfilePhotoResources(ownerUid, mediaId, {
       allowQuarantined: true,
     });
-    return true;
+    return result.cleanupPending === false;
   }
 
-  await deleteProfileVideoResources(ownerUid, mediaId, {
+  const result = await deleteProfileVideoResources(ownerUid, mediaId, {
     allowQuarantined: true,
   });
-  return true;
+  return result.cleanupPending === false;
 }
 
 async function finishPreservedCleanup(reportId: string): Promise<void> {
