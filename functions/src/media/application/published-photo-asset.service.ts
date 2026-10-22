@@ -343,6 +343,7 @@ export async function copyPrivatePhotoToPublishedAsset(
   try {
     await destinationFile.save(sanitized.data, {
       resumable: false,
+      preconditionOpts: { ifGenerationMatch: 0 },
       metadata: {
         contentType: sanitized.contentType,
         contentDisposition: 'inline',
