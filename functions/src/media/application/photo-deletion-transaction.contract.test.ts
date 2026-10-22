@@ -71,3 +71,19 @@ test('published cleanup retries verify job identity before deleting or updating'
   assert.match(runner, /tx\.delete\(jobDoc\.ref\)/);
   assert.match(runner, /tx\.update\(jobDoc\.ref, \{/);
 });
+
+test('published cleanup invalid and retention paths use identity-guarded transactions', () => {
+  const cleanup = readFileSync(
+    join(__dirname, '../../../src/media/application/published-photo-asset.service.ts'),
+    'utf8'
+  );
+  const runner = cleanup.slice(cleanup.indexOf('export async function processPendingPublishedPhotoAssetCleanupJobs'));
+  const invalid = runner.slice(runner.indexOf('if (!storagePath) {'), runner.indexOf('try {', runner.indexOf('if (!storagePath) {')));
+  const retention = runner.slice(runner.indexOf('if (await hasPublishedPhotoRetentionBlocker(job))'), runner.indexOf('waitingRetention += 1'));
+  for (const part of [invalid, retention]) {
+    assert.match(part, /await db\.runTransaction\(async \(tx\) =>/);
+    assert.match(part, /current\.get\('createdAt'\) !== job\.createdAt/);
+    assert.match(part, /current\.get\('attempts'\) !== job\.attempts/);
+    assert.match(part, /tx\.update\(jobDoc\.ref, \{/);
+  }
+});
