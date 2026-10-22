@@ -251,17 +251,45 @@ export async function deleteProfilePhotoResources(
     deadLetterExpiresAt: null,
   };
 
-  const hideBatch = db.batch();
-  hideBatch.set(jobRef, job);
-  if (publicationSnap.exists && publicationSnap.updateTime) {
-    hideBatch.delete(publicationRef, {
-      lastUpdateTime: publicationSnap.updateTime,
-    });
-  } else {
-    hideBatch.delete(publicationRef);
-  }
-  hideBatch.delete(publicPhotoRef);
-  await hideBatch.commit();
+  const staged = await db.runTransaction(async (tx) => {
+    const [existingJob, currentPhoto, currentPublication] = await Promise.all([
+      tx.get(jobRef),
+      tx.get(privatePhotoRef),
+      tx.get(publicationRef),
+    ]);
+    if (existingJob.exists) {
+      if (
+        existingJob.get('ownerUid') !== ownerUid ||
+        existingJob.get('photoId') !== photoId ||
+        existingJob.get('storagePath') !== storagePath
+      ) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Obrigação de exclusão de foto com identidade divergente.'
+        );
+      }
+      return false;
+    }
+    if (!currentPhoto.exists ||
+        extractOwnedPrivatePhotoPath(ownerUid, currentPhoto.get('path')) !== storagePath &&
+        extractOwnedPrivatePhotoPath(ownerUid, currentPhoto.get('url')) !== storagePath) {
+      throw new HttpsError('failed-precondition', 'Foto alterada durante a exclusão.');
+    }
+    const currentPublicationData = currentPublication.exists
+      ? currentPublication.data() as PhotoPublicationDoc
+      : null;
+    if (isModerationLockedPublication(currentPublicationData) &&
+        options.allowQuarantined !== true) {
+      throw new HttpsError('failed-precondition', 'Foto protegida pela moderação.');
+    }
+    tx.create(jobRef, job);
+    tx.delete(publicationRef);
+    tx.delete(publicPhotoRef);
+    return true;
+  });
+
+  // An existing obligation owns its retry history and physical deletion lifecycle.
+  if (!staged) return { photoId, cleanupPending: true };
 
   const publishedAssetDeleted = await deletePublishedPhotoAssetOrQueue({
     ownerUid,
