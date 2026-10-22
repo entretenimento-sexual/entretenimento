@@ -93,6 +93,20 @@ function buildCleanupJobId(storagePath: string): string {
   return createHash('sha256').update(storagePath).digest('hex');
 }
 
+/** Absent is safe to skip; a supplied invalid path needs explicit review. */
+function resolvePublishedPhotoCleanupPath(
+  ownerUid: string,
+  photoId: string,
+  value: string | null | undefined
+): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  const path = normalizeOwnedPublishedPhotoPath(ownerUid, photoId, value);
+  if (!path) {
+    throw new Error('Caminho de foto publicada inválido; revisão manual necessária.');
+  }
+  return path;
+}
+
 function safeCleanupAttempts(value: unknown): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
@@ -220,7 +234,7 @@ export function stagePublishedPhotoAssetCleanup(
   transaction: FirebaseFirestore.Transaction,
   command: DeletePublishedPhotoAssetCommand
 ): StagedPublishedPhotoAssetCleanup | null {
-  const storagePath = normalizeOwnedPublishedPhotoPath(
+  const storagePath = resolvePublishedPhotoCleanupPath(
     command.ownerUid,
     command.photoId,
     command.storagePath
@@ -374,7 +388,7 @@ export async function copyPrivatePhotoToPublishedAsset(
 export async function deletePublishedPhotoAssetOrQueue(
   command: DeletePublishedPhotoAssetCommand
 ): Promise<boolean> {
-  const storagePath = normalizeOwnedPublishedPhotoPath(
+  const storagePath = resolvePublishedPhotoCleanupPath(
     command.ownerUid,
     command.photoId,
     command.storagePath

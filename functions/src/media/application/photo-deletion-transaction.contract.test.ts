@@ -123,3 +123,16 @@ test('previously absent private photo is checked again before finalizing its del
   assert.match(source, /file\(job\.storagePath\)\.exists\(\)/);
   assert.match(source, /Previously absent private photo now exists/);
 });
+
+test('published photo deletion fails closed on supplied invalid asset paths', () => {
+  const cleanup = readFileSync(
+    join(__dirname, '../../../src/media/application/published-photo-asset.service.ts'),
+    'utf8'
+  );
+  assert.match(cleanup, /function resolvePublishedPhotoCleanupPath\(/);
+  assert.match(cleanup, /value === null \|\| value === undefined \|\| value === ''/);
+  assert.match(cleanup, /Caminho de foto publicada inválido; revisão manual necessária/);
+  assert.match(cleanup, /const storagePath = resolvePublishedPhotoCleanupPath\(/);
+  assert.match(cleanup, /export function stagePublishedPhotoAssetCleanup/);
+  assert.match(cleanup, /export async function deletePublishedPhotoAssetOrQueue/);
+});
