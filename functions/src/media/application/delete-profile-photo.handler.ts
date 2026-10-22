@@ -25,6 +25,11 @@ import {
   stagePublishedPhotoAssetCleanup,
 } from './published-photo-asset.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
+import {
+  deleteGenerationPinnedVideoFile,
+  normalizeGcsGeneration,
+  VideoDeletionGenerationConflictError,
+} from './video-deletion-storage-pages';
 
 interface DeleteProfilePhotoRequest {
   ownerUid?: string;
@@ -44,6 +49,8 @@ interface PhotoDeletionJob {
   ownerUid: string;
   photoId: string;
   storagePath: string;
+  /** Exact GCS generation, or 'absent' if the object was absent when staged. */
+  storageGeneration?: string;
   createdAt: number;
   updatedAt: number;
   attempts: number;
@@ -109,6 +116,24 @@ function normalizeErrorMessage(error: unknown): string {
   return String(error ?? 'unknown').slice(0, 500);
 }
 
+async function capturePrivatePhotoGeneration(storagePath: string): Promise<string> {
+  try {
+    const [metadata] = await getDefaultStorageBucket().file(storagePath).getMetadata();
+    const generation = normalizeGcsGeneration(metadata.generation);
+    if (!generation) {
+      throw new VideoDeletionGenerationConflictError(
+        'Missing private photo generation; manual review required.'
+      );
+    }
+    return generation;
+  } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error
+      ? (error as { code: unknown }).code : null;
+    if (code === 404 || code === '404') return 'absent';
+    throw error;
+  }
+}
+
 async function executeDeletionJob(
   jobId: string,
   job: PhotoDeletionJob
@@ -117,9 +142,20 @@ async function executeDeletionJob(
     `users/${job.ownerUid}/photos/${job.photoId}`
   );
 
-  await getDefaultStorageBucket()
-    .file(job.storagePath)
-    .delete({ ignoreNotFound: true });
+  // A legacy job cannot infer its original generation from today's object.
+  const generation = normalizeGcsGeneration(job.storageGeneration);
+  if (generation) {
+    await deleteGenerationPinnedVideoFile(generation, (expected) =>
+      getDefaultStorageBucket().file(job.storagePath).delete({
+        ignoreNotFound: true,
+        ifGenerationMatch: expected,
+      })
+    );
+  } else if (job.storageGeneration !== 'absent') {
+    throw new VideoDeletionGenerationConflictError(
+      'Unpinned private photo deletion; manual review required.'
+    );
+  }
 
   await db.recursiveDelete(privatePhotoRef);
   await finalizePhotoDeletionJob(db, jobId, job);
@@ -133,6 +169,7 @@ async function recordDeletionAttemptFailure(
   const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
   const now = Date.now();
   const retry = nextPhotoCleanupRetry(job.attempts, now);
+  const needsReview = error instanceof VideoDeletionGenerationConflictError;
 
   try {
     await db.runTransaction(async (tx) => {
@@ -147,10 +184,10 @@ async function recordDeletionAttemptFailure(
       // Do not allow a stale retry to regress the attempt counter.
       if (Number(current.get('attempts') ?? 0) !== job.attempts) return;
       tx.update(jobRef, {
-        state: retry.state,
-        attempts: retry.attempts,
-        nextAttemptAt: retry.nextAttemptAt,
-        deadLetterExpiresAt: retry.deadLetterExpiresAt,
+        state: needsReview ? 'dead_letter' : retry.state,
+        attempts: needsReview ? PHOTO_CLEANUP_MAX_ATTEMPTS : retry.attempts,
+        nextAttemptAt: needsReview ? null : retry.nextAttemptAt,
+        deadLetterExpiresAt: needsReview ? null : retry.deadLetterExpiresAt,
         updatedAt: now,
         lastError: normalizeErrorMessage(error),
       });
@@ -162,7 +199,7 @@ async function recordDeletionAttemptFailure(
     });
   }
 
-  return retry.state;
+  return needsReview ? 'dead_letter' : retry.state;
 }
 
 /**
@@ -262,6 +299,9 @@ export async function deleteProfilePhotoResources(
     );
   }
 
+  // Pin the actual private object before its deletion obligation is staged.
+  // A later overwrite must not become the target of a delayed retry.
+  const storageGeneration = await capturePrivatePhotoGeneration(storagePath);
   const now = Date.now();
   const jobId = buildDeletionJobId(ownerUid, photoId);
   const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
@@ -269,6 +309,7 @@ export async function deleteProfilePhotoResources(
     ownerUid,
     photoId,
     storagePath,
+    storageGeneration,
     createdAt: now,
     updatedAt: now,
     attempts: 0,
