@@ -322,9 +322,16 @@ async function copyPosterIfAvailable(
       },
     });
   } catch (error) {
-    // A failed copy does not prove ownership of the destination generation.
-    // Never issue a blind compensating delete; retain it for reconciliation.
-    logger.warn('[publishedVideoAsset] Cópia de pôster sem confirmação; revisão necessária.', {
+    // An uncertain copy does not prove ownership of a destination generation.
+    // Persist a manual-review obligation instead of performing a blind delete.
+    await enqueuePublishedVideoAssetCleanup({
+      ownerUid: command.ownerUid,
+      videoId: command.videoId,
+      storagePath: destinationPath,
+      assetKind: 'poster',
+      reason: 'unconfirmed-published-poster-copy',
+    }, destinationPath, null, error);
+    logger.warn('[publishedVideoAsset] Cópia de pôster sem confirmação; revisão pendente.', {
       ownerUid: command.ownerUid,
       videoId: command.videoId,
       destinationPath,

@@ -151,7 +151,15 @@ async function executeDeletionJob(
         ifGenerationMatch: expected,
       })
     );
-  } else if (job.storageGeneration !== 'absent') {
+  } else if (job.storageGeneration === 'absent') {
+    // Absence recorded at staging is not permission to remove a later upload.
+    const [exists] = await getDefaultStorageBucket().file(job.storagePath).exists();
+    if (exists) {
+      throw new VideoDeletionGenerationConflictError(
+        'Previously absent private photo now exists; manual review required.'
+      );
+    }
+  } else {
     throw new VideoDeletionGenerationConflictError(
       'Unpinned private photo deletion; manual review required.'
     );

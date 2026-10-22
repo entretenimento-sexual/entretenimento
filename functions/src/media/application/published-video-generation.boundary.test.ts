@@ -31,3 +31,9 @@ test('a GCS generation conflict cannot be retried without a precondition', () =>
   assert.match(service, /previousGeneration && generation && previousGeneration !== generation/);
   assert.match(queue, /leaseToken'\] !== token/);
 });
+
+test('uncertain poster copy persists a manual-review cleanup obligation', () => {
+  assert.match(service, /reason: 'unconfirmed-published-poster-copy'/);
+  assert.match(service, /enqueuePublishedVideoAssetCleanup\(\{/);
+  assert.doesNotMatch(service, /destinationPoster\s*\.delete\(/);
+});

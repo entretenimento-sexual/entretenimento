@@ -117,3 +117,9 @@ test('direct published cleanup preserves replacement jobs after physical deletio
   assert.match(direct, /current\.get\('updatedAt'\) !== existingCleanup\.get\('updatedAt'\)/);
   assert.match(direct, /tx\.delete\(cleanupRef\)/);
 });
+
+test('previously absent private photo is checked again before finalizing its deletion', () => {
+  assert.match(source, /job\.storageGeneration === 'absent'/);
+  assert.match(source, /file\(job\.storagePath\)\.exists\(\)/);
+  assert.match(source, /Previously absent private photo now exists/);
+});
