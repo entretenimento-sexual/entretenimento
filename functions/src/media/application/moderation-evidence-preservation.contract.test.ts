@@ -60,3 +60,10 @@ test('moderation cleanup acknowledges only completed physical deletion', () => {
   assert.match(retry, /return result\.cleanupPending === false/g);
   assert.match(retry, /if \(!await cleanupResolvedRemovedMedia\(reportId\)\) return/);
 });
+
+test('previously preserved REMOVE stages durable cleanup before deletion', () => {
+  assert.match(source, /export async function ensurePreservedModerationCleanupJob/);
+  assert.match(source, /tx\.create\(jobRef/);
+  assert.match(source, /evidence\.get\('mediaId'\) !== mediaId/);
+  assert.match(source, /evidence\.get\('mediaType'\) !== mediaType/);
+});

@@ -33,6 +33,7 @@ import {
   type MediaScoreBreakdown,
 } from './media-engagement-score';
 import {
+  ensurePreservedModerationCleanupJob,
   queueModerationEvidencePreservation,
   releaseModerationEvidence,
 } from './moderation-evidence-preservation.service';
@@ -774,6 +775,13 @@ export const reviewVideoContentReport = onCall<
         });
         evidenceReady = preservation.preserved;
         evidencePreservationPending = !preservation.preserved;
+      }
+
+      if (evidenceReady && result.binaryEvidenceRequired) {
+        evidenceReady = await ensurePreservedModerationCleanupJob(
+          reportId, 'VIDEO', result.ownerUid, result.videoId
+        );
+        if (!evidenceReady) cleanupPending = true;
       }
 
       if (evidenceReady) {

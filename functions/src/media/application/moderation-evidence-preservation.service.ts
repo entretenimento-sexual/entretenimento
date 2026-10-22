@@ -415,6 +415,55 @@ export async function preserveModerationEvidence(
   }
 }
 
+
+/**
+ * An already-preserved report may be resolved REMOVE long after preservation.
+ * Stage its cleanup obligation before requesting any physical deletion.
+ */
+export async function ensurePreservedModerationCleanupJob(
+  reportIdValue: unknown,
+  mediaType: ModerationEvidenceMediaType,
+  ownerUidValue: unknown,
+  mediaIdValue: unknown
+): Promise<boolean> {
+  const reportId = cleanId(reportIdValue);
+  const ownerUid = cleanId(ownerUidValue);
+  const mediaId = cleanId(mediaIdValue);
+  if (!reportId || !ownerUid || !mediaId) return false;
+
+  const reportRef = db.collection('moderation_reports').doc(reportId);
+  const evidenceRef = db.collection(MODERATION_EVIDENCE_COLLECTION).doc(reportId);
+  const jobRef = db.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId);
+  return db.runTransaction(async (tx) => {
+    const [report, evidence, job] = await Promise.all([
+      tx.get(reportRef), tx.get(evidenceRef), tx.get(jobRef),
+    ]);
+    if (!report.exists || !evidence.exists ||
+        String(report.get('moderationAction') ?? '').toUpperCase() !== 'REMOVE' ||
+        String(report.get('evidencePreservationStatus') ?? '').toUpperCase() !== 'PRESERVED' ||
+        report.get('targetOwnerUid') !== ownerUid ||
+        evidence.get('ownerUid') !== ownerUid ||
+        evidence.get('mediaId') !== mediaId ||
+        evidence.get('mediaType') !== mediaType ||
+        (job.exists && job.get('status') === 'CLEANUP_PENDING')) {
+      return report.exists && evidence.exists &&
+        job.exists && job.get('status') === 'CLEANUP_PENDING';
+    }
+    if (job.exists && job.get('status') !== 'CLEANUP_PENDING') {
+      return false;
+    }
+    const now = Date.now();
+    tx.create(jobRef, {
+      reportId, mediaType, ownerUid, mediaId,
+      reason: evidence.get('reason') ?? null,
+      sourceStoragePath: null,
+      status: 'CLEANUP_PENDING',
+      attempts: 0, createdAt: now, updatedAt: now, lastErrorCode: null,
+    });
+    return true;
+  });
+}
+
 export async function releaseModerationEvidence(
   reportIdValue: unknown,
   releaseReason: 'REPORT_REJECTED' | 'LEGAL_RETENTION_RELEASED'

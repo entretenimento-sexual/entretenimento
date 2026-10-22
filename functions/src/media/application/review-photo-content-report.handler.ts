@@ -28,6 +28,7 @@ import {
   type MinorMediaSafetyReason,
 } from './media-report-safety';
 import {
+  ensurePreservedModerationCleanupJob,
   queueModerationEvidencePreservation,
   releaseModerationEvidence,
 } from './moderation-evidence-preservation.service';
@@ -626,6 +627,13 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
         });
         evidenceReady = preservation.preserved;
         evidencePreservationPending = !preservation.preserved;
+      }
+
+      if (evidenceReady && result.evidenceRequired) {
+        evidenceReady = await ensurePreservedModerationCleanupJob(
+          reportId, 'PHOTO', result.ownerUid, result.photoId
+        );
+        if (!evidenceReady) cleanupPending = true;
       }
 
       if (evidenceReady && result.contentAvailableAtReview) {
