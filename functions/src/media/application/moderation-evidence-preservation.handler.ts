@@ -84,7 +84,10 @@ async function cleanupResolvedRemovedMedia(
   return result.cleanupPending === false;
 }
 
-async function finishPreservedCleanup(reportId: string): Promise<void> {
+export async function finishPreservedCleanup(
+  reportId: string,
+  cleanup: typeof cleanupResolvedRemovedMedia = cleanupResolvedRemovedMedia
+): Promise<void> {
   const jobRef = db.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId);
   const jobBefore = await jobRef.get();
   const identity: CleanupIdentity = {
@@ -100,7 +103,7 @@ async function finishPreservedCleanup(reportId: string): Promise<void> {
     !matchingCleanupIdentity(jobBefore, identity)
   ) return;
 
-  if (!await cleanupResolvedRemovedMedia(reportId, identity)) return;
+  if (!await cleanup(reportId, identity)) return;
 
   // Prevent acknowledging a replaced job or changed report/evidence after physical deletion.
   await db.runTransaction(async (tx) => {
