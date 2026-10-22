@@ -411,15 +411,33 @@ export async function deletePublishedPhotoAssetOrQueue(
       return false;
     }
 
+    const cleanupRef = db
+      .collection(CLEANUP_COLLECTION)
+      .doc(buildCleanupJobId(storagePath));
+    const existingCleanup = await cleanupRef.get();
+
     await getDefaultStorageBucket()
       .file(storagePath)
       .delete({ ignoreNotFound: true });
 
-    await db
-      .collection(CLEANUP_COLLECTION)
-      .doc(buildCleanupJobId(storagePath))
-      .delete()
-      .catch(() => undefined);
+    if (existingCleanup.exists) {
+      await db.runTransaction(async (tx) => {
+        const current = await tx.get(cleanupRef);
+        if (!current.exists ||
+            current.get('ownerUid') !== existingCleanup.get('ownerUid') ||
+            current.get('photoId') !== existingCleanup.get('photoId') ||
+            current.get('storagePath') !== existingCleanup.get('storagePath') ||
+            current.get('createdAt') !== existingCleanup.get('createdAt') ||
+            current.get('updatedAt') !== existingCleanup.get('updatedAt')) return;
+        tx.delete(cleanupRef);
+      }).catch((error) => {
+        logger.warn('[publishedPhotoAsset] Finalização de job pendente.', {
+          ownerUid: command.ownerUid,
+          photoId: command.photoId,
+          error: normalizeErrorMessage(error),
+        });
+      });
+    }
 
     return true;
   } catch (error) {
