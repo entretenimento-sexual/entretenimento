@@ -51,3 +51,10 @@ test('photo upload registration checks existing deletion job in same transaction
   assert.match(upload, /if \(deletionJobSnap\.exists\)/);
   assert.match(upload, /A exclusão anterior desta foto ainda está em andamento/);
 });
+
+test('published asset cleanup is durable before publication is removed', () => {
+  const stage = source.indexOf('stagePublishedPhotoAssetCleanup(tx, {');
+  const remove = source.indexOf('tx.delete(publicationRef);');
+  assert.ok(stage >= 0 && remove > stage);
+  assert.match(source, /storagePath: currentPublicationData\?\.publishedStoragePath/);
+});
