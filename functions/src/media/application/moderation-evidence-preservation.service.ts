@@ -444,13 +444,14 @@ export async function ensurePreservedModerationCleanupJob(
         report.get('targetOwnerUid') !== ownerUid ||
         evidence.get('ownerUid') !== ownerUid ||
         evidence.get('mediaId') !== mediaId ||
-        evidence.get('mediaType') !== mediaType ||
-        (job.exists && job.get('status') === 'CLEANUP_PENDING')) {
-      return report.exists && evidence.exists &&
-        job.exists && job.get('status') === 'CLEANUP_PENDING';
-    }
-    if (job.exists && job.get('status') !== 'CLEANUP_PENDING') {
+        evidence.get('mediaType') !== mediaType) {
       return false;
+    }
+    if (job.exists) {
+      return job.get('status') === 'CLEANUP_PENDING' &&
+        job.get('ownerUid') === ownerUid &&
+        job.get('mediaId') === mediaId &&
+        job.get('mediaType') === mediaType;
     }
     const now = Date.now();
     tx.create(jobRef, {
