@@ -352,7 +352,7 @@ export async function copyPrivatePhotoToPublishedAsset(
     });
     return destinationPath;
   } catch (error) {
-    await destinationFile.delete({ ignoreNotFound: true }).catch(() => undefined);
+    // A failed create-only write must never delete an existing generation.
     throw error;
   }
 }
