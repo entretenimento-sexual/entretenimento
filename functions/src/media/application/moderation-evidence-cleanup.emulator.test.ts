@@ -307,3 +307,41 @@ test('PUBLISHED PHOTO: retry processor deletes physical file and acknowledges jo
   assert.equal((await file.exists())[0], false);
   assert.equal((await jobRef.get()).exists, false);
 });
+
+test('PUBLISHED PHOTO: physical delete failure persists job then real retry recovers', async () => {
+  const ownerUid = randomUUID();
+  const photoId = randomUUID();
+  const storagePath = `users/${ownerUid}/published/images/${photoId}/${randomUUID()}`;
+  const file = getDefaultStorageBucket().file(storagePath);
+  await file.save(Buffer.from('physical-failure-fixture'), { resumable: false });
+  const jobId = createHash('sha256').update(storagePath).digest('hex');
+  const jobRef = db.collection('media_published_asset_cleanup_jobs').doc(jobId);
+  const prototype = Object.getPrototypeOf(file) as { delete: typeof file.delete };
+  const originalDelete = prototype.delete;
+  let injected = false;
+  try {
+    prototype.delete = async function (this: typeof file, ...args: Parameters<typeof file.delete>) {
+      if (this.name === storagePath && !injected) {
+        injected = true;
+        throw new Error('injected temporary storage outage');
+      }
+      return originalDelete.apply(this, args);
+    };
+    const result = await deletePublishedPhotoAssetOrQueue({
+      ownerUid, photoId, storagePath, reason: 'test-physical-failure-recovery',
+    });
+    assert.equal(result, false);
+  } finally {
+    prototype.delete = originalDelete;
+  }
+  assert.equal(injected, true);
+  const pending = await jobRef.get();
+  assert.equal(pending.exists, true);
+  assert.equal(pending.get('state'), 'retryable');
+  assert.equal(pending.get('attempts'), 1);
+  assert.equal((await file.exists())[0], true);
+  await jobRef.update({ nextAttemptAt: Date.now() - 1000 });
+  await processPendingPublishedPhotoAssetCleanupJobs(100);
+  assert.equal((await file.exists())[0], false);
+  assert.equal((await jobRef.get()).exists, false);
+});
