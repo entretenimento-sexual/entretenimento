@@ -461,17 +461,24 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
     );
 
     if (!storagePath) {
-      await jobDoc.ref.set(
-        {
+      await db.runTransaction(async (tx) => {
+        const current = await tx.get(jobDoc.ref);
+          if (!current.exists ||
+              current.get('ownerUid') !== job.ownerUid ||
+              current.get('photoId') !== job.photoId ||
+              current.get('storagePath') !== job.storagePath ||
+              current.get('createdAt') !== job.createdAt ||
+              current.get('updatedAt') !== job.updatedAt ||
+              current.get('attempts') !== job.attempts) return;
+          tx.update(jobDoc.ref, {
           state: 'dead_letter',
           attempts: PHOTO_CLEANUP_MAX_ATTEMPTS,
           nextAttemptAt: null,
           deadLetterExpiresAt: null,
           updatedAt: Date.now(),
           lastError: 'Job de limpeza com storagePath inválido.',
-        },
-        { merge: true }
-      );
+        });
+      });
       deadLetter += 1;
       logger.error('[publishedPhotoAsset] Job de limpeza inválido.', {
         jobId: jobDoc.id,
@@ -482,16 +489,23 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
     try {
       if (await hasPublishedPhotoRetentionBlocker(job)) {
         const now = Date.now();
-        await jobDoc.ref.set(
-          {
+        await db.runTransaction(async (tx) => {
+          const current = await tx.get(jobDoc.ref);
+          if (!current.exists ||
+              current.get('ownerUid') !== job.ownerUid ||
+              current.get('photoId') !== job.photoId ||
+              current.get('storagePath') !== job.storagePath ||
+              current.get('createdAt') !== job.createdAt ||
+              current.get('updatedAt') !== job.updatedAt ||
+              current.get('attempts') !== job.attempts) return;
+          tx.update(jobDoc.ref, {
             state: 'waiting_retention',
             nextAttemptAt: photoCleanupRetentionRecheckAt(now),
             deadLetterExpiresAt: null,
             updatedAt: now,
             lastError: null,
-          },
-          { merge: true }
-        );
+          });
+        });
         waitingRetention += 1;
         continue;
       }
