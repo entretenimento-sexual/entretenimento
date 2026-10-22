@@ -6,6 +6,7 @@ import { db } from '../../firebaseApp';
 import { deleteProfilePhotoResources } from './delete-profile-photo.handler';
 import { deleteProfileVideoResources } from './delete-profile-video.handler';
 import {
+  MODERATION_EVIDENCE_COLLECTION,
   MODERATION_EVIDENCE_JOBS_COLLECTION,
   preserveModerationEvidence,
   rearmBlockedModerationEvidenceFromPublication,
@@ -64,7 +65,7 @@ async function cleanupResolvedRemovedMedia(
     identity.mediaType !== (targetType === 'photo' ? 'PHOTO' : 'VIDEO')
   ) return false;
 
-  const evidenceSnap = await db.collection('moderation_evidence').doc(reportId).get();
+  const evidenceSnap = await db.collection(MODERATION_EVIDENCE_COLLECTION).doc(reportId).get();
   if (!evidenceSnap.exists ||
       evidenceSnap.get('ownerUid') !== identity.ownerUid ||
       evidenceSnap.get('mediaId') !== identity.mediaId ||
@@ -104,7 +105,7 @@ async function finishPreservedCleanup(reportId: string): Promise<void> {
   // Prevent acknowledging a replaced job or changed report/evidence after physical deletion.
   await db.runTransaction(async (tx) => {
     const reportRef = db.collection('moderation_reports').doc(reportId);
-    const evidenceRef = db.collection('moderation_evidence').doc(reportId);
+    const evidenceRef = db.collection(MODERATION_EVIDENCE_COLLECTION).doc(reportId);
     const [job, report, evidence] = await Promise.all([
       tx.get(jobRef), tx.get(reportRef), tx.get(evidenceRef),
     ]);
