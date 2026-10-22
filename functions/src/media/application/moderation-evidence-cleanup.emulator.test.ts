@@ -326,7 +326,7 @@ test('PUBLISHED PHOTO: physical delete failure persists job then real retry reco
         throw new Error('injected temporary storage outage');
       }
       return originalDelete.apply(this, args);
-    } as typeof file.delete;
+    } as unknown as typeof file.delete;
     const result = await deletePublishedPhotoAssetOrQueue({
       ownerUid, photoId, storagePath, reason: 'test-physical-failure-recovery',
     });
