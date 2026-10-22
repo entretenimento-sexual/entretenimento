@@ -238,13 +238,24 @@ export const registerPrivatePhotoUpload = onCall<
     }
 
     const photoRef = db.doc(`users/${ownerUid}/photos/${photoId}`);
+    const deletionJobRef = db.collection('media_photo_deletion_jobs')
+      .doc(`${ownerUid}_${photoId}`);
     const now = Date.now();
 
     await db.runTransaction(async (transaction) => {
-      const [photoSnap, freshReservationSnap] = await Promise.all([
+      const [photoSnap, freshReservationSnap, deletionJobSnap] = await Promise.all([
         transaction.get(photoRef),
         transaction.get(reservationRef),
+        transaction.get(deletionJobRef),
       ]);
+
+      // Never register new bytes while an older cleanup may still delete this ID.
+      if (deletionJobSnap.exists) {
+        throw new HttpsError(
+          'failed-precondition',
+          'A exclusão anterior desta foto ainda está em andamento.'
+        );
+      }
 
       if (!freshReservationSnap.exists) {
         throw new HttpsError(
