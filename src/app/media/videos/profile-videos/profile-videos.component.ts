@@ -10,6 +10,7 @@ import {
   DestroyRef,
   ElementRef,
   inject,
+  signal,
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -19,7 +20,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
   EMPTY,
@@ -56,6 +57,9 @@ import {
 import { VideoEditorLauncherService } from 'src/app/core/services/media/video-editor-launcher.service';
 import { IVideoEditorState } from 'src/app/core/services/media/video-editor-result.model';
 import { VideoPublicationService } from 'src/app/core/services/media/video-publication.service';
+import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import { PublicProfileVideoPaginationService } from 'src/app/core/services/media/public-profile-video-pagination.service';
+import type { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import {
   VIDEO_UPLOAD_ACCEPT,
   VIDEO_UPLOAD_FORMAT_LABEL,
@@ -76,6 +80,7 @@ import {
 } from './private-video-preview-visibility.directive';
 import type { IProfileVideoViewItem } from '../state/profile-video-library.models';
 import { VideoSimpleEditorControlsComponent } from '../video-editor/video-editor-controls.entrypoint';
+import { PublicVideoViewerLauncherService } from '../public-video-viewer/public-video-viewer-launcher.service';
 import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 import { MediaActionMenuComponent } from 'src/app/media/shared/components/media-action-menu/media-action-menu.component';
 
@@ -121,7 +126,9 @@ const DENY_UNKNOWN: IMediaPolicyResult = {
 })
 export class ProfileVideosComponent {
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
+  private readonly publicMediaQuery = inject(MediaPublicQueryService);
+  private readonly videoPagination = inject(PublicProfileVideoPaginationService);
+  private readonly videoViewerLauncher = inject(PublicVideoViewerLauncherService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly formBuilder = inject(FormBuilder);
   private readonly currentUserStore = inject(CurrentUserStoreService);
@@ -278,6 +285,7 @@ export class ProfileVideosComponent {
     this.profileVideoLibrary.viewItems$;
   readonly videoLibraryStatus$ = this.profileVideoLibrary.status$;
   readonly videoLibraryError$ = this.profileVideoLibrary.errorMessage$;
+  readonly openingVideoId = signal<string | null>(null);
 
   retryVideoLibrary(): void {
     this.profileVideoLibrary.retry();
@@ -817,15 +825,59 @@ export class ProfileVideosComponent {
   }
 
   openPublishedVideo(item: IProfileVideoViewItem): void {
-    if (!this.canOpenPublishedVideo(item)) {
+    if (!this.canOpenPublishedVideo(item) || this.openingVideoId()) {
       return;
     }
+    const ownerUid = item.video.ownerUid;
+    const selectedId = item.video.id;
+    this.openingVideoId.set(selectedId);
 
-    void this.router.navigate([
-      '/media/video',
-      item.video.ownerUid,
-      item.video.id,
-    ]);
+    // Remain on the owner gallery. The canonical public read boundary decides
+    // which videos can actually be played, not the private library snapshot.
+    this.videoPagination.loadPage$(ownerUid, { pageSize: 24 }).pipe(
+      take(1),
+      switchMap((page) => {
+        const index = page.items.findIndex((video) =>
+          video.id === selectedId && video.ownerUid === ownerUid
+        );
+        if (index >= 0) {
+          return of({ items: [...page.items], startIndex: index });
+        }
+        // An older published item may be outside the first public page.
+        return this.publicMediaQuery.getPublicVideoById$(ownerUid, selectedId).pipe(
+          take(1),
+          map((video: IPublicVideoItem | null) => video
+            ? { items: [video], startIndex: 0 }
+            : null)
+        );
+      }),
+      switchMap((selection) => {
+        if (!selection) {
+          this.errorNotification.showWarning(
+            'Este vídeo não está mais disponível para visualização.'
+          );
+          return EMPTY;
+        }
+        return this.videoViewerLauncher.open$({
+          ...selection,
+          source: 'profile',
+        });
+      }),
+      catchError((error: unknown) => {
+        this.mediaError.report(error, {
+          operation: 'openOwnedPublicVideoViewer',
+          reasonHint: 'video_playback_access_failed',
+          metadata: {
+            scope: 'ProfileVideosComponent',
+            hasOwnerUid: !!ownerUid,
+            hasVideoId: !!selectedId,
+          },
+        });
+        return EMPTY;
+      }),
+      finalize(() => this.openingVideoId.set(null)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
   /** Feedback de falha persistida. Sem toast repetido a cada emissão do NgRx. */

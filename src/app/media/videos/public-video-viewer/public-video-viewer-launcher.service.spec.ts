@@ -99,7 +99,7 @@ describe('PublicVideoViewerLauncherService', () => {
 describe('video gallery launch preserves selected identity after access filtering', () => {
   it('opens the selected video, not its old index, after filtering', async () => {
     const service = TestBed.inject(PublicVideoViewerLauncherService);
-    const hidden = { ...video('video-hidden'), visibility: 'PRIVATE' as const };
+    const hidden = { ...video('video-hidden'), visibility: 'PRIVATE' } as unknown as IPublicVideoItem;
     await firstValueFrom(service.open$({
       items: [hidden, video('video-visible')],
       startIndex: 1,
@@ -114,7 +114,7 @@ describe('video gallery launch preserves selected identity after access filterin
 
   it('refuses a revoked selected video rather than opening a neighbor', async () => {
     const service = TestBed.inject(PublicVideoViewerLauncherService);
-    const hidden = { ...video('video-hidden'), moderationStatus: 'HIDDEN' as const };
+    const hidden = { ...video('video-hidden'), moderationStatus: 'HIDDEN' } as unknown as IPublicVideoItem;
     await expect(firstValueFrom(service.open$({
       items: [hidden, video('video-visible')],
       startIndex: 0,
