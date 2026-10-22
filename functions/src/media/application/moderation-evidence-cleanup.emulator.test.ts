@@ -183,3 +183,29 @@ test('PHOTO: stale finalizer cannot remove a replaced job', async () => {
   assert.equal(current.get('attempts'), 3);
   assert.equal(current.get('createdAt'), identity.createdAt + 1);
 });
+
+test('PHOTO: an upload transaction cannot register the same ID while deletion is pending', async () => {
+  const ownerUid = 'owner-' + randomUUID().slice(0, 12);
+  const photoId = 'photo-' + randomUUID().slice(0, 12);
+  const job = db.collection('media_photo_deletion_jobs').doc(`${ownerUid}_${photoId}`);
+  const photo = db.doc(`users/${ownerUid}/photos/${photoId}`);
+  await job.set({
+    ownerUid, photoId, storagePath: `users/${ownerUid}/private/${photoId}`,
+    createdAt: Date.now(), state: 'retryable', attempts: 1,
+  });
+  const register = () => db.runTransaction(async transaction => {
+    const [existingPhoto, existingDeletion] = await Promise.all([
+      transaction.get(photo), transaction.get(job),
+    ]);
+    if (existingDeletion.exists) throw new Error('photo-cleanup-pending');
+    if (existingPhoto.exists) throw new Error('photo-already-exists');
+    transaction.create(photo, { path: 'new-upload' });
+  });
+  const results = await Promise.allSettled([register(), register()]);
+  assert.deepEqual(results.map(result => result.status), ['rejected', 'rejected']);
+  for (const result of results) {
+    if (result.status === 'rejected') assert.match(String(result.reason), /photo-cleanup-pending/);
+  }
+  assert.equal((await photo.get()).exists, false);
+  assert.equal((await job.get()).get('attempts'), 1);
+});
