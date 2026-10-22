@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 
-import { db } from '../../firebaseApp';
+import { db, getDefaultStorageBucket } from '../../firebaseApp';
 import { finishPreservedCleanup } from './moderation-evidence-preservation.handler';
 import { finalizePhotoDeletionJob } from './photo-deletion-job-finalization';
-import { processPendingPublishedPhotoAssetCleanupJobs } from './published-photo-asset.service';
+import {
+  deletePublishedPhotoAssetOrQueue,
+  processPendingPublishedPhotoAssetCleanupJobs,
+} from './published-photo-asset.service';
 import {
   ensurePreservedModerationCleanupJob,
   MODERATION_EVIDENCE_COLLECTION,
@@ -264,4 +267,22 @@ test('PUBLISHED PHOTO: real processor dead-letters invalid paths and purges expi
   assert.equal(invalid.get('state'), 'dead_letter');
   assert.equal(invalid.get('nextAttemptAt'), null);
   assert.equal((await expiredRef.get()).exists, false);
+});
+
+test('PUBLISHED PHOTO: direct cleanup removes the physical Storage object', async () => {
+  assert.match(
+    String(process.env.FIREBASE_STORAGE_EMULATOR_HOST ?? ''),
+    /^127\\.0\\.0\\.1:\\d{2,5}$/
+  );
+  const ownerUid = randomUUID();
+  const photoId = randomUUID();
+  const storagePath = `users/${ownerUid}/published/images/${photoId}/${randomUUID()}`;
+  const file = getDefaultStorageBucket().file(storagePath);
+  await file.save(Buffer.from('cleanup-emulator-fixture'), { resumable: false });
+  assert.equal((await file.exists())[0], true);
+  const deleted = await deletePublishedPhotoAssetOrQueue({
+    ownerUid, photoId, storagePath, reason: 'test-physical-cleanup',
+  });
+  assert.equal(deleted, true);
+  assert.equal((await file.exists())[0], false);
 });
