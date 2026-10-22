@@ -40,3 +40,14 @@ test('stale photo cleanup retry cannot mutate a replaced job or regress attempts
   assert.match(source, /Number\(current\.get\('attempts'\) \?\? 0\) !== job\.attempts/);
   assert.match(source, /tx\.update\(jobRef, \{/);
 });
+
+test('photo upload registration checks existing deletion job in same transaction', () => {
+  const upload = readFileSync(
+    join(__dirname, '../../../src/media/application/register-private-photo-upload.handler.ts'),
+    'utf8'
+  );
+  assert.match(upload, /const deletionJobRef = db\.collection\('media_photo_deletion_jobs'\)/);
+  assert.match(upload, /transaction\.get\(deletionJobRef\)/);
+  assert.match(upload, /if \(deletionJobSnap\.exists\)/);
+  assert.match(upload, /A exclusão anterior desta foto ainda está em andamento/);
+});
