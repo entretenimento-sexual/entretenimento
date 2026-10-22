@@ -12,6 +12,7 @@ import {
   consumeBackendRateLimitQuota,
 } from '../../shared/security/backend-rate-limit.service';
 import { isPhotoPublicationApproved } from './photo-publication-moderation.policy';
+import { finalizePhotoDeletionJob } from './photo-deletion-job-finalization';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
 import {
   PHOTO_CLEANUP_MAX_ATTEMPTS,
@@ -119,19 +120,7 @@ async function executeDeletionJob(
     .delete({ ignoreNotFound: true });
 
   await db.recursiveDelete(privatePhotoRef);
-  await db.runTransaction(async (tx) => {
-    const current = await tx.get(jobRef);
-    if (!current.exists) return;
-    if (
-      current.get('ownerUid') !== job.ownerUid ||
-      current.get('photoId') !== job.photoId ||
-      current.get('storagePath') !== job.storagePath ||
-      current.get('createdAt') !== job.createdAt
-    ) {
-      throw new Error('photo-deletion-job-identity-changed');
-    }
-    tx.delete(jobRef);
-  });
+  await finalizePhotoDeletionJob(db, jobId, job);
 }
 
 async function recordDeletionAttemptFailure(
