@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 
 import { db, getDefaultStorageBucket } from '../../firebaseApp';
@@ -285,4 +285,25 @@ test('PUBLISHED PHOTO: direct cleanup removes the physical Storage object', asyn
   });
   assert.equal(deleted, true);
   assert.equal((await file.exists())[0], false);
+});
+
+test('PUBLISHED PHOTO: retry processor deletes physical file and acknowledges job', async () => {
+  const ownerUid = randomUUID();
+  const photoId = randomUUID();
+  const storagePath = `users/${ownerUid}/published/images/${photoId}/${randomUUID()}`;
+  const file = getDefaultStorageBucket().file(storagePath);
+  await file.save(Buffer.from('retry-emulator-fixture'), { resumable: false });
+  const jobId = createHash('sha256').update(storagePath).digest('hex');
+  const jobRef = db.collection('media_published_asset_cleanup_jobs').doc(jobId);
+  const now = Date.now();
+  await jobRef.set({
+    ownerUid, photoId, storagePath, reason: 'test-retry-after-failure',
+    createdAt: now - 2000, updatedAt: now - 1000,
+    attempts: 1, state: 'retryable', lastError: 'simulated prior storage outage',
+    nextAttemptAt: now - 1000, deadLetterExpiresAt: null,
+  });
+  assert.equal((await file.exists())[0], true);
+  await processPendingPublishedPhotoAssetCleanupJobs(100);
+  assert.equal((await file.exists())[0], false);
+  assert.equal((await jobRef.get()).exists, false);
 });
