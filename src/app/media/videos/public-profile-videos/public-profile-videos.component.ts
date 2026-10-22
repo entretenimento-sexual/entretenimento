@@ -13,7 +13,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
   EMPTY,
@@ -76,6 +76,7 @@ const PUBLIC_VIDEO_RENDER_WINDOW_STEP = 12;
   standalone: true,
   imports: [
     CommonModule,
+    RouterModule,
     PageHeaderComponent,
     ReportContentButtonComponent,
     ContentStateComponent,

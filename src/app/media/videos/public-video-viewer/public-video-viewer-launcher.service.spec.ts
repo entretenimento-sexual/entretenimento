@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogConfig } from '@angular/material/dialog';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, of, Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
@@ -58,7 +58,9 @@ function video(id: string): IPublicVideoItem {
 
 describe('PublicVideoViewerLauncherService', () => {
   const dialog = {
-    open: vi.fn((_component: unknown, _config: MatDialogConfig) => ({})),
+    open: vi.fn((_component: unknown, _config: MatDialogConfig) => ({
+      afterClosed: () => of(undefined),
+    })),
   };
   const mediaError = {
     reportSilently: vi.fn(),
@@ -121,5 +123,27 @@ describe('video gallery launch preserves selected identity after access filterin
       source: 'profile',
     }))).rejects.toThrow('Vídeo público indisponível');
     expect(dialog.open).not.toHaveBeenCalled();
+  });
+});
+
+describe('gallery viewer close lifecycle', () => {
+  it('keeps the open observable pending until the viewer is dismissed', async () => {
+    const closed = new Subject<void>();
+    dialog.open.mockImplementationOnce(() => ({
+      afterClosed: () => closed.asObservable(),
+    }));
+    const launcher = TestBed.inject(PublicVideoViewerLauncherService);
+    let settled = false;
+    const subscription = launcher.open$({
+      items: [video('video-1')],
+      startIndex: 0,
+      source: 'profile',
+    }).subscribe({ complete: () => { settled = true; } });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    closed.next();
+    closed.complete();
+    expect(settled).toBe(true);
+    subscription.unsubscribe();
   });
 });

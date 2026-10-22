@@ -117,3 +117,18 @@ html.high-contrast .gallery-pagination .app-action {
   border-color: currentColor !important;
   box-shadow: none !important;
 }
+
+/* Standalone deep links have an explicit route back to the source gallery. */
+.public-videos-page__gallery-return {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap-target, 44px);
+  max-width: 100%;
+  margin-block: 8px 16px;
+}
+
+.public-videos-page__gallery-return:focus-visible {
+  outline: var(--focus-ring, 2px solid currentColor);
+  outline-offset: 3px;
+}

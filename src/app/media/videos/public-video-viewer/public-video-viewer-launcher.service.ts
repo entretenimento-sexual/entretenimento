@@ -26,7 +26,12 @@ export class PublicVideoViewerLauncherService {
   private readonly mediaError = inject(MediaApplicationErrorService);
 
   open$(request: OpenPublicVideoViewerRequest): Observable<void> {
-    return this.openDialog$(request).pipe(map(() => void 0));
+    // Hold the gallery's active-viewer state until the modal actually closes.
+    // Returning on open lets a second tap stack duplicate dialogs above the first.
+    return this.openDialog$(request).pipe(
+      switchMap((dialogRef) => dialogRef.afterClosed().pipe(take(1))),
+      map(() => void 0)
+    );
   }
 
   openWithResult$(
