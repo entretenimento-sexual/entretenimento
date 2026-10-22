@@ -37,3 +37,10 @@ test('physical deletion completion cannot erase a replaced cleanup job', () => {
   assert.match(source, /photo-deletion-job-identity-changed/);
   assert.match(source, /tx\.delete\(jobRef\)/);
 });
+
+test('stale photo cleanup retry cannot mutate a replaced job or regress attempts', () => {
+  assert.match(source, /async function recordDeletionAttemptFailure\(/);
+  assert.match(source, /current\.get\('createdAt'\) !== job\.createdAt/);
+  assert.match(source, /Number\(current\.get\('attempts'\) \?\? 0\) !== job\.attempts/);
+  assert.match(source, /tx\.update\(jobRef, \{/);
+});
