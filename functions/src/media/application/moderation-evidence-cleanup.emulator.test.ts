@@ -11,7 +11,7 @@ import {
 
 const PROJECT_ID = 'demo-entretenimento-moderation-cleanup';
 assert.equal(process.env.GCLOUD_PROJECT, PROJECT_ID);
-assert.match(String(process.env.FIRESTORE_EMULATOR_HOST ?? ''), /^127\\.0\\.0\\.1:\\d{2,5}$/);
+assert.match(String(process.env.FIRESTORE_EMULATOR_HOST ?? ''), /^127\.0\.0\.1:\d{2,5}$/);
 assert.equal(process.env.FIRESTORE_EMULATOR_HOST, process.env.MODERATION_CLEANUP_EXPECTED_EMULATOR_HOST);
 assert.notEqual(process.env.FIRESTORE_EMULATOR_HOST, '127.0.0.1:8080');
 assert.equal(process.env.GOOGLE_APPLICATION_CREDENTIALS, '');
