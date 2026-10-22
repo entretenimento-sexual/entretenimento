@@ -463,14 +463,14 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
     if (!storagePath) {
       await db.runTransaction(async (tx) => {
         const current = await tx.get(jobDoc.ref);
-          if (!current.exists ||
+        if (!current.exists ||
               current.get('ownerUid') !== job.ownerUid ||
               current.get('photoId') !== job.photoId ||
               current.get('storagePath') !== job.storagePath ||
               current.get('createdAt') !== job.createdAt ||
               current.get('updatedAt') !== job.updatedAt ||
-              current.get('attempts') !== job.attempts) return;
-          tx.update(jobDoc.ref, {
+            current.get('attempts') !== job.attempts) return;
+        tx.update(jobDoc.ref, {
           state: 'dead_letter',
           attempts: PHOTO_CLEANUP_MAX_ATTEMPTS,
           nextAttemptAt: null,
