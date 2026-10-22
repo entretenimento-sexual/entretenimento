@@ -119,7 +119,19 @@ async function executeDeletionJob(
     .delete({ ignoreNotFound: true });
 
   await db.recursiveDelete(privatePhotoRef);
-  await jobRef.delete();
+  await db.runTransaction(async (tx) => {
+    const current = await tx.get(jobRef);
+    if (!current.exists) return;
+    if (
+      current.get('ownerUid') !== job.ownerUid ||
+      current.get('photoId') !== job.photoId ||
+      current.get('storagePath') !== job.storagePath ||
+      current.get('createdAt') !== job.createdAt
+    ) {
+      throw new Error('photo-deletion-job-identity-changed');
+    }
+    tx.delete(jobRef);
+  });
 }
 
 async function recordDeletionAttemptFailure(
