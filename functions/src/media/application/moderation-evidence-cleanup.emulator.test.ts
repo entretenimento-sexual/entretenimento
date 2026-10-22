@@ -244,7 +244,7 @@ test('PUBLISHED PHOTO: stale cleanup retry cannot delete or update a replaced jo
   assert.equal(current.get('updatedAt'), original.updatedAt + 1);
 });
 
-test('PUBLISHED PHOTO: real processor dead-letters invalid paths and purges expired jobs', async () => {
+test('PUBLISHED PHOTO: real processor dead-letters invalid paths and retains expired obligations', async () => {
   const invalidRef = db.collection('media_published_asset_cleanup_jobs').doc(randomUUID());
   const expiredRef = db.collection('media_published_asset_cleanup_jobs').doc(randomUUID());
   const now = Date.now();
@@ -266,7 +266,11 @@ test('PUBLISHED PHOTO: real processor dead-letters invalid paths and purges expi
   const invalid = await invalidRef.get();
   assert.equal(invalid.get('state'), 'dead_letter');
   assert.equal(invalid.get('nextAttemptAt'), null);
-  assert.equal((await expiredRef.get()).exists, false);
+  const expired = await expiredRef.get();
+  assert.equal(expired.exists, true);
+  assert.equal(expired.get('state'), 'dead_letter');
+  await invalidRef.delete();
+  await expiredRef.delete();
 });
 
 test('PUBLISHED PHOTO: direct cleanup removes the physical Storage object', async () => {
