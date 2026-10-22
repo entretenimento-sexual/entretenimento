@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 
 import { db } from '../../firebaseApp';
+import { finishPreservedCleanup } from './moderation-evidence-preservation.handler';
 import {
   ensurePreservedModerationCleanupJob,
   MODERATION_EVIDENCE_COLLECTION,
@@ -95,5 +96,51 @@ for (const mediaType of ['PHOTO', 'VIDEO'] as const) {
     await x.report.update({ moderationAction: 'REMOVE', evidencePreservationStatus: 'PENDING' });
     assert.equal(await ensurePreservedModerationCleanupJob(x.reportId, mediaType, x.ownerUid, x.mediaId), false);
     assert.equal((await x.job.get()).exists, false);
+  });
+}
+
+for (const mediaType of ['PHOTO', 'VIDEO'] as const) {
+  test(`${mediaType}: failed deletion retains durable job, retry only acknowledges confirmed cleanup`, async () => {
+    const x = await preserved(mediaType);
+    assert.equal(await ensurePreservedModerationCleanupJob(
+      x.reportId, mediaType, x.ownerUid, x.mediaId
+    ), true);
+    let calls = 0;
+    await assert.rejects(finishPreservedCleanup(x.reportId, async () => {
+      calls++;
+      throw new Error('simulated-storage-outage');
+    }), /simulated-storage-outage/);
+    assert.equal((await x.job.get()).get('status'), 'CLEANUP_PENDING');
+    await finishPreservedCleanup(x.reportId, async () => {
+      calls++;
+      return false;
+    });
+    assert.equal((await x.job.get()).get('status'), 'CLEANUP_PENDING');
+    await finishPreservedCleanup(x.reportId, async () => {
+      calls++;
+      return true;
+    });
+    assert.equal((await x.job.get()).exists, false);
+    assert.equal(calls, 3);
+  });
+
+  test(`${mediaType}: replaced cleanup job cannot be acknowledged after successful deletion`, async () => {
+    const x = await preserved(mediaType);
+    await ensurePreservedModerationCleanupJob(x.reportId, mediaType, x.ownerUid, x.mediaId);
+    await finishPreservedCleanup(x.reportId, async () => {
+      await x.job.update({ createdAt: Date.now() + 999999 });
+      return true;
+    });
+    assert.equal((await x.job.get()).get('status'), 'CLEANUP_PENDING');
+  });
+
+  test(`${mediaType}: changed evidence prevents cleanup acknowledgement`, async () => {
+    const x = await preserved(mediaType);
+    await ensurePreservedModerationCleanupJob(x.reportId, mediaType, x.ownerUid, x.mediaId);
+    await finishPreservedCleanup(x.reportId, async () => {
+      await x.evidence.update({ mediaId: 'replaced-media' });
+      return true;
+    });
+    assert.equal((await x.job.get()).get('status'), 'CLEANUP_PENDING');
   });
 }
