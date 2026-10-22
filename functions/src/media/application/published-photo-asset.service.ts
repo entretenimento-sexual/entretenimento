@@ -569,11 +569,23 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
     .limit(batchSize)
     .get();
 
-  if (!expiredDeadLetters.empty) {
-    const purgeBatch = db.batch();
-    expiredDeadLetters.docs.forEach((doc) => purgeBatch.delete(doc.ref));
-    await purgeBatch.commit();
-    deadLetterPurged = expiredDeadLetters.size;
+  for (const expiredDoc of expiredDeadLetters.docs) {
+    const expired = expiredDoc.data() as PublishedPhotoAssetCleanupJob;
+    const purged = await db.runTransaction(async (tx) => {
+      const current = await tx.get(expiredDoc.ref);
+      if (!current.exists ||
+          current.get('ownerUid') !== expired.ownerUid ||
+          current.get('photoId') !== expired.photoId ||
+          current.get('storagePath') !== expired.storagePath ||
+          current.get('createdAt') !== expired.createdAt ||
+          current.get('updatedAt') !== expired.updatedAt ||
+          current.get('deadLetterExpiresAt') !== expired.deadLetterExpiresAt ||
+          typeof current.get('deadLetterExpiresAt') !== 'number' ||
+          current.get('deadLetterExpiresAt') > Date.now()) return false;
+      tx.delete(expiredDoc.ref);
+      return true;
+    });
+    if (purged) deadLetterPurged += 1;
   }
 
   logPhotoOperation({
