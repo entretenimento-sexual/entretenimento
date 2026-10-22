@@ -5,6 +5,7 @@ import { after, test } from 'node:test';
 import { db } from '../../firebaseApp';
 import { finishPreservedCleanup } from './moderation-evidence-preservation.handler';
 import { finalizePhotoDeletionJob } from './photo-deletion-job-finalization';
+import { processPendingPublishedPhotoAssetCleanupJobs } from './published-photo-asset.service';
 import {
   ensurePreservedModerationCleanupJob,
   MODERATION_EVIDENCE_COLLECTION,
@@ -238,4 +239,29 @@ test('PUBLISHED PHOTO: stale cleanup retry cannot delete or update a replaced jo
   assert.equal(current.exists, true);
   assert.equal(current.get('attempts'), 2);
   assert.equal(current.get('updatedAt'), original.updatedAt + 1);
+});
+
+test('PUBLISHED PHOTO: real processor dead-letters invalid paths and purges expired jobs', async () => {
+  const invalidRef = db.collection('media_published_asset_cleanup_jobs').doc(randomUUID());
+  const expiredRef = db.collection('media_published_asset_cleanup_jobs').doc(randomUUID());
+  const now = Date.now();
+  await invalidRef.set({
+    ownerUid: 'owner-a', photoId: 'photo-a',
+    storagePath: 'invalid-unowned-path', reason: 'test',
+    createdAt: now - 1000, updatedAt: now - 1000,
+    attempts: 0, state: 'retryable', lastError: null,
+    nextAttemptAt: now - 1000, deadLetterExpiresAt: null,
+  });
+  await expiredRef.set({
+    ownerUid: 'owner-b', photoId: 'photo-b',
+    storagePath: 'invalid-expired-path', reason: 'test',
+    createdAt: now - 2000, updatedAt: now - 2000,
+    attempts: 12, state: 'dead_letter', lastError: 'old failure',
+    nextAttemptAt: null, deadLetterExpiresAt: now - 1000,
+  });
+  await processPendingPublishedPhotoAssetCleanupJobs(100);
+  const invalid = await invalidRef.get();
+  assert.equal(invalid.get('state'), 'dead_letter');
+  assert.equal(invalid.get('nextAttemptAt'), null);
+  assert.equal((await expiredRef.get()).exists, false);
 });
