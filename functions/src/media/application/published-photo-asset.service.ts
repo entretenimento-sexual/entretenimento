@@ -16,6 +16,11 @@ import {
 } from './photo-cleanup-job.policy';
 import { logPhotoOperation } from './photo-operation-telemetry';
 import {
+  deleteGenerationPinnedVideoFile,
+  normalizeGcsGeneration,
+  VideoDeletionGenerationConflictError,
+} from './video-deletion-storage-pages';
+import {
   PUBLISHED_PHOTO_MAX_INPUT_PIXELS,
   PUBLISHED_PHOTO_MAX_OUTPUT_EDGE,
   assertPublishedPhotoDecodedMetadata,
@@ -35,6 +40,8 @@ interface PublishedPhotoAssetCleanupJob {
   photoId: string;
   storagePath: string;
   reason: string;
+  /** GCS generation captured before a destructive attempt; legacy jobs lack it. */
+  generation?: string | null;
   retentionGuard?: PublishedPhotoAssetRetentionGuard;
   createdAt: number;
   updatedAt: number;
@@ -165,6 +172,7 @@ async function hasPublishedPhotoRetentionBlocker(
 async function enqueuePublishedPhotoAssetCleanup(
   command: DeletePublishedPhotoAssetCommand,
   storagePath: string,
+  generation: string | null,
   error: unknown
 ): Promise<void> {
   const now = Date.now();
@@ -178,6 +186,14 @@ async function enqueuePublishedPhotoAssetCleanup(
     const current = snapshot.exists
       ? (snapshot.data() as Partial<PublishedPhotoAssetCleanupJob>)
       : null;
+    // An old obligation must never retarget another generation at the same path.
+    const previousGeneration = normalizeGcsGeneration(current?.generation);
+    if (previousGeneration && generation && previousGeneration !== generation) {
+      return;
+    }
+    const pinnedGeneration = previousGeneration ?? generation;
+    const needsReview = !pinnedGeneration ||
+      error instanceof VideoDeletionGenerationConflictError;
     const retry = nextPhotoCleanupRetry(current?.attempts ?? 0, now);
 
     const job: PublishedPhotoAssetCleanupJob = {
@@ -185,14 +201,15 @@ async function enqueuePublishedPhotoAssetCleanup(
       photoId: command.photoId,
       storagePath,
       reason: command.reason,
+      generation: pinnedGeneration,
       ...(retentionGuard ? { retentionGuard } : {}),
       createdAt: safeCleanupCreatedAt(current?.createdAt, now),
       updatedAt: now,
-      attempts: retry.attempts,
+      attempts: needsReview ? PHOTO_CLEANUP_MAX_ATTEMPTS : retry.attempts,
       lastError: normalizeErrorMessage(error),
-      state: retry.state,
-      nextAttemptAt: retry.nextAttemptAt,
-      deadLetterExpiresAt: retry.deadLetterExpiresAt,
+      state: needsReview ? 'dead_letter' : retry.state,
+      nextAttemptAt: needsReview ? null : retry.nextAttemptAt,
+      deadLetterExpiresAt: needsReview ? null : retry.deadLetterExpiresAt,
     };
 
     transaction.set(jobRef, job, { merge: true });
@@ -224,6 +241,7 @@ export function stagePublishedPhotoAssetCleanup(
       photoId: command.photoId,
       storagePath,
       reason: command.reason,
+      generation: null,
       ...(retentionGuard ? { retentionGuard } : {}),
       createdAt: now,
       updatedAt: now,
@@ -366,6 +384,7 @@ export async function deletePublishedPhotoAssetOrQueue(
     return true;
   }
 
+  let generation: string | null = null;
   try {
     if (await hasPublishedPhotoRetentionBlocker(command)) {
       const now = Date.now();
@@ -412,10 +431,45 @@ export async function deletePublishedPhotoAssetOrQueue(
       .collection(CLEANUP_COLLECTION)
       .doc(buildCleanupJobId(storagePath));
     const existingCleanup = await cleanupRef.get();
-
-    await getDefaultStorageBucket()
-      .file(storagePath)
-      .delete({ ignoreNotFound: true });
+    const file = getDefaultStorageBucket().file(storagePath);
+    const recordedGeneration = existingCleanup.exists
+      ? existingCleanup.get('generation') : null;
+    if (recordedGeneration !== null && recordedGeneration !== undefined) {
+      generation = normalizeGcsGeneration(recordedGeneration);
+      if (!generation) {
+        throw new VideoDeletionGenerationConflictError(
+          'Invalid published photo cleanup generation; manual review required.'
+        );
+      }
+    } else {
+      try {
+        const [metadata] = await file.getMetadata();
+        generation = normalizeGcsGeneration(metadata.generation);
+      } catch (error) {
+        const code = error && typeof error === 'object' && 'code' in error
+          ? (error as { code: unknown }).code : null;
+        if (code === 404 || code === '404') {
+          // The object is already absent; do not touch any later replacement.
+          generation = null;
+        } else {
+          throw error;
+        }
+      }
+    }
+    if (generation) {
+      await deleteGenerationPinnedVideoFile(generation, (expected) =>
+        file.delete({ ignoreNotFound: true, ifGenerationMatch: expected })
+      );
+    } else {
+      // A missing generation is only safe to acknowledge if Storage confirmed
+      // the object was absent. Do not turn malformed metadata into a delete.
+      const [exists] = await file.exists();
+      if (exists) {
+        throw new VideoDeletionGenerationConflictError(
+          'Missing published photo generation; manual review required.'
+        );
+      }
+    }
 
     if (existingCleanup.exists) {
       await db.runTransaction(async (tx) => {
@@ -438,7 +492,7 @@ export async function deletePublishedPhotoAssetOrQueue(
 
     return true;
   } catch (error) {
-    await enqueuePublishedPhotoAssetCleanup(command, storagePath, error);
+    await enqueuePublishedPhotoAssetCleanup(command, storagePath, generation, error);
 
     logger.error('[publishedPhotoAsset] Limpeza física pendente.', {
       ownerUid: command.ownerUid,
@@ -501,6 +555,31 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
       continue;
     }
 
+    // Jobs written before generation pinning cannot safely target a generation.
+    // Fail closed rather than rediscovering (and deleting) a replacement object.
+    if (!normalizeGcsGeneration(job.generation)) {
+      await db.runTransaction(async (tx) => {
+        const current = await tx.get(jobDoc.ref);
+        if (!current.exists ||
+            current.get('ownerUid') !== job.ownerUid ||
+            current.get('photoId') !== job.photoId ||
+            current.get('storagePath') !== job.storagePath ||
+            current.get('createdAt') !== job.createdAt ||
+            current.get('updatedAt') !== job.updatedAt ||
+            current.get('attempts') !== job.attempts) return;
+        tx.update(jobDoc.ref, {
+          state: 'dead_letter',
+          attempts: PHOTO_CLEANUP_MAX_ATTEMPTS,
+          nextAttemptAt: null,
+          deadLetterExpiresAt: null,
+          updatedAt: Date.now(),
+          lastError: 'Missing GCS generation; manual review required.',
+        });
+      });
+      deadLetter += 1;
+      continue;
+    }
+
     try {
       if (await hasPublishedPhotoRetentionBlocker(job)) {
         const now = Date.now();
@@ -525,9 +604,12 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
         continue;
       }
 
-      await getDefaultStorageBucket()
-        .file(storagePath)
-        .delete({ ignoreNotFound: true });
+      await deleteGenerationPinnedVideoFile(job.generation, (expected) =>
+        getDefaultStorageBucket().file(storagePath).delete({
+          ignoreNotFound: true,
+          ifGenerationMatch: expected,
+        })
+      );
       await db.runTransaction(async (tx) => {
         const current = await tx.get(jobDoc.ref);
         if (!current.exists ||
@@ -542,6 +624,7 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
     } catch (error) {
       const now = Date.now();
       const retry = nextPhotoCleanupRetry(job.attempts, now);
+      const needsReview = error instanceof VideoDeletionGenerationConflictError;
       await db.runTransaction(async (tx) => {
         const current = await tx.get(jobDoc.ref);
         if (!current.exists ||
@@ -552,16 +635,16 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
             current.get('updatedAt') !== job.updatedAt ||
             current.get('attempts') !== job.attempts) return;
         tx.update(jobDoc.ref, {
-          state: retry.state,
-          attempts: retry.attempts,
-          nextAttemptAt: retry.nextAttemptAt,
-          deadLetterExpiresAt: retry.deadLetterExpiresAt,
+          state: needsReview ? 'dead_letter' : retry.state,
+          attempts: needsReview ? PHOTO_CLEANUP_MAX_ATTEMPTS : retry.attempts,
+          nextAttemptAt: needsReview ? null : retry.nextAttemptAt,
+          deadLetterExpiresAt: needsReview ? null : retry.deadLetterExpiresAt,
           updatedAt: now,
           lastError: normalizeErrorMessage(error),
         });
       });
 
-      if (retry.state === 'dead_letter') {
+      if (needsReview || retry.state === 'dead_letter') {
         deadLetter += 1;
       } else {
         retryable += 1;
@@ -571,8 +654,8 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
         jobId: jobDoc.id,
         ownerUid: job.ownerUid,
         photoId: job.photoId,
-        state: retry.state,
-        attempts: retry.attempts,
+        state: needsReview ? 'dead_letter' : retry.state,
+        attempts: needsReview ? PHOTO_CLEANUP_MAX_ATTEMPTS : retry.attempts,
         error: normalizeErrorMessage(error),
       });
     }

@@ -293,11 +293,13 @@ test('PUBLISHED PHOTO: retry processor deletes physical file and acknowledges jo
   const storagePath = `users/${ownerUid}/published/images/${photoId}/${randomUUID()}`;
   const file = getDefaultStorageBucket().file(storagePath);
   await file.save(Buffer.from('retry-emulator-fixture'), { resumable: false });
+  const [metadata] = await file.getMetadata();
   const jobId = createHash('sha256').update(storagePath).digest('hex');
   const jobRef = db.collection('media_published_asset_cleanup_jobs').doc(jobId);
   const now = Date.now();
   await jobRef.set({
-    ownerUid, photoId, storagePath, reason: 'test-retry-after-failure',
+    ownerUid, photoId, storagePath, generation: String(metadata.generation),
+    reason: 'test-retry-after-failure',
     createdAt: now - 2000, updatedAt: now - 1000,
     attempts: 1, state: 'retryable', lastError: 'simulated prior storage outage',
     nextAttemptAt: now - 1000, deadLetterExpiresAt: null,
@@ -352,11 +354,13 @@ test('PUBLISHED PHOTO: physical cleanup cannot acknowledge a replaced job', asyn
   const storagePath = `users/${ownerUid}/published/images/${photoId}/${randomUUID()}`;
   const file = getDefaultStorageBucket().file(storagePath);
   await file.save(Buffer.from('concurrent-cleanup-fixture'), { resumable: false });
+  const [metadata] = await file.getMetadata();
   const jobId = createHash('sha256').update(storagePath).digest('hex');
   const jobRef = db.collection('media_published_asset_cleanup_jobs').doc(jobId);
   const now = Date.now();
   await jobRef.set({
-    ownerUid, photoId, storagePath, reason: 'old-cleanup',
+    ownerUid, photoId, storagePath, generation: String(metadata.generation),
+    reason: 'old-cleanup',
     createdAt: now - 1000, updatedAt: now - 1000,
     attempts: 1, state: 'retryable', lastError: 'old failure',
     nextAttemptAt: now - 1000, deadLetterExpiresAt: null,
@@ -428,6 +432,94 @@ test('PUBLISHED PHOTO: direct physical cleanup preserves a concurrently replaced
   const current = await jobRef.get();
   assert.equal(current.exists, true);
   assert.equal(current.get('reason'), 'replacement-cleanup');
+  await jobRef.delete();
+});
+
+test('PUBLISHED PHOTO: legacy cleanup without pinned generation fails closed', async () => {
+  const ownerUid = randomUUID();
+  const photoId = randomUUID();
+  const storagePath = `users/${ownerUid}/published/images/${photoId}/${randomUUID()}`;
+  const file = getDefaultStorageBucket().file(storagePath);
+  await file.save(Buffer.from('legacy-generation-still-present'), { resumable: false });
+  const jobId = createHash('sha256').update(storagePath).digest('hex');
+  const jobRef = db.collection('media_published_asset_cleanup_jobs').doc(jobId);
+  const now = Date.now();
+  await jobRef.set({
+    ownerUid, photoId, storagePath, reason: 'legacy-unknown-generation',
+    createdAt: now - 2000, updatedAt: now - 1000, attempts: 1,
+    state: 'retryable', lastError: null, nextAttemptAt: now - 1000,
+    deadLetterExpiresAt: null,
+  });
+  await processPendingPublishedPhotoAssetCleanupJobs(100);
+  assert.equal((await file.exists())[0], true);
+  const current = await jobRef.get();
+  assert.equal(current.get('state'), 'dead_letter');
+  assert.equal(current.get('nextAttemptAt'), null);
+  assert.equal(current.get('deadLetterExpiresAt'), null);
+  await jobRef.delete();
+});
+
+test('PUBLISHED PHOTO: direct cleanup pins GCS generation in delete request', async () => {
+  const ownerUid = randomUUID();
+  const photoId = randomUUID();
+  const storagePath = `users/${ownerUid}/published/images/${photoId}/${randomUUID()}`;
+  const file = getDefaultStorageBucket().file(storagePath);
+  await file.save(Buffer.from('pinned-direct-delete'), { resumable: false });
+  const [metadata] = await file.getMetadata();
+  const prototype = Object.getPrototypeOf(file) as { delete: typeof file.delete };
+  const originalDelete = prototype.delete;
+  let checked = false;
+  try {
+    prototype.delete = async function (this: typeof file, ...args: Parameters<typeof file.delete>) {
+      if (this.name === storagePath) {
+        checked = true;
+        assert.equal(args[0]?.ifGenerationMatch, String(metadata.generation));
+      }
+      return originalDelete.apply(this, args);
+    } as unknown as typeof file.delete;
+    assert.equal(await deletePublishedPhotoAssetOrQueue({
+      ownerUid, photoId, storagePath, reason: 'test-pinned-direct-delete',
+    }), true);
+  } finally {
+    prototype.delete = originalDelete;
+  }
+  assert.equal(checked, true);
+  assert.equal((await file.exists())[0], false);
+});
+
+test('PUBLISHED PHOTO: generation conflict blocks deletion and durable retry', async () => {
+  const ownerUid = randomUUID();
+  const photoId = randomUUID();
+  const storagePath = `users/${ownerUid}/published/images/${photoId}/${randomUUID()}`;
+  const file = getDefaultStorageBucket().file(storagePath);
+  await file.save(Buffer.from('replacement-must-survive'), { resumable: false });
+  const [metadata] = await file.getMetadata();
+  const jobId = createHash('sha256').update(storagePath).digest('hex');
+  const jobRef = db.collection('media_published_asset_cleanup_jobs').doc(jobId);
+  const prototype = Object.getPrototypeOf(file) as { delete: typeof file.delete };
+  const originalDelete = prototype.delete;
+  let checked = false;
+  try {
+    prototype.delete = async function (this: typeof file, ...args: Parameters<typeof file.delete>) {
+      if (this.name === storagePath) {
+        checked = true;
+        assert.equal(args[0]?.ifGenerationMatch, String(metadata.generation));
+        throw Object.assign(new Error('simulated GCS generation conflict'), { code: 412 });
+      }
+      return originalDelete.apply(this, args);
+    } as unknown as typeof file.delete;
+    assert.equal(await deletePublishedPhotoAssetOrQueue({
+      ownerUid, photoId, storagePath, reason: 'test-generation-conflict',
+    }), false);
+  } finally {
+    prototype.delete = originalDelete;
+  }
+  assert.equal(checked, true);
+  assert.equal((await file.exists())[0], true);
+  const job = await jobRef.get();
+  assert.equal(job.get('generation'), String(metadata.generation));
+  assert.equal(job.get('state'), 'dead_letter');
+  assert.equal(job.get('nextAttemptAt'), null);
   await jobRef.delete();
 });
 
