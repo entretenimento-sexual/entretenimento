@@ -29,3 +29,11 @@ test('missing private photo does not acknowledge pending physical cleanup', () =
   assert.match(source, /if \(pendingJob\.exists\)/);
   assert.match(source, /return \{ photoId, cleanupPending: true \}/);
 });
+
+test('physical deletion completion cannot erase a replaced cleanup job', () => {
+  assert.match(source, /await db\.runTransaction\(async \(tx\) =>/);
+  assert.match(source, /current\.get\('createdAt'\) !== job\.createdAt/);
+  assert.match(source, /current\.get\('storagePath'\) !== job\.storagePath/);
+  assert.match(source, /photo-deletion-job-identity-changed/);
+  assert.match(source, /tx\.delete\(jobRef\)/);
+});
