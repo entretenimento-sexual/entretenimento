@@ -46,3 +46,10 @@ test('evidence release fails closed and commits Firestore state atomically', () 
   assert.match(release, /batch\.delete\(db\.collection\(MODERATION_EVIDENCE_JOBS_COLLECTION\)/);
   assert.match(release, /await batch\.commit\(\)/);
 });
+
+test('preserved REMOVE retains retryable cleanup obligation', () => {
+  assert.match(source, /status: 'CLEANUP_PENDING', updatedAt: Date\.now\(\)/);
+  assert.match(retry, /\.where\('status', '==', 'CLEANUP_PENDING'\)/);
+  assert.match(retry, /await finishPreservedCleanup\(cleanup\.id\)/);
+  assert.match(retry, /if \(job\.get\('status'\) === 'CLEANUP_PENDING'\)/);
+});

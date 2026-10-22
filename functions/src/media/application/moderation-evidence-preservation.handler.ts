@@ -18,11 +18,11 @@ function cleanId(value: unknown): string {
   return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
 }
 
-async function cleanupResolvedRemovedMedia(reportId: string): Promise<void> {
+async function cleanupResolvedRemovedMedia(reportId: string): Promise<boolean> {
   const reportSnap = await db.collection('moderation_reports').doc(reportId).get();
 
   if (!reportSnap.exists) {
-    return;
+    return false;
   }
 
   const report = reportSnap.data() ?? {};
@@ -39,7 +39,7 @@ async function cleanupResolvedRemovedMedia(reportId: string): Promise<void> {
     moderationAction !== 'REMOVE' ||
     evidenceStatus !== 'PRESERVED'
   ) {
-    return;
+    return false;
   }
 
   const ownerUid = cleanId(report.targetOwnerUid);
@@ -54,18 +54,31 @@ async function cleanupResolvedRemovedMedia(reportId: string): Promise<void> {
       '[retryPendingModerationEvidencePreservation] Referência inválida para limpeza.',
       { reportId, targetType }
     );
-    return;
+    return false;
   }
 
   if (targetType === 'photo') {
     await deleteProfilePhotoResources(ownerUid, mediaId, {
       allowQuarantined: true,
     });
-    return;
+    return true;
   }
 
   await deleteProfileVideoResources(ownerUid, mediaId, {
     allowQuarantined: true,
+  });
+  return true;
+}
+
+async function finishPreservedCleanup(reportId: string): Promise<void> {
+  const jobRef = db.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId);
+  if (!await cleanupResolvedRemovedMedia(reportId)) return;
+  // Only acknowledge the job if it remains the preserved cleanup obligation.
+  await db.runTransaction(async (tx) => {
+    const job = await tx.get(jobRef);
+    if (job.get('status') === 'CLEANUP_PENDING') {
+      tx.delete(jobRef);
+    }
   });
 }
 
@@ -92,7 +105,7 @@ export const retryPendingModerationEvidencePreservation = onSchedule(
       try {
         if (await rearmBlockedModerationEvidenceFromPublication(blocked.id)) {
           await preserveModerationEvidence(blocked.id);
-          await cleanupResolvedRemovedMedia(blocked.id);
+          await finishPreservedCleanup(blocked.id);
         }
       } catch (error) {
         logger.error('[retryPendingModerationEvidencePreservation] Rearme falhou.', {
@@ -102,10 +115,26 @@ export const retryPendingModerationEvidencePreservation = onSchedule(
       }
     }
 
+    const cleanupSnapshot = await db
+      .collection(MODERATION_EVIDENCE_JOBS_COLLECTION)
+      .where('status', '==', 'CLEANUP_PENDING')
+      .limit(RETRY_BATCH_SIZE)
+      .get();
+    for (const cleanup of cleanupSnapshot.docs) {
+      try {
+        await finishPreservedCleanup(cleanup.id);
+      } catch (error) {
+        logger.error('[retryPendingModerationEvidencePreservation] Limpeza pendente.', {
+          reportId: cleanup.id,
+          error: error instanceof Error ? error.message.slice(0, 500) : String(error),
+        });
+      }
+    }
+
     for (const jobDoc of jobsSnapshot.docs) {
       try {
         await preserveModerationEvidence(jobDoc.id);
-        await cleanupResolvedRemovedMedia(jobDoc.id);
+        await finishPreservedCleanup(jobDoc.id);
       } catch (error) {
         logger.error(
           '[retryPendingModerationEvidencePreservation] Falha no retry.',

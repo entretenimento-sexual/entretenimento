@@ -27,7 +27,7 @@ interface ModerationEvidenceJob {
   mediaId: string;
   reason: MediaReportSafetyReason;
   sourceStoragePath: string | null;
-  status: 'PENDING' | 'BLOCKED_SOURCE_PATH';
+  status: 'PENDING' | 'BLOCKED_SOURCE_PATH' | 'CLEANUP_PENDING';
   attempts: number;
   createdAt: number;
   updatedAt: number;
@@ -290,6 +290,7 @@ export async function preserveModerationEvidence(
   }
 
   const job = jobSnap.data() as ModerationEvidenceJob;
+  if (job.status === 'CLEANUP_PENDING') return;
   const ownerUid = cleanId(job.ownerUid);
   const mediaId = cleanId(job.mediaId);
   const sourceStoragePath = normalizeSourcePath(
@@ -354,7 +355,11 @@ export async function preserveModerationEvidence(
 
       if (evidenceStatus === 'PRESERVED' && evidenceSnap.exists) {
         if (currentJobSnap.exists) {
-          transaction.delete(jobRef);
+          if (String(report?.moderationAction ?? '').toUpperCase() === 'REMOVE') {
+            transaction.update(jobRef, { status: 'CLEANUP_PENDING', updatedAt: Date.now() });
+          } else {
+            transaction.delete(jobRef);
+          }
         }
         return 'ALREADY_PRESERVED';
       }
@@ -396,7 +401,11 @@ export async function preserveModerationEvidence(
         },
         { merge: true }
       );
-      transaction.delete(jobRef);
+      if (String(report?.moderationAction ?? '').toUpperCase() === 'REMOVE') {
+        transaction.update(jobRef, { status: 'CLEANUP_PENDING', updatedAt: Date.now() });
+      } else {
+        transaction.delete(jobRef);
+      }
       return 'PRESERVED';
     }
   );
