@@ -59,11 +59,12 @@ try {
   await sourceFile.save(bytes, { contentType: 'video/mp4' });
   await preserveModerationEvidence(reportId);
   assert.equal((await report.get()).get('evidencePreservationStatus'), 'PRESERVED');
-  assert.equal((await job.get()).exists, false);
+  assert.equal((await job.get()).get('status'), 'CLEANUP_PENDING');
   assert.equal((await evidence.get()).get('storagePath'), evidencePath);
   assert.deepEqual((await evidenceFile.download())[0], bytes);
 
   await preserveModerationEvidence(reportId);
+  assert.equal((await job.get()).get('status'), 'CLEANUP_PENDING');
   assert.deepEqual((await evidenceFile.download())[0], bytes);
   console.log('✔ recuperação após origem ausente preservou bytes e foi idempotente');
 } finally {

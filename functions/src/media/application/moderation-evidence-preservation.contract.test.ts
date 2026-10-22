@@ -20,7 +20,7 @@ test('invalid evidence source records durable blocked job and pending report ato
 test('retry scans actionable pending jobs without starvation from blocked evidence', () => {
   assert.match(retry, /\.where\('status', '==', 'PENDING'\)/);
   assert.match(retry, /await preserveModerationEvidence\(jobDoc\.id\)/);
-  assert.match(retry, /await cleanupResolvedRemovedMedia\(jobDoc\.id\)/);
+  assert.match(retry, /await finishPreservedCleanup\(jobDoc\.id\)/);
 });
 
 test('blocked evidence rearms exclusively from published canonical media', () => {
