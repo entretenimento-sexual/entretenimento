@@ -8,9 +8,52 @@ import type {
 } from 'src/app/core/services/media/public-profile-video-pagination.service';
 import { resolveOwnerVideoGallerySelection$ } from './owner-video-gallery-navigation';
 
-const item = (id: string, ownerUid = 'owner') =>
-  ({ id, ownerUid, visibility: 'PUBLIC', moderationStatus: 'APPROVED' })
-    as IPublicVideoItem;
+const item = (id: string, ownerUid = 'owner'): IPublicVideoItem => ({
+  id,
+  ownerUid,
+  mediaType: 'VIDEO',
+  assetAccess: 'SIGNED_URL',
+  posterAccess: 'NONE',
+  visibility: 'PUBLIC',
+  moderationStatus: 'APPROVED',
+  moderationReason: null,
+  title: id,
+  description: null,
+  alt: id,
+  mimeType: 'video/mp4',
+  sizeBytes: 1000,
+  durationMs: 10_000,
+  createdAt: 100,
+  publishedAt: 100,
+  updatedAt: 100,
+  lastViewedAt: null,
+  orderIndex: 0,
+  reactionsEnabled: true,
+  commentsEnabled: true,
+  ratingsEnabled: true,
+  viewsCount: 0,
+  uniqueViewersCount: 0,
+  reactionsCount: 0,
+  commentsCount: 0,
+  ratingsCount: 0,
+  ratingAverage: 0,
+  reportsCount: 0,
+  openReportsCount: 0,
+  confirmedReportsCount: 0,
+  viewScore: 0,
+  engagementScore: 0,
+  score: 0,
+  scoreBreakdown: {
+    rankingScore: 0,
+    qualityScore: 0,
+    engagementScore: 0,
+    safetyScore: 100,
+  },
+  owner: null,
+  url: null,
+  posterUrl: null,
+  accessExpiresAt: 0,
+});
 
 const cursor = (id: string): IPublicProfileVideoCursor =>
   ({ documentId: id, orderIndex: 1, publishedAt: 100 });
@@ -40,7 +83,7 @@ describe('owner public video gallery navigation', () => {
   it('deduplicates paginated items and excludes another owner or revoked video', async () => {
     const loadPage = vi.fn(() => of(page([
       item('one'), item('one'), item('foreign', 'someone-else'),
-      { ...item('revoked'), moderationStatus: 'HIDDEN' } as IPublicVideoItem,
+      { ...item('revoked'), moderationStatus: 'HIDDEN' } as unknown as IPublicVideoItem,
       item('target'),
     ], null)));
     const result = await firstValueFrom(resolveOwnerVideoGallerySelection$(

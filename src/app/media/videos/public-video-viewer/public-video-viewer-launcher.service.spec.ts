@@ -126,7 +126,7 @@ describe('PublicVideoViewerLauncherService', () => {
   });
 
   it('keeps the open observable pending until the viewer is dismissed', async () => {
-    const closed = new Subject<void>();
+    const closed = new Subject<undefined>();
     dialog.open.mockImplementationOnce(() => ({
       afterClosed: () => closed.asObservable(),
     }));
@@ -139,7 +139,7 @@ describe('PublicVideoViewerLauncherService', () => {
     }).subscribe({ complete: () => { settled = true; } });
     await Promise.resolve();
     expect(settled).toBe(false);
-    closed.next();
+    closed.next(undefined);
     closed.complete();
     expect(settled).toBe(true);
     subscription.unsubscribe();
