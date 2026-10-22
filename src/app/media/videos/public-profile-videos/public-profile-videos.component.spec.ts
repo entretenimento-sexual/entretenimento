@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { TestBed } from '@angular/core/testing';
 import {
   ActivatedRoute,
@@ -372,5 +374,15 @@ describe('PublicProfileVideosComponent', () => {
     expect(errorNotification.showWarning).toHaveBeenCalledWith(
       'Este vídeo não está mais disponível para visitantes.'
     );
+  });
+});
+
+describe('public video gallery window direction', () => {
+  it('documents the rendering contract: lower index is more recent', () => {
+    const source = readFileSync(
+      join(__dirname, './public-profile-videos.component.html'), 'utf8'
+    );
+    expect(source).toMatch(/showEarlierWindow\(\)"[\s\S]*Mostrar mais recentes/);
+    expect(source).toMatch(/showLaterWindow\(\)"[\s\S]*Mostrar anteriores/);
   });
 });
