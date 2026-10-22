@@ -430,3 +430,22 @@ test('PUBLISHED PHOTO: direct physical cleanup preserves a concurrently replaced
   assert.equal(current.get('reason'), 'replacement-cleanup');
   await jobRef.delete();
 });
+
+test('PUBLISHED PHOTO: create-only Storage write refuses overwriting an existing generation', async () => {
+  const ownerUid = randomUUID();
+  const photoId = randomUUID();
+  const path = `users/${ownerUid}/published/images/${photoId}/${randomUUID()}`;
+  const file = getDefaultStorageBucket().file(path);
+  await file.save(Buffer.from('original-generation'), {
+    resumable: false,
+    preconditionOpts: { ifGenerationMatch: 0 },
+  });
+  await assert.rejects(
+    file.save(Buffer.from('replacement-generation'), {
+      resumable: false,
+      preconditionOpts: { ifGenerationMatch: 0 },
+    })
+  );
+  const [contents] = await file.download();
+  assert.equal(contents.toString(), 'original-generation');
+});
