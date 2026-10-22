@@ -197,6 +197,18 @@ export async function deleteProfilePhotoResources(
   }
 
   if (!privatePhotoSnap.exists) {
+    const pendingJob = await db.collection(DELETION_JOBS_COLLECTION)
+      .doc(buildDeletionJobId(ownerUid, photoId)).get();
+    if (pendingJob.exists) {
+      if (pendingJob.get('ownerUid') !== ownerUid ||
+          pendingJob.get('photoId') !== photoId) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Obrigação de exclusão de foto com identidade divergente.'
+        );
+      }
+      return { photoId, cleanupPending: true };
+    }
     const cleanupBatch = db.batch();
     if (publicationSnap.exists && publicationSnap.updateTime) {
       cleanupBatch.delete(publicationRef, {
