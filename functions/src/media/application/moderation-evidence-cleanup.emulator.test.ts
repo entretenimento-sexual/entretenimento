@@ -473,7 +473,8 @@ test('PUBLISHED PHOTO: direct cleanup pins GCS generation in delete request', as
     prototype.delete = async function (this: typeof file, ...args: Parameters<typeof file.delete>) {
       if (this.name === storagePath) {
         checked = true;
-        assert.equal(args[0]?.ifGenerationMatch, String(metadata.generation));
+        assert.equal((args[0] as unknown as { ifGenerationMatch?: string })?.ifGenerationMatch,
+          String(metadata.generation));
       }
       return originalDelete.apply(this, args);
     } as unknown as typeof file.delete;
@@ -503,7 +504,8 @@ test('PUBLISHED PHOTO: generation conflict blocks deletion and durable retry', a
     prototype.delete = async function (this: typeof file, ...args: Parameters<typeof file.delete>) {
       if (this.name === storagePath) {
         checked = true;
-        assert.equal(args[0]?.ifGenerationMatch, String(metadata.generation));
+        assert.equal((args[0] as unknown as { ifGenerationMatch?: string })?.ifGenerationMatch,
+          String(metadata.generation));
         throw Object.assign(new Error('simulated GCS generation conflict'), { code: 412 });
       }
       return originalDelete.apply(this, args);
