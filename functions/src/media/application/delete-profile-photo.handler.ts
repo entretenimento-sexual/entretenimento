@@ -136,21 +136,33 @@ async function executeDeletionJob(
 
 async function recordDeletionAttemptFailure(
   jobId: string,
-  currentAttempts: unknown,
+  job: PhotoDeletionJob,
   error: unknown
 ): Promise<PhotoCleanupJobState> {
   const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
   const now = Date.now();
-  const retry = nextPhotoCleanupRetry(currentAttempts, now);
+  const retry = nextPhotoCleanupRetry(job.attempts, now);
 
   try {
-    await jobRef.update({
-      state: retry.state,
-      attempts: retry.attempts,
-      nextAttemptAt: retry.nextAttemptAt,
-      deadLetterExpiresAt: retry.deadLetterExpiresAt,
-      updatedAt: now,
-      lastError: normalizeErrorMessage(error),
+    await db.runTransaction(async (tx) => {
+      const current = await tx.get(jobRef);
+      if (!current.exists ||
+          current.get('ownerUid') !== job.ownerUid ||
+          current.get('photoId') !== job.photoId ||
+          current.get('storagePath') !== job.storagePath ||
+          current.get('createdAt') !== job.createdAt) {
+        return;
+      }
+      // Do not allow a stale retry to regress the attempt counter.
+      if (Number(current.get('attempts') ?? 0) !== job.attempts) return;
+      tx.update(jobRef, {
+        state: retry.state,
+        attempts: retry.attempts,
+        nextAttemptAt: retry.nextAttemptAt,
+        deadLetterExpiresAt: retry.deadLetterExpiresAt,
+        updatedAt: now,
+        lastError: normalizeErrorMessage(error),
+      });
     });
   } catch (updateError) {
     logger.warn('[photoDeletion] Job já não está disponível para atualização.', {
@@ -332,7 +344,7 @@ export async function deleteProfilePhotoResources(
       cleanupPending: !publishedAssetDeleted,
     };
   } catch (error) {
-    const state = await recordDeletionAttemptFailure(jobId, job.attempts, error);
+    const state = await recordDeletionAttemptFailure(jobId, job, error);
 
     logPhotoOperation({
       operation: 'photo.delete_private_asset',
@@ -443,7 +455,7 @@ export const cleanupPendingPhotoDeletions = onSchedule(
       } catch (error) {
         const state = await recordDeletionAttemptFailure(
           jobDoc.id,
-          job.attempts,
+          job,
           error
         );
 
