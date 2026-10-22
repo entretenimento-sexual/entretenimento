@@ -37,6 +37,8 @@ async function preserved(mediaType: 'PHOTO' | 'VIDEO') {
       moderationAction: 'REMOVE',
       evidencePreservationStatus: 'PRESERVED',
       targetOwnerUid: ownerUid,
+      targetType: mediaType.toLowerCase(),
+      targetId: mediaId,
     }),
     refsForTest.evidence.set({ ownerUid, mediaId, mediaType, reason: 'SAFETY' }),
   ]);
@@ -69,6 +71,20 @@ for (const mediaType of ['PHOTO', 'VIDEO'] as const) {
     assert.equal(await ensurePreservedModerationCleanupJob(x.reportId, mediaType, x.ownerUid, x.mediaId), false);
     assert.equal((await x.job.get()).get('ownerUid'), 'other-owner');
     assert.equal(await ensurePreservedModerationCleanupJob(x.reportId, mediaType, x.ownerUid, 'other-media'), false);
+  });
+
+  test(`${mediaType}: report targeting another media cannot create cleanup job`, async () => {
+    const x = await preserved(mediaType);
+    await x.report.update({ targetId: 'different-media' });
+    assert.equal(await ensurePreservedModerationCleanupJob(
+      x.reportId, mediaType, x.ownerUid, x.mediaId
+    ), false);
+    assert.equal((await x.job.get()).exists, false);
+    await x.report.update({ targetId: x.mediaId, targetType: 'other' });
+    assert.equal(await ensurePreservedModerationCleanupJob(
+      x.reportId, mediaType, x.ownerUid, x.mediaId
+    ), false);
+    assert.equal((await x.job.get()).exists, false);
   });
 
   test(`${mediaType}: rejected or unpreserved report never stages cleanup`, async () => {
