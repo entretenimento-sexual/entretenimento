@@ -272,7 +272,7 @@ test('PUBLISHED PHOTO: real processor dead-letters invalid paths and purges expi
 test('PUBLISHED PHOTO: direct cleanup removes the physical Storage object', async () => {
   assert.match(
     String(process.env.FIREBASE_STORAGE_EMULATOR_HOST ?? ''),
-    /^127\\.0\\.0\\.1:\\d{2,5}$/
+    /^127\.0\.0\.1:\d{2,5}$/
   );
   const ownerUid = randomUUID();
   const photoId = randomUUID();
