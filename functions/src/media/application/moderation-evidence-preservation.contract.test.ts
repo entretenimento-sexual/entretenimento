@@ -51,14 +51,14 @@ test('preserved REMOVE retains retryable cleanup obligation', () => {
   assert.match(source, /status: 'CLEANUP_PENDING', updatedAt: Date\.now\(\)/);
   assert.match(retry, /\.where\('status', '==', 'CLEANUP_PENDING'\)/);
   assert.match(retry, /await finishPreservedCleanup\(cleanup\.id\)/);
-  assert.match(retry, /if \(job\.get\('status'\) === 'CLEANUP_PENDING'\)/);
+  assert.match(retry, /job\.get\('status'\) === 'CLEANUP_PENDING'/);
 });
 
 test('moderation cleanup acknowledges only completed physical deletion', () => {
   assert.match(retry, /const result = await deleteProfilePhotoResources/);
   assert.match(retry, /const result = await deleteProfileVideoResources/);
   assert.match(retry, /return result\.cleanupPending === false/g);
-  assert.match(retry, /if \(!await cleanupResolvedRemovedMedia\(reportId\)\) return/);
+  assert.match(retry, /if \(!await cleanupResolvedRemovedMedia\(reportId, identity\)\) return/);
 });
 
 test('previously preserved REMOVE stages durable cleanup before deletion', () => {
@@ -66,4 +66,21 @@ test('previously preserved REMOVE stages durable cleanup before deletion', () =>
   assert.match(source, /tx\.create\(jobRef/);
   assert.match(source, /evidence\.get\('mediaId'\) !== mediaId/);
   assert.match(source, /evidence\.get\('mediaType'\) !== mediaType/);
+});
+
+test('cleanup retry validates report and evidence identity before deletion', () => {
+  assert.match(retry, /const jobBefore = await jobRef\.get\(\)/);
+  assert.match(retry, /matchingCleanupIdentity\(jobBefore, identity\)/);
+  assert.match(retry, /evidenceSnap\.get\('ownerUid'\) !== identity\.ownerUid/);
+  assert.match(retry, /evidenceSnap\.get\('mediaId'\) !== identity\.mediaId/);
+  assert.match(retry, /evidenceSnap\.get\('mediaType'\) !== identity\.mediaType/);
+});
+
+test('cleanup retry does not acknowledge a replaced obligation or changed target', () => {
+  assert.match(retry, /await db\.runTransaction\(async \(tx\) =>/);
+  assert.match(retry, /matchingCleanupIdentity\(job, identity\)/);
+  assert.match(retry, /job\.get\('createdAt'\) === identity\.createdAt/);
+  assert.match(retry, /reportMediaId === identity\.mediaId/);
+  assert.match(retry, /evidence\.get\('mediaId'\) === identity\.mediaId/);
+  assert.match(retry, /\) tx\.delete\(jobRef\)/);
 });
