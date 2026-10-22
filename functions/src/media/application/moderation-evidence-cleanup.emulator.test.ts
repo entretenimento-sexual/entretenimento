@@ -209,3 +209,33 @@ test('PHOTO: an upload transaction cannot register the same ID while deletion is
   assert.equal((await photo.get()).exists, false);
   assert.equal((await job.get()).get('attempts'), 1);
 });
+
+test('PUBLISHED PHOTO: stale cleanup retry cannot delete or update a replaced job', async () => {
+  const ref = db.collection('media_published_asset_cleanup_jobs').doc(randomUUID());
+  const original = {
+    ownerUid: 'owner-a', photoId: 'photo-a', storagePath: 'published/old',
+    createdAt: Date.now(), updatedAt: Date.now(), attempts: 1,
+    state: 'retryable',
+  };
+  await ref.set(original);
+  await ref.update({ updatedAt: original.updatedAt + 1, attempts: 2 });
+  const attempt = async (action: 'delete' | 'update') => db.runTransaction(async tx => {
+    const current = await tx.get(ref);
+    if (!current.exists ||
+        current.get('ownerUid') !== original.ownerUid ||
+        current.get('photoId') !== original.photoId ||
+        current.get('storagePath') !== original.storagePath ||
+        current.get('createdAt') !== original.createdAt ||
+        current.get('updatedAt') !== original.updatedAt) return false;
+    if (action === 'update' && current.get('attempts') !== original.attempts) return false;
+    if (action === 'delete') tx.delete(ref);
+    else tx.update(ref, { attempts: original.attempts + 1 });
+    return true;
+  });
+  assert.equal(await attempt('delete'), false);
+  assert.equal(await attempt('update'), false);
+  const current = await ref.get();
+  assert.equal(current.exists, true);
+  assert.equal(current.get('attempts'), 2);
+  assert.equal(current.get('updatedAt'), original.updatedAt + 1);
+});
