@@ -18,6 +18,11 @@ import {
   clearPublishedVideoCleanupJobIfUnleased,
 } from './published-video-cleanup-queue.firestore';
 import { nextVideoCleanupRetry } from './video-cleanup-job.policy';
+import {
+  deleteGenerationPinnedVideoFile,
+  normalizeGcsGeneration,
+  VideoDeletionGenerationConflictError,
+} from './video-deletion-storage-pages';
 import { migrateLegacyPublishedVideoCleanupJobs } from './published-video-cleanup-migration.firestore';
 import {
   buildPublishedVideoPosterPath,
@@ -32,6 +37,8 @@ interface PublishedVideoAssetCleanupJob {
   storagePath: string;
   assetKind: 'video' | 'poster';
   reason: string;
+  /** Persisted GCS generation; absent on historical cleanup obligations. */
+  generation?: string | null;
   createdAt: number;
   updatedAt: number;
   attempts: number;
@@ -90,6 +97,58 @@ function normalizeErrorMessage(error: unknown): string {
 
 function buildCleanupJobId(storagePath: string): string {
   return createHash('sha256').update(storagePath).digest('hex');
+}
+
+function isStorageNotFound(error: unknown): boolean {
+  if (!error || typeof error !== 'object' || !('code' in error)) return false;
+  const code = (error as { code: unknown }).code;
+  return code === 404 || code === '404';
+}
+
+/**
+ * Capture the exact live generation before a direct delete; retries must use
+ * the original persisted value and never rediscover a replacement generation.
+ */
+async function capturePublishedAssetGeneration(
+  storagePath: string,
+  recordedGeneration: unknown = null
+): Promise<string | null> {
+  if (recordedGeneration !== null && recordedGeneration !== undefined) {
+    const recorded = normalizeGcsGeneration(recordedGeneration);
+    if (!recorded) {
+      throw new VideoDeletionGenerationConflictError(
+        'Invalid published asset generation; manual review required.'
+      );
+    }
+    return recorded;
+  }
+  try {
+    const [metadata] = await storage.bucket().file(storagePath).getMetadata();
+    const generation = normalizeGcsGeneration(metadata.generation);
+    if (!generation) {
+      throw new VideoDeletionGenerationConflictError(
+        'Missing published asset generation; manual review required.'
+      );
+    }
+    return generation;
+  } catch (error) {
+    // An already-absent object requires no physical delete.
+    if (isStorageNotFound(error)) return null;
+    throw error;
+  }
+}
+
+async function deletePublishedAssetWithGeneration(
+  storagePath: string,
+  generation: string | null
+): Promise<void> {
+  if (!generation) return;
+  await deleteGenerationPinnedVideoFile(generation, (expected) =>
+    storage.bucket().file(storagePath).delete({
+      ignoreNotFound: true,
+      ifGenerationMatch: expected,
+    })
+  );
 }
 
 function resolveValidatedSize(value: unknown, maxBytes: number): number {
@@ -165,6 +224,7 @@ async function resolveProcessedVideoSource(
 async function enqueuePublishedVideoAssetCleanup(
   command: DeletePublishedVideoAssetCommand,
   storagePath: string,
+  generation: string | null,
   error: unknown
 ): Promise<void> {
   const now = Date.now();
@@ -183,6 +243,14 @@ async function enqueuePublishedVideoAssetCleanup(
       return;
     }
 
+    const previousGeneration = normalizeGcsGeneration(current?.generation);
+    // A new request cannot turn an old durable job into a different deletion.
+    if (previousGeneration && generation && previousGeneration !== generation) {
+      return;
+    }
+    const pinnedGeneration = previousGeneration ?? generation;
+    const needsReview = !pinnedGeneration ||
+      error instanceof VideoDeletionGenerationConflictError;
     const retry = nextVideoCleanupRetry(current?.attempts ?? 0, now);
     const job: PublishedVideoAssetCleanupJob = {
       ownerUid: command.ownerUid,
@@ -190,16 +258,17 @@ async function enqueuePublishedVideoAssetCleanup(
       storagePath,
       assetKind: command.assetKind,
       reason: command.reason,
+      generation: pinnedGeneration,
       createdAt: typeof current?.createdAt === 'number' &&
           Number.isFinite(current.createdAt) && current.createdAt > 0
         ? current.createdAt
         : now,
       updatedAt: now,
-      attempts: retry.attempts,
+      attempts: needsReview ? MEDIA_CLEANUP_MAX_ATTEMPTS : retry.attempts,
       lastError: normalizeErrorMessage(error),
-      state: retry.state,
-      nextAttemptAt: retry.nextAttemptAt,
-      deadLetterExpiresAt: retry.deadLetterExpiresAt,
+      state: needsReview ? 'dead_letter' : retry.state,
+      nextAttemptAt: needsReview ? null : retry.nextAttemptAt,
+      deadLetterExpiresAt: needsReview ? null : retry.deadLetterExpiresAt,
       leaseUntil: null,
       leaseToken: null,
     };
@@ -325,12 +394,25 @@ export async function deletePublishedVideoAssetOrQueueWithResult(
     return 'INVALID_PATH';
   }
 
+  let generation: string | null = null;
   try {
     const result = await deleteUnreferencedPublishedVideoAsset(
       db, { ...command, storagePath },
-      () => storage.bucket().file(storagePath).delete({
-        ignoreNotFound: true,
-      }).then(() => undefined)
+      async () => {
+        const jobSnap = await db.collection(CLEANUP_COLLECTION)
+          .doc(buildCleanupJobId(storagePath)).get();
+        // Legacy obligations have no trustworthy generation: fail closed.
+        if (jobSnap.exists && !normalizeGcsGeneration(jobSnap.get('generation'))) {
+          throw new VideoDeletionGenerationConflictError(
+            'Legacy published asset cleanup requires manual review.'
+          );
+        }
+        generation = await capturePublishedAssetGeneration(
+          storagePath,
+          jobSnap.exists ? jobSnap.get('generation') : null
+        );
+        await deletePublishedAssetWithGeneration(storagePath, generation);
+      }
     );
 
     if (result === 'ACTIVE_REFERENCE') {
@@ -355,7 +437,7 @@ export async function deletePublishedVideoAssetOrQueueWithResult(
     return 'DELETED';
   } catch (error) {
     // This must succeed durably before the parent deletion job is completed.
-    await enqueuePublishedVideoAssetCleanup(command, storagePath, error);
+    await enqueuePublishedVideoAssetCleanup(command, storagePath, generation, error);
 
     logger.error('[publishedVideoAsset] Limpeza física pendente.', {
       ownerUid: command.ownerUid,
@@ -426,12 +508,22 @@ export async function processPendingPublishedVideoAssetCleanupJobs(
       continue;
     }
 
+    // A pre-generation legacy job may refer to an object that was replaced.
+    // Never infer its original generation from the current Storage object.
+    if (!normalizeGcsGeneration(job.generation)) {
+      await settlePublishedVideoCleanupJob(
+        db, candidate.ref, token,
+        'Missing GCS generation; manual review required.',
+        Date.now(), true
+      );
+      continue;
+    }
+
     try {
       const result = await deleteUnreferencedPublishedVideoAsset(
         db,
         { ...job, storagePath },
-        () => storage.bucket().file(storagePath)
-          .delete({ ignoreNotFound: true }).then(() => undefined)
+        () => deletePublishedAssetWithGeneration(storagePath, job.generation ?? null)
       );
       if (result === 'ACTIVE_REFERENCE') {
         logger.warn('[publishedVideoAsset] Ativo ainda referenciado; sem exclusão.', {
@@ -441,7 +533,8 @@ export async function processPendingPublishedVideoAssetCleanupJobs(
       await settlePublishedVideoCleanupJob(db, candidate.ref, token, null);
     } catch (error) {
       await settlePublishedVideoCleanupJob(
-        db, candidate.ref, token, normalizeErrorMessage(error)
+        db, candidate.ref, token, normalizeErrorMessage(error),
+        Date.now(), error instanceof VideoDeletionGenerationConflictError
       );
       logger.error('[publishedVideoAsset] Falha no retry de limpeza.', {
         jobId: candidate.id,

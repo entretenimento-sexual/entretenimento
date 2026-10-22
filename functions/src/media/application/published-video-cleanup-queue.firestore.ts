@@ -4,6 +4,7 @@ import {
   canClaimVideoCleanupJob,
   VIDEO_CLEANUP_LEASE_MS,
 } from './video-cleanup-claim.policy';
+import { MEDIA_CLEANUP_MAX_ATTEMPTS } from './media-cleanup-retry.policy';
 import { nextVideoCleanupRetry } from './video-cleanup-job.policy';
 
 export type PublishedCleanupCompletion =
@@ -46,7 +47,8 @@ export async function settlePublishedVideoCleanupJob(
   ref: DocumentReference,
   token: string,
   errorMessage: string | null,
-  now = Date.now()
+  now = Date.now(),
+  manualReview = false
 ): Promise<PublishedCleanupCompletion> {
   if (!token || !Number.isFinite(now)) {
     throw new Error('Invalid published cleanup completion arguments.');
@@ -64,16 +66,17 @@ export async function settlePublishedVideoCleanupJob(
 
     const retry = nextVideoCleanupRetry(data['attempts'], now);
     transaction.set(ref, {
-      state: retry.state,
-      attempts: retry.attempts,
-      nextAttemptAt: retry.nextAttemptAt,
-      deadLetterExpiresAt: retry.deadLetterExpiresAt,
+      state: manualReview ? 'dead_letter' : retry.state,
+      attempts: manualReview ? MEDIA_CLEANUP_MAX_ATTEMPTS : retry.attempts,
+      nextAttemptAt: manualReview ? null : retry.nextAttemptAt,
+      deadLetterExpiresAt: manualReview ? null : retry.deadLetterExpiresAt,
       updatedAt: now,
       lastError: errorMessage.slice(0, 500),
       leaseToken: null,
       leaseUntil: null,
     }, { merge: true });
-    return retry.state === 'dead_letter' ? 'DEAD_LETTER' : 'RETRYABLE';
+    return manualReview || retry.state === 'dead_letter'
+      ? 'DEAD_LETTER' : 'RETRYABLE';
   });
 }
 
