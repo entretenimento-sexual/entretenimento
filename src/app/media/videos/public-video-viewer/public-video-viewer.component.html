@@ -75,6 +75,7 @@
           <a
             class="public-video-viewer__owner"
             [routerLink]="viewerIsOwner ? ['/perfil'] : ['/outro-perfil', video.ownerUid]"
+            (click)="close()"
             [attr.aria-label]="viewerIsOwner
               ? 'Abrir seu perfil'
               : 'Abrir perfil de ' + (video.owner?.nickname || 'usuário')"
@@ -232,6 +233,7 @@
                 'video',
                 video.id
               ]"
+              (click)="close()"
               aria-label="Denunciar vídeo"
             >
               <span class="public-video-viewer__interaction-icon">
