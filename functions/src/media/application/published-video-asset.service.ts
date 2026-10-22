@@ -315,6 +315,8 @@ async function copyPosterIfAvailable(
 
   try {
     await sourcePoster.copy(destinationPoster, {
+      // Published poster paths are immutable: never overwrite an existing object.
+      preconditionOpts: { ifGenerationMatch: 0 },
       metadata: {
         contentType: posterContentType,
         contentDisposition: 'inline',

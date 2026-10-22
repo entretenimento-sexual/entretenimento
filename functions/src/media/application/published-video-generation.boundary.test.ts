@@ -16,6 +16,7 @@ test('published videos and posters delete only the captured GCS generation', () 
   assert.match(service, /capturePublishedAssetGeneration\(/);
   assert.match(service, /deleteGenerationPinnedVideoFile\(generation,/);
   assert.match(service, /ifGenerationMatch: expected/);
+  assert.match(service, /preconditionOpts: \{ ifGenerationMatch: 0 \}/);
   assert.doesNotMatch(service, /\.delete\(\{ ignoreNotFound: true \}\)/);
 });
 
