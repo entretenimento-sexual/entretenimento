@@ -67,7 +67,8 @@ const WRITERS: readonly Writer[] = [
   },
   {
     path: 'account_lifecycle/account-owned-media-deletion.firestore.ts',
-    sites: ['DELETE', 'DYNAMIC', 'DYNAMIC', 'DELETE'], events: 4, creations: 0,
+    // Account video deletion now delegates transaction+outbox to canonical Media.
+    sites: ['DELETE', 'DYNAMIC'], events: 2, creations: 0,
   },
 ] as const;
 
@@ -169,12 +170,13 @@ test('c18w audited job writer sites and event counts are fail closed', () => {
     const source = readFileSync(resolve(root, writer.path), 'utf8');
     verify(writer, source);
     if (writer.path.startsWith('account_lifecycle/')) {
-      // Both indirect patches must still explicitly request cancellation.
-      assert.equal((source.match(/state: 'CANCEL_REQUESTED' as const/g) ?? []).length, 2);
+      // The remaining processing-page writer must still request cancellation.
+      assert.equal((source.match(/state: 'CANCEL_REQUESTED' as const/g) ?? []).length, 1);
+      assert.ok(source.includes('deleteProfileVideoResources(uid, videoSnapshot.id,'));
     }
   }
-  assert.equal(WRITERS.reduce((sum, x) => sum + x.sites.length, 0), 44);
-  assert.equal(WRITERS.reduce((sum, x) => sum + x.events + x.creations, 0), 31);
+  assert.equal(WRITERS.reduce((sum, x) => sum + x.sites.length, 0), 42);
+  assert.equal(WRITERS.reduce((sum, x) => sum + x.events + x.creations, 0), 29);
 });
 
 test('c18w mutation fixtures reject new writers and orphan transitions', () => {

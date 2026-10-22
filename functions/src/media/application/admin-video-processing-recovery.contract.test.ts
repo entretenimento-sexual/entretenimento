@@ -388,8 +388,8 @@ test('c18o writer provenance is not a complete atomic mutation feed', () => {
     ['account_lifecycle/account-owned-media-deletion.firestore.ts', [
       'transaction.delete(jobSnapshot.ref);',
       'transaction.update(jobSnapshot.ref, withAdminTriageProjection(',
-      'transaction.set(processingRef, withAdminTriageProjection(',
       'stageVideoTriageMutationInTransaction(',
+      'deleteProfileVideoResources(uid, videoSnapshot.id,',
     ]],
   ];
   for (const [file, markers] of required) {
@@ -417,6 +417,8 @@ test('c18p tombstones and account cancellation share Firestore transactions', ()
   const outbox = src('media/application/admin-video-triage-mutation-outbox.firestore.ts');
   const lifecycle = src('account_lifecycle/account-owned-media-deletion.firestore.ts');
   const reconciliation = src('media/application/video-processing-reconciliation.firestore.ts');
+  const canonicalDeletion = src('media/application/video-profile-deletion-commit.firestore.ts');
+  const canonicalHandler = src('media/application/delete-profile-video.handler.ts');
 
   assert.ok(outbox.includes('transaction.create(ref, {'));
   assert.ok(outbox.includes('PARTIAL_WRITER_COVERAGE'));
@@ -429,11 +431,14 @@ test('c18p tombstones and account cancellation share Firestore transactions', ()
   assert.ok(lifecycle.includes('current.updateTime.isEqual(jobSnapshot.updateTime)'));
   assert.ok(lifecycle.includes('transaction.delete(jobSnapshot.ref);'));
   assert.ok(lifecycle.includes('transaction.update(jobSnapshot.ref, withAdminTriageProjection('));
-  assert.ok(lifecycle.includes('transaction.set(processingRef, withAdminTriageProjection('));
+  assert.ok(lifecycle.includes('deleteProfileVideoResources(uid, videoSnapshot.id,'));
+  assert.ok(canonicalHandler.includes('commitProfileVideoDeletionRequest(db, {'));
+  assert.ok(canonicalDeletion.includes('transaction.set(processingJobRef, withAdminTriageProjection('));
+  assert.ok(canonicalDeletion.includes('stageVideoTriageMutationInTransaction('));
   assert.ok(!lifecycle.includes('await jobSnapshot.ref.delete();'));
   assert.ok(!lifecycle.includes('await jobSnapshot.ref.set('));
   assert.ok(!lifecycle.includes('hideBatch.set('));
-  assert.equal(lifecycle.split('stageVideoTriageMutationInTransaction(').length - 1, 4);
+  assert.equal(lifecycle.split('stageVideoTriageMutationInTransaction(').length - 1, 2);
   assert.ok(lifecycle.includes('transaction.delete(processingRef);'));
   assert.ok(!lifecycle.includes('await processingRef.delete();'));
   assert.ok(reconciliation.includes('stageVideoTriageMutationInTransaction('));
