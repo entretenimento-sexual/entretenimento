@@ -78,8 +78,10 @@ test('published cleanup invalid and retention paths use identity-guarded transac
     'utf8'
   );
   const runner = cleanup.slice(cleanup.indexOf('export async function processPendingPublishedPhotoAssetCleanupJobs'));
-  const invalid = runner.slice(runner.indexOf('if (!storagePath) {'), runner.indexOf('try {', runner.indexOf('if (!storagePath) {')));
-  const retention = runner.slice(runner.indexOf('if (await hasPublishedPhotoRetentionBlocker(job))'), runner.indexOf('waitingRetention += 1'));
+  const invalidStart = runner.indexOf('if (!storagePath) {');
+  const invalid = runner.slice(invalidStart, runner.indexOf('try {', invalidStart));
+  const retentionStart = runner.indexOf('if (await hasPublishedPhotoRetentionBlocker(job))');
+  const retention = runner.slice(retentionStart, runner.indexOf('waitingRetention += 1'));
   for (const part of [invalid, retention]) {
     assert.match(part, /await db\.runTransaction\(async \(tx\) =>/);
     assert.match(part, /current\.get\('createdAt'\) !== job\.createdAt/);
