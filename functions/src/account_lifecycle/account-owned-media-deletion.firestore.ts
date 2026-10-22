@@ -11,13 +11,13 @@ import { randomUUID } from 'node:crypto';
 import { db, storage } from '../firebaseApp';
 import { deletePublishedPhotoAssetOrQueue } from '../media/application/published-photo-asset.service';
 import { deleteProfilePhotoResources } from '../media/application/delete-profile-photo.handler';
+import { deleteProfileVideoResources } from '../media/application/delete-profile-video.handler';
 import {
   deleteGenerationPinnedVideoFile,
   deleteVideoStoragePrefixBounded,
 } from '../media/application/video-deletion-storage-pages';
 import { deletePublishedVideoAssetOrQueue } from '../media/application/published-video-asset.service';
 import {
-  buildVideoProcessingJobId,
   VIDEO_PROCESSING_JOBS_COLLECTION, type VideoProcessingJob,
 } from '../media/application/video-processing-job';
 import { withAdminTriageProjection }
@@ -25,8 +25,6 @@ import { withAdminTriageProjection }
 import { stageVideoTriageMutationInTransaction }
   from '../media/application/admin-video-triage-mutation-outbox.firestore';
 import {
-  extractOwnedPrivateVideoPath,
-  extractOwnedPrivateVideoPosterPath,
   normalizeOwnedProcessedVideoPrefix,
 } from '../media/application/video-storage-path';
 import { FirestoreAccountDataDeletionAdapter } from './account-data-deletion.firestore';
@@ -38,14 +36,6 @@ import type {
 
 interface PhotoPublicationDocument {
   publishedStoragePath?: string | null;
-}
-
-interface PrivateVideoDocument {
-  path?: unknown;
-  url?: unknown;
-  thumbnailPath?: unknown;
-  thumbnailUrl?: unknown;
-  processedOutputPrefix?: unknown;
 }
 
 interface VideoPublicationDocument {
@@ -365,131 +355,14 @@ export class FirestoreAccountDataDeletionOrchestratorAdapter
     uid: string,
     videoSnapshot: FirebaseFirestore.QueryDocumentSnapshot
   ): Promise<void> {
-    const videoId = videoSnapshot.id;
-    const privateVideo = videoSnapshot.data() as PrivateVideoDocument;
-    const publicationRef = db.doc(
-      `users/${uid}/video_publications/${videoId}`
-    );
-    const publicVideoRef = db.doc(
-      `public_profiles/${uid}/public_videos/${videoId}`
-    );
-    const processingRef = db
-      .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
-      .doc(buildVideoProcessingJobId(uid, videoId));
-    const [publicationSnapshot, processingSnapshot] = await Promise.all([
-      publicationRef.get(),
-      processingRef.get(),
-    ]);
-    const publication = publicationSnapshot.exists
-      ? (publicationSnapshot.data() as VideoPublicationDocument)
-      : null;
-    const processing = processingSnapshot.exists
-      ? (processingSnapshot.data() as VideoProcessingDocument)
-      : null;
-    const processingState = normalizeProcessingState(processing?.state);
-    const activeProcessing = processingSnapshot.exists &&
-      !TERMINAL_PROCESSING_STATES.has(processingState);
-    const privateVideoPath =
-      extractOwnedPrivateVideoPath(uid, privateVideo.path) ??
-      extractOwnedPrivateVideoPath(uid, privateVideo.url);
-    const privatePosterPath =
-      extractOwnedPrivateVideoPosterPath(
-        uid,
-        videoId,
-        privateVideo.thumbnailPath
-      ) ??
-      extractOwnedPrivateVideoPosterPath(
-        uid,
-        videoId,
-        privateVideo.thumbnailUrl
-      );
-    const processedOutputPrefix =
-      normalizeOwnedProcessedVideoPrefix(
-        uid,
-        videoId,
-        privateVideo.processedOutputPrefix
-      ) ??
-      normalizeOwnedProcessedVideoPrefix(uid, videoId, processing?.outputPrefix);
-    const eventId = randomUUID();
-    await db.runTransaction(async transaction => {
-      const current = await transaction.get(processingRef);
-      transaction.delete(publicationRef);
-      transaction.delete(publicVideoRef);
-      if (!current.exists || current.get('ownerUid') !== uid ||
-          TERMINAL_PROCESSING_STATES.has(
-            normalizeProcessingState(current.get('state'))) ||
-          normalizeProcessingState(current.get('state')) ===
-            'CANCEL_REQUESTED') return;
-
-      const now = Date.now();
-      const patch = {
-        state: 'CANCEL_REQUESTED' as const,
-        cancelRequestedAt: now, leaseUntil: null,
-        updatedAt: now,
-        lastErrorCode: 'ACCOUNT_DELETION_REQUESTED',
-        lastError: 'A conta proprietária entrou em exclusão definitiva.',
-      };
-      transaction.set(processingRef, withAdminTriageProjection(
-        processingRef.id, current.data() as Partial<VideoProcessingJob>,
-        patch, now), { merge: true });
-      stageVideoTriageMutationInTransaction(
-        db, transaction, processingRef, {
-          eventId, source: 'ACCOUNT_DELETION_PRIVATE_VIDEO',
-          kind: 'CANCEL_REQUESTED', before: current,
-          afterState: 'CANCEL_REQUESTED',
-        });
-    }, { maxAttempts: 2 });
-
-    await Promise.all([
-      deletePublishedVideoAssetOrQueue({
-        ownerUid: uid,
-        videoId,
-        storagePath: publication?.publishedStoragePath,
-        assetKind: 'video',
-        reason: 'account-deletion-video',
-      }),
-      deletePublishedVideoAssetOrQueue({
-        ownerUid: uid,
-        videoId,
-        storagePath: publication?.publishedPosterStoragePath,
-        assetKind: 'poster',
-        reason: 'account-deletion-video-poster',
-      }),
-    ]);
-
-    await Promise.all([
-      privateVideoPath ? deleteExactOwnedMediaObject(privateVideoPath) : Promise.resolve(),
-      privatePosterPath ? deleteExactOwnedMediaObject(privatePosterPath) : Promise.resolve(),
-    ]);
-
-    if (!activeProcessing && processedOutputPrefix) {
-      await deleteStoragePrefix(processedOutputPrefix);
+    // The canonical transaction owns tombstones, processing cancellation,
+    // published asset cleanup and generation-pinned private deletion.
+    const result = await deleteProfileVideoResources(uid, videoSnapshot.id, {
+      allowQuarantined: true,
+    });
+    if (result.cleanupPending) {
+      throw new Error('Owned video cleanup pending; account deletion requires retry.');
     }
-
-    if (processingSnapshot.exists && !activeProcessing) {
-      const deleteEventId = randomUUID();
-      await db.runTransaction(async transaction => {
-        const current = await transaction.get(processingRef);
-        if (!current.exists || !current.updateTime ||
-            !processingSnapshot.updateTime ||
-            !current.updateTime.isEqual(processingSnapshot.updateTime) ||
-            current.get('ownerUid') !== uid ||
-            !TERMINAL_PROCESSING_STATES.has(
-              normalizeProcessingState(current.get('state')))) return;
-        stageVideoTriageMutationInTransaction(
-          db, transaction, processingRef, {
-            eventId: deleteEventId,
-            source: 'ACCOUNT_DELETION_PRIVATE_VIDEO',
-            kind: 'DELETE', before: current, afterState: null,
-          });
-        transaction.delete(processingRef);
-      }, { maxAttempts: 2 });
-    }
-
-    await Promise.all([
-      db.recursiveDelete(videoSnapshot.ref),
-      db.recursiveDelete(publicVideoRef),
-    ]);
   }
 }
 

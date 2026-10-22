@@ -23,3 +23,11 @@ test('account cleanup paths require GCS object generations for every deletion', 
   assert.match(source, /ifGenerationMatch: generation/);
   assert.doesNotMatch(source, /\.delete\(\{ ignoreNotFound: true \}\)/);
 });
+
+test('account video deletion uses canonical transactional media cleanup', () => {
+  assert.match(source, /await deleteProfileVideoResources\(uid, videoSnapshot\.id, \{/);
+  assert.match(source, /allowQuarantined: true/);
+  assert.match(source, /if \(result\.cleanupPending\)/);
+  assert.doesNotMatch(source, /privateDeleteTasks/);
+  assert.doesNotMatch(source, /extractOwnedPrivateVideoPath\(/);
+});
