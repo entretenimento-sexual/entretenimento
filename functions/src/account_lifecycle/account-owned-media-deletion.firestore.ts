@@ -10,8 +10,12 @@ import { randomUUID } from 'node:crypto';
 
 import { db, storage } from '../firebaseApp';
 import { deletePublishedPhotoAssetOrQueue } from '../media/application/published-photo-asset.service';
+import { deleteProfilePhotoResources } from '../media/application/delete-profile-photo.handler';
+import {
+  deleteGenerationPinnedVideoFile,
+  deleteVideoStoragePrefixBounded,
+} from '../media/application/video-deletion-storage-pages';
 import { deletePublishedVideoAssetOrQueue } from '../media/application/published-video-asset.service';
-import { extractOwnedPrivatePhotoPath } from '../media/application/photo-storage-path';
 import {
   buildVideoProcessingJobId,
   VIDEO_PROCESSING_JOBS_COLLECTION, type VideoProcessingJob,
@@ -31,11 +35,6 @@ import type {
   OwnedMediaCleanupJobKind,
   OwnedVideoProcessingPageSummary,
 } from './account-owned-media-deletion.executor';
-
-interface PrivatePhotoDocument {
-  path?: unknown;
-  url?: unknown;
-}
 
 interface PhotoPublicationDocument {
   publishedStoragePath?: string | null;
@@ -320,9 +319,11 @@ export class FirestoreAccountDataDeletionOrchestratorAdapter
       autoPaginate: false,
     });
 
-    await Promise.all(
-      files.map((file) => file.delete({ ignoreNotFound: true }))
-    );
+    await Promise.all(files.map(file =>
+      deleteGenerationPinnedVideoFile(file.metadata?.generation, generation =>
+        file.delete({ ignoreNotFound: true, ifGenerationMatch: generation })
+      )
+    ));
     return files.length;
   }
 
@@ -347,42 +348,17 @@ export class FirestoreAccountDataDeletionOrchestratorAdapter
     uid: string,
     photoSnapshot: FirebaseFirestore.QueryDocumentSnapshot
   ): Promise<void> {
-    const photoId = photoSnapshot.id;
-    const privatePhoto = photoSnapshot.data() as PrivatePhotoDocument;
-    const publicationRef = db.doc(
-      `users/${uid}/photo_publications/${photoId}`
-    );
-    const publicPhotoRef = db.doc(
-      `public_profiles/${uid}/public_photos/${photoId}`
-    );
-    const publicationSnapshot = await publicationRef.get();
-    const publication = publicationSnapshot.exists
-      ? (publicationSnapshot.data() as PhotoPublicationDocument)
-      : null;
-    const privateStoragePath =
-      extractOwnedPrivatePhotoPath(uid, privatePhoto.path) ??
-      extractOwnedPrivatePhotoPath(uid, privatePhoto.url);
-    const hideBatch = db.batch();
-
-    hideBatch.delete(publicationRef);
-    hideBatch.delete(publicPhotoRef);
-    await hideBatch.commit();
-
-    await deletePublishedPhotoAssetOrQueue({
-      ownerUid: uid,
-      photoId,
-      storagePath: publication?.publishedStoragePath,
-      reason: 'account-deletion-photo',
+    // The canonical flow stages publication cleanup in the same transaction
+    // as visibility removal, pins the private GCS generation and retains its
+    // durable recovery obligation. Account deletion must not bypass it.
+    const result = await deleteProfilePhotoResources(uid, photoSnapshot.id, {
+      allowQuarantined: true,
     });
-
-    if (privateStoragePath) {
-      await storage
-        .bucket()
-        .file(privateStoragePath)
-        .delete({ ignoreNotFound: true });
+    if (result.cleanupPending) {
+      // Retry the account deletion page after the scheduler reconciles jobs.
+      // Never acknowledge metadata removal while Storage cleanup is pending.
+      throw new Error('Owned photo cleanup pending; account deletion requires retry.');
     }
-
-    await db.recursiveDelete(photoSnapshot.ref);
   }
 
   private async deleteOwnedVideo(
@@ -481,27 +457,10 @@ export class FirestoreAccountDataDeletionOrchestratorAdapter
       }),
     ]);
 
-    const privateDeleteTasks: Promise<unknown>[] = [];
-
-    if (privateVideoPath) {
-      privateDeleteTasks.push(
-        storage
-          .bucket()
-          .file(privateVideoPath)
-          .delete({ ignoreNotFound: true })
-      );
-    }
-
-    if (privatePosterPath) {
-      privateDeleteTasks.push(
-        storage
-          .bucket()
-          .file(privatePosterPath)
-          .delete({ ignoreNotFound: true })
-      );
-    }
-
-    await Promise.all(privateDeleteTasks);
+    await Promise.all([
+      privateVideoPath ? deleteExactOwnedMediaObject(privateVideoPath) : Promise.resolve(),
+      privatePosterPath ? deleteExactOwnedMediaObject(privatePosterPath) : Promise.resolve(),
+    ]);
 
     if (!activeProcessing && processedOutputPrefix) {
       await deleteStoragePrefix(processedOutputPrefix);
@@ -553,12 +512,36 @@ function normalizeProcessingState(value: unknown): string {
   return String(value ?? '').trim().toUpperCase();
 }
 
-async function deleteStoragePrefix(prefix: string): Promise<void> {
-  const [files] = await storage.bucket().getFiles({ prefix });
+async function deleteExactOwnedMediaObject(path: string): Promise<void> {
+  const file = storage.bucket().file(path);
+  try {
+    const [metadata] = await file.getMetadata();
+    await deleteGenerationPinnedVideoFile(metadata.generation, generation =>
+      file.delete({ ignoreNotFound: true, ifGenerationMatch: generation })
+    );
+  } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error
+      ? Number((error as { code: unknown }).code) : null;
+    if (code === 404) return;
+    throw error;
+  }
+}
 
-  await Promise.all(
-    files.map((file) => file.delete({ ignoreNotFound: true }))
-  );
+async function deleteStoragePrefix(prefix: string): Promise<void> {
+  // Bounded version-specific pages; never sweep other processing versions.
+  await deleteVideoStoragePrefixBounded(prefix, async (pagePrefix, limit) => {
+    const [files] = await storage.bucket().getFiles({
+      prefix: pagePrefix, maxResults: limit, autoPaginate: false,
+    });
+    return files.map(file => ({
+      delete: () => deleteGenerationPinnedVideoFile(
+        file.metadata?.generation,
+        generation => file.delete({
+          ignoreNotFound: true, ifGenerationMatch: generation,
+        })
+      ),
+    }));
+  });
 }
 
 async function deleteDocumentRefs(
