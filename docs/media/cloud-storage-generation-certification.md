@@ -19,12 +19,12 @@ $env:MEDIA_GCS_LIVE_ACK = "WRITE_ISOLATED_TEST_OBJECTS"
 node scripts/quality/verify-media-gcs-live-preconditions.mjs
 ```
 
-O comando cria um único objeto em `__media_precondition_certification/<uuid>`. Verifica que uma segunda gravação com `ifGenerationMatch: 0` retorna HTTP 412 sem alterar o original, substitui a geração sob pré-condição, tenta uma exclusão com a geração antiga (deve retornar 412) e remove a própria geração recém-criada sob pré-condição. A validação **não** executa varreduras, elimina arquivos de usuários ou faz deploy.
+O comando cria dois objetos temporários em `__media_precondition_certification/<uuid>` (origem e pôster). Verifica que uma segunda gravação com `ifGenerationMatch: 0` retorna HTTP 412 sem alterar o original; substitui a geração sob pré-condição; tenta uma exclusão com a geração antiga (deve retornar 412); copia o objeto para o pôster com `File.copy` e `ifGenerationMatch: 0`; tenta repetir a cópia (deve retornar 412); e exclui **somente as gerações criadas pelo próprio teste**. A validação **não** executa varreduras, elimina arquivos de usuários ou faz deploy.
 
 O código falha de modo conservador: se o objeto tiver uma geração desconhecida durante a limpeza, não será excluído. O erro identifica o objeto do teste para análise manual. Não desative a condição de geração para recuperar uma falha.
 
 ## Critério de aprovação
 
-Exigir `status: passed` e `fixtureDeleted: true` no bucket real, além de Quality Gate canônico, E2E de fotos e vídeos e testes de transação aprovados **no mesmo HEAD**. Depois validar operacionalmente as jornadas de criação, moderação, exposição, revogação, exclusão e recuperação, incluindo revisão de jobs históricos/dead letters, permissões, App Check, observabilidade, cotas e rollback.
+Exigir `status: passed`, `posterCopyRejectedOverwrite: true` e `fixtureDeleted: true` no bucket real, além de Quality Gate canônico, E2E de fotos e vídeos e testes de transação aprovados **no mesmo HEAD**. Depois validar operacionalmente as jornadas de criação, moderação, exposição, revogação, exclusão e recuperação, incluindo revisão de jobs históricos/dead letters, permissões, App Check, observabilidade, cotas e rollback.
 
 Sem a evidência da execução real e a aceitação operacional, **não certificar o Módulo Media para operação**.

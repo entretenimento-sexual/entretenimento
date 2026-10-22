@@ -41,8 +41,12 @@ function expect412(error) {
 
 const app = initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
 const objectPath = `__media_precondition_certification/${randomUUID()}`;
-const file = getStorage(app).bucket(bucketName).file(objectPath);
+const bucket = getStorage(app).bucket(bucketName);
+const file = bucket.file(objectPath);
+const posterPath = `${objectPath}-poster`;
+const poster = bucket.file(posterPath);
 let ownedGeneration = null;
+let ownedPosterGeneration = null;
 let verified = false;
 
 try {
@@ -79,18 +83,45 @@ try {
     expect412
   );
   assert.equal((await file.download())[0].toString(), 'replacement-object');
+
+  // Poster publication uses File.copy, not File.save. Verify its destination
+  // create-only guard independently against the real GCS implementation.
+  await file.copy(poster, {
+    preconditionOpts: { ifGenerationMatch: 0 },
+    metadata: { contentType: 'text/plain' },
+  });
+  ownedPosterGeneration = generation((await poster.getMetadata())[0].generation);
+  assert.equal((await poster.download())[0].toString(), 'replacement-object');
+  await assert.rejects(
+    file.copy(poster, {
+      preconditionOpts: { ifGenerationMatch: 0 },
+    }),
+    expect412
+  );
+  assert.equal((await poster.download())[0].toString(), 'replacement-object');
   verified = true;
 } finally {
   try {
-    // Never delete anything unless its live generation matches this test's
-    // last proven write. Leave an ambiguous object for manual inspection.
-    if (ownedGeneration) {
-      const [metadata] = await file.getMetadata();
-      if (generation(metadata.generation) !== ownedGeneration) {
-        throw new Error(`Unrecognized generation at gs://${bucketName}/${objectPath}; manual cleanup required.`);
+    // Each fixture may only be cleaned up at its own known generation.
+    // A surprise replacement is never deleted; retain it for manual review.
+    try {
+      if (ownedPosterGeneration) {
+        const [metadata] = await poster.getMetadata();
+        if (generation(metadata.generation) !== ownedPosterGeneration) {
+          throw new Error(`Unrecognized generation at gs://${bucketName}/${posterPath}; manual cleanup required.`);
+        }
+        await poster.delete({ ifGenerationMatch: ownedPosterGeneration });
+        ownedPosterGeneration = null;
       }
-      await file.delete({ ifGenerationMatch: ownedGeneration });
-      ownedGeneration = null;
+    } finally {
+      if (ownedGeneration) {
+        const [metadata] = await file.getMetadata();
+        if (generation(metadata.generation) !== ownedGeneration) {
+          throw new Error(`Unrecognized generation at gs://${bucketName}/${objectPath}; manual cleanup required.`);
+        }
+        await file.delete({ ifGenerationMatch: ownedGeneration });
+        ownedGeneration = null;
+      }
     }
   } finally {
     await deleteApp(app);
@@ -103,5 +134,6 @@ console.log(JSON.stringify({
   bucket: bucketName,
   createOnlyRejectedOverwrite: true,
   staleGenerationRejectedDeletion: true,
-  fixtureDeleted: true,
+  posterCopyRejectedOverwrite: true,
+  fixtureDeleted: !ownedGeneration && !ownedPosterGeneration,
 }));

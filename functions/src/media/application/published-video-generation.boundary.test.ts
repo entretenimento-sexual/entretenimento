@@ -38,3 +38,15 @@ test('uncertain poster copy persists a manual-review cleanup obligation', () => 
   assert.match(service, /enqueuePublishedVideoAssetCleanup\(\{/);
   assert.doesNotMatch(service, /destinationPoster\s*\.delete\(/);
 });
+
+test('live Cloud Storage harness covers create-only poster copy and pinned cleanup', () => {
+  const harness = readFileSync(
+    join(__dirname, '../../../../scripts/quality/verify-media-gcs-live-preconditions.mjs'),
+    'utf8'
+  );
+  assert.match(harness, /file\.copy\(poster, \{/);
+  assert.match(harness, /preconditionOpts: \{ ifGenerationMatch: 0 \}/);
+  assert.match(harness, /posterCopyRejectedOverwrite: true/);
+  assert.match(harness, /poster\.delete\(\{ ifGenerationMatch: ownedPosterGeneration \}\)/);
+  assert.match(harness, /MEDIA_GCS_LIVE_ACK/);
+});
