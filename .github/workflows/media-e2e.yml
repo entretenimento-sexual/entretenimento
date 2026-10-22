@@ -9,6 +9,7 @@ on:
       - 'functions/src/friendship/**'
       - 'scripts/quality/check-video-preventive-moderation-boundary.mjs'
       - 'scripts/quality/run-public-media-access-emulator.mjs'
+      - 'scripts/quality/run-moderation-cleanup-emulator.mjs'
       - 'scripts/quality/summarize-photo-e2e-contention.mjs'
       - 'scripts/quality/photo-e2e-performance.policy.mjs'
       - 'src/app/core/services/error-handler/application-error.service.ts'
@@ -39,6 +40,7 @@ on:
       - 'functions/src/friendship/**'
       - 'scripts/quality/check-video-preventive-moderation-boundary.mjs'
       - 'scripts/quality/run-public-media-access-emulator.mjs'
+      - 'scripts/quality/run-moderation-cleanup-emulator.mjs'
       - 'scripts/quality/summarize-photo-e2e-contention.mjs'
       - 'scripts/quality/photo-e2e-performance.policy.mjs'
       - 'src/app/core/services/error-handler/application-error.service.ts'
@@ -189,6 +191,13 @@ jobs:
         run: |
           set -o pipefail
           npm run media:bilateral-access:emulator:test 2>&1 | tee logs/media-bilateral-access-emulator.log
+
+      - name: Verify moderation cleanup staging on isolated Firestore
+        shell: bash
+        run: |
+          set -o pipefail
+          npm --prefix functions run build
+          node scripts/quality/run-moderation-cleanup-emulator.mjs 2>&1 | tee logs/moderation-cleanup-emulator.log
 
       - name: Upload failure logs
         if: failure()
