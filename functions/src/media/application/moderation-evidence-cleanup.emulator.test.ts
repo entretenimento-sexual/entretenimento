@@ -387,3 +387,46 @@ test('PUBLISHED PHOTO: physical cleanup cannot acknowledge a replaced job', asyn
   assert.equal(current.get('updatedAt'), now + 1000);
   await jobRef.delete();
 });
+
+test('PUBLISHED PHOTO: direct physical cleanup preserves a concurrently replaced job', async () => {
+  const ownerUid = randomUUID();
+  const photoId = randomUUID();
+  const storagePath = `users/${ownerUid}/published/images/${photoId}/${randomUUID()}`;
+  const file = getDefaultStorageBucket().file(storagePath);
+  await file.save(Buffer.from('direct-concurrent-cleanup'), { resumable: false });
+  const jobId = createHash('sha256').update(storagePath).digest('hex');
+  const jobRef = db.collection('media_published_asset_cleanup_jobs').doc(jobId);
+  const now = Date.now();
+  await jobRef.set({
+    ownerUid, photoId, storagePath, reason: 'initial-cleanup',
+    createdAt: now - 1000, updatedAt: now - 1000,
+    attempts: 0, state: 'retryable', lastError: null,
+    nextAttemptAt: now - 1000, deadLetterExpiresAt: null,
+  });
+  const prototype = Object.getPrototypeOf(file) as { delete: typeof file.delete };
+  const originalDelete = prototype.delete;
+  let replaced = false;
+  try {
+    prototype.delete = async function (this: typeof file, ...args: Parameters<typeof file.delete>) {
+      if (this.name === storagePath && !replaced) {
+        replaced = true;
+        await jobRef.update({
+          reason: 'replacement-cleanup', updatedAt: now + 1000,
+          attempts: 0, nextAttemptAt: null,
+        });
+      }
+      return originalDelete.apply(this, args);
+    } as unknown as typeof file.delete;
+    assert.equal(await deletePublishedPhotoAssetOrQueue({
+      ownerUid, photoId, storagePath, reason: 'initial-cleanup',
+    }), true);
+  } finally {
+    prototype.delete = originalDelete;
+  }
+  assert.equal(replaced, true);
+  assert.equal((await file.exists())[0], false);
+  const current = await jobRef.get();
+  assert.equal(current.exists, true);
+  assert.equal(current.get('reason'), 'replacement-cleanup');
+  await jobRef.delete();
+});
