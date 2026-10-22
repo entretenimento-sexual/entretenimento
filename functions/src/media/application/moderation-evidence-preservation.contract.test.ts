@@ -58,7 +58,7 @@ test('moderation cleanup acknowledges only completed physical deletion', () => {
   assert.match(retry, /const result = await deleteProfilePhotoResources/);
   assert.match(retry, /const result = await deleteProfileVideoResources/);
   assert.match(retry, /return result\.cleanupPending === false/g);
-  assert.match(retry, /if \(!await cleanupResolvedRemovedMedia\(reportId, identity\)\) return/);
+  assert.match(retry, /if \(!await cleanup\(reportId, identity\)\) return/);
 });
 
 test('previously preserved REMOVE stages durable cleanup before deletion', () => {
