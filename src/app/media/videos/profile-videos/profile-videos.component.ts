@@ -30,6 +30,7 @@ import {
   of,
 } from 'rxjs';
 import {
+  catchError,
   distinctUntilChanged,
   finalize,
   map,
