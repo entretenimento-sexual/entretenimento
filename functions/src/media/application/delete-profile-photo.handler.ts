@@ -20,7 +20,10 @@ import {
   type PhotoCleanupJobState,
 } from './photo-cleanup-job.policy';
 import { logPhotoOperation } from './photo-operation-telemetry';
-import { deletePublishedPhotoAssetOrQueue } from './published-photo-asset.service';
+import {
+  deletePublishedPhotoAssetOrQueue,
+  stagePublishedPhotoAssetCleanup,
+} from './published-photo-asset.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 
 interface DeleteProfilePhotoRequest {
@@ -307,6 +310,11 @@ export async function deleteProfilePhotoResources(
       throw new HttpsError('failed-precondition', 'Foto protegida pela moderação.');
     }
     tx.create(jobRef, job);
+    stagePublishedPhotoAssetCleanup(tx, {
+      ownerUid, photoId,
+      storagePath: currentPublicationData?.publishedStoragePath,
+      reason: 'delete-profile-photo',
+    });
     tx.delete(publicationRef);
     tx.delete(publicPhotoRef);
     return true;
