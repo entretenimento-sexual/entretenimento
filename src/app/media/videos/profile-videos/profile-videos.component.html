@@ -10,6 +10,8 @@
 @let canUpload = (canUpload$ | async) === true;
 @let libraryStatus = (videoLibraryStatus$ | async);
 @let libraryError = (videoLibraryError$ | async);
+@let galleryFilter = (galleryFilter$ | async) || 'all';
+@let galleryItems = (galleryItems$ | async) || [];
 
 <section class="profile-videos" aria-label="Vídeos">
   @if (isOwner$ | async) {
@@ -369,8 +371,22 @@
           </button>
         </div>
       } @else if (items.length > 0) {
+        <nav class="profile-videos__filters" aria-label="Filtrar meus vídeos">
+          <button type="button" class="app-action app-action--ghost"
+            [attr.aria-pressed]="galleryFilter === 'all'"
+            [class.profile-videos__filter--active]="galleryFilter === 'all'"
+            (click)="setGalleryFilter('all')">Todos</button>
+          <button type="button" class="app-action app-action--ghost"
+            [attr.aria-pressed]="galleryFilter === 'published'"
+            [class.profile-videos__filter--active]="galleryFilter === 'published'"
+            (click)="setGalleryFilter('published')">Publicados</button>
+          <button type="button" class="app-action app-action--ghost"
+            [attr.aria-pressed]="galleryFilter === 'not-published'"
+            [class.profile-videos__filter--active]="galleryFilter === 'not-published'"
+            (click)="setGalleryFilter('not-published')">Não publicados</button>
+        </nav>
         <div class="profile-videos__grid" aria-label="Meus vídeos">
-          @for (item of items; track trackByVideoId($index, item)) {
+          @for (item of galleryItems; track trackByVideoId($index, item)) {
             <article
               class="profile-videos__card"
               [appPrivateVideoPreviewVisibility]="item.video.id"
@@ -381,8 +397,9 @@
                   type="button"
                   class="profile-videos__media-trigger"
                   [class.profile-videos__media-trigger--interactive]="canOpenPublishedVideo(item)"
-                  [disabled]="!canOpenPublishedVideo(item)"
-                  [attr.aria-label]="canOpenPublishedVideo(item) ? 'Assistir ' + displayVideoTitle(item) : mediaStateLabel(item.video)"
+                  [disabled]="!canOpenPublishedVideo(item) || openingVideoId() !== null"
+                  [attr.aria-busy]="openingVideoId() === item.video.id ? 'true' : null"
+                  [attr.aria-label]="canOpenPublishedVideo(item) ? 'Assistir ' + displayVideoTitle(item) + '. Feche para voltar à galeria.' : mediaStateLabel(item.video)"
                   (click)="openPublishedVideo(item)"
                 >
                   @if (item.video.thumbnailUrl) {
@@ -465,6 +482,11 @@
             </article>
           }
         </div>
+        @if (galleryItems.length === 0) {
+          <p class="profile-videos__upload-status" role="status">
+            Nenhum vídeo nesta categoria.
+          </p>
+        }
       } @else {
         <p class="profile-videos__upload-status" role="status">
           Nenhum vídeo adicionado ainda.

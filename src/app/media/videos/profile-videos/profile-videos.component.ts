@@ -79,6 +79,11 @@ import {
   type PrivateVideoPreviewVisibilityChange,
 } from './private-video-preview-visibility.directive';
 import type { IProfileVideoViewItem } from '../state/profile-video-library.models';
+import {
+  canPlayPublishedVideo,
+  filterProfileVideoGallery,
+  type ProfileVideoGalleryFilter,
+} from './profile-video-gallery.policy';
 import { VideoSimpleEditorControlsComponent } from '../video-editor/video-editor-controls.entrypoint';
 import { PublicVideoViewerLauncherService } from '../public-video-viewer/public-video-viewer-launcher.service';
 import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
@@ -286,6 +291,19 @@ export class ProfileVideosComponent {
   readonly videoLibraryStatus$ = this.profileVideoLibrary.status$;
   readonly videoLibraryError$ = this.profileVideoLibrary.errorMessage$;
   readonly openingVideoId = signal<string | null>(null);
+  private readonly galleryFilterSubject =
+    new BehaviorSubject<ProfileVideoGalleryFilter>('all');
+  readonly galleryFilter$ = this.galleryFilterSubject.asObservable();
+  readonly galleryItems$ = combineLatest([
+    this.viewItems$, this.galleryFilter$,
+  ]).pipe(
+    map(([items, filter]) => filterProfileVideoGallery(items, filter)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  setGalleryFilter(filter: ProfileVideoGalleryFilter): void {
+    this.galleryFilterSubject.next(filter);
+  }
 
   retryVideoLibrary(): void {
     this.profileVideoLibrary.retry();
@@ -812,10 +830,7 @@ export class ProfileVideosComponent {
   }
 
   canOpenPublishedVideo(item: IProfileVideoViewItem): boolean {
-    return item.video.status === 'ready' &&
-      item.publication?.isPublished === true &&
-      item.publication?.visibility === 'PUBLIC' &&
-      item.publication?.moderationStatus === 'APPROVED';
+    return canPlayPublishedVideo(item);
   }
 
   onPreviewVisibilityChange(

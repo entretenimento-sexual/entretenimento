@@ -499,3 +499,26 @@ html.high-contrast .profile-videos__progress-track {
     transform: none;
   }
 }
+
+/* Progressive owner-only gallery filters. Preserve the source chronological order. */
+.profile-videos__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.profile-videos__filters .app-action {
+  min-height: var(--tap-target, 44px);
+  flex: 0 1 auto;
+}
+
+.profile-videos__filter--active {
+  border-color: var(--primary-color, currentColor);
+  background: color-mix(in oklab, var(--primary-color, currentColor) 12%, transparent);
+}
+
+.profile-videos__filters .app-action:focus-visible {
+  outline: var(--focus-ring, 2px solid currentColor);
+  outline-offset: 2px;
+}
