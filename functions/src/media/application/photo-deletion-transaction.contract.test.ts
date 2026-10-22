@@ -30,12 +30,8 @@ test('missing private photo does not acknowledge pending physical cleanup', () =
   assert.match(source, /return \{ photoId, cleanupPending: true \}/);
 });
 
-test('physical deletion completion cannot erase a replaced cleanup job', () => {
-  assert.match(source, /await db\.runTransaction\(async \(tx\) =>/);
-  assert.match(source, /current\.get\('createdAt'\) !== job\.createdAt/);
-  assert.match(source, /current\.get\('storagePath'\) !== job\.storagePath/);
-  assert.match(source, /photo-deletion-job-identity-changed/);
-  assert.match(source, /tx\.delete\(jobRef\)/);
+test('physical deletion delegates finalization to matching-identity transaction', () => {
+  assert.match(source, /await finalizePhotoDeletionJob\(db, jobId, job\)/);
 });
 
 test('stale photo cleanup retry cannot mutate a replaced job or regress attempts', () => {
