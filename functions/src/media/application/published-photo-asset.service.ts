@@ -255,7 +255,8 @@ export function stagePublishedPhotoAssetCleanup(
       photoId: command.photoId,
       storagePath,
       reason: command.reason,
-      generation: null,
+      // Do not reset an already pinned generation on an existing obligation.
+      // The first direct attempt may capture one for a newly staged record.
       ...(retentionGuard ? { retentionGuard } : {}),
       createdAt: now,
       updatedAt: now,

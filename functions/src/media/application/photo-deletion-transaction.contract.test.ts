@@ -151,3 +151,17 @@ test('missing-private-photo flow stages durable published cleanup with visibilit
   assert.match(missing, /if \(isModerationLockedPublication\(currentPublicationData\)/);
   assert.doesNotMatch(missing, /cleanupBatch\.commit\(\)/);
 });
+
+test('staging published-photo cleanup preserves a previously pinned GCS generation', () => {
+  const cleanup = readFileSync(
+    join(__dirname, '../../../src/media/application/published-photo-asset.service.ts'),
+    'utf8'
+  );
+  const staged = cleanup.slice(
+    cleanup.indexOf('export function stagePublishedPhotoAssetCleanup'),
+    cleanup.indexOf('async function encodePublishedPhoto')
+  );
+  assert.match(staged, /transaction\.set\(/);
+  assert.match(staged, /merge: true/);
+  assert.doesNotMatch(staged, /generation:\\s*null/);
+});
