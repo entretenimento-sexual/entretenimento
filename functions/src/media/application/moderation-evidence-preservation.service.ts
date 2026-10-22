@@ -442,6 +442,10 @@ export async function ensurePreservedModerationCleanupJob(
         String(report.get('moderationAction') ?? '').toUpperCase() !== 'REMOVE' ||
         String(report.get('evidencePreservationStatus') ?? '').toUpperCase() !== 'PRESERVED' ||
         report.get('targetOwnerUid') !== ownerUid ||
+        String(report.get('targetType') ?? '').toLowerCase() !== mediaType.toLowerCase() ||
+        cleanId(mediaType === 'VIDEO'
+          ? report.get('parentTargetId') ?? report.get('targetId')
+          : report.get('targetId')) !== mediaId ||
         evidence.get('ownerUid') !== ownerUid ||
         evidence.get('mediaId') !== mediaId ||
         evidence.get('mediaType') !== mediaType) {
