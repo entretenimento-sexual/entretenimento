@@ -340,21 +340,17 @@ export async function copyPrivatePhotoToPublishedAsset(
   );
   const destinationFile = bucket.file(destinationPath);
 
-  try {
-    await destinationFile.save(sanitized.data, {
-      resumable: false,
-      preconditionOpts: { ifGenerationMatch: 0 },
-      metadata: {
-        contentType: sanitized.contentType,
-        contentDisposition: 'inline',
-        cacheControl: 'private, max-age=0, no-store, no-transform',
-      },
-    });
-    return destinationPath;
-  } catch (error) {
-    // A failed create-only write must never delete an existing generation.
-    throw error;
-  }
+  // A failed create-only write must never delete an existing generation.
+  await destinationFile.save(sanitized.data, {
+    resumable: false,
+    preconditionOpts: { ifGenerationMatch: 0 },
+    metadata: {
+      contentType: sanitized.contentType,
+      contentDisposition: 'inline',
+      cacheControl: 'private, max-age=0, no-store, no-transform',
+    },
+  });
+  return destinationPath;
 }
 
 export async function deletePublishedPhotoAssetOrQueue(
