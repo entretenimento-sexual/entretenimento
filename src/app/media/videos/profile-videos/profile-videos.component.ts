@@ -59,8 +59,10 @@ import { VideoEditorLauncherService } from 'src/app/core/services/media/video-ed
 import { IVideoEditorState } from 'src/app/core/services/media/video-editor-result.model';
 import { VideoPublicationService } from 'src/app/core/services/media/video-publication.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
-import { PublicProfileVideoPaginationService } from 'src/app/core/services/media/public-profile-video-pagination.service';
-import type { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import {
+  PublicProfileVideoPaginationService,
+} from 'src/app/core/services/media/public-profile-video-pagination.service';
+import { resolveOwnerVideoGallerySelection$ } from './owner-video-gallery-navigation';
 import {
   VIDEO_UPLOAD_ACCEPT,
   VIDEO_UPLOAD_FORMAT_LABEL,
@@ -848,25 +850,16 @@ export class ProfileVideosComponent {
     const selectedId = item.video.id;
     this.openingVideoId.set(selectedId);
 
-    // Remain on the owner gallery. The canonical public read boundary decides
-    // which videos can actually be played, not the private library snapshot.
-    this.videoPagination.loadPage$(ownerUid, { pageSize: 24 }).pipe(
-      take(1),
-      switchMap((page) => {
-        const index = page.items.findIndex((video) =>
-          video.id === selectedId && video.ownerUid === ownerUid
-        );
-        if (index >= 0) {
-          return of({ items: [...page.items], startIndex: index });
-        }
-        // An older published item may be outside the first public page.
-        return this.publicMediaQuery.getPublicVideoById$(ownerUid, selectedId).pipe(
-          take(1),
-          map((video: IPublicVideoItem | null) => video
-            ? { items: [video], startIndex: 0 }
-            : null)
-        );
+    // Browse approved public pages until the selected item is found. Older
+    // videos must retain their gallery neighbors rather than opening alone.
+    resolveOwnerVideoGallerySelection$(
+      ownerUid,
+      selectedId,
+      (cursor) => this.videoPagination.loadPage$(ownerUid, {
+        pageSize: 24, cursor,
       }),
+      () => this.publicMediaQuery.getPublicVideoById$(ownerUid, selectedId)
+    ).pipe(
       switchMap((selection) => {
         if (!selection) {
           this.errorNotification.showWarning(
