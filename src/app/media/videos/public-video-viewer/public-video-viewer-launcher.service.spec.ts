@@ -95,3 +95,31 @@ describe('PublicVideoViewerLauncherService', () => {
     expect(config?.data.startIndex).toBe(0);
   });
 });
+
+describe('video gallery launch preserves selected identity after access filtering', () => {
+  it('opens the selected video, not its old index, after filtering', async () => {
+    const service = TestBed.inject(PublicVideoViewerLauncherService);
+    const hidden = { ...video('video-hidden'), visibility: 'PRIVATE' as const };
+    await firstValueFrom(service.open$({
+      items: [hidden, video('video-visible')],
+      startIndex: 1,
+      source: 'profile',
+    }));
+    const config = dialog.open.mock.calls[0]?.[1];
+    expect(config?.data.startIndex).toBe(0);
+    expect(config?.data.items.map((item: IPublicVideoItem) => item.id))
+      .toEqual(['video-visible']);
+    expect(config?.restoreFocus).toBe(true);
+  });
+
+  it('refuses a revoked selected video rather than opening a neighbor', async () => {
+    const service = TestBed.inject(PublicVideoViewerLauncherService);
+    const hidden = { ...video('video-hidden'), moderationStatus: 'HIDDEN' as const };
+    await expect(firstValueFrom(service.open$({
+      items: [hidden, video('video-visible')],
+      startIndex: 0,
+      source: 'profile',
+    }))).rejects.toThrow('Vídeo público indisponível');
+    expect(dialog.open).not.toHaveBeenCalled();
+  });
+});

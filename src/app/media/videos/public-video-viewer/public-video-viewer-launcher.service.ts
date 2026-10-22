@@ -40,15 +40,25 @@ export class PublicVideoViewerLauncherService {
   private openDialog$(
     request: OpenPublicVideoViewerRequest
   ): Observable<MatDialogRef<any, IPublicMediaViewerHandoffResult>> {
-    const items = [...(request.items ?? [])].filter((item) =>
+    const requestedItems = request.items ?? [];
+    const requestedIndex = this.normalizeStartIndex(
+      request.startIndex, requestedItems.length
+    );
+    const requestedVideo = requestedItems[requestedIndex] ?? null;
+    const items = [...requestedItems].filter((item) =>
       !!item?.id?.trim() &&
       !!item?.ownerUid?.trim() &&
       item.mediaType === 'VIDEO' &&
       item.visibility === 'PUBLIC' &&
       item.moderationStatus === 'APPROVED'
     );
-    const startIndex = this.normalizeStartIndex(request.startIndex, items.length);
-    const selected = items[startIndex] ?? null;
+    // Resolve the selected ID before filtering. A hidden or revoked item must
+    // never silently redirect the viewer to the next permitted video.
+    const startIndex = requestedVideo
+      ? items.findIndex((item) => item.id === requestedVideo.id &&
+          item.ownerUid === requestedVideo.ownerUid)
+      : -1;
+    const selected = startIndex >= 0 ? items[startIndex] : null;
 
     if (!selected) {
       return throwError(() => new Error('Vídeo público indisponível para abertura.'));
