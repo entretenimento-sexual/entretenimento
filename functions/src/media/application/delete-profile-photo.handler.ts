@@ -113,7 +113,6 @@ async function executeDeletionJob(
   const privatePhotoRef = db.doc(
     `users/${job.ownerUid}/photos/${job.photoId}`
   );
-  const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
 
   await getDefaultStorageBucket()
     .file(job.storagePath)
