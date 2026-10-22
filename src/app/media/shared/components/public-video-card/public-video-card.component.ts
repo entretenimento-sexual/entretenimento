@@ -50,10 +50,11 @@ export class PublicVideoCardComponent {
   readonly posterError = output<void>();
   readonly commentsRequested = output<void>();
 
-  readonly profileLink = computed(() => [
-    '/outro-perfil',
-    this.video().ownerUid,
-  ]);
+  readonly profileLink = computed(() =>
+    this.viewerUid() && this.viewerUid() === this.video().ownerUid
+      ? ['/perfil']
+      : ['/outro-perfil', this.video().ownerUid]
+  );
 
   readonly resolvedRecommendationSource = computed<PublicMediaRecommendationSource>(
     () => {

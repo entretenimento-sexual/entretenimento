@@ -208,6 +208,15 @@ describe('PublicVideoCardComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Do perfil');
   });
 
+  it('routes an own published video back to the owner profile', () => {
+    fixture.componentRef.setInput('viewerUid', VIDEO.ownerUid);
+    fixture.detectChanges();
+    expect(component.profileLink()).toEqual(['/perfil']);
+    fixture.componentRef.setInput('viewerUid', 'another-user');
+    fixture.detectChanges();
+    expect(component.profileLink()).toEqual(['/outro-perfil', VIDEO.ownerUid]);
+  });
+
   it('renderiza highlight como preview vertical sem ações de feed', () => {
     fixture.componentRef.setInput('variant', 'highlight');
     fixture.detectChanges();
