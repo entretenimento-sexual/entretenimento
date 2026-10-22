@@ -9,6 +9,7 @@ import { db, storage } from '../../firebaseApp';
 import {
   deleteGenerationPinnedVideoFile,
   deleteVideoStoragePrefixBounded,
+  normalizeGcsGeneration,
   VideoDeletionGenerationConflictError,
 } from './video-deletion-storage-pages';
 import {
@@ -63,6 +64,9 @@ interface VideoDeletionJob {
   videoId: string;
   privateVideoStoragePath: string | null;
   privatePosterStoragePath: string | null;
+  /** Generation captured when the deletion request was staged. */
+  privateVideoStorageGeneration?: string | null;
+  privatePosterStorageGeneration?: string | null;
   processedOutputPrefix: string | null;
   publishedVideoStoragePath: string | null;
   publishedPosterStoragePath: string | null;
@@ -152,6 +156,72 @@ function normalizeErrorMessage(error: unknown): string {
   return String(error ?? 'unknown').slice(0, 500);
 }
 
+function resolvePrivateDeletionPaths(
+  ownerUid: string,
+  videoId: string,
+  video: PrivateVideoDoc | null,
+  processing: VideoProcessingJobDoc | null
+): Pick<VideoDeletionJob, 'privateVideoStoragePath' | 'privatePosterStoragePath'> {
+  return {
+    privateVideoStoragePath:
+      extractOwnedPrivateVideoPathForId(ownerUid, videoId, video?.path) ??
+      extractOwnedPrivateVideoPathForId(ownerUid, videoId, video?.url) ??
+      extractOwnedPrivateVideoPathForId(ownerUid, videoId, processing?.sourceStoragePath),
+    privatePosterStoragePath:
+      extractOwnedPrivateVideoPosterPath(ownerUid, videoId, video?.thumbnailPath) ??
+      extractOwnedPrivateVideoPosterPath(ownerUid, videoId, video?.thumbnailUrl) ??
+      extractOwnedPrivateVideoPosterPath(ownerUid, videoId, processing?.sourcePosterStoragePath),
+  };
+}
+
+/** An absent object is distinguished from an unknown/unpinned legacy job. */
+async function capturePrivateVideoGeneration(path: string | null): Promise<string | null> {
+  if (!path) return null;
+  try {
+    const [metadata] = await storage.bucket().file(path).getMetadata();
+    const generation = normalizeGcsGeneration(metadata.generation);
+    if (!generation) {
+      throw new VideoDeletionGenerationConflictError(
+        'Missing private video generation; manual review required.'
+      );
+    }
+    return generation;
+  } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error
+      ? (error as { code: unknown }).code : null;
+    if (code === 404 || code === '404') return 'absent';
+    throw error;
+  }
+}
+
+/** Never rediscover the generation of an object from a previously staged job. */
+async function deletePinnedPrivateVideoAsset(
+  path: string | null,
+  recordedGeneration: string | null | undefined
+): Promise<void> {
+  if (!path) {
+    if (recordedGeneration !== null && recordedGeneration !== undefined) {
+      throw new VideoDeletionGenerationConflictError(
+        'Private video deletion path/generation mismatch; manual review required.'
+      );
+    }
+    return;
+  }
+  const file = storage.bucket().file(path);
+  if (recordedGeneration === 'absent') {
+    const [exists] = await file.exists();
+    if (exists) {
+      throw new VideoDeletionGenerationConflictError(
+        'Previously absent private video asset now exists; manual review required.'
+      );
+    }
+    return;
+  }
+  await deleteGenerationPinnedVideoFile(recordedGeneration, (generation) =>
+    file.delete({ ignoreNotFound: true, ifGenerationMatch: generation })
+  );
+}
+
 async function deleteFilesByPrefix(prefix: string): Promise<void> {
   await deleteVideoStoragePrefixBounded(prefix, async (pagePrefix, limit) => {
     const [files] = await storage.bucket().getFiles({
@@ -224,28 +294,15 @@ async function cleanupPublishedAssets(
 }
 
 async function deletePrivateAssets(job: VideoDeletionJob): Promise<void> {
-  const bucket = storage.bucket();
-  const exactDeleteTasks: Promise<unknown>[] = [];
-
-  if (job.privateVideoStoragePath) {
-    exactDeleteTasks.push(
-      bucket
-        .file(job.privateVideoStoragePath)
-        .delete({ ignoreNotFound: true })
-    );
-  }
-
-  if (job.privatePosterStoragePath) {
-    exactDeleteTasks.push(
-      bucket
-        .file(job.privatePosterStoragePath)
-        .delete({ ignoreNotFound: true })
-    );
-  }
-
-  // A videoId prefix can also match a different ID (e.g. foo and foo-bar).
-  // Only exact persisted paths are safe for private object deletion.
-  await Promise.all(exactDeleteTasks);
+  // Exact owned paths and pinned generations: never use prefix sweeps for private media.
+  await Promise.all([
+    deletePinnedPrivateVideoAsset(
+      job.privateVideoStoragePath, job.privateVideoStorageGeneration
+    ),
+    deletePinnedPrivateVideoAsset(
+      job.privatePosterStoragePath, job.privatePosterStorageGeneration
+    ),
+  ]);
 }
 
 async function deleteProcessedAssets(job: VideoDeletionJob): Promise<void> {
@@ -330,6 +387,24 @@ async function processVideoDeletionJob(
       });
       return true;
     }
+    if ((raw.privateVideoStoragePath && !job.privateVideoStoragePath) ||
+        (raw.privatePosterStoragePath && !job.privatePosterStoragePath)) {
+      throw new VideoDeletionGenerationConflictError(
+        'Invalid private video cleanup path; manual review required.'
+      );
+    }
+    // Legacy jobs without a pinned generation are retained for review.
+    // Check BEFORE any published or processed asset is deleted.
+    for (const [path, generation] of [
+      [job.privateVideoStoragePath, job.privateVideoStorageGeneration],
+      [job.privatePosterStoragePath, job.privatePosterStorageGeneration],
+    ] as const) {
+      if (path && generation !== 'absent' && !normalizeGcsGeneration(generation)) {
+        throw new VideoDeletionGenerationConflictError(
+          'Unpinned private video deletion; manual review required.'
+        );
+      }
+    }
     const cleanupPending = await executeDeletionJob(job);
     const completion = await settleVideoDeletionJob(
       db, jobRef, token, { kind: 'COMPLETED' }
@@ -392,6 +467,23 @@ export async function deleteProfileVideoResources(
   const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
   // Reused by Firestore on retries; only committed mutations stage an event.
   const eventId = randomUUID();
+  // Read Storage OUTSIDE the transaction. Transactional buildJob revalidates
+  // the paths so a changed Firestore source cannot inherit stale generations.
+  const [preflightVideo, preflightProcessing] = await Promise.all([
+    privateVideoRef.get(), processingJobRef.get(),
+  ]);
+  const preflightPaths = resolvePrivateDeletionPaths(
+    ownerUid,
+    videoId,
+    preflightVideo.exists ? preflightVideo.data() as PrivateVideoDoc : null,
+    preflightProcessing.exists
+      ? preflightProcessing.data() as VideoProcessingJobDoc : null
+  );
+  const [privateVideoStorageGeneration, privatePosterStorageGeneration] =
+    await Promise.all([
+      capturePrivateVideoGeneration(preflightPaths.privateVideoStoragePath),
+      capturePrivateVideoGeneration(preflightPaths.privatePosterStoragePath),
+    ]);
   let processingCleanupPending = false;
   try {
     const committed = await commitProfileVideoDeletionRequest(db, {
@@ -407,28 +499,21 @@ export async function deleteProfileVideoResources(
           ? publication.data() as VideoPublicationDoc : null;
         const processing = processingJob.exists
           ? processingJob.data() as VideoProcessingJobDoc : null;
+        const currentPaths = resolvePrivateDeletionPaths(
+          ownerUid, videoId, video, processing
+        );
+        if (currentPaths.privateVideoStoragePath !== preflightPaths.privateVideoStoragePath ||
+            currentPaths.privatePosterStoragePath !== preflightPaths.privatePosterStoragePath) {
+          throw new HttpsError(
+            'aborted',
+            'Arquivos privados do vídeo alterados durante a exclusão.'
+          );
+        }
         return {
           ownerUid, videoId,
-          privateVideoStoragePath:
-            extractOwnedPrivateVideoPathForId(
-              ownerUid, videoId, video?.path
-            ) ??
-            extractOwnedPrivateVideoPathForId(
-              ownerUid, videoId, video?.url
-            ) ??
-            extractOwnedPrivateVideoPathForId(
-              ownerUid, videoId, processing?.sourceStoragePath
-            ),
-          privatePosterStoragePath:
-            extractOwnedPrivateVideoPosterPath(
-              ownerUid, videoId, video?.thumbnailPath
-            ) ??
-            extractOwnedPrivateVideoPosterPath(
-              ownerUid, videoId, video?.thumbnailUrl
-            ) ??
-            extractOwnedPrivateVideoPosterPath(
-              ownerUid, videoId, processing?.sourcePosterStoragePath
-            ),
+          ...currentPaths,
+          privateVideoStorageGeneration,
+          privatePosterStorageGeneration,
           processedOutputPrefix:
             normalizeOwnedProcessedVideoPrefix(
               ownerUid, videoId, video?.processedOutputPrefix

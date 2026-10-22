@@ -13,6 +13,8 @@ test('video deletion uses exact private paths and a version-specific processed p
   assert.doesNotMatch(source, /deleteFilesByPrefix\(private/);
   assert.match(source, /deleteFilesByPrefix\(job\.processedOutputPrefix\)/);
   assert.match(source, /deleteVideoStoragePrefixBounded\(/);
-  assert.match(source, /bucket\s*\.file\(\s*job\.privateVideoStoragePath\s*\)/);
-  assert.match(source, /bucket\s*\.file\(\s*job\.privatePosterStoragePath\s*\)/);
+  assert.match(source, /deletePinnedPrivateVideoAsset\(\s*job\.privateVideoStoragePath/);
+  assert.match(source, /deletePinnedPrivateVideoAsset\(\s*job\.privatePosterStoragePath/);
+  assert.match(source, /ifGenerationMatch: generation/);
+  assert.doesNotMatch(source, /\.delete\(\{ ignoreNotFound: true \}\)/);
 });
