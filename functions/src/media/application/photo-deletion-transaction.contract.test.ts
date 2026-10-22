@@ -58,3 +58,16 @@ test('published asset cleanup is durable before publication is removed', () => {
   assert.ok(stage >= 0 && remove > stage);
   assert.match(source, /storagePath: currentPublicationData\?\.publishedStoragePath/);
 });
+
+test('published cleanup retries verify job identity before deleting or updating', () => {
+  const cleanup = readFileSync(
+    join(__dirname, '../../../src/media/application/published-photo-asset.service.ts'),
+    'utf8'
+  );
+  const runner = cleanup.slice(cleanup.indexOf('export async function processPendingPublishedPhotoAssetCleanupJobs'));
+  assert.match(runner, /current\.get\('createdAt'\) !== job\.createdAt/);
+  assert.match(runner, /current\.get\('updatedAt'\) !== job\.updatedAt/);
+  assert.match(runner, /current\.get\('attempts'\) !== job\.attempts/);
+  assert.match(runner, /tx\.delete\(jobDoc\.ref\)/);
+  assert.match(runner, /tx\.update\(jobDoc\.ref, \{/);
+});
