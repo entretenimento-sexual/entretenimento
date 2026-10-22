@@ -322,9 +322,13 @@ async function copyPosterIfAvailable(
       },
     });
   } catch (error) {
-    await destinationPoster
-      .delete({ ignoreNotFound: true })
-      .catch(() => undefined);
+    // A failed copy does not prove ownership of the destination generation.
+    // Never issue a blind compensating delete; retain it for reconciliation.
+    logger.warn('[publishedVideoAsset] Cópia de pôster sem confirmação; revisão necessária.', {
+      ownerUid: command.ownerUid,
+      videoId: command.videoId,
+      destinationPath,
+    });
     throw error;
   }
 
