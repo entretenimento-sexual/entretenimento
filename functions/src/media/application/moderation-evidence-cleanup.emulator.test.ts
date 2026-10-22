@@ -4,6 +4,7 @@ import { after, test } from 'node:test';
 
 import { db } from '../../firebaseApp';
 import { finishPreservedCleanup } from './moderation-evidence-preservation.handler';
+import { finalizePhotoDeletionJob } from './photo-deletion-job-finalization';
 import {
   ensurePreservedModerationCleanupJob,
   MODERATION_EVIDENCE_COLLECTION,
@@ -144,3 +145,41 @@ for (const mediaType of ['PHOTO', 'VIDEO'] as const) {
     assert.equal((await x.job.get()).get('status'), 'CLEANUP_PENDING');
   });
 }
+
+test('PHOTO: concurrent finalizers only acknowledge the matching persisted obligation', async () => {
+  const id = randomUUID();
+  const ref = db.collection('media_photo_deletion_jobs').doc(id);
+  const identity = {
+    ownerUid: 'owner-' + randomUUID().slice(0, 12),
+    photoId: 'photo-' + randomUUID().slice(0, 12),
+    storagePath: 'users/photo-test/private/' + id,
+    createdAt: Date.now(),
+  };
+  await ref.set({ ...identity, state: 'retryable', attempts: 2 });
+  const outcomes = await Promise.all([
+    finalizePhotoDeletionJob(db, id, identity),
+    finalizePhotoDeletionJob(db, id, identity),
+  ]);
+  assert.deepEqual(outcomes.sort(), [false, true]);
+  assert.equal((await ref.get()).exists, false);
+});
+
+test('PHOTO: stale finalizer cannot remove a replaced job', async () => {
+  const id = randomUUID();
+  const ref = db.collection('media_photo_deletion_jobs').doc(id);
+  const identity = {
+    ownerUid: 'owner-' + randomUUID().slice(0, 12),
+    photoId: 'photo-' + randomUUID().slice(0, 12),
+    storagePath: 'users/photo-test/private/' + id,
+    createdAt: Date.now(),
+  };
+  await ref.set({ ...identity, state: 'retryable', attempts: 1 });
+  await ref.update({ createdAt: identity.createdAt + 1, attempts: 3 });
+  await assert.rejects(
+    finalizePhotoDeletionJob(db, id, identity),
+    /photo-deletion-job-identity-changed/
+  );
+  const current = await ref.get();
+  assert.equal(current.get('attempts'), 3);
+  assert.equal(current.get('createdAt'), identity.createdAt + 1);
+});
