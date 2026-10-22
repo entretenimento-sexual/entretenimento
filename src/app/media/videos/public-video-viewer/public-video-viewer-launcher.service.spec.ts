@@ -124,9 +124,7 @@ describe('video gallery launch preserves selected identity after access filterin
     }))).rejects.toThrow('Vídeo público indisponível');
     expect(dialog.open).not.toHaveBeenCalled();
   });
-});
 
-describe('gallery viewer close lifecycle', () => {
   it('keeps the open observable pending until the viewer is dismissed', async () => {
     const closed = new Subject<void>();
     dialog.open.mockImplementationOnce(() => ({
