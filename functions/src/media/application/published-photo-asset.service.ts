@@ -499,22 +499,38 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
       await getDefaultStorageBucket()
         .file(storagePath)
         .delete({ ignoreNotFound: true });
-      await jobDoc.ref.delete();
+      await db.runTransaction(async (tx) => {
+        const current = await tx.get(jobDoc.ref);
+        if (!current.exists ||
+            current.get('ownerUid') !== job.ownerUid ||
+            current.get('photoId') !== job.photoId ||
+            current.get('storagePath') !== job.storagePath ||
+            current.get('createdAt') !== job.createdAt ||
+            current.get('updatedAt') !== job.updatedAt) return;
+        tx.delete(jobDoc.ref);
+      });
       deleted += 1;
     } catch (error) {
       const now = Date.now();
       const retry = nextPhotoCleanupRetry(job.attempts, now);
-      await jobDoc.ref.set(
-        {
+      await db.runTransaction(async (tx) => {
+        const current = await tx.get(jobDoc.ref);
+        if (!current.exists ||
+            current.get('ownerUid') !== job.ownerUid ||
+            current.get('photoId') !== job.photoId ||
+            current.get('storagePath') !== job.storagePath ||
+            current.get('createdAt') !== job.createdAt ||
+            current.get('updatedAt') !== job.updatedAt ||
+            current.get('attempts') !== job.attempts) return;
+        tx.update(jobDoc.ref, {
           state: retry.state,
           attempts: retry.attempts,
           nextAttemptAt: retry.nextAttemptAt,
           deadLetterExpiresAt: retry.deadLetterExpiresAt,
           updatedAt: now,
           lastError: normalizeErrorMessage(error),
-        },
-        { merge: true }
-      );
+        });
+      });
 
       if (retry.state === 'dead_letter') {
         deadLetter += 1;
