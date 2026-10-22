@@ -17,8 +17,7 @@ test('account photo deletion uses canonical transactional media cleanup', () => 
 
 test('account cleanup paths require GCS object generations for every deletion', () => {
   assert.match(source, /deleteGenerationPinnedVideoFile\(file\.metadata\?\.generation,/);
-  assert.match(source, /deleteExactOwnedMediaObject\(privateVideoPath\)/);
-  assert.match(source, /deleteExactOwnedMediaObject\(privatePosterPath\)/);
+  assert.match(source, /await deleteProfileVideoResources\(uid, videoSnapshot\.id/);
   assert.match(source, /deleteVideoStoragePrefixBounded\(prefix,/);
   assert.match(source, /ifGenerationMatch: generation/);
   assert.doesNotMatch(source, /\.delete\(\{ ignoreNotFound: true \}\)/);

@@ -385,21 +385,6 @@ function normalizeProcessingState(value: unknown): string {
   return String(value ?? '').trim().toUpperCase();
 }
 
-async function deleteExactOwnedMediaObject(path: string): Promise<void> {
-  const file = storage.bucket().file(path);
-  try {
-    const [metadata] = await file.getMetadata();
-    await deleteGenerationPinnedVideoFile(metadata.generation, generation =>
-      file.delete({ ignoreNotFound: true, ifGenerationMatch: generation })
-    );
-  } catch (error) {
-    const code = error && typeof error === 'object' && 'code' in error
-      ? Number((error as { code: unknown }).code) : null;
-    if (code === 404) return;
-    throw error;
-  }
-}
-
 async function deleteStoragePrefix(prefix: string): Promise<void> {
   // Bounded version-specific pages; never sweep other processing versions.
   await deleteVideoStoragePrefixBounded(prefix, async (pagePrefix, limit) => {
