@@ -30,9 +30,9 @@ const folder = await mkdtemp(join(tmpdir(), 'moderation-cleanup-firestore-'));
 try {
   const ports = new Set();
   // An isolated WebSocket port is required too: the developer suite uses 9150.
-  while (ports.size < 4) ports.add(await freePort());
-  const [firestore, hub, logging, websocket] = [...ports];
-  if ([firestore, hub, logging, websocket].some(port =>
+  while (ports.size < 5) ports.add(await freePort());
+  const [firestore, hub, logging, websocket, storage] = [...ports];
+  if ([firestore, hub, logging, websocket, storage].some(port =>
     [8080, 9150, 4000, 4400, 4500].includes(port)
   )) {
     throw new Error('Refusing to reuse development emulator ports.');
@@ -67,6 +67,7 @@ try {
         port: firestore,
         websocketPort: websocket,
       },
+      storage: { host: '127.0.0.1', port: storage },
       hub: { host: '127.0.0.1', port: hub },
       logging: { host: '127.0.0.1', port: logging },
       ui: { enabled: false },
@@ -78,7 +79,7 @@ try {
     'functions/lib/media/application/moderation-evidence-cleanup.emulator.test.js',
   ].join(' ');
   const child = spawn(process.execPath, [
-    cli, 'emulators:exec', '--only', 'firestore',
+    cli, 'emulators:exec', '--only', 'firestore,storage',
     '--project', projectId, '--config', config, command,
   ], {
     cwd: root,
@@ -88,7 +89,7 @@ try {
       ...process.env,
       GOOGLE_APPLICATION_CREDENTIALS: '',
       FIREBASE_AUTH_EMULATOR_HOST: '',
-      FIREBASE_STORAGE_EMULATOR_HOST: '',
+      FIREBASE_STORAGE_EMULATOR_HOST: `127.0.0.1:${storage}`,
       CLOUD_TASKS_EMULATOR_HOST: '',
       FIRESTORE_EMULATOR_HOST: '',
       FUNCTIONS_EMULATOR: '',
