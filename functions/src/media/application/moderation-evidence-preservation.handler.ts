@@ -18,30 +18,36 @@ function cleanId(value: unknown): string {
   return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
 }
 
-async function cleanupResolvedRemovedMedia(reportId: string): Promise<boolean> {
-  const reportSnap = await db.collection('moderation_reports').doc(reportId).get();
+type CleanupIdentity = {
+  ownerUid: string;
+  mediaId: string;
+  mediaType: 'PHOTO' | 'VIDEO';
+  createdAt: number;
+};
 
-  if (!reportSnap.exists) {
-    return false;
-  }
+function matchingCleanupIdentity(
+  job: FirebaseFirestore.DocumentSnapshot,
+  identity: CleanupIdentity
+): boolean {
+  return job.exists &&
+    job.get('status') === 'CLEANUP_PENDING' &&
+    job.get('ownerUid') === identity.ownerUid &&
+    job.get('mediaId') === identity.mediaId &&
+    job.get('mediaType') === identity.mediaType &&
+    job.get('createdAt') === identity.createdAt;
+}
+
+async function cleanupResolvedRemovedMedia(
+  reportId: string,
+  identity: CleanupIdentity
+): Promise<boolean> {
+  const reportSnap = await db.collection('moderation_reports').doc(reportId).get();
+  if (!reportSnap.exists) return false;
 
   const report = reportSnap.data() ?? {};
   const targetType = String(report.targetType ?? '').trim().toLowerCase();
-  const moderationAction = String(report.moderationAction ?? '')
-    .trim()
-    .toUpperCase();
-  const evidenceStatus = String(report.evidencePreservationStatus ?? '')
-    .trim()
-    .toUpperCase();
-
-  if (
-    (targetType !== 'photo' && targetType !== 'video') ||
-    moderationAction !== 'REMOVE' ||
-    evidenceStatus !== 'PRESERVED'
-  ) {
-    return false;
-  }
-
+  const moderationAction = String(report.moderationAction ?? '').trim().toUpperCase();
+  const evidenceStatus = String(report.evidencePreservationStatus ?? '').trim().toUpperCase();
   const ownerUid = cleanId(report.targetOwnerUid);
   const mediaId = cleanId(
     targetType === 'video'
@@ -49,13 +55,20 @@ async function cleanupResolvedRemovedMedia(reportId: string): Promise<boolean> {
       : report.targetId
   );
 
-  if (!ownerUid || !mediaId) {
-    logger.error(
-      '[retryPendingModerationEvidencePreservation] Referência inválida para limpeza.',
-      { reportId, targetType }
-    );
-    return false;
-  }
+  if (
+    (targetType !== 'photo' && targetType !== 'video') ||
+    moderationAction !== 'REMOVE' ||
+    evidenceStatus !== 'PRESERVED' ||
+    ownerUid !== identity.ownerUid ||
+    mediaId !== identity.mediaId ||
+    identity.mediaType !== (targetType === 'photo' ? 'PHOTO' : 'VIDEO')
+  ) return false;
+
+  const evidenceSnap = await db.collection('moderation_evidence').doc(reportId).get();
+  if (!evidenceSnap.exists ||
+      evidenceSnap.get('ownerUid') !== identity.ownerUid ||
+      evidenceSnap.get('mediaId') !== identity.mediaId ||
+      evidenceSnap.get('mediaType') !== identity.mediaType) return false;
 
   if (targetType === 'photo') {
     const result = await deleteProfilePhotoResources(ownerUid, mediaId, {
@@ -72,13 +85,46 @@ async function cleanupResolvedRemovedMedia(reportId: string): Promise<boolean> {
 
 async function finishPreservedCleanup(reportId: string): Promise<void> {
   const jobRef = db.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId);
-  if (!await cleanupResolvedRemovedMedia(reportId)) return;
-  // Only acknowledge the job if it remains the preserved cleanup obligation.
+  const jobBefore = await jobRef.get();
+  const identity: CleanupIdentity = {
+    ownerUid: cleanId(jobBefore.get('ownerUid')),
+    mediaId: cleanId(jobBefore.get('mediaId')),
+    mediaType: jobBefore.get('mediaType'),
+    createdAt: jobBefore.get('createdAt'),
+  };
+  if (
+    !identity.ownerUid || !identity.mediaId ||
+    (identity.mediaType !== 'PHOTO' && identity.mediaType !== 'VIDEO') ||
+    typeof identity.createdAt !== 'number' ||
+    !matchingCleanupIdentity(jobBefore, identity)
+  ) return;
+
+  if (!await cleanupResolvedRemovedMedia(reportId, identity)) return;
+
+  // Prevent acknowledging a replaced job or changed report/evidence after physical deletion.
   await db.runTransaction(async (tx) => {
-    const job = await tx.get(jobRef);
-    if (job.get('status') === 'CLEANUP_PENDING') {
-      tx.delete(jobRef);
-    }
+    const reportRef = db.collection('moderation_reports').doc(reportId);
+    const evidenceRef = db.collection('moderation_evidence').doc(reportId);
+    const [job, report, evidence] = await Promise.all([
+      tx.get(jobRef), tx.get(reportRef), tx.get(evidenceRef),
+    ]);
+    const targetType = identity.mediaType === 'PHOTO' ? 'photo' : 'video';
+    const reportMediaId = targetType === 'video'
+      ? report.get('parentTargetId') ?? report.get('targetId')
+      : report.get('targetId');
+    if (
+      matchingCleanupIdentity(job, identity) &&
+      report.exists &&
+      report.get('moderationAction') === 'REMOVE' &&
+      report.get('evidencePreservationStatus') === 'PRESERVED' &&
+      report.get('targetOwnerUid') === identity.ownerUid &&
+      String(report.get('targetType') ?? '').toLowerCase() === targetType &&
+      reportMediaId === identity.mediaId &&
+      evidence.exists &&
+      evidence.get('ownerUid') === identity.ownerUid &&
+      evidence.get('mediaId') === identity.mediaId &&
+      evidence.get('mediaType') === identity.mediaType
+    ) tx.delete(jobRef);
   });
 }
 
