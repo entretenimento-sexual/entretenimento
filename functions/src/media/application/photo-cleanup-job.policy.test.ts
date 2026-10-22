@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  PHOTO_CLEANUP_DEAD_LETTER_RETENTION_MS,
   PHOTO_CLEANUP_MAX_ATTEMPTS,
   PHOTO_CLEANUP_RETENTION_RECHECK_MS,
   PHOTO_CLEANUP_RETRY_BASE_MS,
@@ -37,10 +36,7 @@ test('photo cleanup becomes dead-letter at the configured attempt ceiling', () =
   assert.equal(decision.state, 'dead_letter');
   assert.equal(decision.attempts, PHOTO_CLEANUP_MAX_ATTEMPTS);
   assert.equal(decision.nextAttemptAt, null);
-  assert.equal(
-    decision.deadLetterExpiresAt,
-    now + PHOTO_CLEANUP_DEAD_LETTER_RETENTION_MS
-  );
+  assert.equal(decision.deadLetterExpiresAt, null);
 });
 
 test('photo retention blocker receives a slower recheck window', () => {

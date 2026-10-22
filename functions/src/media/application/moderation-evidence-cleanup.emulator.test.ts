@@ -435,6 +435,28 @@ test('PUBLISHED PHOTO: direct physical cleanup preserves a concurrently replaced
   await jobRef.delete();
 });
 
+test('PUBLISHED PHOTO: expired dead-letter remains durably recorded for manual review', async () => {
+  const ownerUid = randomUUID();
+  const photoId = randomUUID();
+  const storagePath = `users/${ownerUid}/published/images/${photoId}/${randomUUID()}`;
+  const file = getDefaultStorageBucket().file(storagePath);
+  await file.save(Buffer.from('unresolved-dead-letter-must-survive'), { resumable: false });
+  const jobId = createHash('sha256').update(storagePath).digest('hex');
+  const jobRef = db.collection('media_published_asset_cleanup_jobs').doc(jobId);
+  const now = Date.now();
+  await jobRef.set({
+    ownerUid, photoId, storagePath, reason: 'historical-unresolved-failure',
+    createdAt: now - 200000, updatedAt: now - 100000,
+    attempts: 8, state: 'dead_letter', lastError: 'historical error',
+    nextAttemptAt: null, deadLetterExpiresAt: now - 1000,
+  });
+  await processPendingPublishedPhotoAssetCleanupJobs(100);
+  assert.equal((await jobRef.get()).get('state'), 'dead_letter');
+  assert.equal((await file.exists())[0], true);
+  await jobRef.delete();
+  await file.delete();
+});
+
 test('PUBLISHED PHOTO: legacy cleanup without pinned generation fails closed', async () => {
   const ownerUid = randomUUID();
   const photoId = randomUUID();

@@ -90,17 +90,16 @@ test('published cleanup invalid and retention paths use identity-guarded transac
   }
 });
 
-test('published cleanup dead-letter purge rechecks identity and expiry in transaction', () => {
+test('published cleanup never purges unresolved dead letters by expiry', () => {
   const cleanup = readFileSync(
     join(__dirname, '../../../src/media/application/published-photo-asset.service.ts'),
     'utf8'
   );
-  const purge = cleanup.slice(cleanup.indexOf('for (const expiredDoc of expiredDeadLetters.docs)'));
-  assert.match(purge, /await db\.runTransaction\(async \(tx\) =>/);
-  assert.match(purge, /current\.get\('createdAt'\) !== expired\.createdAt/);
-  assert.match(purge, /current\.get\('updatedAt'\) !== expired\.updatedAt/);
-  assert.match(purge, /current\.get\('deadLetterExpiresAt'\) > Date\.now\(\)/);
-  assert.match(purge, /tx\.delete\(expiredDoc\.ref\)/);
+  const runner = cleanup.slice(
+    cleanup.indexOf('export async function processPendingPublishedPhotoAssetCleanupJobs')
+  );
+  assert.doesNotMatch(runner, /expiredDeadLetters|tx\\.delete\\(expiredDoc\\.ref\\)/);
+  assert.match(runner, /deadLetterPurged: 0|const deadLetterPurged = 0/);
 });
 
 test('direct published cleanup preserves replacement jobs after physical deletion', () => {

@@ -24,5 +24,13 @@ export const PHOTO_CLEANUP_RETENTION_RECHECK_MS = MEDIA_CLEANUP_RETENTION_RECHEC
 export const PHOTO_CLEANUP_DEAD_LETTER_RETENTION_MS =
   MEDIA_CLEANUP_DEAD_LETTER_RETENTION_MS;
 
-export const nextPhotoCleanupRetry = nextMediaCleanupRetry;
+/**
+ * Physical photo cleanup obligations must not disappear on a timer.
+ * Preserve terminal jobs until an explicit, audited reconciliation.
+ */
+export function nextPhotoCleanupRetry(currentAttempts: unknown, now = Date.now()) {
+  return nextMediaCleanupRetry(currentAttempts, now, {
+    deadLetterRetentionMs: null,
+  });
+}
 export const photoCleanupRetentionRecheckAt = mediaCleanupRetentionRecheckAt;

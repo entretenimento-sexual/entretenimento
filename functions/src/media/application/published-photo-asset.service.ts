@@ -533,7 +533,7 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
   let waitingRetention = 0;
   let retryable = 0;
   let deadLetter = 0;
-  let deadLetterPurged = 0;
+  const deadLetterPurged = 0; // retained for telemetry schema compatibility
 
   for (const jobDoc of jobsSnapshot.docs) {
     const job = jobDoc.data() as PublishedPhotoAssetCleanupJob;
@@ -675,30 +675,8 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
     }
   }
 
-  const expiredDeadLetters = await db
-    .collection(CLEANUP_COLLECTION)
-    .where('deadLetterExpiresAt', '<=', Date.now())
-    .limit(batchSize)
-    .get();
-
-  for (const expiredDoc of expiredDeadLetters.docs) {
-    const expired = expiredDoc.data() as PublishedPhotoAssetCleanupJob;
-    const purged = await db.runTransaction(async (tx) => {
-      const current = await tx.get(expiredDoc.ref);
-      if (!current.exists ||
-          current.get('ownerUid') !== expired.ownerUid ||
-          current.get('photoId') !== expired.photoId ||
-          current.get('storagePath') !== expired.storagePath ||
-          current.get('createdAt') !== expired.createdAt ||
-          current.get('updatedAt') !== expired.updatedAt ||
-          current.get('deadLetterExpiresAt') !== expired.deadLetterExpiresAt ||
-          typeof current.get('deadLetterExpiresAt') !== 'number' ||
-          current.get('deadLetterExpiresAt') > Date.now()) return false;
-      tx.delete(expiredDoc.ref);
-      return true;
-    });
-    if (purged) deadLetterPurged += 1;
-  }
+  // Deliberately do not purge terminal obligations by age. Old generations
+  // and retained evidence need explicit audited reconciliation, not a timer.
 
   logPhotoOperation({
     operation: 'photo.cleanup_published_assets',
