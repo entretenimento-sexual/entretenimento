@@ -96,9 +96,9 @@ describe('PublicVideoViewerLauncherService', () => {
     expect(config?.maxHeight).toBe('100dvh');
     expect(config?.data.startIndex).toBe(0);
   });
-});
 
-describe('video gallery launch preserves selected identity after access filtering', () => {
+  // Retain the same MatDialog mock and TestBed configuration for these
+  // focus, identity and dialog-lifecycle regressions.
   it('opens the selected video, not its old index, after filtering', async () => {
     const service = TestBed.inject(PublicVideoViewerLauncherService);
     const hidden = { ...video('video-hidden'), visibility: 'PRIVATE' } as unknown as IPublicVideoItem;

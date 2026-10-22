@@ -439,7 +439,11 @@ test('c18p tombstones and account cancellation share Firestore transactions', ()
   assert.ok(!lifecycle.includes('await jobSnapshot.ref.set('));
   assert.ok(!lifecycle.includes('hideBatch.set('));
   assert.equal(lifecycle.split('stageVideoTriageMutationInTransaction(').length - 1, 2);
-  assert.ok(lifecycle.includes('transaction.delete(processingRef);'));
+  // No independent account-owned processing deletion: the canonical handler
+  // keeps cancellation and publication tombstones under one transaction.
+  assert.ok(!lifecycle.includes('transaction.delete(processingRef);'));
+  assert.ok(canonicalDeletion.includes('transaction.delete(publicVideoRef);'));
+  assert.ok(canonicalDeletion.includes('transaction.delete(publicationRef'));
   assert.ok(!lifecycle.includes('await processingRef.delete();'));
   assert.ok(reconciliation.includes('stageVideoTriageMutationInTransaction('));
   assert.ok(!outbox.includes('globalCoverageVerified: true'));
