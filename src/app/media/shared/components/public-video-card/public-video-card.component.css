@@ -154,7 +154,8 @@
 
 .public-video-card__preview img {
   display: block;
-  object-fit: cover;
+  /* Keep full portrait and landscape posters visible in the same card. */
+  object-fit: contain;
   transition: transform 160ms ease;
 }
 

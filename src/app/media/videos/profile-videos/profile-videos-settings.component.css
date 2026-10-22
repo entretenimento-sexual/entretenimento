@@ -519,7 +519,8 @@
 }
 
 .profile-videos__media-trigger img {
-  object-fit: cover;
+  /* Display all poster orientations without cropping the owner's media. */
+  object-fit: contain;
   transition: transform 160ms ease;
 }
 

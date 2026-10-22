@@ -3,7 +3,8 @@
 }
 
 .profile-media-showcase__item--video img {
-  object-fit: cover;
+  /* Never crop portrait posters in the mixed profile mosaic. */
+  object-fit: contain;
   object-position: center;
 }
 
