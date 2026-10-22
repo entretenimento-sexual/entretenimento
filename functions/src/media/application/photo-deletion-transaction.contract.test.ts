@@ -102,3 +102,18 @@ test('published cleanup dead-letter purge rechecks identity and expiry in transa
   assert.match(purge, /current\.get\('deadLetterExpiresAt'\) > Date\.now\(\)/);
   assert.match(purge, /tx\.delete\(expiredDoc\.ref\)/);
 });
+
+test('direct published cleanup preserves replacement jobs after physical deletion', () => {
+  const cleanup = readFileSync(
+    join(__dirname, '../../../src/media/application/published-photo-asset.service.ts'),
+    'utf8'
+  );
+  const direct = cleanup.slice(
+    cleanup.indexOf('export async function deletePublishedPhotoAssetOrQueue'),
+    cleanup.indexOf('export async function processPendingPublishedPhotoAssetCleanupJobs')
+  );
+  assert.match(direct, /const existingCleanup = await cleanupRef\.get\(\)/);
+  assert.match(direct, /current\.get\('createdAt'\) !== existingCleanup\.get\('createdAt'\)/);
+  assert.match(direct, /current\.get\('updatedAt'\) !== existingCleanup\.get\('updatedAt'\)/);
+  assert.match(direct, /tx\.delete\(cleanupRef\)/);
+});
