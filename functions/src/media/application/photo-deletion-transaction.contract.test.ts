@@ -136,3 +136,19 @@ test('published photo deletion fails closed on supplied invalid asset paths', ()
   assert.match(cleanup, /export function stagePublishedPhotoAssetCleanup/);
   assert.match(cleanup, /export async function deletePublishedPhotoAssetOrQueue/);
 });
+
+test('missing-private-photo flow stages durable published cleanup with visibility removal', () => {
+  const missing = source.slice(
+    source.indexOf('if (!privatePhotoSnap.exists)'),
+    source.indexOf('const privatePhoto = privatePhotoSnap.data()')
+  );
+  assert.match(missing, /const missingPhotoCleanup = await db\.runTransaction\(async \(tx\) =>/);
+  assert.match(missing, /tx\.get\(privatePhotoRef\)/);
+  assert.match(missing, /tx\.get\(publicationRef\)/);
+  const stage = missing.indexOf('stagePublishedPhotoAssetCleanup(tx, {');
+  const remove = missing.indexOf('tx.delete(publicationRef)');
+  assert.ok(stage >= 0 && remove > stage);
+  assert.match(missing, /if \(currentPrivate\.exists\)/);
+  assert.match(missing, /if \(isModerationLockedPublication\(currentPublicationData\)/);
+  assert.doesNotMatch(missing, /cleanupBatch\.commit\(\)/);
+});

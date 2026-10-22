@@ -257,33 +257,54 @@ export async function deleteProfilePhotoResources(
   }
 
   if (!privatePhotoSnap.exists) {
-    const pendingJob = await db.collection(DELETION_JOBS_COLLECTION)
-      .doc(buildDeletionJobId(ownerUid, photoId)).get();
-    if (pendingJob.exists) {
-      if (pendingJob.get('ownerUid') !== ownerUid ||
-          pendingJob.get('photoId') !== photoId) {
+    // Publication removal and the durable Storage cleanup obligation MUST
+    // share a transaction, even when the private photo was already removed.
+    const missingPhotoCleanup = await db.runTransaction(async (tx) => {
+      const jobRef = db.collection(DELETION_JOBS_COLLECTION)
+        .doc(buildDeletionJobId(ownerUid, photoId));
+      const [currentPrivate, currentPublication, pendingJob] = await Promise.all([
+        tx.get(privatePhotoRef), tx.get(publicationRef), tx.get(jobRef),
+      ]);
+      if (pendingJob.exists) {
+        if (pendingJob.get('ownerUid') !== ownerUid ||
+            pendingJob.get('photoId') !== photoId) {
+          throw new HttpsError(
+            'failed-precondition',
+            'Obrigação de exclusão de foto com identidade divergente.'
+          );
+        }
+        return { kind: 'PENDING' } as const;
+      }
+      if (currentPrivate.exists) {
+        throw new HttpsError('aborted', 'Foto alterada durante a exclusão.');
+      }
+      const currentPublicationData = currentPublication.exists
+        ? currentPublication.data() as PhotoPublicationDoc
+        : null;
+      if (isModerationLockedPublication(currentPublicationData) &&
+          options.allowQuarantined !== true) {
         throw new HttpsError(
           'failed-precondition',
-          'Obrigação de exclusão de foto com identidade divergente.'
+          'Esta foto está temporariamente preservada durante uma análise de segurança.'
         );
       }
+      const storagePath = currentPublicationData?.publishedStoragePath;
+      stagePublishedPhotoAssetCleanup(tx, {
+        ownerUid, photoId, storagePath,
+        reason: 'delete-missing-private-photo',
+      });
+      tx.delete(publicationRef);
+      tx.delete(publicPhotoRef);
+      return { kind: 'STAGED', storagePath } as const;
+    });
+    if (missingPhotoCleanup.kind === 'PENDING') {
       return { photoId, cleanupPending: true };
     }
-    const cleanupBatch = db.batch();
-    if (publicationSnap.exists && publicationSnap.updateTime) {
-      cleanupBatch.delete(publicationRef, {
-        lastUpdateTime: publicationSnap.updateTime,
-      });
-    } else {
-      cleanupBatch.delete(publicationRef);
-    }
-    cleanupBatch.delete(publicPhotoRef);
-    await cleanupBatch.commit();
 
     const publishedAssetDeleted = await deletePublishedPhotoAssetOrQueue({
       ownerUid,
       photoId,
-      storagePath: publication?.publishedStoragePath,
+      storagePath: missingPhotoCleanup.storagePath,
       reason: 'delete-missing-private-photo',
     });
 
