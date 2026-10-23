@@ -11,6 +11,16 @@ function css(relativePath: string): string {
 }
 
 describe('Media video responsive layout contracts', () => {
+  it('sizes the owner gallery by the actual profile surface instead of viewport width', () => {
+    const owner = css('./profile-videos/profile-videos.component.css');
+    const styles = css('./profile-videos/profile-videos-settings.component.css');
+    expect(owner).toContain('container: owner-video-library / inline-size');
+    expect(styles).toContain('@container owner-video-library (min-width: 650px)');
+    expect(styles).toContain('@container owner-video-library (min-width: 940px)');
+    expect(styles).toContain('@container owner-video-library (min-width: 1120px)');
+    expect(styles).not.toContain('@media (min-width: 1200px)');
+  });
+
   it('sizes visitor gallery columns and pagination from their container', () => {
     const styles = css('./public-profile-videos/public-profile-videos.component.css');
     expect(styles).toContain('container: public-videos-gallery / inline-size');

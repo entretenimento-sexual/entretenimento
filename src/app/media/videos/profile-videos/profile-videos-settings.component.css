@@ -665,19 +665,20 @@
   }
 }
 
-@media (min-width: 600px) {
+/* The component can be narrower than the viewport in a profile sidebar. */
+@container owner-video-library (min-width: 650px) {
   .profile-videos__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (min-width: 900px) {
+@container owner-video-library (min-width: 940px) {
   .profile-videos__grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-@media (min-width: 1200px) {
+@container owner-video-library (min-width: 1120px) {
   .profile-videos__grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }

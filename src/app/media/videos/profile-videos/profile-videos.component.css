@@ -9,6 +9,8 @@
   width: min(100%, var(--content-wide, 1180px));
   margin-inline: auto;
   padding: clamp(12px, 2vw, 24px);
+  /* Owner library columns must respond to the actual profile panel width. */
+  container: owner-video-library / inline-size;
 }
 
 .profile-videos__upload,
