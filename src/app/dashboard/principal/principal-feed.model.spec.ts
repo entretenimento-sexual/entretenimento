@@ -20,6 +20,7 @@ function photo(
     createdAt: publishedAt,
     publishedAt,
     visibility: 'PUBLIC',
+    moderationStatus: 'APPROVED',
     orderIndex: 0,
   } as IPublicPhotoItem;
 }

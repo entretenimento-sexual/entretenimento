@@ -23,6 +23,7 @@ const photo = {
   createdAt: 100,
   publishedAt: 100,
   visibility: 'PUBLIC',
+  moderationStatus: 'APPROVED',
   orderIndex: 0,
 };
 
