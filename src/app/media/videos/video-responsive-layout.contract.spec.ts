@@ -15,6 +15,8 @@ describe('Media video responsive layout contracts', () => {
     const styles = css('./public-profile-videos/public-profile-videos.component.css');
     expect(styles).toContain('container: public-videos-gallery / inline-size');
     expect(styles).toContain('@container public-videos-gallery (min-width: 560px)');
+    expect(styles).toContain('padding: 12px clamp(12px, 3vw, 28px) 32px');
+    expect(styles).not.toMatch(/@container public-videos-gallery[^}]*\.public-videos-page\s*\{/s);
     expect(styles).toContain('@container public-videos-gallery (min-width: 1080px)');
     expect(styles).toMatch(/\.gallery-pagination\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,/s);
   });

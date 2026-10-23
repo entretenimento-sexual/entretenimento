@@ -6,7 +6,7 @@
 .public-videos-page {
   width: min(100%, 1320px);
   margin-inline: auto;
-  padding: 12px 12px 32px;
+  padding: 12px clamp(12px, 3vw, 28px) 32px;
   /* Resolve columns against the gallery surface, not the viewport. */
   container: public-videos-gallery / inline-size;
 }
@@ -96,10 +96,6 @@
 }
 
 @container public-videos-gallery (min-width: 560px) {
-  .public-videos-page {
-    padding-inline: clamp(16px, 3vw, 28px);
-  }
-
   .videos-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
