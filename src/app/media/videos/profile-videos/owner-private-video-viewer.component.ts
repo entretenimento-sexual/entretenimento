@@ -42,6 +42,9 @@ export interface OwnerPrivateVideoViewerData {
       gap: 12px;
       min-width: 0;
       padding: clamp(12px, 3vw, 24px);
+      max-height: 100dvh;
+      overflow-y: auto;
+      overscroll-behavior: contain;
       background: var(--background-color, #101017);
       color: var(--text-color, #fff);
     }
@@ -64,7 +67,7 @@ export interface OwnerPrivateVideoViewerData {
     video {
       display: block;
       width: 100%;
-      max-height: min(74dvh, 760px);
+      max-height: min(74dvh, calc(100dvh - 168px), 760px);
       background: #000;
       object-fit: contain;
     }

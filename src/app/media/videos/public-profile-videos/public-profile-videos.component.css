@@ -7,6 +7,8 @@
   width: min(100%, 1320px);
   margin-inline: auto;
   padding: 12px 12px 32px;
+  /* Resolve columns against the gallery surface, not the viewport. */
+  container: public-videos-gallery / inline-size;
 }
 
 .gallery-summary {
@@ -42,8 +44,13 @@
 }
 
 .gallery-pagination {
-  display: flex;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  justify-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
   padding: clamp(20px, 4vw, 32px) 0 4px;
 }
 
@@ -88,7 +95,7 @@
   min-width: 0;
 }
 
-@media (min-width: 560px) {
+@container public-videos-gallery (min-width: 560px) {
   .public-videos-page {
     padding-inline: clamp(16px, 3vw, 28px);
   }
@@ -98,7 +105,7 @@
   }
 }
 
-@media (min-width: 1080px) {
+@container public-videos-gallery (min-width: 1080px) {
   .videos-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 18px;

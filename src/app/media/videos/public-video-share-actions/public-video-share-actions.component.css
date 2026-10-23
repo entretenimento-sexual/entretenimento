@@ -123,6 +123,18 @@
   }
 }
 
+@media (max-height: 460px) and (orientation: landscape) {
+  .public-video-share-action small {
+    display: none;
+  }
+
+  .public-video-share-action,
+  .public-video-share-action__icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .public-video-share-actions * {
     animation-duration: 0.01ms !important;

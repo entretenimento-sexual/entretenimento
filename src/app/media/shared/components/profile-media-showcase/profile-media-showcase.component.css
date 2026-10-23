@@ -1,6 +1,8 @@
 :host {
   display: block;
   min-width: 0;
+  /* Respect narrow profile sidebars on otherwise wide screens. */
+  container: profile-media-mosaic / inline-size;
 }
 
 .profile-media-showcase {
@@ -152,7 +154,7 @@
   box-shadow: none !important;
 }
 
-@media (max-width: 640px) {
+@container profile-media-mosaic (max-width: 640px) {
   .profile-media-showcase {
     max-width: none;
     padding-inline: 0.75rem;
@@ -168,7 +170,7 @@
   }
 }
 
-@media (max-width: 340px) {
+@container profile-media-mosaic (max-width: 340px) {
   .profile-media-showcase__grid {
     grid-template-columns: 1fr;
   }

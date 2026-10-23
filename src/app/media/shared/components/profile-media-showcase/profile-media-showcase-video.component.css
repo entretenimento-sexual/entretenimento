@@ -8,12 +8,12 @@
   object-position: center;
 }
 
-.profile-media-showcase__item:disabled {
+.profile-media-showcase__item[aria-disabled="true"] {
   cursor: wait;
 }
 
-.profile-media-showcase__item:disabled img,
-.profile-media-showcase__item:disabled .profile-media-showcase__video-placeholder {
+.profile-media-showcase__item[aria-disabled="true"] img,
+.profile-media-showcase__item[aria-disabled="true"] .profile-media-showcase__video-placeholder {
   filter: brightness(0.72);
 }
 

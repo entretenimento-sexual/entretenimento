@@ -492,7 +492,9 @@
 
 @media (max-width: 520px) {
   .public-video-viewer__header {
-    padding-inline: 12px;
+    padding-inline:
+      max(12px, env(safe-area-inset-left))
+      max(12px, env(safe-area-inset-right));
   }
 
   .public-video-viewer__owner img,
@@ -552,6 +554,27 @@
 
   .public-video-viewer__interactions {
     bottom: 70px;
+  }
+}
+
+/* Short landscape phones need compact controls instead of a clipped rail. */
+@media (max-height: 460px) and (orientation: landscape) {
+  .public-video-viewer__interactions {
+    top: 50%;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: auto;
+    grid-template-columns: repeat(3, minmax(48px, 1fr));
+    align-items: center;
+    gap: 6px;
+    transform: translateY(-50%);
+  }
+
+  .public-video-viewer__interaction small {
+    display: none;
+  }
+
+  .public-video-viewer__metadata {
+    right: max(184px, calc(env(safe-area-inset-right) + 174px));
   }
 }
 
