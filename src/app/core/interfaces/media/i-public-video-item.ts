@@ -11,6 +11,10 @@
 // -----------------------------------------------------------------------------
 
 import type { IOfficialMediaContextProjection } from './i-official-media-context';
+import type {
+  PublicProfilePurposeProjection,
+  PublicMediaPurposeProjection,
+} from 'src/app/core/services/media/profile-purpose-presentation.policy';
 
 export type TPublicVideoVisibility = 'PUBLIC';
 export type TPublicVideoModerationStatus = 'APPROVED';
@@ -38,6 +42,12 @@ export interface IPublicVideoOwnerSummary {
   readonly orientation: string | null;
   readonly municipio: string | null;
   readonly estado: string | null;
+  /**
+   * Reserved for a future sanitized, backend-derived public projection.
+   * Never infer professional status from subscription role or profile text.
+   * Not populated by current mappers; no active badge or entitlement.
+   */
+  readonly publicProfilePurpose?: PublicProfilePurposeProjection | null;
 }
 
 /**
@@ -101,6 +111,8 @@ export interface IPublicVideoProjection {
    * paga, entitlement nem sinal orgânico de ranking.
    */
   readonly officialMediaContext?: IOfficialMediaContextProjection | null;
+  /** Future per-publication classification; not active until backend-verified. */
+  readonly publicMediaPurpose?: PublicMediaPurposeProjection | null;
 
 
 }
