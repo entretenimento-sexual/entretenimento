@@ -4,6 +4,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   assertPlatformAccountAccessData,
 } from '../../../account_lifecycle/interaction-access.policy';
+import {
+  assertNoActiveBilateralBlocksInTransaction,
+} from '../../../friendship/application/bilateral-block-access.policy';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
 import { db, FieldValue } from '../../../firebaseApp';
 import {
@@ -168,6 +171,16 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
       assertAcceptedFriendship(
         actorFriendSnapshot.exists,
         targetFriendSnapshot.exists
+      );
+
+      // A public link in a chat must not expose even the title of a video
+      // whose owner blocks (or is blocked by) either conversation participant.
+      // This is a transaction-scoped check, before the reference is persisted.
+      await assertNoActiveBilateralBlocksInTransaction(
+        transaction,
+        requestedReference.ownerUid,
+        [actorUid, targetUid],
+        'Este vídeo não está disponível para compartilhamento.'
       );
 
       const storedReference =
