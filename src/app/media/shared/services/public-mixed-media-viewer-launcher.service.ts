@@ -53,7 +53,7 @@ export class PublicMixedMediaViewerLauncherService {
     return defer(() => {
       const session: MixedMediaSession = {
         items: this.normalizeItems(request.items),
-        continuationExhausted: false,
+        continuationExhausted: request.source === 'profile',
       };
       const selectedKey = this.mediaKey(request.selected);
       const selectedIndex = session.items.findIndex(

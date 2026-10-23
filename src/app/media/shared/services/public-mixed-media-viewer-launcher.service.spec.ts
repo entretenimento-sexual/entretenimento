@@ -198,6 +198,29 @@ describe('PublicMixedMediaViewerLauncherService', () => {
     expect(videoViewer.openWithResult$).not.toHaveBeenCalled();
   });
 
+  it('keeps a profile showcase scoped to its own loaded media', async () => {
+    const service = TestBed.inject(PublicMixedMediaViewerLauncherService);
+    const selected = video('owner-a', 'video-a');
+    videoViewer.openWithResult$.mockReturnValueOnce(of(undefined));
+
+    await firstValueFrom(service.open$({
+      items: [selected],
+      selected,
+      source: 'profile',
+    }));
+
+    expect(videoViewer.openWithResult$).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: [selected],
+        mixedNavigation: {
+          hasPrevious: false,
+          hasNext: false,
+        },
+      })
+    );
+    expect(mixedContinuation.loadContinuation$).not.toHaveBeenCalled();
+  });
+
   it('anexa continuação mista e abre o próximo trecho sem perder contexto', async () => {
     const service = TestBed.inject(PublicMixedMediaViewerLauncherService);
     const first = photo('owner-a', 'photo-a');
