@@ -52,13 +52,25 @@ export class PublicVideoViewerLauncherService {
       request.startIndex, requestedItems.length
     );
     const requestedVideo = requestedItems[requestedIndex] ?? null;
-    const items = [...requestedItems].filter((item) =>
-      !!item?.id?.trim() &&
-      !!item?.ownerUid?.trim() &&
-      item.mediaType === 'VIDEO' &&
-      item.visibility === 'PUBLIC' &&
-      item.moderationStatus === 'APPROVED'
-    );
+    const seen = new Set<string>();
+    const items = [...requestedItems].filter((item) => {
+      if (
+        !item?.id?.trim() ||
+        !item?.ownerUid?.trim() ||
+        item.mediaType !== 'VIDEO' ||
+        item.visibility !== 'PUBLIC' ||
+        item.moderationStatus !== 'APPROVED' ||
+        (request.source === 'profile' &&
+          item.ownerUid !== requestedVideo?.ownerUid)
+      ) {
+        return false;
+      }
+
+      const key = `${item.ownerUid}:${item.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     // Resolve the selected ID before filtering. A hidden or revoked item must
     // never silently redirect the viewer to the next permitted video.
     const startIndex = requestedVideo

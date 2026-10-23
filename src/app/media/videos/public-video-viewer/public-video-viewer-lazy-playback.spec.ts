@@ -126,6 +126,11 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     refresh?: (video: IPublicVideoItem) => Observable<IPublicVideoItem | null>;
     profileCursor?: { orderIndex: number; publishedAt: number; documentId: string } | null;
     profilePage?: { items: IPublicVideoItem[]; nextCursor: null; hasMore: false };
+    profilePages?: Array<{
+      items: IPublicVideoItem[];
+      nextCursor: { orderIndex: number; publishedAt: number; documentId: string } | null;
+      hasMore: boolean;
+    }>;
   }): Promise<{
     component: PublicVideoViewerComponent;
     hydratePublicVideoUrls$: ReturnType<typeof vi.fn>;
@@ -138,6 +143,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     } | null>;
   }> {
     const hydratePublicVideoUrls$ = vi.fn(input.hydrate);
+    const profilePages = [...(input.profilePages ?? [])];
     const invalidatePublicVideoAccess = vi.fn();
     const refreshPublicVideoUrl$ = vi.fn(input.refresh ??
       ((video: IPublicVideoItem) => of(playbackVersion(video))));
@@ -186,7 +192,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
         },
         {
           provide: PublicProfileVideoPaginationService,
-          useValue: { loadPage$: vi.fn(() => of(input.profilePage ?? { items: [], nextCursor: null, hasMore: false })) },
+          useValue: { loadPage$: vi.fn(() => of(profilePages.shift() ?? input.profilePage ?? { items: [], nextCursor: null, hasMore: false })) },
         },
         {
           provide: PublicVideoContinuationService,
@@ -236,7 +242,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
         },
         {
           provide: MediaApplicationErrorService,
-          useValue: { reportReason: reportPlaybackError },
+          useValue: { reportReason: reportPlaybackError, report: vi.fn() },
         },
       ],
     }).compileComponents();
@@ -301,6 +307,57 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     context.component.next();
     expect(context.component.current?.id).toBe('video-2');
     expect(context.component.hasNext).toBe(false);
+  });
+
+  it('skips duplicate, restricted and foreign profile pages before a valid neighbor', async () => {
+    const firstCursor = { documentId: 'first', orderIndex: 1, publishedAt: NOW };
+    const nextCursor = { documentId: 'next', orderIndex: 2, publishedAt: NOW };
+    const start = createVideo('video-1', null);
+    const approved = createVideo('video-2', null);
+    const context = await createFixture({
+      items: [start],
+      hydrate: items => of(items.map(playbackVersion)),
+      profileCursor: firstCursor,
+      profilePages: [
+        {
+          items: [
+            start,
+            { ...createVideo('foreign', null), ownerUid: 'another-owner' },
+            { ...createVideo('restricted', null), visibility: 'PRIVATE' },
+          ],
+          nextCursor,
+          hasMore: true,
+        },
+        { items: [approved], nextCursor: null, hasMore: false },
+      ],
+    });
+    const pagination = TestBed.inject(PublicProfileVideoPaginationService);
+    expect(pagination.loadPage$).toHaveBeenCalledTimes(2);
+    expect(pagination.loadPage$).toHaveBeenNthCalledWith(
+      2, 'owner-1', { pageSize: 12, cursor: nextCursor }
+    );
+    expect(context.component.hasNext).toBe(true);
+    context.component.next();
+    expect(context.component.current?.id).toBe('video-2');
+    expect(context.component.hasNext).toBe(false);
+  });
+
+  it('terminates a non-progressing profile cursor without repeated network calls', async () => {
+    const cursor = { documentId: 'repeated', orderIndex: 1, publishedAt: NOW };
+    const context = await createFixture({
+      items: [createVideo('video-1', null)],
+      hydrate: items => of(items.map(playbackVersion)),
+      profileCursor: cursor,
+      profilePages: [{
+        items: [createVideo('video-1', null)],
+        nextCursor: cursor, hasMore: true,
+      }],
+    });
+    expect(context.component.hasNext).toBe(false);
+    expect(TestBed.inject(PublicProfileVideoPaginationService).loadPage$)
+      .toHaveBeenCalledTimes(1);
+    expect(TestBed.inject(PublicVideoContinuationService).loadContinuation$)
+      .not.toHaveBeenCalled();
   });
 
   it('preserva indisponibilidade diante de eventos antigos e reconexão', async () => {

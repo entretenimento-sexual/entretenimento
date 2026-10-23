@@ -122,6 +122,7 @@ const ACCESS_REFRESH_RETRY_MS = 15_000;
 const MAX_TIMER_DELAY_MS = 2_147_000_000;
 const CONTINUATION_PREFETCH_REMAINING_ITEMS = 2;
 const CONTINUATION_BATCH_SIZE = 8;
+const MAX_PROFILE_CONTINUATION_EMPTY_PAGES = 5;
 const VIEWER_ITEM_WINDOW_MAX = 48;
 const VIEWER_ITEM_RETAIN_BEHIND = 12;
 const VIDEO_VIEWER_BLOCKED_TARGET_SELECTOR = `video,${PUBLIC_MEDIA_VIEWER_BLOCKED_TARGET_SELECTOR}`;
@@ -1104,8 +1105,10 @@ export class PublicVideoViewerComponent {
       });
   }
 
-  private loadProfileContinuation$(): Observable<PublicVideoContinuationResult> {
-    const cursor = this.profileCursor;
+  private loadProfileContinuation$(
+    cursor: IPublicProfileVideoCursor | null = this.profileCursor,
+    attemptedPages = 0
+  ): Observable<PublicVideoContinuationResult> {
     if (!cursor) {
       return of({ items: [], exhausted: true, failed: false });
     }
@@ -1114,25 +1117,66 @@ export class PublicVideoViewerComponent {
       pageSize: 12, cursor,
     }).pipe(
       take(1),
-      map((page): PublicVideoContinuationResult => {
-        this.profileCursor = page.hasMore ? page.nextCursor : null;
-        return {
-          items: page.items.filter((item) =>
-            item.ownerUid === this.data.ownerUid &&
-            item.mediaType === 'VIDEO' &&
-            item.visibility === 'PUBLIC' &&
-            item.moderationStatus === 'APPROVED'
-          ),
+      switchMap((page) => {
+        const next = page.hasMore ? page.nextCursor : null;
+        const stalled = page.hasMore &&
+          (!next || next.documentId === cursor.documentId);
+        this.profileCursor = stalled ? null : next;
+        const alreadyLoaded = new Set(
+          this.items.map((item) => this.videoKey(item))
+        );
+        const eligible = page.items.filter((item) =>
+          item.ownerUid === this.data.ownerUid &&
+          item.mediaType === 'VIDEO' &&
+          item.visibility === 'PUBLIC' &&
+          item.moderationStatus === 'APPROVED' &&
+          !!this.videoKey(item) &&
+          !alreadyLoaded.has(this.videoKey(item))
+        );
+
+        if (stalled) {
+          // A broken cursor must not trap the user in repeated requests.
+          this.mediaError.report(
+            new Error('Paginação de vídeos do perfil retornou cursor inválido.'),
+            {
+              operation: 'loadProfileVideoContinuation',
+              reasonHint: 'media_discovery_page_failed',
+              metadata: {
+                scope: 'PublicVideoViewerComponent',
+                hasOwnerUid: !!this.data.ownerUid,
+                invalidCursor: true,
+              },
+            }
+          );
+        }
+
+        if (
+          eligible.length === 0 &&
+          this.profileCursor &&
+          attemptedPages + 1 < MAX_PROFILE_CONTINUATION_EMPTY_PAGES
+        ) {
+          return this.loadProfileContinuation$(
+            this.profileCursor, attemptedPages + 1
+          );
+        }
+
+        return of({
+          items: eligible,
           exhausted: !this.profileCursor,
-          failed: false,
-        };
+          // If the bounded scan found no playable neighbor, allow a
+          // deliberate retry rather than silently freezing navigation.
+          failed: eligible.length === 0 &&
+            (stalled || !!this.profileCursor),
+        });
       }),
       catchError((error: unknown) => {
         this.mediaError.report(error, {
           operation: 'loadProfileVideoContinuation',
           reasonHint: 'media_discovery_page_failed',
-          metadata: { scope: 'PublicVideoViewerComponent',
-            hasOwnerUid: !!this.data.ownerUid },
+          metadata: {
+            scope: 'PublicVideoViewerComponent',
+            hasOwnerUid: !!this.data.ownerUid,
+          },
         });
         return of({ items: [], exhausted: false, failed: true });
       })

@@ -114,6 +114,21 @@ describe('PublicVideoViewerLauncherService', () => {
     expect(config?.restoreFocus).toBe(true);
   });
 
+  it('keeps a profile player on the selected owner and deduplicates its gallery', async () => {
+    const service = TestBed.inject(PublicVideoViewerLauncherService);
+    const foreign = { ...video('foreign'), ownerUid: 'another-owner' };
+    await firstValueFrom(service.open$({
+      items: [video('one'), foreign, video('one'), video('two')],
+      startIndex: 0,
+      source: 'profile',
+    }));
+
+    const config = dialog.open.mock.calls[0]?.[1];
+    expect(config?.data.items.map((item: IPublicVideoItem) => item.id))
+      .toEqual(['one', 'two']);
+    expect(config?.data.startIndex).toBe(0);
+  });
+
   it('refuses a revoked selected video rather than opening a neighbor', async () => {
     const service = TestBed.inject(PublicVideoViewerLauncherService);
     const hidden = { ...video('video-hidden'), moderationStatus: 'HIDDEN' } as unknown as IPublicVideoItem;
