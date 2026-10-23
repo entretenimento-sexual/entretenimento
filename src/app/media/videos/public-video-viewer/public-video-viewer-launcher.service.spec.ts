@@ -137,7 +137,9 @@ describe('PublicVideoViewerLauncherService', () => {
       startIndex: 0,
       source: 'profile',
     }).subscribe({ complete: () => { settled = true; } });
-    await Promise.resolve();
+    // The viewer is imported asynchronously. Closing before dialog.open()
+    // races with the afterClosed() subscription and makes the test flaky.
+    await vi.waitFor(() => expect(dialog.open).toHaveBeenCalledTimes(1));
     expect(settled).toBe(false);
     closed.next(undefined);
     closed.complete();
