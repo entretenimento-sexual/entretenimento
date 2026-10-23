@@ -13,7 +13,7 @@
 
 | Espaço | Fonte e organização | Exibição e retorno |
 | --- | --- | --- |
-| Meus vídeos | `/media/videos`; biblioteca privada, status e ordem da fonte | Abre somente publicação `PUBLIC + APPROVED` em modal; fechar restaura foco, scroll e filtro |
+| Meus vídeos | `/media/videos`; biblioteca privada, status e ordem da fonte | PUBLIC + APPROVED usa o visualizador público; vídeos prontos não públicos usam prévia privada do proprietário com URL assinada temporária, sem distribuição; fechar restaura foco, scroll e filtro |
 | Galeria pública do perfil | `/media/perfil/:id/videos-publicos`; paginação pelo backend com janelas de render limitadas | Grid responsivo, navegação anterior/próxima, reprodução no viewer da galeria |
 | Link direto de vídeo | `/media/video/:ownerUid/:videoId` | Visualizador usa autorização pública; o link de retorno abre a galeria completa daquele perfil |
 | Mosaico de perfil próprio ou visitado | `ProfileMediaShowcaseComponent`; janela curta de fotos e vídeos públicos | Modal misto com ordenação e handoff preservados; acesso às galerias completas por tipo |

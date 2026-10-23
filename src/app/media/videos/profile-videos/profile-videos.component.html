@@ -396,11 +396,11 @@
                 <button
                   type="button"
                   class="profile-videos__media-trigger"
-                  [class.profile-videos__media-trigger--interactive]="canOpenPublishedVideo(item)"
-                  [disabled]="!canOpenPublishedVideo(item) || openingVideoId() !== null"
+                  [class.profile-videos__media-trigger--interactive]="canPreviewOwnedVideo(item)"
+                  [disabled]="!canPreviewOwnedVideo(item) || openingVideoId() !== null"
                   [attr.aria-busy]="openingVideoId() === item.video.id ? 'true' : null"
-                  [attr.aria-label]="canOpenPublishedVideo(item) ? 'Assistir ' + displayVideoTitle(item) + '. Feche para voltar à galeria.' : mediaStateLabel(item.video)"
-                  (click)="openPublishedVideo(item)"
+                  [attr.aria-label]="canPreviewOwnedVideo(item) ? (canOpenPublishedVideo(item) ? 'Assistir vídeo público: ' : 'Prévia privada: ') + displayVideoTitle(item) + '. Feche para voltar à galeria.' : mediaStateLabel(item.video)"
+                  (click)="openOwnedVideo(item)"
                 >
                   @if (item.video.thumbnailUrl) {
                     <img
@@ -415,7 +415,7 @@
                     </span>
                   }
 
-                  @if (canOpenPublishedVideo(item)) {
+                  @if (canPreviewOwnedVideo(item)) {
                     <span class="profile-videos__play" aria-hidden="true">
                       <i class="fas fa-play"></i>
                     </span>

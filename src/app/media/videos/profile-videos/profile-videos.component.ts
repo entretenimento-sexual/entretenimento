@@ -89,6 +89,8 @@ import {
 } from './profile-video-gallery.policy';
 import { VideoSimpleEditorControlsComponent } from '../video-editor/video-editor-controls.entrypoint';
 import { PublicVideoViewerLauncherService } from '../public-video-viewer/public-video-viewer-launcher.service';
+import { VideoLibraryService } from 'src/app/core/services/media/video-library.service';
+import { OwnerPrivateVideoViewerComponent } from './owner-private-video-viewer.component';
 import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 import { MediaActionMenuComponent } from 'src/app/media/shared/components/media-action-menu/media-action-menu.component';
 
@@ -137,6 +139,7 @@ export class ProfileVideosComponent {
   private readonly publicMediaQuery = inject(MediaPublicQueryService);
   private readonly videoPagination = inject(PublicProfileVideoPaginationService);
   private readonly videoViewerLauncher = inject(PublicVideoViewerLauncherService);
+  private readonly videoLibrary = inject(VideoLibraryService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly formBuilder = inject(FormBuilder);
   private readonly currentUserStore = inject(CurrentUserStoreService);
@@ -840,6 +843,76 @@ export class ProfileVideosComponent {
     change: PrivateVideoPreviewVisibilityChange
   ): void {
     this.profileVideoLibrary.setPreviewNearby(change.videoId, change.nearby);
+  }
+
+  canPreviewOwnedVideo(item: IProfileVideoViewItem): boolean {
+    return item.video.status === 'ready';
+  }
+
+  openOwnedVideo(item: IProfileVideoViewItem): void {
+    if (!this.canPreviewOwnedVideo(item) || this.openingVideoId()) return;
+    if (this.canOpenPublishedVideo(item)) {
+      this.openPublishedVideo(item);
+      return;
+    }
+
+    const ownerUid = item.video.ownerUid;
+    const videoId = item.video.id;
+    this.openingVideoId.set(videoId);
+    // Playback signing is owner-only, on demand, and never persists in NgRx.
+    this.viewerUid$.pipe(
+      take(1),
+      switchMap((uid) => {
+        if (!uid || uid !== ownerUid) {
+          this.errorNotification.showWarning(
+            'Somente o proprietário pode visualizar esta prévia privada.'
+          );
+          return EMPTY;
+        }
+        return this.videoLibrary.hydrateOwnedVideoAccess$(
+          ownerUid, [item.video]
+        ).pipe(take(1));
+      }),
+      switchMap((videos) => {
+        const video = videos[0];
+        if (!video || video.id !== videoId ||
+            video.ownerUid !== ownerUid || !/^https:\/\//i.test(video.url)) {
+          this.errorNotification.showWarning(
+            'Não foi possível liberar a prévia deste vídeo. Tente novamente.'
+          );
+          return EMPTY;
+        }
+        const ref = this.dialog.open(OwnerPrivateVideoViewerComponent, {
+          data: {
+            url: video.url,
+            posterUrl: /^https:\/\//i.test(video.thumbnailUrl ?? '')
+              ? video.thumbnailUrl : null,
+            title: this.displayVideoTitle(item),
+          },
+          autoFocus: 'first-tabbable',
+          restoreFocus: true,
+          ariaLabel: 'Prévia privada de vídeo',
+          width: 'min(96vw, 960px)',
+          maxWidth: '100vw',
+          maxHeight: '100dvh',
+        });
+        return ref.afterClosed().pipe(take(1));
+      }),
+      catchError((error: unknown) => {
+        this.mediaError.report(error, {
+          operation: 'openOwnedPrivateVideoViewer',
+          reasonHint: 'video_playback_access_failed',
+          metadata: {
+            scope: 'ProfileVideosComponent',
+            hasOwnerUid: !!ownerUid,
+            hasVideoId: !!videoId,
+          },
+        });
+        return EMPTY;
+      }),
+      finalize(() => this.openingVideoId.set(null)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
   openPublishedVideo(item: IProfileVideoViewItem): void {
