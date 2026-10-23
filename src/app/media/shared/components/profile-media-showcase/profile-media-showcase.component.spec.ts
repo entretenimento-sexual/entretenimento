@@ -190,7 +190,7 @@ describe('ProfileMediaShowcaseComponent', () => {
     button.click();
     expect(mixedViewerLauncher.open$).toHaveBeenCalledTimes(1);
 
-    closed$.next();
+    closed$.next(undefined);
     closed$.complete();
     fixture.detectChanges();
 
