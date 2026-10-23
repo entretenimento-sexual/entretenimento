@@ -89,12 +89,23 @@ const MAX_PREVIEW_LIMIT = 8;
 export function selectPublicProfileMediaPreviewCandidates(
   photos: readonly IPublicPhotoProjection[],
   videos: readonly IPublicVideoProjection[],
-  takeCount = DEFAULT_PREVIEW_LIMIT
+  takeCount = DEFAULT_PREVIEW_LIMIT,
+  expectedOwnerUid?: string
 ): PublicProfileMediaProjection[] {
   const safeLimit = normalizePreviewLimit(takeCount);
+  const expectedOwner = String(expectedOwnerUid ?? '').trim();
   const unique = new Map<string, PublicProfileMediaProjection>();
 
   for (const candidate of [...photos, ...videos]) {
+    // The profile mosaic is strictly public, including for linked visitors.
+    // Recheck upstream projections before requesting temporary signed URLs.
+    if (
+      (expectedOwner && candidate.ownerUid !== expectedOwner) ||
+      candidate.visibility !== 'PUBLIC' ||
+      candidate.moderationStatus !== 'APPROVED'
+    ) {
+      continue;
+    }
     const key = buildProjectionIdentity(candidate);
     if (!key || unique.has(key)) continue;
     unique.set(key, candidate);
@@ -147,7 +158,8 @@ export class MediaPublicPreviewQueryService {
         const projections = selectPublicProfileMediaPreviewCandidates(
           photos,
           videos,
-          safeLimit
+          safeLimit,
+          safeOwnerUid
         );
         const photosCount = Math.max(
           this.readMetricCount(
@@ -211,7 +223,12 @@ export class MediaPublicPreviewQueryService {
       limit: takeCount,
     }).pipe(
       map((response) =>
-        (response.items ?? []) as unknown as IPublicPhotoProjection[]
+        ((response.items ?? []) as unknown as IPublicPhotoProjection[])
+          .filter((photo) => (
+            photo.ownerUid === ownerUid &&
+            photo.visibility === 'PUBLIC' &&
+            photo.moderationStatus === 'APPROVED'
+          ))
       )
     );
   }
@@ -227,7 +244,12 @@ export class MediaPublicPreviewQueryService {
       limit: takeCount,
     }).pipe(
       map((response) =>
-        (response.items ?? []) as unknown as IPublicVideoProjection[]
+        ((response.items ?? []) as unknown as IPublicVideoProjection[])
+          .filter((video) => (
+            video.ownerUid === ownerUid &&
+            video.visibility === 'PUBLIC' &&
+            video.moderationStatus === 'APPROVED'
+          ))
       )
     );
   }
@@ -258,6 +280,7 @@ export class MediaPublicPreviewQueryService {
 
         if (
           !cover ||
+          cover.ownerUid !== ownerUid ||
           cover.visibility !== 'PUBLIC' ||
           cover.moderationStatus !== 'APPROVED'
         ) {

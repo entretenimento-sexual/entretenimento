@@ -105,6 +105,32 @@ describe('selectPublicProfileMediaPreviewCandidates', () => {
     ]);
   });
 
+  it('não seleciona fotos ou vídeos de outro proprietário ou não públicos', () => {
+    const approvedPhoto = photo('photo-publica', 3);
+    const approvedVideo = video('video-publico', 2);
+    const result = selectPublicProfileMediaPreviewCandidates(
+      [
+        { ...approvedPhoto, id: 'photo-outro-perfil', ownerUid: 'owner-2' },
+        { ...approvedPhoto, id: 'photo-restrita', visibility: 'FRIENDS' },
+        { ...approvedPhoto, id: 'photo-nao-aprovada', moderationStatus: 'HIDDEN' },
+        approvedPhoto,
+      ],
+      [
+        { ...approvedVideo, id: 'video-outro-perfil', ownerUid: 'owner-2' },
+        { ...approvedVideo, id: 'video-restrito', visibility: 'PRIVATE' },
+        { ...approvedVideo, id: 'video-nao-aprovado', moderationStatus: 'FLAGGED' },
+        approvedVideo,
+      ],
+      5,
+      'owner-1'
+    );
+
+    expect(result.map((item) => item.id)).toEqual([
+      'video-publico',
+      'photo-publica',
+    ]);
+  });
+
   it('intercala tipos pela ordenação canônica e remove identidades duplicadas', () => {
     const result = selectPublicProfileMediaPreviewCandidates(
       [
