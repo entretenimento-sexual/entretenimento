@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/media-e2e.yml'
       - '.github/workflows/video-processing-reconciliation-emulator.yml'
+      - 'scripts/quality/verify-media-gcs-live-preconditions.mjs'
       - 'functions/src/media/**'
       - 'functions/src/account_lifecycle/**'
       - 'functions/src/friendship/**'
@@ -37,6 +38,7 @@ on:
     paths:
       - '.github/workflows/media-e2e.yml'
       - '.github/workflows/video-processing-reconciliation-emulator.yml'
+      - 'scripts/quality/verify-media-gcs-live-preconditions.mjs'
       - 'functions/src/media/**'
       - 'functions/src/account_lifecycle/**'
       - 'functions/src/friendship/**'

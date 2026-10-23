@@ -54,6 +54,7 @@ on:
       - 'scripts/quality/verify-media-gcs-live-preconditions.mjs'
       - 'scripts/tests/media-gcs-live-target.policy.test.mjs'
       - '.github/workflows/quality-gate.yml'
+      - '.github/workflows/media-e2e.yml'
       - 'scripts/quality/run-video-processing-reconciliation-emulator.mjs'
       - 'firestore.indexes.json'
       - 'scripts/dev/inspect-video-processing-jobs-emulator.mjs'
