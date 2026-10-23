@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
@@ -170,6 +170,32 @@ describe('ProfileMediaShowcaseComponent', () => {
       selected: photo,
       source: 'profile',
     });
+  });
+
+  it('mantém o cartão focável até o retorno do visualizador e bloqueia duplo clique', () => {
+    const closed$ = new Subject<void>();
+    mixedViewerLauncher.open$.mockReturnValueOnce(closed$.asObservable());
+    const button = fixture.debugElement.query(
+      By.css('.profile-media-showcase__item')
+    ).nativeElement as HTMLButtonElement;
+
+    button.focus();
+    button.click();
+    fixture.detectChanges();
+
+    expect(mixedViewerLauncher.open$).toHaveBeenCalledTimes(1);
+    expect(button.disabled).toBe(false);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+
+    button.click();
+    expect(mixedViewerLauncher.open$).toHaveBeenCalledTimes(1);
+
+    closed$.next();
+    closed$.complete();
+    fixture.detectChanges();
+
+    expect(button.getAttribute('aria-disabled')).toBeNull();
+    expect(document.activeElement).toBe(button);
   });
 
   it('preserva o total público sem precisar hidratar todos os itens', async () => {
