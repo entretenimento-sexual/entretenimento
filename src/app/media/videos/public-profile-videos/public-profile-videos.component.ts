@@ -63,10 +63,21 @@ interface PublicProfileVideosState {
   hasLaterRenderWindow: boolean;
   hasMore: boolean;
   loadingMore: boolean;
+  /** Correlates asynchronous state with its originating router context. */
+  routeIdentity: string;
 }
 
 interface ViewerUserLike {
   uid?: string | null;
+}
+
+interface PublicVideoGalleryRoute {
+  readonly ownerUid: string;
+  readonly requestedVideoId: string;
+}
+
+function routeIdentity(route: PublicVideoGalleryRoute): string {
+  return `${route.ownerUid.length}:${route.ownerUid}:${route.requestedVideoId}`;
 }
 
 const PUBLIC_VIDEO_GALLERY_PAGE_SIZE = 12;
@@ -108,6 +119,8 @@ export class PublicProfileVideosComponent implements OnInit {
   private readonly galleryLoadingMoreSubject = new BehaviorSubject<boolean>(false);
   private readonly galleryRenderStartSubject = new BehaviorSubject<number>(0);
   private readonly autoOpenedVideoKeys = new Set<string>();
+  private lastRequestedRouteIdentity: string | null = null;
+  private galleryRouteIdentity = '';
   private galleryOwnerUid = '';
   private galleryCursor: IPublicProfileVideoCursor | null = null;
   private galleryHasMore = false;
@@ -126,26 +139,38 @@ export class PublicProfileVideosComponent implements OnInit {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  readonly ownerUid$: Observable<string> = this.route.paramMap.pipe(
-    map((params) =>
-      (params.get('id') ?? params.get('ownerUid') ?? '').trim()
+  // One atomic route context prevents a mixed owner/video pair while the
+  // router reuses the gallery component for a different media deep link.
+  readonly galleryRoute$: Observable<PublicVideoGalleryRoute> = this.route.paramMap.pipe(
+    map((params) => ({
+      ownerUid: (params.get('id') ?? params.get('ownerUid') ?? '').trim(),
+      requestedVideoId: (params.get('videoId') ?? '').trim(),
+    })),
+    distinctUntilChanged((a, b) =>
+      a.ownerUid === b.ownerUid && a.requestedVideoId === b.requestedVideoId
     ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly ownerUid$: Observable<string> = this.galleryRoute$.pipe(
+    map((route) => route.ownerUid),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly requestedVideoId$: Observable<string> = this.route.paramMap.pipe(
-    map((params) => (params.get('videoId') ?? '').trim()),
+  readonly requestedVideoId$: Observable<string> = this.galleryRoute$.pipe(
+    map((route) => route.requestedVideoId),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
   readonly state$: Observable<PublicProfileVideosState> = combineLatest([
-    this.ownerUid$,
-    this.requestedVideoId$,
+    this.galleryRoute$,
     this.refreshSubject,
   ]).pipe(
-    switchMap(([ownerUid, requestedVideoId]) => {
+    switchMap(([route]) => {
+      const { ownerUid, requestedVideoId } = route;
+      this.galleryRouteIdentity = routeIdentity(route);
       if (!ownerUid) {
         this.resetGallery('');
         return of(this.buildState('empty', []));
@@ -226,6 +251,7 @@ export class PublicProfileVideosComponent implements OnInit {
   }
 
   retry(): void {
+    this.autoOpenedVideoKeys.clear();
     this.failedPosterKeys.set(new Set<string>());
     this.refreshSubject.next(this.refreshSubject.value + 1);
   }
@@ -491,19 +517,28 @@ export class PublicProfileVideosComponent implements OnInit {
 
     this.deepLinkWatcherStarted = true;
 
-    combineLatest([
-      this.ownerUid$,
-      this.requestedVideoId$,
-      this.state$,
-    ]).pipe(
-      filter(([, videoId, state]) =>
-        !!videoId && (state.status === 'ready' || state.status === 'empty')
-      ),
+    combineLatest([this.galleryRoute$, this.state$]).pipe(
       takeUntilDestroyed(this.destroyRef)
-    ).subscribe(([ownerUid, videoId, state]) => {
-      const deepLinkKey = `${ownerUid}:${videoId}`;
+    ).subscribe(([route, state]) => {
+      const { ownerUid, requestedVideoId: videoId } = route;
+      const routeKey = routeIdentity(route);
+      if (routeKey !== this.lastRequestedRouteIdentity) {
+        this.lastRequestedRouteIdentity = routeKey;
+        this.autoOpenedVideoKeys.clear();
+      }
 
-      if (!ownerUid || this.autoOpenedVideoKeys.has(deepLinkKey)) {
+      // A router change can arrive before the state$ emission for that route.
+      // Never warn or open using a previous profile's cached state.
+      if (
+        !ownerUid || !videoId ||
+        state.routeIdentity !== routeKey ||
+        (state.status !== 'ready' && state.status !== 'empty')
+      ) {
+        return;
+      }
+
+      const deepLinkKey = `${ownerUid}:${videoId}`;
+      if (this.autoOpenedVideoKeys.has(deepLinkKey)) {
         return;
       }
 
@@ -623,6 +658,7 @@ export class PublicProfileVideosComponent implements OnInit {
       hasLaterRenderWindow: renderStart + renderItems.length < items.length,
       hasMore,
       loadingMore,
+      routeIdentity: this.galleryRouteIdentity,
     };
   }
 

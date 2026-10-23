@@ -424,6 +424,73 @@ describe('PublicProfileVideosComponent', () => {
     expect(openVideo).toHaveBeenCalledWith(0);
   });
 
+  it('reopens A after A to B to A router reuse without duplicate launches', async () => {
+    mediaPublicQuery.getPublicVideoById$.mockImplementation(
+      (_ownerUid: string, videoId: string) =>
+        of([VIDEO, VIDEO_2].find(item => item.id === videoId) ?? null)
+    );
+    const openVideo = vi.spyOn(component, 'openVideo')
+      .mockImplementation(() => undefined);
+    const sub = component.state$.subscribe();
+
+    component.ngOnInit();
+    routeParamMapSubject.next(convertToParamMap({
+      ownerUid: VIDEO.ownerUid, videoId: VIDEO.id,
+    }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    routeParamMapSubject.next(convertToParamMap({
+      ownerUid: VIDEO.ownerUid, videoId: VIDEO_2.id,
+    }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    routeParamMapSubject.next(convertToParamMap({
+      ownerUid: VIDEO.ownerUid, videoId: VIDEO.id,
+    }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(openVideo).toHaveBeenCalledTimes(3);
+    expect(mediaPublicQuery.getPublicVideoById$).toHaveBeenCalledWith(
+      VIDEO.ownerUid, VIDEO.id, { propagateErrors: true }
+    );
+    expect(errorNotification.showWarning).not.toHaveBeenCalled();
+    sub.unsubscribe();
+  });
+
+  it('does not open stale videos when owner and video parameters change together', async () => {
+    const secondOwnerVideo = { ...VIDEO, id: 'video-other', ownerUid: 'owner-2' };
+    mediaPublicQuery.getPublicVideoById$.mockImplementation(
+      (ownerUid: string, videoId: string) =>
+        of(ownerUid === 'owner-2' && videoId === 'video-other'
+          ? secondOwnerVideo : VIDEO)
+    );
+    const openVideo = vi.spyOn(component, 'openVideo')
+      .mockImplementation(() => undefined);
+    const sub = component.state$.subscribe();
+    component.ngOnInit();
+    routeParamMapSubject.next(convertToParamMap({
+      ownerUid: VIDEO.ownerUid, videoId: VIDEO.id,
+    }));
+    await Promise.resolve();
+    await Promise.resolve();
+    routeParamMapSubject.next(convertToParamMap({
+      ownerUid: 'owner-2', videoId: 'video-other',
+    }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mediaPublicQuery.getPublicVideoById$).toHaveBeenLastCalledWith(
+      'owner-2', 'video-other', { propagateErrors: true }
+    );
+    expect(mediaPublicQuery.getPublicVideoById$).toHaveBeenCalledTimes(2);
+    expect(openVideo).toHaveBeenCalledTimes(2);
+    expect(errorNotification.showWarning).not.toHaveBeenCalled();
+    sub.unsubscribe();
+  });
+
   it('informa quando um link direto aponta para vídeo indisponível', async () => {
     routeParamMapSubject.next(
       convertToParamMap({
