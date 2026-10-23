@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { BehaviorSubject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -13,6 +13,7 @@ import {
 
 describe('PublicVideoShareService', () => {
   let service: PublicVideoShareService;
+  let currentOwnerUid$: BehaviorSubject<string | null>;
   let errorNotification: {
     showSuccess: ReturnType<typeof vi.fn>;
     showWarning: ReturnType<typeof vi.fn>;
@@ -30,6 +31,7 @@ describe('PublicVideoShareService', () => {
   );
 
   beforeEach(() => {
+    currentOwnerUid$ = new BehaviorSubject<string | null>('owner_1');
     errorNotification = {
       showSuccess: vi.fn(),
       showWarning: vi.fn(),
@@ -39,7 +41,7 @@ describe('PublicVideoShareService', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        { provide: AuthSessionService, useValue: { readyUid$: of('owner_1') } },
+        { provide: AuthSessionService, useValue: { readyUid$: currentOwnerUid$.asObservable() } },
         {
           provide: ErrorNotificationService,
           useValue: errorNotification,
@@ -80,7 +82,7 @@ describe('PublicVideoShareService', () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     setNavigatorProperty('share', nativeShare);
     setNavigatorProperty('clipboard', { writeText });
-    TestBed.inject(AuthSessionService).readyUid$ = of('viewer_2');
+    currentOwnerUid$.next('viewer_2');
     const outcome = await service.sharePublicVideo({ ownerUid: 'owner_1', id: 'video-1' });
     expect(outcome).toBe('failed');
     expect(nativeShare).not.toHaveBeenCalled();
