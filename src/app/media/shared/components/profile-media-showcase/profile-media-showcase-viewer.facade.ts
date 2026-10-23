@@ -33,12 +33,19 @@ export class ProfileMediaShowcaseViewerFacade {
   open$(
     ownerUid: string,
     requested: IPublicProfileMediaItem,
-    fallbackIndex: number
+    fallbackIndex: number,
+    isCurrentOwner?: () => boolean
   ): Observable<void> {
     const safeOwnerUid = String(ownerUid ?? '').trim();
     const requestedIdentity = this.identity(requested);
 
-    if (!safeOwnerUid || !requestedIdentity || this.opening()) {
+    if (
+      !safeOwnerUid ||
+      requested.ownerUid !== safeOwnerUid ||
+      !requestedIdentity ||
+      this.opening() ||
+      (isCurrentOwner && !isCurrentOwner())
+    ) {
       return EMPTY;
     }
 
@@ -64,7 +71,17 @@ export class ProfileMediaShowcaseViewerFacade {
           return EMPTY;
         }),
         switchMap((preview) => {
-          const items = [...preview.items];
+          // A reused profile component may have changed owners while the
+          // prior public preview was in flight. Never open a stale profile.
+          if (isCurrentOwner && !isCurrentOwner()) {
+            return EMPTY;
+          }
+
+          // Even if the read boundary returns a malformed mixed projection,
+          // the profile mosaic must not navigate into another owner's items.
+          const items = preview.items.filter(
+            (candidate) => candidate.ownerUid === safeOwnerUid
+          );
           const refreshedIndex = items.findIndex(
             (candidate) => this.identity(candidate) === requestedIdentity
           );

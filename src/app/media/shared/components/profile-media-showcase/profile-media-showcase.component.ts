@@ -18,10 +18,12 @@ import {
 import {
   catchError,
   distinctUntilChanged,
+  filter,
   map,
   shareReplay,
   startWith,
   switchMap,
+  takeUntil,
 } from 'rxjs/operators';
 
 import {
@@ -129,13 +131,22 @@ export class ProfileMediaShowcaseComponent {
     item: IPublicProfileMediaItem,
     fallbackIndex: number
   ): void {
+    const selectedOwnerUid = (this.ownerUid() ?? '').trim();
     this.viewerFacade
       .open$(
-        (this.ownerUid() ?? '').trim(),
+        selectedOwnerUid,
         item,
-        fallbackIndex
+        fallbackIndex,
+        () => (this.ownerUid() ?? '').trim() === selectedOwnerUid
       )
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        // Cancel stale preview requests and release the opening lock if the
+        // same component is reused for another profile.
+        takeUntil(this.ownerUid$.pipe(
+          filter((currentOwnerUid) => currentOwnerUid !== selectedOwnerUid)
+        )),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe();
   }
 
