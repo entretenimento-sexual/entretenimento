@@ -46,6 +46,17 @@ describe('Media video responsive layout contracts', () => {
     expect(share).toContain('(max-height: 460px) and (orientation: landscape)');
   });
 
+  it('provides explicit return routes from private and public video galleries', () => {
+    const owner = css('./profile-videos/profile-videos.component.html');
+    const visitor = css('./public-profile-videos/public-profile-videos.component.html');
+    expect(owner).toContain('routerLink="/perfil"');
+    expect(owner).toContain('aria-label="Voltar ao meu perfil"');
+    expect(visitor).toContain('aria-label="Voltar ao perfil que publicou estes vídeos"');
+    expect(visitor).toContain("viewerUid === galleryProfileUid");
+    expect(visitor).toContain("['/outro-perfil', galleryProfileUid]");
+    expect(visitor).toContain("['/perfil']");
+  });
+
   it('keeps owner-only previews scrollable inside the dynamic viewport', () => {
     const ownerViewer = css('./profile-videos/owner-private-video-viewer.component.ts');
     expect(ownerViewer).toContain('max-height: 100dvh');

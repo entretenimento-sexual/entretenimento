@@ -22,6 +22,18 @@
   box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 16%));
 }
 
+.profile-videos__navigation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
+
+.profile-videos__navigation .app-action {
+  min-height: var(--tap-target, 44px);
+}
+
 .profile-videos__upload h2,
 .profile-videos__upload p {
   margin: 0;

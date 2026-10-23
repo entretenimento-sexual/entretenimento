@@ -20,6 +20,21 @@
       </div>
     </app-page-header>
 
+    @if (ownerUid$ | async; as galleryProfileUid) {
+      <nav aria-label="Navegação do perfil" class="public-videos-page__profile-navigation">
+        <a
+          class="public-videos-page__gallery-return app-action app-action--ghost"
+          [routerLink]="viewerUid === galleryProfileUid
+            ? ['/perfil']
+            : ['/outro-perfil', galleryProfileUid]"
+          aria-label="Voltar ao perfil que publicou estes vídeos"
+        >
+          <i class="fas fa-arrow-left" aria-hidden="true"></i>
+          <span>Voltar ao perfil</span>
+        </a>
+      </nav>
+    }
+
     @if ((requestedVideoId$ | async) && (ownerUid$ | async); as galleryOwnerUid) {
       <a
         class="public-videos-page__gallery-return app-action app-action--ghost"
