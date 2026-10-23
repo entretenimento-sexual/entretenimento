@@ -117,8 +117,10 @@ describe('selectPublicProfileMediaPreviewCandidates', () => {
       ],
       [
         { ...approvedVideo, id: 'video-outro-perfil', ownerUid: 'owner-2' },
-        { ...approvedVideo, id: 'video-restrito', visibility: 'PRIVATE' },
-        { ...approvedVideo, id: 'video-nao-aprovado', moderationStatus: 'FLAGGED' },
+        { ...approvedVideo, id: 'video-restrito',
+          visibility: 'PRIVATE' } as unknown as IPublicVideoProjection,
+        { ...approvedVideo, id: 'video-nao-aprovado',
+          moderationStatus: 'FLAGGED' } as unknown as IPublicVideoProjection,
         approvedVideo,
       ],
       5,
