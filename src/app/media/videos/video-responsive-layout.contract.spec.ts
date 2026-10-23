@@ -51,7 +51,9 @@ describe('Media video responsive layout contracts', () => {
     const visitor = css('./public-profile-videos/public-profile-videos.component.html');
     expect(owner).toContain('routerLink="/perfil"');
     expect(owner).toContain('aria-label="Voltar ao meu perfil"');
-    expect(visitor).toContain('aria-label="Voltar ao perfil que publicou estes vídeos"');
+    expect(visitor).toContain('aria-label="Abrir o perfil que publicou estes vídeos"');
+    expect(visitor).toContain('<div page-actions class="gallery-actions">');
+    expect(visitor).not.toContain('Voltar ao perfil');
     expect(visitor).toContain("viewerUid === galleryProfileUid");
     expect(visitor).toContain("['/outro-perfil', galleryProfileUid]");
     expect(visitor).toContain("['/perfil']");

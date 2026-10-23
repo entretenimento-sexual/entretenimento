@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
 import { MediaVideoCommentsService } from 'src/app/core/services/media/media-video-comments.service';
@@ -107,6 +108,10 @@ describe('PublicVideoViewerComponent discovery context', () => {
       imports: [PublicVideoViewerComponent],
       providers: [
         provideRouter([]),
+        {
+          provide: PublicVideoShareService,
+          useValue: { sharePublicVideo: vi.fn().mockResolvedValue('failed') },
+        },
         { provide: MAT_DIALOG_DATA, useValue: data },
         { provide: MatDialogRef, useValue: { close: vi.fn() } },
         {

@@ -3,7 +3,20 @@
 @if (state$ | async; as state) {
   <section class="public-videos-page" aria-label="Vídeos públicos">
     <app-page-header title="Vídeos">
-      <div page-actions class="gallery-summary" aria-live="polite" aria-atomic="true">
+      <div page-actions class="gallery-actions">
+        @if (ownerUid$ | async; as galleryProfileUid) {
+          <a
+            class="app-action app-action--ghost"
+            [routerLink]="viewerUid === galleryProfileUid
+              ? ['/perfil']
+              : ['/outro-perfil', galleryProfileUid]"
+            aria-label="Abrir o perfil que publicou estes vídeos"
+          >
+            <i class="fas fa-user" aria-hidden="true"></i>
+            <span>Ver perfil</span>
+          </a>
+        }
+        <div class="gallery-summary" aria-live="polite" aria-atomic="true">
         @if (state.status === 'ready') {
           <strong>{{ state.items.length }}</strong>
           <span>
@@ -17,23 +30,9 @@
           <strong>0</strong>
           <span>vídeos</span>
         }
+        </div>
       </div>
     </app-page-header>
-
-    @if (ownerUid$ | async; as galleryProfileUid) {
-      <nav aria-label="Navegação do perfil" class="public-videos-page__profile-navigation">
-        <a
-          class="public-videos-page__gallery-return app-action app-action--ghost"
-          [routerLink]="viewerUid === galleryProfileUid
-            ? ['/perfil']
-            : ['/outro-perfil', galleryProfileUid]"
-          aria-label="Voltar ao perfil que publicou estes vídeos"
-        >
-          <i class="fas fa-arrow-left" aria-hidden="true"></i>
-          <span>Voltar ao perfil</span>
-        </a>
-      </nav>
-    }
 
     @if ((requestedVideoId$ | async) && (ownerUid$ | async); as galleryOwnerUid) {
       <a

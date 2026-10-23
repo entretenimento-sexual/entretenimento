@@ -14,6 +14,7 @@ import {
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { OFFLINE_USER_MESSAGE } from 'src/app/core/services/network/network-user-feedback.policy';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
@@ -166,6 +167,10 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
       imports: [PublicVideoViewerComponent],
       providers: [
         provideRouter([]),
+        {
+          provide: PublicVideoShareService,
+          useValue: { sharePublicVideo: vi.fn().mockResolvedValue('failed') },
+        },
         { provide: MAT_DIALOG_DATA, useValue: data },
         { provide: MatDialogRef, useValue: { close: vi.fn() } },
         {

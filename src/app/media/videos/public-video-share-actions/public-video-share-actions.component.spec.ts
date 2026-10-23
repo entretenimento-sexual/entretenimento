@@ -44,7 +44,7 @@ describe('PublicVideoShareActionsComponent', () => {
     fixture.detectChanges();
 
     const trigger = fixture.nativeElement.querySelector(
-      '[aria-label="Opções para compartilhar vídeo"]'
+      '[aria-label="Opções para compartilhar meu vídeo"]'
     ) as HTMLButtonElement;
 
     expect(fixture.nativeElement.querySelectorAll('.public-video-share-action'))
