@@ -210,6 +210,14 @@ describe('UserProfileViewComponent', () => {
     expect(fixture.nativeElement.querySelector('.edit-row')).toBeNull();
   });
 
+  it('permite ao proprietário abrir a mesma galeria pública vista por visitantes', () => {
+    const link = fixture.nativeElement.querySelector(
+      'a[aria-label="Ver minha galeria pública de vídeos como visitante"]'
+    ) as HTMLAnchorElement | null;
+    expect(link).toBeTruthy();
+    expect(link?.getAttribute('href')).toBe('/media/perfil/test-uid/videos-publicos');
+  });
+
   it('expõe Minhas comunidades no perfil próprio', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="profile-my-communities"]')
