@@ -294,7 +294,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
         items: [
           createVideo('video-2', null),
           { ...createVideo('foreign', null), ownerUid: 'other' },
-          { ...createVideo('restricted', null), visibility: 'PRIVATE' },
+          { ...createVideo('restricted', null), visibility: 'PRIVATE' } as unknown as IPublicVideoItem,
         ] as IPublicVideoItem[],
         nextCursor: null, hasMore: false,
       },
@@ -323,7 +323,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
           items: [
             start,
             { ...createVideo('foreign', null), ownerUid: 'another-owner' },
-            { ...createVideo('restricted', null), visibility: 'PRIVATE' },
+            { ...createVideo('restricted', null), visibility: 'PRIVATE' } as unknown as IPublicVideoItem,
           ],
           nextCursor,
           hasMore: true,
