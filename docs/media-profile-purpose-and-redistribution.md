@@ -64,3 +64,11 @@ pode apresentar o rótulo profissional. Publicações legadas e declarações
 sem verificação permanecem sem selo. A implementação atual prepara tipos,
 decisões puras e regressões, mas **não ativa campos graváveis nem projeções
 públicas** antes da autoridade correspondente existir no backend.
+
+## Compatibilidade com fotografias e vídeos
+
+As projeções públicas `IPublicPhotoBase` e `IPublicVideoProjection`
+reservam campos opcionais de finalidade. A ausência desses campos preserva o
+comportamento legado. A fotografia e o vídeo compartilham a mesma função de
+interpretação pura, mas não recebem um selo na UI nem novos campos Firestore
+antes da implantação do workflow de verificação backend.

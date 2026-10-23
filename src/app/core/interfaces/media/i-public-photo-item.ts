@@ -8,6 +8,10 @@
 
 import type { IOfficialMediaContextProjection } from './i-official-media-context';
 import type {
+  PublicProfilePurposeProjection,
+  PublicMediaPurposeProjection,
+} from 'src/app/core/services/media/profile-purpose-presentation.policy';
+import type {
   IPhotoPublicationScore,
   TPhotoCommentsPolicy,
   TPhotoModerationStatus,
@@ -64,6 +68,14 @@ export interface IPublicPhotoBase {
    * Não representa boost, patrocínio, plano, entitlement ou ranking.
    */
   officialMediaContext?: IOfficialMediaContextProjection | null;
+
+  /**
+   * Optional, future backend-verified purpose projections. Their absence is
+   * intentional for legacy/current public photos and never changes access,
+   * ranking, moderation or billing. Photo and video use the same contract.
+   */
+  publicProfilePurpose?: PublicProfilePurposeProjection | null;
+  publicMediaPurpose?: PublicMediaPurposeProjection | null;
 
   ownerNickname?: string | null;
   ownerPhotoURL?: string | null;

@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { IPublicPhotoBase } from 'src/app/core/interfaces/media/i-public-photo-item';
+import type { IPublicVideoProjection } from 'src/app/core/interfaces/media/i-public-video-item';
 
 import {
   resolvePublicProfilePurposePresentation,
@@ -75,5 +77,32 @@ describe('future media purpose classification', () => {
       schemaVersion: 1, purpose: 'PERSONAL_SOCIAL',
       publishLabel: false, verifiedOwnerPurpose: null,
     })).toBeNull();
+  });
+});
+
+describe('media type readiness across photo and video public projections', () => {
+  it('shares the same optional verified-purpose projection without enabling a badge', () => {
+    const verifiedPurpose = {
+      schemaVersion: 1 as const,
+      purpose: 'PROFESSIONAL' as const,
+      evidence: 'BACKEND_VERIFIED' as const,
+      publishLabel: true,
+    };
+    const classification = {
+      schemaVersion: 1 as const,
+      purpose: 'PROFESSIONAL_PORTFOLIO' as const,
+      publishLabel: true,
+      verifiedOwnerPurpose: verifiedPurpose,
+    };
+    const photo: Pick<IPublicPhotoBase, 'publicProfilePurpose' | 'publicMediaPurpose'> = {
+      publicProfilePurpose: verifiedPurpose,
+      publicMediaPurpose: classification,
+    };
+    const video: Pick<IPublicVideoProjection, 'publicMediaPurpose'> = {
+      publicMediaPurpose: photo.publicMediaPurpose,
+    };
+    expect(resolvePublicMediaPurposePresentation(video.publicMediaPurpose))
+      .toBe('Conteúdo profissional');
+    expect(resolvePublicMediaPurposePresentation(undefined)).toBeNull();
   });
 });
