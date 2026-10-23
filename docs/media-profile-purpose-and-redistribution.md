@@ -53,3 +53,14 @@ O contrato puro em `profile-purpose-presentation.policy.ts` fica pronto
 para a projeção backend future. Ele não altera Firestore, perfis existentes,
 rankeamento, ações comerciais ou UI de perfil enquanto a verificação canônica
 não estiver implementada.
+
+## Contrato futuro por publicação
+
+`PublicMediaPurposeProjection` é separado de `PublicProfilePurposeProjection`.
+Uma conta profissional pode publicar uma mídia pessoal, sem receber um selo
+profissional nesse item. Só uma publicação `PROFESSIONAL_PORTFOLIO` cuja
+projeção de proprietário esteja `BACKEND_VERIFIED` com `publishLabel=true`
+pode apresentar o rótulo profissional. Publicações legadas e declarações
+sem verificação permanecem sem selo. A implementação atual prepara tipos,
+decisões puras e regressões, mas **não ativa campos graváveis nem projeções
+públicas** antes da autoridade correspondente existir no backend.

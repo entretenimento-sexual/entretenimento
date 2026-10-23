@@ -47,3 +47,43 @@ export function resolvePublicProfilePurposePresentation(
   }
   return null;
 }
+
+/**
+ * Separate, future backend-derived label for an individual media publication.
+ * Professional label is never inferred from account tier, ranking, video
+ * appearance, engagement or a mere self-declaration by the author.
+ */
+export type MediaPublicationPurpose =
+  | 'PERSONAL_SOCIAL'
+  | 'PROFESSIONAL_PORTFOLIO';
+
+export interface PublicMediaPurposeProjection {
+  readonly schemaVersion: 1;
+  readonly purpose: MediaPublicationPurpose;
+  readonly publishLabel: boolean;
+  /** Backend must validate this against the current owner verification. */
+  readonly verifiedOwnerPurpose: PublicProfilePurposeProjection | null;
+}
+
+export function resolvePublicMediaPurposePresentation(
+  value: unknown
+): 'Conteúdo pessoal' | 'Conteúdo profissional' | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const source = value as Partial<PublicMediaPurposeProjection>;
+  if (source.schemaVersion !== 1 || source.publishLabel !== true) return null;
+
+  if (source.purpose === 'PROFESSIONAL_PORTFOLIO') {
+    const owner = resolvePublicProfilePurposePresentation(
+      source.verifiedOwnerPurpose
+    );
+    return owner?.verified && owner.label === 'Perfil profissional'
+      ? 'Conteúdo profissional'
+      : null;
+  }
+  if (source.purpose === 'PERSONAL_SOCIAL') {
+    // Positive, opt-in statement about the publication; not an inference
+    // about pricing, profession, or the account as a whole.
+    return 'Conteúdo pessoal';
+  }
+  return null;
+}

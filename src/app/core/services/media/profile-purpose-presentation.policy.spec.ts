@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   resolvePublicProfilePurposePresentation,
+  resolvePublicMediaPurposePresentation,
 } from './profile-purpose-presentation.policy';
 
 describe('future public profile purpose presentation', () => {
@@ -39,5 +40,40 @@ describe('future public profile purpose presentation', () => {
         evidence: 'BACKEND_VERIFIED', publishLabel: false }]) {
       expect(resolvePublicProfilePurposePresentation(value)).toBeNull();
     }
+  });
+});
+
+describe('future media purpose classification', () => {
+  it('does not promote self-declared professional content without a verified owner', () => {
+    const media = {
+      schemaVersion: 1, purpose: 'PROFESSIONAL_PORTFOLIO',
+      publishLabel: true, verifiedOwnerPurpose: {
+        schemaVersion: 1, purpose: 'PROFESSIONAL',
+        evidence: 'SELF_DECLARED', publishLabel: true,
+      },
+    };
+    expect(resolvePublicMediaPurposePresentation(media)).toBeNull();
+  });
+
+  it('permits an explicit professional label only with a current verified owner projection', () => {
+    expect(resolvePublicMediaPurposePresentation({
+      schemaVersion: 1, purpose: 'PROFESSIONAL_PORTFOLIO',
+      publishLabel: true,
+      verifiedOwnerPurpose: {
+        schemaVersion: 1, purpose: 'PROFESSIONAL',
+        evidence: 'BACKEND_VERIFIED', publishLabel: true,
+      },
+    })).toBe('Conteúdo profissional');
+  });
+
+  it('keeps personal publications independent from commercial profile status', () => {
+    expect(resolvePublicMediaPurposePresentation({
+      schemaVersion: 1, purpose: 'PERSONAL_SOCIAL',
+      publishLabel: true, verifiedOwnerPurpose: null,
+    })).toBe('Conteúdo pessoal');
+    expect(resolvePublicMediaPurposePresentation({
+      schemaVersion: 1, purpose: 'PERSONAL_SOCIAL',
+      publishLabel: false, verifiedOwnerPurpose: null,
+    })).toBeNull();
   });
 });
