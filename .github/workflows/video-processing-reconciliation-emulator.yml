@@ -4,6 +4,14 @@ on:
   workflow_dispatch:
   push:
     paths:
+      # Reconcile transactions on every relevant Media release candidate SHA.
+      - 'src/app/media/**'
+      - 'src/app/core/services/media/**'
+      - 'src/app/core/interfaces/media/**'
+      - 'src/app/explore/facades/social-explore-media-viewer.facade.ts'
+      - 'functions/src/media/**'
+      - 'firestore.rules'
+      - 'storage.rules'
       - 'functions/src/media/application/video-processing*'
       - 'functions/src/media/application/video-scheduler-observability*'
       - 'functions/src/media/application/admin-video-processing-status.handler.ts'

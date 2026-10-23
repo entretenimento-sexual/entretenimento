@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/media-e2e.yml'
+      - '.github/workflows/video-processing-reconciliation-emulator.yml'
       - 'functions/src/media/**'
       - 'functions/src/account_lifecycle/**'
       - 'functions/src/friendship/**'
@@ -35,6 +36,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/media-e2e.yml'
+      - '.github/workflows/video-processing-reconciliation-emulator.yml'
       - 'functions/src/media/**'
       - 'functions/src/account_lifecycle/**'
       - 'functions/src/friendship/**'
