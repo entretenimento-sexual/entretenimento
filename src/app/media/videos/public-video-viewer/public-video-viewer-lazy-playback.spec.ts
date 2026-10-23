@@ -23,6 +23,7 @@ import { MediaVideoRatingsService } from 'src/app/core/services/media/media-vide
 import { PublicVideoAccessService } from 'src/app/core/services/media/public-video-access.service';
 import { PublicVideoPlaybackExposureService } from 'src/app/core/services/media/public-video-playback-exposure.service';
 import { PublicVideoContinuationService } from 'src/app/core/services/media/public-video-continuation.service';
+import { PublicProfileVideoPaginationService } from 'src/app/core/services/media/public-profile-video-pagination.service';
 import { VideoViewTrackingService } from 'src/app/core/services/media/video-view-tracking.service';
 import {
   IPublicVideoViewerData,
@@ -123,6 +124,8 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     ) => Observable<IPublicVideoItem[]>;
     watchExposure?: (ownerUid: string, videoId: string, viewerUid: string) => Observable<boolean>;
     refresh?: (video: IPublicVideoItem) => Observable<IPublicVideoItem | null>;
+    profileCursor?: { orderIndex: number; publishedAt: number; documentId: string } | null;
+    profilePage?: { items: IPublicVideoItem[]; nextCursor: null; hasMore: false };
   }): Promise<{
     component: PublicVideoViewerComponent;
     hydratePublicVideoUrls$: ReturnType<typeof vi.fn>;
@@ -150,6 +153,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
       items: input.items,
       startIndex: 0,
       source: 'profile',
+      profileContinuationCursor: input.profileCursor ?? null,
     };
 
     await TestBed.configureTestingModule({
@@ -179,6 +183,10 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
           useValue: {
             watchActiveVideo$: vi.fn(input.watchExposure ?? (() => of(true))),
           },
+        },
+        {
+          provide: PublicProfileVideoPaginationService,
+          useValue: { loadPage$: vi.fn(() => of(input.profilePage ?? { items: [], nextCursor: null, hasMore: false })) },
         },
         {
           provide: PublicVideoContinuationService,
@@ -259,6 +267,41 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
       'app-public-video-playback-feedback'
     ) as HTMLElement | null)?.textContent?.trim() ?? '';
   }
+
+  it('keeps profile playback inside its gallery when no next page exists', async () => {
+    const context = await createFixture({
+      items: [createVideo('video-1', null)],
+      hydrate: items => of(items.map(playbackVersion)),
+    });
+    expect(context.component.hasNext).toBe(false);
+    expect(TestBed.inject(PublicVideoContinuationService).loadContinuation$).not.toHaveBeenCalled();
+    expect(TestBed.inject(PublicProfileVideoPaginationService).loadPage$).not.toHaveBeenCalled();
+  });
+
+  it('fetches only approved same-owner profile videos using the real cursor', async () => {
+    const cursor = { documentId: 'video-1', orderIndex: 0, publishedAt: NOW };
+    const context = await createFixture({
+      items: [createVideo('video-1', null)],
+      hydrate: items => of(items.map(playbackVersion)),
+      profileCursor: cursor,
+      profilePage: {
+        items: [
+          createVideo('video-2', null),
+          { ...createVideo('foreign', null), ownerUid: 'other' },
+          { ...createVideo('restricted', null), visibility: 'PRIVATE' },
+        ] as IPublicVideoItem[],
+        nextCursor: null, hasMore: false,
+      },
+    });
+    expect(TestBed.inject(PublicProfileVideoPaginationService).loadPage$)
+      .toHaveBeenCalledWith('owner-1', { pageSize: 12, cursor });
+    expect(TestBed.inject(PublicVideoContinuationService).loadContinuation$)
+      .not.toHaveBeenCalled();
+    expect(context.component.hasNext).toBe(true);
+    context.component.next();
+    expect(context.component.current?.id).toBe('video-2');
+    expect(context.component.hasNext).toBe(false);
+  });
 
   it('preserva indisponibilidade diante de eventos antigos e reconexão', async () => {
     const availability = new Subject<boolean>();

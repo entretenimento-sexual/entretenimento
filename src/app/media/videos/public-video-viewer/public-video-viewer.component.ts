@@ -65,6 +65,11 @@ import {
 import { classifyPublicVideoAccessRefreshFailure } from './public-video-access-refresh-failure.policy';
 import { MEDIA_ERROR_CODE_MESSAGES } from 'src/app/core/services/media/media-error.catalog';
 import { PublicVideoContinuationService } from 'src/app/core/services/media/public-video-continuation.service';
+import type { PublicVideoContinuationResult } from 'src/app/core/services/media/public-video-continuation.service';
+import {
+  IPublicProfileVideoCursor,
+  PublicProfileVideoPaginationService,
+} from 'src/app/core/services/media/public-profile-video-pagination.service';
 import {
   TVideoViewSource,
   VideoViewTrackingService,
@@ -93,6 +98,7 @@ export interface IPublicVideoViewerData {
   startIndex: number;
   source?: TVideoViewSource;
   continuationContext?: IPublicMediaContinuationContext;
+  profileContinuationCursor?: IPublicProfileVideoCursor | null;
 }
 
 interface ViewerUserLike {
@@ -151,6 +157,7 @@ export class PublicVideoViewerComponent {
   private readonly publicVideoAccess = inject(PublicVideoAccessService);
   private readonly videoExposure = inject(PublicVideoPlaybackExposureService);
   private readonly publicVideoContinuation = inject(PublicVideoContinuationService);
+  private readonly profileVideoPagination = inject(PublicProfileVideoPaginationService);
   private readonly reactions = inject(MediaReactionsService);
   private readonly comments = inject(MediaVideoCommentsService);
   private readonly ratings = inject(MediaVideoRatingsService);
@@ -171,6 +178,7 @@ export class PublicVideoViewerComponent {
   private pendingPlaybackResume: PendingPlaybackResume | null = null;
   private swipeNavigationGesture: PublicMediaViewerSwipeGesture | null = null;
   private continuationExhausted = false;
+  private profileCursor: IPublicProfileVideoCursor | null = null;
   private pendingContinuationAdvanceKey: string | null = null;
 
   @ViewChild('videoPlayer')
@@ -394,6 +402,9 @@ export class PublicVideoViewerComponent {
   );
 
   constructor() {
+    this.profileCursor = this.data.source === 'profile'
+      ? this.data.profileContinuationCursor ?? null : null;
+    this.continuationExhausted = this.data.source === 'profile' && !this.profileCursor;
     const itemsCount = this.items.length;
     this.index = itemsCount > 0
       ? Math.max(0, Math.min(this.data.startIndex ?? 0, itemsCount - 1))
@@ -1028,18 +1039,23 @@ export class PublicVideoViewerComponent {
     }
 
     this.loadingContinuation.set(true);
-    this.viewerUid$
+    const continuation$ = this.data.source === 'profile'
+      ? this.loadProfileContinuation$()
+      : this.viewerUid$.pipe(
+          take(1),
+          switchMap((viewerUid) =>
+            this.publicVideoContinuation.loadContinuation$({
+              existingItems: this.items,
+              source: this.data.source ?? 'unknown',
+              excludeOwnerUid: viewerUid,
+              limit: CONTINUATION_BATCH_SIZE,
+              continuationContext: this.data.continuationContext,
+            })
+          )
+        );
+
+    continuation$
       .pipe(
-        take(1),
-        switchMap((viewerUid) =>
-          this.publicVideoContinuation.loadContinuation$({
-            existingItems: this.items,
-            source: this.data.source ?? 'unknown',
-            excludeOwnerUid: viewerUid,
-            limit: CONTINUATION_BATCH_SIZE,
-            continuationContext: this.data.continuationContext,
-          })
-        ),
         takeUntilDestroyed(this.destroyRef),
         finalize(() => {
           this.loadingContinuation.set(false);
@@ -1088,6 +1104,41 @@ export class PublicVideoViewerComponent {
       });
   }
 
+  private loadProfileContinuation$(): Observable<PublicVideoContinuationResult> {
+    const cursor = this.profileCursor;
+    if (!cursor) {
+      return of({ items: [], exhausted: true, failed: false });
+    }
+
+    return this.profileVideoPagination.loadPage$(this.data.ownerUid, {
+      pageSize: 12, cursor,
+    }).pipe(
+      take(1),
+      map((page): PublicVideoContinuationResult => {
+        this.profileCursor = page.hasMore ? page.nextCursor : null;
+        return {
+          items: page.items.filter((item) =>
+            item.ownerUid === this.data.ownerUid &&
+            item.mediaType === 'VIDEO' &&
+            item.visibility === 'PUBLIC' &&
+            item.moderationStatus === 'APPROVED'
+          ),
+          exhausted: !this.profileCursor,
+          failed: false,
+        };
+      }),
+      catchError((error: unknown) => {
+        this.mediaError.report(error, {
+          operation: 'loadProfileVideoContinuation',
+          reasonHint: 'media_discovery_page_failed',
+          metadata: { scope: 'PublicVideoViewerComponent',
+            hasOwnerUid: !!this.data.ownerUid },
+        });
+        return of({ items: [], exhausted: false, failed: true });
+      })
+    );
+  }
+
   private appendContinuationItems(
     candidates: readonly IPublicVideoItem[]
   ): number {
@@ -1097,7 +1148,11 @@ export class PublicVideoViewerComponent {
     for (const candidate of candidates) {
       const key = this.videoKey(candidate);
 
-      if (!key || seen.has(key)) {
+      if (!key || seen.has(key) ||
+          candidate.mediaType !== 'VIDEO' ||
+          candidate.visibility !== 'PUBLIC' ||
+          candidate.moderationStatus !== 'APPROVED' ||
+          (this.data.source === 'profile' && candidate.ownerUid !== this.data.ownerUid)) {
         continue;
       }
 

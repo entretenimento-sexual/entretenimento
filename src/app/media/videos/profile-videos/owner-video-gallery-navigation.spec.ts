@@ -76,8 +76,17 @@ describe('owner public video gallery navigation', () => {
     expect(result?.items.map(video => video.id))
       .toEqual(['first', 'second', 'third', 'fourth']);
     expect(result?.startIndex).toBe(2);
+    expect(result?.nextCursor).toBeNull();
     expect(loadPage).toHaveBeenCalledTimes(2);
     expect(fallback).not.toHaveBeenCalled();
+  });
+
+  it('keeps the next page cursor for the owner gallery', async () => {
+    const next = cursor('one');
+    const result = await firstValueFrom(resolveOwnerVideoGallerySelection$(
+      'owner', 'one', () => of(page([item('one')], next)), () => of(null)
+    ));
+    expect(result?.nextCursor).toEqual(next);
   });
 
   it('deduplicates paginated items and excludes another owner or revoked video', async () => {

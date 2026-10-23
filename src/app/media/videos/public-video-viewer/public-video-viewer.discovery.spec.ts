@@ -13,6 +13,7 @@ import { MediaVideoRatingsService } from 'src/app/core/services/media/media-vide
 import { PublicVideoAccessService } from 'src/app/core/services/media/public-video-access.service';
 import { PublicVideoPlaybackExposureService } from 'src/app/core/services/media/public-video-playback-exposure.service';
 import { PublicVideoContinuationService } from 'src/app/core/services/media/public-video-continuation.service';
+import { PublicProfileVideoPaginationService } from 'src/app/core/services/media/public-profile-video-pagination.service';
 import { VideoViewTrackingService } from 'src/app/core/services/media/video-view-tracking.service';
 import {
   IPublicVideoViewerData,
@@ -131,6 +132,10 @@ describe('PublicVideoViewerComponent discovery context', () => {
         {
           provide: PublicVideoPlaybackExposureService,
           useValue: { watchActiveVideo$: vi.fn(() => of(true)) },
+        },
+        {
+          provide: PublicProfileVideoPaginationService,
+          useValue: { loadPage$: vi.fn(() => of({ items: [], nextCursor: null, hasMore: false })) },
         },
         {
           provide: PublicVideoContinuationService,

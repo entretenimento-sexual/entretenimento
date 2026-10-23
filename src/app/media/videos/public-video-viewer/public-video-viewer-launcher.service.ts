@@ -9,6 +9,7 @@ import type {
   IPublicMediaViewerMixedNavigation,
 } from 'src/app/core/interfaces/media/i-public-media-viewer-session';
 import type { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import type { IPublicProfileVideoCursor } from 'src/app/core/services/media/public-profile-video-pagination.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import type { TVideoViewSource } from 'src/app/core/services/media/video-view-tracking.service';
 
@@ -18,6 +19,7 @@ export interface OpenPublicVideoViewerRequest {
   readonly source: TVideoViewSource;
   readonly continuationContext?: IPublicMediaContinuationContext;
   readonly mixedNavigation?: IPublicMediaViewerMixedNavigation;
+  readonly profileContinuationCursor?: IPublicProfileVideoCursor | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -88,6 +90,8 @@ export class PublicVideoViewerLauncherService {
             source: request.source,
             continuationContext: request.continuationContext,
             mixedNavigation: request.mixedNavigation,
+            profileContinuationCursor: request.source === 'profile'
+              ? request.profileContinuationCursor ?? null : null,
           },
           autoFocus: 'first-tabbable',
           restoreFocus: true,

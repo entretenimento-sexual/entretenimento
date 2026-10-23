@@ -262,10 +262,8 @@ export class PublicProfileVideosComponent implements OnInit {
           page.items,
         ];
         this.galleryPagesSubject.next(nextPages);
-        const totalItems = this.mergeGalleryPages(nextPages).length;
-        this.galleryRenderStartSubject.next(
-          Math.max(0, totalItems - PUBLIC_VIDEO_RENDER_WINDOW_MAX_ITEMS)
-        );
+        // Do not unmount the visitor's visible cards after pagination.
+        // Older cards are reached through the explicit gallery window controls.
       }),
       catchError((error: unknown) => {
         if (
@@ -329,6 +327,7 @@ export class PublicProfileVideosComponent implements OnInit {
           items: state.items,
           startIndex: safeIndex,
           source: 'profile',
+          profileContinuationCursor: this.galleryCursor,
         }).pipe(
           catchError((error: unknown) => {
             this.mediaError.report(error, {

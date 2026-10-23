@@ -231,6 +231,7 @@ describe('PublicProfileVideosComponent', () => {
       items: [VIDEO],
       startIndex: 0,
       source: 'profile',
+      profileContinuationCursor: NEXT_CURSOR,
     });
 
     await Promise.resolve();
@@ -291,6 +292,32 @@ describe('PublicProfileVideosComponent', () => {
       loadingMore: false,
     });
 
+    subscription.unsubscribe();
+  });
+
+  it('preserves the gallery render window while loading additional pages', () => {
+    const generate = (page: number) => Array.from({ length: 12 }, (_, index) => ({
+      ...VIDEO, id: `item-${page}-${index}`, orderIndex: page * 12 + index,
+    }));
+    videoPagination.loadPage$.mockImplementation(
+      (_uid: string, options: { cursor?: IPublicProfileVideoCursor | null }) => {
+        const page = Number(options.cursor?.documentId ?? 0);
+        return of({ items: generate(page), nextCursor: page < 3
+          ? { documentId: String(page + 1), orderIndex: page, publishedAt: 1 }
+          : null, hasMore: page < 3 });
+      }
+    );
+    const states: Array<{ renderStart: number; renderItems: IPublicVideoItem[];
+      hasLaterRenderWindow: boolean }> = [];
+    const subscription = component.state$.subscribe(state => states.push(state));
+    component.loadMoreVideos();
+    component.loadMoreVideos();
+    component.loadMoreVideos();
+    expect(states.at(-1)?.renderStart).toBe(0);
+    expect(states.at(-1)?.renderItems[0].id).toBe('item-0-0');
+    expect(states.at(-1)?.hasLaterRenderWindow).toBe(true);
+    component.showLaterWindow();
+    expect(states.at(-1)?.renderStart).toBe(12);
     subscription.unsubscribe();
   });
 

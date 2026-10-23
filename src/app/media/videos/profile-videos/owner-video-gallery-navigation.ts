@@ -10,6 +10,7 @@ import type {
 export interface OwnerVideoGallerySelection {
   readonly items: IPublicVideoItem[];
   readonly startIndex: number;
+  readonly nextCursor: IPublicProfileVideoCursor | null;
 }
 
 /**
@@ -40,7 +41,7 @@ export function resolveOwnerVideoGallerySelection$(
       loadSelected().pipe(
         take(1),
         map((video) => isAuthorized(video) && video?.id === selectedId
-          ? { items: [video], startIndex: 0 }
+          ? { items: [video], startIndex: 0, nextCursor: null }
           : null)
       );
 
@@ -59,7 +60,8 @@ export function resolveOwnerVideoGallerySelection$(
 
           const startIndex = items.findIndex(video => video.id === selectedId);
           if (startIndex !== -1) {
-            return of({ items: [...items], startIndex });
+            return of({ items: [...items], startIndex,
+              nextCursor: page.hasMore ? page.nextCursor : null });
           }
 
           const next = page.nextCursor;
