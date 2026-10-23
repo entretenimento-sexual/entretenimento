@@ -34,6 +34,14 @@ describe('OwnerPrivateVideoViewerComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('exclusiva do proprietário');
   });
 
+  it('shows accessible feedback when a temporary playback URL fails', () => {
+    const player = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    player.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    const feedback = fixture.nativeElement.querySelector('[role="alert"]');
+    expect(feedback?.textContent).toContain('solicitar um novo acesso temporário');
+  });
+
   it('stops playback and clears the signed URL before returning to gallery', () => {
     const player = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
     vi.spyOn(player, 'pause').mockImplementation(() => {});

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, ElementRef, OnDestroy, inject, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, OnDestroy, inject, signal, viewChild } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 
 export interface OwnerPrivateVideoViewerData {
@@ -23,9 +23,16 @@ export interface OwnerPrivateVideoViewerData {
       </header>
       <video #player controls playsinline preload="metadata"
         [src]="data.url" [poster]="data.posterUrl || null"
+        (error)="onPlaybackError()"
         aria-label="Reprodução privada do vídeo">
         Seu navegador não suporta reprodução de vídeo.
       </video>
+      @if (playbackError()) {
+        <p role="alert">
+          Não foi possível reproduzir este vídeo. Feche a prévia e abra
+          novamente para solicitar um novo acesso temporário.
+        </p>
+      }
       <p>Prévia exclusiva do proprietário. Este acesso não publica o vídeo.</p>
     </section>
   `,
@@ -66,6 +73,8 @@ export interface OwnerPrivateVideoViewerData {
 })
 export class OwnerPrivateVideoViewerComponent implements OnDestroy {
   readonly data = inject<OwnerPrivateVideoViewerData>(MAT_DIALOG_DATA);
+  readonly playbackError = signal(false);
+  onPlaybackError(): void { this.playbackError.set(true); }
   private readonly dialog = inject(MatDialogRef<OwnerPrivateVideoViewerComponent>);
   private readonly player = viewChild<ElementRef<HTMLVideoElement>>('player');
 
