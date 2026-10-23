@@ -504,7 +504,7 @@
   }
 
   .public-video-viewer__navigation {
-    left: 8px;
+    left: max(8px, env(safe-area-inset-left));
   }
 
   .public-video-viewer__navigation-button {
@@ -513,7 +513,7 @@
   }
 
   .public-video-viewer__interactions {
-    right: 9px;
+    right: max(9px, env(safe-area-inset-right));
     bottom: max(108px, calc(env(safe-area-inset-bottom) + 96px));
     gap: 10px;
   }
@@ -534,7 +534,7 @@
 
   .public-video-viewer__metadata {
     right: 68px;
-    left: 13px;
+    left: max(13px, env(safe-area-inset-left));
   }
 
   .public-video-viewer__metadata p {
@@ -575,6 +575,17 @@
 
   .public-video-viewer__metadata {
     right: max(184px, calc(env(safe-area-inset-right) + 174px));
+  }
+}
+
+/* On narrow landscape foldables, two columns preserve share-menu space. */
+@media (max-width: 520px) and (max-height: 460px) and (orientation: landscape) {
+  .public-video-viewer__interactions {
+    grid-template-columns: repeat(2, minmax(48px, 1fr));
+  }
+
+  .public-video-viewer__metadata {
+    right: max(128px, calc(env(safe-area-inset-right) + 118px));
   }
 }
 

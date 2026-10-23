@@ -38,6 +38,10 @@ describe('Media video responsive layout contracts', () => {
     expect(viewer).toContain('(max-height: 460px) and (orientation: landscape)');
     expect(viewer).toContain('grid-template-columns: repeat(3, minmax(48px, 1fr))');
     expect(viewer).toContain('max(12px, env(safe-area-inset-right))');
+    expect(viewer).toContain('max(8px, env(safe-area-inset-left))');
+    expect(viewer).toContain('max(9px, env(safe-area-inset-right))');
+    expect(viewer).toContain('(max-width: 520px) and (max-height: 460px)');
+    expect(viewer).toContain('grid-template-columns: repeat(2, minmax(48px, 1fr))');
     expect(share).toContain('.public-video-share-action small');
     expect(share).toContain('(max-height: 460px) and (orientation: landscape)');
   });
