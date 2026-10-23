@@ -24,7 +24,7 @@ if (!bucketName || !/test|sandbox|staging|nonprod/i.test(bucketName) ||
 if (!/^[a-z][a-z0-9-]{5,29}$/.test(projectId)) {
   throw new Error('GOOGLE_CLOUD_PROJECT must identify an explicit isolated test project.');
 }
-if (!/^[1-9]\\d+$/.test(expectedProjectNumber)) {
+if (!/^[1-9][0-9]+$/.test(expectedProjectNumber)) {
   throw new Error('MEDIA_GCS_LIVE_TEST_PROJECT_NUMBER is required for project ownership verification.');
 }
 if (process.env.FIREBASE_STORAGE_EMULATOR_HOST || process.env.STORAGE_EMULATOR_HOST ||
