@@ -168,8 +168,13 @@ describe('PublicVideoCardComponent', () => {
     const busyPreview = fixture.debugElement.query(
       By.css('.public-video-card__preview')
     );
-    expect(busyPreview.nativeElement.disabled).toBe(true);
+    // Keep the origin focusable until MatDialog restores focus on close.
+    // The reactive opening guard must still refuse duplicate activations.
+    expect(busyPreview.nativeElement.disabled).toBe(false);
+    expect(busyPreview.attributes['aria-disabled']).toBe('true');
     expect(busyPreview.attributes['aria-label']).toBe('Abrindo Vídeo público.');
+    busyPreview.triggerEventHandler('click');
+    expect(emit).toHaveBeenCalledTimes(1);
   });
 
   it('propaga o pedido de comentários para o container abrir o viewer canônico', () => {

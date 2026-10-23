@@ -71,7 +71,7 @@
     class="public-video-card__preview"
     [class.public-video-card__preview--portrait]="mode === 'highlight'"
     [appPublicVideoMetadataPreload]="item"
-    [disabled]="opening()"
+    [attr.aria-disabled]="opening() ? 'true' : null"
     [attr.aria-busy]="opening() ? 'true' : null"
     [attr.aria-label]="getPreviewAriaLabel(item)"
     (click)="onPreview()"

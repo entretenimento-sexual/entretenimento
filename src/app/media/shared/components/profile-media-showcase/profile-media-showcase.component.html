@@ -97,7 +97,7 @@
               class="profile-media-showcase__item"
               [class.profile-media-showcase__item--video]="isVideo(item)"
               (click)="openMedia(item, index)"
-              [disabled]="viewerOpening()"
+              [attr.aria-disabled]="viewerOpening() ? 'true' : null"
               [attr.aria-busy]="viewerOpening() ? 'true' : 'false'"
               [attr.aria-label]="getMediaAriaLabel(item, index, state.totalCount)"
             >

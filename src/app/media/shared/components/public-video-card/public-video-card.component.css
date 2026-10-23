@@ -140,7 +140,7 @@
   border-radius: 0.9rem;
 }
 
-.public-video-card__preview:disabled {
+.public-video-card__preview[aria-disabled="true"] {
   cursor: progress;
 }
 
