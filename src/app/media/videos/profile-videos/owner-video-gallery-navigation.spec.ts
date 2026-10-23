@@ -6,7 +6,7 @@ import type {
   IPublicProfileVideoCursor,
   IPublicProfileVideoPage,
 } from 'src/app/core/services/media/public-profile-video-pagination.service';
-import { resolveOwnerVideoGallerySelection$ } from './owner-video-gallery-navigation';
+import { buildOwnerVideoViewerRequest, resolveOwnerVideoGallerySelection$ } from './owner-video-gallery-navigation';
 
 const item = (id: string, ownerUid = 'owner'): IPublicVideoItem => ({
   id,
@@ -87,6 +87,34 @@ describe('owner public video gallery navigation', () => {
       'owner', 'one', () => of(page([item('one')], next)), () => of(null)
     ));
     expect(result?.nextCursor).toEqual(next);
+  });
+
+  it('forwards the owner page cursor as profile continuation when opening the viewer', async () => {
+    const next = cursor('video-24');
+    const selection = await firstValueFrom(resolveOwnerVideoGallerySelection$(
+      'owner',
+      'video-1',
+      () => of(page([item('video-1'), item('video-2')], next)),
+      () => of(null)
+    ));
+    expect(selection).not.toBeNull();
+    const request = buildOwnerVideoViewerRequest(selection!);
+    expect(request.source).toBe('profile');
+    expect(request.profileContinuationCursor).toEqual(next);
+    expect(request.items.map(video => video.id)).toEqual(['video-1', 'video-2']);
+    expect(request.startIndex).toBe(0);
+  });
+
+  it('does not suggest pagination after the owner gallery is exhausted', async () => {
+    const selection = await firstValueFrom(resolveOwnerVideoGallerySelection$(
+      'owner',
+      'video-2',
+      () => of(page([item('video-1'), item('video-2')], null)),
+      () => of(null)
+    ));
+    expect(selection).not.toBeNull();
+    expect(buildOwnerVideoViewerRequest(selection!).profileContinuationCursor)
+      .toBeNull();
   });
 
   it('deduplicates paginated items and excludes another owner or revoked video', async () => {

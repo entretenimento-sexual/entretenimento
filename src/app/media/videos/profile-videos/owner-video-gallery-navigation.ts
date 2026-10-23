@@ -2,6 +2,7 @@ import { Observable, defer, of } from 'rxjs';
 import { map, switchMap, take } from 'rxjs/operators';
 
 import type { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import type { OpenPublicVideoViewerRequest } from '../public-video-viewer/public-video-viewer-launcher.service';
 import type {
   IPublicProfileVideoCursor,
   IPublicProfileVideoPage,
@@ -11,6 +12,22 @@ export interface OwnerVideoGallerySelection {
   readonly items: IPublicVideoItem[];
   readonly startIndex: number;
   readonly nextCursor: IPublicProfileVideoCursor | null;
+}
+
+/**
+ * The owner library and visitor gallery must use the same public viewer
+ * contract. The selection cursor describes the next authorized profile page;
+ * dropping it silently truncates owner playback at the loaded window.
+ */
+export function buildOwnerVideoViewerRequest(
+  selection: OwnerVideoGallerySelection
+): OpenPublicVideoViewerRequest {
+  return {
+    items: selection.items,
+    startIndex: selection.startIndex,
+    source: 'profile',
+    profileContinuationCursor: selection.nextCursor,
+  };
 }
 
 /**

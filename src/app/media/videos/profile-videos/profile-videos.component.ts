@@ -62,7 +62,7 @@ import { MediaPublicQueryService } from 'src/app/core/services/media/media-publi
 import {
   PublicProfileVideoPaginationService,
 } from 'src/app/core/services/media/public-profile-video-pagination.service';
-import { resolveOwnerVideoGallerySelection$ } from './owner-video-gallery-navigation';
+import { buildOwnerVideoViewerRequest, resolveOwnerVideoGallerySelection$ } from './owner-video-gallery-navigation';
 import {
   VIDEO_UPLOAD_ACCEPT,
   VIDEO_UPLOAD_FORMAT_LABEL,
@@ -940,10 +940,9 @@ export class ProfileVideosComponent {
           );
           return EMPTY;
         }
-        return this.videoViewerLauncher.open$({
-          ...selection,
-          source: 'profile',
-        });
+        return this.videoViewerLauncher.open$(
+          buildOwnerVideoViewerRequest(selection)
+        );
       }),
       catchError((error: unknown) => {
         this.mediaError.report(error, {
