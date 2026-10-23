@@ -173,7 +173,7 @@ describe('ProfileMediaShowcaseComponent', () => {
   });
 
   it('mantém o cartão focável até o retorno do visualizador e bloqueia duplo clique', () => {
-    const closed$ = new Subject<void>();
+    const closed$ = new Subject<undefined>();
     mixedViewerLauncher.open$.mockReturnValueOnce(closed$.asObservable());
     const button = fixture.debugElement.query(
       By.css('.profile-media-showcase__item')
