@@ -64,6 +64,9 @@ jobs:
       - name: Test emulator credential isolation
         run: npm run emu:credentials:preflight:test
 
+      - name: Test fail-closed Cloud Storage certification target
+        run: node --test scripts/tests/media-gcs-live-target.policy.test.mjs
+
       - name: Test safe orphan Firestore process matching
         run: npm run emu:orphan:test
 

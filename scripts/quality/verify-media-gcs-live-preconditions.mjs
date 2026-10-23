@@ -10,12 +10,22 @@ import { createRequire } from 'node:module';
 
 const ack = 'WRITE_ISOLATED_TEST_OBJECTS';
 const bucketName = String(process.env.MEDIA_GCS_LIVE_TEST_BUCKET ?? '').trim();
+const projectId = String(process.env.GOOGLE_CLOUD_PROJECT ?? '').trim();
+const expectedProjectNumber = String(
+  process.env.MEDIA_GCS_LIVE_TEST_PROJECT_NUMBER ?? ''
+).trim();
 if (process.env.MEDIA_GCS_LIVE_ACK !== ack) {
   throw new Error('Explicit MEDIA_GCS_LIVE_ACK is required for isolated-bucket writes.');
 }
 if (!bucketName || !/test|sandbox|staging|nonprod/i.test(bucketName) ||
     bucketName.includes('/') || bucketName.includes(' ')) {
   throw new Error('MEDIA_GCS_LIVE_TEST_BUCKET must name a dedicated non-production test bucket.');
+}
+if (!/^[a-z][a-z0-9-]{5,29}$/.test(projectId)) {
+  throw new Error('GOOGLE_CLOUD_PROJECT must identify an explicit isolated test project.');
+}
+if (!/^[1-9]\\d+$/.test(expectedProjectNumber)) {
+  throw new Error('MEDIA_GCS_LIVE_TEST_PROJECT_NUMBER is required for project ownership verification.');
 }
 if (process.env.FIREBASE_STORAGE_EMULATOR_HOST || process.env.STORAGE_EMULATOR_HOST ||
     process.env.FIREBASE_EMULATOR_HUB || process.env.FUNCTIONS_EMULATOR) {
@@ -39,7 +49,7 @@ function expect412(error) {
   return Number(error?.code ?? error?.statusCode ?? error?.status) === 412;
 }
 
-const app = initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
+const app = initializeApp({ projectId });
 const objectPath = `__media_precondition_certification/${randomUUID()}`;
 const bucket = getStorage(app).bucket(bucketName);
 const file = bucket.file(objectPath);
@@ -50,6 +60,27 @@ let ownedPosterGeneration = null;
 let verified = false;
 
 try {
+  // Read-only target verification BEFORE creating any real Cloud Storage object.
+  // A name containing "test" is not sufficient proof that the bucket is safe.
+  const [target] = await bucket.getMetadata();
+  if (String(target.projectNumber ?? '') !== expectedProjectNumber) {
+    throw new Error('Bucket projectNumber does not match the authorized test project.');
+  }
+  if (target.labels?.media_certification !== 'isolated_nonprod') {
+    throw new Error('Bucket must carry media_certification=isolated_nonprod label.');
+  }
+  if (target.iamConfiguration?.publicAccessPrevention !== 'enforced' ||
+      target.iamConfiguration?.uniformBucketLevelAccess?.enabled !== true) {
+    throw new Error('Test bucket must enforce public access prevention and uniform bucket-level access.');
+  }
+  const [existingObjects] = await bucket.getFiles({
+    autoPaginate: false,
+    maxResults: 1,
+  });
+  if (existingObjects.length !== 0) {
+    throw new Error('Test bucket must be empty before certification.');
+  }
+
   await file.save(Buffer.from('initial-object'), {
     resumable: false,
     preconditionOpts: { ifGenerationMatch: 0 },
@@ -132,6 +163,7 @@ console.log(JSON.stringify({
   check: 'media-live-gcs-generation-preconditions',
   status: 'passed',
   bucket: bucketName,
+  targetPreflightPassed: true,
   createOnlyRejectedOverwrite: true,
   staleGenerationRejectedDeletion: true,
   posterCopyRejectedOverwrite: true,
