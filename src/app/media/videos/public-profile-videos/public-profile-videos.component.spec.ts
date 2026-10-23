@@ -238,6 +238,28 @@ describe('PublicProfileVideosComponent', () => {
     subscription.unsubscribe();
   });
 
+  it('não abre outro vídeo quando o índice está inválido ou o cartão ficou obsoleto', () => {
+    const subscription = component.state$.subscribe();
+
+    component.openVideo(-1);
+    component.openVideo(1);
+    component.openVideo(0, VIDEO_2);
+    component.openVideo(0, { ...VIDEO, ownerUid: 'different-owner' });
+
+    expect(videoViewerLauncher.open$).not.toHaveBeenCalled();
+    expect(component.viewerOpening()).toBe(false);
+
+    component.openVideo(0, VIDEO);
+    expect(videoViewerLauncher.open$).toHaveBeenCalledTimes(1);
+    subscription.unsubscribe();
+  });
+
+  it('identifica cartões pelo par proprietário e vídeo', () => {
+    expect(component.trackByVideoId(0, VIDEO)).toBe('owner-1:video-1');
+    expect(component.trackByVideoId(0, { ...VIDEO, ownerUid: 'owner-2' }))
+      .toBe('owner-2:video-1');
+  });
+
   it('mantém feedback ocupado enquanto compartilha o vídeo', async () => {
     publicVideoShare.sharePublicVideo.mockImplementation(async () => {
       expect(component.isVideoSharing(VIDEO)).toBe(true);
@@ -586,5 +608,6 @@ describe('public video gallery window direction', () => {
     expect(source).toMatch(/showEarlierWindow\(\)"[\s\S]*Mostrar mais recentes/);
     expect(source).toMatch(/showLaterWindow\(\)"[\s\S]*Mostrar anteriores/);
     expect(source).toContain('[viewerUid]="viewerUid"');
+    expect(source).toContain('(preview)="openVideo(state.items.indexOf(item), item)"');
   });
 });

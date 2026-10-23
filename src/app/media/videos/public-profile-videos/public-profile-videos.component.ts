@@ -325,8 +325,13 @@ export class PublicProfileVideosComponent implements OnInit {
     ).subscribe();
   }
 
-  openVideo(index: number): void {
-    if (this.viewerOpening()) {
+  openVideo(
+    index: number,
+    expectedVideo?: Pick<IPublicVideoItem, 'id' | 'ownerUid'>
+  ): void {
+    // Gallery windows are reactive: an obsolete or missing card must never
+    // be clamped onto the first/last video after pagination or route changes.
+    if (this.viewerOpening() || !Number.isInteger(index) || index < 0) {
       return;
     }
 
@@ -340,13 +345,23 @@ export class PublicProfileVideosComponent implements OnInit {
           return EMPTY;
         }
 
-        const safeIndex = Math.max(
-          0,
-          Math.min(index, state.items.length - 1)
-        );
-        const selected = state.items[safeIndex];
+        if (
+          state.routeIdentity !== this.galleryRouteIdentity ||
+          index >= state.items.length
+        ) {
+          return EMPTY;
+        }
 
-        if (!selected) {
+        const selected = state.items[index];
+        // Compare the clicked card's full identity to the current page.
+        // Index-only navigation may otherwise open a different person's video.
+        if (
+          !selected ||
+          (expectedVideo && (
+            selected.id !== expectedVideo.id ||
+            selected.ownerUid !== expectedVideo.ownerUid
+          ))
+        ) {
           return EMPTY;
         }
 
@@ -355,7 +370,7 @@ export class PublicProfileVideosComponent implements OnInit {
 
         return this.videoViewerLauncher.open$({
           items: state.items,
-          startIndex: safeIndex,
+          startIndex: index,
           source: 'profile',
           profileContinuationCursor: this.galleryCursor,
         }).pipe(
@@ -413,7 +428,7 @@ export class PublicProfileVideosComponent implements OnInit {
   }
 
   trackByVideoId(_index: number, item: IPublicVideoItem): string {
-    return item.id;
+    return this.posterKey(item);
   }
 
   hasUsablePoster(item: IPublicVideoItem): boolean {

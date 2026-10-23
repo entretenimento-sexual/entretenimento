@@ -96,7 +96,7 @@
                 recommendationSource="profile"
                 [opening]="isVideoOpening(item)"
                 [posterAvailable]="hasUsablePoster(item)"
-                (preview)="openVideo(state.items.indexOf(item))"
+                (preview)="openVideo(state.items.indexOf(item), item)"
                 (posterError)="onPosterError(item)"
               />
 
