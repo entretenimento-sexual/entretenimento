@@ -7,7 +7,7 @@
     [attr.aria-busy]="sharingExternally() || openingConversationPicker() ? 'true' : null"
     [attr.aria-expanded]="menuOpen()"
     aria-haspopup="menu"
-    aria-label="Opções para compartilhar vídeo"
+    [attr.aria-label]="ownerExternalShareAllowed() ? 'Opções para compartilhar meu vídeo' : 'Enviar vídeo em conversa interna'"
   >
     <span class="public-video-share-action__icon">
       <i
@@ -17,15 +17,17 @@
         aria-hidden="true"
       ></i>
     </span>
-    <small>Compartilhar</small>
+    <small>{{ ownerExternalShareAllowed() ? 'Compartilhar' : 'Enviar' }}</small>
   </button>
 
   @if (menuOpen()) {
     <div class="public-video-share-menu" role="menu" aria-label="Compartilhar vídeo">
-      <button type="button" role="menuitem" (click)="shareExternally($event)">
-        <i class="fas fa-arrow-up-from-bracket" aria-hidden="true"></i>
-        <span>Compartilhar fora</span>
-      </button>
+      @if (ownerExternalShareAllowed()) {
+        <button type="button" role="menuitem" (click)="shareExternally($event)">
+          <i class="fas fa-arrow-up-from-bracket" aria-hidden="true"></i>
+          <span>Compartilhar meu vídeo fora</span>
+        </button>
+      }
 
       <button type="button" role="menuitem" (click)="sendToConversation($event)">
         <i class="fas fa-paper-plane" aria-hidden="true"></i>

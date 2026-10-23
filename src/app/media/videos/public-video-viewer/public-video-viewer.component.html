@@ -221,7 +221,12 @@
             </button>
           }
 
-          <app-public-video-share-actions [video]="video" />
+          @if (viewerUid) {
+            <app-public-video-share-actions
+              [video]="video"
+              [ownerExternalShareAllowed]="viewerIsOwner"
+            />
+          }
 
           @if (viewerUid && !viewerIsOwner) {
             <a

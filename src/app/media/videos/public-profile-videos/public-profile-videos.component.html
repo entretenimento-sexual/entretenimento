@@ -79,7 +79,8 @@
               />
 
               <div class="video-card-shell__actions" aria-label="Ações do vídeo">
-                <button
+                @if (viewerUid === item.ownerUid) {
+                  <button
                   type="button"
                   class="video-card-shell__share app-action app-action--ghost"
                   [disabled]="isVideoSharing(item)"
@@ -91,8 +92,9 @@
                     [class]="isVideoSharing(item) ? 'fas fa-circle-notch fa-spin' : 'fas fa-share-nodes'"
                     aria-hidden="true"
                   ></i>
-                  <span>Compartilhar</span>
+                  <span>Compartilhar meu vídeo</span>
                 </button>
+                }
 
                 @if (viewerUid && viewerUid !== item.ownerUid) {
                   <app-report-content-button

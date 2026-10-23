@@ -40,6 +40,7 @@ describe('PublicVideoShareActionsComponent', () => {
   it('mostra uma única ação permanente e abre opções sob demanda', () => {
     const fixture = TestBed.createComponent(PublicVideoShareActionsComponent);
     fixture.componentRef.setInput('video', VIDEO);
+    fixture.componentRef.setInput('ownerExternalShareAllowed', true);
     fixture.detectChanges();
 
     const trigger = fixture.nativeElement.querySelector(
@@ -54,7 +55,7 @@ describe('PublicVideoShareActionsComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.componentInstance.menuOpen()).toBe(true);
-    expect(fixture.nativeElement.textContent).toContain('Compartilhar fora');
+    expect(fixture.nativeElement.textContent).toContain('Compartilhar meu vídeo fora');
     expect(fixture.nativeElement.textContent).toContain('Enviar em conversa');
   });
 
@@ -70,6 +71,8 @@ describe('PublicVideoShareActionsComponent', () => {
     fixture.componentRef.setInput('video', VIDEO);
     fixture.detectChanges();
 
+    fixture.componentRef.setInput('ownerExternalShareAllowed', true);
+    fixture.detectChanges();
     fixture.componentInstance.menuOpen.set(true);
     const action = fixture.componentInstance.shareExternally();
 
@@ -81,6 +84,24 @@ describe('PublicVideoShareActionsComponent', () => {
     await action;
 
     expect(fixture.componentInstance.sharingExternally()).toBe(false);
+  });
+
+  it('offers only internal reference sharing when watching a third-party video', () => {
+    const fixture = TestBed.createComponent(PublicVideoShareActionsComponent);
+    fixture.componentRef.setInput('video', VIDEO);
+    fixture.detectChanges();
+
+    const trigger = fixture.nativeElement.querySelector(
+      '[aria-label="Enviar vídeo em conversa interna"]'
+    ) as HTMLButtonElement;
+    trigger.click();
+    fixture.detectChanges();
+
+    const menu = fixture.nativeElement.querySelector('[role="menu"]') as HTMLElement;
+    expect(menu.textContent).toContain('Enviar em conversa');
+    expect(menu.textContent).not.toContain('Compartilhar meu vídeo fora');
+    fixture.componentInstance.shareExternally();
+    expect(sharePublicVideo).not.toHaveBeenCalled();
   });
 
   it('abre o seletor de conversas pela opção secundária', async () => {

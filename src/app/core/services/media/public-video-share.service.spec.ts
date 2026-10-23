@@ -1,11 +1,14 @@
 import { TestBed } from '@angular/core/testing';
+import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import {
   PublicVideoShareService,
   buildPublicVideoCanonicalPath,
+  canShareVideoExternally,
 } from './public-video-share.service';
 
 describe('PublicVideoShareService', () => {
@@ -36,6 +39,7 @@ describe('PublicVideoShareService', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        { provide: AuthSessionService, useValue: { readyUid$: of('owner_1') } },
         {
           provide: ErrorNotificationService,
           useValue: errorNotification,
@@ -62,6 +66,28 @@ describe('PublicVideoShareService', () => {
       '/media/video/owner_1/video-1'
     );
     expect(buildPublicVideoCanonicalPath('../owner', 'video-1')).toBeNull();
+  });
+
+  it('allows only the signed-in owner to distribute external links', () => {
+    expect(canShareVideoExternally('owner_1', 'owner_1')).toBe(true);
+    expect(canShareVideoExternally('viewer_2', 'owner_1')).toBe(false);
+    expect(canShareVideoExternally(null, 'owner_1')).toBe(false);
+    expect(canShareVideoExternally('owner_1', '../owner')).toBe(false);
+  });
+
+  it('denies external sharing for third parties before calling native share or clipboard', async () => {
+    const nativeShare = vi.fn().mockResolvedValue(undefined);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    setNavigatorProperty('share', nativeShare);
+    setNavigatorProperty('clipboard', { writeText });
+    TestBed.inject(AuthSessionService).readyUid$ = of('viewer_2');
+    const outcome = await service.sharePublicVideo({ ownerUid: 'owner_1', id: 'video-1' });
+    expect(outcome).toBe('failed');
+    expect(nativeShare).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+    expect(errorNotification.showWarning).toHaveBeenCalledWith(
+      'Somente o proprietário pode compartilhar este vídeo fora da plataforma.'
+    );
   });
 
   it('usa o compartilhamento nativo quando o navegador permite', async () => {

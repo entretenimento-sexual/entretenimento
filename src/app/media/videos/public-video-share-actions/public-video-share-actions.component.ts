@@ -22,6 +22,8 @@ import { PublicVideoShareService } from 'src/app/core/services/media/public-vide
 })
 export class PublicVideoShareActionsComponent {
   readonly video = input.required<IPublicVideoItem>();
+  /** Bound to the canonical viewer-authored owner check, never the video payload. */
+  readonly ownerExternalShareAllowed = input(false);
 
   private readonly dialog = inject(MatDialog);
   private readonly publicVideoShare = inject(PublicVideoShareService);
@@ -55,7 +57,11 @@ export class PublicVideoShareActionsComponent {
   async shareExternally(event?: Event): Promise<void> {
     event?.stopPropagation();
 
-    if (this.sharingExternally() || this.openingConversationPicker()) {
+    if (
+      !this.ownerExternalShareAllowed() ||
+      this.sharingExternally() ||
+      this.openingConversationPicker()
+    ) {
       return;
     }
 

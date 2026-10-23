@@ -1,5 +1,9 @@
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import { Injectable, PLATFORM_ID, inject } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
+import { take } from 'rxjs/operators';
+
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -18,6 +22,16 @@ function normalizeId(value: unknown): string {
   return SAFE_ID_PATTERN.test(normalized) ? normalized : '';
 }
 
+/** Public link distribution policy; not an asset-download permission. */
+export function canShareVideoExternally(
+  viewerUid: unknown,
+  ownerUid: unknown
+): boolean {
+  const viewer = normalizeId(viewerUid);
+  const owner = normalizeId(ownerUid);
+  return !!viewer && !!owner && viewer === owner;
+}
+
 export function buildPublicVideoCanonicalPath(
   ownerUidValue: unknown,
   videoIdValue: unknown
@@ -32,6 +46,7 @@ export function buildPublicVideoCanonicalPath(
 
 @Injectable({ providedIn: 'root' })
 export class PublicVideoShareService {
+  private readonly authSession = inject(AuthSessionService);
   private readonly document = inject(DOCUMENT);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly errorNotification = inject(ErrorNotificationService);
@@ -48,6 +63,23 @@ export class PublicVideoShareService {
     if (!canonicalPath || !isPlatformBrowser(this.platformId)) {
       this.errorNotification.showWarning(
         'Este vídeo não possui um link compartilhável.'
+      );
+      return 'failed';
+    }
+
+    // External links are an opt-in distribution surface belonging to the
+    // author. Never offer an export shortcut for somebody else's video.
+    // This is a product policy, not DRM: an authorized viewer may still
+    // capture displayed media. The URL never contains a signed asset token.
+    let viewerUid: string | null = null;
+    try {
+      viewerUid = await firstValueFrom(this.authSession.readyUid$.pipe(take(1)));
+    } catch {
+      viewerUid = null;
+    }
+    if (!canShareVideoExternally(viewerUid, video.ownerUid)) {
+      this.errorNotification.showWarning(
+        'Somente o proprietário pode compartilhar este vídeo fora da plataforma.'
       );
       return 'failed';
     }
