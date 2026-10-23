@@ -119,6 +119,7 @@ export class PublicProfileVideosComponent implements OnInit {
   private readonly galleryRenderStartSubject = new BehaviorSubject<number>(0);
   private readonly autoOpenedVideoKeys = new Set<string>();
   private lastRequestedRouteIdentity: string | null = null;
+  private deepLinkRouteGeneration = 0;
   private galleryRouteIdentity = '';
   private galleryOwnerUid = '';
   private galleryCursor: IPublicProfileVideoCursor | null = null;
@@ -523,6 +524,7 @@ export class PublicProfileVideosComponent implements OnInit {
       const routeKey = routeIdentity(route);
       if (routeKey !== this.lastRequestedRouteIdentity) {
         this.lastRequestedRouteIdentity = routeKey;
+        this.deepLinkRouteGeneration += 1;
         this.autoOpenedVideoKeys.clear();
       }
 
@@ -553,8 +555,10 @@ export class PublicProfileVideosComponent implements OnInit {
         return;
       }
 
+      const routeGeneration = this.deepLinkRouteGeneration;
       queueMicrotask(() => {
         if (
+          this.deepLinkRouteGeneration !== routeGeneration ||
           this.galleryRouteIdentity !== routeKey ||
           this.lastRequestedRouteIdentity !== routeKey
         ) {

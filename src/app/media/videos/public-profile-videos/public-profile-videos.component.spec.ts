@@ -492,6 +492,36 @@ describe('PublicProfileVideosComponent', () => {
     sub.unsubscribe();
   });
 
+  it('keeps only the newest A launch after synchronous A to B to A navigation', async () => {
+    mediaPublicQuery.getPublicVideoById$.mockImplementation(
+      (_ownerUid: string, videoId: string) => of(
+        videoId === VIDEO.id ? VIDEO : VIDEO_2
+      )
+    );
+    const launch = vi.spyOn(component, 'openVideo')
+      .mockImplementation(() => undefined);
+    const sub = component.state$.subscribe();
+    component.ngOnInit();
+
+    routeParamMapSubject.next(convertToParamMap({
+      ownerUid: VIDEO.ownerUid, videoId: VIDEO.id,
+    }));
+    routeParamMapSubject.next(convertToParamMap({
+      ownerUid: VIDEO.ownerUid, videoId: VIDEO_2.id,
+    }));
+    routeParamMapSubject.next(convertToParamMap({
+      ownerUid: VIDEO.ownerUid, videoId: VIDEO.id,
+    }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mediaPublicQuery.getPublicVideoById$).toHaveBeenCalledTimes(3);
+    expect(launch).toHaveBeenCalledTimes(1);
+    expect(launch).toHaveBeenCalledWith(0);
+    expect(errorNotification.showWarning).not.toHaveBeenCalled();
+    sub.unsubscribe();
+  });
+
   it('does not open stale videos when owner and video parameters change together', async () => {
     const secondOwnerVideo = { ...VIDEO, id: 'video-other', ownerUid: 'owner-2' };
     mediaPublicQuery.getPublicVideoById$.mockImplementation(
