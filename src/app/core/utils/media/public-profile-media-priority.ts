@@ -48,7 +48,15 @@ function normalizeItems(
   const unique = new Map<string, IPublicProfileMediaItem>();
 
   for (const item of input ?? []) {
-    if (!item) continue;
+    // Rankings are presentation hints, never permission to expose a
+    // publication that was revoked while a feed snapshot was in memory.
+    if (
+      !item ||
+      item.visibility !== 'PUBLIC' ||
+      item.moderationStatus !== 'APPROVED'
+    ) {
+      continue;
+    }
 
     const key = mediaKey(item);
     if (!key) continue;

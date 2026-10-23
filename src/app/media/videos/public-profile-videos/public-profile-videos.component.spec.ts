@@ -411,5 +411,6 @@ describe('public video gallery window direction', () => {
     );
     expect(source).toMatch(/showEarlierWindow\(\)"[\s\S]*Mostrar mais recentes/);
     expect(source).toMatch(/showLaterWindow\(\)"[\s\S]*Mostrar anteriores/);
+    expect(source).toContain('[viewerUid]="viewerUid"');
   });
 });

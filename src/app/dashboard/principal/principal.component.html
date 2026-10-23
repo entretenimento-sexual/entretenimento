@@ -253,6 +253,7 @@
                 <div class="feed-entry" role="article">
                   <app-public-video-card
                     [video]="item.video"
+                    [viewerUid]="currentUser.uid"
                     variant="feed"
                     [opening]="isVideoOpening(item.video)"
                     (preview)="openVideo(item.video, feed.items)"

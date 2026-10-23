@@ -35,6 +35,21 @@ function video(id: string, publishedAt: number): IPublicVideoItem {
 }
 
 describe('composePublicProfileMediaPriority', () => {
+  it('does not distribute revoked or unapproved items from stale feed snapshots', () => {
+    const visible = video('visible', 100);
+    const hidden = { ...video('hidden', 300), visibility: 'PRIVATE' } as IPublicVideoItem;
+    const underReview = {
+      ...video('pending', 250), moderationStatus: 'PENDING_REVIEW',
+    } as IPublicVideoItem;
+    const privatePhoto = {
+      ...photo('private', 400), visibility: 'PRIVATE',
+    } as IPublicPhotoItem;
+    const items = composePublicProfileMediaPriority([
+      privatePhoto, hidden, underReview, visible,
+    ]);
+    expect(items.map((item) => item.id)).toEqual(['visible']);
+  });
+
   it('preserva cronologia quando diversidade de tipo não é solicitada', () => {
     const items = composePublicProfileMediaPriority([
       video('v1', 500),
