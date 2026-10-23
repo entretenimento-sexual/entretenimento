@@ -59,6 +59,16 @@ describe('Media video responsive layout contracts', () => {
     expect(visitor).toContain("['/perfil']");
   });
 
+  it('avoids empty action bars for visitors without sessions and announces the visible range', () => {
+    const html = css('./public-profile-videos/public-profile-videos.component.html');
+    const styles = css('./public-profile-videos/public-profile-videos.component.css');
+    expect(html).toContain('@if (viewerUid) {');
+    expect(html).toContain('[attr.aria-label]');
+    expect(html).toContain('tabindex="-1"');
+    expect(styles).toContain('.videos-grid:focus-visible');
+    expect(styles).toContain('scroll-margin-block-start');
+  });
+
   it('keeps owner-only previews scrollable inside the dynamic viewport', () => {
     const ownerViewer = css('./profile-videos/owner-private-video-viewer.component.ts');
     expect(ownerViewer).toContain('max-height: 100dvh');

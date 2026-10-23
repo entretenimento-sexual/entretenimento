@@ -321,6 +321,51 @@ describe('PublicProfileVideosComponent', () => {
     subscription.unsubscribe();
   });
 
+  it('moves focus and reading position to the new gallery window without resetting page order', () => {
+    const generate = (page: number) => Array.from({ length: 12 }, (_, index) => ({
+      ...VIDEO, id: `item-${page}-${index}`, orderIndex: page * 12 + index,
+    }));
+    videoPagination.loadPage$.mockImplementation(
+      (_uid: string, options: { cursor?: IPublicProfileVideoCursor | null }) => {
+        const page = Number(options.cursor?.documentId ?? 0);
+        return of({
+          items: generate(page),
+          nextCursor: page < 3
+            ? { documentId: String(page + 1), orderIndex: page, publishedAt: 1 }
+            : null,
+          hasMore: page < 3,
+        });
+      }
+    );
+    const stateLog: Array<{ renderStart: number; renderItems: IPublicVideoItem[] }> = [];
+    const subscription = component.state$.subscribe(state => stateLog.push(state));
+    component.loadMoreVideos();
+    component.loadMoreVideos();
+    component.loadMoreVideos();
+
+    const focus = vi.fn();
+    const scrollIntoView = vi.fn();
+    Object.assign(component, {
+      videoGallery: { nativeElement: { focus, scrollIntoView } },
+    });
+    component.showLaterWindow();
+
+    expect(stateLog.at(-1)?.renderStart).toBe(12);
+    expect(stateLog.at(-1)?.renderItems[0].id).toBe('item-1-0');
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      block: 'start', behavior: 'auto',
+    });
+
+    component.showEarlierWindow();
+    expect(stateLog.at(-1)?.renderStart).toBe(0);
+    expect(focus).toHaveBeenCalledTimes(2);
+
+    component.showEarlierWindow();
+    expect(focus).toHaveBeenCalledTimes(2);
+    subscription.unsubscribe();
+  });
+
   it('descarta página antiga quando retry reinicia a mesma galeria', () => {
     let latestState: {
       items: IPublicVideoItem[];

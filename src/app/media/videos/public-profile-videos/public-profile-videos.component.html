@@ -74,7 +74,15 @@
       }
 
       @case ('ready') {
-        <div class="videos-grid" role="list" aria-label="Vídeos do perfil">
+        <div
+          #videoGallery
+          class="videos-grid"
+          role="list"
+          tabindex="-1"
+          [attr.aria-label]="'Vídeos ' + (state.renderStart + 1)
+            + ' a ' + (state.renderStart + state.renderItems.length)
+            + ' de ' + state.items.length + ' carregados neste perfil'
+        >
           @for (
             item of state.renderItems;
             track trackByVideoId($index, item);
@@ -92,7 +100,8 @@
                 (posterError)="onPosterError(item)"
               />
 
-              <div class="video-card-shell__actions" aria-label="Ações do vídeo">
+              @if (viewerUid) {
+                <div class="video-card-shell__actions" aria-label="Ações do vídeo">
                 @if (viewerUid === item.ownerUid) {
                   <button
                   type="button"
@@ -110,7 +119,7 @@
                 </button>
                 }
 
-                @if (viewerUid && viewerUid !== item.ownerUid) {
+                @if (viewerUid !== item.ownerUid) {
                   <app-report-content-button
                     appearance="link"
                     label="Denunciar vídeo"
@@ -122,7 +131,8 @@
                     [title]="item.title || 'vídeo do perfil'"
                   />
                 }
-              </div>
+                </div>
+              }
             </article>
           }
         </div>

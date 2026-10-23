@@ -53,6 +53,12 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
+  scroll-margin-block-start: clamp(12px, 3vw, 28px);
+}
+
+.videos-grid:focus-visible {
+  outline: var(--focus-ring, 2px solid currentColor);
+  outline-offset: 4px;
 }
 
 .gallery-pagination {

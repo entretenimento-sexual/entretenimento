@@ -8,6 +8,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
+  ViewChild,
   OnInit,
   inject,
   signal,
@@ -87,6 +89,8 @@ const PUBLIC_VIDEO_RENDER_WINDOW_STEP = 12;
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PublicProfileVideosComponent implements OnInit {
+  @ViewChild('videoGallery') private videoGallery?: ElementRef<HTMLElement>;
+
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly currentUserStore = inject(CurrentUserStoreService);
@@ -556,12 +560,10 @@ export class PublicProfileVideosComponent implements OnInit {
   }
 
   showEarlierWindow(): void {
-    this.galleryRenderStartSubject.next(
-      Math.max(
-        0,
-        this.galleryRenderStartSubject.value - PUBLIC_VIDEO_RENDER_WINDOW_STEP
-      )
-    );
+    this.changeVisibleWindow(Math.max(
+      0,
+      this.galleryRenderStartSubject.value - PUBLIC_VIDEO_RENDER_WINDOW_STEP
+    ));
   }
 
   showLaterWindow(): void {
@@ -572,12 +574,24 @@ export class PublicProfileVideosComponent implements OnInit {
       0,
       totalItems - PUBLIC_VIDEO_RENDER_WINDOW_MAX_ITEMS
     );
-    this.galleryRenderStartSubject.next(
-      Math.min(
-        maxStart,
-        this.galleryRenderStartSubject.value + PUBLIC_VIDEO_RENDER_WINDOW_STEP
-      )
-    );
+    this.changeVisibleWindow(Math.min(
+      maxStart,
+      this.galleryRenderStartSubject.value + PUBLIC_VIDEO_RENDER_WINDOW_STEP
+    ));
+  }
+
+  private changeVisibleWindow(nextStart: number): void {
+    if (nextStart === this.galleryRenderStartSubject.value) return;
+    this.galleryRenderStartSubject.next(nextStart);
+    // Pagination controls live after the grid. Without restoring the reading
+    // origin, keyboard and touch users remain below the newly mounted cards.
+    // The grid node remains stable while only its cards are windowed.
+    const grid = this.videoGallery?.nativeElement;
+    if (!grid) return;
+    grid.focus({ preventScroll: true });
+    if (typeof grid.scrollIntoView === 'function') {
+      grid.scrollIntoView({ block: 'start', behavior: 'auto' });
+    }
   }
 
   private buildState(
