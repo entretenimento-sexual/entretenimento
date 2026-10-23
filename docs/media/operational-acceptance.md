@@ -43,8 +43,21 @@ Registrar em cada execução: commit da `main` (SHA completo), data/hora e fuso,
 | A17 | UI/reatividade | Desktop/mobile, teclado/leitor de tela, grids, preload/cancelamento, estados vazios e atualização sem recarga |
 | A18 | Revogação | Despublicar/bloquear/alterar audiência invalida acesso novo e não vaza URL em snapshot/cache |
 | A19 | Operação e custos | Limites de armazenamento/processamento, índices, métricas, alertas de erro e política de retenção revisados |
+| A20 | Galeria do proprietário | `Todos/Publicados/Não publicados`; seleção mantém posição, filtro e rolagem ao fechar; prévia privada não entra no Explore; grid com 1–4 colunas conforme **largura do contêiner**, inclusive em painel lateral |
+| A21 | Galeria do visitante | Perfil próprio, vinculado, não vinculado, bloqueado e sessão anônima; apenas `PUBLIC/APPROVED`; botão **Ver perfil** usa destino correto; paginação conserva os cartões visíveis, foco acessível e cursor do mesmo proprietário |
+| A22 | Navegação cruzada e player | Entradas por perfil, link profundo, mosaico, feed e Explore; voltar/fechar retorna à origem e ao foco; gestos/teclado não entram em conflito com vídeo, comentários ou menu; sem vizinho errado após revogação |
+| A23 | Segurança da redistribuição | Terceiros não recebem botão de download nem compartilhamento externo; serviço nega exportação sem autenticação do proprietário; chat envia somente referência, com conexão aceita e bloqueios bilaterais ao autor e destinatário; nunca transporta URL assinada |
+| A24 | Super-responsividade real | Testar contêiner estreito em desktop largo, 320/360/390/768/1024/1440 px, iOS e Android em retrato/paisagem, safe-area/notch, 200% zoom, leitores de tela, alvos de 44 px, capas `contain`, vídeos 9:16 e 16:9 e ações sem sobreposição |
+| A25 | Propósito pessoal/profissional | Campos opcionais ausentes não geram selos; assinatura/pagamento nunca define categoria; rótulo profissional exige verificação backend e escolha pública; uma mídia pessoal de perfil profissional não recebe selo profissional por inferência; nenhuma mudança em monetização ou ranking até aprovação |
 
-Executar A01–A19 com usuários de teste distintos. Registre falhas reproduzíveis antes de considerar aceito. Se a mídia exigir preservação legal, a execução deve ser totalmente simulada: nunca usar caso ou arquivo real.
+Executar A01–A25 com usuários de teste distintos. Registre falhas reproduzíveis antes de considerar aceito. Se a mídia exigir preservação legal, a execução deve ser totalmente simulada: nunca usar caso ou arquivo real.
+
+**Critério de evidência A20–A25:** guardar capturas apenas de contas e vídeos
+sintéticos, informar navegador/SO e largura efetiva da área da galeria, registrar
+origem e destino da navegação, foco antes/depois, usuário autor/destinatário e
+resposta de autorização sanitizada. Nunca registrar URL assinada. Para bloqueio,
+alteração de audiência ou suspensão, verificar tanto a ausência de exposição
+na UI quanto a rejeição de novo acesso pelo backend.
 
 ## Sequência de liberação (não executada por este documento)
 
