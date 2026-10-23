@@ -242,7 +242,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
         },
         {
           provide: MediaApplicationErrorService,
-          useValue: { reportReason: reportPlaybackError, report: vi.fn() },
+          useValue: { reportReason: reportPlaybackError, reportReasonSilently: vi.fn(), report: vi.fn() },
         },
       ],
     }).compileComponents();
@@ -356,6 +356,11 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     expect(context.component.hasNext).toBe(false);
     expect(TestBed.inject(PublicProfileVideoPaginationService).loadPage$)
       .toHaveBeenCalledTimes(1);
+    expect(TestBed.inject(MediaApplicationErrorService).reportReasonSilently)
+      .toHaveBeenCalledWith(
+        'media_discovery_page_failed', 'loadProfileVideoContinuation',
+        expect.objectContaining({ invalidCursor: true })
+      );
     expect(TestBed.inject(PublicVideoContinuationService).loadContinuation$)
       .not.toHaveBeenCalled();
   });

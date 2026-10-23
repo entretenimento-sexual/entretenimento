@@ -1136,16 +1136,13 @@ export class PublicVideoViewerComponent {
 
         if (stalled) {
           // A broken cursor must not trap the user in repeated requests.
-          this.mediaError.report(
-            new Error('Paginação de vídeos do perfil retornou cursor inválido.'),
+          this.mediaError.reportReasonSilently(
+            'media_discovery_page_failed',
+            'loadProfileVideoContinuation',
             {
-              operation: 'loadProfileVideoContinuation',
-              reasonHint: 'media_discovery_page_failed',
-              metadata: {
-                scope: 'PublicVideoViewerComponent',
-                hasOwnerUid: !!this.data.ownerUid,
-                invalidCursor: true,
-              },
+              scope: 'PublicVideoViewerComponent',
+              hasOwnerUid: !!this.data.ownerUid,
+              invalidCursor: true,
             }
           );
         }
