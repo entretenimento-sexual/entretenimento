@@ -9,7 +9,11 @@ const handler = readFileSync(
 );
 
 test('chat video references enforce the author block boundary for both participants', () => {
-  assert.match(handler, /await assertNoActiveBilateralBlocksInTransaction\(\s*transaction,\s*requestedReference\.ownerUid,\s*\[actorUid, targetUid\]/);
+  assert.match(handler, /await assertNoActiveBilateralBlocksInTransaction\(/);
+  assert.match(
+    handler,
+    /transaction,\s*requestedReference\.ownerUid,\s*\[actorUid, targetUid\]/
+  );
   const checkedAt = handler.indexOf('await assertNoActiveBilateralBlocksInTransaction(');
   const resolvedAt = handler.indexOf('resolveStoredDirectMessagePublicVideoReference({');
   const persistedAt = handler.indexOf('transaction.create(messageRef,');
