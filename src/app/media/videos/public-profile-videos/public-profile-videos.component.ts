@@ -554,6 +554,12 @@ export class PublicProfileVideosComponent implements OnInit {
       }
 
       queueMicrotask(() => {
+        if (
+          this.galleryRouteIdentity !== routeKey ||
+          this.lastRequestedRouteIdentity !== routeKey
+        ) {
+          return;
+        }
         this.openVideo(requestedIndex);
       });
     });
