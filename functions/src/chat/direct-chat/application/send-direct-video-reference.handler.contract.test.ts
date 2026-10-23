@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 
 const handler = readFileSync(
-  resolve(__dirname, '../../../src/chat/direct-chat/application/send-direct-video-reference.handler.ts'),
+  resolve(__dirname, '../../../../src/chat/direct-chat/application/send-direct-video-reference.handler.ts'),
   'utf8'
 );
 
