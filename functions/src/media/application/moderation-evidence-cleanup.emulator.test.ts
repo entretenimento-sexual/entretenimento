@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 
-import { db, getDefaultStorageBucket } from '../../firebaseApp';
+import { db, getDefaultStorageBucket, storage } from '../../firebaseApp';
 import { finishPreservedCleanup } from './moderation-evidence-preservation.handler';
 import { finalizePhotoDeletionJob } from './photo-deletion-job-finalization';
 import {
@@ -11,6 +11,12 @@ import {
 } from './published-photo-asset.service';
 import {
   ensurePreservedModerationCleanupJob,
+  beginModerationEvidencePreservationAttemptInFirestore,
+  endModerationEvidencePreservationAttemptInFirestore,
+  preserveModerationEvidence,
+  recordPreservationFailureInFirestore,
+  releaseModerationEvidence,
+  stageModerationEvidenceJobInFirestore,
   MODERATION_EVIDENCE_COLLECTION,
   MODERATION_EVIDENCE_JOBS_COLLECTION,
 } from './moderation-evidence-preservation.service';
@@ -564,4 +570,433 @@ test('PUBLISHED PHOTO: Storage emulator does not enforce create-only preconditio
   // Do not assert a rejected second save: the emulator does not model this.
   const [contents] = await file.download();
   assert.equal(contents.toString(), 'original-generation');
+});
+
+test('G5-B2: release deletes only the recorded generation', async () => {
+  const x = refs();
+  const path = `system/moderation-evidence/${x.reportId}/video`;
+  const file = getDefaultStorageBucket().file(path);
+  const bytes = Buffer.from('g5-b2-valid-evidence');
+
+  try {
+    await file.save(bytes, { resumable: false });
+    const [metadata] = await file.getMetadata();
+    assert.match(String(metadata.generation), /^[1-9]\d*$/);
+
+    await Promise.all([
+      x.report.set({ status: 'resolved', evidencePreservationStatus: 'PRESERVED' }),
+      x.evidence.set({
+        storagePath: path,
+        evidenceGeneration: metadata.generation,
+        retentionStatus: 'LEGAL_REVIEW_REQUIRED',
+      }),
+      x.job.set({ status: 'CLEANUP_PENDING' }),
+    ]);
+
+    await releaseModerationEvidence(
+      x.reportId, 'LEGAL_RETENTION_RELEASED'
+    );
+
+    assert.equal((await file.exists())[0], false);
+    assert.equal((await x.evidence.get()).exists, false);
+    assert.equal((await x.job.get()).exists, false);
+    assert.equal((await x.report.get()).get('evidencePreservationStatus'), 'RELEASED');
+  } finally {
+    await Promise.allSettled([
+      file.delete({ ignoreNotFound: true }),
+      x.report.delete(), x.evidence.delete(), x.job.delete(),
+    ]);
+  }
+});
+
+test('G5-B2: release rejects a replaced generation', async () => {
+  const x = refs();
+  const path = `system/moderation-evidence/${x.reportId}/video`;
+  const file = getDefaultStorageBucket().file(path);
+
+  try {
+    await file.save(Buffer.from('original-evidence'), { resumable: false });
+    const [original] = await file.getMetadata();
+
+    await Promise.all([
+      x.report.set({ status: 'resolved', evidencePreservationStatus: 'PRESERVED' }),
+      x.evidence.set({
+        storagePath: path,
+        evidenceGeneration: original.generation,
+        retentionStatus: 'LEGAL_REVIEW_REQUIRED',
+      }),
+      x.job.set({ status: 'CLEANUP_PENDING' }),
+    ]);
+
+    await file.save(Buffer.from('replaced-evidence'), { resumable: false });
+    const [replacement] = await file.getMetadata();
+
+    assert.notEqual(
+      String(replacement.generation), String(original.generation)
+    );
+
+    await assert.rejects(
+      releaseModerationEvidence(x.reportId, 'LEGAL_RETENTION_RELEASED'),
+      /Objeto probatório inesperado ou substituído/
+    );
+
+    assert.equal((await x.report.get()).get('evidencePreservationStatus'), 'RELEASING');
+    assert.equal((await x.evidence.get()).exists, true);
+    assert.equal((await x.job.get()).exists, true);
+    assert.deepEqual((await file.download())[0], Buffer.from('replaced-evidence'));
+  } finally {
+    await Promise.allSettled([
+      file.delete({ ignoreNotFound: true }),
+      x.report.delete(), x.evidence.delete(), x.job.delete(),
+    ]);
+  }
+});
+
+test('G5-B2: HTTP 412 cannot acknowledge evidence release', async () => {
+  const x = refs();
+  const path = `system/moderation-evidence/${x.reportId}/video`;
+  const generation = '123456789';
+  const originalBucket = storage.bucket;
+  let deletionAttempted = false;
+
+  await Promise.all([
+    x.report.set({ status: 'resolved', evidencePreservationStatus: 'PRESERVED' }),
+    x.evidence.set({
+      storagePath: path,
+      evidenceGeneration: generation,
+      retentionStatus: 'LEGAL_REVIEW_REQUIRED',
+    }),
+    x.job.set({ status: 'CLEANUP_PENDING' }),
+  ]);
+
+  const fakeBucket = {
+    file: (requestedPath: string) => ({
+      getMetadata: async () => {
+        if (requestedPath !== path) {
+          throw Object.assign(new Error('Not Found'), { code: 404 });
+        }
+        return [{ generation }];
+      },
+      delete: async (options: { ifGenerationMatch?: string }) => {
+        assert.equal(requestedPath, path);
+        assert.equal(options.ifGenerationMatch, generation);
+        deletionAttempted = true;
+        throw Object.assign(new Error('Precondition Failed'), { code: 412 });
+      },
+    }),
+  } as unknown as ReturnType<typeof storage.bucket>;
+
+  try {
+    storage.bucket = (() => fakeBucket) as typeof storage.bucket;
+
+    await assert.rejects(
+      releaseModerationEvidence(x.reportId, 'LEGAL_RETENTION_RELEASED'),
+      /generation conflict/i
+    );
+
+    assert.equal(deletionAttempted, true);
+    assert.equal((await x.report.get()).get('evidencePreservationStatus'), 'RELEASING');
+    assert.equal((await x.evidence.get()).exists, true);
+    assert.equal((await x.job.get()).exists, true);
+  } finally {
+    storage.bucket = originalBucket;
+    await Promise.allSettled([
+      x.report.delete(), x.evidence.delete(), x.job.delete(),
+    ]);
+  }
+});
+
+// G5-B3: Firestore real do emulador + respostas GCS controladas.
+async function g5B3PreserveWithStorageRace(input: {
+  reportReleased: boolean;
+  copyGeneration: string | null;
+  observedGeneration: string;
+  copyError412?: boolean;
+}) {
+  const x = refs();
+  const ownerUid = 'owner-' + randomUUID().slice(0, 12);
+  const mediaId = 'media-' + randomUUID().slice(0, 12);
+  const sourcePath = `users/${ownerUid}/published/videos/${mediaId}/assets/v1`;
+  const destinationPath = `system/moderation-evidence/${x.reportId}/video`;
+  const sourceMeta = {
+    generation: '31', crc32c: 'iC49yg==', md5Hash: 'same-md5',
+    size: '24', contentType: 'video/mp4',
+  };
+  const destinationMeta = { ...sourceMeta, generation: input.observedGeneration };
+  const originalBucket = storage.bucket;
+  const deletes: unknown[] = [];
+  let copies = 0;
+  const fakeBucket = {
+    file: (path: string, opts?: { generation?: string }) => {
+      if (path === sourcePath) {
+        if (opts?.generation) assert.equal(opts.generation, sourceMeta.generation);
+        return {
+          exists: async () => [true],
+          getMetadata: async () => [sourceMeta],
+          copy: async (_destination: unknown, copyOpts: {
+            preconditionOpts: { ifGenerationMatch: number };
+          }) => {
+            copies++;
+            assert.equal(copyOpts.preconditionOpts.ifGenerationMatch, 0);
+            if (input.copyError412) {
+              throw Object.assign(new Error('Precondition Failed'), { code: 412 });
+            }
+            if (input.reportReleased) {
+              await x.report.update({status:'rejected',evidencePreservationStatus:'RELEASED'});
+            }
+            return [{ metadata: undefined }, input.copyGeneration
+              ? { generation: input.copyGeneration } : {}];
+          },
+        };
+      }
+      assert.equal(path, destinationPath);
+      return {
+        exists: async () => [false],
+        getMetadata: async () => [destinationMeta],
+        delete: async (deleteOpts: unknown) => {
+          deletes.push(deleteOpts);
+          return [{}];
+        },
+      };
+    },
+  } as unknown as ReturnType<typeof storage.bucket>;
+
+  try {
+    await Promise.all([
+      x.job.set({
+        reportId: x.reportId, ownerUid, mediaId, mediaType: 'VIDEO',
+        reason: 'illegal_content', sourceStoragePath: sourcePath,
+        status: 'PENDING', attempts: 0, createdAt: Date.now(), updatedAt: Date.now(),
+      }),
+      x.report.set({
+        status: 'open',
+        evidencePreservationStatus: 'PENDING',
+      }),
+    ]);
+    storage.bucket = (() => fakeBucket) as typeof storage.bucket;
+    let caught: unknown = null;
+    try { await preserveModerationEvidence(x.reportId); }
+    catch (error) { caught = error; }
+    return {
+      error: caught, copies, deletes,
+      evidence: await x.evidence.get(), report: await x.report.get(),
+    };
+  } finally {
+    storage.bucket = originalBucket;
+    await Promise.allSettled([x.report.delete(), x.evidence.delete(), x.job.delete()]);
+  }
+}
+
+test('G5-B3: unknown copy generation must not delete successor', async () => {
+  const r = await g5B3PreserveWithStorageRace({
+    reportReleased: true, copyGeneration: null, observedGeneration: '73',
+  });
+  assert.equal(r.copies, 1);
+  assert.match(String(r.error), /Geração da cópia não comprovada/);
+  assert.deepEqual(r.deletes, []);
+  assert.equal(r.evidence.exists, false);
+  assert.equal(r.report.get('evidencePreservationStatus'), 'RELEASED');
+});
+
+test('G5-B3: replaced copy version with matching checksum is rejected', async () => {
+  const r = await g5B3PreserveWithStorageRace({
+    reportReleased: false, copyGeneration: '71', observedGeneration: '72',
+  });
+  assert.equal(r.copies, 1);
+  assert.match(String(r.error), /substituída/);
+  assert.deepEqual(r.deletes, []);
+  assert.equal(r.evidence.exists, false);
+  assert.equal(r.report.get('evidencePreservationStatus'), 'PENDING');
+});
+
+test('G5-B3: proven copy generation pins released cleanup', async () => {
+  const r = await g5B3PreserveWithStorageRace({
+    reportReleased: true, copyGeneration: '71', observedGeneration: '71',
+  });
+  assert.equal(r.copies, 1);
+  assert.equal(r.error, null);
+  assert.deepEqual(r.deletes, [{ ignoreNotFound: true, ifGenerationMatch: '71' }]);
+  assert.equal(r.evidence.exists, false);
+});
+
+test('G5-B3: simultaneous create 412 verifies winner evidence', async () => {
+  const r = await g5B3PreserveWithStorageRace({
+    reportReleased: false, copyGeneration: null,
+    observedGeneration: '72', copyError412: true,
+  });
+  assert.equal(r.copies, 1);
+  assert.equal(r.error, null);
+  assert.equal(r.evidence.exists, true);
+  assert.equal(r.evidence.get('evidenceGeneration'), '72');
+  assert.equal(r.report.get('evidencePreservationStatus'), 'PRESERVED');
+  assert.deepEqual(r.deletes, []);
+});
+
+// Real Firestore transaction races: release always wins as the final state.
+for (const blocked of [false, true]) {
+  test(`G5-B4.1: ${blocked ? 'blocked' : 'valid'} stage cannot rearm release`, async () => {
+    const x = refs();
+    const ownerUid = 'owner-' + randomUUID().slice(0, 12);
+    const mediaId = 'media-' + randomUUID().slice(0, 12);
+    const now = Date.now();
+    try {
+      await x.report.set({status: 'open', evidencePreservationStatus: 'PENDING'});
+      await Promise.all([
+        stageModerationEvidenceJobInFirestore(db, x.reportId, {
+          reportId: x.reportId, mediaType: 'VIDEO', ownerUid, mediaId,
+          reason: 'illegal_content', sourceStoragePath: blocked ? null :
+            `users/${ownerUid}/published/videos/${mediaId}/assets/v1`,
+          status: blocked ? 'BLOCKED_SOURCE_PATH' : 'PENDING', attempts: 0,
+          createdAt: now, updatedAt: now,
+          lastErrorCode: blocked ? 'INVALID_SOURCE_PATH' : null,
+        }),
+        db.runTransaction(async tx => {
+          const [report, job] = await Promise.all([tx.get(x.report), tx.get(x.job)]);
+          assert.equal(report.exists, true);
+          if (job.exists) tx.delete(x.job);
+          tx.update(x.report, {status: 'rejected', evidencePreservationStatus: 'RELEASED'});
+        }),
+      ]);
+      assert.equal((await x.report.get()).get('evidencePreservationStatus'), 'RELEASED');
+      assert.equal((await x.job.get()).exists, false);
+    } finally {
+      await Promise.allSettled([x.report.delete(),x.job.delete(),x.evidence.delete()]);
+    }
+  });
+}
+
+test('G5-B4.1: stale failure cannot undo release', async () => {
+  const x = refs();
+  try {
+    await Promise.all([
+      x.report.set({status: 'open', evidencePreservationStatus: 'PENDING'}),
+      x.job.set({status: 'PENDING', attempts: 0}),
+    ]);
+    await Promise.all([
+      recordPreservationFailureInFirestore(db,x.reportId),
+      db.runTransaction(async tx => {
+        const [report, job] = await Promise.all([tx.get(x.report),tx.get(x.job)]);
+        assert.equal(report.exists,true);
+        if (job.exists) tx.delete(x.job);
+        tx.update(x.report,{status:'rejected',evidencePreservationStatus:'RELEASED'});
+      }),
+    ]);
+    assert.equal((await x.report.get()).get('evidencePreservationStatus'),'RELEASED');
+    assert.equal((await x.job.get()).exists,false);
+  } finally {
+    await Promise.allSettled([x.report.delete(),x.job.delete(),x.evidence.delete()]);
+  }
+});
+
+test('G5-B4.2: failing GCS delete retains RELEASING and a durable obligation', async () => {
+  const x=refs();
+  const path=`system/moderation-evidence/${x.reportId}/video`;
+  const file=getDefaultStorageBucket().file(path);
+  const originalBucket=storage.bucket;
+  try {
+    await file.save(Buffer.from('release-crash'),{resumable:false});
+    const [metadata]=await file.getMetadata();
+    await Promise.all([
+      x.report.set({status:'resolved',evidencePreservationStatus:'PRESERVED'}),
+      x.evidence.set({storagePath:path,evidenceGeneration:metadata.generation}),
+      x.job.set({status:'CLEANUP_PENDING'}),
+    ]);
+    const realBucket=originalBucket.call(storage);
+    const fakeBucket={
+      file:(p:string)=>({
+        getMetadata:()=>realBucket.file(p).getMetadata(),
+        delete:async()=>{throw Object.assign(new Error('GCS temporarily unavailable'),{code:503})},
+      }),
+    } as unknown as ReturnType<typeof storage.bucket>;
+    storage.bucket=(()=>fakeBucket) as typeof storage.bucket;
+    await assert.rejects(releaseModerationEvidence(x.reportId,'LEGAL_RETENTION_RELEASED'),/GCS temporarily unavailable/);
+    assert.equal((await x.report.get()).get('evidencePreservationStatus'),'RELEASING');
+    assert.equal((await x.evidence.get()).exists,true);
+    assert.equal((await x.job.get()).exists,true);
+    assert.equal((await file.exists())[0],true);
+    storage.bucket=originalBucket;
+    await releaseModerationEvidence(x.reportId,'LEGAL_RETENTION_RELEASED');
+    assert.equal((await x.report.get()).get('evidencePreservationStatus'),'RELEASED');
+    assert.equal((await x.evidence.get()).exists,false);
+    assert.equal((await file.exists())[0],false);
+  } finally {
+    storage.bucket=originalBucket;
+    await Promise.allSettled([file.delete({ignoreNotFound:true}),x.report.delete(),x.job.delete(),x.evidence.delete()]);
+  }
+});
+
+test('G5-B4.2: resume release after physical deletion and before Firestore commit',async()=>{
+  const x=refs();
+  const path=`system/moderation-evidence/${x.reportId}/photo`;
+  try {
+    await Promise.all([
+      x.report.set({status:'resolved',evidencePreservationStatus:'RELEASING',evidenceReleaseReason:'LEGAL_RETENTION_RELEASED'}),
+      x.evidence.set({storagePath:path,evidenceGeneration:'700001'}),
+      x.job.set({status:'CLEANUP_PENDING'}),
+    ]);
+    await releaseModerationEvidence(x.reportId,'LEGAL_RETENTION_RELEASED');
+    assert.equal((await x.report.get()).get('evidencePreservationStatus'),'RELEASED');
+    assert.equal((await x.evidence.get()).exists,false);
+    assert.equal((await x.job.get()).exists,false);
+  } finally {
+    await Promise.allSettled([x.report.delete(),x.job.delete(),x.evidence.delete()]);
+  }
+});
+
+test('G5-B4.2: active claim blocks physical release until closed',async()=>{
+  const x=refs();
+  const now=Date.now();
+  const job={createdAt:now,ownerUid:'owner-test',mediaId:'media-test',mediaType:'VIDEO' as const,
+    sourceStoragePath:'users/owner-test/published/videos/media-test/assets/v1'};
+  try {
+    await Promise.all([
+      x.report.set({status:'open',evidencePreservationStatus:'PENDING'}),
+      x.job.set({...job,status:'PENDING',attempts:0,reportId:x.reportId,activePreservationOps:0}),
+    ]);
+    assert.equal(await beginModerationEvidencePreservationAttemptInFirestore(db,x.reportId,job),true);
+    await assert.rejects(releaseModerationEvidence(x.reportId,'REPORT_REJECTED'),/Preservação ativa/);
+    assert.equal((await x.report.get()).get('evidencePreservationStatus'),'RELEASING');
+    assert.equal((await x.job.get()).get('activePreservationOps'),1);
+    assert.equal(await beginModerationEvidencePreservationAttemptInFirestore(db,x.reportId,job),false);
+    await endModerationEvidencePreservationAttemptInFirestore(db,x.reportId,job);
+    assert.equal((await x.job.get()).exists,false);
+    await releaseModerationEvidence(x.reportId,'REPORT_REJECTED');
+    assert.equal((await x.report.get()).get('evidencePreservationStatus'),'RELEASED');
+  } finally {
+    await Promise.allSettled([x.report.delete(),x.job.delete(),x.evidence.delete()]);
+  }
+});
+
+test('G5-B4.2: no claim may start after release intent, even on stale PENDING job',async()=>{
+  const x=refs();
+  const now=Date.now();
+  const job={createdAt:now,ownerUid:'owner-a',mediaId:'media-b',mediaType:'VIDEO' as const,
+    sourceStoragePath:'users/owner-a/published/videos/media-b/assets/v1'};
+  try {
+    await Promise.all([
+      x.report.set({status:'open',evidencePreservationStatus:'RELEASING',evidenceReleaseReason:'REPORT_REJECTED'}),
+      x.job.set({...job,status:'PENDING',attempts:0,reportId:x.reportId,activePreservationOps:0}),
+    ]);
+    assert.equal(await beginModerationEvidencePreservationAttemptInFirestore(db,x.reportId,job),false);
+    await releaseModerationEvidence(x.reportId,'REPORT_REJECTED');
+    assert.equal((await x.report.get()).get('evidencePreservationStatus'),'RELEASED');
+    assert.equal((await x.job.get()).exists,false);
+  } finally {
+    await Promise.allSettled([x.report.delete(),x.job.delete(),x.evidence.delete()]);
+  }
+});
+
+test('G5-B4.2: unrecorded object cannot be acknowledged as released',async()=>{
+  const x=refs();
+  const path=`system/moderation-evidence/${x.reportId}/video`;
+  const file=getDefaultStorageBucket().file(path);
+  try {
+    await file.save(Buffer.from('unowned-object'),{resumable:false});
+    await x.report.set({status:'open',evidencePreservationStatus:'PENDING'});
+    await assert.rejects(releaseModerationEvidence(x.reportId,'REPORT_REJECTED'),/Objeto probatório inesperado/);
+    assert.equal((await x.report.get()).get('evidencePreservationStatus'),'RELEASING');
+    assert.equal((await file.exists())[0],true);
+  } finally {
+    await Promise.allSettled([file.delete({ignoreNotFound:true}),x.report.delete(),x.job.delete(),x.evidence.delete()]);
+  }
 });

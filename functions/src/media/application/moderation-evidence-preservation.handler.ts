@@ -10,6 +10,7 @@ import {
   MODERATION_EVIDENCE_JOBS_COLLECTION,
   preserveModerationEvidence,
   rearmBlockedModerationEvidenceFromPublication,
+  releaseModerationEvidence,
 } from './moderation-evidence-preservation.service';
 
 const RETRY_BATCH_SIZE = 20;
@@ -31,6 +32,7 @@ function matchingCleanupIdentity(
   identity: CleanupIdentity
 ): boolean {
   return job.exists &&
+    (job.get('activePreservationOps') ?? 0) === 0 &&
     job.get('status') === 'CLEANUP_PENDING' &&
     job.get('ownerUid') === identity.ownerUid &&
     job.get('mediaId') === identity.mediaId &&
@@ -179,6 +181,35 @@ export const retryPendingModerationEvidencePreservation = onSchedule(
           error: error instanceof Error ? error.message.slice(0, 500) : String(error),
         });
       }
+    }
+
+    // Paginate by document ID: one permanently blocked release must not starve others.
+    let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+    for (let page = 0; page < 10; page++) {
+      let q = db.collection('moderation_reports')
+        .where('evidencePreservationStatus', '==', 'RELEASING')
+        .orderBy('__name__').limit(RETRY_BATCH_SIZE);
+      if (cursor) q = q.startAfter(cursor);
+      const releases = await q.get();
+      for (const report of releases.docs) {
+        try {
+          const reason = report.get('evidenceReleaseReason');
+          if (reason !== 'REPORT_REJECTED' && reason !== 'LEGAL_RETENTION_RELEASED') {
+            logger.error('[retryPendingModerationEvidencePreservation] Motivo de liberação inválido.', {
+              reportId: report.id,
+            });
+            continue;
+          }
+          await releaseModerationEvidence(report.id, reason);
+        } catch (error) {
+          logger.error('[retryPendingModerationEvidencePreservation] Liberação pendente.', {
+            reportId: report.id,
+            error: error instanceof Error ? error.message.slice(0, 500) : String(error),
+          });
+        }
+      }
+      if (releases.empty || releases.size < RETRY_BATCH_SIZE) break;
+      cursor = releases.docs[releases.docs.length - 1];
     }
 
     for (const jobDoc of jobsSnapshot.docs) {

@@ -8,6 +8,10 @@ import {
   shouldPreserveMediaEvidence,
   type MediaReportSafetyReason,
 } from './media-report-safety';
+import {
+  deleteGenerationPinnedVideoFile,
+  normalizeGcsGeneration,
+} from './video-deletion-storage-pages';
 
 export type ModerationEvidenceMediaType = 'PHOTO' | 'VIDEO';
 
@@ -32,6 +36,7 @@ interface ModerationEvidenceJob {
   createdAt: number;
   updatedAt: number;
   lastErrorCode: string | null;
+  activePreservationOps?: number;
 }
 
 type PreservationFinalizeResult =
@@ -77,44 +82,58 @@ function isReleasedReport(report: FirebaseFirestore.DocumentData | undefined): b
     .trim()
     .toUpperCase();
 
-  return status === 'rejected' || evidenceStatus === 'RELEASED';
+  return status === 'rejected' || evidenceStatus === 'RELEASED' || evidenceStatus === 'RELEASING';
 }
 
-async function recordPreservationFailure(
-  reportId: string,
-  error: unknown
-): Promise<void> {
-  const jobRef = db.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId);
-  const reportRef = db.collection('moderation_reports').doc(reportId);
-  const reportSnap = await reportRef.get();
+/** Stage jobs and PENDING together, conditional on the live report state. */
+export async function stageModerationEvidenceJobInFirestore(
+  firestore: Firestore, reportId: string, job: ModerationEvidenceJob
+): Promise<boolean> {
+  const jobRef = firestore.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId);
+  const reportRef = firestore.collection('moderation_reports').doc(reportId);
+  return firestore.runTransaction(async (tx) => {
+    const [report, previousJob] = await Promise.all([tx.get(reportRef), tx.get(jobRef)]);
+    const status = String(report.get('evidencePreservationStatus') ?? '').trim().toUpperCase();
+    if (!report.exists || isReleasedReport(report.data()) || status === 'PRESERVED' ||
+        (previousJob.exists && (previousJob.get('status') === 'CLEANUP_PENDING' ||
+          activeOps(previousJob) > 0))) return false;
+    tx.set(jobRef, job, { merge: true });
+    tx.set(reportRef, {
+      evidencePreservationStatus: 'PENDING',
+      evidencePreservationUpdatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return true;
+  });
+}
 
-  if (!reportSnap.exists || isReleasedReport(reportSnap.data())) {
-    await jobRef.delete().catch(() => undefined);
-    return;
-  }
+/** A late failure cannot recreate jobs or revert preserved/released reports. */
+export async function recordPreservationFailureInFirestore(
+  firestore: Firestore, reportId: string
+): Promise<boolean> {
+  const jobRef = firestore.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId);
+  const reportRef = firestore.collection('moderation_reports').doc(reportId);
+  return firestore.runTransaction(async (tx) => {
+    const [report, job] = await Promise.all([tx.get(reportRef), tx.get(jobRef)]);
+    const status = String(report.get('evidencePreservationStatus') ?? '').trim().toUpperCase();
+    if (!report.exists || isReleasedReport(report.data()) || status === 'PRESERVED' ||
+        !job.exists || job.get('status') !== 'PENDING') return false;
+    tx.set(jobRef, {
+      attempts: FieldValue.increment(1), updatedAt: Date.now(),
+      lastErrorCode: 'PRESERVATION_FAILED',
+    }, { merge: true });
+    tx.set(reportRef, {
+      evidencePreservationStatus: 'PENDING',
+      evidencePreservationUpdatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return true;
+  });
+}
 
-  await Promise.allSettled([
-    jobRef.set(
-      {
-        attempts: FieldValue.increment(1),
-        updatedAt: Date.now(),
-        lastErrorCode: 'PRESERVATION_FAILED',
-      },
-      { merge: true }
-    ),
-    reportRef.set(
-      {
-        evidencePreservationStatus: 'PENDING',
-        evidencePreservationUpdatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    ),
-  ]);
-
+async function recordPreservationFailure(reportId: string, error: unknown): Promise<void> {
+  if (!await recordPreservationFailureInFirestore(db, reportId)) return;
   logger.error('[moderationEvidence] Preservação pendente.', {
     reportId,
-    error: error instanceof Error
-      ? error.message.slice(0, 500)
+    error: error instanceof Error ? error.message.slice(0, 500)
       : String(error ?? '').slice(0, 500),
   });
 }
@@ -150,34 +169,17 @@ export async function queueModerationEvidencePreservation(
   );
 
   if (!sourceStoragePath) {
-    // Durable blocked job: never silently leave a PENDING report without a
-    // corresponding record. A later valid request may replace/rearm this job.
     const now = Date.now();
-    const batch = db.batch();
-    batch.set(db.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId), {
-      reportId,
-      mediaType: input.mediaType,
-      ownerUid,
-      mediaId,
-      reason: input.reason,
-      sourceStoragePath: null,
-      status: 'BLOCKED_SOURCE_PATH',
-      updatedAt: now,
-      createdAt: now,
-      lastErrorCode: 'INVALID_SOURCE_PATH',
-    }, { merge: true });
-    batch.set(reportRef, {
-      evidencePreservationStatus: 'PENDING',
-      evidencePreservationUpdatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-    await batch.commit();
-
-    logger.error('[moderationEvidence] Source path inválido para preservação.', {
-      reportId,
-      mediaType: input.mediaType,
-      ownerUid,
-      mediaId,
+    const staged = await stageModerationEvidenceJobInFirestore(db, reportId, {
+      reportId, mediaType: input.mediaType, ownerUid, mediaId, reason: input.reason,
+      sourceStoragePath: null, status: 'BLOCKED_SOURCE_PATH', attempts: 0,
+      createdAt: now, updatedAt: now, lastErrorCode: 'INVALID_SOURCE_PATH',
     });
+    if (staged) {
+      logger.error('[moderationEvidence] Source path inválido para preservação.', {
+        reportId, mediaType: input.mediaType, ownerUid, mediaId,
+      });
+    }
     return { required: true, preserved: false };
   }
 
@@ -196,17 +198,8 @@ export async function queueModerationEvidencePreservation(
     lastErrorCode: null,
   };
 
-  await db.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId).set(
-    job,
-    { merge: true }
-  );
-  await reportRef.set(
-    {
-      evidencePreservationStatus: 'PENDING',
-      evidencePreservationUpdatedAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
+  const staged = await stageModerationEvidenceJobInFirestore(db, reportId, job);
+  if (!staged) return { required: true, preserved: false };
 
   try {
     await preserveModerationEvidence(reportId);
@@ -273,6 +266,73 @@ export async function rearmBlockedModerationEvidenceInFirestore(
   });
 }
 
+type PreservationAttemptIdentity = Pick<ModerationEvidenceJob,
+  'createdAt' | 'ownerUid' | 'mediaId' | 'mediaType' | 'sourceStoragePath'>;
+
+function activeOps(snapshot: FirebaseFirestore.DocumentSnapshot): number {
+  const raw = snapshot.get('activePreservationOps') ?? 0;
+  if (typeof raw !== 'number' || !Number.isSafeInteger(raw) || raw < 0) {
+    throw new Error('Contador de preservações ativo inválido; revisão manual necessária.');
+  }
+  return raw;
+}
+
+/** Claim is serialized against the RELEASING transition. No claim, no GCS copy. */
+export async function beginModerationEvidencePreservationAttemptInFirestore(
+  firestore: Firestore, reportId: string, identity: PreservationAttemptIdentity
+): Promise<boolean> {
+  const reportRef = firestore.collection('moderation_reports').doc(reportId);
+  const jobRef = firestore.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId);
+  return firestore.runTransaction(async tx => {
+    const [report, job] = await Promise.all([tx.get(reportRef), tx.get(jobRef)]);
+    if (!report.exists || isReleasedReport(report.data()) || !job.exists ||
+        job.get('status') !== 'PENDING' ||
+        String(report.get('evidencePreservationStatus') ?? '').toUpperCase() === 'PRESERVED' ||
+        job.get('createdAt') !== identity.createdAt ||
+        job.get('ownerUid') !== identity.ownerUid ||
+        job.get('mediaId') !== identity.mediaId ||
+        job.get('mediaType') !== identity.mediaType ||
+        job.get('sourceStoragePath') !== identity.sourceStoragePath) return false;
+    tx.update(jobRef, { activePreservationOps: activeOps(job) + 1 });
+    return true;
+  });
+}
+
+/** Release the claim only after all copy/cleanup operations have completed. */
+export async function endModerationEvidencePreservationAttemptInFirestore(
+  firestore: Firestore, reportId: string, identity: PreservationAttemptIdentity
+): Promise<void> {
+  const reportRef = firestore.collection('moderation_reports').doc(reportId);
+  const jobRef = firestore.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId);
+  await firestore.runTransaction(async tx => {
+    const [report, job] = await Promise.all([tx.get(reportRef), tx.get(jobRef)]);
+    if (!job.exists) {
+      if (report.get('evidencePreservationStatus') === 'RELEASING') {
+        throw new Error('Claim de preservação ausente durante liberação; revisão necessária.');
+      }
+      return;
+    }
+    if (job.get('createdAt') !== identity.createdAt ||
+        job.get('ownerUid') !== identity.ownerUid ||
+        job.get('mediaId') !== identity.mediaId) {
+      throw new Error('Identidade de tentativa probatória substituída; revisão necessária.');
+    }
+    const active = activeOps(job);
+    if (active === 0) throw new Error('Contador de preservações inconsistentes.');
+    if (active > 1) {
+      tx.update(jobRef, { activePreservationOps: active - 1 });
+      return;
+    }
+    const reportStatus = String(report.get('evidencePreservationStatus') ?? '').toUpperCase();
+    if (reportStatus === 'RELEASING' || reportStatus === 'RELEASED' ||
+        (reportStatus === 'PRESERVED' && job.get('status') !== 'CLEANUP_PENDING')) {
+      tx.delete(jobRef);
+    } else {
+      tx.update(jobRef, { activePreservationOps: 0 });
+    }
+  });
+}
+
 export async function preserveModerationEvidence(
   reportIdValue: unknown
 ): Promise<void> {
@@ -304,6 +364,8 @@ export async function preserveModerationEvidence(
     throw new Error('Job de preservação contém referências inválidas.');
   }
 
+  if (!await beginModerationEvidencePreservationAttemptInFirestore(db, reportId, job)) return;
+  try {
   const bucket = storage.bucket();
   const sourceFile = bucket.file(sourceStoragePath);
   const destinationPath = evidenceStoragePath(reportId, job.mediaType);
@@ -315,13 +377,56 @@ export async function preserveModerationEvidence(
   }
 
   const [sourceMetadata] = await sourceFile.getMetadata();
+  const sourceGeneration = normalizeGcsGeneration(sourceMetadata.generation);
+  if (!sourceGeneration) {
+    throw new Error('Geração da origem probatória indisponível; revisão manual necessária.');
+  }
   const [destinationExists] = await destinationFile.exists();
+  let createdEvidenceGeneration: string | null = null;
+  let copyCompletedInThisAttempt = false;
 
   if (!destinationExists) {
-    await sourceFile.copy(destinationFile);
+    try {
+      // Atomic destination creation; pin exactly the observed source generation.
+      const [copiedFile, copyApiResponse] = await bucket.file(sourceStoragePath, {
+        generation: sourceGeneration,
+      }).copy(destinationFile, {
+        preconditionOpts: { ifGenerationMatch: 0 },
+      });
+      copyCompletedInThisAttempt = true;
+      // Apenas a resposta da cópia pode provar a geração criada por este request.
+      const apiObject = copyApiResponse as {
+        generation?: unknown; resource?: { generation?: unknown };
+      } | null | undefined;
+      const apiGeneration = normalizeGcsGeneration(
+        apiObject?.resource?.generation ?? apiObject?.generation
+      );
+      const fileGeneration = normalizeGcsGeneration(copiedFile.metadata?.generation);
+      if (apiGeneration && fileGeneration && apiGeneration !== fileGeneration) {
+        throw new Error('Gerações divergentes no retorno da cópia probatória; revisão necessária.');
+      }
+      createdEvidenceGeneration = apiGeneration ?? fileGeneration;
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error
+        ? Number(error.code) : null;
+      // A parallel create-only copy won; verify its bytes rather than overwrite it.
+      if (code !== 412) throw error;
+    }
   }
 
   const [evidenceMetadata] = await destinationFile.getMetadata();
+  const observedEvidenceGeneration =
+    normalizeGcsGeneration(evidenceMetadata.generation);
+
+  // getMetadata observa a versão atual; jamais prova a autoria da cópia.
+  // Uma substituição física após File.copy() não pode habilitar exclusão.
+  if (!observedEvidenceGeneration ||
+      (createdEvidenceGeneration &&
+       observedEvidenceGeneration !== createdEvidenceGeneration)) {
+    throw new Error(
+      'Geração da cópia probatória indisponível ou substituída; revisão necessária.'
+    );
+  }
   // Existing evidence must never be accepted merely because its object exists.
   // Otherwise a previous partial attempt or concurrent copy could bless
   // unrelated bytes and enable deletion of the reported publication.
@@ -331,7 +436,8 @@ export async function preserveModerationEvidence(
   const evidenceCrc32c = safeMetadataString(evidenceMetadata.crc32c);
   if (
     (sourceMd5 && evidenceMd5 && sourceMd5 !== evidenceMd5) ||
-    (sourceCrc32c && evidenceCrc32c && sourceCrc32c !== evidenceCrc32c) ||
+    !sourceCrc32c || !evidenceCrc32c ||
+    sourceCrc32c !== evidenceCrc32c ||
     Number(sourceMetadata.size) !== Number(evidenceMetadata.size)
   ) {
     throw new Error('Evidência preservada diverge do arquivo denunciado.');
@@ -357,8 +463,6 @@ export async function preserveModerationEvidence(
         if (currentJobSnap.exists) {
           if (String(report?.moderationAction ?? '').toUpperCase() === 'REMOVE') {
             transaction.update(jobRef, { status: 'CLEANUP_PENDING', updatedAt: Date.now() });
-          } else {
-            transaction.delete(jobRef);
           }
         }
         return 'ALREADY_PRESERVED';
@@ -403,15 +507,23 @@ export async function preserveModerationEvidence(
       );
       if (String(report?.moderationAction ?? '').toUpperCase() === 'REMOVE') {
         transaction.update(jobRef, { status: 'CLEANUP_PENDING', updatedAt: Date.now() });
-      } else {
-        transaction.delete(jobRef);
       }
       return 'PRESERVED';
     }
   );
 
-  if (finalizeResult === 'RELEASED') {
-    await destinationFile.delete({ ignoreNotFound: true });
+  if (finalizeResult === 'RELEASED' && copyCompletedInThisAttempt) {
+    if (!createdEvidenceGeneration) {
+      // Não excluir uma versão que não se pode atribuir à cópia deste request.
+      throw new Error('Geração da cópia não comprovada; limpeza manual necessária.');
+    }
+    // Never clean up a generation created by another worker.
+    await deleteGenerationPinnedVideoFile(createdEvidenceGeneration, (generation) =>
+      destinationFile.delete({ ignoreNotFound: true, ifGenerationMatch: generation })
+    );
+  }
+  } finally {
+    await endModerationEvidencePreservationAttemptInFirestore(db, reportId, job);
   }
 }
 
@@ -469,52 +581,138 @@ export async function ensurePreservedModerationCleanupJob(
   });
 }
 
+export type ModerationEvidenceReleaseReason = 'REPORT_REJECTED' | 'LEGAL_RETENTION_RELEASED';
+
 export async function releaseModerationEvidence(
   reportIdValue: unknown,
-  releaseReason: 'REPORT_REJECTED' | 'LEGAL_RETENTION_RELEASED'
+  releaseReason: ModerationEvidenceReleaseReason
 ): Promise<void> {
   const reportId = cleanId(reportIdValue);
-
-  if (!reportId) {
-    return;
-  }
+  if (!reportId) return;
 
   const evidenceRef = db.collection(MODERATION_EVIDENCE_COLLECTION).doc(reportId);
-  const evidenceSnap = await evidenceRef.get();
-  const storagePath = evidenceSnap.exists
-    ? String(evidenceSnap.data()?.storagePath ?? '').trim()
-    : '';
-  const bucket = storage.bucket();
-  const deterministicPaths = [
+  const jobRef = db.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId);
+  const reportRef = db.collection('moderation_reports').doc(reportId);
+  const paths = [
     `system/moderation-evidence/${reportId}/photo`,
     `system/moderation-evidence/${reportId}/video`,
   ];
-  const pathsToDelete = new Set(
-    [storagePath, ...deterministicPaths].filter((path) =>
-      path.startsWith(`system/moderation-evidence/${reportId}/`)
-    )
-  );
 
-  // Do not claim the evidence was released if any protected object could
-  // not be deleted. A failed release remains retryable with its Firestore
-  // evidence reference and retention status intact.
-  await Promise.all(
-    [...pathsToDelete].map((path) =>
-      bucket.file(path).delete({ ignoreNotFound: true })
-    )
-  );
+  // Phase 1: persist intent and stop all new copy claims atomically.
+  const stage = await db.runTransaction(async tx => {
+    const [report, job, evidence] = await Promise.all([
+      tx.get(reportRef), tx.get(jobRef), tx.get(evidenceRef),
+    ]);
+    if (!report.exists) throw new Error('Relatório ausente durante liberação probatória.');
+    const status = String(report.get('evidencePreservationStatus') ?? '').toUpperCase();
+    if (status === 'RELEASED') {
+      if (evidence.exists || job.exists) {
+        throw new Error('Liberação marcada como concluída com obrigação remanescente.');
+      }
+      return 'DONE' as const;
+    }
+    if (status === 'RELEASING' && report.get('evidenceReleaseReason') !== releaseReason) {
+      throw new Error('Motivo de liberação divergente; revisão manual necessária.');
+    }
+    if (status === 'PRESERVED' && !evidence.exists) {
+      throw new Error('Registro de evidência preservada ausente; revisão necessária.');
+    }
+    const recordedPath = evidence.exists ? String(evidence.get('storagePath') ?? '').trim() : '';
+    const recordedGeneration = evidence.exists
+      ? normalizeGcsGeneration(evidence.get('evidenceGeneration')) : null;
+    if (evidence.exists && (!paths.includes(recordedPath) || !recordedGeneration)) {
+      throw new Error('Evidência sem geração canônica; revisão manual necessária.');
+    }
+    if (job.exists && (job.get('status') === 'PENDING' ||
+        job.get('status') === 'BLOCKED_SOURCE_PATH')) {
+      const count = activeOps(job);
+      if (count === 0) tx.delete(jobRef);
+    }
+    if (status !== 'RELEASING') {
+      tx.set(reportRef, {
+        evidencePreservationStatus: 'RELEASING',
+        evidenceReleaseReason: releaseReason,
+        evidencePreservationUpdatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+    }
+    return job.exists && activeOps(job) > 0 ? 'IN_FLIGHT' as const : 'READY' as const;
+  });
+  if (stage === 'DONE') return;
+  if (stage === 'IN_FLIGHT') {
+    throw new Error('Preservação ativa durante liberação; aguardando tentativa terminar.');
+  }
 
-  const batch = db.batch();
-  batch.delete(evidenceRef);
-  batch.delete(db.collection(MODERATION_EVIDENCE_JOBS_COLLECTION).doc(reportId));
-  batch.set(
-    db.collection('moderation_reports').doc(reportId),
-    {
+  // Phase 2: check the exact version, never accept another path or generation.
+  const [evidenceBefore, jobBefore] = await Promise.all([
+    evidenceRef.get(), jobRef.get(),
+  ]);
+  if (jobBefore.exists && activeOps(jobBefore) > 0) {
+    throw new Error('Preservação ativa durante liberação; reprocessamento necessário.');
+  }
+  const recordedPath = evidenceBefore.exists
+    ? String(evidenceBefore.get('storagePath') ?? '').trim() : '';
+  const recordedGeneration = evidenceBefore.exists
+    ? normalizeGcsGeneration(evidenceBefore.get('evidenceGeneration')) : null;
+  if (evidenceBefore.exists && (!paths.includes(recordedPath) || !recordedGeneration)) {
+    throw new Error('Evidência sem geração canônica; revisão manual necessária.');
+  }
+  const bucket = storage.bucket();
+  const observed = await Promise.all(paths.map(async path => {
+    try {
+      const [metadata] = await bucket.file(path).getMetadata();
+      const generation = normalizeGcsGeneration(metadata.generation);
+      if (!generation) {
+        throw new Error('Geração física probatória indisponível; revisão manual necessária.');
+      }
+      return {path, generation};
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error
+        ? Number(error.code) : null;
+      if (code === 404) return null;
+      throw error;
+    }
+  }));
+  const existing = observed.filter((entry): entry is {path:string; generation:string} =>
+    entry !== null);
+  if (existing.some(entry =>
+    entry.path !== recordedPath || entry.generation !== recordedGeneration)) {
+    throw new Error('Objeto probatório inesperado ou substituído; revisão manual necessária.');
+  }
+
+  for (const entry of existing) {
+    await deleteGenerationPinnedVideoFile(entry.generation, generation =>
+      bucket.file(entry.path).delete({ignoreNotFound: true, ifGenerationMatch: generation})
+    );
+  }
+
+  // Phase 3: finalize only the staged release. After a crash, a retry sees
+  // the missing pinned object and can still safely complete this transaction.
+  await db.runTransaction(async tx => {
+    const [report, evidenceCurrent, jobCurrent] = await Promise.all([
+      tx.get(reportRef), tx.get(evidenceRef), tx.get(jobRef),
+    ]);
+    const status = String(report.get('evidencePreservationStatus') ?? '').toUpperCase();
+    if (status === 'RELEASED' && !evidenceCurrent.exists && !jobCurrent.exists) return;
+    if (!report.exists || status !== 'RELEASING' ||
+        report.get('evidenceReleaseReason') !== releaseReason) {
+      throw new Error('Intenção de liberação alterada; revisão necessária.');
+    }
+    const unchanged = (before: FirebaseFirestore.DocumentSnapshot,
+      current: FirebaseFirestore.DocumentSnapshot): boolean =>
+      before.exists === current.exists &&
+      (!before.exists || (!!before.updateTime && !!current.updateTime &&
+        before.updateTime.isEqual(current.updateTime)));
+    if (!unchanged(evidenceBefore, evidenceCurrent) ||
+        !unchanged(jobBefore, jobCurrent) ||
+        (jobCurrent.exists && activeOps(jobCurrent) > 0)) {
+      throw new Error('Identidade probatória alterada durante liberação; revisão necessária.');
+    }
+    tx.delete(evidenceRef);
+    tx.delete(jobRef);
+    tx.set(reportRef, {
       evidencePreservationStatus: 'RELEASED',
       evidenceReleaseReason: releaseReason,
       evidencePreservationUpdatedAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
-  await batch.commit();
+    }, {merge: true});
+  });
 }
