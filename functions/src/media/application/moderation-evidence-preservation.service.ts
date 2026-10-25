@@ -366,162 +366,162 @@ export async function preserveModerationEvidence(
 
   if (!await beginModerationEvidencePreservationAttemptInFirestore(db, reportId, job)) return;
   try {
-  const bucket = storage.bucket();
-  const sourceFile = bucket.file(sourceStoragePath);
-  const destinationPath = evidenceStoragePath(reportId, job.mediaType);
-  const destinationFile = bucket.file(destinationPath);
-  const [sourceExists] = await sourceFile.exists();
+    const bucket = storage.bucket();
+    const sourceFile = bucket.file(sourceStoragePath);
+    const destinationPath = evidenceStoragePath(reportId, job.mediaType);
+    const destinationFile = bucket.file(destinationPath);
+    const [sourceExists] = await sourceFile.exists();
 
-  if (!sourceExists) {
-    throw new Error('Ativo de origem não encontrado para preservação.');
-  }
+    if (!sourceExists) {
+      throw new Error('Ativo de origem não encontrado para preservação.');
+    }
 
-  const [sourceMetadata] = await sourceFile.getMetadata();
-  const sourceGeneration = normalizeGcsGeneration(sourceMetadata.generation);
-  if (!sourceGeneration) {
-    throw new Error('Geração da origem probatória indisponível; revisão manual necessária.');
-  }
-  const [destinationExists] = await destinationFile.exists();
-  let createdEvidenceGeneration: string | null = null;
-  let copyCompletedInThisAttempt = false;
+    const [sourceMetadata] = await sourceFile.getMetadata();
+    const sourceGeneration = normalizeGcsGeneration(sourceMetadata.generation);
+    if (!sourceGeneration) {
+      throw new Error('Geração da origem probatória indisponível; revisão manual necessária.');
+    }
+    const [destinationExists] = await destinationFile.exists();
+    let createdEvidenceGeneration: string | null = null;
+    let copyCompletedInThisAttempt = false;
 
-  if (!destinationExists) {
-    try {
+    if (!destinationExists) {
+      try {
       // Atomic destination creation; pin exactly the observed source generation.
-      const [copiedFile, copyApiResponse] = await bucket.file(sourceStoragePath, {
-        generation: sourceGeneration,
-      }).copy(destinationFile, {
-        preconditionOpts: { ifGenerationMatch: 0 },
-      });
-      copyCompletedInThisAttempt = true;
-      // Apenas a resposta da cópia pode provar a geração criada por este request.
-      const apiObject = copyApiResponse as {
+        const [copiedFile, copyApiResponse] = await bucket.file(sourceStoragePath, {
+          generation: sourceGeneration,
+        }).copy(destinationFile, {
+          preconditionOpts: { ifGenerationMatch: 0 },
+        });
+        copyCompletedInThisAttempt = true;
+        // Apenas a resposta da cópia pode provar a geração criada por este request.
+        const apiObject = copyApiResponse as {
         generation?: unknown; resource?: { generation?: unknown };
       } | null | undefined;
-      const apiGeneration = normalizeGcsGeneration(
-        apiObject?.resource?.generation ?? apiObject?.generation
-      );
-      const fileGeneration = normalizeGcsGeneration(copiedFile.metadata?.generation);
-      if (apiGeneration && fileGeneration && apiGeneration !== fileGeneration) {
-        throw new Error('Gerações divergentes no retorno da cópia probatória; revisão necessária.');
+        const apiGeneration = normalizeGcsGeneration(
+          apiObject?.resource?.generation ?? apiObject?.generation
+        );
+        const fileGeneration = normalizeGcsGeneration(copiedFile.metadata?.generation);
+        if (apiGeneration && fileGeneration && apiGeneration !== fileGeneration) {
+          throw new Error('Gerações divergentes no retorno da cópia probatória; revisão necessária.');
+        }
+        createdEvidenceGeneration = apiGeneration ?? fileGeneration;
+      } catch (error) {
+        const code = error && typeof error === 'object' && 'code' in error
+          ? Number(error.code) : null;
+        // A parallel create-only copy won; verify its bytes rather than overwrite it.
+        if (code !== 412) throw error;
       }
-      createdEvidenceGeneration = apiGeneration ?? fileGeneration;
-    } catch (error) {
-      const code = error && typeof error === 'object' && 'code' in error
-        ? Number(error.code) : null;
-      // A parallel create-only copy won; verify its bytes rather than overwrite it.
-      if (code !== 412) throw error;
     }
-  }
 
-  const [evidenceMetadata] = await destinationFile.getMetadata();
-  const observedEvidenceGeneration =
+    const [evidenceMetadata] = await destinationFile.getMetadata();
+    const observedEvidenceGeneration =
     normalizeGcsGeneration(evidenceMetadata.generation);
 
-  // getMetadata observa a versão atual; jamais prova a autoria da cópia.
-  // Uma substituição física após File.copy() não pode habilitar exclusão.
-  if (!observedEvidenceGeneration ||
+    // getMetadata observa a versão atual; jamais prova a autoria da cópia.
+    // Uma substituição física após File.copy() não pode habilitar exclusão.
+    if (!observedEvidenceGeneration ||
       (createdEvidenceGeneration &&
        observedEvidenceGeneration !== createdEvidenceGeneration)) {
-    throw new Error(
-      'Geração da cópia probatória indisponível ou substituída; revisão necessária.'
-    );
-  }
-  // Existing evidence must never be accepted merely because its object exists.
-  // Otherwise a previous partial attempt or concurrent copy could bless
-  // unrelated bytes and enable deletion of the reported publication.
-  const sourceMd5 = safeMetadataString(sourceMetadata.md5Hash);
-  const evidenceMd5 = safeMetadataString(evidenceMetadata.md5Hash);
-  const sourceCrc32c = safeMetadataString(sourceMetadata.crc32c);
-  const evidenceCrc32c = safeMetadataString(evidenceMetadata.crc32c);
-  if (
-    (sourceMd5 && evidenceMd5 && sourceMd5 !== evidenceMd5) ||
+      throw new Error(
+        'Geração da cópia probatória indisponível ou substituída; revisão necessária.'
+      );
+    }
+    // Existing evidence must never be accepted merely because its object exists.
+    // Otherwise a previous partial attempt or concurrent copy could bless
+    // unrelated bytes and enable deletion of the reported publication.
+    const sourceMd5 = safeMetadataString(sourceMetadata.md5Hash);
+    const evidenceMd5 = safeMetadataString(evidenceMetadata.md5Hash);
+    const sourceCrc32c = safeMetadataString(sourceMetadata.crc32c);
+    const evidenceCrc32c = safeMetadataString(evidenceMetadata.crc32c);
+    if (
+      (sourceMd5 && evidenceMd5 && sourceMd5 !== evidenceMd5) ||
     !sourceCrc32c || !evidenceCrc32c ||
     sourceCrc32c !== evidenceCrc32c ||
     Number(sourceMetadata.size) !== Number(evidenceMetadata.size)
-  ) {
-    throw new Error('Evidência preservada diverge do arquivo denunciado.');
-  }
+    ) {
+      throw new Error('Evidência preservada diverge do arquivo denunciado.');
+    }
 
-  const evidenceRef = db.collection(MODERATION_EVIDENCE_COLLECTION).doc(reportId);
-  const reportRef = db.collection('moderation_reports').doc(reportId);
-  const timestamp = FieldValue.serverTimestamp();
+    const evidenceRef = db.collection(MODERATION_EVIDENCE_COLLECTION).doc(reportId);
+    const reportRef = db.collection('moderation_reports').doc(reportId);
+    const timestamp = FieldValue.serverTimestamp();
 
-  const finalizeResult = await db.runTransaction<PreservationFinalizeResult>(
-    async (transaction) => {
-      const [currentJobSnap, reportSnap, evidenceSnap] = await Promise.all([
-        transaction.get(jobRef),
-        transaction.get(reportRef),
-        transaction.get(evidenceRef),
-      ]);
-      const report = reportSnap.exists ? reportSnap.data() : undefined;
-      const evidenceStatus = String(report?.evidencePreservationStatus ?? '')
-        .trim()
-        .toUpperCase();
+    const finalizeResult = await db.runTransaction<PreservationFinalizeResult>(
+      async (transaction) => {
+        const [currentJobSnap, reportSnap, evidenceSnap] = await Promise.all([
+          transaction.get(jobRef),
+          transaction.get(reportRef),
+          transaction.get(evidenceRef),
+        ]);
+        const report = reportSnap.exists ? reportSnap.data() : undefined;
+        const evidenceStatus = String(report?.evidencePreservationStatus ?? '')
+          .trim()
+          .toUpperCase();
 
-      if (evidenceStatus === 'PRESERVED' && evidenceSnap.exists) {
-        if (currentJobSnap.exists) {
-          if (String(report?.moderationAction ?? '').toUpperCase() === 'REMOVE') {
-            transaction.update(jobRef, { status: 'CLEANUP_PENDING', updatedAt: Date.now() });
+        if (evidenceStatus === 'PRESERVED' && evidenceSnap.exists) {
+          if (currentJobSnap.exists) {
+            if (String(report?.moderationAction ?? '').toUpperCase() === 'REMOVE') {
+              transaction.update(jobRef, { status: 'CLEANUP_PENDING', updatedAt: Date.now() });
+            }
           }
+          return 'ALREADY_PRESERVED';
         }
-        return 'ALREADY_PRESERVED';
-      }
 
-      if (!currentJobSnap.exists || !reportSnap.exists || isReleasedReport(report)) {
-        return 'RELEASED';
-      }
+        if (!currentJobSnap.exists || !reportSnap.exists || isReleasedReport(report)) {
+          return 'RELEASED';
+        }
 
-      transaction.set(
-        evidenceRef,
-        {
-          reportId,
-          mediaType: job.mediaType,
-          ownerUid,
-          mediaId,
-          reason: job.reason,
-          storagePath: destinationPath,
-          sourceGeneration: safeMetadataString(sourceMetadata.generation),
-          sourceMd5Hash: safeMetadataString(sourceMetadata.md5Hash),
-          sourceCrc32c: safeMetadataString(sourceMetadata.crc32c),
-          evidenceGeneration: safeMetadataString(evidenceMetadata.generation),
-          evidenceMd5Hash: safeMetadataString(evidenceMetadata.md5Hash),
-          evidenceCrc32c: safeMetadataString(evidenceMetadata.crc32c),
-          contentType: safeMetadataString(evidenceMetadata.contentType),
-          sizeBytes: Number(evidenceMetadata.size ?? 0) || 0,
-          retentionStatus: 'LEGAL_REVIEW_REQUIRED',
-          accessPolicy: 'BACKEND_ONLY',
-          preservedAt: timestamp,
-          updatedAt: timestamp,
-        },
-        { merge: false }
-      );
-      transaction.set(
-        reportRef,
-        {
-          evidencePreservationStatus: 'PRESERVED',
-          evidenceId: reportId,
-          evidencePreservationUpdatedAt: timestamp,
-        },
-        { merge: true }
-      );
-      if (String(report?.moderationAction ?? '').toUpperCase() === 'REMOVE') {
-        transaction.update(jobRef, { status: 'CLEANUP_PENDING', updatedAt: Date.now() });
+        transaction.set(
+          evidenceRef,
+          {
+            reportId,
+            mediaType: job.mediaType,
+            ownerUid,
+            mediaId,
+            reason: job.reason,
+            storagePath: destinationPath,
+            sourceGeneration: safeMetadataString(sourceMetadata.generation),
+            sourceMd5Hash: safeMetadataString(sourceMetadata.md5Hash),
+            sourceCrc32c: safeMetadataString(sourceMetadata.crc32c),
+            evidenceGeneration: safeMetadataString(evidenceMetadata.generation),
+            evidenceMd5Hash: safeMetadataString(evidenceMetadata.md5Hash),
+            evidenceCrc32c: safeMetadataString(evidenceMetadata.crc32c),
+            contentType: safeMetadataString(evidenceMetadata.contentType),
+            sizeBytes: Number(evidenceMetadata.size ?? 0) || 0,
+            retentionStatus: 'LEGAL_REVIEW_REQUIRED',
+            accessPolicy: 'BACKEND_ONLY',
+            preservedAt: timestamp,
+            updatedAt: timestamp,
+          },
+          { merge: false }
+        );
+        transaction.set(
+          reportRef,
+          {
+            evidencePreservationStatus: 'PRESERVED',
+            evidenceId: reportId,
+            evidencePreservationUpdatedAt: timestamp,
+          },
+          { merge: true }
+        );
+        if (String(report?.moderationAction ?? '').toUpperCase() === 'REMOVE') {
+          transaction.update(jobRef, { status: 'CLEANUP_PENDING', updatedAt: Date.now() });
+        }
+        return 'PRESERVED';
       }
-      return 'PRESERVED';
-    }
-  );
-
-  if (finalizeResult === 'RELEASED' && copyCompletedInThisAttempt) {
-    if (!createdEvidenceGeneration) {
-      // Não excluir uma versão que não se pode atribuir à cópia deste request.
-      throw new Error('Geração da cópia não comprovada; limpeza manual necessária.');
-    }
-    // Never clean up a generation created by another worker.
-    await deleteGenerationPinnedVideoFile(createdEvidenceGeneration, (generation) =>
-      destinationFile.delete({ ignoreNotFound: true, ifGenerationMatch: generation })
     );
-  }
+
+    if (finalizeResult === 'RELEASED' && copyCompletedInThisAttempt) {
+      if (!createdEvidenceGeneration) {
+      // Não excluir uma versão que não se pode atribuir à cópia deste request.
+        throw new Error('Geração da cópia não comprovada; limpeza manual necessária.');
+      }
+      // Never clean up a generation created by another worker.
+      await deleteGenerationPinnedVideoFile(createdEvidenceGeneration, (generation) =>
+        destinationFile.delete({ ignoreNotFound: true, ifGenerationMatch: generation })
+      );
+    }
   } finally {
     await endModerationEvidencePreservationAttemptInFirestore(db, reportId, job);
   }

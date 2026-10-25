@@ -909,7 +909,10 @@ test('G5-B4.2: failing GCS delete retains RELEASING and a durable obligation', a
       }),
     } as unknown as ReturnType<typeof storage.bucket>;
     storage.bucket=(()=>fakeBucket) as typeof storage.bucket;
-    await assert.rejects(releaseModerationEvidence(x.reportId,'LEGAL_RETENTION_RELEASED'),/GCS temporarily unavailable/);
+    await assert.rejects(
+      releaseModerationEvidence(x.reportId, 'LEGAL_RETENTION_RELEASED'),
+      /GCS temporarily unavailable/
+    );
     assert.equal((await x.report.get()).get('evidencePreservationStatus'),'RELEASING');
     assert.equal((await x.evidence.get()).exists,true);
     assert.equal((await x.job.get()).exists,true);
@@ -930,7 +933,11 @@ test('G5-B4.2: resume release after physical deletion and before Firestore commi
   const path=`system/moderation-evidence/${x.reportId}/photo`;
   try {
     await Promise.all([
-      x.report.set({status:'resolved',evidencePreservationStatus:'RELEASING',evidenceReleaseReason:'LEGAL_RETENTION_RELEASED'}),
+      x.report.set({
+        status: 'resolved',
+        evidencePreservationStatus: 'RELEASING',
+        evidenceReleaseReason: 'LEGAL_RETENTION_RELEASED',
+      }),
       x.evidence.set({storagePath:path,evidenceGeneration:'700001'}),
       x.job.set({status:'CLEANUP_PENDING'}),
     ]);
