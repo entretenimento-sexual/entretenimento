@@ -162,7 +162,7 @@ describe('FeedPublicationComposerComponent', () => {
     expect(component.editingPhoto()).toBe(false);
   });
 
-  it('envia o estado do editor junto da foto processada ao publicar', () => {
+  it('publica arquivo editado sem transmitir estado do editor', () => {
     const edited = new File(['editada'], 'foto-editada.webp', { type: 'image/webp' });
     component.selectedFile.set(edited);
     component.selectedImageState.set('estado-editor');
@@ -183,9 +183,43 @@ describe('FeedPublicationComposerComponent', () => {
       expect.objectContaining({
         userId: 'u1',
         processedFile: edited,
-        imageStateStr: 'estado-editor',
+        publishToFeed: true,
       })
     );
+    expect(uploadMock.mock.calls[0]?.[0]).not.toHaveProperty('imageStateStr');
     expect(publishMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('informa falha sem afirmar retenção em biblioteca', () => {
+    component.selectedFile.set(
+      new File(['foto'], 'foto.jpg', { type: 'image/jpeg' })
+    );
+
+    uploadMock.mockReturnValue(of({
+      type: 'success',
+      result: {
+        photoId: 'p1',
+        url: 'https://example.test/p1.jpg',
+        path: 'users/u1/uploads/images/p1.jpg',
+        fileName: 'foto.jpg',
+        createdAt: new Date('2026-08-25T00:00:00Z')
+      }
+    }));
+
+    publishMock.mockReturnValue(
+      throwError(() => new Error('indisponível'))
+    );
+
+    component.publish();
+
+    expect(applicationErrorReportMock).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        operation: 'publish',
+        fallbackMessage:
+          'Não foi possível publicar a foto. Tente novamente.'
+      })
+    );
+    expect(component.publishing()).toBe(false);
   });
 });

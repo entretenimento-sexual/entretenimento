@@ -15,6 +15,7 @@ export interface IPhotoUploadFlowCommand {
   originalFileName: string;
   mimeType: string;
   imageStateStr?: string;
+  publishToFeed?: boolean;
 }
 
 export interface IPhotoReplaceFlowCommand extends IPhotoUploadFlowCommand {
@@ -44,6 +45,41 @@ export type IPhotoUploadFlowEvent =
   | IPhotoUploadProgressEvent
   | IPhotoUploadSuccessEvent;
 
+/**
+ * DIRETRIZ DE PRODUTO MEDIA V1 - ARQUIVO UNICO
+ *
+ * 1. O usuario escolhe uma foto e pode edita-la localmente ou nao.
+ * 2. Somente o arquivo final resultante deve ser enviado ao backend.
+ * 3. A plataforma NAO guarda o original anterior a edicao.
+ * 4. A plataforma NAO guarda historico ou versoes de edicao.
+ * 5. Uma foto publicada deve ter uma unica copia fisica persistente.
+ * 6. Uploads temporarios devem ser eliminados apos a publicacao.
+ * 7. Uploads abandonados ou com falha exigem limpeza recuperavel.
+ *
+ * EDICAO DE FOTO JA PUBLICADA:
+ * - O usuario pode carregar a propria foto publicada no editor.
+ * - A edicao ocorre localmente, usando a imagem publicada atual.
+ * - Somente o novo resultado final e enviado como substituicao.
+ * - A imagem anterior e excluida apos a troca segura.
+ * - Uma coexistencia temporaria e permitida durante essa troca.
+ *
+ * BACKEND:
+ * - Mantem identidade, autorizacao, metadados e assetVersion atual.
+ * - assetVersion nao significa armazenar historico de arquivos.
+ * - Mantem validacao tecnica e URLs temporarias autorizadas.
+ * - Retencao adicional somente por obrigacao excepcional.
+ * - Nao oferece biblioteca ou galeria privada gratuita.
+ *
+ * MODERACAO:
+ * - Nudez adulta e sexo explicito consensual sao permitidos.
+ * - Moderacao inicial por denuncias; sem fila humana preventiva.
+ * - IA para conteudo criminoso e borramento facial sao futuros.
+ *
+ * ATENCAO: POLITICA ALVO, AINDA NAO TOTALMENTE IMPLEMENTADA.
+ * O codigo atual usa origem tecnica privada, copia publicada
+ * e saveImageStateBestEffort$ no backend. Esses contratos devem
+ * ser adaptados e testados antes da limpeza das origens.
+ */
 @Injectable({
   providedIn: 'root',
 })
@@ -95,7 +131,7 @@ export class PhotoUploadFlowService {
           safeUserId,
           result,
           reservationId,
-          command.imageStateStr
+          command.publishToFeed === true
         );
       }),
       catchError((error) =>
@@ -188,12 +224,7 @@ export class PhotoUploadFlowService {
             reservationId
           )
         ).pipe(
-          switchMap(() =>
-            this.saveImageStateBestEffort$(
-              safeUserId,
-              command.imageStateStr
-            )
-          ),
+
           switchMap(() =>
             this.deletePhotoObjectBestEffort$(
               safeUserId,
@@ -272,7 +303,7 @@ export class PhotoUploadFlowService {
             safeUserId,
             result,
             reservationId,
-            command.imageStateStr
+            command.publishToFeed === true
           );
         }),
         catchError((error) =>
@@ -346,7 +377,7 @@ export class PhotoUploadFlowService {
     userId: string,
     result: IPhotoFlowResult,
     reservationId: string,
-    imageStateStr?: string
+    publishToFeed = false
   ): Observable<IPhotoFlowResult> {
     return from(
       this.photoFirestoreService.savePhotoMetadata(
@@ -358,12 +389,11 @@ export class PhotoUploadFlowService {
           fileName: result.fileName,
           createdAt: result.createdAt,
         },
-        reservationId
+        reservationId,
+        publishToFeed
       )
     ).pipe(
-      switchMap(() =>
-        this.saveImageStateBestEffort$(userId, imageStateStr)
-      ),
+
       map(() => result),
       catchError((metadataError) =>
         this.rollbackUploadedPhoto$(
@@ -373,32 +403,6 @@ export class PhotoUploadFlowService {
           'create-metadata-failed'
         )
       )
-    );
-  }
-
-  private saveImageStateBestEffort$(
-    userId: string,
-    imageStateStr?: string
-  ): Observable<void> {
-    const safeImageState = String(imageStateStr ?? '').trim();
-
-    if (!safeImageState) {
-      return of(void 0);
-    }
-
-    return from(
-      this.photoFirestoreService.saveImageState(
-        userId,
-        safeImageState
-      )
-    ).pipe(
-      catchError((error) => {
-        this.reportSilent(error, {
-          op: 'saveImageStateBestEffort$',
-          userId,
-        });
-        return of(void 0);
-      })
     );
   }
 

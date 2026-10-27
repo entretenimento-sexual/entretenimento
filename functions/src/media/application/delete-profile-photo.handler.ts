@@ -3,7 +3,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
-import { db, getDefaultStorageBucket } from '../../firebaseApp';
+import { db, FieldValue, getDefaultStorageBucket } from '../../firebaseApp';
 import {
   assertCallableAppCheck,
   REQUIRE_CALLABLE_APP_CHECK,
@@ -43,6 +43,7 @@ export interface DeleteProfilePhotoResponse {
 
 export interface DeleteProfilePhotoResourcesOptions {
   allowQuarantined?: boolean;
+  onlyIfUnpublished?: boolean;
 }
 
 interface PhotoDeletionJob {
@@ -256,6 +257,13 @@ export async function deleteProfilePhotoResources(
     );
   }
 
+  if (options.onlyIfUnpublished && publicationSnap.exists) {
+    throw new HttpsError('failed-precondition', 'Publicação existente; limpeza bloqueada.');
+  }
+  if (options.onlyIfUnpublished && !privatePhotoSnap.exists) {
+    return { photoId, cleanupPending: false };
+  }
+
   if (!privatePhotoSnap.exists) {
     // Publication removal and the durable Storage cleanup obligation MUST
     // share a transaction, even when the private photo was already removed.
@@ -349,10 +357,11 @@ export async function deleteProfilePhotoResources(
   };
 
   const staged = await db.runTransaction(async (tx) => {
-    const [existingJob, currentPhoto, currentPublication] = await Promise.all([
+    const [existingJob, currentPhoto, currentPublication, currentProjection] = await Promise.all([
       tx.get(jobRef),
       tx.get(privatePhotoRef),
       tx.get(publicationRef),
+      tx.get(publicPhotoRef),
     ]);
     if (existingJob.exists) {
       if (
@@ -367,6 +376,15 @@ export async function deleteProfilePhotoResources(
       }
       return false;
     }
+    if (options.onlyIfUnpublished && (
+      currentPublication.exists || currentProjection.exists ||
+      !currentPhoto.exists ||
+      currentPhoto.get('feedPublicationPending') !== true ||
+      !Number.isFinite(Number(currentPhoto.get('feedPublicationExpiresAtMs'))) ||
+      Number(currentPhoto.get('feedPublicationExpiresAtMs')) > Date.now()
+    )) {
+      throw new HttpsError('failed-precondition', 'Upload não elegível para descarte.');
+    }
     if (!currentPhoto.exists ||
         extractOwnedPrivatePhotoPath(ownerUid, currentPhoto.get('path')) !== storagePath &&
         extractOwnedPrivatePhotoPath(ownerUid, currentPhoto.get('url')) !== storagePath) {
@@ -380,6 +398,13 @@ export async function deleteProfilePhotoResources(
       throw new HttpsError('failed-precondition', 'Foto protegida pela moderação.');
     }
     tx.create(jobRef, job);
+    if (options.onlyIfUnpublished) {
+      tx.update(privatePhotoRef, {
+        feedPublicationPending: FieldValue.delete(),
+        feedPublicationExpiresAtMs: FieldValue.delete(),
+        feedPublicationCleanupStagedAtMs: now,
+      });
+    }
     stagePublishedPhotoAssetCleanup(tx, {
       ownerUid, photoId,
       storagePath: currentPublicationData?.publishedStoragePath,

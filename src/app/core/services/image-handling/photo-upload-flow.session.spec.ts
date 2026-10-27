@@ -98,4 +98,57 @@ describe('PhotoUploadFlowService / sessão operacional', () => {
     expect(h.firestore.savePhotoMetadata).not.toHaveBeenCalled();
     expect(events.some((event) => event.type === 'success')).toBe(false);
   });
+
+  it('não grava estado de edição após upload bem-sucedido', async () => {
+    const h = harness();
+    const done = new Promise<void>((resolve, reject) => {
+      h.flow.uploadProcessedPhotoWithProgress$({
+        ...command(),
+        imageStateStr: 'estado-do-editor'
+      }).subscribe({
+        next: event => {
+          if (event.type === 'success') resolve();
+        },
+        error: reject
+      });
+    });
+
+    h.pendingUpload$.next({
+      storagePath: 'users/owner-a/uploads/images/file.jpg',
+      reservationId: 'reservation-a',
+      location: 'https://example.test/photo.jpg'
+    });
+    h.pendingUpload$.complete();
+
+    await done;
+    expect(h.firestore.savePhotoMetadata).toHaveBeenCalledOnce();
+    expect(h.firestore.saveImageState).not.toHaveBeenCalled();
+  });
+
+  it('não grava estado de edição após substituição', async () => {
+    const h = harness();
+    const done = new Promise<void>((resolve, reject) => {
+      h.flow.replaceProcessedPhoto$({
+        ...command(),
+        photoId: 'photo-1',
+        currentStoragePath: 'users/owner-a/uploads/images/previous.jpg',
+        imageStateStr: 'estado-do-editor'
+      }).subscribe({
+        next: () => resolve(),
+        error: reject
+      });
+    });
+
+    h.pendingUpload$.next({
+      storagePath: 'users/owner-a/uploads/images/file.jpg',
+      reservationId: 'reservation-a',
+      location: 'https://example.test/photo.jpg'
+    });
+    h.pendingUpload$.complete();
+
+    await done;
+    expect(h.firestore.updatePhotoMetadata).toHaveBeenCalledOnce();
+    expect(h.lifecycle.deleteOwnedPrivatePhoto$).toHaveBeenCalledOnce();
+    expect(h.firestore.saveImageState).not.toHaveBeenCalled();
+  });
 });

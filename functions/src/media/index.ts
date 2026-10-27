@@ -143,6 +143,7 @@ export {
   cleanupExpiredPhotoUploadReservations,
   reservePhotoUpload,
 } from './application/reserve-photo-upload.handler';
+export { cleanupExpiredFeedPhotoUploads } from './application/cleanup-expired-feed-photo-uploads.handler';
 export {
   registerPrivatePhotoUpload,
 } from './application/register-private-photo-upload.handler';

@@ -19,6 +19,7 @@ import {
   IMAGE_MAX_BYTES,
 } from '../media-format.generated';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
+import { FAILED_FEED_PHOTO_TTL_MS } from './failed-feed-photo.policy';
 
 type PrivatePhotoCommitMode = 'create' | 'replace';
 
@@ -28,6 +29,7 @@ interface RegisterPrivatePhotoUploadRequest {
   reservationId?: unknown;
   fileName?: unknown;
   mode?: unknown;
+  publishToFeed?: unknown;
 }
 
 interface RegisterPrivatePhotoUploadResponse {
@@ -144,6 +146,7 @@ export const registerPrivatePhotoUpload = onCall<
     const photoId = cleanId(request.data?.photoId);
     const reservationId = cleanReservationId(request.data?.reservationId);
     const mode = cleanMode(request.data?.mode);
+    const publishToFeed = request.data?.publishToFeed === true;
 
     if (!ownerUid || !photoId || !reservationId || !mode) {
       throw new HttpsError(
@@ -153,6 +156,9 @@ export const registerPrivatePhotoUpload = onCall<
     }
 
     assertOwner(requesterUid, ownerUid);
+    if (publishToFeed && mode !== 'create') {
+      throw new HttpsError('invalid-argument', 'Feed somente na criação.');
+    }
 
     await consumeBackendRateLimitQuota({
       action: 'photo-private-upload-register',
@@ -289,6 +295,10 @@ export const registerPrivatePhotoUpload = onCall<
         transaction.create(photoRef, {
           ...criticalPayload,
           createdAt: Timestamp.fromMillis(now),
+          ...(publishToFeed ? {
+            feedPublicationPending: true,
+            feedPublicationExpiresAtMs: now + FAILED_FEED_PHOTO_TTL_MS,
+          } : {}),
         });
       } else {
         transaction.update(photoRef, criticalPayload);

@@ -59,6 +59,7 @@ interface RegisterPrivatePhotoUploadCallableRequest {
   reservationId: string;
   fileName: string;
   mode: 'create' | 'replace';
+  publishToFeed?: boolean;
 }
 
 interface RegisterPrivatePhotoUploadCallableResponse {
@@ -183,7 +184,8 @@ export class PhotoFirestoreService {
   async savePhotoMetadata(
     userId: string,
     photo: Photo,
-    reservationId: string
+    reservationId: string,
+    publishToFeed = false
   ): Promise<void> {
     const safeUserId = this.requireUserId(userId);
 
@@ -195,7 +197,8 @@ export class PhotoFirestoreService {
         fileName: photo.fileName,
       },
       reservationId,
-      'create'
+      'create',
+      publishToFeed
     );
   }
 
@@ -365,7 +368,8 @@ export class PhotoFirestoreService {
       fileName?: string;
     },
     reservationId: string,
-    mode: 'create' | 'replace'
+    mode: 'create' | 'replace',
+    publishToFeed = false
   ): Promise<void> {
     const safePhotoId = String(photoId ?? '').trim();
     const storagePath = String(data.path ?? '').trim();
@@ -399,6 +403,7 @@ export class PhotoFirestoreService {
             reservationId: safeReservationId,
             fileName,
             mode,
+            ...(publishToFeed ? { publishToFeed: true } : {}),
           }).then(() => undefined);
         });
       },

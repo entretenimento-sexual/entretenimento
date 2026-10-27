@@ -48,6 +48,7 @@ const expectedDeploymentExports = [
   'cancelPlatformSubscriptionDowngrade',
   'cancelPlatformSubscriptionRenewal',
   'cleanupCancelledVideoProcessing',
+  'cleanupExpiredFeedPhotoUploads',
   'cleanupExpiredPhotoUploadReservations',
   'cleanupExpiredVideoUploadReservations',
   'cleanupFailedVideoUploads',

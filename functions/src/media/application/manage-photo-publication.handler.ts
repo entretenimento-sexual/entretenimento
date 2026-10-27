@@ -40,6 +40,7 @@ import {
   type AvailablePhotoCommentsPolicy,
 } from './media-publication-audience.policy';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
+import { isFeedPhotoCleanupStaged } from './failed-feed-photo.policy';
 import {
   copyPrivatePhotoToPublishedAsset,
   deletePublishedPhotoAssetOrQueue,
@@ -56,6 +57,8 @@ type CommentsPolicy = AvailablePhotoCommentsPolicy;
 type ModerationStatus = 'APPROVED';
 
 type PrivatePhotoDoc = {
+  feedPublicationPending?: boolean;
+  feedPublicationCleanupStagedAtMs?: number;
   id?: string;
   url?: string;
   path?: string;
@@ -270,6 +273,9 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
     }
 
     const privatePhoto = privatePhotoSnap.data() as PrivatePhotoDoc;
+    if (isFeedPhotoCleanupStaged(privatePhoto)) {
+      throw new HttpsError('failed-precondition', 'Upload em descarte; envie a foto novamente.');
+    }
     const sourceStoragePath = resolvePrivatePhotoStoragePath(
       ownerUid,
       privatePhoto
@@ -309,6 +315,20 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       buildUnassessedMediaContentSafetyAssessment(now);
     const scoreBreakdown = buildUnassessedPhotoScoreBreakdown();
     const batch = db.batch();
+
+    // Somente uploads pendentes do feed exigem confirmação no documento privado.
+    // Não gerar um update extra para publicações fora deste fluxo.
+    if (privatePhoto.feedPublicationPending === true) {
+      if (!privatePhotoSnap.updateTime) {
+        throw new HttpsError('failed-precondition', 'Versão da foto indisponível.');
+      }
+
+      batch.update(privatePhotoRef, {
+        feedPublicationPending: FieldValue.delete(),
+        feedPublicationExpiresAtMs: FieldValue.delete(),
+        feedPublicationCleanupHoldAtMs: FieldValue.delete(),
+      }, { lastUpdateTime: privatePhotoSnap.updateTime });
+    }
 
     const publicationPayload = {
       ownerUid,

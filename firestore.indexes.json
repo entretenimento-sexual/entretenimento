@@ -1820,6 +1820,13 @@
   ],
   "fieldOverrides": [
     {
+      "collectionGroup": "photos",
+      "fieldPath": "feedPublicationExpiresAtMs",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
       "collectionGroup": "community_creation_requests",
       "fieldPath": "expiresAt",
       "ttl": true,

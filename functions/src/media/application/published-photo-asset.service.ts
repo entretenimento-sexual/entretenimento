@@ -323,6 +323,22 @@ async function encodePublishedPhoto(
   return { data: output.data, contentType };
 }
 
+/**
+ * DIRETRIZ DE PRODUTO MEDIA V1 - ARQUIVO UNICO
+ *
+ * A entrada de upload e tecnica e temporaria, nao biblioteca.
+ * O backend deve validar e normalizar a imagem final.
+ * Apos o commit seguro, somente o ativo publicado permanece.
+ * O original pre-edicao e o historico nunca sao armazenados.
+ *
+ * Na substituicao, o ativo antigo permanece ate a nova versao
+ * estar confirmada; depois deve ser eliminado com protecao
+ * contra corridas, exceto retencao legal/de seguranca aplicavel.
+ *
+ * ATENCAO: este metodo AINDA cria uma copia fisica a partir
+ * da origem tecnica. A limpeza pos-publicacao e a adaptacao
+ * dos fluxos consumidores ainda precisam ser implementadas.
+ */
 export async function copyPrivatePhotoToPublishedAsset(
   command: CopyPublishedPhotoAssetCommand
 ): Promise<string> {

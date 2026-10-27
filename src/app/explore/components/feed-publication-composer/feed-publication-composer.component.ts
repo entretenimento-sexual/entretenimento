@@ -184,7 +184,6 @@ export class FeedPublicationComposerComponent {
 
     const currentUser = this.user();
     const file = this.selectedFile();
-    const imageStateStr = this.selectedImageState();
     const ownerUid = String(currentUser?.uid ?? '').trim();
 
     this.captionControl.markAsTouched();
@@ -217,7 +216,7 @@ export class FeedPublicationComposerComponent {
         processedFile: file,
         originalFileName: file.name,
         mimeType: file.type,
-        imageStateStr: imageStateStr ?? undefined,
+        publishToFeed: true,
       })
       .pipe(
         tap((uploadEvent) => {
@@ -255,7 +254,7 @@ export class FeedPublicationComposerComponent {
           this.reportApplicationError(
             error,
             'publish',
-            'A foto foi preservada na sua biblioteca, mas não pôde ser publicada agora.'
+            'Não foi possível publicar a foto. Tente novamente.'
           );
           return EMPTY;
         }),
