@@ -1904,6 +1904,10 @@ describe('Canonical UI boundary', () => {
     );
     expect(publicPhotos).not.toContain('Voltar ao perfil');
     expect(publicPhotos).not.toContain('gallery-strip');
+    // O destaque é definido pela publicação, nunca pela posição na página.
+    expect(publicPhotos).toContain('[class.photo-grid-item--featured]="item.isCover === true"');
+    expect(publicPhotos).toContain('@if (item.isCover === true)');
+    expect(publicPhotos).not.toContain('[class.photo-grid-item--featured]="i === 0"');
     expect(publicPhotos).not.toContain('Conteúdo aprovado');
     expect(publicPhotoStyles).not.toContain('.back-link');
     expect(publicPhotoStyles).not.toContain('.gallery-pill');
