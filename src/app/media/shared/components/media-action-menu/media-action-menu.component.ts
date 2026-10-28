@@ -13,6 +13,7 @@ export class MediaActionMenuComponent {
   @Input() disabled = false;
 
   @Input() editLabel = 'Editar';
+  @Input() showEditAction = true;
   @Input() secondaryLabel = '';
   @Input() secondaryIcon = 'tune';
   @Input() showSecondaryAction = false;
