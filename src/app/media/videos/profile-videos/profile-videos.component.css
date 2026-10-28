@@ -122,6 +122,33 @@
   pointer-events: none;
 }
 
+.profile-videos__camera-action {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.profile-videos__camera-file-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.profile-videos__camera-action:focus-within {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 3px;
+}
+
+.profile-videos__camera-file-input:disabled {
+  cursor: not-allowed;
+}
+
 .profile-videos__limits,
 .profile-videos__upload-status {
   margin: 0;
