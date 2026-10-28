@@ -21,6 +21,18 @@ Uma mídia mantida como publicação ativa deve ter alguma audiência social **a
 4. É permitido staging técnico temporário enquanto validação, processamento, publicação, rollback ou retry responsável estiver em curso. Deve ter limite temporal curto e limpeza automática; não transformá-lo em funcionalidade de acervo pessoal.
 5. Upload não concluído/publicação recusada deve entrar no fluxo canônico de expiração/limpeza. Não conservar conteúdo indefinidamente por conveniência de UX.
 
+## 2.1. Captura direta pela câmera (foto **e** vídeo)
+
+A origem do arquivo — dispositivo, câmera nativa do celular, câmera do navegador ou outro dispositivo — **não altera** o ciclo de vida da publicação:
+
+- Oferecer captura com opção nativa (`input[type=file][capture]`) quando suportada, sem exigir permissão de câmera ao abrir a página. O navegador/dispositivo pode apresentar um seletor de arquivo como alternativa.
+- O resultado capturado deve permanecer em memória/preview local e seguir **o mesmo** validador de formato/tamanho, editor, política de audiência, confirmação explícita e serviço de upload das mídias selecionadas da galeria do dispositivo.
+- **Nunca** salvar automaticamente a captura como publicação, arquivo de origem permanente, rascunho remoto ou histórico. Cancelar/trocar conta/destruir a tela deve descartar previews temporários e liberar recursos (`ObjectURL`, tracks, listeners).
+- Foto capturada: edição opcional no navegador e escolha obrigatória de `PUBLIC` ou `FRIENDS`.
+- Vídeo gravado: revisar e confirmar antes do envio; tratamento de edição preferencialmente local. Processamento de vídeo que ainda ocorrer no servidor é dívida técnica a migrar e só pode manter temporários pelo tempo operacional estritamente necessário.
+- Formatos gerados pela câmera variam entre fabricantes. Arquivos não suportados devem ser rejeitados com mensagem útil pelo validador existente; nunca contornar limites de tamanho/MIME ou a autorização para aceitar a câmera.
+- O servidor deve tratar uploads de câmera com **as mesmas regras** de publicação, descarte de staging, limpeza de objetos substituídos e retenção mínima das demais origens.
+
 ## 3. Retenção física — invariantes
 
 - Depois da publicação confirmada e da limpeza operacional, **um único arquivo físico ativo representa a mídia publicada**. Não manter simultaneamente cópia privada de origem e cópia publicada, nem versões antigas.
@@ -52,6 +64,7 @@ Uma mídia mantida como publicação ativa deve ter alguma audiência social **a
 ## 6. Critérios mínimos de aceite
 
 - [ ] Seleção/edição local; histórico de edição não gravado no backend.
+- [ ] Captura da câmera de foto e vídeo usa o mesmo preview/validação/autorização/publicação; nunca publica ou persiste uma captura automaticamente.
 - [ ] Apenas `PUBLIC`/`FRIENDS` para novas publicações e nenhuma opção “somente eu”.
 - [ ] Staging tem expiração, limpeza automática e não é navegável como álbum.
 - [ ] Após confirmação da publicação e reconciliação, existe **um único objeto físico ativo**, sem original privado ou versão histórica redundante.
