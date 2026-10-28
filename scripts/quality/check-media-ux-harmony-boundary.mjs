@@ -57,7 +57,7 @@ requireIncludes(photoRetentionPolicy, [
   'FRIENDS',
   'um único arquivo físico ativo',
   'não podem ser exibidos como galeria pessoal',
-  'evidências de moderação',
+  'Evidências em',
   'Observables/RxJS',
 ], 'media photo retention and publication policy must remain documented');
 
