@@ -61,6 +61,32 @@ requireIncludes(photoRetentionPolicy, [
   'Observables/RxJS',
 ], 'media photo retention and publication policy must remain documented');
 
+// Novo vídeo deve preservar a audiência declarada após processamento.
+const videoRegistration = read(
+  'functions/src/media/application/register-private-video-upload.handler.ts'
+);
+const deferredVideoPublication = read(
+  'functions/src/media/application/publish-video-when-ready.handler.ts'
+);
+const videoProfileUpload = read(
+  'src/app/media/videos/profile-videos/profile-videos.component.html'
+);
+requireIncludes(videoRegistration, [
+  'resolveRequiredVideoUploadAudience(request.data?.visibility)',
+  'visibility,',
+], 'video registration must persist explicitly authorized audience');
+requireIncludes(deferredVideoPublication, [
+  "resolveRequiredVideoUploadAudience(publication.get('visibility'))",
+  'visibility,',
+], 'video auto-publication must reuse stored audience');
+forbidIncludes(deferredVideoPublication,
+  "visibility: 'PUBLIC',",
+  'video auto-publication must not default to PUBLIC');
+requireIncludes(videoProfileUpload, [
+  'formControlName="visibility" value="FRIENDS"',
+  'formControlName="visibility" value="PUBLIC"',
+], 'video upload must request explicit audience');
+
 const photoAudienceModel = read(
   'src/app/core/interfaces/media/i-photo-publication-config.ts'
 );
