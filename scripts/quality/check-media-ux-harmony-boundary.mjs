@@ -390,6 +390,41 @@ const photoUploadComponent = read(
   'src/app/media/photos/photo-upload/photo-upload.component.ts'
 );
 
+const videoModuleGuidance = read('src/app/media/videos/AGENTS.md');
+requireIncludes(videoModuleGuidance, [
+  '../photos/DIRETRIZES-MIDIAS-PUBLICADAS.md',
+  'Capturar não é publicar.',
+], 'video camera must follow social-publication retention policy');
+
+requireIncludes(photoUploadTemplate, [
+  'capture="environment"',
+  'accept="image/*"',
+  '(change)="onFileSelected($event)"',
+  'Tirar foto com a câmera',
+], 'camera photo must enter existing preview workflow');
+forbidIncludes(
+  photoUploadTemplate,
+  '(change)="startUpload()"',
+  'camera capture cannot trigger photo publication directly'
+);
+
+const videoCameraTemplate = read(
+  'src/app/media/videos/profile-videos/profile-videos.component.html'
+);
+requireIncludes(videoCameraTemplate, [
+  'capture="environment"',
+  'accept="video/*"',
+  '(change)="onVideoSelected($event)"',
+  'Gravar vídeo com a câmera',
+  '(ngSubmit)="startUpload()"',
+], 'camera video must enter existing reviewed publication workflow');
+forbidIncludes(
+  videoCameraTemplate,
+  '(change)="startUpload()"',
+  'camera capture cannot trigger video publication directly'
+);
+
+
 for (const forbidden of [
   'Foto publicada</h2>',
   'Adicionar outra',
