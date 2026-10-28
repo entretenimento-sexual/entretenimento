@@ -122,6 +122,22 @@
                       >
                         Trocar vídeo
                       </label>
+                      <label
+                        class="profile-videos__file-label profile-videos__camera-action app-action app-action--ghost"
+                        [class.profile-videos__file-label--disabled]="!canUpload || isUploadActive()"
+                      >
+                        <input
+                          class="profile-videos__camera-file-input"
+                          type="file"
+                          accept="video/*"
+                          capture="environment"
+                          aria-label="Gravar outro vídeo com a câmera do dispositivo"
+                          [disabled]="!canUpload || isUploadActive()"
+                          (change)="onVideoSelected($event)"
+                        />
+                        <i class="fas fa-video" aria-hidden="true"></i>
+                        Gravar outro vídeo
+                      </label>
                     </div>
 
                     <details
@@ -211,8 +227,25 @@
                   <i class="fas fa-upload" aria-hidden="true"></i>
                   Selecionar vídeo
                 </label>
+                <label
+                  class="profile-videos__file-label profile-videos__camera-action app-action app-action--ghost"
+                  [class.profile-videos__file-label--disabled]="!canUpload || isUploadActive()"
+                >
+                  <input
+                    class="profile-videos__camera-file-input"
+                    type="file"
+                    accept="video/*"
+                    capture="environment"
+                    aria-label="Gravar vídeo com a câmera do dispositivo"
+                    [disabled]="!canUpload || isUploadActive()"
+                    (change)="onVideoSelected($event)"
+                  />
+                  <i class="fas fa-video" aria-hidden="true"></i>
+                  Gravar vídeo com a câmera
+                </label>
                 <p class="profile-videos__limits" id="profile-video-file-help">
-                  {{ videoUploadFormatLabel }} · até {{ videoUploadMaxMegabytes }} MB · mínimo de 5 segundos
+                  {{ videoUploadFormatLabel }} · até {{ videoUploadMaxMegabytes }} MB · mínimo de 5 segundos.
+                  A gravação não será enviada até você revisar e publicar.
                 </p>
               </div>
             }
