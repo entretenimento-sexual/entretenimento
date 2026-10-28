@@ -379,6 +379,10 @@ export class ProfileVideosComponent {
       return;
     }
 
+    // Libera a seleção nativa para permitir gravar de novo o mesmo arquivo.
+    // O File segue somente em memória até a publicação explícita.
+    input.value = '';
+
     this.editorLaunchSubscription?.unsubscribe();
     let subscription: Subscription | null = null;
 
