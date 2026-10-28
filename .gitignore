@@ -78,3 +78,15 @@ database-debug.log
 pubsub-debug.log
 storage-debug.log
 ui-debug.log
+
+# Arquivos locais usados nos testes manuais da galeria (nunca versionar).
+/galeria-emulador/
+/galeria-emulador-*.json
+/galeria-teste-codigo/
+/galeria-teste-codigo.zip
+/revisao-galerias/
+/revisao-galerias.zip
+/galeria-emulador-pacote.zip
+/galeria-firebase-teste-download.zip
+/implantacao-galerias-fase1/
+/implantacao-galerias-fase1.zip
