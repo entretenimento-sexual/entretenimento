@@ -18,6 +18,7 @@
 @let isOwner = (isOwner$ | async);
 @let policy = (policyResult$ | async);
 @let items = (photoCards$ | async);
+@let gallery = (ownerGalleryState$ | async);
 @let deletingPhotoId = (deletingPhotoId$ | async);
 @let updatingPhotoId = (updatingPhotoId$ | async);
 @let savingDisplayDateId = (savingDisplayDateId$ | async);
@@ -53,7 +54,16 @@
       </p>
     </div>
   } @else {
-    @if (isEmpty$ | async) {
+    @if (gallery?.loading) {
+      <p role="status" aria-live="polite">Carregando fotos publicadas...</p>
+    } @else if (gallery?.failed) {
+      <div class="empty-state app-empty-card" role="alert">
+        <p>Não foi possível carregar suas publicações.</p>
+        <button type="button" class="app-action app-action--ghost" (click)="retryPhotos()">
+          Tentar novamente
+        </button>
+      </div>
+    } @else if (isEmpty$ | async) {
       <div class="empty-state app-empty-card" role="status" aria-live="polite">
         <div class="empty-copy">
           <span class="empty-icon" aria-hidden="true">🖼️</span>
@@ -65,7 +75,7 @@
       @if (total >= 4) {
         <div class="gallery-toolbar app-toolbar" aria-live="polite">
           <div class="gallery-toolbar__summary app-toolbar__summary">
-            <strong>{{ total }}</strong> fotos
+            <strong>{{ total }}</strong> fotos carregadas
           </div>
 
           <div
@@ -203,7 +213,8 @@
                 class="photo-action-menu"
                 [disabled]="moderationLocked || updatingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id"
                 editLabel="Editar foto"
-                [showSecondaryAction]="true"
+                [showEditAction]="!!item.path"
+                [showSecondaryAction]="!!item.path"
                 secondaryLabel="Alterar data"
                 secondaryIcon="calendar_month"
                 [showFeatureAction]="item.publication.isPublished"
@@ -235,6 +246,29 @@
           </article>
         }
       </div>
+
+      @if (gallery?.pageError) {
+        <div role="alert" class="gallery-toolbar">
+          Não foi possível carregar a próxima página.
+          <button type="button" class="app-action app-action--ghost" (click)="retryPhotos()">
+            Tentar novamente
+          </button>
+        </div>
+      }
+      @if (gallery?.hasMore) {
+        <div class="gallery-toolbar">
+          <button
+            type="button"
+            class="app-action app-action--ghost"
+            [disabled]="gallery?.loadingMore"
+            [attr.aria-busy]="gallery?.loadingMore ? 'true' : null"
+            (click)="loadMorePhotos()"
+          >
+            {{ gallery?.loadingMore ? 'Carregando fotos...' : 'Carregar mais fotos' }}
+          </button>
+        </div>
+      }
+      <p class="visually-hidden" aria-live="polite">{{ totalPhotos$ | async }} fotos carregadas.</p>
     }
   }
 </section>
