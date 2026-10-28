@@ -11,10 +11,12 @@
 </button>
 
 <mat-menu #menu="matMenu" xPosition="before" class="app-media-action-menu-panel">
-  <button mat-menu-item type="button" (click)="edit.emit()">
-    <mat-icon fontIcon="edit"></mat-icon>
-    <span>{{ editLabel }}</span>
-  </button>
+  @if (showEditAction) {
+    <button mat-menu-item type="button" (click)="edit.emit()">
+      <mat-icon fontIcon="edit"></mat-icon>
+      <span>{{ editLabel }}</span>
+    </button>
+  }
 
   @if (showSecondaryAction) {
     <button mat-menu-item type="button" (click)="secondaryAction.emit()">
