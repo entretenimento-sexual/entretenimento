@@ -34,6 +34,10 @@ describe('publicação social de mídias capturadas pela câmera', () => {
     expect(template).not.toContain('(change)="startUpload()"');
     expect(template).toContain('Gravar vídeo com a câmera');
     expect(template).toContain('(ngSubmit)="startUpload()"');
+    expect(template).toContain('formControlName="visibility" value="FRIENDS"');
+    expect(template).toContain('formControlName="visibility" value="PUBLIC"');
+    expect(component).toContain("visibility: [null as 'PUBLIC' | 'FRIENDS' | null, [Validators.required]]");
+    expect(component).toContain('visibility: this.uploadPublicationForm.controls.visibility.value!');
     expect(component).toContain('this.videoEditor.launchFile$(file');
     expect(component).toContain('this.selectedFileSubject.next(file)');
     expect(component).toContain("input.value = '';");
