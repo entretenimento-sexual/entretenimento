@@ -18,7 +18,9 @@ test('photo E2E exercises full callable flows before launching an isolated revoc
   assert.match(normal, /--only auth,firestore,storage,functions --project demo-entretenimento-media-e2e/);
   assert.match(normal, /node scripts\/tests\/photo-publication\.e2e\.mjs && node scripts\/tests\/photo-social\.e2e\.mjs/);
   assert.ok(!normal.includes('node scripts/tests/media-transaction-revocation.e2e.mjs'));
-  assert.ok(normal.endsWith(' && npm run test:media:transaction:isolated:e2e'));
+  assert.ok(normal.endsWith(
+    ' && npm run test:media:transaction:isolated:e2e && npm run test:media:feed-cleanup:e2e'
+  ));
   assert.ok(!normal.includes('firebase --debug '));
 });
 
