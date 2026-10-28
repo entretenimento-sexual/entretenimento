@@ -120,7 +120,8 @@ export class PublicPhotoViewerLauncherService {
     return (
       !!this.photoKey(item) &&
       !!String(item?.url ?? '').trim() &&
-      item?.visibility === 'PUBLIC' &&
+      // A URL só chega hidratada após autorização no backend (inclusive FRIENDS).
+      (item?.visibility === 'PUBLIC' || item?.visibility === 'FRIENDS') &&
       item?.moderationStatus === 'APPROVED'
     );
   }
