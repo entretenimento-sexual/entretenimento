@@ -45,6 +45,7 @@ import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/pho
 import { MediaPolicyService, IMediaPolicyResult } from 'src/app/core/services/media/media-policy.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { MediaQueryService } from 'src/app/core/services/media/media-query.service';
+import { filterPublishedProfilePhotos } from 'src/app/core/services/media/profile-published-photo-filter.policy';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 import { PhotoViewerComponent, IProfilePhotoItem } from '../photo-viewer/photo-viewer.component';
@@ -208,11 +209,13 @@ export class ProfilePhotosComponent {
     this.sortMode$,
   ]).pipe(
     map(([ownerUid, photos, publicationConfigs, sortMode]) => {
-      const cards = photos.map((photo) => ({
+      const cards = filterPublishedProfilePhotos(
+        photos,
+        publicationConfigs,
+        ownerUid
+      ).map((photo) => ({
         ...photo,
-        publication:
-          publicationConfigs[photo.id] ??
-          this.mediaPublicationService.buildDefaultConfig(ownerUid, photo.id),
+        publication: publicationConfigs[photo.id],
       }));
 
       return this.sortPhotoCards(cards, sortMode);
@@ -225,7 +228,7 @@ export class ProfilePhotosComponent {
     distinctUntilChanged()
   );
 
-  readonly totalPhotos$: Observable<number> = this.photos$.pipe(
+  readonly totalPhotos$: Observable<number> = this.photoCards$.pipe(
     map((items) => items.length),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
