@@ -98,6 +98,18 @@
               (change)="onVideoSelected($event)"
             />
 
+            <!-- Captura nativa usa o mesmo seletor/validador/editor do upload. -->
+            <input
+              id="profile-video-camera-input"
+              class="profile-videos__file-input"
+              type="file"
+              accept="video/*"
+              capture="environment"
+              aria-label="Gravar vídeo com a câmera do dispositivo"
+              [disabled]="!canUpload || isUploadActive()"
+              (change)="onVideoSelected($event)"
+            />
+
             @if (selectedFileName) {
               <form
                 [formGroup]="uploadPublicationForm"
@@ -121,6 +133,13 @@
                         [class.profile-videos__file-label--disabled]="!canUpload || isUploadActive()"
                       >
                         Trocar vídeo
+                      </label>
+                      <label
+                        class="profile-videos__file-label app-action app-action--ghost"
+                        for="profile-video-camera-input"
+                        [class.profile-videos__file-label--disabled]="!canUpload || isUploadActive()"
+                      >
+                        Gravar outro vídeo
                       </label>
                     </div>
 
@@ -211,6 +230,18 @@
                   <i class="fas fa-upload" aria-hidden="true"></i>
                   Selecionar vídeo
                 </label>
+                <label
+                  class="profile-videos__file-label app-action app-action--ghost"
+                  for="profile-video-camera-input"
+                  [class.profile-videos__file-label--disabled]="!canUpload"
+                >
+                  <i class="fas fa-video" aria-hidden="true"></i>
+                  Gravar vídeo com a câmera
+                </label>
+                <p class="profile-videos__limits">
+                  A gravação permanece no dispositivo até confirmar o envio.
+                  A câmera nativa depende do navegador.
+                </p>
                 <p class="profile-videos__limits" id="profile-video-file-help">
                   {{ videoUploadFormatLabel }} · até {{ videoUploadMaxMegabytes }} MB · mínimo de 5 segundos
                 </p>
