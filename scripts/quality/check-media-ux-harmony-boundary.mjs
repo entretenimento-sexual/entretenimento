@@ -672,8 +672,7 @@ const videoModuleAgentGuidance = read('src/app/media/videos/AGENTS.md');
 requireIncludes(videoModuleAgentGuidance, [
   'DIRETRIZES-MIDIAS-PUBLICADAS.md',
   'onVideoSelected()',
-  'Armazenamento',
-].filter((part) => part !== 'Armazenamento'),
+],
 'video camera contract must be recorded near video module');
 
 requireIncludes(photoRetentionPolicy, [
@@ -688,8 +687,7 @@ requireIncludes(photoUploadTemplate, [
   'id="profile-photo-camera-input"',
   'capture="environment"',
   '(change)="onFileSelected($event)"',
-  'Escolha',
-].filter((part) => part !== 'Escolha'),
+],
 'photo camera must reuse canonical selection');
 
 requireIncludes(profileVideosTemplate, [
