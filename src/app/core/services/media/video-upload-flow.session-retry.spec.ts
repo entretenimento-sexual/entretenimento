@@ -82,6 +82,7 @@ describe('VideoUploadFlowService / registro após troca de conta', () => {
     const subscription = service.uploadPrivateVideo$({
       ownerUid: 'owner-a',
       file: new File(['video'], 'clip.mp4', { type: 'video/mp4' }),
+      visibility: 'FRIENDS',
       publication: {} as IVideoUploadCommand['publication'],
     }).subscribe({ next, error });
 
