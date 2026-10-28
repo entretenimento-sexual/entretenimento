@@ -63,6 +63,7 @@ export interface IVideoUploadCommand {
   posterBlob?: Blob | null;
   editRecipe?: IVideoEditRecipeInput | null;
   publication: IVideoPublicationSettingsInput;
+  visibility: 'PUBLIC' | 'FRIENDS';
 }
 
 interface UploadedBinary {
@@ -98,6 +99,7 @@ interface RegisterPrivateVideoUploadRequest
   durationMs: number | null;
   editRecipe: IVideoEditRecipeInput;
   publishWhenReady: true;
+  visibility: 'PUBLIC' | 'FRIENDS';
 }
 
 interface RegisterPrivateVideoUploadResponse {
@@ -154,6 +156,9 @@ export class VideoUploadFlowService {
       try {
         ownerUid = this.requireOwnedUid(command.ownerUid);
         file = command.file;
+        if (command.visibility !== 'PUBLIC' && command.visibility !== 'FRIENDS') {
+          throw new Error('Escolha quem poderá assistir a este vídeo.');
+        }
         sourceFormat = this.validateFile(file);
         selectedPosterBlob = this.validateOptionalPoster(command.posterBlob);
       } catch (error) {
@@ -332,6 +337,7 @@ export class VideoUploadFlowService {
             durationMs: metadata.durationMs,
             editRecipe,
             publishWhenReady: true,
+            visibility: command.visibility,
             ...publication,
           }, assertNotCancelled);
           assertNotCancelled();
