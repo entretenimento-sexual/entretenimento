@@ -8,6 +8,7 @@ import {
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { isRestrictedVideoModerationStatus } from './video-publication-moderation.policy';
 import { db } from '../../firebaseApp';
+import { resolveRequiredVideoUploadAudience } from './video-upload-audience.policy';
 import {
   publishVideo as publishVideoCore,
 } from './manage-video-publication.handler';
@@ -232,6 +233,17 @@ async function publishReadyVideo(
   ownerUid: string,
   videoId: string
 ): Promise<PublishVideoResponse> {
+  const publication = await db.doc(`users/${ownerUid}/video_publications/${videoId}`).get();
+  const visibility = resolveRequiredVideoUploadAudience(publication.get('visibility'));
+  if (!publication.exists ||
+      cleanId(publication.get('ownerUid')) !== ownerUid ||
+      cleanId(publication.get('videoId')) !== videoId ||
+      publication.get('publishWhenReady') !== true ||
+      !visibility) {
+    throw new HttpsError('failed-precondition',
+      'Não foi possível publicar o vídeo sem audiência social autorizada.');
+  }
+
   return (
     await publishVideoCore.run({
       auth: {
@@ -241,7 +253,7 @@ async function publishReadyVideo(
       data: {
         ownerUid,
         videoId,
-        visibility: 'PUBLIC',
+        visibility,
         orderIndex: 0,
       },
       rawRequest: {},
