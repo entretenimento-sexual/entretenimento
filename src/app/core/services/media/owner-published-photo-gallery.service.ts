@@ -98,6 +98,16 @@ export class OwnerPublishedPhotoGalleryService {
     this.requestPage(this.cursor);
   }
 
+  refresh(): void {
+    if (!this.allowed || !this.ownerUid) return;
+    this.revision++;
+    this.pending?.unsubscribe();
+    this.pending = null;
+    this.cursor = null;
+    this.stateSubject.next({ ...EMPTY_STATE, ownerUid: this.ownerUid });
+    this.requestPage(null);
+  }
+
   retry(): void {
     if (!this.allowed || !this.ownerUid) return;
     const state = this.stateSubject.value;
