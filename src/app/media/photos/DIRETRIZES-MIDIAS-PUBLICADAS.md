@@ -21,6 +21,20 @@ Uma mídia mantida como publicação ativa deve ter alguma audiência social **a
 4. É permitido staging técnico temporário enquanto validação, processamento, publicação, rollback ou retry responsável estiver em curso. Deve ter limite temporal curto e limpeza automática; não transformá-lo em funcionalidade de acervo pessoal.
 5. Upload não concluído/publicação recusada deve entrar no fluxo canônico de expiração/limpeza. Não conservar conteúdo indefinidamente por conveniência de UX.
 
+## 2.1. Câmera do dispositivo (fotos e vídeos)
+
+A origem do arquivo **não altera** o contrato de publicação: seleção de galeria, câmera nativa do celular e câmera do navegador devem entregar mídia final ao mesmo validador, editor local e publicador.
+
+- **Foto capturada direto da câmera:** `PhotoUploadComponent` recebe o `File` em `onFileSelected()`, valida formato/tamanho, abre prévia local, deixa a edição opcional, exige a escolha `PUBLIC`/`FRIENDS` e somente publica após ação explícita. Não realizar upload só por capturar uma imagem.
+- **Vídeo gravado direto da câmera:** `ProfileVideosComponent` recebe o `File` em `onVideoSelected()` e passa pela validação e pelo editor local canônicos. É necessário confirmar o envio. O fluxo atual de vídeo publica em `PUBLIC`; **a opção FRIENDS para vídeos exige atualização coordenada de backend, viewer e políticas antes de ser exposta na UI**. Não oferecer uma opção fictícia.
+- **Foto capturada no Mural comunitário:** `CommunityCameraCaptureComponent` usa `CameraCaptureService` e entrega somente um `CommunityComposerImageAttachment` local ao composer. O Mural é uma publicação no espaço comunitário, **não** uma nova galeria de perfil. Não enviar automaticamente ao Storage ao clicar em "Capturar" ou "Usar foto".
+- **Vídeo no Mural:** o composer atual só suporta anexos de imagem; não sugerir suporte de vídeo por câmera no Mural enquanto não existir contrato de publicação e autorização adequado.
+- Capturas não confirmadas, arquivos selecionados, blobs e `object URLs` devem ser descartados ao cancelar, trocar identidade ou destruir a UI; interromper todas as `MediaStreamTrack` ao fechar. Não usar cache durável para rascunhos capturados.
+- Se o navegador não suportar `capture`/câmera nativa, preservar o seletor convencional. Os atributos HTML de captura são **dicas ao dispositivo**, não prova de origem nem autorização de upload.
+- Formato/códec não suportado ou falha de câmera deve passar pelos mesmos erros centralizados e mensagens acessíveis; jamais aceitar arquivo sem a validação normal por ser capturado localmente.
+- Edição local pode mudar o arquivo final, mas versões anteriores não devem ser enviadas ou retidas no backend. Capturar/recapturar não cria publicação.
+- Aplicar essas regras tanto a fotos quanto a vídeos ao evoluir os módulos.
+
 ## 3. Retenção física — invariantes
 
 - Depois da publicação confirmada e da limpeza operacional, **um único arquivo físico ativo representa a mídia publicada**. Não manter simultaneamente cópia privada de origem e cópia publicada, nem versões antigas.
