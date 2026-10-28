@@ -667,6 +667,51 @@ requireIncludes(profileVideosSettingsStyles, [
 ], 'profile video progressive upload styles');
 
 
+// A origem câmera nunca pode produzir uma via de upload paralela.
+const videoModuleAgentGuidance = read('src/app/media/videos/AGENTS.md');
+requireIncludes(videoModuleAgentGuidance, [
+  'DIRETRIZES-MIDIAS-PUBLICADAS.md',
+  'onVideoSelected()',
+  'Armazenamento',
+].filter((part) => part !== 'Armazenamento'),
+'video camera contract must be recorded near video module');
+
+requireIncludes(photoRetentionPolicy, [
+  '## 2.1. Câmera do dispositivo',
+  'CommunityCameraCaptureComponent',
+  'ProfileVideosComponent',
+  'onFileSelected()',
+  'onVideoSelected()',
+], 'camera capture must use the same social publication/retention contract');
+
+requireIncludes(photoUploadTemplate, [
+  'id="profile-photo-camera-input"',
+  'capture="environment"',
+  '(change)="onFileSelected($event)"',
+  'Escolha',
+].filter((part) => part !== 'Escolha'),
+'photo camera must reuse canonical selection');
+
+requireIncludes(profileVideosTemplate, [
+  'id="profile-video-camera-input"',
+  'capture="environment"',
+  '(change)="onVideoSelected($event)"',
+], 'video camera must reuse canonical selection');
+
+requireIncludes(profileVideosComponent, [
+  "input.value = '';",
+  "this.videoEditor.launchFile$(file,",
+  "this.videoUploadFlow.uploadPrivateVideo$(",
+], 'camera video must validate/edit/upload through existing flow');
+
+const communityCamera = read('src/app/community/feed/community-camera-capture.component.ts');
+requireIncludes(communityCamera, [
+  'this.camera.captureFrame$(video)',
+  "this.photoEditor.editFile$(",
+  "this.attachmentCaptured.emit(attachment)",
+  "this.stopActiveStream();",
+], 'community camera must hand off local image without direct uploading');
+
 const videoEditorTemplate = read(
   'src/app/media/videos/video-editor/video-simple-editor-controls.component.html'
 );
