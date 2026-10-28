@@ -374,6 +374,10 @@ export class ProfileVideosComponent {
       return;
     }
 
+    // A câmera nativa reutiliza este método; limpar a seleção permite gravar
+    // novamente, inclusive quando o dispositivo reaproveita o mesmo nome.
+    input.value = '';
+
     if (this.isUploadActive()) {
       input.value = '';
       return;
