@@ -101,6 +101,41 @@ describe('CommunityCameraCaptureComponent', () => {
     expect(component.isOpen()).toBe(false);
   });
 
+  it('não publica nem entrega o arquivo ao capturar, refazer ou cancelar', () => {
+    const fixture = TestBed.createComponent(CommunityCameraCaptureComponent);
+    const component = fixture.componentInstance;
+    const delivered = vi.fn();
+    component.attachmentCaptured.subscribe(delivered);
+    fixture.detectChanges();
+
+    component.openCamera();
+    fixture.detectChanges();
+    vi.runOnlyPendingTimers();
+    fixture.detectChanges();
+
+    component.capturePhoto();
+    fixture.detectChanges();
+
+    expect(component.state()).toBe('captured');
+    expect(delivered).not.toHaveBeenCalled();
+
+    component.retake();
+    fixture.detectChanges();
+    vi.runOnlyPendingTimers();
+    fixture.detectChanges();
+    expect(component.state()).toBe('ready');
+    expect(delivered).not.toHaveBeenCalled();
+
+    component.capturePhoto();
+    fixture.detectChanges();
+    component.closeCamera();
+
+    expect(component.isOpen()).toBe(false);
+    expect(component.capturedPreviewUrl()).toBeNull();
+    expect(cameraMock.stopStream).toHaveBeenCalledWith(stream);
+    expect(delivered).not.toHaveBeenCalled();
+  });
+
   it('permite editar a captura antes de confirmar e mantém o attachment canônico', () => {
     const fixture = TestBed.createComponent(CommunityCameraCaptureComponent);
     const component = fixture.componentInstance;
