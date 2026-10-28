@@ -48,7 +48,7 @@ describe('publicação social de mídias capturadas pela câmera', () => {
 
     expect(photoDirections).toContain('## 2.1. Captura direta pela câmera');
     expect(photoDirections).toContain('Nunca');
-    expect(photoDirections).toContain('retenc');
+    expect(photoDirections).toContain('Retenção física');
     expect(photoAgent).toContain('DIRETRIZES-MIDIAS-PUBLICADAS.md');
     expect(videoAgent).toContain('../photos/DIRETRIZES-MIDIAS-PUBLICADAS.md');
     expect(videoAgent).toContain('Capturar não é publicar.');
