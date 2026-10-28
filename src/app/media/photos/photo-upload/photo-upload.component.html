@@ -86,6 +86,26 @@
               </span>
             </label>
 
+            <!-- Captura nativa no dispositivo: retorna um File ao mesmo preview,
+                 sem enviar nada antes da escolha explícita de audiência. -->
+            <label class="camera-capture-control app-action app-action--ghost">
+              <input
+                type="file"
+                class="native-file-input"
+                accept="image/*"
+                capture="environment"
+                aria-label="Tirar foto com a câmera do dispositivo"
+                (change)="onFileSelected($event)"
+                [disabled]="phase === 'EDITING' || phase === 'UPLOADING'"
+              />
+              <i class="fas fa-camera" aria-hidden="true"></i>
+              Tirar foto com a câmera
+            </label>
+            <p class="upload-note">
+              A captura fica apenas neste dispositivo até você escolher a audiência e publicar.
+              Caso a câmera não esteja disponível, use Escolher foto.
+            </p>
+
             @if (phase === 'EDITING') {
               <p class="upload-note" role="status" aria-live="polite">
                 Editor aberto. Salve ou cancele a edição para continuar.
