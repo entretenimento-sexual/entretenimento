@@ -11,7 +11,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, input, OnInit, signal } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
-import { BehaviorSubject, Observable, of } from 'rxjs';
+import { BehaviorSubject, Observable, combineLatest, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -28,6 +28,8 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
+import { filterPublishedProfilePhotos } from 'src/app/core/services/media/profile-published-photo-filter.policy';
 import { RouterModule } from '@angular/router';
 import {
   ConfirmationDialogComponent,
@@ -69,6 +71,7 @@ export class UserPhotoManagerComponent implements OnInit {
     private readonly applicationError: ApplicationErrorService,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly dialog: MatDialog,
+    private readonly mediaPublication: MediaPublicationService,
   ) {}
 
   ngOnInit(): void {
@@ -88,10 +91,16 @@ export class UserPhotoManagerComponent implements OnInit {
           return of([]);
         }
 
-        return this.photoService.getPhotosByUser(uid).pipe(
-            switchMap((photos) =>
+        return combineLatest([
+          this.photoService.getPhotosByUser(uid),
+          this.mediaPublication.getPublicationConfigsByOwner$(uid),
+        ]).pipe(
+            switchMap(([photos, publications]) =>
               this.sortMode$.pipe(
-                map((mode) => this.sortPhotos(photos, mode))
+                map((mode) => this.sortPhotos(
+                  filterPublishedProfilePhotos(photos, publications, uid),
+                  mode
+                ))
               )
             ),
             catchError((error) => {
