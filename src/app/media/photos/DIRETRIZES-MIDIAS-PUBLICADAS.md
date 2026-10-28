@@ -29,7 +29,7 @@ A origem do arquivo — dispositivo, câmera nativa do celular, câmera do naveg
 - O resultado capturado deve permanecer em memória/preview local e seguir **o mesmo** validador de formato/tamanho, editor, política de audiência, confirmação explícita e serviço de upload das mídias selecionadas da galeria do dispositivo.
 - **Nunca** salvar automaticamente a captura como publicação, arquivo de origem permanente, rascunho remoto ou histórico. Cancelar/trocar conta/destruir a tela deve descartar previews temporários e liberar recursos (`ObjectURL`, tracks, listeners).
 - Foto capturada: edição opcional no navegador e escolha obrigatória de `PUBLIC` ou `FRIENDS`.
-- Vídeo gravado: revisar e confirmar antes do envio; tratamento de edição preferencialmente local. Processamento de vídeo que ainda ocorrer no servidor é dívida técnica a migrar e só pode manter temporários pelo tempo operacional estritamente necessário.
+- Vídeo gravado: revisar e confirmar antes do envio, escolhendo explicitamente `PUBLIC` ou `FRIENDS`; tratamento de edição preferencialmente local. Processamento de vídeo que ainda ocorrer no servidor é dívida técnica a migrar e só pode manter temporários pelo tempo operacional estritamente necessário.
 - Formatos gerados pela câmera variam entre fabricantes. Arquivos não suportados devem ser rejeitados com mensagem útil pelo validador existente; nunca contornar limites de tamanho/MIME ou a autorização para aceitar a câmera.
 - O servidor deve tratar uploads de câmera com **as mesmas regras** de publicação, descarte de staging, limpeza de objetos substituídos e retenção mínima das demais origens.
 
