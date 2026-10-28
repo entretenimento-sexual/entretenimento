@@ -8,6 +8,7 @@ import { PhotoFirestoreService } from '../../core/services/image-handling/photo-
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from '../../core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
+import { MediaPublicationService } from '../../core/services/media/media-publication.service';
 
 describe('UserPhotoManagerComponent', () => {
   let component: UserPhotoManagerComponent;
@@ -55,6 +56,12 @@ describe('UserPhotoManagerComponent', () => {
           useValue: {
             showError: vi.fn(),
             showWarning: vi.fn(),
+          },
+        },
+        {
+          provide: MediaPublicationService,
+          useValue: {
+            getPublicationConfigsByOwner$: vi.fn(() => of({})),
           },
         },
         {
