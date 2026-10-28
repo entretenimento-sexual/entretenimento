@@ -76,6 +76,7 @@ describe('VideoUploadFlowService / lifecycle', () => {
     const subscription = service.uploadPrivateVideo$({
       ownerUid: 'owner-a',
       file,
+      visibility: 'PUBLIC',
       publication: {
         title: null,
         description: null,
