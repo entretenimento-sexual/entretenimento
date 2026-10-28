@@ -2,7 +2,7 @@
 // Galeria de gestão do próprio perfil.
 //
 // Responsabilidades:
-// - observar acervo de origem e configurações de publicação;
+// - observar documentos técnicos e exibir somente publicações ativas;
 // - permitir edição, exclusão, publicação e capa;
 // - manter a edição visual desacoplada da persistência: o editor devolve um
 //   arquivo processado e este componente executa a substituição da foto.
