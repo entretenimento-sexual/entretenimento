@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { FAILED_FEED_PHOTO_TTL_MS, isExpiredFeedPhotoPending, isFeedPhotoCleanupStaged, isBenignFeedPhotoDeletionRace } from './failed-feed-photo.policy';
+import {
+  FAILED_FEED_PHOTO_TTL_MS,
+  isExpiredFeedPhotoPending,
+  isFeedPhotoCleanupStaged,
+  isBenignFeedPhotoDeletionRace,
+} from './failed-feed-photo.policy';
 
 test('somente upload do feed com prazo expirado pode ser reconciliado', () => {
   const now = 10_000_000;
@@ -20,10 +25,19 @@ test('impede republicação após stage do cleanup, mas não bloqueia fotos sem 
 });
 
 test('classifica disputa transacional esperada sem esconder outras falhas', () => {
-  assert.equal(isBenignFeedPhotoDeletionRace({code:'failed-precondition',message:'Upload não elegível para descarte.'}), true);
-  assert.equal(isBenignFeedPhotoDeletionRace({code:'functions/failed-precondition',message:'Upload não elegível para descarte.'}), true);
+  assert.equal(
+    isBenignFeedPhotoDeletionRace({code:'failed-precondition',message:'Upload não elegível para descarte.'}),
+    true
+  );
+  assert.equal(
+    isBenignFeedPhotoDeletionRace({code:'functions/failed-precondition',message:'Upload não elegível para descarte.'}),
+    true
+  );
   assert.equal(isBenignFeedPhotoDeletionRace({code:'internal',message:'Upload não elegível para descarte.'}), false);
-  assert.equal(isBenignFeedPhotoDeletionRace({code:'failed-precondition',message:'Foto protegida pela moderação.'}), false);
+  assert.equal(
+    isBenignFeedPhotoDeletionRace({code:'failed-precondition',message:'Foto protegida pela moderação.'}),
+    false
+  );
   assert.equal(isBenignFeedPhotoDeletionRace(new Error('Storage indisponível')), false);
   assert.equal(isBenignFeedPhotoDeletionRace(null), false);
 });
