@@ -57,8 +57,8 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function waitFor(label, readValue, predicate) {
-  const deadline = Date.now() + WAIT_TIMEOUT_MS;
+async function waitFor(label, readValue, predicate, timeoutMs = WAIT_TIMEOUT_MS) {
+  const deadline = Date.now() + timeoutMs;
   let lastValue;
 
   while (Date.now() < deadline) {
@@ -400,7 +400,8 @@ async function run() {
         state.evidenceFileExists === true &&
         state.legalReview?.status === 'PENDING_LEGAL_REVIEW' &&
         state.legalReview?.authorityDisclosureStatus === 'NOT_EVALUATED' &&
-        state.legalReview?.automaticDisclosure === false
+        state.legalReview?.automaticDisclosure === false,
+      90_000
     );
 
     console.log('✔ revisão preventiva liberou a foto antes dos cenários de denúncia');

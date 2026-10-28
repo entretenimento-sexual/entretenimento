@@ -300,16 +300,39 @@ const publicProfilePhotos = read(
   'src/app/media/photos/public-profile-photos/public-profile-photos.component.ts'
 );
 requireIncludes(publicProfilePhotos, [
-  'MediaPublicQueryService',
-  'getProfilePublicPhotos$',
+  'PublicProfilePhotoPaginationService',
+  'loadPage$(',
   'PublicPhotoViewerLauncherService',
-], 'galeria pública de perfil deve usar query e viewer públicos');
+  'openPhoto(',
+], 'galeria pública de perfil deve usar paginação e viewer públicos');
 
-for (const forbidden of ['MediaQueryService', 'PhotoFirestoreService']) {
-  if (publicProfilePhotos.includes(forbidden)) {
-    throw new Error(
-      '[media-exposure-matrix] galeria pública não pode ler acervo de origem: ' + forbidden
-    );
+const publicProfilePhotoPagination = read(
+  'src/app/core/services/media/public-profile-photo-pagination.service.ts'
+);
+requireIncludes(publicProfilePhotoPagination, [
+  'PublicMediaReadBoundaryService',
+  'PublicPhotoAccessService',
+  "mediaType: 'PHOTO'",
+  "mode: 'PROFILE'",
+  'ownerUids: [owner]',
+  'hydratePublicPhotoUrls$(',
+  "candidate.ownerUid !== owner",
+  "candidate.visibility !== 'PUBLIC'",
+  "candidate.moderationStatus !== 'APPROVED'",
+  'fromBackendCursor(',
+], 'paginação de fotos deve preservar leitura e acesso públicos');
+
+for (const [surface, source] of [
+  ['galeria pública', publicProfilePhotos],
+  ['paginação pública', publicProfilePhotoPagination],
+]) {
+  for (const forbidden of ['MediaQueryService', 'PhotoFirestoreService']) {
+    if (source.includes(forbidden)) {
+      throw new Error(
+        '[media-exposure-matrix] ' + surface +
+        ' não pode ler acervo de origem: ' + forbidden
+      );
+    }
   }
 }
 

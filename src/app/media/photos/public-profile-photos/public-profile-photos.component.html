@@ -1,7 +1,7 @@
 @let state = (state$ | async);
 @let items = state?.items || [];
 
-<section class="public-photos-page container-wide" aria-label="Fotos públicas">
+<section #galleryContainer class="public-photos-page container-wide" aria-label="Fotos públicas">
   <app-page-header title="Fotos públicas"></app-page-header>
 
   @if (state) {
@@ -51,11 +51,38 @@
               <app-public-photo-card
                 [photo]="item"
                 variant="profile"
-                (preview)="openPhoto(i)"
+                (preview)="openPhoto(i, item)"
               />
             </div>
           }
         </div>
+
+        @if (state.hasMore) {
+          <div class="public-photos-pagination">
+            @if (state.pageError) {
+              <p role="alert">
+                Não foi possível carregar mais fotos.
+                Tente novamente.
+              </p>
+            }
+
+            <button
+              type="button"
+              class="app-action app-action--ghost"
+              [disabled]="state.loadingMore"
+              [attr.aria-busy]="state.loadingMore ? 'true' : null"
+              aria-label="Carregar mais fotos públicas"
+              (click)="loadMorePhotos()"
+            >
+              {{ state.loadingMore ? 'Carregando fotos...' : 'Carregar mais fotos' }}
+            </button>
+
+          </div>
+        }
+
+        <p class="visually-hidden" aria-live="polite">
+          {{ state.items.length }} fotos carregadas neste perfil.
+        </p>
       }
     }
   }

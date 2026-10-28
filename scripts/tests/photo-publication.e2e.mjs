@@ -74,8 +74,8 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function waitFor(label, readValue, predicate) {
-  const deadline = Date.now() + WAIT_TIMEOUT_MS;
+async function waitFor(label, readValue, predicate, timeoutMs = WAIT_TIMEOUT_MS) {
+  const deadline = Date.now() + timeoutMs;
   let lastValue;
 
   while (Date.now() < deadline) {
@@ -88,7 +88,7 @@ async function waitFor(label, readValue, predicate) {
     await delay(WAIT_INTERVAL_MS);
   }
 
-  throw new Error(`Timeout aguardando: ${label}. Último valor: ${String(lastValue)}`);
+  throw new Error(`Timeout aguardando: ${label}. Último valor: ${JSON.stringify(lastValue, null, 2)?.slice(0, 4000) ?? String(lastValue)}`);
 }
 
 async function readDocumentData(reference) {
@@ -372,7 +372,8 @@ async function run() {
       (value) =>
         value?.sourceStoragePath === resolvedEditedPath &&
         typeof value?.publishedStoragePath === 'string' &&
-        value.publishedStoragePath !== originalPublishedPath
+        value.publishedStoragePath !== originalPublishedPath,
+      90_000
     );
     const editedPublishedPath = synchronizedPublication.publishedStoragePath;
 

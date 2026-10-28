@@ -309,7 +309,8 @@ export const reservePhotoUpload = onCall<ReservePhotoUploadRequest>(
     });
 
     // Reserva pertence à fronteira de autoria, não à de consumo público.
-    // Segurança do conteúdo permanece no pipeline preventivo posterior.
+    // Nudez adulta consensual nao exige aprovacao humana preventiva.
+    // Moderacao inicial por denuncias e restricoes posteriores cabiveis.
     await assertMediaAuthoringEligibility(ownerUid);
 
     const reservationId = buildReservationId(ownerUid, storagePath);
