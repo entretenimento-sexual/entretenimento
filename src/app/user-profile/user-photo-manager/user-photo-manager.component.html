@@ -9,6 +9,8 @@
   - preserva inputs, rotas, ordenação, recolhimento e ação de remoção existentes.
 -->
 
+@let gallery = (ownerGalleryState$ | async);
+
 <section
   class="photo-manager app-card app-card--flat"
   [class.photo-manager--summary]="isSummaryMode()"
@@ -21,7 +23,7 @@
         <h3 class="app-section-title">{{ title() }}</h3>
         <p class="app-section-meta">
           {{ photos.length }}
-          {{ photos.length === 1 ? 'foto' : 'fotos' }}
+          {{ photos.length === 1 ? 'foto carregada' : 'fotos carregadas' }}
         </p>
       </div>
 
@@ -76,11 +78,18 @@
     </header>
 
     @if (!isCollapsed()) {
-      @if (photos.length) {
+      @if (gallery?.loading) {
+        <app-content-state state="loading" message="Carregando fotos publicadas..." [compact]="true" />
+      } @else if (gallery?.failed) {
+        <div role="alert">
+          Não foi possível carregar as fotos publicadas.
+          <button type="button" class="app-action app-action--ghost" (click)="retryPhotos()">Tentar novamente</button>
+        </div>
+      } @else if (photos.length) {
         <div
           class="photo-grid app-card-grid app-card-grid--compact app-card-grid--media"
           role="list"
-          aria-label="Fotos cadastradas no perfil"
+          aria-label="Fotos publicadas no perfil"
         >
           @for (photo of getVisiblePhotos(photos); track photo.id) {
             <article class="photo-item app-card app-card--media app-card--interactive" role="listitem">
@@ -116,6 +125,21 @@
             </article>
           }
         </div>
+        @if (!isSummaryMode() && gallery?.pageError) {
+          <p role="alert">
+            Não foi possível carregar mais fotos.
+            <button type="button" class="app-action app-action--ghost" (click)="retryPhotos()">Tentar novamente</button>
+          </p>
+        }
+        @if (!isSummaryMode() && gallery?.hasMore && !limit()) {
+          <button
+            type="button"
+            class="app-action app-action--ghost"
+            [disabled]="gallery?.loadingMore"
+            [attr.aria-busy]="gallery?.loadingMore ? 'true' : null"
+            (click)="loadMorePhotos()"
+          >{{ gallery?.loadingMore ? 'Carregando fotos...' : 'Carregar mais fotos' }}</button>
+        }
       } @else {
         <app-content-state
           state="empty"
