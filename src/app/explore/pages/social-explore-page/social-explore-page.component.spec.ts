@@ -898,6 +898,7 @@ describe('SocialExplorePageComponent', () => {
       processedFile: file,
       originalFileName: 'foto.webp',
       mimeType: 'image/webp',
+      publishToFeed: true,
     });
     expect(publication.publishPhoto$).toHaveBeenCalledWith(
       expect.objectContaining({
