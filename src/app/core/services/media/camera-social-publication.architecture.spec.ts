@@ -37,6 +37,8 @@ describe('publicação social de mídias capturadas pela câmera', () => {
     expect(component).toContain('this.videoEditor.launchFile$(file');
     expect(component).toContain('this.selectedFileSubject.next(file)');
     expect(component).toContain("input.value = '';");
+    expect(component).toContain('this.resetSelection(this.videoInputRef()?.nativeElement)');
+    expect(component).toContain('onUploadDialogCancel(event: Event)');
     expect(flow).toContain('this.validateFile(file)');
     expect(flow).toContain('publishWhenReady: true');
   });
