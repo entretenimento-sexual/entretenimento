@@ -8,6 +8,7 @@ import { PhotoFirestoreService } from '../../core/services/image-handling/photo-
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from '../../core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
+import { OwnerPublishedPhotoGalleryService } from '../../core/services/media/owner-published-photo-gallery.service';
 
 describe('UserPhotoManagerComponent', () => {
   let component: UserPhotoManagerComponent;
@@ -62,7 +63,33 @@ describe('UserPhotoManagerComponent', () => {
           useValue: dialog,
         },
       ],
-    }).compileComponents();
+    });
+
+    // O serviço é fornecido na instância do componente: substituir a
+    // dependência real de Functions por um double isolado nos testes unitários.
+    TestBed.overrideComponent(UserPhotoManagerComponent, {
+      set: {
+        providers: [{
+          provide: OwnerPublishedPhotoGalleryService,
+          useValue: {
+            state$: of({
+              ownerUid: 'u1',
+              items: [],
+              loading: false,
+              loadingMore: false,
+              hasMore: false,
+              pageError: false,
+              failed: false,
+            }),
+            connect: vi.fn(),
+            loadMorePhotos: vi.fn(),
+            retry: vi.fn(),
+            refresh: vi.fn(),
+          },
+        }],
+      },
+    });
+    await TestBed.compileComponents();
 
     fixture = TestBed.createComponent(UserPhotoManagerComponent);
     component = fixture.componentInstance;
