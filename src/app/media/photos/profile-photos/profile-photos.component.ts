@@ -607,7 +607,7 @@ export class ProfilePhotosComponent {
                 this.photoFirestoreService.deletePhoto(ownerUid, item.id)
               ).pipe(
                 tap(() =>
-                  this.errorNotifier.showSuccess('Foto excluída.')
+                  { this.errorNotifier.showSuccess('Foto excluída.'); this.ownerGallery.refresh(); }
                 ),
                 catchError((error) => {
                   this.reportError(
@@ -665,6 +665,7 @@ export class ProfilePhotosComponent {
           return this.mediaPublicationService.setCoverPhoto$(ownerUid, item.id).pipe(
             tap(() => {
               this.errorNotifier.showSuccess('Foto de capa atualizada.');
+              this.ownerGallery.refresh();
             }),
             catchError((error) => {
               this.reportError(
