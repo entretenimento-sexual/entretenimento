@@ -147,6 +147,20 @@
                       <summary>Detalhes e interações</summary>
 
                       <div class="profile-videos__settings-form profile-videos__upload-composer">
+                        <fieldset class="profile-videos__settings-options" [disabled]="isUploadActive()">
+                          <legend>Quem poderá assistir a este vídeo?</legend>
+                          <label>
+                            <input type="radio" formControlName="visibility" value="FRIENDS" required />
+                            <span>Amigos — conexões autorizadas</span>
+                          </label>
+                          <label>
+                            <input type="radio" formControlName="visibility" value="PUBLIC" required />
+                            <span>Público — audiência permitida</span>
+                          </label>
+                        </fieldset>
+                        @if (uploadPublicationForm.controls.visibility.touched && uploadPublicationForm.controls.visibility.invalid) {
+                          <p class="profile-videos__field-error" role="alert">Escolha quem poderá ver seu vídeo.</p>
+                        }
                         <label for="new-video-title">
                           <span>Título</span>
                           <input
