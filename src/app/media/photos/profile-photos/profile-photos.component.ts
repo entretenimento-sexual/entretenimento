@@ -45,6 +45,7 @@ import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/pho
 import { MediaPolicyService, IMediaPolicyResult } from 'src/app/core/services/media/media-policy.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { MediaQueryService } from 'src/app/core/services/media/media-query.service';
+import { filterPublishedProfilePhotos } from 'src/app/core/services/media/profile-published-photo-filter.policy';
 import { OwnerPublishedPhotoGalleryService } from 'src/app/core/services/media/owner-published-photo-gallery.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
@@ -238,7 +239,10 @@ export class ProfilePhotosComponent {
     map(([ownerUid, gallery, originPhotos, publicationConfigs, sortMode]) => {
       if (gallery.ownerUid !== ownerUid) return [];
 
-      const originById = new Map(originPhotos.map((photo) => [photo.id, photo]));
+      const originById = new Map(
+        filterPublishedProfilePhotos(originPhotos, publicationConfigs, ownerUid)
+          .map((photo) => [photo.id, photo])
+      );
       const cards: IPhotoCardVm[] = gallery.items.map((photo) => {
         const origin = originById.get(photo.id);
         const storedConfig = publicationConfigs[photo.id];
