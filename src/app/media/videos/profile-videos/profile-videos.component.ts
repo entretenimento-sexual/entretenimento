@@ -176,6 +176,7 @@ export class ProfileVideosComponent {
   readonly editingVideoId$ = this.editingVideoIdSubject.asObservable();
 
   readonly uploadPublicationForm = this.formBuilder.nonNullable.group({
+    visibility: [null as 'PUBLIC' | 'FRIENDS' | null, [Validators.required]],
     title: ['', [Validators.maxLength(120)]],
     description: ['', [Validators.maxLength(1000)]],
     reactionsEnabled: [true],
@@ -406,6 +407,7 @@ export class ProfileVideosComponent {
         this.selectedFileSubject.next(file);
         this.previewUrlSubject.next(URL.createObjectURL(file));
         this.uploadPublicationForm.reset({
+      visibility: null,
           title: '',
           description: '',
           reactionsEnabled: true,
@@ -517,6 +519,7 @@ export class ProfileVideosComponent {
           file: editorResult.file,
           posterBlob: editorResult.posterBlob,
           editRecipe: editorResult.recipe,
+          visibility: this.uploadPublicationForm.controls.visibility.value!,
           publication,
         });
       }),
@@ -586,6 +589,7 @@ export class ProfileVideosComponent {
     this.selectedFileSubject.next(null);
     this.previewUrlSubject.next(null);
     this.uploadPublicationForm.reset({
+      visibility: null,
       title: '',
       description: '',
       reactionsEnabled: true,
@@ -1217,6 +1221,7 @@ export class ProfileVideosComponent {
     this.selectedFileSubject.next(null);
     this.previewUrlSubject.next(null);
     this.uploadPublicationForm.reset({
+      visibility: null,
       title: '',
       description: '',
       reactionsEnabled: true,
