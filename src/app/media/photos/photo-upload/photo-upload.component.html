@@ -86,6 +86,32 @@
               </span>
             </label>
 
+            <!-- Captura nativa móvel: o File segue o mesmo onFileSelected,
+                 validador, editor local e publishPhoto$ da galeria. -->
+            <input
+              #cameraInput
+              id="profile-photo-camera-input"
+              class="native-file-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              (change)="onFileSelected($event)"
+              [disabled]="phase === 'EDITING' || phase === 'UPLOADING'"
+              aria-label="Tirar foto com a câmera do dispositivo"
+            />
+            <label
+              class="app-action app-action--ghost"
+              for="profile-photo-camera-input"
+              [class.upload-action--disabled]="phase === 'EDITING' || phase === 'UPLOADING'"
+            >
+              <i class="fas fa-camera" aria-hidden="true"></i>
+              Tirar foto com a câmera
+            </label>
+            <p class="upload-note">
+              A captura fica somente neste dispositivo até você escolher a audiência
+              e confirmar a publicação.
+            </p>
+
             @if (phase === 'EDITING') {
               <p class="upload-note" role="status" aria-live="polite">
                 Editor aberto. Salve ou cancele a edição para continuar.
