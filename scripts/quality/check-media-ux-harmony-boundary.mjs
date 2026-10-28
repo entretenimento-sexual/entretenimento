@@ -42,6 +42,26 @@ function forbidIncludes(source, fragment, label) {
   }
 }
 
+// Contrato permanente de produto: impedir regressão silenciosa para drive privado.
+const photoRetentionPolicy = read('src/app/media/photos/DIRETRIZES-MIDIAS-PUBLICADAS.md');
+requireIncludes(photoRetentionPolicy, [
+  'não é um drive, backup, álbum privado',
+  'PUBLIC',
+  'FRIENDS',
+  'um único arquivo físico ativo',
+  'não podem ser exibidos como galeria pessoal',
+  'evidências de moderação',
+  'Observables/RxJS',
+], 'media photo retention and publication policy must remain documented');
+
+const photoAudienceModel = read(
+  'src/app/core/interfaces/media/i-photo-publication-config.ts'
+);
+requireIncludes(photoAudienceModel,
+  "export type TPhotoPublishableVisibility = 'FRIENDS' | 'PUBLIC';",
+  'new photo publication must require an audience other than only-me'
+);
+
 const presentation = read(
   'src/app/media/shared/presentation/public-media-presentation.policy.ts'
 );
