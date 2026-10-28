@@ -65,6 +65,8 @@ describe('UserPhotoManagerComponent', () => {
       ],
     });
 
+    // O serviço é fornecido na instância do componente: substituir a
+    // dependência real de Functions por um double isolado nos testes unitários.
     TestBed.overrideComponent(UserPhotoManagerComponent, {
       set: {
         providers: [{
