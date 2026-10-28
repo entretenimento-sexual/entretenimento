@@ -43,6 +43,13 @@ function forbidIncludes(source, fragment, label) {
 }
 
 // Contrato permanente de produto: impedir regressão silenciosa para drive privado.
+const moduleAgentGuidance = read('src/app/media/photos/AGENTS.md');
+requireIncludes(moduleAgentGuidance, [
+  'DIRETRIZES-MIDIAS-PUBLICADAS.md',
+  'Nunca criar galeria privada',
+  'Armazenamento físico mínimo',
+], 'photo module agent instructions must preserve social-publication contract');
+
 const photoRetentionPolicy = read('src/app/media/photos/DIRETRIZES-MIDIAS-PUBLICADAS.md');
 requireIncludes(photoRetentionPolicy, [
   'não é um drive, backup, álbum privado',
