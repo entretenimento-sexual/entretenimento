@@ -364,6 +364,8 @@ export class ProfileVideosComponent {
     if (dialog?.open) {
       dialog.close();
     }
+    // Não conservar gravações da câmera quando o usuário fecha o editor.
+    this.resetSelection(this.videoInputRef()?.nativeElement);
   }
 
   onVideoSelected(event: Event): void {
@@ -440,7 +442,9 @@ export class ProfileVideosComponent {
   onUploadDialogCancel(event: Event): void {
     if (this.isUploadActive()) {
       event.preventDefault();
+      return;
     }
+    this.resetSelection(this.videoInputRef()?.nativeElement);
   }
 
   startUpload(): void {
