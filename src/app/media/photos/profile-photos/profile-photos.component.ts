@@ -606,9 +606,10 @@ export class ProfilePhotosComponent {
               return from(
                 this.photoFirestoreService.deletePhoto(ownerUid, item.id)
               ).pipe(
-                tap(() =>
-                  { this.errorNotifier.showSuccess('Foto excluída.'); this.ownerGallery.refresh(); }
-                ),
+                tap(() => {
+                  this.errorNotifier.showSuccess('Foto excluída.');
+                  this.ownerGallery.refresh();
+                }),
                 catchError((error) => {
                   this.reportError(
                     'photo_delete_failed',
