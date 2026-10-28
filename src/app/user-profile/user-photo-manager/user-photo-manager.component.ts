@@ -9,7 +9,7 @@
 // - centraliza falhas técnicas no ApplicationErrorService e mantém avisos de validação no notifier
 // - preserva compatibilidade com o template atual
 import { CommonModule } from '@angular/common';
-import { Component, input, OnInit, signal } from '@angular/core';
+import { Component, inject, input, OnInit, signal } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import {
@@ -65,6 +65,7 @@ export class UserPhotoManagerComponent implements OnInit {
   private readonly sortModeSubject = new BehaviorSubject<TPhotoSortMode>('newest');
   readonly sortMode$ = this.sortModeSubject.asObservable();
   userId = '';
+  private readonly ownerGallery = inject(OwnerPublishedPhotoGalleryService);
   readonly ownerGalleryState$ = this.ownerGallery.state$;
 
   constructor(
@@ -73,7 +74,6 @@ export class UserPhotoManagerComponent implements OnInit {
     private readonly applicationError: ApplicationErrorService,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly dialog: MatDialog,
-    private readonly ownerGallery: OwnerPublishedPhotoGalleryService,
   ) {}
 
   ngOnInit(): void {
