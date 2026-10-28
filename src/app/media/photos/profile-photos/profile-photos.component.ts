@@ -45,10 +45,11 @@ import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/pho
 import { MediaPolicyService, IMediaPolicyResult } from 'src/app/core/services/media/media-policy.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { MediaQueryService } from 'src/app/core/services/media/media-query.service';
-import { filterPublishedProfilePhotos } from 'src/app/core/services/media/profile-published-photo-filter.policy';
+import { OwnerPublishedPhotoGalleryService } from 'src/app/core/services/media/owner-published-photo-gallery.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
-import { PhotoViewerComponent, IProfilePhotoItem } from '../photo-viewer/photo-viewer.component';
+import type { IProfilePhotoItem } from '../photo-viewer/photo-viewer.component';
+import { PublicPhotoViewerLauncherService } from '../photo-viewer/public-photo-viewer-launcher.service';
 import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 import {
   ConfirmationDialogComponent,
@@ -83,6 +84,7 @@ const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' }
     PageHeaderComponent,
     MediaActionMenuComponent,
   ],
+  providers: [OwnerPublishedPhotoGalleryService],
   templateUrl: './profile-photos.component.html',
   styleUrls: ['./profile-photos.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -98,6 +100,8 @@ export class ProfilePhotosComponent {
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(MediaApplicationErrorService);
   private readonly mediaQuery = inject(MediaQueryService);
+  private readonly ownerGallery = inject(OwnerPublishedPhotoGalleryService);
+  private readonly publicPhotoViewer = inject(PublicPhotoViewerLauncherService);
   private readonly mediaPublicationService = inject(MediaPublicationService);
   private readonly photoFirestoreService = inject(PhotoFirestoreService);
   private readonly photoEditor = inject(PhotoEditorLauncherService);
@@ -173,6 +177,28 @@ export class ProfilePhotosComponent {
     distinctUntilChanged()
   );
 
+  readonly ownerGalleryState$ = this.ownerGallery.state$;
+
+  constructor() {
+    // A listagem social é a fonte dos itens; os documentos técnicos
+    // de origem servem somente às ações legadas que ainda os exigem.
+    combineLatest([this.ownerUid$, this.canView$]).pipe(
+      distinctUntilChanged(
+        ([previousUid, previousAllowed], [uid, allowed]) =>
+          previousUid === uid && previousAllowed === allowed
+      ),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(([uid, allowed]) => this.ownerGallery.connect(uid, allowed));
+  }
+
+  loadMorePhotos(): void {
+    this.ownerGallery.loadMorePhotos();
+  }
+
+  retryPhotos(): void {
+    this.ownerGallery.retry();
+  }
+
   readonly photos$: Observable<IManageablePhotoItem[]> = combineLatest([
     this.ownerUid$,
     this.canView$,
@@ -194,9 +220,9 @@ export class ProfilePhotosComponent {
   );
 
   readonly publicationConfigs$: Observable<Record<string, IPhotoPublicationConfig>> =
-    this.ownerUid$.pipe(
-      switchMap((ownerUid) => {
-        if (!ownerUid) return of({});
+    combineLatest([this.ownerUid$, this.isOwner$]).pipe(
+      switchMap(([ownerUid, isOwner]) => {
+        if (!ownerUid || !isOwner) return of({});
         return this.mediaPublicationService.getPublicationConfigsByOwner$(ownerUid);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
@@ -204,19 +230,40 @@ export class ProfilePhotosComponent {
 
   readonly photoCards$: Observable<IPhotoCardVm[]> = combineLatest([
     this.ownerUid$,
+    this.ownerGalleryState$,
     this.photos$,
     this.publicationConfigs$,
     this.sortMode$,
   ]).pipe(
-    map(([ownerUid, photos, publicationConfigs, sortMode]) => {
-      const cards = filterPublishedProfilePhotos(
-        photos,
-        publicationConfigs,
-        ownerUid
-      ).map((photo) => ({
-        ...photo,
-        publication: publicationConfigs[photo.id],
-      }));
+    map(([ownerUid, gallery, originPhotos, publicationConfigs, sortMode]) => {
+      if (gallery.ownerUid !== ownerUid) return [];
+
+      const originById = new Map(originPhotos.map((photo) => [photo.id, photo]));
+      const cards: IPhotoCardVm[] = gallery.items.map((photo) => {
+        const origin = originById.get(photo.id);
+        const storedConfig = publicationConfigs[photo.id];
+        const publication: IPhotoPublicationConfig =
+          storedConfig?.ownerUid === ownerUid && storedConfig.isPublished
+            ? storedConfig
+            : {
+                ...this.mediaPublicationService.buildDefaultConfig(ownerUid, photo.id),
+                isPublished: true,
+                visibility: photo.visibility,
+                moderationStatus: photo.moderationStatus ?? 'APPROVED',
+                isCover: photo.isCover === true,
+                orderIndex: photo.orderIndex,
+                publishedAt: photo.publishedAt,
+              };
+
+        return {
+          ...photo,
+          // Caminho de origem opcional: publicação pública nunca expõe upload privado.
+          path: origin?.path,
+          fileName: origin?.fileName,
+          displayDate: origin?.displayDate,
+          publication,
+        };
+      });
 
       return this.sortPhotoCards(cards, sortMode);
     }),
@@ -423,43 +470,35 @@ export class ProfilePhotosComponent {
   }
 
   openPhoto(targetId: string): void {
-    combineLatest([this.canView$, this.ownerUid$, this.photoCards$])
+    combineLatest([this.canView$, this.ownerUid$, this.ownerGalleryState$])
       .pipe(
         take(1),
-        switchMap(([canView, ownerUid, items]) => {
-          if (!canView) {
+        switchMap(([canView, ownerUid, gallery]) => {
+          if (!canView || gallery.ownerUid !== ownerUid) {
             this.errorNotifier.showWarning('Você não tem permissão para ver essas fotos.');
             return EMPTY;
           }
 
-          const startIndex = Math.max(
-            0,
-            items.findIndex((i) => i.id === targetId)
+          const selected = gallery.items.find(
+            (item) => item.id === targetId && item.ownerUid === ownerUid
           );
+          if (!selected) return EMPTY;
 
-          this.dialog.open(PhotoViewerComponent, {
-            data: { ownerUid, items, startIndex },
-            autoFocus: 'dialog',
-            restoreFocus: true,
-            ariaLabel: 'Visualizador de foto',
-            width: '100vw',
-            height: '100vh',
-            maxWidth: '100vw',
-            maxHeight: '100vh',
-            panelClass: ['photo-viewer-dialog', 'photo-viewer-dialog--immersive'],
-            backdropClass: 'photo-viewer-backdrop',
+          return this.publicPhotoViewer.open$({
+            items: [...gallery.items],
+            selected,
+            source: 'profile',
           });
-
-          return EMPTY;
         }),
         catchError((error) => {
           this.errorHandler.report(error, {
             operation: 'profilePhotos.openPhoto',
-            reasonHint: 'profile_photos_load_failed',
+            reasonHint: 'media_navigation_failed',
             metadata: { scope: 'ProfilePhotosComponent' },
           });
           return EMPTY;
-        })
+        }),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
   }
