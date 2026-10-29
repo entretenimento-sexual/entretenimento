@@ -193,6 +193,7 @@ export const replacePublishedPhoto = onCall<ReplacePublishedPhotoRequest>(
     const startedAt = Date.now();
     let candidatePath = '';
     let committed = false;
+    let committedVersion = 0;
     try {
       candidatePath = await copyPrivatePhotoToPublishedAsset({
         ownerUid, photoId, sourceStoragePath: sourcePath,
@@ -224,6 +225,7 @@ export const replacePublishedPhoto = onCall<ReplacePublishedPhotoRequest>(
             'Outra atualização mudou a publicação ou o upload temporário.');
         }
         const now = Date.now();
+        committedVersion = now;
         const safety = buildUnassessedMediaContentSafetyAssessment(now);
         const scoreBreakdown = buildUnassessedPhotoScoreBreakdown();
         tx.update(publicationRef, {
@@ -287,6 +289,6 @@ export const replacePublishedPhoto = onCall<ReplacePublishedPhotoRequest>(
       operation: 'photo.replace_published_asset',
       outcome: 'success', startedAt,
     });
-    return { photoId, assetVersion: Date.now(), replaced: true };
+    return { photoId, assetVersion: committedVersion, replaced: true };
   }
 );
