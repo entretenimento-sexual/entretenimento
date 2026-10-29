@@ -14,6 +14,7 @@ import {
   assertPublicMediaConsumptionAccessInTransaction,
 } from './public-media-consumption-access.policy';
 import { assertCurrentPublicMediaOwnerLifecycle } from './public-media-transaction-owner-access.policy';
+import { assertVideoAudienceAccessInTransaction } from './video-audience-access.policy';
 import {
   PUBLIC_VIDEO_PLAYBACK_SESSION_COLLECTION,
   normalizePublicVideoPlaybackToken,
@@ -115,7 +116,7 @@ function assertPublicApprovedVideo(
   }
 
   if (
-    data?.visibility !== 'PUBLIC' ||
+    (data?.visibility !== 'PUBLIC' && data?.visibility !== 'FRIENDS') ||
     data?.moderationStatus !== 'APPROVED'
   ) {
     throw new HttpsError(
@@ -287,9 +288,13 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
         publicVideoSnap.exists,
         publicVideoSnap.data()
       );
+      const viewerCanReadFriends = await assertVideoAudienceAccessInTransaction(
+        transaction, viewerUid, ownerUid, publicVideoSnap.get('visibility')
+      );
       assertCurrentPublicVideoTransactionExposure({
         publicVideo: publicVideoSnap.data(),
         publication: publicationSnap.data(),
+        viewerCanReadFriends,
         nowMs: now,
       });
 
