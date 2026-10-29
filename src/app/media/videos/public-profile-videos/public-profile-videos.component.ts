@@ -38,6 +38,12 @@ import {
 } from 'rxjs/operators';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+import {
+  normalizePublicUserIdentity,
+  type PublicUserIdentity,
+} from 'src/app/core/domain/public-user-identity/public-user-identity.model';
+import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
@@ -93,6 +99,7 @@ const PUBLIC_VIDEO_RENDER_WINDOW_STEP = 12;
     ReportContentButtonComponent,
     ContentStateComponent,
     PublicVideoCardComponent,
+    PublicUserIdentityComponent,
   ],
   templateUrl: './public-profile-videos.component.html',
   styleUrls: ['./public-profile-videos.component.css'],
@@ -104,6 +111,7 @@ export class PublicProfileVideosComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly publicUserQuery = inject(FirestoreUserQueryService);
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
   private readonly videoPagination = inject(PublicProfileVideoPaginationService);
   private readonly publicVideoShare = inject(PublicVideoShareService);
@@ -157,6 +165,37 @@ export class PublicProfileVideosComponent implements OnInit {
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  /** A identidade do proprietário depende apenas de leitura pública autorizada. */
+  readonly profileIdentity$: Observable<PublicUserIdentity | null> =
+    this.ownerUid$.pipe(
+      switchMap((ownerUid) => {
+        if (!ownerUid) return of(null);
+
+        return this.publicUserQuery.getPublicUserById$(ownerUid).pipe(
+          map((profile): PublicUserIdentity | null => {
+            if (profile?.uid !== ownerUid || !profile.nickname?.trim()) {
+              return null;
+            }
+
+            return normalizePublicUserIdentity({
+              nickname: profile.nickname,
+              avatarUrl: profile.photoURL,
+              identityCode: profile.identityCode ?? profile.gender,
+              orientation: profile.orientation,
+              city: profile.municipio,
+              state: profile.estado,
+            });
+          }),
+          catchError((error: unknown) => {
+            this.reportSilent(error, { op: 'loadPublicVideoGalleryIdentity' });
+            return of(null);
+          }),
+          startWith(null)
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   readonly requestedVideoId$: Observable<string> = this.galleryRoute$.pipe(
     map((route) => route.requestedVideoId),
