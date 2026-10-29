@@ -96,12 +96,14 @@
       class="photo-overlay app-media-overlay"
       [class.photo-overlay--profile]="mode === 'profile'"
     >
-      <app-public-media-recommendation-badge
-        class="photo-context-badge"
-        [source]="resolvedRecommendationSource()"
-        [ownerUid]="item.ownerUid"
-        [continuationContext]="continuationContext()"
-      />
+      @if (mode !== 'profile') {
+        <app-public-media-recommendation-badge
+          class="photo-context-badge"
+          [source]="resolvedRecommendationSource()"
+          [ownerUid]="item.ownerUid"
+          [continuationContext]="continuationContext()"
+        />
+      }
 
       @if (mode !== 'profile') {
         <a
