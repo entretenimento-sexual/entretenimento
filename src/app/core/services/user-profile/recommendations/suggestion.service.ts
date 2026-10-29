@@ -1,55 +1,78 @@
-// src\app\core\services\suggestion.service.ts
+// Sugestões somente a partir da descoberta pública autorizada.
+// Nunca consultar users/{uid} nem encaminhar o documento de conta ao card.
 import { Injectable } from '@angular/core';
-import { catchError, forkJoin, map, Observable, of } from 'rxjs';
-import { FirestoreQueryService } from '../../data-handling/firestore-query.service';
+import { catchError, map, Observable, of } from 'rxjs';
+
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { FirestoreQueryService } from '../../data-handling/firestore-query.service';
 
-@Injectable({
-  providedIn: 'root'
-})
+const SUGGESTION_PUBLIC_SCAN_LIMIT = 120;
 
+@Injectable({ providedIn: 'root' })
 export class SuggestionService {
-  constructor(private firestoreQuery: FirestoreQueryService) { }
+  constructor(private firestoreQuery: FirestoreQueryService) {}
 
   getSuggestedProfilesForUser(currentUser: IUserDados): Observable<IUserDados[]> {
-    // Verifica se as informações necessárias estão disponíveis
-    if (!currentUser.municipio || !currentUser.gender || !currentUser.orientation) {
-      return of([]); // Retorna um Observable vazio se faltar algum dado
+    const municipio = this.normalize(currentUser.municipio);
+    const gender = this.normalize(
+      currentUser.declaredIdentityCode ?? currentUser.identityCode ?? currentUser.gender
+    );
+    const orientation = this.normalize(currentUser.orientation);
+
+    // Preserve o filtro legado para perfis individuais, sem inferir casais,
+    // preferências ou orientação de quem não declarou.
+    if (
+      !municipio ||
+      !['homem', 'mulher'].includes(gender) ||
+      !['heterossexual', 'homossexual', 'bissexual'].includes(orientation)
+    ) {
+      return of([]);
     }
 
-    if (currentUser.orientation === 'heterossexual') {
-      // Sugerir perfis do sexo oposto no mesmo município
-      const oppositeGender = currentUser.gender === 'homem' ? 'mulher' : 'homem';
-      return this.firestoreQuery
-        .getProfilesByOrientationAndLocation(oppositeGender, 'heterossexual', currentUser.municipio)
-        .pipe(catchError(() => of([]))); // Lida com erros retornando lista vazia
-    } else if (currentUser.orientation === 'homossexual') {
-      // Sugerir perfis do mesmo sexo no mesmo município
-      return this.firestoreQuery
-        .getProfilesByOrientationAndLocation(currentUser.gender, 'homossexual', currentUser.municipio)
-        .pipe(catchError(() => of([]))); // Lida com erros retornando lista vazia
-    } else if (currentUser.orientation === 'bissexual') {
-      // Sugerir perfis de ambos os sexos no mesmo município
-      const profilesMen$ = this.firestoreQuery.getProfilesByOrientationAndLocation(
-        'homem',
-        'bissexual',
-        currentUser.municipio
-      );
-      const profilesWomen$ = this.firestoreQuery.getProfilesByOrientationAndLocation(
-        'mulher',
-        'bissexual',
-        currentUser.municipio
-      );
+    return this.firestoreQuery.getSuggestedProfiles(SUGGESTION_PUBLIC_SCAN_LIMIT).pipe(
+      map((profiles) =>
+        profiles
+          .filter((profile) => {
+            if (profile.uid === currentUser.uid ||
+                this.normalize(profile.municipio) !== municipio) {
+              return false;
+            }
 
-      // Combina os resultados de ambos os fluxos
-      return forkJoin([profilesMen$, profilesWomen$]).pipe(
-        map(([profilesMen, profilesWomen]) => [...profilesMen, ...profilesWomen]),
-        catchError(() => of([])) // Lida com erros retornando lista vazia
-      );
-    }
+            const candidateGender = this.normalize(profile.identityCode ?? profile.gender);
+            const candidateOrientation = this.normalize(profile.orientation);
+            if (orientation === 'heterossexual') {
+              return candidateGender === (gender === 'homem' ? 'mulher' : 'homem')
+                && candidateOrientation === 'heterossexual';
+            }
+            if (orientation === 'homossexual') {
+              return candidateGender === gender &&
+                candidateOrientation === 'homossexual';
+            }
+            return ['homem', 'mulher'].includes(candidateGender) &&
+              candidateOrientation === 'bissexual';
+          })
+          // Allowlist de apresentação: nunca propagar documentos inteiros,
+          // idade legada, email, contato, flags privadas ou estado financeiro.
+          .map((profile): IUserDados => ({
+            uid: profile.uid,
+            nickname: profile.nickname,
+            photoURL: profile.photoURL ?? null,
+            email: null,
+            role: 'free',
+            lastLogin: 0,
+            gender: profile.gender,
+            identityCode: profile.identityCode ?? null,
+            orientation: profile.orientation,
+            municipio: profile.municipio,
+            estado: profile.estado,
+            isOnline: profile.isOnline === true,
+          }))
+      ),
+      catchError(() => of([] as IUserDados[]))
+    );
+  }
 
-    // Caso orientação não seja reconhecida, retorna vazio
-    return of([]);
+  private normalize(value: unknown): string {
+    return typeof value === 'string' ? value.trim().toLowerCase() : '';
   }
 }
-
