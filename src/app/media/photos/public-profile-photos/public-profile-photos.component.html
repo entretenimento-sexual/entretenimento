@@ -4,15 +4,21 @@
 @let ownerUid = (ownerUid$ | async);
 
 <section #galleryContainer class="public-photos-page container-wide" aria-label="Galeria de fotos do perfil visitado">
-  <app-page-header title="Fotos públicas"></app-page-header>
-  <header class="visited-gallery-header">
+  <app-page-header title="Fotos">
     @if (ownerUid) {
-      <a class="visited-gallery-header__back" [routerLink]="['/perfil', ownerUid]">
+      <a
+        page-actions
+        class="visited-gallery-header__back"
+        [routerLink]="['/perfil', ownerUid]"
+        [attr.aria-label]="'Voltar ao perfil de ' + (identity?.nickname || 'usuário')"
+        title="Voltar ao perfil"
+      >
         <i class="fas fa-arrow-left" aria-hidden="true"></i>
-        Voltar ao perfil
+        <span class="visually-hidden">Voltar ao perfil</span>
       </a>
     }
-
+  </app-page-header>
+  <header class="visited-gallery-header">
     <div class="visited-gallery-header__content">
       <div class="visited-gallery-header__identity">
         <div class="visited-gallery-header__avatar">
@@ -38,12 +44,17 @@
               Perfil indisponível
             }
           </h2>
-          @if (identity?.location; as location) {
-            <p class="visited-gallery-header__location">
-              <i class="fas fa-location-dot" aria-hidden="true"></i>
-              {{ location }}
-            </p>
-          }
+          <div class="visited-gallery-header__meta">
+            @if (identity?.identityLabel; as identityLabel) {
+              <span class="visited-gallery-header__kind">{{ identityLabel }}</span>
+            }
+            @if (identity?.location; as location) {
+              <span class="visited-gallery-header__location">
+                <i class="fas fa-location-dot" aria-hidden="true"></i>
+                {{ location }}
+              </span>
+            }
+          </div>
         </div>
       </div>
       @if (ownerUid) {
@@ -62,7 +73,7 @@
       @case ('loading') {
         <app-content-state
           state="loading"
-          message="Carregando fotos públicas."
+          message="Carregando fotos."
           skeletonVariant="media-grid"
           [skeletonRows]="4"
         />
@@ -72,7 +83,7 @@
         <app-content-state
           state="error"
           title="Não foi possível carregar as fotos"
-          message="Tente atualizar a galeria pública."
+          message="Tente atualizar a galeria."
           actionLabel="Tentar novamente"
           (action)="retry()"
         />
@@ -81,13 +92,13 @@
       @case ('empty') {
         <app-content-state
           state="empty"
-          title="Nenhuma foto pública disponível"
-          message="Este perfil ainda não publicou fotos aprovadas para visitantes."
+          title="Nenhuma foto disponível"
+          message="Este perfil não tem fotos disponíveis para você."
         />
       }
 
       @case ('ready') {
-        <div class="photos-grid" role="list" aria-label="Fotos públicas do perfil">
+        <div class="photos-grid" role="list" aria-label="Fotos do perfil">
           @for (item of items; track trackByPhotoId($index, item); let i = $index) {
             <div
               class="photo-grid-item"
@@ -116,7 +127,7 @@
               class="app-action app-action--ghost"
               [disabled]="state.loadingMore"
               [attr.aria-busy]="state.loadingMore ? 'true' : null"
-              aria-label="Carregar mais fotos públicas"
+              aria-label="Carregar mais fotos"
               (click)="loadMorePhotos()"
             >
               {{ state.loadingMore ? 'Carregando fotos...' : 'Carregar mais fotos' }}

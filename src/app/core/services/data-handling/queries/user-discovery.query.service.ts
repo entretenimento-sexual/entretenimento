@@ -385,6 +385,11 @@ export class UserDiscoveryQueryService {
       ]),
       role: this.firstText(raw, ['role']) ?? 'free',
       gender: this.firstText(raw, ['gender', 'genero']),
+      // Identidade já publicada na projeção canônica.
+      identityCode: this.firstText(raw, ['identityCode']),
+      identityLabel: this.firstText(raw, ['identityLabel']),
+      identityShortLabel: this.firstText(raw, ['identityShortLabel']),
+      identityCatalogVersion: this.firstNumber(raw, ['identityCatalogVersion']),
       // Idade exata não integra mais a projeção pública.
       age: null,
       orientation: this.firstText(raw, [

@@ -1900,11 +1900,13 @@ describe('Canonical UI boundary', () => {
     );
 
     expect(publicPhotos).toContain(
-      '<app-page-header title="Fotos públicas"></app-page-header>'
+      '<app-page-header title="Fotos">'
     );
     // A tela visitada deve identificar o proprietário e permitir retorno ao perfil.
     expect(publicPhotos).toContain('Voltar ao perfil');
     expect(publicPhotos).toContain('visited-gallery-header__identity');
+    expect(publicPhotos).toContain('{{ identityLabel }}');
+    expect(publicPhotos).not.toContain('Fotos públicas');
     expect(publicPhotos).toContain('{{ identity.nickname }}');
     expect(publicPhotos).not.toContain('gallery-strip');
     expect(publicPhotos).not.toContain('Conteúdo aprovado');

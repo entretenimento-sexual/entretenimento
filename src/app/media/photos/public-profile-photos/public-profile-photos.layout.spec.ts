@@ -43,8 +43,14 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
   });
 
   it('mostra dono identificado e navegacao sem ler documentos privados', () => {
-    expect(pageHtml).toContain('<app-page-header title="Fotos públicas"></app-page-header>');
+    expect(pageHtml).toContain('<app-page-header title="Fotos">');
+    expect(pageHtml).not.toContain('Fotos públicas');
+    expect(pageHtml).toContain('page-actions');
     expect(pageHtml).toContain('{{ identity.nickname }}');
+    expect(pageHtml).toContain('{{ identityLabel }}');
+    expect(pageHtml).toContain('class="visited-gallery-header__back"');
+    expect(pageHtml).toContain('class="visually-hidden">Voltar ao perfil</span>');
+    expect(pageCss).toContain('opacity: 0.75;');
     expect(pageHtml).not.toContain('<h1');
     expect(pageHtml).toContain('visited-gallery-header__avatar');
     expect(pageHtml).toContain("['/perfil', ownerUid]");

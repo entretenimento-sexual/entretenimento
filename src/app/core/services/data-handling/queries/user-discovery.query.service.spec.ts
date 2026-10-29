@@ -110,6 +110,31 @@ describe('UserDiscoveryQueryService', () => {
     expect(profiles[0]?.age).toBeNull();
   });
 
+  it('preserva classificação pública sem propagar descrição privada', async () => {
+    publicProfileReadMock.readByUids$.mockReturnValue(
+      of({
+        items: [{
+          uid: 'profile-identity',
+          nickname: 'Casal teste',
+          identityCode: 'casal-ele-ela',
+          identityLabel: 'Casal (Ele/Ela)',
+          identityShortLabel: 'Casal',
+          identityCatalogVersion: 1,
+          descricao: 'Texto não publicado na projeção',
+        }],
+        nextCursor: null, reachedEnd: true, fetchedAt: Date.now(), scanned: 1,
+      })
+    );
+    const [profile] = await firstValueFrom(service.getProfilesByUids$(['profile-identity']));
+    expect(profile).toMatchObject({
+      identityCode: 'casal-ele-ela',
+      identityLabel: 'Casal (Ele/Ela)',
+      identityShortLabel: 'Casal',
+      identityCatalogVersion: 1,
+    });
+    expect(profile?.descricao).toBeUndefined();
+  });
+
   it('preserva somente os sinais públicos de preferências durante hidratação', async () => {
     publicProfileReadMock.readByUids$.mockReturnValue(
       of({

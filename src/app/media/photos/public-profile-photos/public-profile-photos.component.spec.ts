@@ -105,6 +105,8 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
         uid, nickname: uid === PHOTO.ownerUid ? 'Perfil de teste' : 'Outro perfil',
         photoURL: 'https://example.test/avatar.png',
         municipio: 'Rio de Janeiro', estado: 'RJ',
+        identityCode: 'casal-ele-ela',
+        identityLabel: 'Casal (Ele/Ela)',
       })),
     };
 
@@ -154,7 +156,31 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
     expect(identities.at(-1)).toMatchObject({
       nickname: 'Perfil de teste',
       location: 'Rio de Janeiro, RJ',
+      identityLabel: 'Casal (Ele/Ela)',
     });
+    subscription.unsubscribe();
+  });
+
+  it('prioriza o catálogo diante de rótulos divergentes', () => {
+    publicUsers.getPublicUserById$.mockReturnValue(of({
+      uid: PHOTO.ownerUid,
+      nickname: 'Perfil de teste',
+      identityCode: 'casal-ela-ela',
+      identityLabel: 'Rótulo divergente',
+    }));
+    const identities: Array<{ identityLabel: string | null } | null> = [];
+    const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
+    expect(identities.at(-1)?.identityLabel).toBe('Casal (Ela/Ela)');
+    subscription.unsubscribe();
+  });
+
+  it('não inventa classificação sem código público reconhecido', () => {
+    publicUsers.getPublicUserById$.mockReturnValue(of({
+      uid: PHOTO.ownerUid, nickname: 'Perfil de teste', identityCode: 'desconhecido',
+    }));
+    const identities: Array<{ identityLabel: string | null } | null> = [];
+    const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
+    expect(identities.at(-1)?.identityLabel).toBeNull();
     subscription.unsubscribe();
   });
 

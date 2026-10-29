@@ -47,6 +47,7 @@ import {
 } from 'src/app/core/services/media/public-profile-photo-pagination.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+import { resolveProfileIdentityOption } from 'src/app/core/domain/profile-identity/profile-identity.catalog';
 import type { MediaErrorReason } from 'src/app/core/services/media/media-error.catalog';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
@@ -60,6 +61,7 @@ interface PublicGalleryIdentity {
   readonly nickname: string;
   readonly avatarUrl: string | null;
   readonly location: string | null;
+  readonly identityLabel: string | null;
 }
 
 export type PublicProfilePhotoPageSize = 8 | 12 | 24;
@@ -141,10 +143,14 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
             }
             const municipio = profile.municipio?.trim();
             const estado = profile.estado?.trim();
+            const canonical = resolveProfileIdentityOption(
+              profile.identityCode ?? profile.gender
+            );
             return {
               nickname: profile.nickname.trim(),
               avatarUrl: profile.photoURL?.trim() || null,
               location: municipio && estado ? `${municipio}, ${estado}` : null,
+              identityLabel: canonical?.label ?? null,
             };
           }),
           catchError((error: unknown) => {
