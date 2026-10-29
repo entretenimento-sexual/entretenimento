@@ -24,7 +24,7 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
   it('distribui 1 a 4 colunas pela largura disponivel do conteiner', () => {
     expect(pageCss).toContain('container: public-photos-gallery / inline-size;');
     expect(pageCss).toContain('grid-template-columns: minmax(0, 1fr);');
-    for (const width of [480, 800, 1160]) {
+    for (const width of [420, 800, 1160]) {
       expect(pageCss).toContain('(min-width: ' + width + 'px)');
     }
     expect(pageCss).toContain('repeat(4, minmax(0, 1fr))');
