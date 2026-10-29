@@ -38,16 +38,8 @@
           @for (item of items; track trackByPhotoId($index, item); let i = $index) {
             <div
               class="photo-grid-item"
-              [class.photo-grid-item--featured]="i === 0"
               [class.photo-grid-item--cover]="item.isCover === true"
             >
-              @if (i === 0) {
-                <span class="featured-label">
-                  <i class="fas fa-sparkles" aria-hidden="true"></i>
-                  Destaque do perfil
-                </span>
-              }
-
               <app-public-photo-card
                 [photo]="item"
                 variant="profile"
