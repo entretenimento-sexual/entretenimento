@@ -32,14 +32,19 @@ describe('PublicProfilesListComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('preserva a idade pública ao adaptar o card compartilhado', () => {
+  it('não repassa idade legada e preserva identityCode no card', () => {
     const adapted = component.toUserCardProfile({
       uid: 'profile-age',
       nickname: 'Pessoa',
       age: 34,
+      gender: 'mulher',
+      identityCode: 'casal-ele-ela',
+      orientation: 'bissexual',
     });
 
-    expect(adapted.idade).toBe(34);
+    expect(adapted.idade).toBeUndefined();
+    expect(adapted.identityCode).toBe('casal-ele-ela');
+    expect(adapted.gender).toBe('mulher');
   });
 
   it('preserva sinais públicos sanitizados ao adaptar o card compartilhado', () => {
