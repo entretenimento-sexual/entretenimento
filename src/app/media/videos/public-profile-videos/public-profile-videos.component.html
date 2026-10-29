@@ -1,4 +1,5 @@
 @let viewerUid = (viewerUid$ | async);
+@let profileIdentity = (profileIdentity$ | async);
 
 @if (state$ | async; as state) {
   <section class="public-videos-page" aria-label="Vídeos públicos">
@@ -33,6 +34,20 @@
         </div>
       </div>
     </app-page-header>
+
+    @if (ownerUid$ | async) {
+      <header class="public-videos-identity" aria-label="Identidade do perfil que publicou os vídeos">
+        @if (profileIdentity) {
+          <app-public-user-identity
+            [identity]="profileIdentity"
+            density="comfortable"
+            emphasis="strong"
+          />
+        } @else {
+          <span class="public-videos-identity__unavailable">Perfil indisponível</span>
+        }
+      </header>
+    }
 
     @if ((requestedVideoId$ | async) && (ownerUid$ | async); as galleryOwnerUid) {
       <a
