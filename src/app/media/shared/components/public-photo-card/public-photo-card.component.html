@@ -75,10 +75,13 @@
     type="button"
     class="photo-card-link app-media-frame app-media-frame--portrait"
     [class.photo-card-link--feed]="mode === 'feed'"
+    [class.photo-card-link--unavailable]="thumbnailUnavailable()"
     (click)="onPreview()"
-    [attr.aria-label]="mode === 'profile'
-      ? 'Abrir foto pública em visualização imersiva'
-      : 'Abrir publicação de ' + getOwnerName(item)"
+    [attr.aria-label]="thumbnailUnavailable()
+      ? 'Miniatura indisponível. Abrir foto em visualização imersiva'
+      : mode === 'profile'
+        ? 'Abrir foto pública em visualização imersiva'
+        : 'Abrir publicação de ' + getOwnerName(item)"
     title="Abrir publicação"
   >
     <img
@@ -88,7 +91,16 @@
       loading="lazy"
       decoding="async"
       referrerpolicy="no-referrer"
+      (error)="onThumbnailError(item)"
+      (load)="onThumbnailLoad(item)"
     />
+    @if (thumbnailUnavailable()) {
+      <span class="photo-card-unavailable" aria-hidden="true">
+        <i class="fas fa-image" aria-hidden="true"></i>
+        <span>Miniatura indisponível</span>
+        <small>Abrir foto</small>
+      </span>
+    }
   </button>
 
   @if (mode !== 'feed') {
