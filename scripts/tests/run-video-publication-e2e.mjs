@@ -24,6 +24,7 @@ const firebaseCli = path.resolve(
 const testCommand = [
   'node scripts/tests/video-publication.e2e.mjs',
   'node scripts/tests/video-social.e2e.mjs',
+  'node scripts/tests/video-friends-visibility.e2e.mjs',
   'node scripts/tests/video-ratings.e2e.mjs',
   'node scripts/tests/video-reports.e2e.mjs',
   'node scripts/tests/moderation-evidence-recovery.e2e.mjs',
