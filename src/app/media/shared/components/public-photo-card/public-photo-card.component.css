@@ -109,6 +109,20 @@
   visibility: hidden;
 }
 
+.photo-card-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  color: var(--text-secondary, #b6c0cd);
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+}
+
 .photo-card-unavailable {
   position: absolute;
   inset: 0;
