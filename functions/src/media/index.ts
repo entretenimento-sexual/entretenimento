@@ -164,6 +164,9 @@ export {
 export {
   getAuthorizedPhotoOwnerPage,
 } from './application/get-authorized-photo-owner-page.handler';
+export {
+  getAuthorizedVideoOwnerPage,
+} from './application/get-authorized-video-owner-page.handler';
 
 export {
   getPublicPhotoAccessUrls,
