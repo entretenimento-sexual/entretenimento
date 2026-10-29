@@ -680,7 +680,7 @@ border-color: currentColor !important;
     max-height: calc(100dvh - 56px);
   }
 
-  .viewer-owner-supplement,
+  .viewer-discovery-reason,
   .comment-date {
     display: none;
   }
