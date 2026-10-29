@@ -76,6 +76,7 @@ export function canUpdatePublishedPhotoDisplayDate(
       !Number.isSafeInteger(expectedVersion) ||
       expectedVersion <= 0 ||
       Number(projection.assetVersion ?? projection.publishedAt) !== expectedVersion ||
+      Number(publication.assetVersion ?? publication.publishedAt) !== expectedVersion ||
       !normalizeOwnedPublishedPhotoPath(
         ownerUid, photoId, publication.publishedStoragePath
       )) {
