@@ -89,35 +89,6 @@ export class PublicProfileVideoPaginationService {
     );
   }
 
-  private fromBackendCursor(
-    cursor:
-      | {
-          readonly documentPath: string;
-          readonly publishedAt?: number;
-          readonly orderIndex?: number;
-        }
-      | null
-      | undefined,
-    hasMore: boolean
-  ): IPublicProfileVideoCursor | null {
-    if (!hasMore || !cursor) {
-      return null;
-    }
-
-    const documentPath = String(cursor.documentPath ?? '').trim();
-    const documentId = documentPath.split('/').pop() ?? '';
-
-    if (!documentId) {
-      return null;
-    }
-
-    return {
-      orderIndex: this.safeNumber(cursor.orderIndex),
-      publishedAt: this.safeNumber(cursor.publishedAt),
-      documentId,
-    };
-  }
-
   private normalizeCursor(
     cursor: IPublicProfileVideoCursor | null | undefined
   ): IPublicProfileVideoCursor | null {
