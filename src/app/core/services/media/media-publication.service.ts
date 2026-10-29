@@ -142,6 +142,7 @@ export class MediaPublicationService {
             },
 
             publishedAt: item.publishedAt ?? null,
+            displayDate: item.displayDate,
             updatedAt: item.updatedAt,
             lastModeratedAt: item.lastModeratedAt ?? null,
           };
@@ -241,6 +242,178 @@ export class MediaPublicationService {
           true
         );
 
+        return throwError(() => error);
+      })
+    );
+  }
+
+  /**
+   * Metadado canônico da publicação. Não lê ou escreve users/{uid}/photos.
+   * A versão pertence ao ativo social, não a uma cópia privada legada.
+   */
+  updatePublishedPhotoDisplayDate$(
+    ownerUid: string,
+    photoId: string,
+    displayDate: number | null,
+    expectedAssetVersion: number
+  ): Observable<void> {
+    const uid = String(ownerUid ?? '').trim();
+    const id = String(photoId ?? '').trim();
+
+    if (!uid || !id ||
+        !Number.isSafeInteger(expectedAssetVersion) ||
+        expectedAssetVersion <= 0 ||
+        !(displayDate === null || (
+          Number.isSafeInteger(displayDate) &&
+          displayDate >= 0 && displayDate <= 4_133_980_799_999
+        ))) {
+      return throwError(() => new Error('Data ou publicação inválida.'));
+    }
+
+    return this.firestoreCtx.deferPromise$(async () => {
+      const callable = httpsCallable<
+        {
+          ownerUid: string;
+          photoId: string;
+          displayDate: number | null;
+          expectedAssetVersion: number;
+        },
+        { photoId: string; displayDate: number | null }
+      >(this.functions, 'updatePublishedPhotoDisplayDate');
+      const response = await callable({
+        ownerUid: uid, photoId: id, displayDate, expectedAssetVersion,
+      });
+      if (response.data?.photoId !== id ||
+          response.data?.displayDate !== displayDate) {
+        throw new Error('A alteração da data não foi confirmada.');
+      }
+    }).pipe(
+      map(() => void 0),
+      catchError((error) => {
+        this.reportError(
+          'Erro ao atualizar a data da foto publicada.',
+          error,
+          { op: 'updatePublishedPhotoDisplayDate
+    const safeOwnerUid = (ownerUid ?? '').trim();
+    const safePhotoId = (privatePhotoId ?? '').trim();
+
+    if (!safeOwnerUid || !safePhotoId) {
+      return of(void 0);
+    }
+
+    return this.firestoreCtx.deferPromise$(async () => {
+      const callable = httpsCallable<PhotoIdCallableRequest, { photoId: string }>(
+        this.functions,
+        'setCoverPhoto'
+      );
+
+      await callable({
+        ownerUid: safeOwnerUid,
+        photoId: safePhotoId,
+      });
+    }).pipe(
+      map(() => void 0),
+      catchError((error) => {
+        this.reportError(
+          'Erro ao definir foto de capa.',
+          error,
+          {
+            op: 'setCoverPhoto$',
+            ownerUid: safeOwnerUid,
+            privatePhotoId: safePhotoId,
+          },
+          true
+        );
+
+        return throwError(() => error);
+      })
+    );
+  }
+
+  recordPhotoView$(
+    ownerUid: string,
+    photoId: string,
+    source: TPhotoViewSource = 'profile'
+  ): Observable<void> {
+    const safeOwnerUid = (ownerUid ?? '').trim();
+    const safePhotoId = (photoId ?? '').trim();
+
+    if (!safeOwnerUid || !safePhotoId) {
+      return of(void 0);
+    }
+
+    return this.firestoreCtx.deferPromise$(async () => {
+      const callable = httpsCallable<
+        RecordPhotoViewCallableRequest,
+        { ok: true }
+      >(this.functions, 'recordPhotoView');
+
+      await callable({
+        ownerUid: safeOwnerUid,
+        photoId: safePhotoId,
+        source,
+      });
+    }).pipe(
+      map(() => void 0),
+      catchError((error) => {
+        this.reportError(
+          'Erro ao registrar visualização da foto.',
+          error,
+          {
+            op: 'recordPhotoView$',
+            ownerUid: safeOwnerUid,
+            photoId: safePhotoId,
+            source,
+          },
+          true
+        );
+
+        return of(void 0);
+      })
+    );
+  }
+
+  reorderPublishedPhotos$(
+    _ownerUid: string,
+    _orderedPhotoIds: string[]
+  ): Observable<void> {
+    this.errorNotifier.showWarning(
+      'Reordenação pública ainda será migrada para função segura.'
+    );
+
+    return of(void 0);
+  }
+
+  private normalizeCaption(value: unknown): string | null {
+    const caption = String(value ?? '')
+      .replace(/[\u0000-\u001F\u007F]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, MAX_PUBLICATION_CAPTION_LENGTH);
+
+    return caption || null;
+  }
+
+  private reportError(
+    userMessage: string,
+    error: unknown,
+    context?: Record<string, unknown>,
+    silent = false
+  ): void {
+    this.errorHandler.report(error, {
+      operation: String(context?.['op'] ?? 'unknown'),
+      fallbackMessage: userMessage,
+      metadata: {
+        scope: 'MediaPublicationService',
+        ...(context ?? {}),
+      },
+      silent,
+    });
+  }
+}
+, ownerUid: uid, photoId: id },
+          true
+        );
         return throwError(() => error);
       })
     );
