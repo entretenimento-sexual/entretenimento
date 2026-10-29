@@ -11,6 +11,7 @@ import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics
 import {
   PhotoPublicationDoc,
   PrivatePhotoDoc,
+  canCommitPublishedPhotoSync,
   synchronizePublishedPhotoUpdate,
 } from './sync-published-photo-on-private-update.use-case';
 
@@ -56,12 +57,30 @@ export const syncPublishedPhotoOnPrivateUpdate = onDocumentUpdated(
             : null;
         },
         copyPublishedAsset: copyPrivatePhotoToPublishedAsset,
-        commitPatches: async (commit) => {
-          const batch = db.batch();
-          batch.set(publicationRef, commit.publicationPatch, { merge: true });
-          batch.set(publicPhotoRef, commit.publicPhotoPatch, { merge: true });
-          await batch.commit();
-        },
+        commitPatches: (commit) => db.runTransaction(async (tx) => {
+          const privatePhotoRef = db.doc(
+            `users/${ownerUid}/photos/${photoId}`
+          );
+          // The trigger can run after another edit, deletion or moderation.
+          // All checks occur in the SAME transaction as the version swap.
+          const [currentPrivate, currentPublication] = await Promise.all([
+            tx.get(privatePhotoRef),
+            tx.get(publicationRef),
+          ]);
+          if (!canCommitPublishedPhotoSync(
+            commit,
+            currentPrivate.exists
+              ? currentPrivate.data() as PrivatePhotoDoc
+              : null,
+            currentPublication.exists
+              ? currentPublication.data() as PhotoPublicationDoc
+              : null
+          )) return false;
+
+          tx.set(publicationRef, commit.publicationPatch, { merge: true });
+          tx.set(publicPhotoRef, commit.publicPhotoPatch, { merge: true });
+          return true;
+        }),
         deletePublishedAsset: deletePublishedPhotoAssetOrQueue,
         refreshMetrics: refreshPublicProfileMediaMetrics,
         logError: (message, context) => logger.error(message, context),
