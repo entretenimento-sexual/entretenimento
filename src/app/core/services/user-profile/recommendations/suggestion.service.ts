@@ -58,6 +58,8 @@ export class SuggestionService {
             nickname: profile.nickname,
             photoURL: profile.photoURL ?? null,
             email: null,
+            descricao: '',
+            isSubscriber: false,
             role: 'free',
             lastLogin: 0,
             gender: profile.gender,
