@@ -14,7 +14,9 @@ const core = readFileSync(
 
 test('public video callable preserves account, bilateral and owner exposure gates', () => {
   assert.ok(callable.includes('await assertPublicMediaConsumptionAccess(viewerUid)'));
-  assert.ok(callable.includes('await resolveBlockedTargetUids(viewerUid, ownerUids)'));
+  assert.ok(callable.includes('await resolveSocialConnectionAccess(viewerUid, ownerUids)'));
+  assert.ok(callable.includes('socialAccess.blockedTargetUids'));
+  assert.ok(callable.includes('socialAccess.friendTargetUids.has(ownerUid)'));
   assert.ok(callable.includes('await resolvePublicMediaSignedOwnerExposure('));
   assert.ok(callable.includes('resolvePublicVideoSignedAccessItem('));
   assert.ok(callable.includes('ownerExposureAllowed: profileAccess?.allowed === true'));
