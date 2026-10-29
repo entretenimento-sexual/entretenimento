@@ -21,7 +21,10 @@ export interface PublicProfileCard {
   photoURL?: string | null;
 
   gender?: string | null;
+  /** Código de identidade publicado pelo catálogo backend; precede gender legado. */
+  identityCode?: string | null;
   orientation?: string | null;
+  /** Legado: a projeção pública atual não contém idade exata. */
   age?: number | null;
 
   /**
