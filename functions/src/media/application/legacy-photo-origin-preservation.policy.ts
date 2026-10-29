@@ -15,7 +15,7 @@ export function classifyLegacyPhotoOrigin(input: {
   privateSourcePath: unknown;
   publication: Record<string, unknown> | null;
   sourceExists: boolean;
-}): 'unpublished' | 'published_final_exists' |
+}): 'unpublished' | 'published_final_referenced' |
     'published_source_missing' | 'published_needs_review' {
   const publication = input.publication;
   if (!publication || publication['isPublished'] !== true) return 'unpublished';
@@ -35,7 +35,7 @@ export function classifyLegacyPhotoOrigin(input: {
   }
   // Do not infer that the final object actually exists from its Firestore path.
   return input.sourceExists
-    ? 'published_final_exists' : 'published_source_missing';
+    ? 'published_final_referenced' : 'published_source_missing';
 }
 
 export function isPublicationPresentAndProtected(
