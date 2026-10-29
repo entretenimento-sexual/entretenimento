@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, of, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
@@ -7,9 +8,7 @@ import {
   IPublicVideoProjection,
 } from 'src/app/core/interfaces/media/i-public-video-item';
 import { MediaApplicationErrorService } from './media-application-error.service';
-import {
-  PublicMediaReadBoundaryService,
-} from './public-media-read-boundary.service';
+import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { PublicVideoAccessService } from './public-video-access.service';
 import { mapPublicVideoProjection } from './public-video-item.mapper';
 
@@ -30,7 +29,8 @@ const MAX_PAGE_SIZE = 24;
 
 @Injectable({ providedIn: 'root' })
 export class PublicProfileVideoPaginationService {
-  private readonly publicMediaRead = inject(PublicMediaReadBoundaryService);
+  private readonly functions = inject(Functions);
+  private readonly firestoreCtx = inject(FirestoreContextService);
   private readonly publicVideoAccess = inject(PublicVideoAccessService);
   private readonly globalErrorHandler = inject(MediaApplicationErrorService);
 
@@ -49,38 +49,28 @@ export class PublicProfileVideoPaginationService {
       return of({ items: [], nextCursor: null, hasMore: false });
     }
 
-    return this.publicMediaRead.read$({
-      mediaType: 'VIDEO',
-      mode: 'PROFILE',
-      ownerUids: [safeOwnerUid],
-      limit: pageSize,
-      cursor: cursor
-        ? {
-            documentPath:
-              `public_profiles/${safeOwnerUid}/public_videos/${cursor.documentId}`,
-            orderIndex: cursor.orderIndex,
-            publishedAt: cursor.publishedAt,
-          }
-        : null,
+    return this.firestoreCtx.deferPromise$(async () => {
+      const callable = httpsCallable<
+        { ownerUid: string; pageSize: number; cursor: IPublicProfileVideoCursor | null },
+        { items: readonly Record<string, unknown>[];
+          nextCursor: IPublicProfileVideoCursor | null; hasMore: boolean }
+      >(this.functions, 'getAuthorizedVideoOwnerPage');
+      return (await callable({ ownerUid: safeOwnerUid, pageSize, cursor })).data;
     }).pipe(
       map((response) => {
         const projections = (response.items ?? []).flatMap((item) => {
-          const source = item as Record<string, unknown>;
           const projection = mapPublicVideoProjection({
-            documentId: source['id'],
+            documentId: item['id'],
             expectedOwnerUid: safeOwnerUid,
-            data: source,
+            data: item,
           });
-
           return projection ? [projection] : [];
         }) as IPublicVideoProjection[];
 
         return {
           projections,
-          nextCursor: this.fromBackendCursor(
-            response.nextCursor,
-            response.hasMore
-          ),
+          nextCursor: response.hasMore === true
+            ? this.normalizeCursor(response.nextCursor) : null,
         };
       }),
       switchMap(({ projections, nextCursor }) =>
