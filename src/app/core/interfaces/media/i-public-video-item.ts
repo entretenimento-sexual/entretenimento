@@ -5,7 +5,7 @@
 // Segurança:
 // - a projeção Firestore não expõe path privado nem URL permanente;
 // - URLs temporárias são mantidas em um contrato de acesso separado;
-// - somente vídeos PUBLIC + APPROVED entram no item consumido pelas superfícies;
+// - somente vídeos PUBLIC/FRIENDS autorizados + APPROVED entram nas superfícies;
 // - cards podem carregar apenas poster; a URL de playback nasce sob demanda;
 // - métricas legadas são normalizadas antes de chegar ao cache/NgRx.
 // -----------------------------------------------------------------------------
@@ -16,7 +16,7 @@ import type {
   PublicMediaPurposeProjection,
 } from 'src/app/core/services/media/profile-purpose-presentation.policy';
 
-export type TPublicVideoVisibility = 'PUBLIC';
+export type TPublicVideoVisibility = 'PUBLIC' | 'FRIENDS';
 export type TPublicVideoModerationStatus = 'APPROVED';
 export type TPublicVideoAssetAccess = 'SIGNED_URL';
 export type TPublicVideoPosterAccess = 'SIGNED_URL' | 'NONE';
