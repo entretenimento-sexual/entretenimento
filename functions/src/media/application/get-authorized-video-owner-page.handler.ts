@@ -11,7 +11,10 @@ import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
 import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
-import { isCurrentPublicMediaProjectionExposure } from './public-media-exposure.policy';
+import {
+  isCurrentPublicMediaProjectionExposure,
+  isCurrentPublicMediaAssetExposure,
+} from './public-media-exposure.policy';
 import { resolvePublicMediaOwnerExposure } from './public-media-owner-exposure.service';
 
 type Visibility = 'PUBLIC' | 'FRIENDS';
@@ -176,10 +179,28 @@ export const getAuthorizedVideoOwnerPage = onCall<AuthorizedVideoOwnerPageReques
       )).values()].sort(compareAuthorizedVideoDocuments);
 
       const hasMore = merged.length > size;
-      const items = merged.slice(0, size);
-      const last = items.at(-1) ?? null;
+      const scannedItems = merged.slice(0, size);
+      const last = scannedItems.at(-1) ?? null;
+
+      // A projeção é um índice de leitura, não a autoridade da publicação.
+      // Mesmo que esteja desatualizada, não revelar metadados de mídia retirada.
+      const publicationSnapshots = scannedItems.length
+        ? await db.getAll(...scannedItems.map((item) =>
+          db.doc(`users/${ownerUid}/video_publications/${item.id}`)
+        )) : [];
+      const authorizedItems = scannedItems.filter((item, index) =>
+        isCurrentPublicMediaAssetExposure({
+          publicMedia: item.data as Record<string, unknown>,
+          publication: publicationSnapshots[index]?.exists
+            ? publicationSnapshots[index].data() as Record<string, unknown>
+            : null,
+          ownerExposureAllowed: true,
+          nowMs,
+          allowedVisibilities: [String(item.data['visibility'])],
+        })
+      );
       return {
-        items: items.map((item) => ({
+        items: authorizedItems.map((item) => ({
           ...item.data,
           id: item.id,
           ownerUid: item.ownerUid,
