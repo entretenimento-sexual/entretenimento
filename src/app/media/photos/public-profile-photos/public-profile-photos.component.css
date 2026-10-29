@@ -1,22 +1,27 @@
-/* src/app/media/photos/public-profile-photos/public-profile-photos.component.css */
-
+/* Galeria de fotos do perfil: grade uniforme e responsiva por contêiner.
+   Não é um feed editorial: nenhuma publicação ganha dimensões especiais
+   pela posição ou por ser capa. */
 :host {
   display: block;
+  width: 100%;
   min-width: 0;
 }
 
 .public-photos-page {
-  width: min(100%, 1320px);
+  width: 100%;
+  max-width: min(100%, var(--content-wide, 1320px));
+  min-width: 0;
+  box-sizing: border-box;
   margin-inline: auto;
-  padding: 12px clamp(12px, 3vw, 28px) 32px;
+  padding: 16px clamp(12px, 2.5vw, 28px) 36px;
   container: public-photos-gallery / inline-size;
 }
 
 .photos-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-flow: dense;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(12px, 1.4vw, 18px);
+  align-items: start;
   min-width: 0;
 }
 
@@ -25,75 +30,33 @@
   min-width: 0;
 }
 
-.photo-grid-item--featured {
-  grid-column: 1 / -1;
+/* Capa = distinção sem alterar a ordem, o tamanho ou a posição na grade. */
+.photo-grid-item--cover {
+  border-radius: var(--radius-lg, 18px);
 }
 
 .photo-grid-item app-public-photo-card {
   display: block;
-  height: 100%;
+  width: 100%;
+  min-width: 0;
 }
 
-.featured-label {
-  position: absolute;
-  z-index: 3;
-  inset: 10px auto auto 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 5px 10px;
-  border: 1px solid rgb(255 255 255 / 24%);
-  border-radius: 999px;
-  background: rgb(0 0 0 / 52%);
-  color: #fff;
-  font-size: 0.76rem;
-  font-weight: 850;
-  pointer-events: none;
-  backdrop-filter: blur(10px);
+@container public-photos-gallery (min-width: 400px) {
+  .photos-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
-.photo-grid-item--cover .featured-label {
-  background: color-mix(
-    in oklab,
-    var(--success-color, #5ed39a) 46%,
-    rgb(0 0 0 / 50%)
-  );
-}
-
-@container public-photos-gallery (min-width: 560px) {
+@container public-photos-gallery (min-width: 760px) {
   .photos-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: clamp(9px, 1.4vw, 14px);
-  }
-
-  .photo-grid-item--featured {
-    grid-column: span 2;
-    grid-row: span 2;
   }
 }
 
-@container public-photos-gallery (min-width: 1040px) {
+@container public-photos-gallery (min-width: 1080px) {
   .photos-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: clamp(12px, 1.3vw, 18px);
   }
-}
-
-@container public-photos-gallery (max-width: 380px) {
-  .photos-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .photo-grid-item--featured {
-    grid-column: auto;
-  }
-
-}
-
-html.high-contrast .featured-label {
-  border-color: currentColor !important;
-  box-shadow: none !important;
 }
 
 .public-photos-pagination {

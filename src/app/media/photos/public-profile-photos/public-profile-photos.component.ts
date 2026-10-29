@@ -64,11 +64,12 @@ export function resolvePublicProfilePhotoPageSize(
     return 24;
   }
 
-  if (containerWidth <= 380) {
+  if (containerWidth < 400) {
     return 8;
   }
 
-  if (containerWidth < 560) {
+  // Um lote de 12 equivale a 6 linhas na grade de duas colunas.
+  if (containerWidth < 760) {
     return 12;
   }
 
