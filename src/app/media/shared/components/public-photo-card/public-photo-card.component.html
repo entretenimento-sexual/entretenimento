@@ -94,6 +94,9 @@
       (error)="onThumbnailError(item)"
       (load)="onThumbnailLoad(item)"
     />
+    @if (thumbnailLoading()) {
+      <span class="photo-card-loading" aria-hidden="true">Carregando foto...</span>
+    }
     @if (thumbnailUnavailable()) {
       <span class="photo-card-unavailable" aria-hidden="true">
         <i class="fas fa-image" aria-hidden="true"></i>
