@@ -434,12 +434,27 @@ for (const required of [
   'suggested-profiles-hero app-card app-card--flat app-card--media',
   'profile-card app-card app-card--flat app-card--interactive',
   'profile-card__status app-chip app-chip--overlay',
-  'profile-card__age app-chip app-chip--muted',
+  'app-public-user-identity',
+  '[showName]="false"',
+  '[showAvatar]="false"',
   'profile-card__action app-action app-action--primary',
 ]) {
   if (!suggestedProfilesHtml.includes(required)) {
     violations.push(
       'suggested-profiles.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+for (const forbidden of [
+  'profile-card__age',
+  '{{ profile.idade }}',
+  'profile.orientation || profile.gender',
+  'profile.isSubscriber || profile.subscriptionStatus',
+]) {
+  if (suggestedProfilesHtml.includes(forbidden)) {
+    violations.push(
+      'suggested-profiles.component.html must not expose duplicate/private fields ' + forbidden
     );
   }
 }
