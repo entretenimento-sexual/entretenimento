@@ -15,6 +15,7 @@ import {
   initializeApp as initializeAdminApp,
 } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 
 import { seedPublicMediaCompliance } from './media-e2e-compliance-fixture.mjs';
 
@@ -71,8 +72,11 @@ async function run() {
   const admin = initializeAdminApp({
     credential: applicationDefault(),
     projectId: PROJECT_ID,
+    storageBucket: `${PROJECT_ID}.appspot.com`,
   }, `video-friends-admin-${id}`);
   const db = getFirestore(admin);
+  const bucket = getStorage(admin).bucket(`${PROJECT_ID}.appspot.com`);
+  let publishedVideoPath = '';
   let ownerUid = '';
   let visitorUid = '';
   try {
@@ -92,6 +96,10 @@ async function run() {
     const publicId = `public-${id}`;
     const friendsId = `friends-${id}`;
     const publishedAt = Date.now();
+    publishedVideoPath = `users/${ownerUid}/published/videos/${friendsId}/assets/v1`;
+    await bucket.file(publishedVideoPath).save(Buffer.from('video-social-e2e'), {
+      contentType: 'video/mp4',
+    });
     const publicProjection = videoFixture(ownerUid, publicId,
       'PUBLIC', publishedAt);
     const friendsProjection = videoFixture(ownerUid, friendsId,
@@ -105,6 +113,7 @@ async function run() {
     const publication = (v) => ({
       ownerUid, videoId: v.id, isPublished: true,
       visibility: v.visibility, moderationStatus: 'APPROVED',
+      publishedStoragePath: v.id === friendsId ? publishedVideoPath : null,
     });
 
     await Promise.all([
@@ -124,6 +133,10 @@ async function run() {
     const visitorPage = httpsCallable(visitor.functions,
       'getAuthorizedVideoOwnerPage');
     const request = { ownerUid, pageSize: 8, cursor: null };
+    const signedAccess = httpsCallable(visitor.functions, 'getPublicVideoAccessUrls');
+    const signedFriendItems = async () =>
+      (await signedAccess({ items: [{ ownerUid, videoId: friendsId }],
+        mode: 'PLAYBACK' })).data.items;
     const visible = async (callable) =>
       (await callable(request)).data.items.map((item) => item.id).sort();
 
@@ -131,6 +144,8 @@ async function run() {
       'O autor precisa ver suas próprias publicações sociais.');
     assert.deepEqual(await visible(visitorPage), [publicId],
       'Visitante sem amizade não pode enumerar FRIENDS.');
+    assert.deepEqual(await signedFriendItems(), [],
+      'Visitante sem amizade não recebe URL de vídeo FRIENDS.');
 
     const actorFriendRef = db.doc(
       `users/${visitorUid}/friends/${ownerUid}`);
@@ -142,17 +157,26 @@ async function run() {
     await targetFriendRef.set({ createdAt: Date.now() });
     assert.deepEqual(await visible(visitorPage), [friendsId, publicId].sort(),
       'Amizade recíproca deve permitir PUBLIC e FRIENDS.');
+    const authorizedSignedItems = await signedFriendItems();
+    assert.equal(authorizedSignedItems.length, 1);
+    assert.equal(authorizedSignedItems[0].videoId, friendsId);
+    assert.ok(String(authorizedSignedItems[0].url).startsWith('http'),
+      'Amigo recíproco recebe URL temporária autorizada.');
 
     const blockRef = db.doc(
       `users/${ownerUid}/blocks/${visitorUid}`);
     await blockRef.set({ isBlocked: true });
     assert.deepEqual(await visible(visitorPage), [],
       'Bloqueio do autor deve ocultar todas as publicações.');
+    assert.deepEqual(await signedFriendItems(), [],
+      'Bloqueio bilateral deve revogar emissão de URL.');
     await blockRef.delete();
 
     await actorFriendRef.delete();
     assert.deepEqual(await visible(visitorPage), [publicId],
       'Desfazer amizade deve revogar a enumeração de FRIENDS.');
+    assert.deepEqual(await signedFriendItems(), [],
+      'Amizade revogada não pode renovar URL assinada.');
     await actorFriendRef.set({ createdAt: Date.now() });
     await friendsPublicationRef.update({ isPublished: false });
     assert.deepEqual(await visible(visitorPage), [publicId],
@@ -161,6 +185,10 @@ async function run() {
     console.log('✔ vídeos FRIENDS: proprietário, não-amigo, unilateral, recíproca, bloqueio, revogação e despublicação');
   } finally {
     const tasks = [];
+    if (publishedVideoPath) {
+      tasks.push(bucket.file(publishedVideoPath).delete({ignoreNotFound: true})
+        .catch(() => undefined));
+    }
     for (const uid of [ownerUid, visitorUid]) {
       if (!uid) continue;
       tasks.push(db.recursiveDelete(db.doc(`users/${uid}`)).catch(() => undefined));
