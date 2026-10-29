@@ -261,6 +261,7 @@ export class PublicVideoViewerComponent {
   readonly canReact$ = this.currentVideo$.pipe(
     map((video) =>
       video?.moderationStatus === 'APPROVED' &&
+      video.visibility === 'PUBLIC' &&
       video.reactionsEnabled === true
     ),
     distinctUntilChanged(),
@@ -270,6 +271,7 @@ export class PublicVideoViewerComponent {
   readonly canComment$ = this.currentVideo$.pipe(
     map((video) =>
       video?.moderationStatus === 'APPROVED' &&
+      video.visibility === 'PUBLIC' &&
       video.commentsEnabled === true
     ),
     distinctUntilChanged(),
@@ -279,6 +281,7 @@ export class PublicVideoViewerComponent {
   readonly canRate$ = this.currentVideo$.pipe(
     map((video) =>
       video?.moderationStatus === 'APPROVED' &&
+      video.visibility === 'PUBLIC' &&
       video.ratingsEnabled === true
     ),
     distinctUntilChanged(),
@@ -286,7 +289,7 @@ export class PublicVideoViewerComponent {
   );
 
   readonly likesCount$ = this.currentVideo$.pipe(
-    switchMap((video) => video
+    switchMap((video) => video?.visibility === 'PUBLIC'
       ? this.reactions.getVideoLikesCount$(video.ownerUid, video.id)
       : of(0)),
     catchError(() => of(0)),
@@ -297,7 +300,7 @@ export class PublicVideoViewerComponent {
     this.currentVideo$,
     this.viewerUid$,
   ]).pipe(
-    switchMap(([video, viewerUid]) => video
+    switchMap(([video, viewerUid]) => video?.visibility === 'PUBLIC'
       ? this.reactions.isVideoLikedByViewer$(
           video.ownerUid,
           video.id,
@@ -309,7 +312,7 @@ export class PublicVideoViewerComponent {
   );
 
   readonly ratingSummary$ = this.currentVideo$.pipe(
-    switchMap((video) => video
+    switchMap((video) => video?.visibility === 'PUBLIC'
       ? this.ratings.watchSummary$(video.ownerUid, video.id)
       : of(this.emptyRatingSummary())),
     catchError(() => of(this.emptyRatingSummary())),
@@ -320,7 +323,7 @@ export class PublicVideoViewerComponent {
     this.currentVideo$,
     this.viewerUid$,
   ]).pipe(
-    switchMap(([video, viewerUid]) => video
+    switchMap(([video, viewerUid]) => video?.visibility === 'PUBLIC'
       ? this.ratings.watchViewerRating$(
           video.ownerUid,
           video.id,
@@ -336,7 +339,7 @@ export class PublicVideoViewerComponent {
     this.commentReloadSubject,
   ]).pipe(
     switchMap(([video]) => {
-      if (!video) {
+      if (!video || video.visibility !== 'PUBLIC') {
         return of({
           status: 'ready' as const,
           items: [] as IVideoComment[],
@@ -682,7 +685,7 @@ export class PublicVideoViewerComponent {
   }
 
   toggleComments(): void {
-    if (this.current?.commentsEnabled !== true) {
+    if (this.current?.visibility !== 'PUBLIC' || this.current?.commentsEnabled !== true) {
       this.errorNotification.showWarning(
         'Comentários desativados neste vídeo.'
       );
@@ -692,7 +695,7 @@ export class PublicVideoViewerComponent {
   }
 
   toggleRatings(): void {
-    if (this.current?.ratingsEnabled !== true) {
+    if (this.current?.visibility !== 'PUBLIC' || this.current?.ratingsEnabled !== true) {
       this.errorNotification.showWarning(
         'Avaliações desativadas neste vídeo.'
       );
