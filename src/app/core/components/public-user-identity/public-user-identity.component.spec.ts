@@ -72,6 +72,27 @@ describe('PublicUserIdentityComponent', () => {
     expect(element.textContent).toContain('Niterói/RJ');
   });
 
+  it('permite somente metadados públicos no hero sem repetir apelido ou avatar', () => {
+    fixture.componentRef.setInput('identity', {
+      nickname: 'serale',
+      identityCode: 'mulher',
+      orientation: 'heterossexual',
+      city: 'Rio de Janeiro',
+      state: 'RJ',
+    });
+    fixture.componentRef.setInput('showName', false);
+    fixture.componentRef.setInput('showAvatar', false);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.public-user-identity__name')).toBeNull();
+    expect(host.querySelector('.public-user-identity__avatar')).toBeNull();
+    expect(host.textContent).toContain('Mulher');
+    expect(host.textContent).toContain('Hétero');
+    expect(host.textContent).toContain('Rio de Janeiro/RJ');
+    expect(host.textContent).not.toContain('serale');
+  });
+
   it('usa fallback discreto quando a identidade não está disponível', () => {
     fixture.componentRef.setInput('identity', null);
     fixture.detectChanges();
