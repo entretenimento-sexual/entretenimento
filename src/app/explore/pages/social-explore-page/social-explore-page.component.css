@@ -297,71 +297,19 @@
 }
 
 .feed-intent__header,
-.feed-intent__identity {
-  display: flex;
-  align-items: center;
-}
-
 .feed-intent__header {
   justify-content: space-between;
   gap: 0.75rem;
 }
 
 .feed-intent__identity {
+  flex: 1 1 auto;
   min-width: 0;
-  gap: 0.65rem;
-}
-
-.feed-intent__avatar {
-  display: inline-grid;
-  place-items: center;
-  flex: 0 0 auto;
-  width: 2.75rem;
-  height: 2.75rem;
-  overflow: hidden;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 35%,
-    var(--surface-border, rgb(255 255 255 / 12%))
-  );
-  border-radius: 50%;
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 11%,
-    var(--surface-color, #101925)
-  );
-  color: var(--text-color, #f5f7fb);
-  font-weight: 850;
-}
-
-.feed-intent__avatar img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.feed-intent__identity > div {
-  min-width: 0;
-  display: grid;
-  gap: 0.08rem;
-}
-
-.feed-intent__identity strong,
-.feed-intent__identity span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.feed-intent__identity strong {
-  color: var(--text-color, #f5f7fb);
-  font-size: 0.84rem;
-}
-
-.feed-intent__identity span {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
-  font-size: 0.72rem;
+  width: auto;
+  --public-user-identity-avatar-size: 2.75rem;
+  --public-user-identity-gap: 0.65rem;
+  --public-user-identity-name-size: 0.84rem;
+  --public-user-identity-meta-size: 0.7rem;
 }
 
 .feed-intent__relationship {
@@ -416,51 +364,25 @@
 }
 
 .feed-empty__profiles a {
-  flex: 0 0 4.5rem;
-  display: grid;
-  justify-items: center;
+  flex: 0 0 clamp(11rem, 41vw, 14rem);
+  display: flex;
+  align-items: center;
   gap: 0.35rem;
   min-height: var(--tap-target, 2.75rem);
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 76%, transparent);
   font-size: 0.7rem;
   font-weight: 720;
-  text-align: center;
+  text-align: left;
   text-decoration: none;
 }
 
-.feed-empty__profiles a > span:last-child {
+.feed-empty__identity {
   width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.feed-empty__avatar {
-  display: inline-grid;
-  place-items: center;
-  width: 2.65rem;
-  height: 2.65rem;
-  overflow: hidden;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 28%,
-    var(--surface-border, rgb(255 255 255 / 12%))
-  );
-  border-radius: 50%;
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 9%,
-    var(--surface-color, #101925)
-  );
-  color: var(--text-color, #f5f7fb);
-  font-weight: 820;
-}
-
-.feed-empty__avatar img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  min-width: 0;
+  --public-user-identity-avatar-size: 2.65rem;
+  --public-user-identity-gap: 0.45rem;
+  --public-user-identity-name-size: 0.72rem;
+  --public-user-identity-meta-size: 0.62rem;
 }
 
 .feed-empty__action {
