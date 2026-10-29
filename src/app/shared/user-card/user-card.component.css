@@ -157,26 +157,9 @@
   min-width: 0;
 }
 
-.user-card__meta,
 .user-card__location,
 .user-card__description {
   margin: 0;
-}
-
-.user-card__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.24rem;
-  color: var(--uc-text);
-  font-size: var(--user-card-meta-font-size, 0.84rem);
-  font-weight: 800;
-  line-height: var(--user-card-meta-line-height, 1.22);
-}
-
-.user-card__muted {
-  color: var(--uc-muted);
-  font-weight: 650;
 }
 
 .user-card__location {
