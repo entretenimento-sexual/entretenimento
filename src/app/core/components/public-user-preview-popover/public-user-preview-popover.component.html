@@ -14,22 +14,6 @@
     </header>
 
     <div class="public-user-preview__body">
-      @if (vm.age !== null || vm.orientationLabel) {
-        <p class="public-user-preview__demographics">
-          @if (vm.age !== null) {
-            <span>{{ vm.age }} anos</span>
-          }
-
-          @if (vm.age !== null && vm.orientationLabel) {
-            <span class="public-user-preview__separator" aria-hidden="true">·</span>
-          }
-
-          @if (vm.orientationLabel) {
-            <span>{{ vm.orientationLabel | titlecase }}</span>
-          }
-        </p>
-      }
-
       @if (vm.isOnline || vm.approximateDistanceKm !== null) {
         <div
           class="public-user-preview__signals"
