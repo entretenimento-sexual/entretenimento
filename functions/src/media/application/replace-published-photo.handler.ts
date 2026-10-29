@@ -24,7 +24,7 @@ import { buildUnassessedPhotoScoreBreakdown } from
   './photo-publication-moderation.policy';
 import { buildUnassessedMediaContentSafetyAssessment } from
   './media-content-safety-assessment.policy';
-import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
+
 import { logPhotoOperation } from './photo-operation-telemetry';
 
 interface ReplacePublishedPhotoRequest {
@@ -303,11 +303,7 @@ export const replacePublishedPhoto = onCall<ReplacePublishedPhotoRequest>(
         reason: error instanceof Error ? error.message : String(error ?? ''),
       });
     }
-    await refreshPublicProfileMediaMetrics(ownerUid).catch((error) =>
-      logger.warn('[replacePublishedPhoto] Metrics retry required.', {
-        reason: error instanceof Error ? error.message : String(error ?? ''),
-      })
-    );
+
     logPhotoOperation({
       operation: 'photo.replace_published_asset',
       outcome: 'success', startedAt,
