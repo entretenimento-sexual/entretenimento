@@ -41,7 +41,16 @@ try {
   if ($mainSha -notmatch '^[0-9a-f]{40}$') {
     throw 'SHA da main invalido.'
   }
-  Write-Host "main remota: $mainSha"
+  # A main remota deve CONTER o commit de consolidacao certificado.
+  # Nao basta o nome main: rejeitar repositorios antigos e historico reescrito.
+  & git fetch --no-tags origin main
+  if ($LASTEXITCODE -ne 0) { throw 'Nao foi possivel confirmar a historia da main remota.' }
+  $consolidated = '34aa901bf3e01b962dd6f7dfe4d459efa81c0da1'
+  $history = @(& git log '--format=%H' $mainSha)
+  if ($LASTEXITCODE -ne 0 -or $history -notcontains $consolidated) {
+    throw 'A main remota nao inclui o commit de consolidacao; nenhuma exclusao permitida.'
+  }
+  Write-Host "main remota verificada: $mainSha"
   $lines = & git ls-remote --heads origin
   if ($LASTEXITCODE -ne 0) { throw 'Falha na consulta de referencias remotas.' }
   $actual = @{}
