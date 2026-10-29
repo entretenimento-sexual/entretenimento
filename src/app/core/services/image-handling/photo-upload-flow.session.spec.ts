@@ -130,7 +130,7 @@ describe('PhotoUploadFlowService / sessão operacional', () => {
 
   it('não descarta a origem nem anuncia sucesso antes de o backend publicar', async () => {
     const h = harness();
-    const pendingPublication$ = new Subject<void>();
+    const pendingPublication$ = new Subject<undefined>();
     h.publishedSync.waitForPublishedReplacement$.mockReturnValue(
       pendingPublication$.asObservable()
     );
@@ -155,7 +155,7 @@ describe('PhotoUploadFlowService / sessão operacional', () => {
     expect(success).not.toHaveBeenCalled();
     expect(h.lifecycle.deleteOwnedPrivatePhoto$).not.toHaveBeenCalled();
 
-    pendingPublication$.next();
+    pendingPublication$.next(undefined);
     pendingPublication$.complete();
     await Promise.resolve();
     expect(success).toHaveBeenCalledOnce();
