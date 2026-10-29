@@ -13,6 +13,7 @@ import {
 import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
 import {
   isCurrentPublicMediaProjectionExposure,
+  isCurrentPublicPhotoAssetExposure,
 } from './public-media-exposure.policy';
 import {
   resolvePublicMediaOwnerExposure,
@@ -279,8 +280,32 @@ export const getAuthorizedPhotoOwnerPage = onCall<AuthorizedPhotoOwnerPageReques
       const pageDocuments = merged.slice(0, pageSize);
       const lastDocument = pageDocuments.at(-1) ?? null;
 
+      // Projeções são índices de consulta, não autoridade de publicação.
+      // Uma projeção obsoleta não pode revelar mídia despublicada, moderada
+      // ou cuja audiência foi alterada. A gestão não depende do original
+      // privado users/{uid}/photos, inclusive em testes de carga.
+      const publicationSnapshots = pageDocuments.length
+        ? await db.getAll(...pageDocuments.map((document) => db.doc(
+          `users/${document.ownerUid}/photo_publications/${document.id}`
+        )))
+        : [];
+
+      const authorizedDocuments = pageDocuments.filter((document, index) => {
+        const publication = publicationSnapshots[index];
+        return isCurrentPublicPhotoAssetExposure({
+          publicMedia: document.data as Record<string, unknown>,
+          publication: publication?.exists
+            ? publication.data() as Record<string, unknown>
+            : null,
+          ownerExposureAllowed: true,
+          viewerIsOwner: document.ownerUid === viewerUid,
+          viewerIsFriend: socialAccess.friendTargetUids.has(document.ownerUid),
+          nowMs,
+        });
+      });
+
       return {
-        items: pageDocuments.map((document) => ({
+        items: authorizedDocuments.map((document) => ({
           ...document.data,
           id: document.id,
           ownerUid: document.ownerUid,
