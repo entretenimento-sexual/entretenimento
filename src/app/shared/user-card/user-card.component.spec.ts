@@ -84,8 +84,6 @@ describe('UserCardComponent', () => {
 
   it('normaliza o mesmo perfil legado para a prévia rápida sem promover uid privado', () => {
     expect(fixture.componentInstance.publicPreview()).toMatchObject({
-      age: 31,
-      orientationLabel: 'bissexual',
       identity: {
         profileId: null,
         nickname: 'Perfil teste',
@@ -94,6 +92,9 @@ describe('UserCardComponent', () => {
         state: 'RJ',
       },
     });
+    expect('age' in (fixture.componentInstance.publicPreview() ?? {})).toBe(false);
+    expect('orientationLabel' in (fixture.componentInstance.publicPreview() ?? {}))
+      .toBe(false);
     expect(
       fixture.debugElement.query(By.css('.user-card__quick-preview'))
     ).toBeTruthy();
