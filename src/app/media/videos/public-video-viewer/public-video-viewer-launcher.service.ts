@@ -58,7 +58,7 @@ export class PublicVideoViewerLauncherService {
         !item?.id?.trim() ||
         !item?.ownerUid?.trim() ||
         item.mediaType !== 'VIDEO' ||
-        item.visibility !== 'PUBLIC' ||
+        (item.visibility !== 'PUBLIC' && item.visibility !== 'FRIENDS') ||
         item.moderationStatus !== 'APPROVED' ||
         (request.source === 'profile' &&
           item.ownerUid !== requestedVideo?.ownerUid)

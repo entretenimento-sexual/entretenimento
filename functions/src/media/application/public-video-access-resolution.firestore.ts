@@ -24,6 +24,8 @@ export interface PublicVideoSignedAccessRequest {
   requesterAccessExpiresAtMs: number | null;
   ownerAccessExpiresAtMs: number | null;
   ownerExposureAllowed: boolean;
+  /** Evaluated by the callable from reciprocal friendship or owner identity. */
+  viewerCanReadFriends?: boolean;
   mode: TPublicVideoAccessMode;
   nowMs: number;
 }
@@ -47,7 +49,7 @@ export async function resolvePublicVideoSignedAccessItem(
   const {
     ownerUid, videoId, technicalExpiresAt,
     requesterAccessExpiresAtMs, ownerAccessExpiresAtMs,
-    ownerExposureAllowed, mode, nowMs,
+    ownerExposureAllowed, viewerCanReadFriends, mode, nowMs,
   } = request;
 
   if (!ownerExposureAllowed) {
@@ -75,7 +77,8 @@ export async function resolvePublicVideoSignedAccessItem(
     publication,
     ownerExposureAllowed,
     nowMs,
-    allowedVisibilities: ['PUBLIC'],
+    allowedVisibilities: viewerCanReadFriends === true
+      ? ['PUBLIC', 'FRIENDS'] : ['PUBLIC'],
   })) {
     return null;
   }

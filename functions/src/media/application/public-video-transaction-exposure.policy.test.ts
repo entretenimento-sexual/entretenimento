@@ -24,6 +24,24 @@ describe('VF1-B2 video transaction exposure policy', () => {
     ));
   });
 
+  it('FRIENDS exige autorização social atual em cada transação', () => {
+    const base = currentVideo();
+    const restricted = {
+      ...base,
+      publicVideo: { ...base.publicVideo, visibility: 'FRIENDS' },
+      publication: { ...base.publication, visibility: 'FRIENDS' },
+    };
+    assert.throws(() => assertCurrentPublicVideoTransactionExposure(restricted));
+    assert.doesNotThrow(() => assertCurrentPublicVideoTransactionExposure({
+      ...restricted, viewerCanReadFriends: true,
+    }));
+    assert.throws(() => assertCurrentPublicVideoTransactionExposure({
+      ...restricted,
+      viewerCanReadFriends: true,
+      publication: { ...restricted.publication, isPublished: false },
+    }));
+  });
+
   for (const state of [
     'PENDING_REVIEW', 'FLAGGED', 'HIDDEN', 'REJECTED',
   ]) {

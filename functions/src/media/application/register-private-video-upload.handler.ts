@@ -28,6 +28,7 @@ import {
   normalizeVideoPublicationSettings,
   type VideoPublicationSettingsInput,
 } from './video-publication-settings';
+import { resolveRequiredVideoUploadAudience } from './video-upload-audience.policy';
 import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
@@ -48,6 +49,7 @@ interface RegisterPrivateVideoUploadRequest
   sizeBytes?: number;
   durationMs?: number | null;
   editRecipe?: unknown;
+  visibility?: unknown;
 }
 
 interface RegisterPrivateVideoUploadResponse {
@@ -460,6 +462,12 @@ export const registerPrivateVideoUpload = onCall<
       );
     }
 
+    const visibility = resolveRequiredVideoUploadAudience(request.data?.visibility);
+    if (!visibility) {
+      throw new HttpsError('invalid-argument',
+        'Escolha quem poderá assistir a este vídeo: público ou amigos.');
+    }
+
     const existingResponse = await findExistingResponse(
       ownerUid,
       videoId,
@@ -580,7 +588,7 @@ export const registerPrivateVideoUpload = onCall<
             videoId,
             isPublished: false,
             publishWhenReady: true,
-            visibility: 'PUBLIC',
+            visibility,
             orderIndex: 0,
             moderationStatus: 'PRIVATE',
             moderationReason: null,

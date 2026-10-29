@@ -2050,13 +2050,33 @@ if (profilePhotosHtml.includes('app-card-grid--media')) {
   );
 }
 
-const mediaQuerySource = read(
-  'src/app/core/services/media/media-query.service.ts'
+const canonicalOwnerGallery = read(
+  'src/app/core/services/media/owner-published-photo-gallery.service.ts'
 );
-if (!mediaQuerySource.includes('if (storagePath) {')) {
-  violations.push(
-    'media-query.service.ts should prefer canonical private photo storage path before stale persisted URLs'
-  );
+const canonicalOwnerCards = read(
+  'src/app/core/services/media/owner-published-photo-cards.policy.ts'
+);
+const canonicalOwnerComponent = read(
+  'src/app/media/photos/profile-photos/profile-photos.component.ts'
+);
+for (const [source, required] of [
+  [canonicalOwnerGallery, 'this.ownerPages.loadPhotoPage$({'],
+  [canonicalOwnerCards, 'filterOwnerPublishedPhotoPage(authorizedItems, owner)'],
+  [canonicalOwnerCards, 'displayDate: publication.displayDate'],
+  [canonicalOwnerComponent, 'mapOwnerPublishedPhotoCards('],
+]) {
+  if (!source.includes(required)) {
+    violations.push(
+      'owner photo gallery missing canonical published media contract ' + required
+    );
+  }
+}
+for (const forbidden of ['MediaQueryService', 'watchProfilePhotos$(']) {
+  if (canonicalOwnerComponent.includes(forbidden)) {
+    violations.push(
+      'owner photo gallery must not observe private technical originals ' + forbidden
+    );
+  }
 }
 
 const profilePhotosCss = read(
@@ -2073,22 +2093,6 @@ for (const forbidden of [
   if (profilePhotosCss.includes(forbidden)) {
     violations.push(
       'profile-photos.component.css contains duplicate gallery chrome ' + forbidden
-    );
-  }
-}
-
-const mediaQueryService = read(
-  'src/app/core/services/media/media-query.service.ts'
-);
-for (const required of [
-  'private readonly storageService: StorageService',
-  'resolvePhotoItem$(',
-  'this.storageService.getPhotoUrl(storagePath)',
-  'this.storageService.getPhotoUrl(storedUrl)',
-]) {
-  if (!mediaQueryService.includes(required)) {
-    violations.push(
-      'media-query.service.ts missing owner photo URL hydration contract ' + required
     );
   }
 }

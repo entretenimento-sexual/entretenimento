@@ -176,6 +176,7 @@ export class ProfileVideosComponent {
   readonly editingVideoId$ = this.editingVideoIdSubject.asObservable();
 
   readonly uploadPublicationForm = this.formBuilder.nonNullable.group({
+    visibility: [null as 'PUBLIC' | 'FRIENDS' | null, [Validators.required]],
     title: ['', [Validators.maxLength(120)]],
     description: ['', [Validators.maxLength(1000)]],
     reactionsEnabled: [true],
@@ -364,6 +365,8 @@ export class ProfileVideosComponent {
     if (dialog?.open) {
       dialog.close();
     }
+    // Não conservar gravações da câmera quando o usuário fecha o editor.
+    this.resetSelection(this.videoInputRef()?.nativeElement);
   }
 
   onVideoSelected(event: Event): void {
@@ -378,6 +381,10 @@ export class ProfileVideosComponent {
       input.value = '';
       return;
     }
+
+    // Libera a seleção nativa para permitir gravar de novo o mesmo arquivo.
+    // O File segue somente em memória até a publicação explícita.
+    input.value = '';
 
     this.editorLaunchSubscription?.unsubscribe();
     let subscription: Subscription | null = null;
@@ -400,6 +407,7 @@ export class ProfileVideosComponent {
         this.selectedFileSubject.next(file);
         this.previewUrlSubject.next(URL.createObjectURL(file));
         this.uploadPublicationForm.reset({
+      visibility: null,
           title: '',
           description: '',
           reactionsEnabled: true,
@@ -436,7 +444,9 @@ export class ProfileVideosComponent {
   onUploadDialogCancel(event: Event): void {
     if (this.isUploadActive()) {
       event.preventDefault();
+      return;
     }
+    this.resetSelection(this.videoInputRef()?.nativeElement);
   }
 
   startUpload(): void {
@@ -509,6 +519,7 @@ export class ProfileVideosComponent {
           file: editorResult.file,
           posterBlob: editorResult.posterBlob,
           editRecipe: editorResult.recipe,
+          visibility: this.uploadPublicationForm.controls.visibility.value!,
           publication,
         });
       }),
@@ -578,6 +589,7 @@ export class ProfileVideosComponent {
     this.selectedFileSubject.next(null);
     this.previewUrlSubject.next(null);
     this.uploadPublicationForm.reset({
+      visibility: null,
       title: '',
       description: '',
       reactionsEnabled: true,
@@ -1209,6 +1221,7 @@ export class ProfileVideosComponent {
     this.selectedFileSubject.next(null);
     this.previewUrlSubject.next(null);
     this.uploadPublicationForm.reset({
+      visibility: null,
       title: '',
       description: '',
       reactionsEnabled: true,

@@ -114,6 +114,20 @@ describe('PublicVideoViewerLauncherService', () => {
     expect(config?.restoreFocus).toBe(true);
   });
 
+  it('preserva a seleção de FRIENDS retornado pela galeria autorizada', async () => {
+    const service = TestBed.inject(PublicVideoViewerLauncherService);
+    const friends = { ...video('video-amigos'), visibility: 'FRIENDS' } as IPublicVideoItem;
+    await firstValueFrom(service.open$({
+      items: [video('video-publico'), friends],
+      startIndex: 1,
+      source: 'profile',
+    }));
+    const config = dialog.open.mock.calls[0]?.[1];
+    expect(config?.data.items.map((item: IPublicVideoItem) => item.id))
+      .toEqual(['video-publico', 'video-amigos']);
+    expect(config?.data.startIndex).toBe(1);
+  });
+
   it('keeps a profile player on the selected owner and deduplicates its gallery', async () => {
     const service = TestBed.inject(PublicVideoViewerLauncherService);
     const foreign = { ...video('foreign'), ownerUid: 'another-owner' };

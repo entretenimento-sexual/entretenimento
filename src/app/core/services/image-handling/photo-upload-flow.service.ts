@@ -7,6 +7,7 @@ import { AuthSessionService } from '../autentication/auth/auth-session.service';
 import { StorageService } from './storage.service';
 import { PhotoFirestoreService } from './photo-firestore.service';
 import { PhotoStorageLifecycleService } from './photo-storage-lifecycle.service';
+import { PhotoPublishedSynchronizationService } from './photo-published-synchronization.service';
 import { MediaApplicationErrorService } from '../media/media-application-error.service';
 
 export interface IPhotoUploadFlowCommand {
@@ -88,6 +89,7 @@ export class PhotoUploadFlowService {
     private readonly storageService: StorageService,
     private readonly photoFirestoreService: PhotoFirestoreService,
     private readonly photoStorageLifecycle: PhotoStorageLifecycleService,
+    private readonly publishedSync: PhotoPublishedSynchronizationService,
     private readonly errorHandler: MediaApplicationErrorService,
     private readonly authSession: AuthSessionService,
   ) {}
@@ -193,11 +195,12 @@ export class PhotoUploadFlowService {
     /**
      * A substituição usa copy-on-write:
      * 1) envia um novo objeto;
-     * 2) troca os metadados;
-     * 3) remove o objeto antigo.
+     * 2) registra a origem temporária e aguarda a Function publicar a
+     *    versão final sanitizada de maneira atômica;
+     * 3) só depois tenta limpar a origem antiga.
      *
-     * Isso evita sobrescrever a única cópia válida antes de o Firestore aceitar
-     * os novos metadados.
+     * Apenas registrar o upload privado não confirma a troca publicada.
+     * Em falha de sincronização, não apagar a origem anterior.
      */
     return this.uploadNewPhotoBinary$(
       safeUserId,
@@ -224,15 +227,8 @@ export class PhotoUploadFlowService {
             reservationId
           )
         ).pipe(
-
-          switchMap(() =>
-            this.deletePhotoObjectBestEffort$(
-              safeUserId,
-              currentStoragePath,
-              'cleanup-replaced-photo'
-            )
-          ),
-          map(() => result),
+          // Uma falha do commit privado nao pode parecer sucesso. Erros de
+          // sincronizacao posteriores nao entram no rollback do novo arquivo.
           catchError((metadataError) =>
             this.rollbackUploadedPhoto$(
               safeUserId,
@@ -240,7 +236,20 @@ export class PhotoUploadFlowService {
               metadataError,
               'replace-metadata-failed'
             )
-          )
+          ),
+          switchMap(() => this.publishedSync.waitForPublishedReplacement$(
+            safeUserId,
+            safePhotoId,
+            storagePath
+          )),
+          switchMap(() =>
+            this.deletePhotoObjectBestEffort$(
+              safeUserId,
+              currentStoragePath,
+              'cleanup-replaced-photo-confirmed'
+            )
+          ),
+          map(() => result)
         );
       }),
       catchError((error) =>

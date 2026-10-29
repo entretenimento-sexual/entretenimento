@@ -27,6 +27,7 @@ import {
   hashPublicVideoPlaybackToken,
 } from './public-video-playback-session';
 import { calculateRequiredVideoPlaybackMs } from './video-view-qualification';
+import { assertVideoAudienceAccessInTransaction } from './video-audience-access.policy';
 import {
   assertCurrentPublicVideoTransactionExposure,
 } from './public-video-transaction-exposure.policy';
@@ -131,7 +132,8 @@ export const startPublicVideoPlaybackSession = onCall<
     const publicVideo = publicVideoSnapshot.data() ?? {};
 
     if (
-      publicVideo.visibility !== 'PUBLIC' ||
+      (publicVideo.visibility !== 'PUBLIC' &&
+       publicVideo.visibility !== 'FRIENDS') ||
       publicVideo.moderationStatus !== 'APPROVED'
     ) {
       throw new HttpsError(
@@ -199,14 +201,19 @@ export const startPublicVideoPlaybackSession = onCall<
         currentVideo.assetVersion ?? currentVideo.publishedAt
       );
       if (!currentVideoSnap.exists ||
-          currentVideo.visibility !== 'PUBLIC' ||
+          (currentVideo.visibility !== 'PUBLIC' &&
+           currentVideo.visibility !== 'FRIENDS') ||
           currentVideo.moderationStatus !== 'APPROVED' ||
           currentVersion !== videoVersion) {
         throw new HttpsError('not-found', 'Vídeo público não encontrado.');
       }
+      const viewerCanReadFriends = await assertVideoAudienceAccessInTransaction(
+        transaction, viewerUid, ownerUid, currentVideo.visibility
+      );
       assertCurrentPublicVideoTransactionExposure({
         publicVideo: currentVideo,
         publication: publicationSnap.data(),
+        viewerCanReadFriends,
         nowMs: Date.now(),
       });
       transaction.set(playbackSessionRef, {

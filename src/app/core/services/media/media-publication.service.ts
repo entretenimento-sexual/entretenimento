@@ -142,6 +142,7 @@ export class MediaPublicationService {
             },
 
             publishedAt: item.publishedAt ?? null,
+            displayDate: item.displayDate,
             updatedAt: item.updatedAt,
             lastModeratedAt: item.lastModeratedAt ?? null,
           };
@@ -241,6 +242,56 @@ export class MediaPublicationService {
           true
         );
 
+        return throwError(() => error);
+      })
+    );
+  }
+
+  /** Data organizacional canônica, sem dependência do documento técnico. */
+  updatePublishedPhotoDisplayDate$(
+    ownerUid: string,
+    photoId: string,
+    displayDate: number | null,
+    expectedAssetVersion: number
+  ): Observable<void> {
+    const uid = String(ownerUid ?? '').trim();
+    const id = String(photoId ?? '').trim();
+    if (!uid || !id ||
+        !Number.isSafeInteger(expectedAssetVersion) ||
+        expectedAssetVersion <= 0 ||
+        !(displayDate === null || (
+          Number.isSafeInteger(displayDate) &&
+          displayDate >= 0 && displayDate <= 4_133_980_799_999
+        ))) {
+      return throwError(() => new Error('Data ou publicação inválida.'));
+    }
+
+    return this.firestoreCtx.deferPromise$(async () => {
+      const callable = httpsCallable<
+        {
+          ownerUid: string;
+          photoId: string;
+          displayDate: number | null;
+          expectedAssetVersion: number;
+        },
+        { photoId: string; displayDate: number | null }
+      >(this.functions, 'updatePublishedPhotoDisplayDate');
+      const response = await callable({
+        ownerUid: uid, photoId: id, displayDate, expectedAssetVersion,
+      });
+      if (response.data?.photoId !== id ||
+          response.data?.displayDate !== displayDate) {
+        throw new Error('A alteração da data não foi confirmada.');
+      }
+    }).pipe(
+      map(() => void 0),
+      catchError((error) => {
+        this.reportError(
+          'Erro ao atualizar a data da foto publicada.',
+          error,
+          { op: 'updatePublishedPhotoDisplayDate$', ownerUid: uid, photoId: id },
+          true
+        );
         return throwError(() => error);
       })
     );

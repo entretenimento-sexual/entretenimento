@@ -42,6 +42,59 @@ function forbidIncludes(source, fragment, label) {
   }
 }
 
+// Contrato permanente de produto: impedir regressão silenciosa para drive privado.
+const moduleAgentGuidance = read('src/app/media/photos/AGENTS.md');
+requireIncludes(moduleAgentGuidance, [
+  'DIRETRIZES-MIDIAS-PUBLICADAS.md',
+  'Nunca criar galeria privada',
+  'Armazenamento físico mínimo',
+], 'photo module agent instructions must preserve social-publication contract');
+
+const photoRetentionPolicy = read('src/app/media/photos/DIRETRIZES-MIDIAS-PUBLICADAS.md');
+requireIncludes(photoRetentionPolicy, [
+  'não é um drive, backup, álbum privado',
+  'PUBLIC',
+  'FRIENDS',
+  'um único arquivo físico ativo',
+  'não podem ser exibidos como galeria pessoal',
+  'Evidências em',
+  'Observables/RxJS',
+], 'media photo retention and publication policy must remain documented');
+
+// Novo vídeo deve preservar a audiência declarada após processamento.
+const videoRegistration = read(
+  'functions/src/media/application/register-private-video-upload.handler.ts'
+);
+const deferredVideoPublication = read(
+  'functions/src/media/application/publish-video-when-ready.handler.ts'
+);
+const videoProfileUpload = read(
+  'src/app/media/videos/profile-videos/profile-videos.component.html'
+);
+requireIncludes(videoRegistration, [
+  'resolveRequiredVideoUploadAudience(request.data?.visibility)',
+  'visibility,',
+], 'video registration must persist explicitly authorized audience');
+requireIncludes(deferredVideoPublication, [
+  "resolveRequiredVideoUploadAudience(publication.get('visibility'))",
+  'visibility,',
+], 'video auto-publication must reuse stored audience');
+forbidIncludes(deferredVideoPublication,
+  "visibility: 'PUBLIC',",
+  'video auto-publication must not default to PUBLIC');
+requireIncludes(videoProfileUpload, [
+  'formControlName="visibility" value="FRIENDS"',
+  'formControlName="visibility" value="PUBLIC"',
+], 'video upload must request explicit audience');
+
+const photoAudienceModel = read(
+  'src/app/core/interfaces/media/i-photo-publication-config.ts'
+);
+requireIncludes(photoAudienceModel,
+  "export type TPhotoPublishableVisibility = 'FRIENDS' | 'PUBLIC';",
+  'new photo publication must require an audience other than only-me'
+);
+
 const presentation = read(
   'src/app/media/shared/presentation/public-media-presentation.policy.ts'
 );
@@ -363,6 +416,41 @@ const photoUploadComponent = read(
   'src/app/media/photos/photo-upload/photo-upload.component.ts'
 );
 
+const videoModuleGuidance = read('src/app/media/videos/AGENTS.md');
+requireIncludes(videoModuleGuidance, [
+  '../photos/DIRETRIZES-MIDIAS-PUBLICADAS.md',
+  'Capturar não é publicar.',
+], 'video camera must follow social-publication retention policy');
+
+requireIncludes(photoUploadTemplate, [
+  'capture="environment"',
+  'accept="image/*"',
+  '(change)="onFileSelected($event)"',
+  'Tirar foto com a câmera',
+], 'camera photo must enter existing preview workflow');
+forbidIncludes(
+  photoUploadTemplate,
+  '(change)="startUpload()"',
+  'camera capture cannot trigger photo publication directly'
+);
+
+const videoCameraTemplate = read(
+  'src/app/media/videos/profile-videos/profile-videos.component.html'
+);
+requireIncludes(videoCameraTemplate, [
+  'capture="environment"',
+  'accept="video/*"',
+  '(change)="onVideoSelected($event)"',
+  'Gravar vídeo com a câmera',
+  '(ngSubmit)="startUpload()"',
+], 'camera video must enter existing reviewed publication workflow');
+forbidIncludes(
+  videoCameraTemplate,
+  '(change)="startUpload()"',
+  'camera capture cannot trigger video publication directly'
+);
+
+
 for (const forbidden of [
   'Foto publicada</h2>',
   'Adicionar outra',
@@ -418,7 +506,8 @@ requireIncludes(photoUploadTemplate, [
 requireIncludes(profilePhotosTemplate, [
   'app-media-action-menu',
   'editLabel="Editar foto"',
-  '[showSecondaryAction]="true"',
+  '[showSecondaryAction]="item.publication.isPublished"',
+  '[showEditAction]="!!item.url"',
   'secondaryLabel="Alterar data"',
   '(secondaryAction)="editPhotoDate(item)"',
   'featureLabel="Definir como capa"',

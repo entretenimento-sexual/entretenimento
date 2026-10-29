@@ -2,13 +2,13 @@
 // Galeria de gestão do próprio perfil.
 //
 // Responsabilidades:
-// - observar acervo de origem e configurações de publicação;
+// - listar publicações ativas; o original privado não é autoridade da galeria;
 // - permitir edição, exclusão, publicação e capa;
 // - manter a edição visual desacoplada da persistência: o editor devolve um
 //   arquivo processado e este componente executa a substituição da foto.
 //
-// users/{uid}/photos continua sendo a acervo de origem. Estado de publicação
-// permanece em sua camada própria e não é misturado no documento de origem.
+// A galeria nunca carrega os documentos privados técnicos nem seus arquivos.
+// Datas antigas sem backfill usam createdAt até a migração controlada.
 
 import { CommonModule } from '@angular/common';
 import {
@@ -41,13 +41,17 @@ import { MediaApplicationErrorService } from 'src/app/core/services/media/media-
 import type { MediaErrorReason } from 'src/app/core/services/media/media-error.catalog';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
-import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/photo-upload-flow.service';
+import { PublishedPhotoReplacementService } from 'src/app/core/services/image-handling/published-photo-replacement.service';
 import { MediaPolicyService, IMediaPolicyResult } from 'src/app/core/services/media/media-policy.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
-import { MediaQueryService } from 'src/app/core/services/media/media-query.service';
+import {
+  IOwnerPublishedPhotoCard,
+  mapOwnerPublishedPhotoCards,
+} from 'src/app/core/services/media/owner-published-photo-cards.policy';
+import { OwnerPublishedPhotoGalleryService } from 'src/app/core/services/media/owner-published-photo-gallery.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
-import { PhotoViewerComponent, IProfilePhotoItem } from '../photo-viewer/photo-viewer.component';
+import { PublicPhotoViewerLauncherService } from '../photo-viewer/public-photo-viewer-launcher.service';
 import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 import {
   ConfirmationDialogComponent,
@@ -57,16 +61,7 @@ import {
   MediaDateDialogComponent,
 } from 'src/app/media/shared/components/media-date-dialog/media-date-dialog.component';
 
-type IManageablePhotoItem = IProfilePhotoItem & {
-  path?: string;
-  fileName?: string;
-  displayDate?: number | null;
-  ownerUid: string;
-};
-
-type IPhotoCardVm = IManageablePhotoItem & {
-  publication: IPhotoPublicationConfig;
-};
+type IPhotoCardVm = IOwnerPublishedPhotoCard;
 
 type TProfilePhotoSortMode = 'newest' | 'oldest';
 
@@ -82,6 +77,7 @@ const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' }
     PageHeaderComponent,
     MediaActionMenuComponent,
   ],
+  providers: [OwnerPublishedPhotoGalleryService],
   templateUrl: './profile-photos.component.html',
   styleUrls: ['./profile-photos.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -96,11 +92,12 @@ export class ProfilePhotosComponent {
   private readonly policy = inject(MediaPolicyService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(MediaApplicationErrorService);
-  private readonly mediaQuery = inject(MediaQueryService);
+  private readonly ownerGallery = inject(OwnerPublishedPhotoGalleryService);
+  private readonly publicPhotoViewer = inject(PublicPhotoViewerLauncherService);
   private readonly mediaPublicationService = inject(MediaPublicationService);
   private readonly photoFirestoreService = inject(PhotoFirestoreService);
   private readonly photoEditor = inject(PhotoEditorLauncherService);
-  private readonly photoUploadFlow = inject(PhotoUploadFlowService);
+  private readonly publishedReplacement = inject(PublishedPhotoReplacementService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly deletingPhotoIdSubject = new BehaviorSubject<string | null>(null);
   readonly deletingPhotoId$ = this.deletingPhotoIdSubject.asObservable();
@@ -172,30 +169,31 @@ export class ProfilePhotosComponent {
     distinctUntilChanged()
   );
 
-  readonly photos$: Observable<IManageablePhotoItem[]> = combineLatest([
-    this.ownerUid$,
-    this.canView$,
-  ]).pipe(
-    switchMap(([ownerUid, canView]) => {
-      if (!ownerUid || !canView) return of([] as IManageablePhotoItem[]);
-      return this.mediaQuery.watchProfilePhotos$(ownerUid);
-    }),
-    tap((items) => this.debug('photos$', { count: items.length })),
-    catchError((error) => {
-      this.errorHandler.report(error, {
-        operation: 'profilePhotos.load',
-        reasonHint: 'profile_photos_load_failed',
-        metadata: { scope: 'ProfilePhotosComponent' },
-      });
-      return of([] as IManageablePhotoItem[]);
-    }),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  readonly ownerGalleryState$ = this.ownerGallery.state$;
+
+  constructor() {
+    // A listagem e os metadados vêm de publicações autorizadas, não do upload.
+    combineLatest([this.ownerUid$, this.canView$]).pipe(
+      distinctUntilChanged(
+        ([previousUid, previousAllowed], [uid, allowed]) =>
+          previousUid === uid && previousAllowed === allowed
+      ),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(([uid, allowed]) => this.ownerGallery.connect(uid, allowed));
+  }
+
+  loadMorePhotos(): void {
+    this.ownerGallery.loadMorePhotos();
+  }
+
+  retryPhotos(): void {
+    this.ownerGallery.retry();
+  }
 
   readonly publicationConfigs$: Observable<Record<string, IPhotoPublicationConfig>> =
-    this.ownerUid$.pipe(
-      switchMap((ownerUid) => {
-        if (!ownerUid) return of({});
+    combineLatest([this.ownerUid$, this.isOwner$]).pipe(
+      switchMap(([ownerUid, isOwner]) => {
+        if (!ownerUid || !isOwner) return of({});
         return this.mediaPublicationService.getPublicationConfigsByOwner$(ownerUid);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
@@ -203,18 +201,18 @@ export class ProfilePhotosComponent {
 
   readonly photoCards$: Observable<IPhotoCardVm[]> = combineLatest([
     this.ownerUid$,
-    this.photos$,
+    this.ownerGalleryState$,
     this.publicationConfigs$,
     this.sortMode$,
   ]).pipe(
-    map(([ownerUid, photos, publicationConfigs, sortMode]) => {
-      const cards = photos.map((photo) => ({
-        ...photo,
-        publication:
-          publicationConfigs[photo.id] ??
-          this.mediaPublicationService.buildDefaultConfig(ownerUid, photo.id),
-      }));
-
+    map(([ownerUid, gallery, publicationConfigs, sortMode]) => {
+      if (gallery.ownerUid !== ownerUid) return [];
+      const cards = mapOwnerPublishedPhotoCards(
+        ownerUid,
+        gallery.items,
+        publicationConfigs,
+        (uid, photoId) => this.mediaPublicationService.buildDefaultConfig(uid, photoId)
+      );
       return this.sortPhotoCards(cards, sortMode);
     }),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -225,7 +223,7 @@ export class ProfilePhotosComponent {
     distinctUntilChanged()
   );
 
-  readonly totalPhotos$: Observable<number> = this.photos$.pipe(
+  readonly totalPhotos$: Observable<number> = this.photoCards$.pipe(
     map((items) => items.length),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -308,12 +306,12 @@ export class ProfilePhotosComponent {
 
               this.savingDisplayDateIdSubject.next(item.id);
 
-              return from(
-                this.photoFirestoreService.updatePhotoDisplayDate(
-                  ownerUid,
-                  item.id,
-                  nextDisplayDate
-                )
+              const expectedAssetVersion = Number(item.assetVersion ?? item.publishedAt);
+              return this.mediaPublicationService.updatePublishedPhotoDisplayDate$(
+                ownerUid,
+                item.id,
+                nextDisplayDate,
+                expectedAssetVersion
               ).pipe(
                 tap(() => this.errorNotifier.showSuccess('Data atualizada.')),
                 catchError((error) => {
@@ -420,43 +418,35 @@ export class ProfilePhotosComponent {
   }
 
   openPhoto(targetId: string): void {
-    combineLatest([this.canView$, this.ownerUid$, this.photoCards$])
+    combineLatest([this.canView$, this.ownerUid$, this.ownerGalleryState$])
       .pipe(
         take(1),
-        switchMap(([canView, ownerUid, items]) => {
-          if (!canView) {
+        switchMap(([canView, ownerUid, gallery]) => {
+          if (!canView || gallery.ownerUid !== ownerUid) {
             this.errorNotifier.showWarning('Você não tem permissão para ver essas fotos.');
             return EMPTY;
           }
 
-          const startIndex = Math.max(
-            0,
-            items.findIndex((i) => i.id === targetId)
+          const selected = gallery.items.find(
+            (item) => item.id === targetId && item.ownerUid === ownerUid
           );
+          if (!selected) return EMPTY;
 
-          this.dialog.open(PhotoViewerComponent, {
-            data: { ownerUid, items, startIndex },
-            autoFocus: 'dialog',
-            restoreFocus: true,
-            ariaLabel: 'Visualizador de foto',
-            width: '100vw',
-            height: '100vh',
-            maxWidth: '100vw',
-            maxHeight: '100vh',
-            panelClass: ['photo-viewer-dialog', 'photo-viewer-dialog--immersive'],
-            backdropClass: 'photo-viewer-backdrop',
+          return this.publicPhotoViewer.open$({
+            items: [...gallery.items],
+            selected,
+            source: 'profile',
           });
-
-          return EMPTY;
         }),
         catchError((error) => {
           this.errorHandler.report(error, {
             operation: 'profilePhotos.openPhoto',
-            reasonHint: 'profile_photos_load_failed',
+            reasonHint: 'media_navigation_failed',
             metadata: { scope: 'ProfilePhotosComponent' },
           });
           return EMPTY;
-        })
+        }),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
   }
@@ -474,10 +464,11 @@ export class ProfilePhotosComponent {
           }
 
           const photoId = String(item.id ?? '').trim();
-          const currentStoragePath = String(item.path ?? '').trim();
           const storedImageUrl = String(item.url ?? '').trim();
+          const expectedAssetVersion = Number(item.assetVersion ?? item.publishedAt);
 
-          if (!photoId || !currentStoragePath || !storedImageUrl) {
+          if (!photoId || !storedImageUrl ||
+              !Number.isSafeInteger(expectedAssetVersion) || expectedAssetVersion <= 0) {
             this.errorNotifier.showWarning('Metadados insuficientes para editar esta foto.');
             return EMPTY;
           }
@@ -486,24 +477,24 @@ export class ProfilePhotosComponent {
             ownerUid,
             storedImageUrl,
             storedImageState: null,
-            fileName: item.fileName ?? item.alt ?? null,
+            fileName: item.alt ?? null,
           }).pipe(
             switchMap((result) => {
               if (!result) {
                 return EMPTY;
               }
 
-              return this.photoUploadFlow.replaceProcessedPhoto$({
-                userId: ownerUid,
+              return this.publishedReplacement.replace$({
+                ownerUid,
                 photoId,
-                currentStoragePath,
+                expectedAssetVersion,
                 processedFile: result.file,
-                originalFileName: result.file.name,
-                mimeType: result.file.type,
-                imageStateStr: result.imageStateStr,
               });
             }),
-            tap(() => this.errorNotifier.showSuccess('Foto atualizada com sucesso.')),
+            tap(() => {
+              this.ownerGallery.refresh();
+              this.errorNotifier.showSuccess('Foto publicada atualizada com sucesso.');
+            }),
             catchError((error) => {
               this.reportError(
                 'media_replace_failed',
@@ -564,9 +555,10 @@ export class ProfilePhotosComponent {
               return from(
                 this.photoFirestoreService.deletePhoto(ownerUid, item.id)
               ).pipe(
-                tap(() =>
-                  this.errorNotifier.showSuccess('Foto excluída.')
-                ),
+                tap(() => {
+                  this.errorNotifier.showSuccess('Foto excluída.');
+                  this.ownerGallery.refresh();
+                }),
                 catchError((error) => {
                   this.reportError(
                     'photo_delete_failed',
@@ -623,6 +615,7 @@ export class ProfilePhotosComponent {
           return this.mediaPublicationService.setCoverPhoto$(ownerUid, item.id).pipe(
             tap(() => {
               this.errorNotifier.showSuccess('Foto de capa atualizada.');
+              this.ownerGallery.refresh();
             }),
             catchError((error) => {
               this.reportError(

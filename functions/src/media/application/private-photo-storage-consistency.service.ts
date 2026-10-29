@@ -3,12 +3,18 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { db, getDefaultStorageBucket } from '../../firebaseApp';
 import { deleteProfilePhotoResources } from './delete-profile-photo.handler';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
+import {
+  classifyLegacyPhotoOrigin, isPublicationPresentAndProtected,
+} from './legacy-photo-origin-preservation.policy';
 
 export type PrivatePhotoStorageConsistencyState =
   | 'consistent'
   | 'missing_private_document'
   | 'invalid_private_path'
-  | 'missing_storage_object';
+  | 'missing_storage_object'
+  | 'published_origin_present'
+  | 'published_source_missing'
+  | 'published_needs_review';
 
 export interface PrivatePhotoStorageConsistencyInspection {
   ownerUid: string;
@@ -63,7 +69,12 @@ export async function inspectPrivatePhotoStorageConsistency(
   }
 
   const privatePhotoRef = db.doc(`users/${ownerUid}/photos/${photoId}`);
-  const privatePhotoSnap = await privatePhotoRef.get();
+  const publicationRef = db.doc(`users/${ownerUid}/photo_publications/${photoId}`);
+  const [privatePhotoSnap, publicationSnap] = await Promise.all([
+    privatePhotoRef.get(), publicationRef.get(),
+  ]);
+  const currentPublication = publicationSnap.exists
+    ? publicationSnap.data() as Record<string, unknown> : null;
 
   if (!privatePhotoSnap.exists) {
     return {
@@ -87,7 +98,8 @@ export async function inspectPrivatePhotoStorageConsistency(
       ownerUid,
       photoId,
       storagePath: null,
-      state: 'invalid_private_path',
+      state: isPublicationPresentAndProtected(currentPublication)
+        ? 'published_needs_review' : 'invalid_private_path',
     };
   }
 
@@ -95,11 +107,21 @@ export async function inspectPrivatePhotoStorageConsistency(
     .file(storagePath)
     .exists();
 
+  const classification = classifyLegacyPhotoOrigin({
+    ownerUid, photoId, privateSourcePath: storagePath,
+    publication: currentPublication, sourceExists: exists,
+  });
   return {
     ownerUid,
     photoId,
     storagePath,
-    state: exists ? 'consistent' : 'missing_storage_object',
+    state: classification === 'published_final_referenced'
+      ? 'published_origin_present'
+      : classification === 'published_source_missing'
+        ? 'published_source_missing'
+        : classification === 'published_needs_review'
+          ? 'published_needs_review'
+          : exists ? 'consistent' : 'missing_storage_object',
   };
 }
 
@@ -143,9 +165,12 @@ export async function reconcilePrivatePhotoStorageConsistency(
     };
   }
 
+  // Even if publication appeared after the last inspection, the deletion
+  // operation itself must reject an existing publication in its transaction.
   const deletion = await deleteProfilePhotoResources(
     confirmation.ownerUid,
-    confirmation.photoId
+    confirmation.photoId,
+    { onlyIfUnpublished: true }
   );
 
   return {

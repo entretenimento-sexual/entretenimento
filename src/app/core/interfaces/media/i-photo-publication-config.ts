@@ -128,6 +128,8 @@ export interface IPhotoPublicationConfig {
   scoreBreakdown?: IPhotoPublicationScore;
 
   publishedAt?: number | null;
+  /** Data de organização do proprietário, não enviada à projeção pública. */
+  displayDate?: number | null;
   updatedAt?: number;
   lastModeratedAt?: number | null;
 }

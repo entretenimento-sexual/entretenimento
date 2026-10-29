@@ -170,8 +170,8 @@ for (const forbidden of [
 }
 requireIncludes(
   profilePhotos,
-  'updatePhotoDisplayDate(',
-  'displayDate editing must remain available to the owner'
+  'updatePublishedPhotoDisplayDate$(',
+  'displayDate editing must remain available to the owner through the canonical publication'
 );
 
 const usersPhotosRules = read('firestore-rules/users_photos.rules');

@@ -50,7 +50,7 @@ export function resolveOwnerVideoGallerySelection$(
     const isAuthorized = (video: IPublicVideoItem | null | undefined) =>
       !!video &&
       video.ownerUid === ownerUid &&
-      video.visibility === 'PUBLIC' &&
+      (video.visibility === 'PUBLIC' || video.visibility === 'FRIENDS') &&
       video.moderationStatus === 'APPROVED' &&
       !!video.id?.trim();
 

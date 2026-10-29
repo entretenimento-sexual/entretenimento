@@ -127,6 +127,28 @@
   cursor: not-allowed;
 }
 
+.camera-capture-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  width: fit-content;
+  cursor: pointer;
+}
+
+.camera-capture-control:focus-within {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 3px;
+}
+
+.camera-capture-control:has(.native-file-input:disabled) {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+
 .file-drop__icon {
   width: 48px;
   height: 48px;

@@ -391,7 +391,7 @@ export class PublicVideoAccessService {
     return !!projection.ownerUid?.trim() &&
       !!projection.id?.trim() &&
       projection.mediaType === 'VIDEO' &&
-      projection.visibility === 'PUBLIC' &&
+      (projection.visibility === 'PUBLIC' || projection.visibility === 'FRIENDS') &&
       projection.moderationStatus === 'APPROVED' &&
       projection.assetAccess === 'SIGNED_URL';
   }

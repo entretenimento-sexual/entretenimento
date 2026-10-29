@@ -108,7 +108,7 @@ describe('public-video-item.mapper', () => {
     expect(projection?.assetVersion).toBe(1_700_000_100_000);
   });
 
-  it('descarta vídeo não aprovado, não público ou com dono inconsistente', () => {
+  it('descarta vídeo não aprovado, PRIVATE ou com dono inconsistente', () => {
     expect(mapPublicVideoProjection({
       documentId: 'video-1',
       expectedOwnerUid: 'owner-1',
@@ -119,6 +119,12 @@ describe('public-video-item.mapper', () => {
       documentId: 'video-1',
       expectedOwnerUid: 'owner-1',
       data: { ...createValidDocument(), visibility: 'FRIENDS' },
+    })?.visibility).toBe('FRIENDS');
+
+    expect(mapPublicVideoProjection({
+      documentId: 'video-1',
+      expectedOwnerUid: 'owner-1',
+      data: { ...createValidDocument(), visibility: 'PRIVATE' },
     })).toBeNull();
 
     expect(mapPublicVideoProjection({

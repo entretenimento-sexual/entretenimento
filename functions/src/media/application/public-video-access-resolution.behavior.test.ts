@@ -91,6 +91,49 @@ describe('public video signed access - comportamento real', () => {
     assert.equal(await f.resolve(), null);
   });
 
+  it('FRIENDS não recebe URL sem amizade ou propriedade reconhecida no backend', async () => {
+    const fixture = createFixture();
+    fixture.state.projection = {
+      ...fixture.state.projection,
+      visibility: 'FRIENDS',
+    };
+    fixture.state.publication = {
+      ...fixture.state.publication,
+      visibility: 'FRIENDS',
+    };
+    assert.equal(await fixture.resolve(), null);
+    assert.deepEqual(fixture.signed, []);
+    assert.equal(await fixture.resolve({ viewerCanReadFriends: false }), null);
+    assert.deepEqual(fixture.signed, []);
+    assert.ok((await fixture.resolve({ viewerCanReadFriends: true }))?.url);
+  });
+
+  it('permissão FRIENDS não contorna bloqueio, moderação nem publicação revogada', async () => {
+    const fixture = createFixture();
+    fixture.state.projection = {
+      ...fixture.state.projection,
+      visibility: 'FRIENDS',
+    };
+    fixture.state.publication = {
+      ...fixture.state.publication,
+      visibility: 'FRIENDS',
+    };
+    assert.equal(await fixture.resolve({
+      viewerCanReadFriends: true,
+      ownerExposureAllowed: false,
+    }), null);
+    assert.deepEqual(fixture.signed, []);
+    fixture.state.publication = { ...fixture.state.publication, isPublished: false };
+    assert.equal(await fixture.resolve({ viewerCanReadFriends: true }), null);
+    fixture.state.publication = {
+      ...fixture.state.publication,
+      isPublished: true,
+      moderationStatus: 'FLAGGED',
+    };
+    assert.equal(await fixture.resolve({ viewerCanReadFriends: true }), null);
+    assert.deepEqual(fixture.signed, []);
+  });
+
   it('PREVIEW nunca consulta nem assina o arquivo de reprodução', async () => {
     const f = createFixture();
     const item = await f.resolve({ mode: 'PREVIEW' });

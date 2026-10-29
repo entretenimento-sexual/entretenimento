@@ -75,6 +75,41 @@ describe('PublicPhotoViewerLauncherService', () => {
     expect(config?.maxHeight).toBe('100dvh');
   });
 
+  it('abre foto FRIENDS já autorizada pelo backend e mantém a seleção correta', async () => {
+    const service = TestBed.inject(PublicPhotoViewerLauncherService);
+    const publicItem = photo('owner-a', 'publica');
+    const friendsItem = {
+      ...photo('owner-a', 'amigos'),
+      visibility: 'FRIENDS',
+    } as IPublicPhotoItem;
+
+    await firstValueFrom(service.open$({
+      items: [publicItem, friendsItem],
+      selected: friendsItem,
+      source: 'profile',
+    }));
+
+    expect(dialog.open).toHaveBeenCalledTimes(1);
+    const config = dialog.open.mock.calls[0]?.[1];
+    expect(config?.data.startIndex).toBe(1);
+    expect(config?.data.items.map((item: { id: string }) => item.id))
+      .toEqual(['publica', 'amigos']);
+  });
+
+  it('não abre mídia PRIVATE mesmo que alguém envie uma URL manual', async () => {
+    const service = TestBed.inject(PublicPhotoViewerLauncherService);
+    const selected = {
+      ...photo('owner-a', 'privada'),
+      visibility: 'PRIVATE',
+    } as IPublicPhotoItem;
+
+    await expect(firstValueFrom(service.open$({
+      items: [selected], selected, source: 'profile',
+    }))).rejects.toThrow('não está mais disponível');
+
+    expect(dialog.open).not.toHaveBeenCalled();
+  });
+
   it('recusa foto que não esteja pública e aprovada na fila', async () => {
     const service = TestBed.inject(PublicPhotoViewerLauncherService);
     const selected = {

@@ -132,6 +132,7 @@ async function registerVideo({
     mimeType: 'video/mp4',
     sizeBytes: sourceBytes.byteLength,
     durationMs: 10_000,
+    visibility: 'PUBLIC',
     title,
     description,
     reactionsEnabled: false,
@@ -338,6 +339,7 @@ async function run() {
         posterStoragePath: `users/${ownerUid}/uploads/video-posters/other-video/invalid.jpg`,
         mimeType: 'video/mp4',
         sizeBytes: sourceBytes.byteLength,
+        visibility: 'PUBLIC',
       }),
       (error) => {
         assert.match(String(error?.code ?? ''), /invalid-argument/);

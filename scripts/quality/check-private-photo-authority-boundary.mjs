@@ -121,7 +121,9 @@ for (const fragment of [
   'inspectPrivatePhotoStorageConsistency',
   'reconcilePrivatePhotoStorageConsistency',
   'deleteProfilePhotoResources',
-  "state: exists ? 'consistent' : 'missing_storage_object'",
+  'classifyLegacyPhotoOrigin({',
+  "'published_source_missing'",
+  '{ onlyIfUnpublished: true }',
 ]) {
   requireIncludes(
     consistencyService,

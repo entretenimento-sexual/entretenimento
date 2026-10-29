@@ -6,7 +6,8 @@ export type ProfileVideoGalleryFilter = 'all' | 'published' | 'not-published';
 export function canPlayPublishedVideo(item: IProfileVideoViewItem): boolean {
   return item.video.status === 'ready' &&
     item.publication?.isPublished === true &&
-    item.publication?.visibility === 'PUBLIC' &&
+    (item.publication?.visibility === 'PUBLIC' ||
+     item.publication?.visibility === 'FRIENDS') &&
     item.publication?.moderationStatus === 'APPROVED';
 }
 

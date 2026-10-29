@@ -9,12 +9,13 @@
 // - centraliza falhas técnicas no ApplicationErrorService e mantém avisos de validação no notifier
 // - preserva compatibilidade com o template atual
 import { CommonModule } from '@angular/common';
-import { Component, input, OnInit, signal } from '@angular/core';
+import { Component, inject, input, OnInit, signal } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
+  filter,
   map,
   shareReplay,
   switchMap,
@@ -28,6 +29,7 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { OwnerPublishedPhotoGalleryService } from 'src/app/core/services/media/owner-published-photo-gallery.service';
 import { RouterModule } from '@angular/router';
 import {
   ConfirmationDialogComponent,
@@ -43,7 +45,8 @@ type TPhotoManagerMode = 'summary' | 'manager';
   templateUrl: './user-photo-manager.component.html',
   styleUrls: ['./user-photo-manager.component.css'],
   standalone: true,
-  imports: [CommonModule, RouterModule, ContentStateComponent]
+  imports: [CommonModule, RouterModule, ContentStateComponent],
+  providers: [OwnerPublishedPhotoGalleryService]
 })
 export class UserPhotoManagerComponent implements OnInit {
   userPhotos$: Observable<Photo[]> = of([]);
@@ -62,6 +65,8 @@ export class UserPhotoManagerComponent implements OnInit {
   private readonly sortModeSubject = new BehaviorSubject<TPhotoSortMode>('newest');
   readonly sortMode$ = this.sortModeSubject.asObservable();
   userId = '';
+  private readonly ownerGallery = inject(OwnerPublishedPhotoGalleryService);
+  readonly ownerGalleryState$ = this.ownerGallery.state$;
 
   constructor(
     private readonly photoService: PhotoFirestoreService,
@@ -82,13 +87,22 @@ export class UserPhotoManagerComponent implements OnInit {
       distinctUntilChanged(),
       tap((uid) => {
         this.userId = uid;
+        this.ownerGallery.connect(uid, !!uid);
       }),
       switchMap((uid) => {
         if (!uid) {
           return of([]);
         }
 
-        return this.photoService.getPhotosByUser(uid).pipe(
+        return this.ownerGallery.state$.pipe(
+            filter((state) => state.ownerUid === uid),
+            map((state): Photo[] => state.items.map((photo) => ({
+              id: photo.id,
+              url: photo.url,
+              fileName: photo.alt || 'Foto do perfil',
+              createdAt: new Date(photo.createdAt),
+              displayDate: null,
+            }))),
             switchMap((photos) =>
               this.sortMode$.pipe(
                 map((mode) => this.sortPhotos(photos, mode))
@@ -106,6 +120,14 @@ export class UserPhotoManagerComponent implements OnInit {
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+  }
+
+  loadMorePhotos(): void {
+    this.ownerGallery.loadMorePhotos();
+  }
+
+  retryPhotos(): void {
+    this.ownerGallery.retry();
   }
 
   setSortMode(mode: TPhotoSortMode): void {
@@ -250,6 +272,7 @@ private toMillis(value: unknown): number {
 
         this.photoService
           .deletePhoto(uid, safePhotoId)
+          .then(() => this.ownerGallery.refresh())
           .catch((error) => {
             this.reportError(
               'Erro ao excluir foto.',

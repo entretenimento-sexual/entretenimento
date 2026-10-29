@@ -5,6 +5,7 @@ import {
   PhotoPublicationDoc,
   PhotoSyncCommit,
   PhotoSyncDependencies,
+  canCommitPublishedPhotoSync,
   synchronizePublishedPhotoUpdate,
 } from './sync-published-photo-on-private-update.use-case';
 
@@ -20,6 +21,7 @@ interface HarnessOptions {
   copyResult?: string;
   copyError?: Error;
   now?: number;
+  commitAccepted?: boolean;
 }
 
 function createHarness(options: HarnessOptions = {}) {
@@ -63,6 +65,7 @@ function createHarness(options: HarnessOptions = {}) {
     },
     commitPatches: async (commit) => {
       commitCalls.push(commit);
+      return options.commitAccepted ?? true;
     },
     deletePublishedAsset: async (command) => {
       deleteCalls.push(command);
@@ -201,6 +204,9 @@ describe('synchronizePublishedPhotoUpdate', () => {
       {
         ownerUid: OWNER_UID,
         photoId: PHOTO_ID,
+        expectedPrivateSourceStoragePath: OLD_PRIVATE_PATH,
+        expectedPublicationSourceStoragePath: OLD_PRIVATE_PATH,
+        expectedPublishedStoragePath: OLD_PUBLIC_PATH,
         publicationPatch: {
           updatedAt: 123456,
         },
@@ -349,5 +355,81 @@ describe('synchronizePublishedPhotoUpdate', () => {
     assert.equal(harness.commitCalls.length, 0);
     assert.equal(harness.deleteCalls.length, 0);
     assert.equal(harness.metricCalls.length, 0);
+  });
+});
+
+describe('Firestore transaction guard for published photo sync', () => {
+  const currentPublication: PhotoPublicationDoc = {
+    isPublished: true,
+    sourceStoragePath: OLD_PRIVATE_PATH,
+    publishedStoragePath: OLD_PUBLIC_PATH,
+    moderationStatus: 'APPROVED',
+  };
+  const commit: PhotoSyncCommit = {
+    ownerUid: OWNER_UID,
+    photoId: PHOTO_ID,
+    publicationPatch: {},
+    publicPhotoPatch: {},
+    expectedPrivateSourceStoragePath: NEW_PRIVATE_PATH,
+    expectedPublicationSourceStoragePath: OLD_PRIVATE_PATH,
+    expectedPublishedStoragePath: OLD_PUBLIC_PATH,
+  };
+  it('aceita apenas upload e versão publicados ainda vigentes', () => {
+    assert.equal(canCommitPublishedPhotoSync(commit,
+      { path: NEW_PRIVATE_PATH }, currentPublication), true);
+  });
+  it('falha fechado se outro upload ou publicação substituir a versão', () => {
+    assert.equal(canCommitPublishedPhotoSync(commit,
+      { path: OLD_PRIVATE_PATH }, currentPublication), false);
+    assert.equal(canCommitPublishedPhotoSync(commit,
+      { path: NEW_PRIVATE_PATH }, {
+        ...currentPublication, publishedStoragePath: NEW_PUBLIC_PATH,
+      }), false);
+    assert.equal(canCommitPublishedPhotoSync(commit,
+      { path: NEW_PRIVATE_PATH }, {
+        ...currentPublication, sourceStoragePath: NEW_PRIVATE_PATH,
+      }), false);
+  });
+  it('não contorna exclusão, quarantine ou ausência de documento', () => {
+    assert.equal(canCommitPublishedPhotoSync(commit, null, currentPublication), false);
+    assert.equal(canCommitPublishedPhotoSync(commit, { path: NEW_PRIVATE_PATH }, null), false);
+    assert.equal(canCommitPublishedPhotoSync(commit, { path: NEW_PRIVATE_PATH },
+      { ...currentPublication, isPublished: false }), false);
+    assert.equal(canCommitPublishedPhotoSync(commit, { path: NEW_PRIVATE_PATH },
+      { ...currentPublication, moderationStatus: 'FLAGGED' }), false);
+  });
+});
+
+describe('stale trigger cleanup', () => {
+  it('descarta apenas a versão recém-copiada, nunca a versão válida existente', async () => {
+    const harness = createHarness({ commitAccepted: false });
+    const result = await synchronizePublishedPhotoUpdate({
+      ownerUid: OWNER_UID,
+      photoId: PHOTO_ID,
+      before: { path: OLD_PRIVATE_PATH },
+      after: { path: NEW_PRIVATE_PATH },
+    }, harness.dependencies);
+    assert.deepEqual(result, { status: 'ignored-stale-update' });
+    assert.equal(harness.copyCalls.length, 1);
+    assert.deepEqual(harness.deleteCalls, [{
+      ownerUid: OWNER_UID,
+      photoId: PHOTO_ID,
+      storagePath: NEW_PUBLIC_PATH,
+      reason: 'sync-published-photo-stale-event',
+    }]);
+    assert.equal(harness.metricCalls.length, 0);
+  });
+
+  it('metadados antigos não sobrescrevem o documento atual', async () => {
+    const harness = createHarness({ commitAccepted: false });
+    const result = await synchronizePublishedPhotoUpdate({
+      ownerUid: OWNER_UID,
+      photoId: PHOTO_ID,
+      before: { path: OLD_PRIVATE_PATH, alt: 'antiga' },
+      after: { path: OLD_PRIVATE_PATH, alt: 'nova' },
+    }, harness.dependencies);
+    assert.deepEqual(result, { status: 'ignored-stale-update' });
+    assert.equal(harness.copyCalls.length, 0);
+    assert.equal(harness.deleteCalls.length, 0);
   });
 });
