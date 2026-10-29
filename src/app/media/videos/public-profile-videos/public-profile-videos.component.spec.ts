@@ -10,6 +10,7 @@ import { BehaviorSubject, Subject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -86,6 +87,7 @@ const NEXT_CURSOR: IPublicProfileVideoCursor = {
 
 describe('PublicProfileVideosComponent', () => {
   let component: PublicProfileVideosComponent;
+  let publicUserQuery: { getPublicUserById$: ReturnType<typeof vi.fn> };
   let routeParamMapSubject: BehaviorSubject<ParamMap>;
   let mediaPublicQuery: {
     getProfilePublicVideos$: ReturnType<typeof vi.fn>;
@@ -110,6 +112,16 @@ describe('PublicProfileVideosComponent', () => {
     routeParamMapSubject = new BehaviorSubject<ParamMap>(
       convertToParamMap({ id: VIDEO.ownerUid })
     );
+    publicUserQuery = {
+      getPublicUserById$: vi.fn((uid: string) => of({
+        uid,
+        nickname: 'Perfil público',
+        identityCode: 'mulher',
+        orientation: 'bissexual',
+        municipio: 'Rio de Janeiro',
+        estado: 'RJ',
+      })),
+    };
     mediaPublicQuery = {
       getProfilePublicVideos$: vi.fn(() => of([VIDEO])),
       getPublicVideoById$: vi.fn(
@@ -164,6 +176,10 @@ describe('PublicProfileVideosComponent', () => {
           useValue: mediaPublicQuery,
         },
         {
+          provide: FirestoreUserQueryService,
+          useValue: publicUserQuery,
+        },
+        {
           provide: PublicProfileVideoPaginationService,
           useValue: videoPagination,
         },
@@ -189,6 +205,64 @@ describe('PublicProfileVideosComponent', () => {
     component = TestBed.runInInjectionContext(
       () => new PublicProfileVideosComponent()
     );
+  });
+
+  it('usa somente identidade pública reconhecida no cabeçalho de vídeos', () => {
+    const identities: Array<{
+      nickname: string;
+      identityShortLabel?: string | null;
+      orientationShortLabel?: string | null;
+    } | null> = [];
+    const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
+
+    expect(publicUserQuery.getPublicUserById$).toHaveBeenCalledWith(VIDEO.ownerUid);
+    expect(identities.at(-1)).toMatchObject({
+      nickname: 'Perfil público',
+      identityShortLabel: 'Mulher',
+      orientationShortLabel: 'Bi',
+    });
+    subscription.unsubscribe();
+  });
+
+  it('não atribui orientação individual a perfil de casal', () => {
+    publicUserQuery.getPublicUserById$.mockReturnValue(of({
+      uid: VIDEO.ownerUid,
+      nickname: 'Casal público',
+      identityCode: 'casal-ele-ela',
+      orientation: 'bissexual',
+    }));
+    const identities: Array<{ orientationShortLabel?: string | null } | null> = [];
+    const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
+
+    expect(identities.at(-1)?.orientationShortLabel).toBeUndefined();
+    subscription.unsubscribe();
+  });
+
+  it('não expõe identidade de outro UID e ignora respostas antigas ao navegar', () => {
+    const pending = new Subject<{ uid: string; nickname: string } | null>();
+    publicUserQuery.getPublicUserById$.mockImplementation((uid: string) =>
+      uid === VIDEO.ownerUid ? pending : of({ uid, nickname: 'Novo perfil' })
+    );
+
+    const identities: Array<{ nickname: string } | null> = [];
+    const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
+    routeParamMapSubject.next(convertToParamMap({ id: 'owner-2' }));
+    pending.next({ uid: VIDEO.ownerUid, nickname: 'Perfil anterior' });
+
+    expect(identities.at(-1)?.nickname).toBe('Novo perfil');
+    expect(identities.some(identity => identity?.nickname === 'Perfil anterior')).toBe(false);
+    subscription.unsubscribe();
+  });
+
+  it('oculta identidade quando a leitura pública não pertence ao proprietário', () => {
+    publicUserQuery.getPublicUserById$.mockReturnValue(of({
+      uid: 'outro-uid', nickname: 'Não autorizado',
+    }));
+    const identities: Array<{ nickname: string } | null> = [];
+    const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
+
+    expect(identities.at(-1)).toBeNull();
+    subscription.unsubscribe();
   });
 
   it('substitui uma capa quebrada pelo fallback sem repetir o erro', () => {
