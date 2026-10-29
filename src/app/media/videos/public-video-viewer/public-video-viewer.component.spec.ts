@@ -280,6 +280,21 @@ describe('PublicVideoViewerComponent', () => {
     expect(metadataStats).toHaveLength(1);
   });
 
+  it('reutiliza identidade canônica pública sem presumir orientação', () => {
+    const element = fixture.nativeElement as HTMLElement;
+    const owner = element.querySelector('.public-video-viewer__owner') as HTMLAnchorElement;
+    const identity = owner.querySelector('app-public-user-identity');
+    const meta = owner.querySelector('.public-user-identity__meta') as HTMLElement;
+
+    expect(identity).not.toBeNull();
+    expect(owner.textContent).toContain('Perfil teste');
+    expect(meta.textContent).toContain('Niterói/RJ');
+    expect(meta.textContent).not.toContain('Bi');
+    expect(meta.textContent).not.toContain('Hétero');
+    expect(owner.querySelector('app-public-media-recommendation-badge')).not.toBeNull();
+    expect(owner.getAttribute('href')).toBe('/outro-perfil/owner-1');
+  });
+
   it('mantém os controles acessíveis sem contar a simples abertura', () => {
     const element = fixture.nativeElement as HTMLElement;
     const closeButton = element.querySelector<HTMLButtonElement>(
