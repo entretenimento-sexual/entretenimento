@@ -214,7 +214,7 @@
                 [disabled]="moderationLocked || updatingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id"
                 editLabel="Editar foto"
                 [showEditAction]="!!item.url"
-                [showSecondaryAction]="!!item.path"
+                [showSecondaryAction]="item.publication.isPublished"
                 secondaryLabel="Alterar data"
                 secondaryIcon="calendar_month"
                 [showFeatureAction]="item.publication.isPublished"
