@@ -24,7 +24,7 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
   it('distribui 1 a 4 colunas pela largura disponivel do conteiner', () => {
     expect(pageCss).toContain('container: public-photos-gallery / inline-size;');
     expect(pageCss).toContain('grid-template-columns: minmax(0, 1fr);');
-    for (const width of [400, 760, 1080]) {
+    for (const width of [480, 800, 1160]) {
       expect(pageCss).toContain('(min-width: ' + width + 'px)');
     }
     expect(pageCss).toContain('repeat(4, minmax(0, 1fr))');
@@ -34,11 +34,16 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
   it('coloca metricas em rodape apenas na variante profile', () => {
     expect(cardCss).toContain('.photo-tile--profile .photo-overlay.app-media-overlay {');
     expect(cardCss).toContain('position: static;');
-    expect(cardCss).toContain('min-height: 54px;');
+    expect(cardCss).toContain('min-height: 48px;');
+    expect(cardCss).toContain('.photo-tile--profile .stat-chip.app-chip');
+    expect(cardCss).toContain('background: transparent;');
     expect(cardCss).toContain('.photo-tile--profile .stat-chip');
     expect(cardHtml).toContain("@if (mode !== 'profile') {");
     expect(cardHtml).toContain("@if (mode !== 'feed') {");
     expect(cardHtml).toContain('class="photo-stats"');
+    expect(cardHtml).toContain("mode !== 'profile' || (item.reactionsCount ?? item.likesCount ?? 0) > 0");
+    expect(cardHtml).toContain("mode !== 'profile' || (item.commentsCount ?? 0) > 0");
+    expect(cardHtml).toContain("mode !== 'profile' || item.viewsCount > 0");
     expect(cardHtml).toContain('@if (item.isCover) {');
   });
 
