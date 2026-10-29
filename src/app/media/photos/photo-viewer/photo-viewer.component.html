@@ -25,25 +25,12 @@
           ? 'Abrir seu perfil'
           : 'Abrir perfil de ' + (photo.ownerNickname || 'usuário')"
       >
-        @if (photo.ownerPhotoURL) {
-          <img
-            class="viewer-owner-avatar"
-            [src]="photo.ownerPhotoURL"
-            alt=""
-            width="32"
-            height="32"
-            loading="lazy"
-          />
-        } @else {
-          <span class="viewer-owner-avatar viewer-owner-avatar--fallback" aria-hidden="true">
-            <span>●</span>
-          </span>
-        }
-
-        <span class="viewer-owner-copy">
-          <span class="viewer-owner-title">
-            <strong>{{ photo.ownerNickname || 'Perfil' }}</strong>
-
+        <app-public-user-identity
+          class="viewer-owner-identity"
+          [identity]="currentOwnerIdentity$ | async"
+          density="compact"
+        >
+          <span publicUserIdentitySupplement class="viewer-owner-supplement">
             @if ((photo.officialMediaContext?.contexts?.length ?? 0) > 0) {
               <app-public-media-badge
                 class="viewer-official-badge"
@@ -53,9 +40,6 @@
                 iconClass="fas fa-circle-check"
               />
             }
-          </span>
-
-          <span class="viewer-owner-context">
             <app-public-media-recommendation-badge
               class="viewer-discovery-reason"
               [source]="data.source"
@@ -63,7 +47,7 @@
               [continuationContext]="data.continuationContext || null"
             />
           </span>
-        </span>
+        </app-public-user-identity>
       </a>
     } @else {
       <strong class="viewer-counter" aria-live="polite">
