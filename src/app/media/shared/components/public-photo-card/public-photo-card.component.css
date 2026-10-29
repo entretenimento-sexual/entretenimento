@@ -103,6 +103,40 @@
     filter 180ms ease;
 }
 
+/* Falha de carregamento: mostrar diagnóstico útil sem usar imagem substituta
+   ou reaproveitar URL temporária de outra publicação. */
+.photo-card-link--unavailable .photo {
+  visibility: hidden;
+}
+
+.photo-card-unavailable {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 1rem;
+  color: var(--text-secondary, #b6c0cd);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  font-weight: 650;
+  text-align: center;
+  pointer-events: none;
+}
+
+.photo-card-unavailable i {
+  font-size: 1.35rem;
+  opacity: 0.72;
+}
+
+.photo-card-unavailable small {
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .photo-card-link:hover .photo,
 .photo-card-link:focus-visible .photo {
   transform: scale(1.025);
