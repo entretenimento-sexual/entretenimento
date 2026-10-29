@@ -171,7 +171,7 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
       identityCode: 'casal-ela-ela',
       identityLabel: 'Rótulo divergente',
     }));
-    const identities: Array<{ identityLabel: string | null } | null> = [];
+    const identities: Array<{ identityLabel?: string | null } | null> = [];
     const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
     expect(identities.at(-1)?.identityLabel).toBe('Casal (Ela/Ela)');
     subscription.unsubscribe();
@@ -181,7 +181,7 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
     publicUsers.getPublicUserById$.mockReturnValue(of({
       uid: PHOTO.ownerUid, nickname: 'Perfil de teste', identityCode: 'desconhecido',
     }));
-    const identities: Array<{ identityLabel: string | null } | null> = [];
+    const identities: Array<{ identityLabel?: string | null } | null> = [];
     const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
     expect(identities.at(-1)?.identityLabel).toBeNull();
     subscription.unsubscribe();
