@@ -159,8 +159,24 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
       city: 'Rio de Janeiro',
       state: 'RJ',
       identityLabel: 'Casal (Ele/Ela)',
-      orientationShortLabel: 'Bi',
     });
+    expect(identities.at(-1)?.orientationShortLabel).toBeUndefined();
+    subscription.unsubscribe();
+  });
+
+  it('exibe orientação abreviada somente quando perfil individual declarou dado público', () => {
+    publicUsers.getPublicUserById$.mockReturnValue(of({
+      uid: PHOTO.ownerUid,
+      nickname: 'Perfil individual',
+      identityCode: 'mulher',
+      orientation: 'bissexual',
+      municipio: 'Rio de Janeiro',
+      estado: 'RJ',
+    }));
+    const identities: Array<{ identityShortLabel?: string | null; orientationShortLabel?: string | null } | null> = [];
+    const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
+    expect(identities.at(-1)?.identityShortLabel).toBe('Mulher');
+    expect(identities.at(-1)?.orientationShortLabel).toBe('Bi');
     subscription.unsubscribe();
   });
 
