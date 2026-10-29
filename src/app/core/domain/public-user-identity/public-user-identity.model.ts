@@ -179,8 +179,12 @@ export function normalizePublicUserIdentity(
     ?? groupFallback?.shortLabel
     ?? null;
   const declaredOrientation = normalizeText(source['orientation'], 40).toLowerCase();
+  // A orientacao unica nao descreve, por si, as duas pessoas de um casal.
+  // Para casais, apenas os campos individuais devidamente publicados podem
+  // representar cada integrante; nunca inferir um rotulo agregado.
   const orientationShortLabel =
-    Object.prototype.hasOwnProperty.call(PUBLIC_ORIENTATION_SHORT_LABELS, declaredOrientation)
+    discoveryGroup !== 'couple'
+      && Object.prototype.hasOwnProperty.call(PUBLIC_ORIENTATION_SHORT_LABELS, declaredOrientation)
       ? PUBLIC_ORIENTATION_SHORT_LABELS[declaredOrientation]
       : null;
 
