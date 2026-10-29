@@ -136,18 +136,31 @@
       }
 
       <span class="photo-stats" aria-label="Métricas públicas da foto">
-        <span class="stat-chip app-chip app-chip--overlay" aria-label="Curtidas">
-          <span aria-hidden="true">♥</span>
-          {{ item.reactionsCount ?? item.likesCount ?? 0 }}
-        </span>
+        @if (mode !== 'profile' || (item.reactionsCount ?? item.likesCount ?? 0) > 0) {
+          <span
+            class="stat-chip app-chip app-chip--overlay"
+            [attr.aria-label]="'Curtidas: ' + (item.reactionsCount ?? item.likesCount ?? 0)"
+          >
+            <span aria-hidden="true">♥</span>
+            {{ item.reactionsCount ?? item.likesCount ?? 0 }}
+          </span>
+        }
 
-        <span class="stat-chip app-chip app-chip--overlay" aria-label="Comentários">
-          <span aria-hidden="true">💬</span>
-          {{ item.commentsCount ?? 0 }}
-        </span>
+        @if (mode !== 'profile' || (item.commentsCount ?? 0) > 0) {
+          <span
+            class="stat-chip app-chip app-chip--overlay"
+            [attr.aria-label]="'Comentários: ' + (item.commentsCount ?? 0)"
+          >
+            <span aria-hidden="true">💬</span>
+            {{ item.commentsCount ?? 0 }}
+          </span>
+        }
 
-        @if (item.viewsCount !== undefined) {
-          <span class="stat-chip app-chip app-chip--overlay" aria-label="Visualizações">
+        @if (item.viewsCount !== undefined && (mode !== 'profile' || item.viewsCount > 0)) {
+          <span
+            class="stat-chip app-chip app-chip--overlay"
+            [attr.aria-label]="'Visualizações: ' + item.viewsCount"
+          >
             <span aria-hidden="true">👁</span>
             {{ item.viewsCount }}
           </span>
