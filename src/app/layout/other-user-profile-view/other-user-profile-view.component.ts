@@ -36,6 +36,11 @@ import {
 
 import { ProfileOfficialCommunitiesComponent } from 'src/app/community/profile-official-communities/profile-official-communities.component';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
+import {
+  normalizePublicUserIdentity,
+  type PublicUserIdentity,
+} from 'src/app/core/domain/public-user-identity/public-user-identity.model';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
@@ -82,6 +87,7 @@ const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
     SocialLinksAccordionComponent,
     ProfileOfficialCommunitiesComponent,
     ContentStateComponent,
+    PublicUserIdentityComponent,
   ],
 })
 export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
@@ -164,11 +170,19 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     this.directChatBusy$.complete();
   }
 
-  get hasLocation(): boolean {
-    return (
-      !!this.userProfile?.municipio?.trim() &&
-      !!this.userProfile?.estado?.trim()
-    );
+  /** Normalização única da identidade pública, sem acesso a /users. */
+  get publicIdentity(): PublicUserIdentity | null {
+    const profile = this.userProfile;
+    if (!profile) return null;
+
+    return normalizePublicUserIdentity({
+      nickname: profile.nickname,
+      photoURL: profile.photoURL,
+      identityCode: profile.identityCode ?? profile.declaredIdentityCode ?? profile.gender,
+      orientation: profile.orientation,
+      city: profile.municipio,
+      state: profile.estado,
+    });
   }
 
   get hasDescription(): boolean {
