@@ -229,17 +229,16 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
     subscription.unsubscribe();
   });
 
-  it('seleciona 8, 12 ou 24 conforme as colunas do contêiner', () => {
-    expect(resolvePublicProfilePhotoPageSize(360)).toBe(8);
-    expect(resolvePublicProfilePhotoPageSize(380)).toBe(8);
-    expect(resolvePublicProfilePhotoPageSize(399)).toBe(8);
-    expect(resolvePublicProfilePhotoPageSize(400)).toBe(12);
-    expect(resolvePublicProfilePhotoPageSize(552)).toBe(12);
-    expect(resolvePublicProfilePhotoPageSize(559)).toBe(12);
-    expect(resolvePublicProfilePhotoPageSize(560)).toBe(12);
-    expect(resolvePublicProfilePhotoPageSize(759)).toBe(12);
-    expect(resolvePublicProfilePhotoPageSize(760)).toBe(24);
-    expect(resolvePublicProfilePhotoPageSize(1100)).toBe(24);
+  it('sincroniza lote e largura das colunas sem cards estreitos', () => {
+    for (const width of [320, 360, 400, 479]) {
+      expect(resolvePublicProfilePhotoPageSize(width)).toBe(8);
+    }
+    for (const width of [480, 552, 759, 799]) {
+      expect(resolvePublicProfilePhotoPageSize(width)).toBe(12);
+    }
+    for (const width of [800, 1080, 1159, 1160, 1320]) {
+      expect(resolvePublicProfilePhotoPageSize(width)).toBe(24);
+    }
   });
 
   it('espera conhecer a largura antes da primeira consulta', () => {
