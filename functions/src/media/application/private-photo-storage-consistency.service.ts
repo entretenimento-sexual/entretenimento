@@ -115,7 +115,7 @@ export async function inspectPrivatePhotoStorageConsistency(
     ownerUid,
     photoId,
     storagePath,
-    state: classification === 'published_final_exists'
+    state: classification === 'published_final_referenced'
       ? 'published_origin_present'
       : classification === 'published_source_missing'
         ? 'published_source_missing'
