@@ -22,8 +22,6 @@ describe('PublicUserPreviewPopoverComponent', () => {
       profileType: 'woman',
       profileTypeLabel: 'Mulher',
     },
-    age: 31,
-    orientationLabel: 'bissexual',
     isOnline: true,
     approximateDistanceKm: 4.2,
     bioPreview: 'Conversas, encontros e novas amizades.',
@@ -51,8 +49,8 @@ describe('PublicUserPreviewPopoverComponent', () => {
     expect(text).toContain('serale');
     expect(text).toContain('Mulher');
     expect(text).toContain('Rio de Janeiro');
-    expect(text).toContain('31 anos');
-    expect(text).toContain('Bissexual');
+    expect(text).not.toContain('31 anos');
+    expect(text).not.toContain('Bissexual');
     expect(text).toContain('Online');
     expect(text).toMatch(/4[,.]2 km/);
     expect(text).toContain('Vocês estão conectados');
