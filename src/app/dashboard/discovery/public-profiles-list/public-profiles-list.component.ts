@@ -31,7 +31,6 @@ type PublicProfileCardView = PublicProfileCard & {
   isOnline?: boolean | null;
   lastLogin?: unknown;
   descricao?: string | null;
-  idade?: number | null;
   partner1Orientation?: string | null;
   partner2Orientation?: string | null;
 };
@@ -98,6 +97,7 @@ export class PublicProfilesListComponent {
         this.toOptionalText(profile.photoURL) ?? 'assets/imagem-padrao.webp',
 
       gender: this.toOptionalText(profile.gender),
+      identityCode: this.toOptionalText(profile.identityCode),
       orientation: this.toOptionalText(profile.orientation),
 
       partner1Orientation: this.toOptionalText(view.partner1Orientation),
@@ -122,7 +122,7 @@ export class PublicProfilesListComponent {
       ),
 
       descricao: this.toOptionalText(view.descricao),
-      idade: this.toOptionalNumber(profile.age ?? view.idade),
+      // Não promover idade exata de projeções/aliases legados ao card.
 
       publicRelationshipIntents:
         profile.publicRelationshipIntents ?? null,
