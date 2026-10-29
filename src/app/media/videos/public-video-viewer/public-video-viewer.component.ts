@@ -1128,7 +1128,7 @@ export class PublicVideoViewerComponent {
         const eligible = page.items.filter((item) =>
           item.ownerUid === this.data.ownerUid &&
           item.mediaType === 'VIDEO' &&
-          item.visibility === 'PUBLIC' &&
+          (item.visibility === 'PUBLIC' || item.visibility === 'FRIENDS') &&
           item.moderationStatus === 'APPROVED' &&
           !!this.videoKey(item) &&
           !alreadyLoaded.has(this.videoKey(item))
@@ -1191,7 +1191,7 @@ export class PublicVideoViewerComponent {
 
       if (!key || seen.has(key) ||
           candidate.mediaType !== 'VIDEO' ||
-          candidate.visibility !== 'PUBLIC' ||
+          (candidate.visibility !== 'PUBLIC' && candidate.visibility !== 'FRIENDS') ||
           candidate.moderationStatus !== 'APPROVED' ||
           (this.data.source === 'profile' && candidate.ownerUid !== this.data.ownerUid)) {
         continue;
