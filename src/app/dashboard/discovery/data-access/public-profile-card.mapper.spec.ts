@@ -14,6 +14,7 @@ describe('public-profile-card.mapper', () => {
       nickname: 'Pessoa Teste',
       avatarUrl: 'https://example.com/avatar.webp',
       genero: 'homem',
+      identityCode: 'casal-ele-ele',
       orientacaoSexual: 'homossexual',
       cidade: 'Rio de Janeiro',
       uf: 'RJ',
@@ -37,6 +38,7 @@ describe('public-profile-card.mapper', () => {
       nickname: 'Pessoa Teste',
       photoURL: 'https://example.com/avatar.webp',
       gender: 'homem',
+      identityCode: 'casal-ele-ele',
       orientation: 'homossexual',
       municipio: 'Rio de Janeiro',
       estado: 'RJ',
@@ -54,7 +56,7 @@ describe('public-profile-card.mapper', () => {
     });
   });
 
-  it('deve projetar idade social válida e preservar sinais públicos de matching', () => {
+  it('não projeta idade exata, mas preserva sinais públicos de matching', () => {
     const card = mapPublicProfileCard({
       uid: 'profile-matching',
       nickname: 'Compatível',
@@ -71,7 +73,7 @@ describe('public-profile-card.mapper', () => {
     });
 
     expect(card).toMatchObject({
-      age: 34,
+      age: null,
       publicRelationshipIntents: ['dating', 'serious'],
       publicSexualPractices: ['bdsm', 'tantra'],
       publicBodyTraits: ['athletic', 'tattoos'],
@@ -80,14 +82,14 @@ describe('public-profile-card.mapper', () => {
     });
   });
 
-  it('aceita alias legado de idade social durante a migração sem torná-lo autoridade adulta', () => {
+  it('ignora alias legado de idade exata mesmo quando o campo está presente', () => {
     const card = mapPublicProfileCard({
       uid: 'profile-age-alias',
       nickname: 'Idade social migrada',
       idade: '29',
     });
 
-    expect(card?.age).toBe(29);
+    expect(card?.age).toBeNull();
   });
 
   it('deve priorizar o contador único do perfil sobre o alias legado', () => {
