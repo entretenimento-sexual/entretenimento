@@ -90,6 +90,7 @@ const expectedDeploymentExports = [
   // Callable de reconciliação bilateral, autenticada, com rate limit e resposta
   // neutra; a autoridade continua nos bloqueios canônicos do Firestore.
   'reconcilePublicMediaAccess',
+  'replacePublishedPhoto',
   'expireAgeEligibilityAtBoundary',
   'expireAgeEligibilityRecords',
   'findCommunityInviteCandidate',
