@@ -46,6 +46,7 @@ interface PhotoUploadReservationDocument {
   sizeBytes?: unknown;
   contentType?: unknown;
   expiresAt?: unknown;
+  consumedAt?: unknown;
 }
 
 const RESERVATION_COLLECTION = 'media_photo_upload_reservations';
@@ -201,6 +202,7 @@ export const registerPrivatePhotoUpload = onCall<
       !storagePath ||
       !reservationSizeBytes ||
       reservationExpiresAt <= Date.now() ||
+      reservation.consumedAt != null ||
       !ALLOWED_CONTENT_TYPES.has(reservationContentType)
     ) {
       throw new HttpsError(
@@ -263,7 +265,8 @@ export const registerPrivatePhotoUpload = onCall<
         );
       }
 
-      if (!freshReservationSnap.exists) {
+      if (!freshReservationSnap.exists ||
+          freshReservationSnap.get('consumedAt') != null) {
         throw new HttpsError(
           'failed-precondition',
           'A reserva do upload já foi consumida.'
