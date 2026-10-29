@@ -2,13 +2,13 @@
 // Galeria de gestão do próprio perfil.
 //
 // Responsabilidades:
-// - observar documentos técnicos e exibir somente publicações ativas;
+// - listar publicações ativas; o original privado não é autoridade da galeria;
 // - permitir edição, exclusão, publicação e capa;
 // - manter a edição visual desacoplada da persistência: o editor devolve um
 //   arquivo processado e este componente executa a substituição da foto.
 //
-// users/{uid}/photos continua sendo a acervo de origem. Estado de publicação
-// permanece em sua camada própria e não é misturado no documento de origem.
+// users/{uid}/photos é somente compatibilidade legada para metadados opcionais.
+// Edição e substituição são autorizadas pela publicação final vigente.
 
 import { CommonModule } from '@angular/common';
 import {
@@ -41,7 +41,7 @@ import { MediaApplicationErrorService } from 'src/app/core/services/media/media-
 import type { MediaErrorReason } from 'src/app/core/services/media/media-error.catalog';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
-import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/photo-upload-flow.service';
+import { PublishedPhotoReplacementService } from 'src/app/core/services/image-handling/published-photo-replacement.service';
 import { MediaPolicyService, IMediaPolicyResult } from 'src/app/core/services/media/media-policy.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { MediaQueryService } from 'src/app/core/services/media/media-query.service';
@@ -106,7 +106,7 @@ export class ProfilePhotosComponent {
   private readonly mediaPublicationService = inject(MediaPublicationService);
   private readonly photoFirestoreService = inject(PhotoFirestoreService);
   private readonly photoEditor = inject(PhotoEditorLauncherService);
-  private readonly photoUploadFlow = inject(PhotoUploadFlowService);
+  private readonly publishedReplacement = inject(PublishedPhotoReplacementService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly deletingPhotoIdSubject = new BehaviorSubject<string | null>(null);
   readonly deletingPhotoId$ = this.deletingPhotoIdSubject.asObservable();
@@ -520,10 +520,11 @@ export class ProfilePhotosComponent {
           }
 
           const photoId = String(item.id ?? '').trim();
-          const currentStoragePath = String(item.path ?? '').trim();
           const storedImageUrl = String(item.url ?? '').trim();
+          const expectedAssetVersion = Number(item.assetVersion ?? item.publishedAt);
 
-          if (!photoId || !currentStoragePath || !storedImageUrl) {
+          if (!photoId || !storedImageUrl ||
+              !Number.isSafeInteger(expectedAssetVersion) || expectedAssetVersion <= 0) {
             this.errorNotifier.showWarning('Metadados insuficientes para editar esta foto.');
             return EMPTY;
           }
@@ -539,14 +540,11 @@ export class ProfilePhotosComponent {
                 return EMPTY;
               }
 
-              return this.photoUploadFlow.replaceProcessedPhoto$({
-                userId: ownerUid,
+              return this.publishedReplacement.replace$({
+                ownerUid,
                 photoId,
-                currentStoragePath,
+                expectedAssetVersion,
                 processedFile: result.file,
-                originalFileName: result.file.name,
-                mimeType: result.file.type,
-                imageStateStr: result.imageStateStr,
               });
             }),
             tap(() => {
