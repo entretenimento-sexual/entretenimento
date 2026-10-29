@@ -57,40 +57,20 @@
 
             <div class="profile-card__body app-card__body">
               <div class="profile-card__heading">
-                <h2>{{ profile.nickname || profile.nome || 'Perfil sem apelido' }}</h2>
-
-                @if (profile.idade) {
-                  <span class="profile-card__age app-chip app-chip--muted">
-                    {{ profile.idade }} anos
-                  </span>
-                }
+                <h2>{{ profile.nickname || 'Perfil sem apelido' }}</h2>
               </div>
 
-              <div class="profile-card__meta" aria-label="Dados do perfil sugerido">
-                @if (profile.municipio || profile.estado) {
-                  <span>
-                    {{ profile.municipio || 'Cidade não informada' }}@if (profile.estado) {, {{ profile.estado }} }
-                  </span>
-                }
+              @if (profileIdentity(profile); as identity) {
+                <app-public-user-identity
+                  class="profile-card__canonical-identity"
+                  [identity]="identity"
+                  density="compact"
+                  [showName]="false"
+                  [showAvatar]="false"
+                />
+              }
 
-                @if (profile.distanciaKm !== undefined) {
-                  <span>{{ profile.distanciaKm | number: '1.0-1' }} km de distância</span>
-                }
 
-                @if (profile.orientation || profile.gender) {
-                  <span>{{ profile.orientation || profile.gender }}</span>
-                }
-              </div>
-
-              <div class="profile-card__chips" aria-label="Sinais do perfil">
-                @if (profile.isSubscriber || profile.subscriptionStatus === 'active') {
-                  <span class="app-chip app-chip--primary">Assinante</span>
-                }
-
-                @if (profile.profileCompleted) {
-                  <span class="app-chip app-chip--success">Completo</span>
-                }
-              </div>
             </div>
 
             <footer class="profile-card__footer app-card__footer">
