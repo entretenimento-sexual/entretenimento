@@ -69,6 +69,9 @@ type IManageablePhotoItem = IProfilePhotoItem & {
 
 type IPhotoCardVm = IManageablePhotoItem & {
   publication: IPhotoPublicationConfig;
+  /** Revisão canônica do ativo social, independente da origem privada. */
+  assetVersion?: number;
+  publishedAt?: number;
 };
 
 type TProfilePhotoSortMode = 'newest' | 'oldest';
