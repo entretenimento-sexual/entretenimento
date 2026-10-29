@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
+import { provideRouter } from '@angular/router';
 
 import { SuggestedProfilesComponent } from './suggested-profiles.component';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
@@ -13,6 +14,7 @@ describe('SuggestedProfilesComponent', () => {
     await TestBed.configureTestingModule({
       imports: [SuggestedProfilesComponent],
       providers: [
+        provideRouter([]),
         {
           provide: CurrentUserStoreService,
           useValue: {
@@ -22,7 +24,19 @@ describe('SuggestedProfilesComponent', () => {
         {
           provide: SuggestionService,
           useValue: {
-            getSuggestedProfilesForUser: () => of([]),
+            getSuggestedProfilesForUser: () => of([{
+              uid: 'u2',
+              nickname: 'casal_publico',
+              identityCode: 'casal-ele-ela',
+              gender: 'mulher',
+              orientation: 'bissexual',
+              municipio: 'Rio de Janeiro',
+              estado: 'RJ',
+              photoURL: null,
+              idade: 42,
+              isSubscriber: true,
+              subscriptionStatus: 'active',
+            }]),
           },
         },
       ],
@@ -35,5 +49,21 @@ describe('SuggestedProfilesComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('usa apenas identificação canônica sem idade, orientação presumida ou plano', () => {
+    const root = fixture.nativeElement as HTMLElement;
+    const identity = root.querySelector('app-public-user-identity') as HTMLElement;
+
+    expect(identity).not.toBeNull();
+    expect(root.querySelector('.profile-card__heading h2')?.textContent)
+      .toContain('casal_publico');
+    expect(identity.textContent).toContain('Casal');
+    expect(identity.textContent).toContain('Rio de Janeiro/RJ');
+    expect(identity.textContent).not.toContain('Bi');
+    expect(identity.textContent).not.toContain('bissexual');
+    expect(root.textContent).not.toContain('42 anos');
+    expect(root.textContent).not.toContain('Assinante');
+    expect(root.querySelector('.profile-card__age')).toBeNull();
   });
 });
