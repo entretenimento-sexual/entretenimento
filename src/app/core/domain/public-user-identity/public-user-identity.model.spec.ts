@@ -53,12 +53,12 @@ describe('normalizePublicUserIdentity', () => {
         orientation,
       });
       expect(identity?.identityShortLabel).toBe('Mulher');
-      expect(identity?.orientationShortLabel).toBeNull();
+      expect(identity?.orientationShortLabel).toBeUndefined();
     }
     expect(normalizePublicUserIdentity({
       nickname: 'perfil teste',
       gender: 'mulher',
-    })?.orientationShortLabel).toBeNull();
+    })?.orientationShortLabel).toBeUndefined();
   });
 
   it('aceita aliases legados durante a migração sem expor campos desconhecidos', () => {

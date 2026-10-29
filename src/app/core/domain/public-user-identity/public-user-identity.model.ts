@@ -196,8 +196,10 @@ export function normalizePublicUserIdentity(
     identityCode,
     identityLabel,
     identityShortLabel,
-    orientation: orientationShortLabel ? declaredOrientation : null,
-    orientationShortLabel,
+    // Ausente = campo omitido: preserva o contrato anterior de Chat/Comunidades.
+    ...(orientationShortLabel
+      ? { orientation: declaredOrientation, orientationShortLabel }
+      : {}),
     discoveryGroup,
     city: normalizeText(source['city'] ?? source['municipio'], 80) || null,
     state: normalizeState(source['state'] ?? source['estado']),
