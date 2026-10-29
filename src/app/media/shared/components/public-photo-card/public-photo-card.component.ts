@@ -58,6 +58,7 @@ export class PublicPhotoCardComponent {
   // Um erro de imagem não significa que a publicação foi revogada.
   // Não trocar URLs assinadas nem reutilizar imagens de outro item.
   private readonly failedThumbnailKey = signal<string | null>(null);
+  private readonly loadedThumbnailKey = signal<string | null>(null);
   private readonly currentThumbnailKey = computed(
     () => {
       const item = this.photo();
@@ -66,6 +67,12 @@ export class PublicPhotoCardComponent {
   );
   readonly thumbnailUnavailable = computed(
     () => this.failedThumbnailKey() === this.currentThumbnailKey()
+  );
+  readonly thumbnailLoading = computed(
+    () =>
+      this.variant() === 'profile' &&
+      !this.thumbnailUnavailable() &&
+      this.loadedThumbnailKey() !== this.currentThumbnailKey()
   );
 
   onThumbnailError(item: IPublicPhotoItem): void {
@@ -85,6 +92,7 @@ export class PublicPhotoCardComponent {
       item.url === this.photo().url
     ) {
       this.failedThumbnailKey.set(null);
+      this.loadedThumbnailKey.set(this.currentThumbnailKey());
     }
   }
 
