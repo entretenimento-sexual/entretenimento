@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { filterPublishedProfilePhotos } from './profile-published-photo-filter.policy';
+import { filterPublishedProfilePhotos, filterOwnerPublishedPhotoPage } from './profile-published-photo-filter.policy';
 
 describe('filterPublishedProfilePhotos', () => {
   const photos = [
@@ -38,5 +38,17 @@ describe('filterPublishedProfilePhotos', () => {
     const result = filterPublishedProfilePhotos(photos, publications, 'autor-1');
     expect(result).toEqual([photos[0]]);
     expect(photos).toEqual(original);
+  });
+});
+
+describe('filterOwnerPublishedPhotoPage', () => {
+  it('não confia em IDs vazios, mistura de proprietários ou ausência de sessão', () => {
+    const page = [
+      { id: 'a', ownerUid: 'owner', url: 'https://example.test/a' },
+      { id: 'a', ownerUid: 'other', url: 'https://example.test/other' },
+      { id: ' ', ownerUid: 'owner', url: 'https://example.test/empty' },
+    ];
+    expect(filterOwnerPublishedPhotoPage(page, 'owner')).toEqual([page[0]]);
+    expect(filterOwnerPublishedPhotoPage(page, '')).toEqual([]);
   });
 });
