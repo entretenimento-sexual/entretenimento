@@ -64,7 +64,9 @@ describe('cards da galeria sem consulta a originais privados', () => {
     };
     const cards = mapOwnerPublishedPhotoCards(owner, [photo(1), photo(2)],
       configs, defaultConfig);
-    expect(cards.map((c) => c.displayDate)).toEqual([undefined, undefined]);
+    // A publicação explicitamente desativada não volta por uma projeção atrasada.
+    expect(cards.map((c) => c.id)).toEqual(['photo-1']);
+    expect(cards.map((c) => c.displayDate)).toEqual([undefined]);
     expect(cards.every((c) => c.publication.isPublished)).toBe(true);
   });
 });
