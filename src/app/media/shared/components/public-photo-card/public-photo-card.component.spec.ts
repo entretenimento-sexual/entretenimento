@@ -161,6 +161,57 @@ describe('PublicPhotoCardComponent', () => {
     expect(fixture.debugElement.query(By.css('.photo-meta'))).toBeNull();
   });
 
+  it('mostra rodapé discreto de galeria sem chips zerados, mantendo a data', () => {
+    fixture.componentRef.setInput('variant', 'profile');
+    fixture.componentRef.setInput('photo', {
+      ...photo,
+      reactionsCount: 0,
+      commentsCount: 0,
+      viewsCount: 0,
+    });
+    fixture.detectChanges();
+
+    const meta = fixture.debugElement.query(By.css('.photo-stats'))
+      .nativeElement as HTMLElement;
+
+    expect(meta.querySelectorAll('.stat-chip')).toHaveLength(1);
+    expect(meta.querySelector('.stat-chip--time')?.textContent)
+      .toContain('há 1 min');
+    expect(meta.textContent).not.toContain('0');
+    expect(fixture.debugElement.query(By.css('.photo-card-link')))
+      .toBeTruthy();
+  });
+
+  it('exibe métricas positivas na galeria e não altera chips do card latest', () => {
+    fixture.componentRef.setInput('variant', 'profile');
+    fixture.componentRef.setInput('photo', {
+      ...photo,
+      reactionsCount: 2,
+      commentsCount: 0,
+      viewsCount: 7,
+    });
+    fixture.detectChanges();
+
+    let stats = fixture.debugElement.queryAll(By.css('.stat-chip'));
+    expect(stats).toHaveLength(3);
+    expect(stats[0].nativeElement.getAttribute('aria-label'))
+      .toBe('Curtidas: 2');
+    expect(stats[1].nativeElement.getAttribute('aria-label'))
+      .toBe('Visualizações: 7');
+
+    fixture.componentRef.setInput('variant', 'latest');
+    fixture.componentRef.setInput('photo', {
+      ...photo,
+      reactionsCount: 0,
+      commentsCount: 0,
+      viewsCount: 0,
+    });
+    fixture.detectChanges();
+
+    stats = fixture.debugElement.queryAll(By.css('.stat-chip'));
+    expect(stats).toHaveLength(4);
+  });
+
   it('mantém ações disponíveis mesmo quando os contadores começam zerados', () => {
     fixture.componentRef.setInput('photo', {
       ...photo,
