@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { describe, it } from 'node:test';
 
 const consistency = readFileSync(resolve(__dirname,
-  'private-photo-storage-consistency.service.ts'), 'utf8');
+  '../../../src/media/application/private-photo-storage-consistency.service.ts'), 'utf8');
 const audit = readFileSync(resolve(__dirname,
   '../../../../scripts/dev/audit-legacy-photo-origins.mjs'), 'utf8');
 
