@@ -468,6 +468,11 @@ const functionsOperationalArtifacts = new Set([
     functionsSourceRoot,
     'media/application/private-photo-storage-consistency.service.ts'
   )),
+  // Classificador da mesma reconciliação operacional; não é Function deployável.
+  posix(path.join(
+    functionsSourceRoot,
+    'media/application/legacy-photo-origin-preservation.policy.ts'
+  )),
   // c18e: biblioteca offline de backfill por página, sem função exportável,
   // scheduler, endpoint público ou ativação automática na aplicação.
   posix(path.join(
