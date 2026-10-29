@@ -23,7 +23,7 @@ height: 100dvh;
 max-height: 100vh;
 max-height: 100dvh;
 display: grid;
-grid-template-rows: 44px minmax(0, 1fr);
+grid-template-rows: minmax(44px, auto) minmax(0, 1fr);
 overflow: hidden;
 background: var(--public-media-viewer-bg);
 color: #f7f7f7;
@@ -57,79 +57,47 @@ color: inherit;
 text-decoration: none;
 }
 
-.viewer-owner-avatar {
-flex: 0 0 auto;
-width: var(--public-media-viewer-control-size);
-height: var(--public-media-viewer-control-size);
-border: 1px solid rgb(255 255 255 / 18%);
-border-radius: 999px;
-background: rgb(255 255 255 / 10%);
-object-fit: cover;
+/* O componente comum governa avatar, nickname, classificacao e localizacao. */
+.viewer-owner-identity {
+  --public-user-identity-avatar-size: 32px;
+  --public-user-identity-name-size: 0.78rem;
+  --public-user-identity-meta-size: 0.62rem;
+  --public-user-identity-gap: 8px;
+  --text-color: #fff;
+  width: 100%;
+  min-width: 0;
 }
 
-.viewer-owner-avatar--fallback {
-display: grid;
-place-items: center;
-color: rgb(255 255 255 / 64%);
-font-size: 0.48rem;
-}
-
-.viewer-owner-copy {
-min-width: 0;
-display: grid;
-gap: 1px;
-}
-
-.viewer-owner-title {
-min-width: 0;
-display: flex;
-align-items: center;
-gap: 6px;
-}
-
-.viewer-owner-copy strong {
-overflow: hidden;
-color: #fff;
-font-size: 0.78rem;
-font-weight: 820;
-line-height: 1.05;
-text-overflow: ellipsis;
-white-space: nowrap;
+.viewer-owner-supplement {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .viewer-official-badge {
-flex: 0 0 auto;
-display: inline-flex;
-align-items: center;
-gap: 3px;
-padding: 2px 5px;
-border: 1px solid rgb(255 255 255 / 20%);
-border-radius: 999px;
-color: color-mix(in oklab, var(--success-color, #5ed39a) 72%, #fff 28%);
-font-size: 0.58rem;
-font-weight: 820;
-line-height: 1;
-white-space: nowrap;
-}
-
-.viewer-owner-context {
-min-width: 0;
-display: flex;
-align-items: center;
-gap: 6px;
-overflow: hidden;
-font-size: 0.64rem;
-line-height: 1.05;
-white-space: nowrap;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 5px;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 999px;
+  color: color-mix(in oklab, var(--success-color, #5ed39a) 72%, #fff 28%);
+  font-size: 0.58rem;
+  font-weight: 820;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .viewer-discovery-reason {
-overflow: hidden;
-color: rgb(255 255 255 / 56%);
-text-overflow: ellipsis;
+  min-width: 0;
+  overflow: hidden;
+  color: rgb(255 255 255 / 56%);
+  font-size: 0.61rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-
 
 .viewer-counter {
 color: rgb(255 255 255 / 76%);
@@ -641,10 +609,6 @@ font-size: 1.7rem;
 max-width: calc(100vw - 118px);
 }
 
-.viewer-owner-context {
-gap: 4px;
-}
-
 .viewer-discovery-reason {
 font-size: 0.61rem;
 }
@@ -716,7 +680,7 @@ border-color: currentColor !important;
     max-height: calc(100dvh - 56px);
   }
 
-  .viewer-owner-context,
+  .viewer-owner-supplement,
   .comment-date {
     display: none;
   }
