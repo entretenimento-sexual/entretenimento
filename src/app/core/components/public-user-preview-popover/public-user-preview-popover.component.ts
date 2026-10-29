@@ -1,5 +1,5 @@
 // src/app/core/components/public-user-preview-popover/public-user-preview-popover.component.ts
-import { DecimalPipe, TitleCasePipe } from '@angular/common';
+import { DecimalPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -18,7 +18,6 @@ import type { PublicUserPreview } from '../../domain/public-user-preview/public-
     DecimalPipe,
     PublicUserIdentityComponent,
     RouterLink,
-    TitleCasePipe,
   ],
   templateUrl: './public-user-preview-popover.component.html',
   styleUrl: './public-user-preview-popover.component.css',
