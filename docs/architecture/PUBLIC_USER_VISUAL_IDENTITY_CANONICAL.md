@@ -55,18 +55,19 @@ Não incluir na linha canônica: idade exata, data de nascimento, identidade civ
 | Galeria pública de vídeos | **Migrada nesta revisão** para `app-public-user-identity` com consulta pública por UID | Mesma ordem e normalização de campos da galeria de fotos; estado neutro durante leitura. |
 | Visualizador de foto | **Migrado nesta revisão** para `app-public-user-identity` em densidade compacta | Autor vem somente do item público ativo; mantém badge oficial, recomendação, link de perfil e navegação entre donos diferentes. |
 | Visualizador de vídeo | **Migrado nesta revisão** para `app-public-user-identity` em densidade compacta | Reaproveita `video.owner` público e mantém badges, link, reprodução, foco e controles existentes. |
-| Perfil visitado | Hero próprio com foto grande, identidade, idade/orientação e ações | **Pendente:** normalizar tipo/orientação com catálogo e rever exposição de idade em política de perfil; o hero expandido não deve ser tratado automaticamente como o cabeçalho compacto. |
+| Perfil visitado | **Normalizado nesta revisão:** H1 semântico, foto grande, ações e metadados pelo `app-public-user-identity` sem avatar/nome duplicados | Identidade, orientação e município/UF usam o mesmo catálogo; idade exata retirada do hero; distância aproximada e descrição ficam em Sobre. |
 | Meu perfil | Área de gestão própria | Separar dados privados para edição do que é efetivamente projetado em superfícies públicas. |
-| Cards de descoberta / Explore | Variantes próprias de card | Revisar mapeamento e permitir apenas complementos de descoberta autorizados; não duplicar um segundo núcleo de identidade. |
+| Cards de descoberta / Explore | **Revisados nesta etapa** no `UserCardComponent` usado por `PublicProfilesListComponent` | `identityCode` do backend tem prioridade sobre gênero legado; uma só linha de tipo/orientação/localização; idade exata não é transportada pelo adaptador e aliases de idade não são reaproveitados pelo mapper. Cards fora desse fluxo devem ser auditados separadamente. |
 
 ## Testes e aceitação
 
 - Testes de normalização verificam os quatro rótulos, ausência e desconhecidos, casal e segurança de URL/UF.
 - Testes de galerias verificam UID correto, troca de proprietário, campo opcional e ausência de inferência do casal; layouts verificam reutilização do componente.
 - Testes dos visualizadores verificam a identidade do item ativo, o caso de casal e a navegação para o proprietário; a cobertura do código não substitui inspeção visual real em celular.
+- Testes do perfil visitado verificam H1, catálogo canônico, orientação de casal, cidade/UF e ausência de idade exata. Testes do mapper/adaptador/card de descoberta cobrem prioridade de `identityCode`, proibição de aliases etários e remoção de metadados duplicados.
 - CI deve concluir **Quality Gate, Media E2E e Video Reconciliation** no último commit; commits intermediários podem falhar enquanto todos os arquivos não foram integrados.
 - Validação manual **ainda necessária** em mobile real e desktop: telas estreitas, apelidos longos, sem avatar, sem orientação, casal, bloqueio bilateral, visitante autenticado/não autorizado, alternância rápida entre perfis, fontes pequenas/grandes, contraste e leitor de tela. Testar navegação entre perfil, galeria, viewer e retorno, sem vazamento de mídia.
 
 ## Próxima etapa delimitada
 
-Os visualizadores de fotos e vídeos agora compartilham `PublicUserIdentityComponent` em modo compacto, inclusive nas variantes de navegação mista, e usam somente os resumos públicos que acompanham cada item. Não adicionam consulta a `/users`, nem inferem orientação ausente. **Próxima prioridade:** auditar a hero do perfil visitado e os cards de descoberta quanto ao catálogo e às permissões, sem confundir o cabeçalho compacto com o perfil completo. **Não** ampliar indiscriminadamente o cabeçalho com interesse sexual, disponibilidade, idade, profissão ou busca por parceria.
+Os visualizadores de fotos e vídeos compartilham `PublicUserIdentityComponent` em modo compacto, inclusive nas variantes mistas, sem consulta a `/users`. O perfil visitado conserva H1/hero próprios e usa o componente canônico somente para metadados (sem repetir avatar/nome). O card compartilhado de descoberta usa a identidade canônica uma única vez, sem idade exata ou orientação em linha adicional. **Próxima etapa:** inspecionar outras superfícies de descoberta/sugestões e validar manualmente desktop/mobile, contrastes, nomes longos e privacidade. Não ampliar o cabeçalho com interesses, disponibilidade, profissão ou inferências.
