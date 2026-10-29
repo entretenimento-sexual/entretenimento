@@ -549,7 +549,10 @@ export class ProfilePhotosComponent {
                 imageStateStr: result.imageStateStr,
               });
             }),
-            tap(() => this.errorNotifier.showSuccess('Foto atualizada com sucesso.')),
+            tap(() => {
+              this.ownerGallery.refresh();
+              this.errorNotifier.showSuccess('Foto publicada atualizada com sucesso.');
+            }),
             catchError((error) => {
               this.reportError(
                 'media_replace_failed',
