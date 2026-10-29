@@ -383,20 +383,47 @@ describe('OtherUserProfileViewComponent', () => {
     );
   });
 
-  it('move descrição e localização para Sobre sem duplicar no hero', () => {
+  it('exibe identidade normalizada sem repetir localização nem idade exata', () => {
     const hero = fixture.debugElement.query(
       By.css('.other-profile-page__hero')
     ).nativeElement as HTMLElement;
     const about = fixture.debugElement.query(
       By.css('.other-profile-page__about')
     ).nativeElement as HTMLElement;
+    const identity = hero.querySelector('app-public-user-identity') as HTMLElement;
+    const heading = hero.querySelector('#profile-heading') as HTMLElement;
 
+    expect(heading.tagName).toBe('H1');
+    expect(heading.textContent).toContain('Pessoa alvo');
+    expect(identity.textContent).toContain('Mulher');
+    expect(identity.textContent).toContain('Bi');
+    expect(identity.textContent).toContain('Rio de Janeiro/RJ');
+    expect(identity.textContent).not.toContain('Pessoa alvo');
+    expect(hero.textContent).not.toContain('32 anos');
     expect(hero.textContent).not.toContain('Descrição direta do perfil.');
-    expect(hero.textContent).not.toContain('Rio de Janeiro, RJ');
-    expect(about.textContent).toContain('Sobre');
     expect(about.textContent).toContain('Descrição direta do perfil.');
-    expect(about.textContent).toContain('Rio de Janeiro, RJ');
+    expect(about.textContent).not.toContain('Rio de Janeiro, RJ');
     expect(about.textContent).toContain('8 km');
+  });
+
+  it('não infere orientação de casal a partir de campo legado individual', () => {
+    component.userProfile = {
+      ...component.userProfile!,
+      identityCode: 'casal-ele-ela',
+      gender: 'casal-ele-ela',
+      orientation: 'bissexual',
+      partner1Orientation: 'heterossexual',
+      partner2Orientation: 'bissexual',
+    };
+    fixture.changeDetectorRef.markForCheck();
+    fixture.detectChanges();
+
+    const identity = fixture.nativeElement.querySelector(
+      'app-public-user-identity'
+    ) as HTMLElement;
+    expect(identity.textContent).toContain('Casal');
+    expect(identity.textContent).not.toContain('Bi');
+    expect(identity.textContent).not.toContain('Hétero');
   });
 
   it('exibe apenas afinidades públicas sanitizadas autorizadas pelo perfil', () => {
