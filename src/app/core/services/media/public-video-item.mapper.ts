@@ -253,7 +253,7 @@ export function mapPublicVideoProjection(
     !id ||
     !ownerUid ||
     (expectedOwnerUid && ownerUid !== expectedOwnerUid) ||
-    visibility !== 'PUBLIC' ||
+    (visibility !== 'PUBLIC' && visibility !== 'FRIENDS') ||
     moderationStatus !== 'APPROVED' ||
     mediaType !== 'VIDEO' ||
     !mimeType ||
@@ -295,7 +295,7 @@ export function mapPublicVideoProjection(
     assetVersion,
     updatedAt,
     lastViewedAt,
-    visibility: 'PUBLIC',
+    visibility: visibility as 'PUBLIC' | 'FRIENDS',
     orderIndex: Math.min(10_000, normalizeCount(data['orderIndex'])),
     moderationStatus: 'APPROVED',
     moderationReason: normalizeText(data['moderationReason'], 500),
