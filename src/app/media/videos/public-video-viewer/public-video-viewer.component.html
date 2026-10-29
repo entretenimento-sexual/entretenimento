@@ -170,7 +170,7 @@
         </nav>
 
         <div class="public-video-viewer__interactions" aria-label="Interações do vídeo">
-          @if (video.reactionsEnabled) {
+          @if (video.visibility === 'PUBLIC' && video.reactionsEnabled) {
             <button
               type="button"
               class="public-video-viewer__interaction"
@@ -187,7 +187,7 @@
             </button>
           }
 
-          @if (video.commentsEnabled) {
+          @if (video.visibility === 'PUBLIC' && video.commentsEnabled) {
             <button
               type="button"
               class="public-video-viewer__interaction"
@@ -204,7 +204,7 @@
             </button>
           }
 
-          @if (video.ratingsEnabled) {
+          @if (video.visibility === 'PUBLIC' && video.ratingsEnabled) {
             <button
               type="button"
               class="public-video-viewer__interaction"
@@ -221,7 +221,7 @@
             </button>
           }
 
-          @if (viewerUid) {
+          @if (viewerUid && video.visibility === 'PUBLIC') {
             <app-public-video-share-actions
               [video]="video"
               [ownerExternalShareAllowed]="viewerIsOwner"
@@ -288,7 +288,7 @@
             </button>
           </div>
 
-          @if (ratingsExpanded() && video.ratingsEnabled) {
+          @if (ratingsExpanded() && video.visibility === 'PUBLIC' && video.ratingsEnabled) {
             <section
               id="public-video-ratings"
               class="public-video-viewer__ratings"
@@ -331,7 +331,7 @@
             </section>
           }
 
-          @if (commentsExpanded() && video.commentsEnabled) {
+          @if (commentsExpanded() && video.visibility === 'PUBLIC' && video.commentsEnabled) {
             <section
               id="public-video-comments"
               class="public-video-viewer__comments"
