@@ -1,6 +1,6 @@
-/* Galeria de fotos do perfil: grade uniforme e responsiva por contêiner.
-   Não é um feed editorial: nenhuma publicação ganha dimensões especiais
-   pela posição ou por ser capa. */
+/* Galeria pública: cards uniformes, nunca capa ampliada ou masonry.
+   Os breakpoints consideram legibilidade da foto e dos metadados,
+   não apenas quantas colunas cabem matematicamente. */
 :host {
   display: block;
   width: 100%;
@@ -136,19 +136,19 @@
   min-width: 0;
 }
 
-@container public-photos-gallery (min-width: 400px) {
+@container public-photos-gallery (min-width: 480px) {
   .photos-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@container public-photos-gallery (min-width: 760px) {
+@container public-photos-gallery (min-width: 800px) {
   .photos-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-@container public-photos-gallery (min-width: 1080px) {
+@container public-photos-gallery (min-width: 1160px) {
   .photos-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
