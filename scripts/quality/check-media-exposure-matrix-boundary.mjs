@@ -149,7 +149,9 @@ const videoAccessPath =
 const videoAccess = read(videoAccessPath);
 requireIncludes(videoAccess, [
   'assertPublicMediaConsumptionAccess(viewerUid)',
-  'resolveBlockedTargetUids(viewerUid, ownerUids)',
+  'resolveSocialConnectionAccess(viewerUid, ownerUids)',
+  'socialAccess.blockedTargetUids',
+  'socialAccess.friendTargetUids.has(ownerUid)',
   'resolvePublicMediaSignedOwnerExposure(',
   'resolvePublicVideoSignedAccessItem(',
   'ownerExposureAllowed: profileAccess?.allowed === true',
@@ -160,7 +162,8 @@ const videoSignerPath =
 const videoSigner = read(videoSignerPath);
 requireIncludes(videoSigner, [
   'isCurrentPublicMediaAssetExposure({',
-  "allowedVisibilities: ['PUBLIC']",
+  'viewerCanReadFriends === true',
+  "['PUBLIC', 'FRIENDS']",
   'resolvePublicMediaSignedUrlExpiresAt({',
   'if (expiresAt === null)',
   'shouldIssuePublicVideoPlaybackAccess(mode)',
