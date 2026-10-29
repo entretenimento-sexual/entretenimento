@@ -44,6 +44,7 @@ export {
   setCoverPhoto,
 } from './application/manage-photo-publication.handler';
 export { replacePublishedPhoto } from './application/replace-published-photo.handler';
+export { updatePublishedPhotoDisplayDate } from './application/update-published-photo-display-date.handler';
 // TOMBSTONE até 2026-12-31: compatibilidade fail-closed para clientes antigos.
 export {
   unpublishPhoto,
