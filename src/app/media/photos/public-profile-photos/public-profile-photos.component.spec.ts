@@ -150,7 +150,7 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
   });
 
   it('identifica o perfil usando somente a leitura pública autorizada', () => {
-    const identities: Array<{ nickname: string; city?: string | null } | null> = [];
+    const identities: Array<{ nickname: string; city?: string | null; orientationShortLabel?: string | null } | null> = [];
     const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
 
     expect(publicUsers.getPublicUserById$).toHaveBeenCalledWith(PHOTO.ownerUid);
