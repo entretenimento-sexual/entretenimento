@@ -7,7 +7,7 @@
 // - manter a edição visual desacoplada da persistência: o editor devolve um
 //   arquivo processado e este componente executa a substituição da foto.
 //
-// users/{uid}/photos é somente compatibilidade legada para metadados opcionais.
+// users/{uid}/photos é compatibilidade legada, não a origem da data editável.
 // Edição e substituição são autorizadas pela publicação final vigente.
 
 import { CommonModule } from '@angular/common';
@@ -267,7 +267,8 @@ export class ProfilePhotosComponent {
           // Caminho de origem opcional: publicação pública nunca expõe upload privado.
           path: origin?.path,
           fileName: origin?.fileName,
-          displayDate: origin?.displayDate,
+          displayDate: publication.displayDate !== undefined
+            ? publication.displayDate : origin?.displayDate,
           publication,
         };
       });
@@ -365,12 +366,12 @@ export class ProfilePhotosComponent {
 
               this.savingDisplayDateIdSubject.next(item.id);
 
-              return from(
-                this.photoFirestoreService.updatePhotoDisplayDate(
-                  ownerUid,
-                  item.id,
-                  nextDisplayDate
-                )
+              const expectedAssetVersion = Number(item.assetVersion ?? item.publishedAt);
+              return this.mediaPublicationService.updatePublishedPhotoDisplayDate$(
+                ownerUid,
+                item.id,
+                nextDisplayDate,
+                expectedAssetVersion
               ).pipe(
                 tap(() => this.errorNotifier.showSuccess('Data atualizada.')),
                 catchError((error) => {
