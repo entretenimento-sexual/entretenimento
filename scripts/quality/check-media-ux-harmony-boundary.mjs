@@ -507,7 +507,7 @@ requireIncludes(profilePhotosTemplate, [
   'app-media-action-menu',
   'editLabel="Editar foto"',
   '[showSecondaryAction]="!!item.path"',
-  '[showEditAction]="!!item.path"',
+  '[showEditAction]="!!item.url"',
   'secondaryLabel="Alterar data"',
   '(secondaryAction)="editPhotoDate(item)"',
   'featureLabel="Definir como capa"',
