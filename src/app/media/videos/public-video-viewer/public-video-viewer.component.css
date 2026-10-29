@@ -517,7 +517,7 @@
 
 @media (max-height: 620px) and (orientation: landscape) {
   .public-video-viewer__metadata p,
-  .public-video-viewer__owner-supplement {
+  .public-video-viewer__recommendation-badge {
     display: none;
   }
 
