@@ -80,24 +80,12 @@
               ? 'Abrir seu perfil'
               : 'Abrir perfil de ' + (video.owner?.nickname || 'usuário')"
           >
-            @if (video.owner?.photoURL) {
-              <img
-                [src]="video.owner?.photoURL"
-                alt=""
-                width="40"
-                height="40"
-                loading="lazy"
-              />
-            } @else {
-              <span class="public-video-viewer__owner-fallback" aria-hidden="true">
-                <i class="fas fa-user"></i>
-              </span>
-            }
-
-            <span class="public-video-viewer__owner-copy">
-              <span class="public-video-viewer__owner-title">
-                <strong>{{ video.owner?.nickname || 'Perfil' }}</strong>
-
+            <app-public-user-identity
+              class="public-video-viewer__owner-identity"
+              [identity]="currentOwnerIdentity$ | async"
+              density="compact"
+            >
+              <span publicUserIdentitySupplement class="public-video-viewer__owner-supplement">
                 @if ((video.officialMediaContext?.contexts?.length ?? 0) > 0) {
                   <app-public-media-badge
                     kind="official"
@@ -106,24 +94,13 @@
                     iconClass="fas fa-circle-check"
                   />
                 }
-              </span>
-
-              @if (video.owner?.municipio || video.owner?.estado) {
-                <small>
-                  {{ video.owner?.municipio }}
-                  @if (video.owner?.municipio && video.owner?.estado) { · }
-                  {{ video.owner?.estado }}
-                </small>
-              }
-
-              <span class="public-video-viewer__owner-context">
                 <app-public-media-recommendation-badge
                   [source]="data.source"
                   [ownerUid]="video.ownerUid"
                   [continuationContext]="data.continuationContext || null"
                 />
               </span>
-            </span>
+            </app-public-user-identity>
           </a>
 
           <div class="public-video-viewer__header-actions">
