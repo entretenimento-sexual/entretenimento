@@ -107,6 +107,31 @@ async function run() {
     assert.ok((await db.collection(`users/${ownerUid}/photos`).limit(1).get()).empty,
       'fixture sem acervo original privado');
 
+    // Edição de data é organização privada na publicação, não no original.
+    const updateDate = httpsCallable(owner.functions, 'updatePublishedPhotoDisplayDate');
+    const outsiderUpdateDate = httpsCallable(
+      visitor.functions, 'updatePublishedPhotoDisplayDate'
+    );
+    const dateValue = Date.UTC(2023, 9, 20, 12);
+    const dateCommand = {
+      ownerUid, photoId, displayDate: dateValue, expectedAssetVersion: revision,
+    };
+    await rejectCode(() => outsiderUpdateDate(dateCommand), 'permission-denied');
+    await rejectCode(() => updateDate({
+      ...dateCommand, displayDate: Number.NaN,
+    }), 'invalid-argument');
+    assert.equal((await updateDate(dateCommand)).data.displayDate, dateValue);
+    assert.equal((await pubRef.get()).get('displayDate'), dateValue);
+    assert.equal((await projectionRef.get()).get('displayDate'), undefined,
+      'data organizacional não pode vazar para a projeção pública');
+    assert.equal((await pubRef.get()).get('assetVersion'), revision,
+      'organização não modifica revisão do ativo');
+    assert.equal((await updateDate({
+      ...dateCommand, displayDate: null,
+    })).data.displayDate, null);
+    assert.equal((await pubRef.get()).get('displayDate'), null);
+    assert.ok((await db.collection(`users/${ownerUid}/photos`).limit(1).get()).empty);
+
     const staging = `users/${ownerUid}/uploads/images/replacement-${runId}.png`;
     const reserve = httpsCallable(owner.functions, 'reservePhotoUpload');
     const reservation = (await reserve({
@@ -142,7 +167,13 @@ async function run() {
 
     await rejectCode(() => replace(input), 'failed-precondition');
     const freshVersion = publication.assetVersion;
+    await rejectCode(() => updateDate(dateCommand), 'failed-precondition');
+    assert.equal((await pubRef.get()).get('displayDate'), null,
+      'revisão antiga não pode atualizar a foto substituída');
     await pubRef.update({ moderationStatus: 'FLAGGED' });
+    await rejectCode(() => updateDate({
+      ...dateCommand, expectedAssetVersion: freshVersion,
+    }), 'failed-precondition');
     const second = `users/${ownerUid}/uploads/images/replacement2-${runId}.png`;
     const reservation2 = (await reserve({
       ownerUid, storagePath: second, sizeBytes: IMAGE_BYTES.length,
@@ -158,7 +189,7 @@ async function run() {
     }), 'failed-precondition');
     assert.equal((await pubRef.get()).get('publishedStoragePath'),
       publication.publishedStoragePath);
-    console.log('✔ substituir sem original: FRIENDS, geração, versão, reserva, outra conta, moderação');
+    console.log('✔ data e substituição sem original: FRIENDS, versão, reserva, terceiros, moderação');
   } finally {
     const tasks = [];
     for (const uid of [ownerUid, visitorUid]) {
