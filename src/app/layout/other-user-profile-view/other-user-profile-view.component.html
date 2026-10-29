@@ -44,21 +44,9 @@
 
       <div class="other-profile-page__identity">
         <div class="other-profile-page__headline">
-          @if (publicIdentity; as identity) {
-            <app-public-user-identity
-              class="other-profile-page__canonical-identity"
-              [identity]="identity"
-              density="comfortable"
-              emphasis="strong"
-              [showAvatar]="false"
-              [headingLevel]="1"
-              headingId="profile-heading"
-            />
-          } @else {
-            <h1 id="profile-heading" class="other-profile-page__title">
-              {{ displayName }}
-            </h1>
-          }
+          <h1 id="profile-heading" class="other-profile-page__title">
+            {{ displayName }}
+          </h1>
 
           @if (profile.isOnline) {
             <span class="other-profile-page__online">
@@ -67,6 +55,16 @@
             </span>
           }
         </div>
+
+        @if (publicIdentity; as identity) {
+          <app-public-user-identity
+            class="other-profile-page__canonical-identity"
+            [identity]="identity"
+            density="comfortable"
+            [showAvatar]="false"
+            [showName]="false"
+          />
+        }
 
         @if (friendshipInteractionState$ | async; as interactionState) {
           <div class="other-profile-page__actions" aria-label="Ações do perfil">
