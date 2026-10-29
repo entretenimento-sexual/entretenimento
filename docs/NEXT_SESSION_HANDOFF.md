@@ -1,10 +1,12 @@
 # Next Session Handoff
 
+> **REGRA ATUAL — VER `AGENTS.md`: somente `main`; proibido criar branches, fazer merges ou criar PRs.** Instruções antigas de retomada de branches não estão vigentes.
+
 ## Projeto atual
 
 - Repositório: `entretenimento-sexual/entretenimento`
 - Pasta local usual: `C:\entretenimento`
-- Branch de trabalho atual: `feat/auth-password-recovery-polish`
+- Linha única de desenvolvimento: `main` (não criar outras branches, PRs ou merges)
 - Firebase local: emuladores de Auth, Firestore, Storage, Functions e serviços auxiliares
 - Node.js: 22.x, declarado em `.nvmrc` e `.node-version`
 
@@ -13,16 +15,14 @@
 ```powershell
 Set-Location C:\entretenimento
 
-npm.cmd run work:resume:start -- -Branch feat/auth-password-recovery-polish
+git branch --show-current
+# Deve mostrar main. Conferir antes os arquivos locais existentes.
+git status --short
+git pull --ff-only origin main
+npm.cmd run start:emu
 ```
 
-O comando:
-
-1. interrompe a atualização quando existem alterações locais;
-2. busca a branch remota;
-3. atualiza somente por fast-forward;
-4. instala dependências somente quando o lock mudou;
-5. inicia Angular e Firebase Emulators.
+Os comandos acima não criam branches nem PRs. **Se existirem alterações rastreadas conflitantes, não fazer o `pull` até inspecioná-las.** Arquivos não rastreados de teste (galerias, JSON e ZIP) devem ser preservados. Os emuladores precisam estar ativos para a configuração `dev-emu`.
 
 ## Preparar uma nova máquina Windows
 
@@ -39,7 +39,7 @@ Set-Location C:\entretenimento
 
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File scripts/dev/setup-work-machine.ps1 `
-  -Branch feat/auth-password-recovery-polish `
+  -Branch main `
   -Start
 ```
 
@@ -74,7 +74,7 @@ Nas telas críticas:
 
 ## Segurança operacional
 
-- não trabalhar diretamente na `main`;
+- trabalhar somente na `main`, sem criar branches, PRs ou executar merges;
 - não executar deploy durante revisão local;
 - não alterar Rules, índices, Functions ou ambientes sem escopo explícito;
 - não usar Firebase real para testes de desenvolvimento quando existe emulador correspondente;
@@ -90,4 +90,4 @@ Nas telas críticas:
 
 ## Estado de trabalho
 
-O projeto está na fase de limpeza transversal de interface, acessibilidade, feedback de rede, retenção de conta e operação administrativa. O trabalho deve continuar em blocos pequenos, validados e sem merge/deploy automático.
+O projeto está na fase de limpeza transversal de interface, acessibilidade, feedback de rede, retenção de conta e operação administrativa. O trabalho deve continuar em blocos pequenos, validados e sem merges, PRs ou deploy automático.

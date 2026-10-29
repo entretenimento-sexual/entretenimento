@@ -1,16 +1,18 @@
 # Continuidade do projeto Entretenimento
 
+> **REGRA PRIORITÁRIA PARA TODAS AS SESSÕES: desenvolver exclusivamente na `main`; proibido criar branches, executar merges e criar PRs.** Ver [`AGENTS.md`](../../AGENTS.md). As menções a branches antigas neste documento são histórico e não instruções de trabalho.
+
 > Documento canônico para preservar contexto, decisões e raciocínio entre chats.
 >
-> Deve ser lido antes de propor ou implementar qualquer alteração relevante nesta branch.
+> Deve ser lido antes de propor ou implementar qualquer alteração relevante na `main`.
 
 ## Como usar este documento
 
 Ao iniciar um novo chat ou retomar o projeto:
 
 1. ler este arquivo por completo;
-2. confirmar a branch atual e comparar o HEAD com o último commit validado indicado abaixo;
-3. inspecionar os arquivos realmente existentes na branch, sem depender apenas do histórico da conversa;
+2. confirmar que a linha de trabalho é a `main` e comparar seu HEAD com o commit efetivamente validado;
+3. inspecionar os arquivos realmente existentes na `main`, sem depender apenas do histórico da conversa;
 4. tratar decisões registradas como restrições arquiteturais, não como sugestões descartáveis;
 5. registrar aqui toda mudança de direção, supressão, risco aceito ou novo bloco validado.
 
@@ -25,8 +27,8 @@ Novas ideias são bem-vindas, mas não devem substituir decisões anteriores sil
 ## Repositório e fluxo de trabalho
 
 - Repositório: `entretenimento-sexual/entretenimento`
-- Branch de trabalho: `feat/auth-password-recovery-polish`
-- Não criar branches adicionais, PRs, merges ou deploys sem solicitação explícita.
+- Branch única de trabalho: `main`. A antiga `feat/auth-password-recovery-polish` é somente referência histórica.
+- **Não criar branches, PRs ou merges em nenhuma implementação rotineira.** Trabalhar diretamente na `main`. Deploy exige autorização explícita separada.
 - Alterações devem ser pequenas, coesas e separadas por domínio.
 - Mudanças visuais, infraestrutura, segurança e produto não devem ser misturadas sem necessidade técnica real.
 - Preservar nomenclaturas públicas de métodos quando houver consumidores existentes.
@@ -147,7 +149,7 @@ Resultado dessa validação:
 
 ### Implementações presentes na branch depois da base validada
 
-A branch contém trabalho posterior ao commit acima. Antes de afirmar que ele está concluído, validar o HEAD atual.
+A referência histórica abaixo contém trabalho posterior ao commit antigo. Antes de afirmar que está concluído, validar o HEAD atual da `main`.
 
 Foram identificados na branch:
 
@@ -251,8 +253,9 @@ O comando `emu:pre` só deve ser usado conscientemente quando os dados locais pu
 ```powershell
 cd C:\entretenimento
 
-git restore firestore.rules
-git pull --ff-only
+git branch --show-current
+git status --short
+git pull --ff-only origin main
 
 npm.cmd run test:ci
 npm.cmd --prefix functions test
@@ -261,7 +264,6 @@ npm.cmd run build:safe
 npm.cmd run build:emu
 npm.cmd run build:staging
 
-git restore firestore.rules
 git status --short
 ```
 
@@ -283,4 +285,4 @@ Após cada bloco aceito:
 
 Use esta mensagem ao retomar o projeto:
 
-> Leia `docs/architecture/PROJECT_CONTINUITY.md` na branch `feat/auth-password-recovery-polish`, confira o HEAD atual e compare-o com o último commit validado. Preserve as decisões registradas, proponha melhorias sem reinterpretar silenciosamente o produto e continue apenas pelo próximo bloco coeso.
+> Leia `docs/architecture/PROJECT_CONTINUITY.md` na `main`, confira o HEAD atual e compare-o com o último commit validado. Preserve as decisões registradas, proponha melhorias sem reinterpretar silenciosamente o produto e continue apenas pelo próximo bloco coeso.

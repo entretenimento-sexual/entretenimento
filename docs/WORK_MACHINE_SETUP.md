@@ -1,5 +1,7 @@
 # Preparação da máquina do trabalho
 
+> **Política atual:** só `main`; **não criar branches, merges ou PRs**. Ver [`AGENTS.md`](../AGENTS.md). Os comandos abaixo visam apenas utilizar a branch `main` já existente.
+
 ## Requisitos
 
 A máquina precisa ter:
@@ -36,7 +38,7 @@ Set-Location C:\entretenimento
 
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File scripts/dev/setup-work-machine.ps1 `
-  -Branch feat/auth-password-recovery-polish `
+  -Branch main `
   -Start
 ```
 
@@ -52,12 +54,12 @@ O `setup-work-machine.ps1`:
 4. verifica se a pasta é o repositório correto;
 5. remove credenciais embutidas da URL do `origin`;
 6. configura o Git Credential Manager quando disponível;
-7. alterna para a branch solicitada;
+7. confirma/seleciona somente a branch `main` existente; não criar outra;
 8. atualiza apenas por fast-forward;
 9. instala dependências com `npm ci` quando necessário;
 10. inicia Angular e Firebase Emulators quando `-Start` é informado.
 
-O script não grava tokens no projeto, não altera o Node global e não modifica a `main`.
+O script não grava tokens no projeto nem altera o Node global. O desenvolvimento e os commits são feitos somente na `main`; não criar branches, PRs ou merges.
 
 ## Retomadas seguintes
 
@@ -66,25 +68,25 @@ Depois da primeira preparação:
 ```powershell
 Set-Location C:\entretenimento
 
-npm.cmd run work:resume:start -- -Branch feat/auth-password-recovery-polish
+npm.cmd run work:resume:start -- -Branch main
 ```
 
 Para atualizar sem iniciar os serviços:
 
 ```powershell
-npm.cmd run work:resume -- -Branch feat/auth-password-recovery-polish
+npm.cmd run work:resume -- -Branch main
 ```
 
 Para uma validação completa antes de enviar alterações:
 
 ```powershell
-npm.cmd run work:resume:check -- -Branch feat/auth-password-recovery-polish
+npm.cmd run work:resume:check -- -Branch main
 ```
 
 Quando o `node` global não for 22, prefira iniciar pela preparação automática:
 
 ```powershell
-npm.cmd run work:prepare:win -- -Branch feat/auth-password-recovery-polish -Start
+npm.cmd run work:prepare:win -- -Branch main -Start
 ```
 
 ## Endereços locais
@@ -118,4 +120,4 @@ node --version
 npm.cmd --version
 ```
 
-A branch deve ser `feat/auth-password-recovery-polish`, o Node selecionado pelo processo deve iniciar com `v22.` e `git status --short` deve permanecer vazio antes de começar a editar.
+A branch deve ser `main`, o Node deve iniciar com `v22.`. **Arquivos não rastreados de testes e backups são permitidos e devem ser preservados**; inspecione alterações rastreadas antes de sincronizar ou editar.

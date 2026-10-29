@@ -1,5 +1,7 @@
 # Entretenimento
 
+> **Política Git para agentes e colaboradores:** desenvolvimento somente na `main`. **Proibido criar branches, abrir PRs ou executar merges.** Sem deploy ou operações destrutivas sem autorização explícita. Leia [`AGENTS.md`](./AGENTS.md) antes de editar o repositório.
+
 This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 16.1.4.
 
 ## Development server

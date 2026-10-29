@@ -1,12 +1,14 @@
 # Retomada da sessão de desenvolvimento
 
-## Branch e checkpoint funcional
+> **Regra vigente:** trabalhar só na `main`. **Não criar branches, merges ou PRs**. Consulte [`AGENTS.md`](../../AGENTS.md). O checkpoint de uma branch antiga abaixo serve apenas como referência histórica, não como instrução operacional.
 
-- Branch: `feat/auth-password-recovery-polish`
+## Checkpoint histórico (não é a branch atual)
+
+- Branch histórica: `feat/auth-password-recovery-polish` — não utilizar para continuar o trabalho; atual: `main`
 - Último checkpoint funcional: `082f0244625f750d95c68a1d05350ce77839e1dc`
 - Commit funcional: `test(navigation): assert service exposes subscription under account`
 
-O topo remoto pode conter commits posteriores apenas de documentação. O commit funcional acima deve aparecer no histórico recente da branch.
+O checkpoint acima registra um estágio anterior do projeto. Não é o HEAD atual da `main` nem instrução para alternar ou criar branches.
 
 ## Estado atual do sidebar universal
 
@@ -48,13 +50,14 @@ No PowerShell:
 ```powershell
 cd C:\entretenimento
 git status --short
-git switch feat/auth-password-recovery-polish
-git pull --ff-only
+git branch --show-current
+# Conferir main e preservar arquivos locais de testes.
+git pull --ff-only origin main
 git log -5 --oneline
-npm.cmd run work:resume:start
+npm.cmd run start:emu
 ```
 
-Confirme no histórico recente a presença de:
+Commits de referência histórica (não exigidos no histórico recente da `main`):
 
 ```text
 082f0244 test(navigation): assert service exposes subscription under account
@@ -67,7 +70,6 @@ Após confirmar o visual, executar em outro terminal:
 cd C:\entretenimento
 npm.cmd run test:ci
 npm.cmd run build:safe
-git restore firestore.rules
 git status --short
 ```
 

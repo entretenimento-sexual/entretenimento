@@ -1,5 +1,7 @@
 # Documentação do projeto
 
+> **Fluxo obrigatório:** somente `main`, **sem criar branches, merges ou PRs**. Consulte [`AGENTS.md`](../AGENTS.md). Em caso de instruções antigas conflitantes, siga o `AGENTS.md`.
+
 Este diretório concentra documentos de governança técnica, produto, segurança e pré-lançamento.
 
 ## Ordem recomendada de leitura
