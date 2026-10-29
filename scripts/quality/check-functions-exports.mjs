@@ -91,6 +91,7 @@ const expectedDeploymentExports = [
   // neutra; a autoridade continua nos bloqueios canônicos do Firestore.
   'reconcilePublicMediaAccess',
   'replacePublishedPhoto',
+  'updatePublishedPhotoDisplayDate',
   'expireAgeEligibilityAtBoundary',
   'expireAgeEligibilityRecords',
   'findCommunityInviteCandidate',
