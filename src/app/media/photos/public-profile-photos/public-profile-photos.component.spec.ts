@@ -136,10 +136,13 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
   it('seleciona 8, 12 ou 24 conforme as colunas do contêiner', () => {
     expect(resolvePublicProfilePhotoPageSize(360)).toBe(8);
     expect(resolvePublicProfilePhotoPageSize(380)).toBe(8);
-    expect(resolvePublicProfilePhotoPageSize(381)).toBe(12);
+    expect(resolvePublicProfilePhotoPageSize(399)).toBe(8);
+    expect(resolvePublicProfilePhotoPageSize(400)).toBe(12);
     expect(resolvePublicProfilePhotoPageSize(552)).toBe(12);
     expect(resolvePublicProfilePhotoPageSize(559)).toBe(12);
-    expect(resolvePublicProfilePhotoPageSize(560)).toBe(24);
+    expect(resolvePublicProfilePhotoPageSize(560)).toBe(12);
+    expect(resolvePublicProfilePhotoPageSize(759)).toBe(12);
+    expect(resolvePublicProfilePhotoPageSize(760)).toBe(24);
     expect(resolvePublicProfilePhotoPageSize(1100)).toBe(24);
   });
 
