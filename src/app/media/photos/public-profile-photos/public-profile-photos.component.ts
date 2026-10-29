@@ -70,7 +70,7 @@ export function resolvePublicProfilePhotoPageSize(
     return 24;
   }
 
-  if (containerWidth < 480) {
+  if (containerWidth < 420) {
     return 8;
   }
 
