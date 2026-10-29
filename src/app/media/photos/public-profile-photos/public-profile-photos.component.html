@@ -4,6 +4,7 @@
 @let ownerUid = (ownerUid$ | async);
 
 <section #galleryContainer class="public-photos-page container-wide" aria-label="Galeria de fotos do perfil visitado">
+  <app-page-header title="Fotos públicas"></app-page-header>
   <header class="visited-gallery-header">
     @if (ownerUid) {
       <a class="visited-gallery-header__back" [routerLink]="['/perfil', ownerUid]">
@@ -30,14 +31,14 @@
           }
         </div>
         <div class="visited-gallery-header__details">
-          <p class="visited-gallery-header__eyebrow">Fotos públicas · Perfil visitado</p>
-          <h1 class="visited-gallery-header__title">
+          <p class="visited-gallery-header__eyebrow">Perfil visitado</p>
+          <h2 class="visited-gallery-header__title">
             @if (identity) {
-              Fotos de {{ identity.nickname }}
+              {{ identity.nickname }}
             } @else {
-              Fotos públicas
+              Perfil indisponível
             }
-          </h1>
+          </h2>
           @if (identity?.location; as location) {
             <p class="visited-gallery-header__location">
               <i class="fas fa-location-dot" aria-hidden="true"></i>
@@ -50,10 +51,6 @@
       </div>
       @if (ownerUid) {
         <nav class="visited-gallery-header__actions" aria-label="Navegação do perfil visitado">
-          <a class="app-action app-action--ghost" [routerLink]="['/perfil', ownerUid]">
-            <i class="fas fa-user" aria-hidden="true"></i>
-            Ver perfil
-          </a>
           <a class="app-action app-action--ghost" [routerLink]="['/media/perfil', ownerUid, 'videos-publicos']">
             <i class="fas fa-video" aria-hidden="true"></i>
             Vídeos

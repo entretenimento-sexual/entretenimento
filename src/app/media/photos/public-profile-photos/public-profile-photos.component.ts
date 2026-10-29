@@ -51,6 +51,7 @@ import type { MediaErrorReason } from 'src/app/core/services/media/media-error.c
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 
 import { PublicPhotoViewerLauncherService } from '../photo-viewer/public-photo-viewer-launcher.service';
 import { PublicPhotoCardComponent } from '../../shared/components/public-photo-card/public-photo-card.component';
@@ -97,6 +98,7 @@ interface PublicProfilePhotosState {
     CommonModule,
     PublicPhotoCardComponent,
     ContentStateComponent,
+    PageHeaderComponent,
     RouterModule,
   ],
   templateUrl: './public-profile-photos.component.html',

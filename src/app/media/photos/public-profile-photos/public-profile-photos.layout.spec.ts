@@ -43,7 +43,9 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
   });
 
   it('mostra dono identificado e navegacao sem ler documentos privados', () => {
-    expect(pageHtml).toContain('Fotos de {{ identity.nickname }}');
+    expect(pageHtml).toContain('<app-page-header title="Fotos públicas"></app-page-header>');
+    expect(pageHtml).toContain('{{ identity.nickname }}');
+    expect(pageHtml).not.toContain('<h1');
     expect(pageHtml).toContain('visited-gallery-header__avatar');
     expect(pageHtml).toContain("['/perfil', ownerUid]");
     expect(pageHtml).toContain("['/media/perfil', ownerUid, 'videos-publicos']");
