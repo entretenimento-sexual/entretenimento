@@ -48,6 +48,10 @@ export class PublicUserIdentityComponent {
   readonly emphasis = input<PublicUserIdentityEmphasis>('normal');
   readonly showAvatar = input(true);
 
+  /** H1 opcional para a página de perfil; demais superfícies continuam compactas. */
+  readonly headingLevel = input<1 | null>(null);
+  readonly headingId = input<string | null>(null);
+
   /** Contexto pertence à superfície, mas ocupa posição visual canônica. */
   readonly contextText = input<string | null>(null);
   readonly contextDateTime = input<string | null>(null);
