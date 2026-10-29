@@ -178,6 +178,16 @@ export const replacePublishedPhoto = onCall<ReplacePublishedPhotoRequest>(
         'O upload temporário não possui reserva válida.');
     }
 
+    // A reserva de substituição não pode ser também o acervo técnico de outra
+    // publicação. O registro privado consome a mesma reserva transacionalmente.
+    const privateReferences = await db
+      .collection(`users/${ownerUid}/photos`)
+      .where('path', '==', sourcePath).limit(1).get();
+    if (!privateReferences.empty) {
+      throw new HttpsError('failed-precondition',
+        'O upload já está associado a outra operação de mídia.');
+    }
+
     const sourceFile = getDefaultStorageBucket().file(sourcePath);
     const [metadata] = await sourceFile.getMetadata();
     const sourceGeneration = normalizeGcsGeneration(metadata.generation);
@@ -198,6 +208,13 @@ export const replacePublishedPhoto = onCall<ReplacePublishedPhotoRequest>(
       candidatePath = await copyPrivatePhotoToPublishedAsset({
         ownerUid, photoId, sourceStoragePath: sourcePath,
       });
+
+      // The staging object must still be the exact reserved generation, not
+      // a different upload at the same path during the sanitization copy.
+      const [freshSourceMetadata] = await sourceFile.getMetadata();
+      if (normalizeGcsGeneration(freshSourceMetadata.generation) !== sourceGeneration) {
+        throw new HttpsError('aborted', 'O upload mudou durante a preparação.');
+      }
 
       await db.runTransaction(async (tx) => {
         const [currentPublication, currentProjection, currentReservation,
@@ -267,10 +284,16 @@ export const replacePublishedPhoto = onCall<ReplacePublishedPhotoRequest>(
 
     // The published asset is now authoritative. Cleanup failures are retried
     // by the existing reservation sweeper and published-asset cleanup queue.
-    await deletePublishedPhotoAssetOrQueue({
-      ownerUid, photoId, storagePath: previousPath,
-      reason: 'replace-published-photo-previous-asset',
-    });
+    try {
+      await deletePublishedPhotoAssetOrQueue({
+        ownerUid, photoId, storagePath: previousPath,
+        reason: 'replace-published-photo-previous-asset',
+      });
+    } catch (error) {
+      logger.error('[replacePublishedPhoto] Previous asset cleanup not queued.', {
+        reason: error instanceof Error ? error.message : String(error ?? ''),
+      });
+    }
     try {
       await deleteGenerationPinnedVideoFile(sourceGeneration, (generation) =>
         sourceFile.delete({ ignoreNotFound: true, ifGenerationMatch: generation })
