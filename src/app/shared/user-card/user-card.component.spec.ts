@@ -159,6 +159,22 @@ describe('UserCardComponent', () => {
     expect(fixture.componentInstance.publicPreview()?.highlights).toEqual([]);
   });
 
+  it('prioriza o código canônico de casal sem orientação agregada no card', () => {
+    fixture.componentRef.setInput('user', {
+      ...baseProfile,
+      identityCode: 'casal-ele-ela',
+      orientation: 'bissexual',
+    });
+    fixture.detectChanges();
+
+    const identity = fixture.debugElement.query(
+      By.css('app-public-user-identity')
+    ).nativeElement as HTMLElement;
+    expect(identity.textContent).toContain('Casal');
+    expect(identity.textContent).not.toContain('Bi');
+    expect(identity.textContent).not.toContain('Bissexual');
+  });
+
   it('usa a imagem padrão quando a URL do perfil falha ao carregar', () => {
     const image = fixture.debugElement.query(
       By.css('.user-card__photo')
@@ -186,20 +202,22 @@ describe('UserCardComponent', () => {
     expect(fixture.componentInstance.publicPreview()?.isOnline).toBe(true);
   });
 
-  it('mantém idade, orientação e distância como contexto sem duplicar identidade/localização', () => {
+  it('mostra orientação uma vez na identidade e distância separada sem idade exata', () => {
     fixture.componentRef.setInput('distanciaKm', 4.2);
     fixture.detectChanges();
 
-    const metadata = fixture.debugElement.query(
-      By.css('.user-card__meta')
+    const identity = fixture.debugElement.query(
+      By.css('app-public-user-identity')
     ).nativeElement as HTMLElement;
     const location = fixture.debugElement.query(
       By.css('.user-card__location')
     ).nativeElement as HTMLElement;
 
-    expect(metadata.textContent).toContain('31 anos');
-    expect(metadata.textContent).toContain('Bissexual');
-    expect(metadata.textContent).not.toContain('Mulher');
+    expect(identity.textContent).toContain('Mulher');
+    expect(identity.textContent).toContain('Bi');
+    expect(identity.textContent).toContain('Niterói/RJ');
+    expect(fixture.debugElement.query(By.css('.user-card__meta'))).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('31 anos');
     expect(location.textContent).toMatch(/4[,.]2 km/);
     expect(location.textContent).not.toContain('Niterói');
     expect(
