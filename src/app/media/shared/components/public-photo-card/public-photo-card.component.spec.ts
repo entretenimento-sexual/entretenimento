@@ -212,6 +212,54 @@ describe('PublicPhotoCardComponent', () => {
     expect(stats).toHaveLength(4);
   });
 
+  it('distingue carregamento da miniatura e falha visível sem mudar o botão do viewer', () => {
+    fixture.componentRef.setInput('variant', 'profile');
+    fixture.detectChanges();
+    const button = fixture.debugElement.query(By.css('.photo-card-link'))
+      .nativeElement as HTMLButtonElement;
+    const image = button.querySelector('img.photo') as HTMLImageElement;
+
+    expect(button.querySelector('.photo-card-loading')).not.toBeNull();
+    expect(button.querySelector('.photo-card-unavailable')).toBeNull();
+
+    image.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+
+    expect(button.querySelector('.photo-card-loading')).toBeNull();
+    expect(button.querySelector('.photo-card-unavailable')?.textContent)
+      .toContain('Miniatura indisponível');
+    expect(button.getAttribute('aria-label')).toContain('Miniatura indisponível');
+    expect(button.type).toBe('button');
+
+    image.dispatchEvent(new Event('load'));
+    fixture.detectChanges();
+    expect(button.querySelector('.photo-card-unavailable')).toBeNull();
+    expect(button.querySelector('.photo-card-loading')).toBeNull();
+  });
+
+  it('não reutiliza erro de thumbnail ao trocar de foto e mantém outras variantes', () => {
+    fixture.componentRef.setInput('variant', 'profile');
+    fixture.detectChanges();
+    const original = fixture.nativeElement.querySelector('img.photo') as HTMLImageElement;
+    original.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.photo-card-unavailable')).not.toBeNull();
+
+    fixture.componentRef.setInput('photo', {
+      ...photo,
+      id: 'photo-2',
+      url: 'https://example.test/photo-2.jpg',
+    });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.photo-card-unavailable')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.photo-card-loading')).not.toBeNull();
+
+    fixture.componentRef.setInput('variant', 'latest');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.photo-card-loading')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.photo-card-unavailable')).toBeNull();
+  });
+
   it('mantém ações disponíveis mesmo quando os contadores começam zerados', () => {
     fixture.componentRef.setInput('photo', {
       ...photo,
