@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -59,6 +60,7 @@ type MixedVideoViewerData = IPublicVideoViewerData & {
     PublicVideoShareActionsComponent,
     PublicMediaBadgeComponent,
     PublicMediaRecommendationBadgeComponent,
+    PublicUserIdentityComponent,
   ],
   templateUrl: './public-video-viewer.component.html',
   styleUrls: ['./public-video-viewer.component.css'],
