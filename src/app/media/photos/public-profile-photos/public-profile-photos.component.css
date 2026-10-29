@@ -93,13 +93,6 @@
   min-width: 0;
 }
 
-.visited-gallery-header__eyebrow {
-  margin: 0 0 4px;
-  color: var(--text-secondary, #aeb8c7);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
 .visited-gallery-header__title {
   margin: 0;
   color: var(--text-color, #fff);
@@ -108,8 +101,7 @@
   overflow-wrap: anywhere;
 }
 
-.visited-gallery-header__location,
-.visited-gallery-header__description {
+.visited-gallery-header__location {
   margin: 6px 0 0;
   color: var(--text-secondary, #b6c0cd);
   font-size: 0.85rem;

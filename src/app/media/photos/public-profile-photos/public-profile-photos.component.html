@@ -31,7 +31,6 @@
           }
         </div>
         <div class="visited-gallery-header__details">
-          <p class="visited-gallery-header__eyebrow">Perfil visitado</p>
           <h2 class="visited-gallery-header__title">
             @if (identity) {
               {{ identity.nickname }}
@@ -44,8 +43,6 @@
               <i class="fas fa-location-dot" aria-hidden="true"></i>
               {{ location }}
             </p>
-          } @else {
-            <p class="visited-gallery-header__description">Publicações disponíveis para você neste perfil.</p>
           }
         </div>
       </div>
