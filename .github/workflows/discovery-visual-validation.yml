@@ -179,7 +179,8 @@ jobs:
                 gridColumns: gridStyle?.gridTemplateColumns?.split(/\\s+/).filter(Boolean).length ?? 0,
                 cardsCount: cards.length,
                 minCardWidth: cardRects.length ? Math.min(...cardRects.map((rect) => rect.width)) : 0,
-                firstMeta: document.querySelector('.user-card__meta')?.textContent?.replace(/\\s+/g, ' ').trim() ?? '',
+                firstMeta: document.querySelector('.public-profiles__item app-public-user-identity .public-user-identity__meta')?.textContent?.replace(/\\s+/g, ' ').trim() ?? '',
+                firstCardText: document.querySelector('.public-profiles__item')?.textContent?.replace(/\\s+/g, ' ').trim() ?? '',
                 loadMoreHeight: loadMore?.getBoundingClientRect().height ?? 0,
               };
             });
@@ -189,7 +190,8 @@ jobs:
             if (metrics.minTabHeight < 44) throw new Error('Discovery tabs lost the 44px touch target');
             if (metrics.gridDisplay !== 'grid' || metrics.gridColumns < 3) throw new Error('Discovery desktop grid is too narrow');
             if (metrics.cardsCount !== 6 || metrics.minCardWidth < 220) throw new Error('Discovery desktop did not render the deterministic cards');
-            if (!metrics.firstMeta.includes('29')) throw new Error('Public age is not visible in the first discovery card');
+            if (!metrics.firstMeta.includes('Mulher') || !metrics.firstMeta.includes('Hétero') || !metrics.firstMeta.includes('Rio de Janeiro/RJ')) throw new Error('Discovery desktop lost canonical public identity');
+            if (metrics.firstCardText.includes('29 anos')) throw new Error('Discovery desktop exposed forbidden exact age');
             if (metrics.loadMoreHeight < 44) throw new Error('Discovery load-more action lost the 44px touch target');
             return metrics;
           }"
@@ -222,7 +224,8 @@ jobs:
                 gridColumns: gridStyle?.gridTemplateColumns?.split(/\\s+/).filter(Boolean).length ?? 0,
                 gridWidth: gridRect?.width ?? 0,
                 firstCardWidth: firstCard?.width ?? 0,
-                firstMeta: document.querySelector('.user-card__meta')?.textContent?.replace(/\\s+/g, ' ').trim() ?? '',
+                firstMeta: document.querySelector('.public-profiles__item app-public-user-identity .public-user-identity__meta')?.textContent?.replace(/\\s+/g, ' ').trim() ?? '',
+                firstCardText: document.querySelector('.public-profiles__item')?.textContent?.replace(/\\s+/g, ' ').trim() ?? '',
                 loadMoreHeight: loadMore?.getBoundingClientRect().height ?? 0,
               };
             });
@@ -232,7 +235,8 @@ jobs:
             if (metrics.gridColumns !== 1) throw new Error('Discovery mobile grid did not collapse to one column');
             if (metrics.gridWidth < metrics.viewportWidth * 0.87) throw new Error('Discovery mobile grid lost useful viewport width');
             if (Math.abs(metrics.firstCardWidth - metrics.gridWidth) > 1) throw new Error('Discovery mobile card does not fill its grid column');
-            if (!metrics.firstMeta.includes('29')) throw new Error('Public age disappeared on mobile');
+            if (!metrics.firstMeta.includes('Mulher') || !metrics.firstMeta.includes('Hétero') || !metrics.firstMeta.includes('Rio de Janeiro/RJ')) throw new Error('Discovery mobile lost canonical public identity');
+            if (metrics.firstCardText.includes('29 anos')) throw new Error('Discovery mobile exposed forbidden exact age');
             if (metrics.loadMoreHeight < 44) throw new Error('Discovery mobile load-more action is below 44px');
             return metrics;
           }"
