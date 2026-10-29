@@ -18,6 +18,13 @@ import {
   take,
 } from 'rxjs/operators';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
+import {
+  normalizePublicUserIdentity,
+  type PublicUserIdentity,
+} from 'src/app/core/domain/public-user-identity/public-user-identity.model';
+import type { PublicProfileCard } from 'src/app/dashboard/discovery/models/public-profile-card.model';
+import type { IUserIntentStatusPublicProfile } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
@@ -41,6 +48,7 @@ import { ExploreSocialFeedItem } from '../../models/explore-social-feed';
     RouterModule,
     PublicPhotoCardComponent,
     PublicVideoCardComponent,
+    PublicUserIdentityComponent,
     FeedPublicationComposerComponent,
     UserIntentStatusComposerComponent,
     CommunityDiscoveryVisibilityDirective,
@@ -128,6 +136,26 @@ export class SocialExplorePageComponent {
     surface: Parameters<SocialExploreCommunityDistributionFacade['recordOpen']>[1]
   ): void {
     this.communityDistributionFacade.recordOpen(communityId, surface);
+  }
+
+  /** Nunca agrega orientação ou idade a partir de contexto temporário. */
+  publicStatusIdentity(profile: IUserIntentStatusPublicProfile): PublicUserIdentity | null {
+    return normalizePublicUserIdentity({
+      nickname: profile.nickname,
+      photoURL: profile.photoURL,
+    });
+  }
+
+  /** Identidade canônica da projeção pública usada no estado vazio. */
+  publicSuggestedIdentity(profile: PublicProfileCard): PublicUserIdentity | null {
+    return normalizePublicUserIdentity({
+      nickname: profile.nickname,
+      avatarUrl: profile.photoURL,
+      identityCode: profile.identityCode ?? profile.gender,
+      orientation: profile.orientation,
+      city: profile.municipio,
+      state: profile.estado,
+    });
   }
 
   communityInitials(name: string): string {
