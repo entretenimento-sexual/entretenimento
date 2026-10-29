@@ -224,7 +224,7 @@
   }
 
   .profile-card__action {
-    min-height: 34px;
+    min-height: var(--tap-target, 44px);
     font-size: 0.78rem;
   }
 }
