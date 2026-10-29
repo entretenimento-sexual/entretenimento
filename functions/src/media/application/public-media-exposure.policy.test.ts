@@ -165,6 +165,34 @@ describe('public media exposure policy', () => {
     );
   });
 
+  it('galeria não exibe projeção quando a publicação foi retirada ou mudou de audiência', () => {
+    const input = {
+      publicMedia: publicProjection(),
+      ownerExposureAllowed: true,
+      viewerIsOwner: true,
+      viewerIsFriend: false,
+      nowMs: NOW,
+    };
+    assert.equal(isCurrentPublicPhotoAssetExposure({
+      ...input, publication: publication(),
+    }), true);
+    for (const invalidPublication of [
+      null,
+      publication({ isPublished: false }),
+      publication({ visibility: 'FRIENDS' }),
+      publication({ moderationStatus: 'PENDING_REVIEW' }),
+    ]) {
+      assert.equal(isCurrentPublicPhotoAssetExposure({
+        ...input, publication: invalidPublication,
+      }), false);
+    }
+    assert.equal(isCurrentPublicPhotoAssetExposure({
+      ...input,
+      publicMedia: publicProjection({ visibility: 'ONLY_ME' }),
+      publication: publication({ visibility: 'ONLY_ME' }),
+    }), false);
+  });
+
   it('foto FRIENDS depende da audiência depois da mesma base de exposure', () => {
     const friendsProjection = publicProjection({ visibility: 'FRIENDS' });
     const friendsPublication = publication({ visibility: 'FRIENDS' });
