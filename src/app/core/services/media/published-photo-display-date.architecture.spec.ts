@@ -12,7 +12,8 @@ describe('data de exibição de foto pertence à publicação canônica', () => 
     const service = source('src/app/core/services/media/media-publication.service.ts');
     expect(component).toContain('updatePublishedPhotoDisplayDate$(');
     expect(component).not.toContain('photoFirestoreService.updatePhotoDisplayDate(');
-    expect(component).toContain('publication.displayDate !== undefined');
+    const mapper = source('src/app/core/services/media/owner-published-photo-cards.policy.ts');
+    expect(mapper).toContain('displayDate: publication.displayDate');
     expect(template).toContain('[showSecondaryAction]="item.publication.isPublished"');
     expect(service).toContain("'updatePublishedPhotoDisplayDate'");
     expect(service).toContain('displayDate: item.displayDate');
