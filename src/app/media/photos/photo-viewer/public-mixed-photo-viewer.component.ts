@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -47,6 +48,7 @@ type MixedPhotoViewerData = IPhotoViewerData & {
     ReactiveFormsModule,
     PublicMediaBadgeComponent,
     PublicMediaRecommendationBadgeComponent,
+    PublicUserIdentityComponent,
   ],
   templateUrl: './photo-viewer.component.html',
   styleUrls: ['./photo-viewer.component.css'],
