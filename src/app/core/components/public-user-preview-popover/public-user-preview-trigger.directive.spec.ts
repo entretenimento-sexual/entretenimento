@@ -36,8 +36,6 @@ class PreviewTriggerHostComponent {
       profileType: 'woman',
       profileTypeLabel: 'Mulher',
     },
-    age: 31,
-    orientationLabel: 'bissexual',
     isOnline: false,
     approximateDistanceKm: 3.4,
     bioPreview: 'Bio pública.',
@@ -87,6 +85,8 @@ describe('PublicUserPreviewTriggerDirective', () => {
       overlay.querySelector('app-public-user-preview-popover')
     ).toBeTruthy();
     expect(profileLink?.getAttribute('href')).toContain('/perfil/user-public-1');
+    expect(overlay.textContent).not.toContain('31 anos');
+    expect(overlay.textContent).not.toContain('Bissexual');
 
     directive.close();
     fixture.detectChanges();
