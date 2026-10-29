@@ -15,7 +15,7 @@ describe('substituição canônica de foto publicada', () => {
     expect(component).toContain('expectedAssetVersion');
     expect(component).not.toContain('this.photoUploadFlow.replaceProcessedPhoto$({');
     expect(template).toContain('[showEditAction]="!!item.url"');
-    expect(template).toContain('[showSecondaryAction]="!!item.path"');
+    expect(template).toContain('[showSecondaryAction]="item.publication.isPublished"');
   });
   it('upload da câmera e edição local seguem a mesma reserva e não criam biblioteca', () => {
     const service = source('src/app/core/services/image-handling/published-photo-replacement.service.ts');
