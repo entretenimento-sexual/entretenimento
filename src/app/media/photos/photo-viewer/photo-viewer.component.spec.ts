@@ -29,6 +29,10 @@ function photo(ownerUid: string, id: string): IProfilePhotoItem {
     alt: `Foto ${id}`,
     ownerNickname: `Perfil ${ownerUid}`,
     ownerPhotoURL: null,
+    ownerGender: ownerUid === 'owner-a' ? 'mulher' : 'casal-ele-ela',
+    ownerOrientation: 'bissexual',
+    ownerMunicipio: 'Rio de Janeiro',
+    ownerEstado: 'RJ',
     commentsEnabled: true,
     commentsPolicy: 'EVERYONE',
     reactionsEnabled: true,
@@ -170,6 +174,27 @@ describe('PhotoViewerComponent mixed-owner safety', () => {
     expect(ownerLink?.getAttribute('href')).toBe('/outro-perfil/owner-b');
     expect(ownerLink?.textContent).toContain('Perfil owner-b');
     expect(ownerLink?.textContent).toContain('Da sua rede');
+  });
+
+  it('usa o cabeçalho canônico da foto ativa sem inferir orientação de casal', () => {
+    const component = fixture.componentInstance;
+    let header = fixture.nativeElement.querySelector('.viewer-owner') as HTMLElement;
+    let meta = header.querySelector('.public-user-identity__meta') as HTMLElement;
+
+    expect(header.querySelector('app-public-user-identity')).not.toBeNull();
+    expect(meta.textContent).toContain('Mulher');
+    expect(meta.textContent).toContain('Bi');
+    expect(meta.textContent).toContain('Rio de Janeiro/RJ');
+
+    component.next();
+    fixture.detectChanges();
+    header = fixture.nativeElement.querySelector('.viewer-owner') as HTMLElement;
+    meta = header.querySelector('.public-user-identity__meta') as HTMLElement;
+
+    expect(meta.textContent).toContain('Casal');
+    expect(meta.textContent).not.toContain('Bi');
+    expect(header.getAttribute('href')).toBe('/outro-perfil/owner-b');
+    expect(header.querySelector('app-public-media-recommendation-badge')).not.toBeNull();
   });
 
   it('escopa reação, comentário e denúncia pelo owner da foto ativa', () => {
