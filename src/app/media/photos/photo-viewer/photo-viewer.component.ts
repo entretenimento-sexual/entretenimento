@@ -52,6 +52,11 @@ import {
 
 import type { IPublicMediaContinuationContext } from 'src/app/core/interfaces/media/i-public-media-continuation-context';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
+import {
+  normalizePublicUserIdentity,
+  type PublicUserIdentity,
+} from 'src/app/core/domain/public-user-identity/public-user-identity.model';
 import type {
   IOfficialMediaContextProjection,
 } from 'src/app/core/interfaces/media/i-official-media-context';
@@ -96,6 +101,11 @@ export interface IProfilePhotoItem {
 
   ownerNickname?: string | null;
   ownerPhotoURL?: string | null;
+  /** Apenas campos explicitamente transportados pela projeção pública da foto. */
+  ownerGender?: string | null;
+  ownerOrientation?: string | null;
+  ownerMunicipio?: string | null;
+  ownerEstado?: string | null;
   officialMediaContext?: IOfficialMediaContextProjection | null;
 
   commentsEnabled?: boolean;
@@ -153,6 +163,7 @@ const CONTINUATION_BATCH_SIZE = 8;
     ReactiveFormsModule,
     PublicMediaBadgeComponent,
     PublicMediaRecommendationBadgeComponent,
+    PublicUserIdentityComponent,
   ],
   templateUrl: './photo-viewer.component.html',
   styleUrls: ['./photo-viewer.component.css'],
@@ -232,6 +243,20 @@ export class PhotoViewerComponent {
     map(() => this.current),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  /** Identidade compacta obtida do item público ativo; nenhum acesso a /users. */
+  readonly currentOwnerIdentity$: Observable<PublicUserIdentity | null> =
+    this.currentPhoto$.pipe(
+      map((photo) => photo ? normalizePublicUserIdentity({
+        nickname: photo.ownerNickname,
+        photoURL: photo.ownerPhotoURL,
+        gender: photo.ownerGender,
+        orientation: photo.ownerOrientation,
+        municipio: photo.ownerMunicipio,
+        estado: photo.ownerEstado,
+      }) : null),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   readonly currentOwnerUid$: Observable<string> = this.currentPhoto$.pipe(
     map((photo) => this.resolvePhotoOwnerUid(photo)),
