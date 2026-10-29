@@ -118,7 +118,7 @@ async function run() {
     };
     await rejectCode(() => outsiderUpdateDate(dateCommand), 'permission-denied');
     await rejectCode(() => updateDate({
-      ...dateCommand, displayDate: Number.NaN,
+      ...dateCommand, displayDate: 'tomorrow',
     }), 'invalid-argument');
     assert.equal((await updateDate(dateCommand)).data.displayDate, dateValue);
     assert.equal((await pubRef.get()).get('displayDate'), dateValue);
