@@ -7,8 +7,8 @@
 // - manter a edição visual desacoplada da persistência: o editor devolve um
 //   arquivo processado e este componente executa a substituição da foto.
 //
-// users/{uid}/photos é compatibilidade legada, não a origem da data editável.
-// Edição e substituição são autorizadas pela publicação final vigente.
+// A galeria nunca carrega os documentos privados técnicos nem seus arquivos.
+// Datas antigas sem backfill usam createdAt até a migração controlada.
 
 import { CommonModule } from '@angular/common';
 import {
@@ -44,12 +44,13 @@ import { PhotoFirestoreService } from 'src/app/core/services/image-handling/phot
 import { PublishedPhotoReplacementService } from 'src/app/core/services/image-handling/published-photo-replacement.service';
 import { MediaPolicyService, IMediaPolicyResult } from 'src/app/core/services/media/media-policy.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
-import { MediaQueryService } from 'src/app/core/services/media/media-query.service';
-import { filterPublishedProfilePhotos } from 'src/app/core/services/media/profile-published-photo-filter.policy';
+import {
+  IOwnerPublishedPhotoCard,
+  mapOwnerPublishedPhotoCards,
+} from 'src/app/core/services/media/owner-published-photo-cards.policy';
 import { OwnerPublishedPhotoGalleryService } from 'src/app/core/services/media/owner-published-photo-gallery.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
-import type { IProfilePhotoItem } from '../photo-viewer/photo-viewer.component';
 import { PublicPhotoViewerLauncherService } from '../photo-viewer/public-photo-viewer-launcher.service';
 import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 import {
@@ -60,19 +61,7 @@ import {
   MediaDateDialogComponent,
 } from 'src/app/media/shared/components/media-date-dialog/media-date-dialog.component';
 
-type IManageablePhotoItem = IProfilePhotoItem & {
-  path?: string;
-  fileName?: string;
-  displayDate?: number | null;
-  ownerUid: string;
-};
-
-type IPhotoCardVm = IManageablePhotoItem & {
-  publication: IPhotoPublicationConfig;
-  /** Revisão canônica do ativo social, independente da origem privada. */
-  assetVersion?: number;
-  publishedAt?: number;
-};
+type IPhotoCardVm = IOwnerPublishedPhotoCard;
 
 type TProfilePhotoSortMode = 'newest' | 'oldest';
 
@@ -103,7 +92,6 @@ export class ProfilePhotosComponent {
   private readonly policy = inject(MediaPolicyService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(MediaApplicationErrorService);
-  private readonly mediaQuery = inject(MediaQueryService);
   private readonly ownerGallery = inject(OwnerPublishedPhotoGalleryService);
   private readonly publicPhotoViewer = inject(PublicPhotoViewerLauncherService);
   private readonly mediaPublicationService = inject(MediaPublicationService);
@@ -184,8 +172,7 @@ export class ProfilePhotosComponent {
   readonly ownerGalleryState$ = this.ownerGallery.state$;
 
   constructor() {
-    // A listagem social é a fonte dos itens; os documentos técnicos
-    // de origem servem somente às ações legadas que ainda os exigem.
+    // A listagem e os metadados vêm de publicações autorizadas, não do upload.
     combineLatest([this.ownerUid$, this.canView$]).pipe(
       distinctUntilChanged(
         ([previousUid, previousAllowed], [uid, allowed]) =>
@@ -203,26 +190,6 @@ export class ProfilePhotosComponent {
     this.ownerGallery.retry();
   }
 
-  readonly photos$: Observable<IManageablePhotoItem[]> = combineLatest([
-    this.ownerUid$,
-    this.canView$,
-  ]).pipe(
-    switchMap(([ownerUid, canView]) => {
-      if (!ownerUid || !canView) return of([] as IManageablePhotoItem[]);
-      return this.mediaQuery.watchProfilePhotos$(ownerUid);
-    }),
-    tap((items) => this.debug('photos$', { count: items.length })),
-    catchError((error) => {
-      this.errorHandler.report(error, {
-        operation: 'profilePhotos.load',
-        reasonHint: 'profile_photos_load_failed',
-        metadata: { scope: 'ProfilePhotosComponent' },
-      });
-      return of([] as IManageablePhotoItem[]);
-    }),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
   readonly publicationConfigs$: Observable<Record<string, IPhotoPublicationConfig>> =
     combineLatest([this.ownerUid$, this.isOwner$]).pipe(
       switchMap(([ownerUid, isOwner]) => {
@@ -235,44 +202,17 @@ export class ProfilePhotosComponent {
   readonly photoCards$: Observable<IPhotoCardVm[]> = combineLatest([
     this.ownerUid$,
     this.ownerGalleryState$,
-    this.photos$,
     this.publicationConfigs$,
     this.sortMode$,
   ]).pipe(
-    map(([ownerUid, gallery, originPhotos, publicationConfigs, sortMode]) => {
+    map(([ownerUid, gallery, publicationConfigs, sortMode]) => {
       if (gallery.ownerUid !== ownerUid) return [];
-
-      const originById = new Map(
-        filterPublishedProfilePhotos(originPhotos, publicationConfigs, ownerUid)
-          .map((photo) => [photo.id, photo])
+      const cards = mapOwnerPublishedPhotoCards(
+        ownerUid,
+        gallery.items,
+        publicationConfigs,
+        (uid, photoId) => this.mediaPublicationService.buildDefaultConfig(uid, photoId)
       );
-      const cards: IPhotoCardVm[] = gallery.items.map((photo) => {
-        const origin = originById.get(photo.id);
-        const storedConfig = publicationConfigs[photo.id];
-        const publication: IPhotoPublicationConfig =
-          storedConfig?.ownerUid === ownerUid && storedConfig.isPublished
-            ? storedConfig
-            : {
-                ...this.mediaPublicationService.buildDefaultConfig(ownerUid, photo.id),
-                isPublished: true,
-                visibility: photo.visibility,
-                moderationStatus: photo.moderationStatus ?? 'APPROVED',
-                isCover: photo.isCover === true,
-                orderIndex: photo.orderIndex,
-                publishedAt: photo.publishedAt,
-              };
-
-        return {
-          ...photo,
-          // Caminho de origem opcional: publicação pública nunca expõe upload privado.
-          path: origin?.path,
-          fileName: origin?.fileName,
-          displayDate: publication.displayDate !== undefined
-            ? publication.displayDate : origin?.displayDate,
-          publication,
-        };
-      });
-
       return this.sortPhotoCards(cards, sortMode);
     }),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -537,7 +477,7 @@ export class ProfilePhotosComponent {
             ownerUid,
             storedImageUrl,
             storedImageState: null,
-            fileName: item.fileName ?? item.alt ?? null,
+            fileName: item.alt ?? null,
           }).pipe(
             switchMap((result) => {
               if (!result) {
