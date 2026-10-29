@@ -44,6 +44,11 @@ import {
   isPublicVideoPlaybackItem,
 } from 'src/app/core/interfaces/media/i-public-video-item';
 import { IVideoComment } from 'src/app/core/interfaces/media/i-video-comment';
+import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
+import {
+  normalizePublicUserIdentity,
+  type PublicUserIdentity,
+} from 'src/app/core/domain/public-user-identity/public-user-identity.model';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { normalizeUserAccountLifecycleStatus } from 'src/app/core/services/autentication/auth/account-lifecycle.policy';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -140,6 +145,7 @@ const VIDEO_VIEWER_BLOCKED_TARGET_SELECTOR = `video,${PUBLIC_MEDIA_VIEWER_BLOCKE
     PublicVideoShareActionsComponent,
     PublicMediaBadgeComponent,
     PublicMediaRecommendationBadgeComponent,
+    PublicUserIdentityComponent,
   ],
   templateUrl: './public-video-viewer.component.html',
   styleUrls: ['./public-video-viewer.component.css'],
@@ -241,6 +247,20 @@ export class PublicVideoViewerComponent {
   readonly moderatingCommentId$ = this.moderatingCommentIdSubject.pipe(
     distinctUntilChanged()
   );
+
+  /** Projeção pública do autor do vídeo ativo; sem consulta adicional de perfil. */
+  readonly currentOwnerIdentity$: Observable<PublicUserIdentity | null> =
+    this.currentVideo$.pipe(
+      map((video) => video?.owner ? normalizePublicUserIdentity({
+        nickname: video.owner.nickname,
+        photoURL: video.owner.photoURL,
+        gender: video.owner.gender,
+        orientation: video.owner.orientation,
+        municipio: video.owner.municipio,
+        estado: video.owner.estado,
+      }) : null),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   readonly viewerUid$: Observable<string | null> =
     this.currentUserStore.user$.pipe(
