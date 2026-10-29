@@ -1,12 +1,17 @@
 /**
- * Auditoria read-only de fotos legadas, EXCLUSIVAMENTE no Emulator Suite.
- * Sem exclusão, escrita, export de IDs, leitura de conteúdo ou correção.
+ * Diagnóstico amostral SOMENTE LEITURA de originais legados no Emulator Suite.
+ * Nenhum estado desta auditoria autoriza exclusão; não imprime caminhos ou IDs.
+ * Não consulta nem exporta bytes. Não faz escrita, reparo, nem limpeza.
  *
  * Ex.: node scripts/dev/audit-legacy-photo-origins.mjs --max=150
  */
 import { initializeApp, deleteApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
+import {
+  classifyLegacyPhotoCleanupReadiness,
+  LEGACY_ORIGIN_BLOCKERS,
+} from './photo-legacy-cleanup-readiness.policy.mjs';
 
 const HOST = '127.0.0.1';
 const projectId = 'entretenimento-sexual';
@@ -29,6 +34,20 @@ process.env.GCP_PROJECT = projectId;
 process.env.FIRESTORE_EMULATOR_HOST = firestoreHost;
 process.env.STORAGE_EMULATOR_HOST = storageHost;
 
+function ownedOriginalPath(ownerUid, value) {
+  const prefix = `users/${ownerUid}/uploads/images/`;
+  return typeof value === 'string' && value.startsWith(prefix) &&
+    value.slice(prefix.length).length > 0 &&
+    !value.slice(prefix.length).includes('/');
+}
+
+function ownedFinalPath(ownerUid, photoId, value) {
+  const prefix = `users/${ownerUid}/published/images/${photoId}/`;
+  return typeof value === 'string' && value.startsWith(prefix) &&
+    value.slice(prefix.length).length > 0 &&
+    !value.slice(prefix.length).includes('/');
+}
+
 const app = initializeApp({
   projectId,
   storageBucket: `${projectId}.appspot.com`,
@@ -36,72 +55,90 @@ const app = initializeApp({
 const db = getFirestore(app);
 const bucket = getStorage(app).bucket();
 
-async function exists(path) {
-  if (typeof path !== 'string' || !path) return false;
-  const [ok] = await bucket.file(path).exists();
-  return ok;
+async function objectMetadata(path) {
+  try {
+    const [metadata] = await bucket.file(path).getMetadata();
+    return {
+      exists: true,
+      generation: typeof metadata.generation === 'string'
+        ? metadata.generation : String(metadata.generation ?? ''),
+    };
+  } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error
+      ? error.code : null;
+    if (code === 404 || code === '404') {
+      return { exists: false, generation: null };
+    }
+    // Falha de leitura NÃO equivale a arquivo ausente.
+    throw error;
+  }
 }
-const counts = {
-  total: 0,
-  publishedFinalConfirmed: 0,
-  publishedSourceAlreadyMissing: 0,
-  publishedFinalMissing: 0,
-  publishedNeedsReview: 0,
-  unpublished: 0,
-  noSourcePath: 0,
-};
+
+const counts = Object.fromEntries(
+  LEGACY_ORIGIN_BLOCKERS.map((state) => [state, 0])
+);
+let scanned = 0;
 try {
   const snapshot = await db.collectionGroup('photos').limit(max).get();
   for (const document of snapshot.docs) {
     const segments = document.ref.path.split('/');
     if (segments.length !== 4 || segments[0] !== 'users' ||
         segments[2] !== 'photos') continue;
+
     const ownerUid = segments[1];
     const photoId = segments[3];
-    counts.total += 1;
     const privateData = document.data();
-    const privatePath = String(privateData.path ?? '');
-    const ownedPrivatePath = privatePath.startsWith(
-      `users/${ownerUid}/uploads/images/`
-    ) && privatePath.slice(`users/${ownerUid}/uploads/images/`.length)
-      .length > 0 && !privatePath.slice(
-        `users/${ownerUid}/uploads/images/`.length
-      ).includes('/');
-    if (!ownedPrivatePath) {
-      counts.noSourcePath += 1;
+    scanned += 1;
+    const originalPath = ownedOriginalPath(ownerUid, privateData.path)
+      ? privateData.path
+      : ownedOriginalPath(ownerUid, privateData.url)
+        ? privateData.url : null;
+
+    if (!originalPath) {
+      counts.invalid_identity_or_source += 1;
       continue;
     }
 
-    const pub = await db.doc(
+    const publicationRef = db.doc(
       `users/${ownerUid}/photo_publications/${photoId}`
-    ).get();
-    if (!pub.exists || pub.get('isPublished') !== true) {
-      counts.unpublished += 1;
-      continue;
-    }
-    const finalPath = pub.get('publishedStoragePath');
-    const finalPrefix = `users/${ownerUid}/published/images/${photoId}/`;
-    const validFinal = typeof finalPath === 'string' &&
-      finalPath.startsWith(finalPrefix) &&
-      finalPath.slice(finalPrefix.length).length > 0 &&
-      !finalPath.slice(finalPrefix.length).includes('/');
-    if (!validFinal) {
-      counts.publishedNeedsReview += 1;
-      continue;
-    }
-    if (!await exists(finalPath)) {
-      counts.publishedFinalMissing += 1;
-      continue;
-    }
-    if (await exists(privatePath)) {
-      counts.publishedFinalConfirmed += 1;
-    } else {
-      counts.publishedSourceAlreadyMissing += 1;
-    }
+    );
+    const projectionRef = db.doc(
+      `public_profiles/${ownerUid}/public_photos/${photoId}`
+    );
+    const deletionJobRef = db.doc(
+      `media_photo_deletion_jobs/${ownerUid}_${photoId}`
+    );
+    const [pub, projection, deletionJob] = await Promise.all([
+      publicationRef.get(), projectionRef.get(), deletionJobRef.get(),
+    ]);
+    const publication = pub.exists ? pub.data() : null;
+    const finalPath = publication?.publishedStoragePath;
+    const original = await objectMetadata(originalPath);
+    const final = publication && ownedFinalPath(ownerUid, photoId, finalPath)
+      ? await objectMetadata(finalPath)
+      : { exists: false, generation: null };
+
+    const state = classifyLegacyPhotoCleanupReadiness({
+      ownerUid, photoId, originalPath, original, final, publication,
+      projection: projection.exists ? projection.data() : null,
+      deletionJob: deletionJob.exists,
+      privateDocument: privateData,
+    });
+    counts[state] += 1;
   }
   console.log('[legacy-photo-origin-audit] SOMENTE LEITURA / NÃO EXCLUIR');
   console.log(JSON.stringify({
-    ...counts, scanLimit: max, truncated: snapshot.size === max,
+    scanned,
+    scanLimit: max,
+    truncated: snapshot.size === max,
+    statuses: counts,
+    deletionAuthorized: false,
+    remainingBlockers: [
+      'consumidores legados não migrados',
+      'reservas e processamento pendentes não reconciliados',
+      'retenção legal e evidências não auditadas',
+      'revalidação transacional e generation fence não implementados',
+    ],
   }, null, 2));
 } finally {
   await deleteApp(app);
