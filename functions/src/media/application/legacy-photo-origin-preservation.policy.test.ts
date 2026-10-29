@@ -30,7 +30,7 @@ function inspect(overrides: {
 
 describe('legacy published photo origin preservation', () => {
   it('identifica origens técnicas redundantes sem autorizar exclusão', () => {
-    assert.equal(inspect(), 'published_final_exists');
+    assert.equal(inspect(), 'published_final_referenced');
     assert.equal(inspect({ sourceExists: false }), 'published_source_missing');
   });
   it('nunca trata quarentena como autorização para eliminar a publicação', () => {
