@@ -506,7 +506,7 @@ requireIncludes(photoUploadTemplate, [
 requireIncludes(profilePhotosTemplate, [
   'app-media-action-menu',
   'editLabel="Editar foto"',
-  '[showSecondaryAction]="!!item.path"',
+  '[showSecondaryAction]="item.publication.isPublished"',
   '[showEditAction]="!!item.url"',
   'secondaryLabel="Alterar data"',
   '(secondaryAction)="editPhotoDate(item)"',
