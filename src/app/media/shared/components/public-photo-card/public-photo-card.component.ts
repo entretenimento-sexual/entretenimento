@@ -66,7 +66,9 @@ export class PublicPhotoCardComponent {
     }
   );
   readonly thumbnailUnavailable = computed(
-    () => this.failedThumbnailKey() === this.currentThumbnailKey()
+    () =>
+      this.variant() === 'profile' &&
+      this.failedThumbnailKey() === this.currentThumbnailKey()
   );
   readonly thumbnailLoading = computed(
     () =>
