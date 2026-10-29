@@ -3,9 +3,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
-import {
-  resolveBlockedTargetUids,
-} from '../../friendship/application/bilateral-block-access.policy';
+import { resolveSocialConnectionAccess } from '../../friendship/application/social-connection-access.policy';
 import {
   assertPublicMediaCallableAppCheck,
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
@@ -134,9 +132,9 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
      * backend a cada emissão/renovação. Media não interpreta a razão da decisão.
      *
      * MANUTENÇÃO — RESTRIÇÃO FUTURA POR ASSINATURA/AUDIÊNCIA
-     * Quando FRIENDS, SUBSCRIBERS ou PREMIUM forem ativados, esta policy deve
-     * ser estendida com amizade/entitlement vigentes. Compartilhar um link ou
-     * uma referência no chat nunca concede acesso por si só.
+     * FRIENDS exige amizade recíproca vigente, validada com bloqueios
+     * bilaterais. Um link ou referência nunca concede acesso por si só.
+     * SUBSCRIBERS e PREMIUM continuam indisponíveis sem entitlement.
      */
     const requesterAccess =
       await assertPublicMediaConsumptionAccess(viewerUid);
@@ -145,10 +143,10 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
     const ownerUids = [
       ...new Set([...uniqueItems.values()].map(({ ownerUid }) => ownerUid)),
     ];
-    let blockedOwnerUids: Set<string>;
+    let socialAccess: Awaited<ReturnType<typeof resolveSocialConnectionAccess>>;
 
     try {
-      blockedOwnerUids = await resolveBlockedTargetUids(viewerUid, ownerUids);
+      socialAccess = await resolveSocialConnectionAccess(viewerUid, ownerUids);
     } catch (error) {
       logger.warn(
         '[getPublicVideoAccessUrls] Falha ao validar bloqueios bilaterais.',
@@ -173,7 +171,7 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
     try {
       publicProfileAccessByOwner = await resolvePublicMediaSignedOwnerExposure(
         ownerUids,
-        blockedOwnerUids,
+        socialAccess.blockedTargetUids,
         nowMs
       );
     } catch (error) {
@@ -212,6 +210,9 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
                   ownerAccessExpiresAtMs:
                     profileAccess?.accountAccessExpiresAtMs ?? null,
                   ownerExposureAllowed: profileAccess?.allowed === true,
+                  viewerCanReadFriends:
+                    ownerUid === viewerUid ||
+                    socialAccess.friendTargetUids.has(ownerUid),
                   mode,
                   nowMs,
                 },
