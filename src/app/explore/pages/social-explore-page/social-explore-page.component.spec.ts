@@ -336,7 +336,7 @@ describe('SocialExplorePageComponent', () => {
       municipio: 'Niterói',
       estado: 'RJ',
     });
-    const status = component.publicStatusIdentity({
+    const status = fixture.componentInstance.publicStatusIdentity({
       uid: 'status-1',
       nickname: 'Pessoa pública',
       photoURL: null,
