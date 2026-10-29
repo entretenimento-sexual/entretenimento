@@ -327,7 +327,7 @@ describe('SocialExplorePageComponent', () => {
   });
 
   it('não infere orientação do casal nem transporta idade de status', () => {
-    const casal = component.publicSuggestedIdentity({
+    const casal = fixture.componentInstance.publicSuggestedIdentity({
       uid: 'casal-1',
       nickname: 'Casal público',
       identityCode: 'casal-ele-ela',
