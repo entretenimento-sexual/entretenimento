@@ -28,3 +28,18 @@ export function filterPublishedProfilePhotos<TPhoto extends { readonly id: strin
       publication.isPublished === true;
   });
 }
+
+/**
+ * As páginas já foram autorizadas pelo backend PUBLIC/FRIENDS.
+ * O proprietário deve ser novamente conferido na composição visual,
+ * sem depender da presença de documentos de uploads privados.
+ */
+export function filterOwnerPublishedPhotoPage<
+  TPhoto extends { readonly id: string; readonly ownerUid: string }
+>(photos: readonly TPhoto[], ownerUid: string): TPhoto[] {
+  const owner = String(ownerUid ?? '').trim();
+  if (!owner) return [];
+  return photos.filter((photo) =>
+    photo.ownerUid === owner && !!String(photo.id ?? '').trim()
+  );
+}
