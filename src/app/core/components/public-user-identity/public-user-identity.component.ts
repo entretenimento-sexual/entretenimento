@@ -88,7 +88,7 @@ export class PublicUserIdentityComponent {
       ? `${city}/${state}`
       : city ?? state;
 
-    return [identityLabel, location].filter(
+    return [identityLabel, normalized?.orientationShortLabel ?? null, location].filter(
       (value): value is string => !!value
     );
   });

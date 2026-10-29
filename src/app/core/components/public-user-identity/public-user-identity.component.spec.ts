@@ -21,6 +21,7 @@ describe('PublicUserIdentityComponent', () => {
       label: 'serale',
       avatarUrl: 'https://example.com/avatar.webp',
       identityCode: 'mulher',
+      orientation: 'bissexual',
       city: 'Rio de Janeiro',
       state: 'RJ',
     });
@@ -31,11 +32,28 @@ describe('PublicUserIdentityComponent', () => {
     const element = fixture.nativeElement as HTMLElement;
     expect(element.textContent).toContain('serale');
     expect(element.textContent).toContain('Mulher');
+    expect(element.textContent).toContain('Bi');
     expect(element.textContent).toContain('Rio de Janeiro/RJ');
     expect(element.textContent).toContain('há 3 horas');
     expect(element.querySelector('time')?.getAttribute('datetime')).toBe(
       '2026-08-31T18:00:00.000Z'
     );
+  });
+
+  it('nao mostra orientacao na falta de declaracao publica', () => {
+    fixture.componentRef.setInput('identity', {
+      nickname: 'perfil sem orientacao',
+      identityCode: 'mulher',
+      city: 'Niterói',
+      state: 'RJ',
+    });
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('Mulher');
+    expect(el.textContent).not.toContain('Hétero');
+    expect(el.textContent).not.toContain('Bi');
+    expect(el.textContent).not.toContain('Homo');
+    expect(el.textContent).not.toContain('Pan');
   });
 
   it('aceita aliases legados somente como ponte visual de migração', () => {

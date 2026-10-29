@@ -107,6 +107,7 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
         municipio: 'Rio de Janeiro', estado: 'RJ',
         identityCode: 'casal-ele-ela',
         identityLabel: 'Casal (Ele/Ela)',
+        orientation: 'bissexual',
       })),
     };
 
@@ -149,14 +150,16 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
   });
 
   it('identifica o perfil usando somente a leitura pública autorizada', () => {
-    const identities: Array<{ nickname: string; location: string | null } | null> = [];
+    const identities: Array<{ nickname: string; city?: string | null } | null> = [];
     const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
 
     expect(publicUsers.getPublicUserById$).toHaveBeenCalledWith(PHOTO.ownerUid);
     expect(identities.at(-1)).toMatchObject({
       nickname: 'Perfil de teste',
-      location: 'Rio de Janeiro, RJ',
+      city: 'Rio de Janeiro',
+      state: 'RJ',
       identityLabel: 'Casal (Ele/Ela)',
+      orientationShortLabel: 'Bi',
     });
     subscription.unsubscribe();
   });

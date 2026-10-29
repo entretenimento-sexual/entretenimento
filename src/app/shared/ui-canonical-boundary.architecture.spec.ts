@@ -1905,9 +1905,10 @@ describe('Canonical UI boundary', () => {
     // A tela visitada deve identificar o proprietário e permitir retorno ao perfil.
     expect(publicPhotos).toContain('Voltar ao perfil');
     expect(publicPhotos).toContain('visited-gallery-header__identity');
-    expect(publicPhotos).toContain('{{ identityLabel }}');
+    expect(publicPhotos).toContain('<app-public-user-identity');
+    expect(publicPhotos).toContain('[identity]="identity"');
     expect(publicPhotos).not.toContain('Fotos públicas');
-    expect(publicPhotos).toContain('{{ identity.nickname }}');
+    expect(publicPhotos).not.toContain('{{ identity.nickname }}');
     expect(publicPhotos).not.toContain('gallery-strip');
     expect(publicPhotos).not.toContain('Conteúdo aprovado');
     expect(publicPhotoStyles).not.toContain('.back-link');

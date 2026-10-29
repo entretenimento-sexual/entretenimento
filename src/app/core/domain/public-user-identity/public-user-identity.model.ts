@@ -26,6 +26,10 @@ export interface PublicUserIdentity {
   /** Labels resolvidos pela camada canônica; não são a fonte persistente. */
   readonly identityLabel?: string | null;
   readonly identityShortLabel?: string | null;
+  /** Somente orientação explicitamente presente em uma projeção pública autorizada. */
+  readonly orientation?: string | null;
+  /** Abreviação visual validada: nunca inferida a partir de gênero ou tipo. */
+  readonly orientationShortLabel?: string | null;
   readonly discoveryGroup?: ProfileIdentityDiscoveryGroup | null;
   readonly city?: string | null;
   readonly state?: string | null;
@@ -45,6 +49,13 @@ const DISCOVERY_GROUPS = new Set<ProfileIdentityDiscoveryGroup>([
   'crossdresser',
   'nonbinary',
 ]);
+
+const PUBLIC_ORIENTATION_SHORT_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  heterossexual: 'Hétero',
+  bissexual: 'Bi',
+  homossexual: 'Homo',
+  pansexual: 'Pan',
+});
 
 const BRAZILIAN_UFS = new Set([
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
@@ -167,6 +178,11 @@ export function normalizePublicUserIdentity(
   const identityShortLabel = identityOption?.shortLabel
     ?? groupFallback?.shortLabel
     ?? null;
+  const declaredOrientation = normalizeText(source['orientation'], 40).toLowerCase();
+  const orientationShortLabel =
+    Object.prototype.hasOwnProperty.call(PUBLIC_ORIENTATION_SHORT_LABELS, declaredOrientation)
+      ? PUBLIC_ORIENTATION_SHORT_LABELS[declaredOrientation]
+      : null;
 
   return {
     // `uid` pode ser um identificador interno presente em projeções que
@@ -180,6 +196,8 @@ export function normalizePublicUserIdentity(
     identityCode,
     identityLabel,
     identityShortLabel,
+    orientation: orientationShortLabel ? declaredOrientation : null,
+    orientationShortLabel,
     discoveryGroup,
     city: normalizeText(source['city'] ?? source['municipio'], 80) || null,
     state: normalizeState(source['state'] ?? source['estado']),

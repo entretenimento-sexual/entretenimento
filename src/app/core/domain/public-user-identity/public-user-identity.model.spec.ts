@@ -31,6 +31,36 @@ describe('normalizePublicUserIdentity', () => {
     });
   });
 
+  it('normaliza abreviacao de orientacao apenas quando declarada publicamente', () => {
+    for (const [orientation, abbreviation] of [
+      ['heterossexual', 'Hétero'],
+      ['bissexual', 'Bi'],
+      ['homossexual', 'Homo'],
+      ['pansexual', 'Pan'],
+    ]) {
+      const identity = normalizePublicUserIdentity({
+        nickname: 'perfil teste',
+        identityCode: 'mulher',
+        orientation,
+      });
+      expect(identity?.orientationShortLabel).toBe(abbreviation);
+      expect(identity?.orientation).toBe(orientation);
+    }
+    for (const orientation of [null, undefined, 'indefinida', 'prefere não informar']) {
+      const identity = normalizePublicUserIdentity({
+        nickname: 'perfil teste',
+        identityCode: 'mulher',
+        orientation,
+      });
+      expect(identity?.identityShortLabel).toBe('Mulher');
+      expect(identity?.orientationShortLabel).toBeNull();
+    }
+    expect(normalizePublicUserIdentity({
+      nickname: 'perfil teste',
+      gender: 'mulher',
+    })?.orientationShortLabel).toBeNull();
+  });
+
   it('aceita aliases legados durante a migração sem expor campos desconhecidos', () => {
     const identity = normalizePublicUserIdentity({
       label: 'casal_rio',

@@ -21,41 +21,15 @@
   <header class="visited-gallery-header">
     <div class="visited-gallery-header__content">
       <div class="visited-gallery-header__identity">
-        <div class="visited-gallery-header__avatar">
-          @if (identity) {
-            <img
-              [src]="identity.avatarUrl || 'assets/imagem-padrao.webp'"
-              [alt]="'Foto do perfil de ' + identity.nickname"
-              width="72"
-              height="72"
-              loading="lazy"
-              referrerpolicy="no-referrer"
-              (error)="onProfileAvatarError($event)"
-            />
-          } @else {
-            <i class="fas fa-user" aria-hidden="true"></i>
-          }
-        </div>
-        <div class="visited-gallery-header__details">
-          <h2 class="visited-gallery-header__title">
-            @if (identity) {
-              {{ identity.nickname }}
-            } @else {
-              Perfil indisponível
-            }
-          </h2>
-          <div class="visited-gallery-header__meta">
-            @if (identity?.identityLabel; as identityLabel) {
-              <span class="visited-gallery-header__kind">{{ identityLabel }}</span>
-            }
-            @if (identity?.location; as location) {
-              <span class="visited-gallery-header__location">
-                <i class="fas fa-location-dot" aria-hidden="true"></i>
-                {{ location }}
-              </span>
-            }
-          </div>
-        </div>
+        @if (identity) {
+          <app-public-user-identity
+            [identity]="identity"
+            density="comfortable"
+            emphasis="strong"
+          />
+        } @else {
+          <span class="visited-gallery-header__unavailable">Perfil indisponível</span>
+        }
       </div>
       @if (ownerUid) {
         <nav class="visited-gallery-header__actions" aria-label="Navegação do perfil visitado">
