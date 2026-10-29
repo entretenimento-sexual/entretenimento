@@ -17,14 +17,9 @@
 }
 
 <span class="public-user-identity__copy">
+  @if (showName()) {
   <span class="public-user-identity__primary-line">
-    @if (headingLevel() === 1) {
-      <h1 class="public-user-identity__name" [attr.id]="headingId()">
-        {{ displayName() }}
-      </h1>
-    } @else {
-      <strong class="public-user-identity__name">{{ displayName() }}</strong>
-    }
+    <strong class="public-user-identity__name">{{ displayName() }}</strong>
 
     @if (contextText(); as context) {
       @if (contextDateTime(); as dateTime) {
@@ -45,6 +40,7 @@
       }
     }
   </span>
+  }
 
   @if (metaParts().length > 0) {
     <span
