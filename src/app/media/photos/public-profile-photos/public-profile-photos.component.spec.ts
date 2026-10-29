@@ -230,10 +230,10 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
   });
 
   it('sincroniza lote e largura das colunas sem cards estreitos', () => {
-    for (const width of [320, 360, 400, 479]) {
+    for (const width of [320, 360, 399, 419]) {
       expect(resolvePublicProfilePhotoPageSize(width)).toBe(8);
     }
-    for (const width of [480, 552, 759, 799]) {
+    for (const width of [420, 430, 479, 552, 799]) {
       expect(resolvePublicProfilePhotoPageSize(width)).toBe(12);
     }
     for (const width of [800, 1080, 1159, 1160, 1320]) {
