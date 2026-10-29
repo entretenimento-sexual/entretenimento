@@ -23,6 +23,9 @@ import {
 } from '../media-format.generated';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
 import {
+  deleteGenerationPinnedVideoFile, normalizeGcsGeneration,
+} from './video-deletion-storage-pages';
+import {
   PHOTO_CLEANUP_DEAD_LETTER_RETENTION_MS,
   PHOTO_CLEANUP_MAX_ATTEMPTS,
   nextPhotoCleanupRetry,
@@ -51,6 +54,9 @@ interface PhotoUploadReservationDocument {
   storagePath: string;
   sizeBytes: number;
   contentType: string;
+  /** A consumed replacement is a staged object awaiting deletion. */
+  consumedAt?: number;
+  sourceGeneration?: string;
   createdAt: Timestamp;
   expiresAt: Timestamp;
   cleanupAttempts?: number;
@@ -207,7 +213,18 @@ async function reconcileExpiredPhotoUploadReservation(
       );
     }
 
-    await file.delete({ ignoreNotFound: true });
+    // Generation is captured at publication commit. Never remove a later
+    // upload or replaced object when a retry acts on an expired reservation.
+    const actualGeneration = normalizeGcsGeneration(metadata.generation);
+    const pinnedGeneration = reservation.consumedAt
+      ? normalizeGcsGeneration(reservation.sourceGeneration) : actualGeneration;
+    if (!actualGeneration || !pinnedGeneration ||
+        actualGeneration !== pinnedGeneration) {
+      throw new Error('Generation de staging alterada; revisão manual necessária.');
+    }
+    await deleteGenerationPinnedVideoFile(pinnedGeneration, (generation) =>
+      file.delete({ ignoreNotFound: true, ifGenerationMatch: generation })
+    );
     await documentSnapshot.ref.delete();
     return 'orphan_deleted';
   } catch (error) {
