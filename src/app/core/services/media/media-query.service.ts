@@ -4,8 +4,9 @@
 // AJUSTES DESTA VERSÃO:
 // - continua sem store fake
 // - continua lendo do PhotoFirestoreService
-// - agora expõe path, fileName e displayDate para gestão direta na galeria
-// - mantém stream reativa e contrato de leitura
+// - preserva path/fileName/displayDate SOMENTE para consumidores legados
+// - a galeria própria canônica não utiliza este serviço nem lê originais
+// - mantém stream reativa para os fluxos ainda não migrados
 
 import { Injectable } from '@angular/core';
 import { Observable, combineLatest, of } from 'rxjs';
