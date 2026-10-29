@@ -13,13 +13,15 @@ export function assertCurrentPublicVideoTransactionExposure(input: {
   publicVideo: Record<string, unknown> | null | undefined;
   publication: Record<string, unknown> | null | undefined;
   nowMs: number;
+  viewerCanReadFriends?: boolean;
 }): void {
   if (!isCurrentPublicMediaAssetExposure({
     publicMedia: input.publicVideo,
     publication: input.publication,
     ownerExposureAllowed: true,
     nowMs: input.nowMs,
-    allowedVisibilities: ['PUBLIC'],
+    allowedVisibilities: input.viewerCanReadFriends === true
+      ? ['PUBLIC', 'FRIENDS'] : ['PUBLIC'],
   })) {
     throw new HttpsError('not-found', 'Vídeo público não encontrado.');
   }
