@@ -326,6 +326,30 @@ describe('SocialExplorePageComponent', () => {
     fixture.detectChanges();
   });
 
+  it('não infere orientação do casal nem transporta idade de status', () => {
+    const casal = component.publicSuggestedIdentity({
+      uid: 'casal-1',
+      nickname: 'Casal público',
+      identityCode: 'casal-ele-ela',
+      gender: 'mulher',
+      orientation: 'bissexual',
+      municipio: 'Niterói',
+      estado: 'RJ',
+    });
+    const status = component.publicStatusIdentity({
+      uid: 'status-1',
+      nickname: 'Pessoa pública',
+      photoURL: null,
+      age: 34,
+    });
+
+    expect(casal?.identityShortLabel).toBe('Casal');
+    expect(casal?.orientationShortLabel).toBeUndefined();
+    expect(casal?.city).toBe('Niterói');
+    expect(status?.nickname).toBe('Pessoa pública');
+    expect('age' in (status ?? {})).toBe(false);
+  });
+
   it('não exibe título visual de feed', () => {
     expect(fixture.debugElement.queryAll(By.css('h1'))).toHaveLength(0);
     expect(fixture.nativeElement.textContent).not.toContain('Feed');
