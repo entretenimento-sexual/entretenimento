@@ -10,7 +10,8 @@ describe('substituição canônica de foto publicada', () => {
     const component = source('src/app/media/photos/profile-photos/profile-photos.component.ts');
     const template = source('src/app/media/photos/profile-photos/profile-photos.component.html');
     expect(component).toContain('this.publishedReplacement.replace$({');
-    expect(component).toContain('storedImageUrl:');
+    expect(component).toContain('const storedImageUrl = String(item.url ??');
+    expect(component).toContain('storedImageUrl,');
     expect(component).toContain('expectedAssetVersion');
     expect(component).not.toContain('this.photoUploadFlow.replaceProcessedPhoto$({');
     expect(template).toContain('[showEditAction]="!!item.url"');
