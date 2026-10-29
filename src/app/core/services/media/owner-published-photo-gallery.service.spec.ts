@@ -106,6 +106,35 @@ describe('OwnerPublishedPhotoGalleryService', () => {
     expect(load).toHaveBeenCalledTimes(2);
   });
 
+  it('carrega 32 publicações PUBLIC/FRIENDS sem biblioteca privada de origem', () => {
+    const items: IPublicPhotoItem[] = Array.from({ length: 32 }, (_, index) => ({
+      ...PHOTO,
+      id: `galeria_teste02_${String(index + 1).padStart(3, '0')}`,
+      publishedAt: 2_000 - index,
+      visibility: index % 2 === 0 ? 'PUBLIC' : 'FRIENDS',
+      url: `https://example.test/galeria_teste02_${index + 1}.jpg`,
+    }));
+    load.mockImplementation((request: { cursor?: unknown }) => of(
+      request.cursor ? page(items.slice(24), null) : page(items.slice(0, 24), CURSOR)
+    ));
+
+    let state: { readonly items: readonly IPublicPhotoItem[]; readonly hasMore: boolean } = {
+      items: [],
+      hasMore: false,
+    };
+    service.state$.subscribe((next) => { state = next; });
+    service.connect('owner-a', true);
+    expect(state.items).toHaveLength(24);
+    expect(state.hasMore).toBe(true);
+
+    service.loadMorePhotos();
+    expect(state.items).toHaveLength(32);
+    expect(new Set(state.items.map((item) => item.id)).size).toBe(32);
+    expect(state.items.filter((item) => item.visibility === 'FRIENDS')).toHaveLength(16);
+    expect(state.hasMore).toBe(false);
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
   it('mantém a primeira página e oferece nova tentativa após falha', () => {
     let attempts = 0;
     load.mockImplementation((request: { cursor?: unknown }) => {
