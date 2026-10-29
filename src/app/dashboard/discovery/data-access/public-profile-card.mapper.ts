@@ -70,14 +70,6 @@ function firstNumber(
   return Number.isFinite(parsed) ? Math.max(0, parsed) : null;
 }
 
-function publicProfileAge(value: unknown): number | null {
-  const parsed = typeof value === 'number' ? value : Number(value);
-
-  return Number.isInteger(parsed) && parsed >= 18 && parsed <= 100
-    ? parsed
-    : null;
-}
-
 function firstCoordinate(
   source: PublicProfileSource,
   keys: readonly string[],
@@ -251,13 +243,15 @@ export function mapPublicProfileCard(
     ]),
 
     gender: firstText(source, ['gender', 'genero']),
+    identityCode: firstText(source, ['identityCode']),
     orientation: firstText(source, [
       'orientation',
       'sexualOrientation',
       'orientacao',
       'orientacaoSexual',
     ]),
-    age: publicProfileAge(firstValue(source, ['age', 'idade'])),
+    // A idade exata não faz parte da projeção pública canônica.
+    age: null,
 
     normalizedGender: firstText(source, ['normalizedGender']),
     normalizedOrientation: firstText(source, ['normalizedOrientation']),
