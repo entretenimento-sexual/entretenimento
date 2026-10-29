@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
+import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import {
   IPublicProfilePhotoCursor,
   IPublicProfilePhotoPage,
@@ -70,6 +71,7 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
   let pagination: { loadPage$: ReturnType<typeof vi.fn> };
   let viewer: { open$: ReturnType<typeof vi.fn> };
   let errors: { report: ReturnType<typeof vi.fn> };
+  let publicUsers: { getPublicUserById$: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     routeParams = new BehaviorSubject<ParamMap>(
@@ -98,6 +100,13 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
     errors = {
       report: vi.fn(),
     };
+    publicUsers = {
+      getPublicUserById$: vi.fn((uid: string) => of({
+        uid, nickname: uid === PHOTO.ownerUid ? 'Perfil de teste' : 'Outro perfil',
+        photoURL: 'https://example.test/avatar.png',
+        municipio: 'Rio de Janeiro', estado: 'RJ',
+      })),
+    };
 
     TestBed.configureTestingModule({
       providers: [
@@ -108,6 +117,10 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
         {
           provide: PublicProfilePhotoPaginationService,
           useValue: pagination,
+        },
+        {
+          provide: FirestoreUserQueryService,
+          useValue: publicUsers,
         },
         {
           provide: PublicPhotoViewerLauncherService,
@@ -131,6 +144,44 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
     // O componente criado diretamente não executa ngAfterViewInit.
     // A dimensão inicial é injetada explicitamente nestes testes.
     component['pageSizeSubject'].next(24);
+  });
+
+  it('identifica o perfil usando somente a leitura pública autorizada', () => {
+    const identities: Array<{ nickname: string; location: string | null } | null> = [];
+    const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
+
+    expect(publicUsers.getPublicUserById$).toHaveBeenCalledWith(PHOTO.ownerUid);
+    expect(identities.at(-1)).toMatchObject({
+      nickname: 'Perfil de teste',
+      location: 'Rio de Janeiro, RJ',
+    });
+    subscription.unsubscribe();
+  });
+
+  it('não mostra identidade de outro UID e descarta resultados atrasados', () => {
+    const pending = new Subject<{ uid: string; nickname: string } | null>();
+    publicUsers.getPublicUserById$.mockImplementation((uid: string) => (
+      uid === PHOTO.ownerUid ? pending : of({ uid, nickname: 'Outro perfil' })
+    ));
+    const identities: Array<{ nickname: string } | null> = [];
+    const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
+
+    routeParams.next(convertToParamMap({ id: OTHER.ownerUid }));
+    pending.next({ uid: PHOTO.ownerUid, nickname: 'Identidade antiga' });
+
+    expect(identities.at(-1)?.nickname).toBe('Outro perfil');
+    expect(identities.some(identity => identity?.nickname === 'Identidade antiga')).toBe(false);
+    subscription.unsubscribe();
+  });
+
+  it('não revela identificação quando a leitura pública falha ou não corresponde', () => {
+    publicUsers.getPublicUserById$.mockReturnValue(of({
+      uid: OTHER.ownerUid, nickname: 'Nome não autorizado',
+    }));
+    const identities: Array<{ nickname: string } | null> = [];
+    const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
+    expect(identities.at(-1)).toBeNull();
+    subscription.unsubscribe();
   });
 
   it('seleciona 8, 12 ou 24 conforme as colunas do contêiner', () => {
@@ -510,6 +561,7 @@ describe('PublicProfilePhotosComponent / inicialização da view', () => {
             paramMap: of(convertToParamMap({ id: PHOTO.ownerUid })),
           } },
           { provide: PublicProfilePhotoPaginationService, useValue: { loadPage$ } },
+          { provide: FirestoreUserQueryService, useValue: { getPublicUserById$: vi.fn(() => of(null)) } },
           { provide: PublicPhotoViewerLauncherService, useValue: { open$: vi.fn() } },
           { provide: MediaApplicationErrorService, useValue: { report: vi.fn() } },
           { provide: PrivacyDebugLoggerService, useValue: { log: vi.fn() } },

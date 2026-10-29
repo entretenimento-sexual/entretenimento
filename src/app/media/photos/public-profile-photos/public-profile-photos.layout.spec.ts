@@ -42,6 +42,17 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
     expect(cardHtml).toContain('@if (item.isCover) {');
   });
 
+  it('mostra dono identificado e navegacao sem ler documentos privados', () => {
+    expect(pageHtml).toContain('Fotos de {{ identity.nickname }}');
+    expect(pageHtml).toContain('visited-gallery-header__avatar');
+    expect(pageHtml).toContain("['/perfil', ownerUid]");
+    expect(pageHtml).toContain("['/media/perfil', ownerUid, 'videos-publicos']");
+    expect(pageCss).toContain('.visited-gallery-header__content');
+    expect(pageCss).toContain('@container public-photos-gallery (max-width: 540px)');
+    expect(component).toContain('getPublicUserById$(');
+    expect(component).not.toContain('getUserById$(');
+  });
+
   it('mantem paginacao, deduplicacao e abertura por identidade no viewer', () => {
     expect(component).toContain('this.photoPagination.loadPage$(');
     expect(component).toContain('this.mergePages(pages)');

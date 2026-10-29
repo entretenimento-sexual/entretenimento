@@ -18,7 +18,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 
 import {
   BehaviorSubject,
@@ -46,14 +46,20 @@ import {
   PublicProfilePhotoPaginationService,
 } from 'src/app/core/services/media/public-profile-photo-pagination.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
+import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import type { MediaErrorReason } from 'src/app/core/services/media/media-error.catalog';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
-import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 
 import { PublicPhotoViewerLauncherService } from '../photo-viewer/public-photo-viewer-launcher.service';
 import { PublicPhotoCardComponent } from '../../shared/components/public-photo-card/public-photo-card.component';
+
+interface PublicGalleryIdentity {
+  readonly nickname: string;
+  readonly avatarUrl: string | null;
+  readonly location: string | null;
+}
 
 export type PublicProfilePhotoPageSize = 8 | 12 | 24;
 
@@ -91,7 +97,7 @@ interface PublicProfilePhotosState {
     CommonModule,
     PublicPhotoCardComponent,
     ContentStateComponent,
-    PageHeaderComponent,
+    RouterModule,
   ],
   templateUrl: './public-profile-photos.component.html',
   styleUrls: ['./public-profile-photos.component.css'],
@@ -100,6 +106,7 @@ interface PublicProfilePhotosState {
 export class PublicProfilePhotosComponent implements AfterViewInit {
   private readonly route = inject(ActivatedRoute);
   private readonly photoPagination = inject(PublicProfilePhotoPaginationService);
+  private readonly publicUserQuery = inject(FirestoreUserQueryService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly galleryContainer =
     viewChild<ElementRef<HTMLElement>>('galleryContainer');
@@ -119,6 +126,43 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
     ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  /** Mesmo perfil público autorizado da tela visitada; nunca consulta /users. */
+  readonly profileIdentity$: Observable<PublicGalleryIdentity | null> =
+    this.ownerUid$.pipe(
+      switchMap((ownerUid) => {
+        if (!ownerUid) return of(null);
+        return this.publicUserQuery.getPublicUserById$(ownerUid).pipe(
+          map((profile): PublicGalleryIdentity | null => {
+            if (profile?.uid !== ownerUid || !profile.nickname?.trim()) {
+              return null;
+            }
+            const municipio = profile.municipio?.trim();
+            const estado = profile.estado?.trim();
+            return {
+              nickname: profile.nickname.trim(),
+              avatarUrl: profile.photoURL?.trim() || null,
+              location: municipio && estado ? `${municipio}, ${estado}` : null,
+            };
+          }),
+          catchError((error: unknown) => {
+            this.reportError('media_discovery_load_failed', error, {
+              op: 'loadGalleryProfileIdentity',
+            });
+            return of(null);
+          }),
+          startWith(null)
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  onProfileAvatarError(event: Event): void {
+    const image = event.target as HTMLImageElement | null;
+    if (image && !image.src.endsWith('/assets/imagem-padrao.webp')) {
+      image.src = 'assets/imagem-padrao.webp';
+    }
+  }
 
   private readonly refreshSubject = new BehaviorSubject<number>(0);
   private readonly pageSizeSubject =

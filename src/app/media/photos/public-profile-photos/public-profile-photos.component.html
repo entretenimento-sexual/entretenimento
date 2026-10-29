@@ -1,8 +1,67 @@
 @let state = (state$ | async);
 @let items = state?.items || [];
+@let identity = (profileIdentity$ | async);
+@let ownerUid = (ownerUid$ | async);
 
-<section #galleryContainer class="public-photos-page container-wide" aria-label="Fotos públicas">
-  <app-page-header title="Fotos públicas"></app-page-header>
+<section #galleryContainer class="public-photos-page container-wide" aria-label="Galeria de fotos do perfil visitado">
+  <header class="visited-gallery-header">
+    @if (ownerUid) {
+      <a class="visited-gallery-header__back" [routerLink]="['/perfil', ownerUid]">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+        Voltar ao perfil
+      </a>
+    }
+
+    <div class="visited-gallery-header__content">
+      <div class="visited-gallery-header__identity">
+        <div class="visited-gallery-header__avatar">
+          @if (identity) {
+            <img
+              [src]="identity.avatarUrl || 'assets/imagem-padrao.webp'"
+              [alt]="'Foto do perfil de ' + identity.nickname"
+              width="72"
+              height="72"
+              loading="lazy"
+              referrerpolicy="no-referrer"
+              (error)="onProfileAvatarError($event)"
+            />
+          } @else {
+            <i class="fas fa-user" aria-hidden="true"></i>
+          }
+        </div>
+        <div class="visited-gallery-header__details">
+          <p class="visited-gallery-header__eyebrow">Fotos públicas · Perfil visitado</p>
+          <h1 class="visited-gallery-header__title">
+            @if (identity) {
+              Fotos de {{ identity.nickname }}
+            } @else {
+              Fotos públicas
+            }
+          </h1>
+          @if (identity?.location; as location) {
+            <p class="visited-gallery-header__location">
+              <i class="fas fa-location-dot" aria-hidden="true"></i>
+              {{ location }}
+            </p>
+          } @else {
+            <p class="visited-gallery-header__description">Publicações disponíveis para você neste perfil.</p>
+          }
+        </div>
+      </div>
+      @if (ownerUid) {
+        <nav class="visited-gallery-header__actions" aria-label="Navegação do perfil visitado">
+          <a class="app-action app-action--ghost" [routerLink]="['/perfil', ownerUid]">
+            <i class="fas fa-user" aria-hidden="true"></i>
+            Ver perfil
+          </a>
+          <a class="app-action app-action--ghost" [routerLink]="['/media/perfil', ownerUid, 'videos-publicos']">
+            <i class="fas fa-video" aria-hidden="true"></i>
+            Vídeos
+          </a>
+        </nav>
+      }
+    </div>
+  </header>
 
   @if (state) {
     @switch (state.status) {
