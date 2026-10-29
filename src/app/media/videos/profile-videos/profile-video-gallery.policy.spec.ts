@@ -8,7 +8,7 @@ import {
 const entry = (
   id: string,
   moderationStatus: 'APPROVED' | 'PENDING_REVIEW' = 'APPROVED',
-  visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC'
+  visibility: 'PUBLIC' | 'FRIENDS' | 'PRIVATE' = 'PUBLIC'
 ): IProfileVideoViewItem => ({
   video: { id, status: 'ready' },
   publication: { isPublished: true, moderationStatus, visibility },
@@ -18,11 +18,12 @@ describe('owner video gallery filters', () => {
   const ready = entry('ready');
   const pending = entry('pending', 'PENDING_REVIEW');
   const privateItem = entry('restricted', 'APPROVED', 'PRIVATE');
-  const items = [ready, pending, privateItem];
+  const friendsItem = entry('friends', 'APPROVED', 'FRIENDS');
+  const items = [ready, pending, privateItem, friendsItem];
 
   it('preserves the chronological order received from the canonical library', () => {
     expect(filterProfileVideoGallery(items, 'all')).toEqual(items);
-    expect(filterProfileVideoGallery(items, 'published')).toEqual([ready]);
+    expect(filterProfileVideoGallery(items, 'published')).toEqual([ready, friendsItem]);
     expect(filterProfileVideoGallery(items, 'not-published'))
       .toEqual([pending, privateItem]);
   });
@@ -31,5 +32,6 @@ describe('owner video gallery filters', () => {
     expect(canPlayPublishedVideo(ready)).toBe(true);
     expect(canPlayPublishedVideo(pending)).toBe(false);
     expect(canPlayPublishedVideo(privateItem)).toBe(false);
+    expect(canPlayPublishedVideo(friendsItem)).toBe(true);
   });
 });
