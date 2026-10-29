@@ -5,6 +5,7 @@ import {
   computed,
   input,
   output,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
@@ -53,6 +54,39 @@ export class PublicPhotoCardComponent {
 
   readonly preview = output<void>();
   readonly commentsRequested = output<void>();
+
+  // Um erro de imagem não significa que a publicação foi revogada.
+  // Não trocar URLs assinadas nem reutilizar imagens de outro item.
+  private readonly failedThumbnailKey = signal<string | null>(null);
+  private readonly currentThumbnailKey = computed(
+    () => {
+      const item = this.photo();
+      return `${item.ownerUid}/${item.id}/${item.url}`;
+    }
+  );
+  readonly thumbnailUnavailable = computed(
+    () => this.failedThumbnailKey() === this.currentThumbnailKey()
+  );
+
+  onThumbnailError(item: IPublicPhotoItem): void {
+    if (
+      item.ownerUid === this.photo().ownerUid &&
+      item.id === this.photo().id &&
+      item.url === this.photo().url
+    ) {
+      this.failedThumbnailKey.set(this.currentThumbnailKey());
+    }
+  }
+
+  onThumbnailLoad(item: IPublicPhotoItem): void {
+    if (
+      item.ownerUid === this.photo().ownerUid &&
+      item.id === this.photo().id &&
+      item.url === this.photo().url
+    ) {
+      this.failedThumbnailKey.set(null);
+    }
+  }
 
   readonly profileLink = computed(() => [
     '/outro-perfil',
