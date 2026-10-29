@@ -79,7 +79,7 @@
     "rules:check": "node firestore-rules/tools-rules/check-braces.mjs",
     "test:rules": "npm run rules:build && npm run rules:check && node scripts/quality/run-firestore-rules-tests.mjs",
     "test:rules:rooms": "npm run test:rules",
-    "test:media:e2e": "npm run rules:build && npm run rules:check && npm run functions:build && firebase emulators:exec --config firebase.media-e2e.json --only auth,firestore,storage,functions --project demo-entretenimento-media-e2e \"node scripts/tests/photo-publication.e2e.mjs && node scripts/tests/photo-social.e2e.mjs\" && npm run test:media:transaction:isolated:e2e && npm run test:media:feed-cleanup:e2e",
+    "test:media:e2e": "npm run rules:build && npm run rules:check && npm run functions:build && firebase emulators:exec --config firebase.media-e2e.json --only auth,firestore,storage,functions --project demo-entretenimento-media-e2e \"node scripts/tests/photo-publication.e2e.mjs && node scripts/tests/photo-social.e2e.mjs && node scripts/tests/photo-owner-gallery.e2e.mjs\" && npm run test:media:transaction:isolated:e2e && npm run test:media:feed-cleanup:e2e",
     "test:media:feed-cleanup:e2e": "npm run functions:build \u0026\u0026 firebase emulators:exec --config firebase.media-e2e.json --only auth,firestore,storage,functions --project demo-entretenimento-media-e2e \"node scripts/tests/failed-feed-photo-cleanup.e2e.mjs \u0026\u0026 node scripts/tests/failed-feed-photo-race.e2e.mjs\"",
     "test:media:video:e2e": "npm run rules:build && npm run rules:check && npm run functions:build && node scripts/tests/run-video-publication-e2e.mjs",
     "test:compliance:age:e2e": "npm run rules:build && npm run rules:check && npm run functions:build && node scripts/tests/run-profile-age-reverification-e2e.mjs",
