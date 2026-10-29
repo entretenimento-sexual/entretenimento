@@ -343,6 +343,10 @@ export const reservePhotoUpload = onCall<ReservePhotoUploadRequest>(
       if (reservationSnapshot.exists) {
         const current = reservationSnapshot.data() as
           PhotoUploadReservationDocument;
+        if (current.consumedAt != null) {
+          throw new HttpsError('failed-precondition',
+            'A reserva utilizada aguarda limpeza; use novo caminho de upload.');
+        }
         const expiresAtMs = reservationExpiryMs(current.expiresAt);
 
         if (
