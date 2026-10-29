@@ -1,10 +1,13 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   input,
   output,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
+import { normalizePublicUserIdentity } from 'src/app/core/domain/public-user-identity/public-user-identity.model';
 
 import type {
   CommunityExploreContentItem,
@@ -13,7 +16,7 @@ import type {
 @Component({
   selector: 'app-explore-community-content-card',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, PublicUserIdentityComponent],
   templateUrl: './explore-community-content-card.component.html',
   styleUrl: './explore-community-content-card.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -21,6 +24,9 @@ import type {
 export class ExploreCommunityContentCardComponent {
   readonly item = input.required<CommunityExploreContentItem>();
   readonly opened = output<string>();
+  readonly authorIdentity = computed(() =>
+    normalizePublicUserIdentity(this.item().post.author)
+  );
 
   recordOpen(): void {
     this.opened.emit(this.item().communityId);
