@@ -11,6 +11,8 @@ function profile(uid: string, gender: string, orientation: string): IUserDados {
     uid,
     nickname: uid,
     email: 'private@example.test',
+    descricao: 'Dado não autorizado para o card',
+    isSubscriber: true,
     photoURL: null,
     role: 'premium',
     lastLogin: 99,
@@ -55,6 +57,8 @@ describe('SuggestionService / projeção pública', () => {
       email: null,
     });
     expect(result[0].idade).toBeUndefined();
+    expect(result[0].descricao).toBe('');
+    expect(result[0].isSubscriber).toBe(false);
     expect(result[0].role).toBe('free');
     expect((result[0] as unknown as Record<string, unknown>)['subscriptionStatus'])
       .toBeUndefined();
