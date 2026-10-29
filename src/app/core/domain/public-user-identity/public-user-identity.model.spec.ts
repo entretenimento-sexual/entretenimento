@@ -61,6 +61,23 @@ describe('normalizePublicUserIdentity', () => {
     })?.orientationShortLabel).toBeUndefined();
   });
 
+  it('nao atribui orientacao individual a perfil de casal', () => {
+    const casal = normalizePublicUserIdentity({
+      nickname: 'casal_serale',
+      identityCode: 'casal-ele-ela',
+      orientation: 'bissexual',
+    });
+    expect(casal?.identityShortLabel).toBe('Casal');
+    expect(casal?.orientationShortLabel).toBeUndefined();
+    expect(casal?.orientation).toBeUndefined();
+    const individual = normalizePublicUserIdentity({
+      nickname: 'serale',
+      identityCode: 'mulher',
+      orientation: 'bissexual',
+    });
+    expect(individual?.orientationShortLabel).toBe('Bi');
+  });
+
   it('aceita aliases legados durante a migração sem expor campos desconhecidos', () => {
     const identity = normalizePublicUserIdentity({
       label: 'casal_rio',
