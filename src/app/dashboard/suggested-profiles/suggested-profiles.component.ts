@@ -7,13 +7,18 @@ import { catchError, filter, switchMap } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
+import {
+  normalizePublicUserIdentity,
+  type PublicUserIdentity,
+} from 'src/app/core/domain/public-user-identity/public-user-identity.model';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { SuggestionService } from 'src/app/core/services/user-profile/recommendations/suggestion.service';
 
 @Component({
   selector: 'app-suggested-profiles',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, PublicUserIdentityComponent],
   templateUrl: './suggested-profiles.component.html',
   styleUrls: ['./suggested-profiles.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -47,6 +52,16 @@ export class SuggestedProfilesComponent implements OnInit {
             ? 'Atualmente, não temos perfis sugeridos para você. Por favor, volte mais tarde.'
             : '';
       });
+  }
+
+  profileIdentity(profile: IUserDados): PublicUserIdentity | null {
+    return normalizePublicUserIdentity({
+      nickname: profile.nickname,
+      identityCode: profile.identityCode ?? profile.gender,
+      orientation: profile.orientation,
+      city: profile.municipio,
+      state: profile.estado,
+    });
   }
 
   trackByUid(_: number, profile: IUserDados): string {
