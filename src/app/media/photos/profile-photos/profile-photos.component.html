@@ -213,7 +213,7 @@
                 class="photo-action-menu"
                 [disabled]="moderationLocked || updatingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id"
                 editLabel="Editar foto"
-                [showEditAction]="!!item.path"
+                [showEditAction]="!!item.url"
                 [showSecondaryAction]="!!item.path"
                 secondaryLabel="Alterar data"
                 secondaryIcon="calendar_month"
