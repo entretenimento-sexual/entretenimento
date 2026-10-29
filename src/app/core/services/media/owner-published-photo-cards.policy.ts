@@ -1,5 +1,6 @@
 import type { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import type { IPhotoPublicationConfig } from 'src/app/core/interfaces/media/i-photo-publication-config';
+import { filterOwnerPublishedPhotoPage } from './profile-published-photo-filter.policy';
 
 /**
  * Cards da galeria própria derivados exclusivamente da página autorizada e
@@ -22,7 +23,7 @@ export function mapOwnerPublishedPhotoCards(
 
   const seen = new Set<string>();
   const cards: IOwnerPublishedPhotoCard[] = [];
-  for (const photo of authorizedItems) {
+  for (const photo of filterOwnerPublishedPhotoPage(authorizedItems, owner)) {
     const photoId = String(photo.id ?? '').trim();
     if (!photoId || photo.ownerUid !== owner || seen.has(photoId)) continue;
     seen.add(photoId);
