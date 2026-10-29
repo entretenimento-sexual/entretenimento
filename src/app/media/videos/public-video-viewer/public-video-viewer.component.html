@@ -85,7 +85,7 @@
               [identity]="currentOwnerIdentity$ | async"
               density="compact"
             >
-              <span publicUserIdentitySupplement class="public-video-viewer__owner-supplement">
+              <span publicUserIdentitySupplement class="public-video-viewer__owner-supplement public-video-viewer__owner-context">
                 @if ((video.officialMediaContext?.contexts?.length ?? 0) > 0) {
                   <app-public-media-badge
                     kind="official"
