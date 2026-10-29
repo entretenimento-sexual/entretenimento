@@ -315,30 +315,12 @@
               "
             >
               <header class="feed-intent__header">
-                <div class="feed-intent__identity">
-                  <span class="feed-intent__avatar" aria-hidden="true">
-                    @if (item.status.profile.photoURL) {
-                      <img
-                        [src]="item.status.profile.photoURL"
-                        alt=""
-                        width="44"
-                        height="44"
-                        loading="lazy"
-                        decoding="async"
-                        referrerpolicy="no-referrer"
-                      />
-                    } @else {
-                      {{ item.status.profile.nickname.slice(0, 1).toUpperCase() }}
-                    }
-                  </span>
-
-                  <div>
-                    <strong>{{ item.status.profile.nickname }}</strong>
-                    <span>
-                      Momento · {{ item.status.expiresInLabel }}
-                    </span>
-                  </div>
-                </div>
+                <app-public-user-identity
+                  class="feed-intent__identity"
+                  [identity]="publicStatusIdentity(item.status.profile)"
+                  density="standard"
+                  [contextText]="'Momento · ' + item.status.expiresInLabel"
+                />
 
                 <span class="feed-intent__relationship">
                   {{ item.relationship === 'friend' ? 'Amigo' : 'Compatível' }}
@@ -470,22 +452,11 @@
                   [routerLink]="['/outro-perfil', profile.uid]"
                   [attr.aria-label]="'Abrir perfil de ' + profile.nickname"
                 >
-                  <span class="feed-empty__avatar" aria-hidden="true">
-                    @if (profile.photoURL) {
-                      <img
-                        [src]="profile.photoURL"
-                        alt=""
-                        width="42"
-                        height="42"
-                        loading="lazy"
-                        decoding="async"
-                        referrerpolicy="no-referrer"
-                      />
-                    } @else {
-                      {{ profile.nickname.slice(0, 1).toUpperCase() }}
-                    }
-                  </span>
-                  <span>{{ profile.nickname }}</span>
+                  <app-public-user-identity
+                    class="feed-empty__identity"
+                    [identity]="publicSuggestedIdentity(profile)"
+                    density="compact"
+                  />
                 </a>
               }
             </div>
