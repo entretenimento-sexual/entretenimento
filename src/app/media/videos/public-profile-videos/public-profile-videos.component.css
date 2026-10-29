@@ -11,6 +11,29 @@
   container: public-videos-gallery / inline-size;
 }
 
+/* Mesmo componente de identificação usado na galeria pública de fotos. */
+.public-videos-identity {
+  min-width: 0;
+  margin-bottom: clamp(18px, 2.5vw, 28px);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: var(--radius-lg, 18px);
+  padding: clamp(14px, 2vw, 24px);
+  background: var(--surface-color, #111925);
+}
+
+.public-videos-identity app-public-user-identity {
+  --public-user-identity-avatar-size: clamp(56px, 7vw, 72px);
+  --public-user-identity-name-size: clamp(1.25rem, 2vw, 1.75rem);
+  --public-user-identity-meta-size: 0.85rem;
+  --public-user-identity-gap: clamp(12px, 1.5vw, 18px);
+  max-width: 520px;
+}
+
+.public-videos-identity__unavailable {
+  color: var(--text-secondary, #b6c0cd);
+  font-size: 0.95rem;
+}
+
 .gallery-actions {
   display: flex;
   flex-wrap: wrap;
