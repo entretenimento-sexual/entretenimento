@@ -26,8 +26,6 @@ describe('normalizePublicUserPreview', () => {
     });
 
     expect(preview).toMatchObject({
-      age: 31,
-      orientationLabel: 'bissexual',
       isOnline: true,
       approximateDistanceKm: 4.2,
       bioPreview: 'Conversas, encontros e novas amizades.',
@@ -40,6 +38,8 @@ describe('normalizePublicUserPreview', () => {
         state: 'RJ',
       },
     });
+    expect('age' in (preview ?? {})).toBe(false);
+    expect('orientationLabel' in (preview ?? {})).toBe(false);
     expect('civilName' in (preview ?? {})).toBe(false);
     expect('latitude' in (preview ?? {})).toBe(false);
     expect('longitude' in (preview ?? {})).toBe(false);
@@ -69,7 +69,7 @@ describe('normalizePublicUserPreview', () => {
     expect(preview?.highlights).toEqual(['Amizade', 'Casual', 'Tatuagens']);
   });
 
-  it('falha fechado para idade, distância e bio inválidas', () => {
+  it('não transporta idade social e falha fechado para distância e bio inválidas', () => {
     const preview = normalizePublicUserPreview({
       nickname: 'perfil_seguro',
       idade: 17,
@@ -78,7 +78,7 @@ describe('normalizePublicUserPreview', () => {
       approximateDistanceKm: -1,
     });
 
-    expect(preview?.age).toBeNull();
+    expect('age' in (preview ?? {})).toBe(false);
     expect(preview?.approximateDistanceKm).toBeNull();
     expect(preview?.bioPreview).toBeNull();
     expect(preview?.highlights).toEqual([]);
