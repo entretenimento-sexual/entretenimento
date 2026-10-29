@@ -30,24 +30,11 @@
     </span>
   </a>
 
-  <div class="community-content-card__author">
-    <span class="community-content-card__author-avatar" aria-hidden="true">
-      @if (content.post.author.avatarUrl) {
-        <img
-          [src]="content.post.author.avatarUrl"
-          alt=""
-          width="32"
-          height="32"
-          loading="lazy"
-          decoding="async"
-          referrerpolicy="no-referrer"
-        />
-      } @else {
-        {{ initials(content.post.author.label) }}
-      }
-    </span>
-    <strong>{{ content.post.author.label }}</strong>
-  </div>
+  <app-public-user-identity
+    class="community-content-card__author"
+    [identity]="authorIdentity()"
+    density="compact"
+  />
 
   @if (content.post.text) {
     <p class="community-content-card__text">{{ content.post.text }}</p>
