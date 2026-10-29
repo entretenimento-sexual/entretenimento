@@ -296,7 +296,6 @@
   contain-intrinsic-size: 9rem;
 }
 
-.feed-intent__header,
 .feed-intent__header {
   justify-content: space-between;
   gap: 0.75rem;
