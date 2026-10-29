@@ -188,17 +188,18 @@ export const getAuthorizedVideoOwnerPage = onCall<AuthorizedVideoOwnerPageReques
         ? await db.getAll(...scannedItems.map((item) =>
           db.doc(`users/${ownerUid}/video_publications/${item.id}`)
         )) : [];
-      const authorizedItems = scannedItems.filter((item, index) =>
-        isCurrentPublicMediaAssetExposure({
+      const authorizedItems = scannedItems.filter((item, index) => {
+        const publication = publicationSnapshots[index];
+        return isCurrentPublicMediaAssetExposure({
           publicMedia: item.data as Record<string, unknown>,
-          publication: publicationSnapshots[index]?.exists
-            ? publicationSnapshots[index].data() as Record<string, unknown>
+          publication: publication?.exists
+            ? publication.data() as Record<string, unknown>
             : null,
           ownerExposureAllowed: true,
           nowMs,
           allowedVisibilities: [String(item.data['visibility'])],
-        })
-      );
+        });
+      });
       return {
         items: authorizedItems.map((item) => ({
           ...item.data,
