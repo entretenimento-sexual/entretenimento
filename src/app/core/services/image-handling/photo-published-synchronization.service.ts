@@ -40,6 +40,26 @@ export function isPublishedPhotoReplacementConfirmed(
     !publishedPath.slice(expectedPrefix.length).includes('/');
 }
 
+/** Can be tested without Firebase; stale publication events must not complete. */
+export function awaitPublishedPhotoSync$(
+  publications$: Observable<PhotoPublicationSyncRecord | null | undefined>,
+  ownerUid: string,
+  photoId: string,
+  sourceStoragePath: string,
+  timeoutMs = 45_000
+): Observable<void> {
+  return publications$.pipe(
+    filter((publication) =>
+      isPublishedPhotoReplacementConfirmed(
+        ownerUid, photoId, sourceStoragePath, publication
+      )
+    ),
+    take(1),
+    timeout({ first: timeoutMs }),
+    map(() => void 0)
+  );
+}
+
 @Injectable({ providedIn: 'root' })
 export class PhotoPublishedSynchronizationService {
   private readonly firestore = inject(Firestore);
@@ -50,23 +70,17 @@ export class PhotoPublishedSynchronizationService {
     photoId: string,
     sourceStoragePath: string
   ): Observable<void> {
-    return this.context.deferObservable$(() => docData(doc(
+    const publications$ = this.context.deferObservable$(() => docData(doc(
       this.firestore,
       `users/${ownerUid}/photo_publications/${photoId}`
-    ))).pipe(
-      filter((publication) =>
-        isPublishedPhotoReplacementConfirmed(
-          ownerUid,
-          photoId,
-          sourceStoragePath,
-          publication as PhotoPublicationSyncRecord | undefined
-        )
-      ),
-      take(1),
-      // A origem anterior nao deve ser descartada se a Function demorar ou
-      // falhar. O retry administrativo pode terminar a copia posteriormente.
-      timeout({ first: 45_000 }),
-      map(() => void 0)
+    )));
+    // O timeout preserva o arquivo antigo; o processamento servidor pode ser
+    // reconciliado sem entregar sucesso falso ao cliente.
+    return awaitPublishedPhotoSync$(
+      publications$,
+      ownerUid,
+      photoId,
+      sourceStoragePath
     );
   }
 }
