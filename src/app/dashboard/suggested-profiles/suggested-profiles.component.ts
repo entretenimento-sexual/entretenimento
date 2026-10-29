@@ -1,5 +1,5 @@
 // src/app/dashboard/suggested-profiles/suggested-profiles.component.ts
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { of } from 'rxjs';
@@ -31,6 +31,7 @@ export class SuggestedProfilesComponent implements OnInit {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly suggestionService = inject(SuggestionService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   ngOnInit(): void {
     this.currentUserStore.user$
@@ -51,6 +52,7 @@ export class SuggestedProfilesComponent implements OnInit {
           this.matchingProfilesCount === 0
             ? 'Atualmente, não temos perfis sugeridos para você. Por favor, volte mais tarde.'
             : '';
+        this.cdr.markForCheck();
       });
   }
 
