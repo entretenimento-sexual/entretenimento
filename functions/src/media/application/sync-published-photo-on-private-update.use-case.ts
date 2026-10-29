@@ -34,6 +34,9 @@ export interface PhotoSyncCommit {
   photoId: string;
   publicationPatch: Record<string, unknown>;
   publicPhotoPatch: Record<string, unknown>;
+  expectedPrivateSourceStoragePath: string;
+  expectedPublicationSourceStoragePath: string;
+  expectedPublishedStoragePath: string;
 }
 
 export interface PhotoSyncDependencies {
@@ -47,7 +50,8 @@ export interface PhotoSyncDependencies {
     photoId: string;
     sourceStoragePath: string;
   }) => Promise<string>;
-  commitPatches: (commit: PhotoSyncCommit) => Promise<void>;
+  /** False means a later upload/unpublication/moderation superseded the event. */
+  commitPatches: (commit: PhotoSyncCommit) => Promise<boolean | void>;
   deletePublishedAsset: (command: {
     ownerUid: string;
     photoId: string;
@@ -64,7 +68,8 @@ export type PublishedPhotoSyncResult =
         | 'ignored-no-change'
         | 'ignored-not-published'
         | 'ignored-invalid-source'
-        | 'ignored-quarantined';
+        | 'ignored-quarantined'
+        | 'ignored-stale-update';
     }
   | {
       status: 'already-synchronized';
@@ -80,6 +85,27 @@ export type PublishedPhotoSyncResult =
       copiedAsset: boolean;
       moderationStatus: ModerationStatus;
     };
+
+/**
+ * Pure guard, used again inside the Firestore transaction (not just before
+ * the expensive copy). A delayed trigger must never overwrite a newer asset.
+ */
+export function canCommitPublishedPhotoSync(
+  commit: PhotoSyncCommit,
+  currentPrivate: PrivatePhotoDoc | null,
+  currentPublication: PhotoPublicationDoc | null
+): boolean {
+  if (!currentPrivate || !currentPublication ||
+      currentPublication.isPublished !== true ||
+      !isPhotoPublicationApproved(currentPublication.moderationStatus)) return false;
+
+  return resolveSourceStoragePath(commit.ownerUid, currentPrivate) ===
+      commit.expectedPrivateSourceStoragePath &&
+    cleanText(currentPublication.sourceStoragePath) ===
+      commit.expectedPublicationSourceStoragePath &&
+    cleanText(currentPublication.publishedStoragePath) ===
+      commit.expectedPublishedStoragePath;
+}
 
 function cleanText(value: unknown): string {
   return String(value ?? '').trim();
@@ -235,12 +261,16 @@ export async function synchronizePublishedPhotoUpdate(
     publicPhotoPatch['scoreBreakdown'] = scoreBreakdown;
   }
 
+  let committed: boolean | void;
   try {
-    await dependencies.commitPatches({
+    committed = await dependencies.commitPatches({
       ownerUid: input.ownerUid,
       photoId: input.photoId,
       publicationPatch,
       publicPhotoPatch,
+      expectedPrivateSourceStoragePath: sourceStoragePath,
+      expectedPublicationSourceStoragePath: cleanText(publication.sourceStoragePath),
+      expectedPublishedStoragePath: previousPublishedStoragePath,
     });
   } catch (error) {
     if (shouldCopyAsset && nextPublishedStoragePath) {
@@ -253,6 +283,18 @@ export async function synchronizePublishedPhotoUpdate(
     }
 
     throw error;
+  }
+
+  if (committed === false) {
+    if (shouldCopyAsset && nextPublishedStoragePath) {
+      await dependencies.deletePublishedAsset({
+        ownerUid: input.ownerUid,
+        photoId: input.photoId,
+        storagePath: nextPublishedStoragePath,
+        reason: 'sync-published-photo-stale-event',
+      });
+    }
+    return { status: 'ignored-stale-update' };
   }
 
   if (
