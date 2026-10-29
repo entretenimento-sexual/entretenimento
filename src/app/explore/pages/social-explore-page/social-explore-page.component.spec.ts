@@ -405,6 +405,11 @@ describe('SocialExplorePageComponent', () => {
       )
     ).toHaveLength(1);
     expect(fixture.nativeElement.textContent).toContain('Da Comunidade');
+    const contentAuthor = fixture.debugElement.query(
+      By.css('app-explore-community-content-card app-public-user-identity')
+    );
+    expect(contentAuthor).toBeTruthy();
+    expect(contentAuthor.nativeElement.textContent).toContain('Pessoa autora');
     expect(fixture.nativeElement.textContent).toContain('Ver na Comunidade');
     expect(fixture.nativeElement.textContent).not.toContain('Curtir');
   });
@@ -522,6 +527,9 @@ describe('SocialExplorePageComponent', () => {
     expect(ownStatusComposer.nativeElement.textContent).toContain('Definir momento');
     expect(ownStatusComposer.nativeElement.querySelector('.fa-clock')).toBeTruthy();
     expect(relatedStatus.nativeElement.textContent).toContain('Amiga teste');
+    expect(relatedStatus.nativeElement.querySelector('app-public-user-identity'))
+      .not.toBeNull();
+    expect(relatedStatus.nativeElement.textContent).not.toContain('30 anos');
     expect(relatedStatus.nativeElement.textContent).toContain('Momento');
     expect(relatedStatus.nativeElement.textContent).toContain('Disponível hoje');
   });
@@ -606,6 +614,8 @@ describe('SocialExplorePageComponent', () => {
     );
     expect(emptyState.nativeElement.textContent).toContain('Compatível teste');
     expect(suggestion).toBeTruthy();
+    expect(suggestion.nativeElement.querySelector('app-public-user-identity'))
+      .not.toBeNull();
     expect(discoveryActions).toHaveLength(3);
     expect(
       discoveryActions.map((action) => action.nativeElement.textContent.trim())
