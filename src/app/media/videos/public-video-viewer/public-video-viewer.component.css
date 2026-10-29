@@ -113,62 +113,27 @@
   text-decoration: none;
 }
 
-.public-video-viewer__owner img,
-.public-video-viewer__owner-fallback {
-  flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
-  border: 1px solid rgb(255 255 255 / 26%);
-  border-radius: 50%;
-  background: rgb(255 255 255 / 12%);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 32%);
+/* Avatar, nome, tipo, orientacao autorizada e municipio/UF sao canonicos. */
+.public-video-viewer__owner {
+  max-width: min(70vw, 420px);
 }
 
-.public-video-viewer__owner img {
-  object-fit: cover;
-}
-
-.public-video-viewer__owner-fallback {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgb(255 255 255 / 78%);
-}
-
-.public-video-viewer__owner-copy {
-  display: grid;
-  gap: 2px;
+.public-video-viewer__owner-identity {
+  --public-user-identity-avatar-size: 40px;
+  --public-user-identity-name-size: 0.92rem;
+  --public-user-identity-meta-size: 0.7rem;
+  --public-user-identity-gap: 10px;
+  --text-color: #fff;
   min-width: 0;
+  width: 100%;
 }
 
-.public-video-viewer__owner-title,
-.public-video-viewer__owner-context {
+.public-video-viewer__owner-supplement {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
-}
-
-.public-video-viewer__owner-context {
   overflow: hidden;
-}
-
-
-.public-video-viewer__owner-copy strong,
-.public-video-viewer__owner-copy small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.public-video-viewer__owner-copy strong {
-  font-size: 0.92rem;
-  font-weight: 780;
-}
-
-.public-video-viewer__owner-copy small {
-  color: rgb(255 255 255 / 72%);
-  font-size: 0.74rem;
 }
 
 .public-video-viewer__header-actions {
@@ -497,10 +462,14 @@
       max(12px, env(safe-area-inset-right));
   }
 
-  .public-video-viewer__owner img,
-  .public-video-viewer__owner-fallback {
-    width: 36px;
-    height: 36px;
+  .public-video-viewer__owner-identity {
+    --public-user-identity-avatar-size: 36px;
+    --public-user-identity-name-size: 0.8rem;
+    --public-user-identity-meta-size: 0.62rem;
+  }
+
+  .public-video-viewer__owner {
+    max-width: calc(100vw - 94px);
   }
 
   .public-video-viewer__navigation {
@@ -548,7 +517,7 @@
 
 @media (max-height: 620px) and (orientation: landscape) {
   .public-video-viewer__metadata p,
-  .public-video-viewer__owner-copy small {
+  .public-video-viewer__owner-supplement {
     display: none;
   }
 
