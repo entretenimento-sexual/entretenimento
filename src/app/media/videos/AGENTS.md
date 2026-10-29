@@ -13,6 +13,9 @@ Este módulo implementa **publicações sociais de vídeo**, não um drive priva
 - Formato, duração, tamanho, permissões e moderação continuam sendo validados pelas mesmas políticas e pelo backend, sem atalhos específicos da câmera.
 - Publicações ativas devem ter audiência social além do proprietário; novas modalidades exigem autorização no backend. Nunca adicionar `ONLY_ME` ou rascunho remoto permanente.
 - **Captura e seleção de vídeo**: escolha explícita `PUBLIC` ou `FRIENDS` antes de enviar. O backend registra essa audiência e o gatilho de autopublicação deve lê-la do documento; nunca assumir `PUBLIC` ao finalizar processamento.
+- **FRIENDS nunca é público global**: listagem de perfil depende de amizade recíproca vigente e bloqueios; URLs temporárias devem revalidar exposição/autorização no backend e sessões de reprodução/interações devem revalidar a amizade dentro das transações. Não liberar a audiência pela presença de um campo ou pelo frontend.
+- Não confundir autorização de galeria, autorização de playback e autorização de comentários, avaliações e reações: cada ação possui fronteira própria. Só ativar aquelas com backend atualizado e testes de revogação. A descoberta global de vídeos continua restrita a `PUBLIC`.
+
 - O arquivo final publicado é o único objeto físico ativo após a limpeza operacional. Staging, posters temporários e artefatos de transcodificação têm prazos e limpeza; nenhuma versão antiga deve persistir como benefício de armazenamento.
 - Preservar retenções legais e evidências independentes. Nunca fazer exclusão em massa de originais legados sem migrar dependências de edição, processamento, vídeo em rotação, publicação e exclusão segura por geração.
 - Manter Observables/RxJS, cancelamento de sessões, acessibilidade, tratamento de erro centralizado e testes de mídia.
