@@ -293,6 +293,51 @@
   white-space: nowrap;
 }
 
+/* A galeria do perfil não é feed: métricas ficam ABAIXO da fotografia,
+   sem cobrir imagem/legendas ou reduzir a área clicável do viewer.
+   Escopo restrito à variante profile; latest/top/feed/sponsored não mudam. */
+.photo-tile--profile .photo-overlay.app-media-overlay {
+  position: static;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 54px;
+  padding: 10px;
+  gap: 8px;
+  border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  background: color-mix(in oklab, var(--surface-color, #0f1620) 94%, black 6%);
+  pointer-events: auto;
+}
+
+.photo-tile--profile .photo-stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.photo-tile--profile .stat-chip,
+.photo-tile--profile .cover-chip {
+  min-height: 27px;
+  padding: 4px 7px;
+  font-size: clamp(0.7rem, 0.68rem + 0.12vw, 0.78rem);
+  line-height: 1.2;
+}
+
+.photo-tile--profile .stat-chip--time {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+.photo-tile--profile .cover-chip {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 /* Meta inferior das galerias ---------------------------------------------- */
 .photo-meta,
 .photo-meta.app-card__footer {
