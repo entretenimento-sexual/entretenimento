@@ -128,6 +128,41 @@ describe('PhotoUploadFlowService / sessão operacional', () => {
     expect(h.firestore.saveImageState).not.toHaveBeenCalled();
   });
 
+  it('não descarta a origem nem anuncia sucesso antes de o backend publicar', async () => {
+    const h = harness();
+    const pendingPublication$ = new Subject<void>();
+    h.publishedSync.waitForPublishedReplacement$.mockReturnValue(
+      pendingPublication$.asObservable()
+    );
+    const success = vi.fn();
+    const failure = vi.fn();
+    h.flow.replaceProcessedPhoto$({
+      ...command(),
+      photoId: 'photo-1',
+      currentStoragePath: 'users/owner-a/uploads/images/previous.jpg',
+    }).subscribe({ next: success, error: failure });
+
+    h.pendingUpload$.next({
+      storagePath: 'users/owner-a/uploads/images/file.jpg',
+      reservationId: 'reservation-a',
+      location: 'https://example.test/photo.jpg',
+    });
+    h.pendingUpload$.complete();
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(h.publishedSync.waitForPublishedReplacement$).toHaveBeenCalledOnce();
+    expect(success).not.toHaveBeenCalled();
+    expect(h.lifecycle.deleteOwnedPrivatePhoto$).not.toHaveBeenCalled();
+
+    pendingPublication$.next();
+    pendingPublication$.complete();
+    await Promise.resolve();
+    expect(success).toHaveBeenCalledOnce();
+    expect(failure).not.toHaveBeenCalled();
+    expect(h.lifecycle.deleteOwnedPrivatePhoto$).toHaveBeenCalledOnce();
+  });
+
   it('não grava estado de edição após substituição', async () => {
     const h = harness();
     const done = new Promise<void>((resolve, reject) => {
