@@ -29,6 +29,9 @@ export function mapOwnerPublishedPhotoCards(
     seen.add(photoId);
 
     const stored = publicationConfigs[photoId];
+    // Uma despublicação canônica explícita prevalece sobre a página antiga.
+    if (stored?.ownerUid === owner && stored.photoId === photoId &&
+        stored.isPublished === false) continue;
     const publication = stored?.ownerUid === owner &&
       stored.photoId === photoId && stored.isPublished === true
       ? stored
