@@ -118,20 +118,56 @@ app-page-header {
   color: var(--text-secondary, #b6c0cd);
 }
 
-.visited-gallery-header__actions {
+.visited-gallery-header__tabs {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  align-items: stretch;
+  gap: clamp(0.25rem, 1vw, 0.8rem);
+  min-width: 0;
+  border-bottom: 1px solid var(--surface-border, rgb(255 255 255 / 14%));
 }
 
-.visited-gallery-header__actions .app-action {
+.visited-gallery-header__tab {
   display: inline-flex;
-  min-height: 44px;
+  position: relative;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 0.55rem;
+  min-height: var(--tap-target, 44px);
+  padding: 0.65rem clamp(0.9rem, 1.8vw, 1.25rem);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  border-radius: 0.7rem 0.7rem 0 0;
+  font-size: 0.88rem;
+  font-weight: 750;
   text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.visited-gallery-header__tab--active {
+  color: var(--text-color, #f5f7fb);
+}
+
+.visited-gallery-header__tab--active::after {
+  content: "";
+  position: absolute;
+  right: 0.6rem;
+  bottom: -1px;
+  left: 0.6rem;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: var(--primary-color, #ff6b81);
+}
+
+a.visited-gallery-header__tab:hover,
+a.visited-gallery-header__tab:focus-visible {
+  background: color-mix(in oklab, var(--primary-color, #ff6b81) 9%, transparent);
+  color: var(--text-color, #f5f7fb);
+}
+
+a.visited-gallery-header__tab:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--primary-color, #ff6b81));
+  outline-offset: -2px;
 }
 
 @container public-photos-gallery (max-width: 540px) {
@@ -139,12 +175,15 @@ app-page-header {
     align-items: stretch;
   }
 
-  .visited-gallery-header__actions {
+  .visited-gallery-header__tabs {
     width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
-  .visited-gallery-header__actions .app-action {
-    flex: 1 1 120px;
+  .visited-gallery-header__tab {
+    flex: 1 0 auto;
+    padding-inline: 0.75rem;
   }
 }
 
@@ -204,6 +243,12 @@ app-page-header {
   max-width: 360px;
   width: 100%;
   justify-content: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .visited-gallery-header__tab {
+    transition: none;
+  }
 }
 
 .public-photos-pagination .app-action:focus-visible {
