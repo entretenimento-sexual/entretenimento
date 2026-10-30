@@ -280,6 +280,25 @@
   background: var(--primary-color, #ff6b81);
 }
 
+.other-profile-page:has(#profile-details:target) .other-profile-page__section-link:first-child::after {
+  display: none;
+}
+
+.other-profile-page:has(#profile-details:target) .other-profile-page__section-link[href="#profile-details"] {
+  color: var(--text-color, #f5f7fb);
+}
+
+.other-profile-page:has(#profile-details:target) .other-profile-page__section-link[href="#profile-details"]::after {
+  content: "";
+  position: absolute;
+  right: 0.6rem;
+  bottom: -1px;
+  left: 0.6rem;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: var(--primary-color, #ff6b81);
+}
+
 .other-profile-page__section-link:hover,
 .other-profile-page__section-link:focus-visible {
   background: color-mix(in oklab, var(--primary-color, #ff6b81) 10%, transparent);
@@ -413,6 +432,8 @@ app-profile-media-showcase {
   color: color-mix(in oklab, var(--text-color, #f9fafb) 74%, transparent);
 }
 
+:host-context(.high-contrast) .other-profile-page__hero,
+:host-context(.high-contrast) .other-profile-page__sections,
 :host-context(.high-contrast) .other-profile-page__photo-wrap,
 :host-context(.high-contrast) .other-profile-page__panel,
 :host-context(.high-contrast) .other-profile-page__preference-chip {
