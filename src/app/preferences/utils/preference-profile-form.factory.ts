@@ -41,6 +41,7 @@ export function buildPreferenceProfileForm(fb: FormBuilder) {
       acceptsSingles: fb.nonNullable.control(true),
       acceptsTransProfiles: fb.nonNullable.control<AcceptsTransProfilesFormValue>('all'),
       locationRequired: fb.nonNullable.control(false),
+      showSeekingPublicly: fb.nonNullable.control(false),
 
 
       ...buildFlagControls(fb, 'ri', RELATIONSHIP_INTENT_OPTIONS),
@@ -65,6 +66,7 @@ export function mapPreferenceProfileToFormValue(profile: PreferenceProfile): Raw
     acceptsSingles: profile.hardRules.acceptsSingles,
     acceptsTransProfiles: writeAcceptsTransProfiles(profile.hardRules.acceptsTransProfiles),
     locationRequired: profile.hardRules.locationRequired,
+    showSeekingPublicly: profile.visibility?.showSeekingPublicly === true,
     ...buildFlagPatch(profile.relationshipIntents, 'ri', RELATIONSHIP_INTENT_OPTIONS),
     ...buildFlagPatch(profile.hardRules.acceptedGenders, 'gi', GENDER_INTEREST_OPTIONS),
     ...buildFlagPatch(profile.softRules.sexualPractices, 'sp', SEXUAL_PRACTICE_OPTIONS),
@@ -120,7 +122,10 @@ export function mapFormValueToPreferenceProfile(
         ? normalizeAdvancedMode(raw['bodyPreferenceMode'], canRequireAdvanced)
         : current.matchingModes?.bodyPreferences ?? 'prefer',
     },
-    visibility: current.visibility,
+    visibility: {
+      ...current.visibility,
+      showSeekingPublicly: raw['showSeekingPublicly'] === true,
+    },
     updatedAt: Date.now(),
   };
 }
