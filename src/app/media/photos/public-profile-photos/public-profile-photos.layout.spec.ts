@@ -72,6 +72,17 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
     expect(component).not.toContain('getUserById$(');
   });
 
+  it('oferece navegação entre perfil, fotos e vídeos sem alterar o viewer', () => {
+    expect(pageHtml).toContain('class="visited-gallery-header__tabs"');
+    expect(pageHtml).toContain('aria-label="Seções do perfil visitado"');
+    expect(pageHtml).toContain('class="visited-gallery-header__tab visited-gallery-header__tab--active" aria-current="page"');
+    expect(pageHtml).toContain("['/perfil', ownerUid]");
+    expect(pageHtml).toContain("['/media/perfil', ownerUid, 'videos-publicos']");
+    expect(pageCss).toContain('.visited-gallery-header__tab--active::after');
+    expect(pageCss).toContain('min-height: var(--tap-target, 44px)');
+    expect(pageHtml).not.toContain('Seguidores');
+  });
+
   it('mantem paginacao, deduplicacao e abertura por identidade no viewer', () => {
     expect(component).toContain('this.photoPagination.loadPage$(');
     expect(component).toContain('this.mergePages(pages)');
