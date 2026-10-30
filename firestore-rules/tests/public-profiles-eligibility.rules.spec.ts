@@ -32,6 +32,7 @@ const PROJECT_ID = 'demo-entretenimento-rules';
 const FIRESTORE_HOST = '127.0.0.1';
 const FIRESTORE_PORT = 8180;
 const UID = 'public-profile-user';
+const VISITOR_UID = 'public-profile-visitor';
 const IDENTITY_CATALOG_VERSION = 1;
 
 let testEnv: RulesTestEnvironment;
@@ -103,6 +104,38 @@ async function seedUser(
         expiresAt: null,
       });
     }
+  });
+}
+
+/** Visitante adulto elegível, separado da conta dona e sem acesso privado. */
+async function seedVisitor(
+  overrides: Record<string, unknown> = {}
+): Promise<void> {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const database = context.firestore();
+    await setDoc(
+      doc(database, 'users', VISITOR_UID),
+      privateUser({ uid: VISITOR_UID, ...overrides })
+    );
+  });
+}
+
+function visitorDb() {
+  return testEnv
+    .authenticatedContext(VISITOR_UID, { email_verified: true })
+    .firestore();
+}
+
+async function seedBilateralBlock(
+  blockerUid: string,
+  targetUid: string,
+  isBlocked = true
+): Promise<void> {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(
+      doc(context.firestore(), 'users', blockerUid, 'blocks', targetUid),
+      { isBlocked, updatedAt: new Date() }
+    );
   });
 }
 
@@ -314,6 +347,79 @@ describe('Firestore Rules / public profile eligibility', () => {
     });
 
     await assertSucceeds(getDoc(doc(db, 'public_profiles', UID)));
+  });
+
+  it('nega a terceiro o GET de qualquer projeção legada com filtros privados', async () => {
+    await seedUser();
+    await seedVisitor();
+
+    for (const privateKey of [
+      'interestedInGenders',
+      'interestedInOrientations',
+      'preferences',
+      'generosDeInteresse',
+      'preferredGenders',
+    ]) {
+      await seedPublicProfile({ [privateKey]: ['não autorizado'] });
+      await assertFails(
+        getDoc(doc(visitorDb(), 'public_profiles', UID))
+      );
+    }
+
+    // O próprio dono continua tendo acesso à projeção para manutenção.
+    await assertSucceeds(getDoc(doc(authenticatedDb(), 'public_profiles', UID)));
+
+    // Backfill elimina as chaves em vez de deixar arrays vazios.
+    await seedPublicProfile({
+      publicSeekingGenders: ['women'],
+      preferenceBadgesVisible: true,
+    });
+    const cleanRead = await assertSucceeds(
+      getDoc(doc(visitorDb(), 'public_profiles', UID))
+    );
+    expect(cleanRead.data()?.['publicSeekingGenders']).toEqual(['women']);
+    expect(cleanRead.data()).not.toHaveProperty('interestedInGenders');
+  });
+
+  it('nega a visita após bloqueio bilateral, nos dois sentidos', async () => {
+    await seedUser();
+    await seedVisitor();
+    await seedPublicProfile();
+
+    await assertSucceeds(getDoc(doc(visitorDb(), 'public_profiles', UID)));
+
+    await seedBilateralBlock(VISITOR_UID, UID);
+    await assertFails(getDoc(doc(visitorDb(), 'public_profiles', UID)));
+
+    await seedBilateralBlock(VISITOR_UID, UID, false);
+    await seedBilateralBlock(UID, VISITOR_UID);
+    await assertFails(getDoc(doc(visitorDb(), 'public_profiles', UID)));
+
+    await seedBilateralBlock(UID, VISITOR_UID, false);
+    await assertSucceeds(getDoc(doc(visitorDb(), 'public_profiles', UID)));
+  });
+
+  it('revalida ocultação e suspensão do visitado a cada GET', async () => {
+    await seedUser();
+    await seedVisitor();
+    await seedPublicProfile();
+    await assertSucceeds(getDoc(doc(visitorDb(), 'public_profiles', UID)));
+
+    await seedUser({ publicVisibility: 'hidden' });
+    await assertFails(getDoc(doc(visitorDb(), 'public_profiles', UID)));
+
+    await seedUser({ accountStatus: 'moderation_suspended', suspended: true });
+    await assertFails(getDoc(doc(visitorDb(), 'public_profiles', UID)));
+  });
+
+  it('não abre perfil visitado quando o visitante perdeu elegibilidade', async () => {
+    await seedUser();
+    await seedVisitor();
+    await seedPublicProfile();
+    await assertSucceeds(getDoc(doc(visitorDb(), 'public_profiles', UID)));
+
+    await seedVisitor({ interactionBlocked: true });
+    await assertFails(getDoc(doc(visitorDb(), 'public_profiles', UID)));
   });
 
   it('nega qualquer enumeração client-side de public_profiles', async () => {
