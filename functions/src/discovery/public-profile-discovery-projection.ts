@@ -25,6 +25,32 @@ export function resolvePublicProfileAge(value: unknown): number | null {
     : null;
 }
 
+export interface PublicDescriptionProjection {
+  publicDescription: string | null;
+}
+
+/** Somente a autorização expressa permite projetar a apresentação do cadastro. */
+export function buildPublicDescriptionProjection(
+  user: Record<string, unknown>
+): PublicDescriptionProjection {
+  const text = typeof user['descricao'] === 'string'
+    ? user['descricao'].trim().slice(0, 2000)
+    : '';
+
+  return {
+    publicDescription: user['publicDescriptionVisible'] === true && text
+      ? text
+      : null,
+  };
+}
+
+export function publicDescriptionProjectionMatches(
+  current: Record<string, unknown>,
+  expected: PublicDescriptionProjection
+): boolean {
+  return (current['publicDescription'] ?? null) === expected.publicDescription;
+}
+
 export interface PublicAvatarProjection {
   /** Campo canônico consumido pelas superfícies sociais. */
   avatarUrl: string | null;
