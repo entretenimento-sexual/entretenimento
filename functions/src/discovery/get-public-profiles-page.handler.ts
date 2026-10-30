@@ -446,8 +446,17 @@ export function filterDiscoveryCardsByOwnerLifecycle(
   });
 }
 
+/** Bloqueio bilateral é filtro de exposição, inclusive em consultas diretas por UID. */
+export function filterDiscoveryCardsByViewerBlocks(
+  cards: readonly Record<string, unknown>[],
+  blockedUids: ReadonlySet<string>
+): Record<string, unknown>[] {
+  return cards.filter((card) => !blockedUids.has(cleanUid(card['uid'])));
+}
+
 async function enforceDiscoveryOwnerLifecycle(
-  page: DiscoveryPageResponse
+  page: DiscoveryPageResponse,
+  viewerUid: string
 ): Promise<DiscoveryPageResponse> {
   const uids = Array.from(new Set(page.items
     .map((card) => cleanUid(card['uid']))
@@ -464,9 +473,34 @@ async function enforceDiscoveryOwnerLifecycle(
         snapshot.exists ? snapshot.data() as Record<string, unknown> : null);
     });
   }
+  const eligible = filterDiscoveryCardsByOwnerLifecycle(page.items, owners);
+  const blockedUids = new Set<string>();
+  const otherUids = eligible
+    .map((card) => cleanUid(card['uid']))
+    .filter((uid) => uid && uid !== viewerUid);
+
+  // Somente candidatos elegíveis são verificados. Duas leituras pontuais por
+  // alvo, em batches limitados; nunca consulta coleções de bloqueios em lista.
+  for (let offset = 0; offset < otherUids.length; offset += 50) {
+    const chunk = otherUids.slice(offset, offset + 50);
+    const refs = chunk.flatMap((uid) => [
+      db.doc(`users/${viewerUid}/blocks/${uid}`),
+      db.doc(`users/${uid}/blocks/${viewerUid}`),
+    ]);
+    const snapshots = await db.getAll(...refs);
+    chunk.forEach((uid, index) => {
+      if (
+        snapshots[index * 2]?.data()?.['isBlocked'] === true ||
+        snapshots[index * 2 + 1]?.data()?.['isBlocked'] === true
+      ) {
+        blockedUids.add(uid);
+      }
+    });
+  }
+
   return {
     ...page,
-    items: filterDiscoveryCardsByOwnerLifecycle(page.items, owners),
+    items: filterDiscoveryCardsByViewerBlocks(eligible, blockedUids),
   };
 }
 
@@ -649,7 +683,8 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
       });
 
       return enforceDiscoveryOwnerLifecycle(
-        await getProfilesByUids(requestedUids, nowMs)
+        await getProfilesByUids(requestedUids, nowMs),
+        viewerUid
       );
     }
 
@@ -669,7 +704,8 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
 
     if (nearby) {
       const nearbyPage = await enforceDiscoveryOwnerLifecycle(
-        await getNearbyProfiles(nearby, pageSize, filters, nowMs)
+        await getNearbyProfiles(nearby, pageSize, filters, nowMs),
+        viewerUid
       );
       return { ...nearbyPage, items: nearbyPage.items.slice(0, pageSize) };
     }
@@ -712,7 +748,7 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
         reachedEnd: true,
         fetchedAt: nowMs,
         scanned: searchSnapshot.size,
-      });
+      }, viewerUid);
       return { ...visiblePage, items: visiblePage.items.slice(0, pageSize) };
     }
 
@@ -784,7 +820,7 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
         items: candidates.map((entry) => entry.card),
         nextCursor: null, reachedEnd: true,
         fetchedAt: nowMs, scanned,
-      });
+      }, viewerUid);
       const allowedUids = new Set(visibleBatch.items.map((item) => item['uid']));
       const selected = selectVisibleDiscoveryBatch(
         candidates, allowedUids, pageSize - items.length
