@@ -8,9 +8,23 @@
 // =========================================================================
 match /public_profiles/{userId} {
 
+  // Documento Firestore é atômico: não há redaction por campo.
+  // Perfis antigos com interesses privados precisam ser saneados antes de
+  // poderem ser lidos por terceiros. O proprietário pode inspecionar o seu.
+  function lacksPrivateDiscoveryInterestFields() {
+    return !resource.data.keys().hasAny([
+      "preferences","preferencias","interests","interesses","lookingFor","buscando",
+      "interestedInGenders","interestedInGender","targetGenders",
+      "preferredGenders","generosDeInteresse",
+      "interestedInOrientations","interestedInOrientation","targetOrientations",
+      "preferredOrientations","orientacoesDeInteresse"
+    ]);
+  }
+
   allow get: if currentUserCanUseAdultSocialPlatform()
     && bilateralExposureAllows(userId)
-    && canonicalOwnerLifecycleAllowsPublicMediaExposure(userId);
+    && canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)
+    && (isSelf(userId) || lacksPrivateDiscoveryInterestFields());
 
   allow list: if false;
 
