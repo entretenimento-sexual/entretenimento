@@ -123,6 +123,28 @@ a.public-videos-page__tab:focus-visible {
   min-width: 0;
 }
 
+.public-videos-page__back {
+  display: inline-grid;
+  flex: 0 0 var(--tap-target, 44px);
+  place-items: center;
+  width: var(--tap-target, 44px);
+  height: var(--tap-target, 44px);
+  border-radius: 50%;
+  color: var(--text-color);
+  text-decoration: none;
+  background: transparent;
+}
+
+.public-videos-page__back:hover,
+.public-videos-page__back:focus-visible {
+  background: color-mix(in oklab, var(--primary-color, #ff6b81) 9%, transparent);
+}
+
+.public-videos-page__back:focus-visible {
+  outline: var(--focus-ring, 2px solid currentColor);
+  outline-offset: 2px;
+}
+
 .gallery-actions > .app-action {
   min-height: var(--tap-target, 44px);
 }
