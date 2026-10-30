@@ -4,9 +4,9 @@
 }
 
 .public-videos-page {
-  width: min(100%, 1320px);
+  width: min(100%, 1480px);
   margin-inline: auto;
-  padding: 12px clamp(12px, 3vw, 28px) 32px;
+  padding: clamp(16px, 2vw, 28px) clamp(12px, 2.2vw, 30px) 48px;
   /* Resolve columns against the gallery surface, not the viewport. */
   container: public-videos-gallery / inline-size;
 }
@@ -14,24 +14,91 @@
 /* Mesmo componente de identificação usado na galeria pública de fotos. */
 .public-videos-identity {
   min-width: 0;
-  margin-bottom: clamp(18px, 2.5vw, 28px);
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: var(--radius-lg, 18px);
-  padding: clamp(14px, 2vw, 24px);
-  background: var(--surface-color, #111925);
+  margin-bottom: 0.8rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff6b81) 18%, var(--surface-border, #293545));
+  border-radius: clamp(1.1rem, 2.5vw, 1.6rem);
+  padding: clamp(1.2rem, 2.6vw, 2.1rem);
+  background:
+    radial-gradient(ellipse at 91% 8%, color-mix(in oklab, var(--primary-color, #ff6b81) 16%, transparent), transparent 52%),
+    linear-gradient(125deg, color-mix(in oklab, var(--surface-color, #111925) 94%, #1e263c 6%), var(--surface-color, #111925));
+  box-shadow: 0 18px 40px rgb(0 0 0 / 14%);
 }
 
 .public-videos-identity app-public-user-identity {
-  --public-user-identity-avatar-size: clamp(56px, 7vw, 72px);
-  --public-user-identity-name-size: clamp(1.25rem, 2vw, 1.75rem);
-  --public-user-identity-meta-size: 0.85rem;
+  --public-user-identity-avatar-size: clamp(62px, 6vw, 82px);
+  --public-user-identity-name-size: clamp(1.45rem, 2.35vw, 2.1rem);
+  --public-user-identity-meta-size: 0.89rem;
   --public-user-identity-gap: clamp(12px, 1.5vw, 18px);
-  max-width: 520px;
+  max-width: 680px;
 }
 
 .public-videos-identity__unavailable {
   color: var(--text-secondary, #b6c0cd);
   font-size: 0.95rem;
+}
+
+.public-videos-page__tabs {
+  display: flex;
+  align-items: stretch;
+  gap: clamp(0.25rem, 1vw, 0.8rem);
+  min-width: 0;
+  margin-bottom: clamp(20px, 2.8vw, 34px);
+  border-bottom: 1px solid var(--surface-border, rgb(255 255 255 / 14%));
+}
+
+.public-videos-page__tab {
+  display: inline-flex;
+  position: relative;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: var(--tap-target, 44px);
+  padding: 0.65rem clamp(0.9rem, 1.8vw, 1.25rem);
+  border-radius: 0.7rem 0.7rem 0 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  font-size: 0.88rem;
+  font-weight: 750;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.public-videos-page__tab--active {
+  color: var(--text-color, #f5f7fb);
+}
+
+.public-videos-page__tab--active::after {
+  content: "";
+  position: absolute;
+  right: 0.6rem;
+  bottom: -1px;
+  left: 0.6rem;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: var(--primary-color, #ff6b81);
+}
+
+a.public-videos-page__tab:hover,
+a.public-videos-page__tab:focus-visible {
+  background: color-mix(in oklab, var(--primary-color, #ff6b81) 9%, transparent);
+  color: var(--text-color, #f5f7fb);
+}
+
+a.public-videos-page__tab:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--primary-color, #ff6b81));
+  outline-offset: -2px;
+}
+
+@container public-videos-gallery (max-width: 540px) {
+  .public-videos-page__tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .public-videos-page__tab {
+    flex: 1 0 auto;
+    padding-inline: 0.75rem;
+  }
 }
 
 .gallery-actions {
@@ -150,7 +217,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .video-card__preview img {
+  .video-card__preview img,
+  .public-videos-page__tab {
     transition: none;
   }
 }
