@@ -132,7 +132,8 @@ describe('UserDiscoveryQueryService', () => {
       identityShortLabel: 'Casal',
       identityCatalogVersion: 1,
     });
-    expect(profile?.descricao).toBeUndefined();
+    expect(profile?.descricao).toBe('');
+    expect(profile?.descricao).not.toContain('Texto não publicado');
   });
 
   it('hidrata exclusivamente a descrição com opt-in publicada pelo backend', async () => {
