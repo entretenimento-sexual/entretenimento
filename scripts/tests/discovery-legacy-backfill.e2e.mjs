@@ -12,6 +12,11 @@ const project = 'demo-entretenimento-media-e2e';
 const host = '127.0.0.1';
 assert.match(project, /^demo-/);
 assert.ok(process.env.FIREBASE_EMULATOR_HUB, 'É obrigatório iniciar via emulators:exec');
+assert.match(
+  String(process.env.FIREBASE_STORAGE_EMULATOR_HOST ?? ''),
+  /^(?:localhost|127\.0\.0\.1):19199$/,
+  'Storage Emulator precisa estar ativo em localhost:19199 antes de executar o fixture'
+);
 process.env.GCLOUD_PROJECT = project;
 process.env.GCP_PROJECT = project;
 process.env.FIREBASE_AUTH_EMULATOR_HOST = host + ':19099';
@@ -54,12 +59,22 @@ const publicData = uid => ({ uid, nickname:'Perfil', nicknameNormalized:'perfil'
   createdAt:new Date(), updatedAt:new Date() });
 
 async function untilProfileIds() {
-  for (let tries = 0; tries < 50; tries += 1) {
+  // A entrega de eventos Firestore v2 pode ser mais lenta em máquinas Windows.
+  // Não confundir atraso do trigger com uma falha da callable de migração.
+  const deadline = Date.now() + 30_000;
+  let pending = ids;
+  while (Date.now() < deadline) {
     const docs = await Promise.all(ids.map(uid => db.doc('users/' + uid).get()));
-    if (docs.every(s => typeof s.get('profileId') === 'string')) return;
-    await new Promise(resolve => setTimeout(resolve, 150));
+    pending = ids.filter((_, index) =>
+      typeof docs[index].get('profileId') !== 'string'
+    );
+    if (pending.length === 0) return;
+    await new Promise(resolve => setTimeout(resolve, 250));
   }
-  throw new Error('Triggers não sincronizaram profileId no prazo do fixture');
+  throw new Error(
+    'Triggers de discovery não sincronizaram profileId para '
+    + pending.length + ' de ' + ids.length + ' contas do fixture.'
+  );
 }
 async function denied(promise) {
   await assert.rejects(promise, error => error.code === 'permission-denied');
