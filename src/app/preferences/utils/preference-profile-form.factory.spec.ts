@@ -73,6 +73,23 @@ describe('preference-profile-form.factory', () => {
     expect(result.matchingModes.relationshipIntents).toBe('require');
   });
 
+  it('não publica busca no cadastro legado e respeita autorização explícita', () => {
+    const current = createEmptyPreferenceProfile('owner');
+    current.hardRules.acceptedGenders = ['women'];
+    const raw = mapPreferenceProfileToFormValue(current);
+    expect(raw['showSeekingPublicly']).toBe(false);
+
+    raw['showSeekingPublicly'] = true;
+    const published = mapFormValueToPreferenceProfile(raw, current, capabilities());
+    expect(published.visibility.showSeekingPublicly).toBe(true);
+    expect(published.hardRules.acceptedGenders).toEqual(['women']);
+
+    const withdrawn = mapFormValueToPreferenceProfile({
+      ...raw, showSeekingPublicly: false,
+    }, published, capabilities());
+    expect(withdrawn.visibility.showSeekingPublicly).toBe(false);
+  });
+
   it('Básico altera preferências avançadas, mas normaliza exigir para preferir', () => {
     const current = createEmptyPreferenceProfile('owner');
     const raw = mapPreferenceProfileToFormValue(current);
