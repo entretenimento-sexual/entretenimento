@@ -12,7 +12,8 @@ describe('perfil público visitado: composição editorial', () => {
   const mosaicHtml = source('src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component.html');
 
   it('prioriza a mídia em largura integral, sem reservar uma coluna lateral vazia', () => {
-    expect(css).toContain('grid-template-areas:\n    "main"\n    "sidebar"');
+    // Verifica a composição independentemente de LF/CRLF no checkout Windows.
+    expect(css).toMatch(/grid-template-areas:\s*"main"\s*"sidebar"\s*;/u);
     expect(css).toContain('grid-template-columns: minmax(0, 1fr);');
     expect(css).toContain('radial-gradient(ellipse at 82% 18%');
     expect(css).not.toContain('grid-template-areas: "sidebar main"');
