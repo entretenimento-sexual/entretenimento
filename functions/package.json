@@ -13,7 +13,7 @@
     "lint:deploy:all": "eslint -c eslint.config.js \"src/**/*.ts\"",
     "lint:fix:chat": "eslint -c eslint.config.js \"src/chat/**/*.ts\" --fix",
     "clean": "node -e \"require('fs').rmSync('lib',{recursive:true,force:true})\"",
-    "build": "node ../scripts/quality/check-discovery-compatibility-mirror.mjs && npm run clean && node ./node_modules/typescript/bin/tsc --project tsconfig.json && node ../scripts/quality/check-functions-emit.mjs",
+    "build": "node ../scripts/quality/check-discovery-compatibility-mirror.mjs && node ../scripts/quality/check-discovery-private-fields-contract.mjs && npm run clean && node ./node_modules/typescript/bin/tsc --project tsconfig.json && node ../scripts/quality/check-functions-emit.mjs",
     "build:watch": "tsc --watch",
     "test": "npm run build && node ../scripts/quality/run-functions-tests.mjs",
     "serve": "npm run build && firebase emulators:start --only functions",
