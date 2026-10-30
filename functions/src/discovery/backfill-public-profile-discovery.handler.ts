@@ -125,7 +125,9 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
     );
 
     const limit = normalizeLimit(request.data?.limit);
-    const dryRun = request.data?.dryRun === true;
+    // Segurança também no callable, não só no runner administrativo:
+    // payload ausente, inválido ou legado jamais autoriza escrita.
+    const dryRun = request.data?.dryRun !== false;
     const startAfterUid = normalizeCursor(request.data?.startAfterUid);
 
     let usersQuery = db.collection('users').orderBy(FieldPath.documentId());
