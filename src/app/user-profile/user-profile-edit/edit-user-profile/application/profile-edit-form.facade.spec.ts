@@ -49,6 +49,7 @@ describe('ProfileEditFormFacade', () => {
         orientation: 'bissexual',
         idade: 34,
         descricao: 'Descrição',
+        publicDescriptionVisible: true,
       } as any,
       [
         { id: 1, nome: 'Rio de Janeiro' },
@@ -64,8 +65,15 @@ describe('ProfileEditFormFacade', () => {
       orientation: 'bissexual',
       idade: 34,
       descricao: 'Descrição',
+      publicDescriptionVisible: true,
     });
     expect(facade.municipios()).toHaveLength(2);
+  });
+
+  it('não expõe apresentação antiga sem opt-in', () => {
+    const { facade } = setup();
+    facade.initialize({ uid: 'u1', descricao: 'Texto antigo' } as any, []);
+    expect(facade.form.get('publicDescriptionVisible')?.value).toBe(false);
   });
 
   it('alterna controles de orientação para perfil de casal', () => {
