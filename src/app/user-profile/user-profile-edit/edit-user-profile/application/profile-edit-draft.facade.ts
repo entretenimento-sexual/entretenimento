@@ -17,6 +17,7 @@ const PROFILE_DRAFT_FIELDS = [
   'partner1Orientation',
   'partner2Orientation',
   'descricao',
+  'publicDescriptionVisible',
 ] as const;
 
 @Injectable()
@@ -69,11 +70,13 @@ export class ProfileEditDraftFacade {
 
     if (!draft) return;
 
-    const patch: ProfileDraft = {};
+    const patch: Record<string, string | boolean> = {};
 
     PROFILE_DRAFT_FIELDS.forEach((field) => {
       if (typeof draft[field] === 'string') {
-        patch[field] = draft[field];
+        patch[field] = field === 'publicDescriptionVisible'
+          ? draft[field] === 'true'
+          : draft[field];
       }
     });
 
