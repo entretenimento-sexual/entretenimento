@@ -454,9 +454,9 @@ describe('OtherUserProfileViewComponent', () => {
   });
 
   it('exibe apenas afinidades públicas sanitizadas autorizadas pelo perfil', () => {
-    const affinityText = fixture.debugElement.query(
-      By.css('.other-profile-page__affinities')
-    ).nativeElement.textContent as string;
+    const affinityText = Array.from(
+      fixture.nativeElement.querySelectorAll('.other-profile-page__affinities')
+    ).map((node: Element) => node.textContent ?? '').join(' ');
 
     expect(affinityText).toContain('Sério');
     expect(affinityText).toContain('BDSM');
