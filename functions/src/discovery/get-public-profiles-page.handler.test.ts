@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   discoveryReadRateLimitCost,
   serializePublicProfileForDiscovery,
+  attachViewerCompatibilityToPublicCards,
   filterDiscoveryCardsByOwnerLifecycle,
   filterDiscoveryCardsByViewerBlocks,
   selectVisibleDiscoveryBatch,
@@ -72,6 +73,56 @@ describe('get-public-profiles-page boundary', () => {
       assert.equal(Object.hasOwn(serialized, privateField), false, privateField);
     }
     assert.deepEqual(serialized['publicSeekingGenders'], ['women']);
+  });
+
+  it('calcula reciprocidade usando documento privado sem revelar preferências do alvo', () => {
+    const viewer = {
+      normalizedGender: 'man',
+      normalizedOrientation: 'heterosexual',
+      interestedInGenders: ['woman'],
+      interestedInOrientations: ['heterosexual'],
+      discoveryPreferences: { genderInterests: ['women'] },
+      email: 'private-viewer@example.test',
+    };
+    const privateOwner = {
+      normalizedGender: 'woman',
+      normalizedOrientation: 'heterosexual',
+      interestedInGenders: ['man'],
+      interestedInOrientations: ['heterosexual'],
+      discoveryPreferences: { genderInterests: ['men'] },
+      email: 'private-owner@example.test',
+    };
+    const publicCard = serializePublicProfileForDiscovery(
+      'owner', profile({ gender: 'woman', publicSeekingGenders: [] }), NOW
+    );
+    assert.ok(publicCard);
+    const owners = new Map<string, Record<string, unknown> | null>([
+      ['owner', privateOwner],
+    ]);
+    const [visible] = attachViewerCompatibilityToPublicCards(
+      [publicCard], 'viewer', viewer, owners
+    );
+
+    assert.equal(visible['viewerCompatibilityAllowed'], true);
+    assert.equal(visible['viewerCompatibilityReason'], 'compatible');
+    for (const field of [
+      'interestedInGenders', 'interestedInOrientations',
+      'discoveryPreferences', 'email',
+    ]) {
+      assert.equal(Object.hasOwn(visible, field), false, field);
+    }
+
+    owners.set('owner', {
+      ...privateOwner,
+      interestedInGenders: ['woman'], // Proprietária não procura homens.
+    });
+    const [denied] = attachViewerCompatibilityToPublicCards(
+      [publicCard], 'viewer', viewer, owners
+    );
+    assert.equal(denied['viewerCompatibilityAllowed'], false);
+    assert.equal(denied['viewerCompatibilityReason'], 'incompatible');
+    assert.deepEqual(denied['publicSeekingGenders'], []);
+    assert.equal(Object.hasOwn(denied, 'interestedInGenders'), false);
   });
 
   it('filtra bloqueios bilaterais inclusive em leituras por UID', () => {
