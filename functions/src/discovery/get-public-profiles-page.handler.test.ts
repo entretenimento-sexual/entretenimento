@@ -5,6 +5,7 @@ import {
   discoveryReadRateLimitCost,
   serializePublicProfileForDiscovery,
   filterDiscoveryCardsByOwnerLifecycle,
+  filterDiscoveryCardsByViewerBlocks,
   selectVisibleDiscoveryBatch,
 } from './get-public-profiles-page.handler';
 
@@ -52,6 +53,19 @@ describe('get-public-profiles-page boundary', () => {
     assert.ok(serialized);
     assert.equal(serialized['publicDescription'], 'Apresentação autorizada');
     assert.equal('descricao' in serialized, false);
+    assert.deepEqual(serialized['publicSeekingGenders'], null);
+  });
+
+  it('filtra bloqueios bilaterais inclusive em leituras por UID', () => {
+    const cards = [
+      { uid: 'active', nickname: 'Ativo' },
+      { uid: 'blocked-by-viewer', nickname: 'Bloqueado' },
+      { uid: 'blocked-by-owner', nickname: 'Bloqueou o visitante' },
+    ];
+    assert.deepEqual(filterDiscoveryCardsByViewerBlocks(
+      cards,
+      new Set(['blocked-by-viewer', 'blocked-by-owner'])
+    ), [{ uid: 'active', nickname: 'Ativo' }]);
   });
 
   it('descarta idade social fora da faixa sem bloquear o perfil', () => {
