@@ -42,3 +42,27 @@ O campo privado `users/{uid}.descricao` **não é consumido diretamente** pelo p
 A apresentação fica imediatamente abaixo da identidade/ações e antes do mosaico. Preferências só aparecem quando a visibilidade pública está autorizada. Distância é exibida apenas quando já está autorizada pela consulta. Perfis que não optaram pela publicação informam a ausência de apresentação, sem transformar orientações, intenções ou características em afirmações presumidas.
 
 Fluxo de trabalho: alterações realizadas diretamente em `main`, sem criação de branches ou pull requests. Publicação e revisão visual real continuam exigindo validação específica e não são inferidas apenas do código.
+
+## Mapa de informações da visita e autorização (30/10/2026)
+
+Prioridade de descoberta: `identidade → Sobre → O que procura → Quem gostaria de conhecer → Práticas → Como se descreve → Redes → Mídias → Comunidades`. Painéis sem dados autorizados não são fabricados. `Sobre` permanece visível com estado neutro; redes sociais vazias permanecem ocultas. Os links públicos de mídias preservam audiências independentes e não autorizam acesso a qualquer arquivo privado.
+
+| Informação | Origem | Regra de exposição ao visitante |
+| --- | --- | --- |
+| Apelido, tipo de perfil, orientação individual autorizada, município/UF | Projeção pública canônica | Identidade pública mínima; não inferir orientação de casal nem idade por avatar |
+| Apresentação | `publicDescription` | `publicDescriptionVisible === true` no proprietário; nunca consumir `users.descricao` em visitas |
+| Tipo de relacionamento procurado | `publicRelationshipIntents` | `visibility.showPreferenceBadges === true` |
+| Quem gostaria de conhecer | `publicSeekingGenders` | Ambos `showPreferenceBadges === true` **e** `showSeekingPublicly === true`; ausência/legado = oculto; códigos allowlist |
+| Práticas desejadas | `publicSexualPractices` | Opt-in de badges e entitlement **Básico+ vigente do proprietário**, projetado pelo backend |
+| Traços próprios | `publicBodyTraits` | Opt-in de badges; não confundir com `softRules.bodyPreferences`, que são preferências de terceiros |
+| Redes externas | `public_social_links/{uid}` | Apenas espelho público, assinatura ativa do proprietário e autorização Firestore; leitura bloqueada em ocultação/lifecycle/bloqueio bilateral |
+| Status temporário | Consulta específica de intenção | Respeitar audiência, região, expiração, moderação e restrições da consulta; não derivar de visitas ou chat |
+| Fotos, vídeos, comunidades | Consultas específicas | Respeitar audiência, vínculo, moderação, propriedade e autorização específicas; não expandir acesso por conta do perfil |
+
+**Campos que continuam privados:** e-mail, dados civis, KYC, comprovação etária, localização exata, limites etários e raio de busca, filtros rígidos, preferências privadas do visitante, parâmetros financeiros e conteúdo de audiência restrita. Não projetá-los para preencher a interface.
+
+**Bloqueio bilateral:** o callable `getPublicProfilesPage` agora verifica bloqueios recíprocos para UID específico, busca, lista e vizinhança. A consulta de perfil visitado ignora cache persistente anterior e revalida a autorização na abertura. As regras do espelho de redes sociais também exigem lifecycle público e ausência de bloqueio.
+
+**Dívida de arquitetura ainda aberta, impeditiva de certificação completa de confidencialidade das preferências:** os campos legados `interestedInGenders`/`interestedInOrientations` continuam trafegando na serialização pública de discovery para sustentar o motor de reciprocidade atual, mesmo quando a exibição de `publicSeekingGenders` não foi autorizada. A nova UI não os utiliza para renderizar a busca, mas isso não deve ser descrito como sigilo de payload. Antes da operação, separar a avaliação recíproca backend da projeção entregue ao cliente, testar que nenhuma preferência privada continua presente no transporte e avaliar impactos no ranking. Não resolver com mera ocultação CSS.
+
+**Validação pendente:** compilações, `test:ci`, suíte Functions, regras Firestore e inspeção com duas contas, incluindo revogação de busca, assinatura expirada, bloqueio em ambas as direções, perfis ocultos e mídia FRIENDS/PUBLIC. Alterações realizadas na `main`, sem branches nem pull requests.
