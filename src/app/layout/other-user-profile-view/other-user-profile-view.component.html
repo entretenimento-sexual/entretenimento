@@ -173,14 +173,18 @@
         </p>
       }
 
-      @for (group of publishedPreferenceGroups; track group.title) {
-        <div class="other-profile-page__affinities" [attr.aria-label]="group.title">
-          <h3>{{ group.title }}</h3>
-          <div class="other-profile-page__preference-cloud">
-            @for (label of group.labels; track label) {
-              <span class="other-profile-page__preference-chip app-chip">{{ label }}</span>
-            }
-          </div>
+      @if (publishedPreferenceGroups.length > 0) {
+        <div class="other-profile-page__affinities-grid">
+          @for (group of publishedPreferenceGroups; track group.title) {
+            <section class="other-profile-page__affinities" [attr.aria-label]="group.title">
+              <h3>{{ group.title }}</h3>
+              <div class="other-profile-page__preference-cloud">
+                @for (label of group.labels; track label) {
+                  <span class="other-profile-page__preference-chip app-chip">{{ label }}</span>
+                }
+              </div>
+            </section>
+          }
         </div>
       }
 
