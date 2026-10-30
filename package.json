@@ -52,7 +52,7 @@
     "functions:audit:prod": "npm --prefix functions run audit:prod",
     "functions:audit:all": "npm --prefix functions run audit:all",
     "admin:discovery-backfill": "node scripts/admin/run-discovery-backfill.mjs",
-    "test:discovery:legacy-backfill:e2e": "npm run rules:build && npm run rules:check && npm run functions:build && firebase emulators:exec --config firebase.media-e2e.json --only auth,firestore,functions --project demo-entretenimento-media-e2e \"node scripts/tests/discovery-legacy-backfill.e2e.mjs\"",
+    "test:discovery:legacy-backfill:e2e": "npm run rules:build && npm run rules:check && npm run functions:build && firebase emulators:exec --config firebase.media-e2e.json --only auth,firestore,storage,functions --project demo-entretenimento-media-e2e \"node scripts/tests/discovery-legacy-backfill.e2e.mjs\"",
     "maintenance:age-legacy-cleanup": "node scripts/maintenance/cleanup-legacy-age-verification-admin.mjs",
     "maintenance:media-age-legacy-cleanup": "node scripts/maintenance/cleanup-legacy-media-age-projections-admin.mjs",
     "emu:save": "node scripts/dev/save-emulator-data.mjs --require-running",
