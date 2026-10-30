@@ -347,10 +347,23 @@
   line-height: 1.5;
 }
 
+.other-profile-page__affinities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 23rem), 1fr));
+  align-items: start;
+  gap: clamp(0.8rem, 1.5vw, 1.15rem);
+  min-width: 0;
+}
+
 .other-profile-page__affinities {
   display: grid;
-  gap: 0.5rem;
-  margin-top: 0.2rem;
+  align-content: start;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid color-mix(in oklab, var(--surface-border, #293545) 65%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in oklab, var(--surface-color, #111925) 96%, var(--text-color, #f5f7fb) 4%);
 }
 
 .other-profile-page__affinities h3 {
