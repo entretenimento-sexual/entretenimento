@@ -4,6 +4,7 @@
 
 import {
   PUBLIC_BODY_TRAIT_OPTIONS,
+  PUBLIC_GENDER_INTEREST_OPTIONS,
   PUBLIC_RELATIONSHIP_INTENT_OPTIONS,
   PUBLIC_SEXUAL_PRACTICE_OPTIONS,
 } from 'src/app/core/catalogs/public-preference-options.catalog';
@@ -28,24 +29,8 @@ export interface PreferenceOption<T extends string> {
 export const RELATIONSHIP_INTENT_OPTIONS: ReadonlyArray<PreferenceOption<RelationshipIntent>> =
   PUBLIC_RELATIONSHIP_INTENT_OPTIONS;
 
-export const GENDER_INTEREST_OPTIONS: ReadonlyArray<PreferenceOption<GenderInterest>> = [
-  { key: 'men', label: 'Homens' },
-  { key: 'women', label: 'Mulheres' },
-  { key: 'couple_mm', label: 'Casal MM' },
-  { key: 'couple_mf', label: 'Casal MF' },
-  { key: 'couple_ff', label: 'Casal FF' },
-  { key: 'travestis', label: 'Travestis' },
-  { key: 'trans_people', label: 'Pessoas trans' },
-  { key: 'crossdressers', label: 'Crossdressers' },
-  { key: 'non_binary', label: 'Não binário' },
-  { key: 'intersex', label: 'Intersexo' },
-  { key: 'drag_queen', label: 'Drag Queen' },
-  { key: 'drag_king', label: 'Drag King' },
-  { key: 'genderfluid', label: 'Genderfluid' },
-  { key: 'agender', label: 'Agênero' },
-  { key: 'genderqueer', label: 'Genderqueer' },
-  { key: 'androgynous', label: 'Andrógino' },
-];
+export const GENDER_INTEREST_OPTIONS: ReadonlyArray<PreferenceOption<GenderInterest>> =
+  PUBLIC_GENDER_INTEREST_OPTIONS;
 
 export const SEXUAL_PRACTICE_OPTIONS: ReadonlyArray<PreferenceOption<SexualPractice>> =
   PUBLIC_SEXUAL_PRACTICE_OPTIONS;
