@@ -240,6 +240,19 @@
         Não inclua telefone, endereço ou outros dados sensíveis.
       </p>
 
+      <label class="profile-description-visibility" for="publicDescriptionVisible">
+        <input
+          id="publicDescriptionVisible"
+          type="checkbox"
+          formControlName="publicDescriptionVisible"
+        />
+        <span>Mostrar minha apresentação no perfil visitado por outros usuários</span>
+      </label>
+      <p class="help-text app-field-help">
+        A publicação é opcional. Desmarque e salve para retirar sua apresentação da projeção pública.
+        O texto nunca é publicado automaticamente.
+      </p>
+
       @if (editForm.get('descricao')?.invalid && editForm.get('descricao')?.touched) {
         <div id="descricao-error" class="field-error app-field-error" role="alert">
           A descrição está muito longa.
