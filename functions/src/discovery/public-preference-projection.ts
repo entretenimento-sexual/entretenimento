@@ -15,6 +15,7 @@
 export interface PublicPreferenceProjection {
   preferenceBadgesVisible: boolean;
   publicRelationshipIntents: readonly string[];
+  publicSeekingGenders: readonly string[];
   publicSexualPractices: readonly string[];
   publicBodyTraits: readonly string[];
 }
@@ -26,6 +27,13 @@ export interface PublicPreferenceProjectionOptions {
 const RELATIONSHIP_INTENTS = new Set([
   'friendship', 'casual', 'dating', 'serious', 'open_relationship',
   'polyamory', 'swing', 'fetish_exploration',
+]);
+
+const SEEKING_GENDERS = new Set([
+  'men', 'women', 'couple_mm', 'couple_mf', 'couple_ff', 'travestis',
+  'trans_people', 'crossdressers', 'non_binary', 'intersex',
+  'drag_queen', 'drag_king', 'genderfluid', 'agender', 'genderqueer',
+  'androgynous',
 ]);
 
 const SEXUAL_PRACTICES = new Set([
@@ -60,6 +68,9 @@ export function buildPublicPreferenceProjection(
   return {
     preferenceBadgesVisible: true,
     publicRelationshipIntents: relationshipIntents,
+    publicSeekingGenders: visibility?.['showSeekingPublicly'] === true
+      ? sanitizeList(hardRules?.['acceptedGenders'], SEEKING_GENDERS, 16)
+      : [],
     publicSexualPractices: options.canPublishAdvanced
       ? sanitizeList(softRules?.['sexualPractices'], SEXUAL_PRACTICES, 40)
       : [],
@@ -74,6 +85,7 @@ export function publicPreferenceProjectionMatches(
 ): boolean {
   return current['preferenceBadgesVisible'] === expected.preferenceBadgesVisible
     && sameStringArray(current['publicRelationshipIntents'], expected.publicRelationshipIntents)
+    && sameStringArray(current['publicSeekingGenders'], expected.publicSeekingGenders)
     && sameStringArray(current['publicSexualPractices'], expected.publicSexualPractices)
     && sameStringArray(current['publicBodyTraits'], expected.publicBodyTraits);
 }
@@ -82,6 +94,7 @@ function emptyProjection(visible: boolean): PublicPreferenceProjection {
   return {
     preferenceBadgesVisible: visible,
     publicRelationshipIntents: [],
+    publicSeekingGenders: [],
     publicSexualPractices: [],
     publicBodyTraits: [],
   };
