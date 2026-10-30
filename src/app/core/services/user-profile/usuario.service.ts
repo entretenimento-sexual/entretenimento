@@ -81,6 +81,9 @@ export class UsuarioService {
       partner1Orientation: dados.partner1Orientation ?? undefined,
       partner2Orientation: dados.partner2Orientation ?? undefined,
       descricao: dados.descricao ?? undefined,
+      publicDescriptionVisible: dados.publicDescriptionVisible === undefined
+        ? undefined
+        : dados.publicDescriptionVisible === true,
       photoURL: dados.photoURL ?? undefined,
 
       // se você realmente mantém isso no users doc:
