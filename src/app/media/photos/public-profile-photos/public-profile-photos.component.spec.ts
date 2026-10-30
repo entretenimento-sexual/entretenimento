@@ -523,6 +523,24 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
     subscription.unsubscribe();
   });
 
+  it('impede abrir outro viewer de foto até fechar o modal anterior', () => {
+    const modalClosed$ = new Subject<void>();
+    viewer.openWithResult$.mockReturnValueOnce(modalClosed$.asObservable());
+    const subscription = component.state$.subscribe();
+
+    component.openPhoto(0, PHOTO);
+    component.openPhoto(0, PHOTO);
+
+    expect(viewer.openWithResult$).toHaveBeenCalledTimes(1);
+
+    modalClosed$.next();
+    modalClosed$.complete();
+    component.openPhoto(0, PHOTO);
+
+    expect(viewer.openWithResult$).toHaveBeenCalledTimes(2);
+    subscription.unsubscribe();
+  });
+
   it('não abre índices inválidos nem cartões obsoletos', () => {
     const subscription = component.state$.subscribe();
 
