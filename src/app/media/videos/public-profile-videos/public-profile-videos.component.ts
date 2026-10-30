@@ -45,6 +45,7 @@ import {
 } from 'src/app/core/domain/public-user-identity/public-user-identity.model';
 import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { visitedProfileReturnRoute } from 'src/app/core/utils/media/visited-profile-return-route';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
@@ -146,6 +147,10 @@ export class PublicProfileVideosComponent implements OnInit {
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+
+  profileReturnRoute(ownerUid: string, viewerUid: string | null): string[] {
+    return visitedProfileReturnRoute(ownerUid, viewerUid);
+  }
 
   // One atomic route context prevents a mixed owner/video pair while the
   // router reuses the gallery component for a different media deep link.
