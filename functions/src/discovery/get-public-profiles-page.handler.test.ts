@@ -56,6 +56,24 @@ describe('get-public-profiles-page boundary', () => {
     assert.deepEqual(serialized['publicSeekingGenders'], null);
   });
 
+  it('não entrega interesses privados ou aliases legados no JSON público', () => {
+    const serialized = serializePublicProfileForDiscovery('secret-target', profile({
+      preferences: ['segredo'],
+      interestedInGenders: ['man'],
+      generosDeInteresse: ['woman'],
+      interestedInOrientations: ['homosexual'],
+      publicSeekingGenders: ['women'],
+    }), NOW);
+    assert.ok(serialized);
+    for (const privateField of [
+      'preferences', 'interestedInGenders', 'generosDeInteresse',
+      'interestedInOrientations',
+    ]) {
+      assert.equal(Object.hasOwn(serialized, privateField), false, privateField);
+    }
+    assert.deepEqual(serialized['publicSeekingGenders'], ['women']);
+  });
+
   it('filtra bloqueios bilaterais inclusive em leituras por UID', () => {
     const cards = [
       { uid: 'active', nickname: 'Ativo' },
