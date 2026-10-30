@@ -377,6 +377,8 @@ export class UserDiscoveryQueryService {
       nicknameNormalized:
         this.firstText(raw, ['nicknameNormalized'])
         ?? nickname.toLowerCase(),
+      // Nunca transportar descricao privada; somente o campo projetado com opt-in.
+      descricao: this.firstText(raw, ['publicDescription']) ?? '',
       photoURL: this.firstText(raw, [
         'photoURL',
         'photoUrl',
