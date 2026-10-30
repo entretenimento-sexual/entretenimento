@@ -46,7 +46,6 @@
       </figure>
 
       <div class="other-profile-page__identity">
-        <p class="other-profile-page__eyebrow">Perfil público</p>
         <div class="other-profile-page__headline">
           <h1 id="profile-heading" class="other-profile-page__title">
             {{ displayName }}
@@ -136,10 +135,18 @@
       </div>
     </article>
 
-    <nav class="other-profile-page__sections" aria-label="Navegação do perfil">
-      <a href="#profile-media" class="other-profile-page__section-link">
+    <nav class="other-profile-page__sections" aria-label="Seções do perfil visitado">
+      <span class="other-profile-page__section-link other-profile-page__section-link--active" aria-current="page">
+        <i class="fas fa-user" aria-hidden="true"></i>
+        <span>Perfil</span>
+      </span>
+      <a class="other-profile-page__section-link" [routerLink]="['/media', 'perfil', uid, 'fotos-publicas']">
         <i class="fas fa-images" aria-hidden="true"></i>
-        <span>Mídias</span>
+        <span>Fotos</span>
+      </a>
+      <a class="other-profile-page__section-link" [routerLink]="['/media', 'perfil', uid, 'videos-publicos']">
+        <i class="fas fa-film" aria-hidden="true"></i>
+        <span>Vídeos</span>
       </a>
       @if (
         (profile.distanciaKm !== null && profile.distanciaKm !== undefined) ||
@@ -147,7 +154,7 @@
         desireMatch
       ) {
         <a href="#profile-details" class="other-profile-page__section-link">
-          <i class="fas fa-user" aria-hidden="true"></i>
+          <i class="fas fa-circle-info" aria-hidden="true"></i>
           <span>Sobre</span>
         </a>
       }
