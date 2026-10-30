@@ -14,6 +14,7 @@ match /public_profiles/{userId} {
   function lacksPrivateDiscoveryInterestFields() {
     return !resource.data.keys().hasAny([
       "preferences","preferencias","interests","interesses","lookingFor","buscando",
+      "discoveryPreferences","hardRules","softRules","matchingModes","selfTraits",
       "interestedInGenders","interestedInGender","targetGenders",
       "preferredGenders","generosDeInteresse",
       "interestedInOrientations","interestedInOrientation","targetOrientations",
