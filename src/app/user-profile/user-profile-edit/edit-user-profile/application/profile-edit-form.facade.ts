@@ -37,6 +37,7 @@ export class ProfileEditFormFacade {
     partner1Orientation: [''],
     partner2Orientation: [''],
     descricao: ['', [Validators.maxLength(2000)]],
+    publicDescriptionVisible: [false],
   });
 
   readonly municipios = signal<ProfileEditMunicipio[]>([]);
@@ -114,6 +115,7 @@ export class ProfileEditFormFacade {
         partner1Orientation: user.partner1Orientation ?? '',
         partner2Orientation: user.partner2Orientation ?? '',
         descricao: user.descricao ?? '',
+        publicDescriptionVisible: user.publicDescriptionVisible === true,
       },
       { emitEvent: true }
     );
