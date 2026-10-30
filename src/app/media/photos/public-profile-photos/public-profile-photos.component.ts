@@ -408,7 +408,7 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
         return defer(() => {
           this.viewerOpening = true;
 
-          return this.photoViewerLauncher.open$({
+          return this.photoViewerLauncher.openWithResult$({
             items: [...state.items],
             selected,
             source: 'profile',
