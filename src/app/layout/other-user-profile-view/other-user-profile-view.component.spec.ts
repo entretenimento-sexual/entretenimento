@@ -373,7 +373,7 @@ describe('OtherUserProfileViewComponent', () => {
     expect(nav.querySelector('[aria-current="page"]')?.textContent).toContain('Perfil');
     expect(fixture.nativeElement.querySelector('#profile-media')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('#profile-details')).not.toBeNull();
-    expect(hero.querySelector('.other-profile-page__bio-text')?.textContent)
+    expect(fixture.nativeElement.querySelector('#profile-details .other-profile-page__bio-text')?.textContent)
       .toContain('Descrição direta do perfil.');
     expect(nav.textContent).not.toContain('Seguidores');
   });
@@ -407,7 +407,7 @@ describe('OtherUserProfileViewComponent', () => {
       By.css('.other-profile-page__hero')
     ).nativeElement as HTMLElement;
     const about = fixture.debugElement.query(
-      By.css('.other-profile-page__about')
+      By.css('.other-profile-page__introduction')
     ).nativeElement as HTMLElement;
     const identity = hero.querySelector('app-public-user-identity') as HTMLElement;
     const heading = hero.querySelector('#profile-heading') as HTMLElement;
@@ -419,8 +419,8 @@ describe('OtherUserProfileViewComponent', () => {
     expect(identity.textContent).toContain('Rio de Janeiro/RJ');
     expect(identity.textContent).not.toContain('Pessoa alvo');
     expect(hero.textContent).not.toContain('32 anos');
-    expect(hero.textContent).toContain('Descrição direta do perfil.');
-    expect(about.textContent).not.toContain('Descrição direta do perfil.');
+    expect(hero.textContent).not.toContain('Descrição direta do perfil.');
+    expect(about.textContent).toContain('Descrição direta do perfil.');
     expect(about.textContent).not.toContain('Rio de Janeiro, RJ');
     expect(about.textContent).toContain('8 km');
   });
@@ -505,6 +505,30 @@ describe('OtherUserProfileViewComponent', () => {
     expect(socialComponent.compact()).toBe(true);
     expect(socialComponent.hideWhenEmpty()).toBe(true);
     expect(socialLinks.nativeElement.hasAttribute('hidden')).toBe(true);
+  });
+
+  it('informa ausência de apresentação sem inventar preferências ou expor dados privados', () => {
+    const userQuery = TestBed.inject(FirestoreUserQueryService);
+    const emptyProfile = {
+      ...component.userProfile!,
+      descricao: '',
+      preferenceBadgesVisible: false,
+      publicRelationshipIntents: null,
+      publicSexualPractices: null,
+      publicBodyTraits: null,
+    };
+    vi.mocked(userQuery.getPublicUserById$).mockReturnValue(of(emptyProfile));
+
+    fixture.destroy();
+    fixture = TestBed.createComponent(OtherUserProfileViewComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const intro = fixture.nativeElement.querySelector('#profile-details') as HTMLElement;
+    expect(intro.textContent).toContain('ainda não compartilhou uma apresentação pública');
+    expect(intro.querySelector('.other-profile-page__bio-text')).toBeNull();
+    expect(intro.querySelector('.other-profile-page__affinities')).toBeNull();
+    expect(fixture.nativeElement.querySelector('a[href="#profile-details"]')).not.toBeNull();
   });
 
   it('não inventa publicações nem repete segurança ou promoção de planos', () => {
