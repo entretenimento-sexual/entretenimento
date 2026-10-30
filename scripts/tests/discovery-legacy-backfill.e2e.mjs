@@ -53,27 +53,36 @@ const ownerData = uid => ({ uid, role:'free', tier:'free', accountStatus:'active
   acceptedTerms:{ accepted:true, version:'v3', acknowledgedPrivacyNotice:true },
   initialAdultConsentRequired:true, adultConsent:{ accepted:true, version:'v1' },
   ageReverification:{ status:'NONE' } });
-const publicData = uid => ({ uid, nickname:'Perfil', nicknameNormalized:'perfil',
+const publicData = uid => ({ uid, nickname:'Perfil-' + uid, nicknameNormalized:'perfil-' + uid,
   gender:'mulher', identityCode:'mulher', identityCatalogVersion:1,
   orientation:'bissexual', role:'free', estado:'RJ', municipio:'Rio de Janeiro',
   createdAt:new Date(), updatedAt:new Date() });
 
-async function untilProfileIds() {
-  // A entrega de eventos Firestore v2 pode ser mais lenta em máquinas Windows.
-  // Não confundir atraso do trigger com uma falha da callable de migração.
+async function untilDiscoveryTriggersSettled() {
+  // Projeções públicas preexistentes garantem que a primeira sincronização
+  // de users/ efetivamente percorra o ciclo completo do trigger.
   const deadline = Date.now() + 30_000;
   let pending = ids;
   while (Date.now() < deadline) {
-    const docs = await Promise.all(ids.map(uid => db.doc('users/' + uid).get()));
+    const [users, profiles] = await Promise.all([
+      Promise.all(ids.map(uid => db.doc('users/' + uid).get())),
+      Promise.all([legacy, clean].map(uid => db.doc('public_profiles/' + uid).get())),
+    ]);
     pending = ids.filter((_, index) =>
-      typeof docs[index].get('profileId') !== 'string'
+      typeof users[index].get('profileId') !== 'string'
     );
-    if (pending.length === 0) return;
+    const projected = profiles.every(snapshot => snapshot.get('discoveryNormalizedAt'));
+    if (pending.length === 0 && projected) {
+      // Os gatilhos encadeados também podem observar o mesmo user write;
+      // aguardamos a propagação antes de injetar o legado deliberadamente.
+      await new Promise(resolve => setTimeout(resolve, 1_500));
+      return;
+    }
     await new Promise(resolve => setTimeout(resolve, 250));
   }
   throw new Error(
-    'Triggers de discovery não sincronizaram profileId para '
-    + pending.length + ' de ' + ids.length + ' contas do fixture.'
+    'Sincronização inicial do fixture incompleta: ' + pending.length
+    + ' profileIds pendentes e/ou projeções sem discoveryNormalizedAt.'
   );
 }
 async function denied(promise) {
@@ -87,6 +96,12 @@ try {
   });
   await auth.setCustomUserClaims(operator, { admin:true });
   const op = client(operator), view = client(visitor);
+  // Criar projeções limpas antes de users/ faz o trigger completar sua
+  // primeira sincronização antes da contaminação legada simulada.
+  await Promise.all([
+    db.doc('public_profiles/' + legacy).set(publicData(legacy)),
+    db.doc('public_profiles/' + clean).set(publicData(clean)),
+  ]);
   const batch = db.batch();
   for (const uid of ids) batch.set(db.doc('users/' + uid), {
     ...ownerData(uid),
@@ -95,18 +110,20 @@ try {
       interestedInOrientations:['heterosexual'], discoveryPreferences:{ genderInterests:['men'] } } : {}),
   });
   await batch.commit();
-  await untilProfileIds();
+  await untilDiscoveryTriggersSettled();
   await Promise.all([
     signInWithEmailAndPassword(op.auth, operator + '@example.test', password),
     signInWithEmailAndPassword(view.auth, visitor + '@example.test', password),
   ]);
   await op.auth.currentUser.getIdToken(true);
 
+  // A escrita abaixo NÃO altera users/: não existe gatilho legítimo pendente
+  // de saneamento ao executar a callable administrativa em dryRun.
   await db.doc('public_profiles/' + legacy).set({
-    ...publicData(legacy), interestedInGenders:['man'],
-    discoveryPreferences:{ genderInterests:['men'] }, hardRules:{ acceptedGenders:['men'] },
-  });
-  await db.doc('public_profiles/' + clean).set(publicData(clean));
+    interestedInGenders:['man'],
+    discoveryPreferences:{ genderInterests:['men'] },
+    hardRules:{ acceptedGenders:['men'] },
+  }, { merge:true });
   const ref = db.doc('public_profiles/' + legacy);
   const initial = (await ref.get()).data();
   assert.ok(initial.interestedInGenders, 'Fixture legado precisa conter dados privados');
