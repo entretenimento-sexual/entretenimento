@@ -161,6 +161,8 @@ describe('UserDiscoveryQueryService', () => {
             uid: 'profile-public-signals',
             nickname: 'Profile',
             publicRelationshipIntents: ['serious'],
+      publicSeekingGenders: ['women'],
+            publicSeekingGenders: ['women'],
             publicSexualPractices: ['bdsm'],
             publicBodyTraits: ['tattoos'],
             preferenceBadgesVisible: true,
