@@ -41,7 +41,7 @@
       <nav class="public-videos-page__tabs" aria-label="Seções do perfil visitado">
         <a
           class="public-videos-page__tab"
-          [routerLink]="viewerUid === galleryProfileUid ? ['/perfil'] : ['/outro-perfil', galleryProfileUid]"
+          [routerLink]="profileReturnRoute(galleryProfileUid, viewerUid)"
         >
           <i class="fas fa-user" aria-hidden="true"></i>
           <span>Perfil</span>
