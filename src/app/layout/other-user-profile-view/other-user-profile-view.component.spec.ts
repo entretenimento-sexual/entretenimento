@@ -320,6 +320,20 @@ describe('OtherUserProfileViewComponent', () => {
     expect(primaryAction.textContent).toContain('Mostrar interesse');
   });
 
+  it('mantém ações no cabeçalho sem comprimir a coluna da identidade', () => {
+    const hero = fixture.nativeElement.querySelector(
+      '.other-profile-page__hero'
+    ) as HTMLElement;
+    const identity = hero.querySelector('.other-profile-page__identity');
+    const actions = hero.querySelector('.other-profile-page__actions');
+
+    expect(identity).not.toBeNull();
+    expect(actions).not.toBeNull();
+    expect(actions?.parentElement).toBe(hero);
+    expect(identity?.contains(actions)).toBe(false);
+    expect(actions?.querySelector('.app-action--primary')).not.toBeNull();
+  });
+
   it('troca foto pública quebrada pelo fallback local sem toast', () => {
     const notifier = TestBed.inject(ErrorNotificationService);
     const photo = fixture.debugElement.query(
