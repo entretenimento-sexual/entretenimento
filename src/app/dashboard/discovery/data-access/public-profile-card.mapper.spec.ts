@@ -114,14 +114,23 @@ describe('public-profile-card.mapper', () => {
     expect(card?.age).toBeNull();
   });
 
-  it('deve remover duplicidades das preferências públicas', () => {
+  it('nunca mapeia preferências privadas mesmo se o documento legado as contiver', () => {
     const card = mapPublicProfileCard({
       uid: 'profile-2',
       nickname: 'Teste',
-      interestedInGenders: ['man', 'man', 'woman'],
+      preferences: ['privado'],
+      interestedInGenders: ['man', 'woman'],
+      interestedInOrientations: ['homosexual'],
+      publicSeekingGenders: ['women'],
+      viewerCompatibilityAllowed: true,
+      viewerCompatibilityScore: 0.76,
+      viewerCompatibilityReason: 'compatible',
     });
-
-    expect(card?.interestedInGenders).toEqual(['man', 'woman']);
+    expect(card).not.toHaveProperty('preferences');
+    expect(card).not.toHaveProperty('interestedInGenders');
+    expect(card).not.toHaveProperty('interestedInOrientations');
+    expect(card?.viewerCompatibilityAllowed).toBe(true);
+    expect(card?.viewerCompatibilityScore).toBe(0.76);
   });
 
   it('deve tratar 0,0 legado como localização pública ausente', () => {
