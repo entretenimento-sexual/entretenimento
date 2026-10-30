@@ -84,6 +84,7 @@
       @case ('ready') {
         <div
           class="profile-media-showcase__grid"
+          [class.profile-media-showcase__grid--mosaic]="visibleItems(state.items).length >= 5"
           role="group"
           [attr.aria-label]="'Galeria pública de ' + profileName()"
         >
