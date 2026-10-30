@@ -25,7 +25,7 @@ describe('Media video responsive layout contracts', () => {
     const styles = css('./public-profile-videos/public-profile-videos.component.css');
     expect(styles).toContain('container: public-videos-gallery / inline-size');
     expect(styles).toContain('@container public-videos-gallery (min-width: 560px)');
-    expect(styles).toContain('padding: 12px clamp(12px, 3vw, 28px) 32px');
+    expect(styles).toContain('padding: clamp(16px, 2vw, 28px) clamp(12px, 2.2vw, 30px) 48px');
     expect(styles).not.toMatch(/@container public-videos-gallery[^}]*\.public-videos-page\s*\{/s);
     expect(styles).toContain('@container public-videos-gallery (min-width: 1080px)');
     expect(styles).toMatch(/\.gallery-pagination\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,/s);
@@ -61,12 +61,14 @@ describe('Media video responsive layout contracts', () => {
     const visitor = css('./public-profile-videos/public-profile-videos.component.html');
     expect(owner).toContain('routerLink="/perfil"');
     expect(owner).toContain('aria-label="Voltar ao meu perfil"');
-    expect(visitor).toContain('aria-label="Abrir o perfil que publicou estes vídeos"');
+    expect(visitor).toContain('aria-label="Seções do perfil visitado"');
     expect(visitor).toContain('<div page-actions class="gallery-actions">');
-    expect(visitor).not.toContain('Voltar ao perfil');
+    expect(visitor).toContain('public-videos-page__gallery-return');
     expect(visitor).toContain("viewerUid === galleryProfileUid");
     expect(visitor).toContain("['/outro-perfil', galleryProfileUid]");
     expect(visitor).toContain("['/perfil']");
+    expect(visitor).toContain("['/media', 'perfil', galleryProfileUid, 'fotos-publicas']");
+    expect(visitor).toContain('aria-current="page"');
   });
 
   it('avoids empty action bars for visitors without sessions and announces the visible range', () => {
