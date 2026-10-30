@@ -64,9 +64,9 @@ describe('Media video responsive layout contracts', () => {
     expect(visitor).toContain('aria-label="Seções do perfil visitado"');
     expect(visitor).toContain('<div page-actions class="gallery-actions">');
     expect(visitor).toContain('public-videos-page__gallery-return');
-    expect(visitor).toContain("viewerUid === galleryProfileUid");
-    expect(visitor).toContain("['/outro-perfil', galleryProfileUid]");
-    expect(visitor).toContain("['/perfil']");
+    expect(visitor).toContain('profileReturnRoute(galleryProfileUid, viewerUid)');
+    expect(visitor).toContain('profileReturnRoute(galleryOwnerUid, viewerUid)');
+    expect(visitor).toContain('class="public-videos-page__back"');
     expect(visitor).toContain("['/media', 'perfil', galleryProfileUid, 'fotos-publicas']");
     expect(visitor).toContain('aria-current="page"');
   });
