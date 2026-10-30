@@ -28,7 +28,9 @@ const PUBLIC_PROFILE_ID = 'profile-123e4567-e89b-42d3-a456-426614174000';
 
 test('ignora billing quando discovery já está sincronizado', () => {
   assert.equal(publicProfileDiscoveryProjectionMatches({
-    ...CANONICAL,
+    normalizedGender: CANONICAL.normalizedGender,
+    normalizedOrientation: CANONICAL.normalizedOrientation,
+    compatibilityReady: CANONICAL.compatibilityReady,
     role: 'premium',
     billingProjectionVersion: 1,
   }, CANONICAL), true);
@@ -36,11 +38,14 @@ test('ignora billing quando discovery já está sincronizado', () => {
 
 test('detecta alteração real de compatibilidade', () => {
   assert.equal(publicProfileDiscoveryProjectionMatches({
-    ...CANONICAL,
     normalizedGender: 'man',
+    normalizedOrientation: CANONICAL.normalizedOrientation,
+    compatibilityReady: true,
   }, CANONICAL), false);
   assert.equal(publicProfileDiscoveryProjectionMatches({
-    ...CANONICAL,
+    normalizedGender: CANONICAL.normalizedGender,
+    normalizedOrientation: CANONICAL.normalizedOrientation,
+    compatibilityReady: true,
     interestedInGenders: ['woman', 'man'],
   }, CANONICAL), false);
 });
@@ -203,6 +208,7 @@ test('não publica sinais quando o usuário desativa badges', () => {
   }, { canPublishAdvanced: true }), {
     preferenceBadgesVisible: false,
     publicRelationshipIntents: [],
+    publicSeekingGenders: [],
     publicSexualPractices: [],
     publicBodyTraits: [],
   });
