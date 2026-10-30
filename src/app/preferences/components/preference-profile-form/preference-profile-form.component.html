@@ -33,10 +33,14 @@
       <strong class="preference-group__title app-disclosure__title">Quem você gostaria de conhecer?</strong>
       <span class="preference-group__count app-disclosure__state">{{ selectionLabel(selectedCount('gi', genderInterestOptions)) }}</span>
     </summary>
-    <div class="preference-group__content app-disclosure__content checkbox-grid app-responsive-grid">
+    <div class="preference-group__content app-disclosure__content">
+      <p class="preference-note" role="note">Quem você procura permanece privado até você autorizar a exibição abaixo.</p>
+      <label class="checkbox-item app-choice"><input type="checkbox" formControlName="showSeekingPublicly" /><span>Mostrar no meu perfil quem gostaria de conhecer</span></label>
+      <div class="checkbox-grid app-responsive-grid">
       @for (option of genderInterestOptions; track option.key) {
         <label class="checkbox-item app-choice"><input type="checkbox" [formControlName]="'gi_' + option.key" /><span>{{ option.label }}</span></label>
       }
+      </div>
     </div>
   </details>
 
