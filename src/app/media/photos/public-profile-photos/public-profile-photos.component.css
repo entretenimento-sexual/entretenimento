@@ -176,7 +176,7 @@ a.visited-gallery-header__tab:focus-visible {
 .photos-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: clamp(13px, 1.8vw, 24px);
+  gap: clamp(8px, 1.2vw, 14px);
   align-items: start;
   min-width: 0;
 }
