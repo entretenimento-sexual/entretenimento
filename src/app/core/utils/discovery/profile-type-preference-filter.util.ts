@@ -223,6 +223,13 @@ function evaluateReciprocity(
   candidate: IUserDados,
   accepted: DiscoveryPreferenceFilterResult
 ): DiscoveryPreferenceFilterResult {
+  // O backend valida reciprocidade com os documentos privados das duas contas.
+  // Nunca reconstruir interesses ocultos a partir da projeção pública.
+  if (typeof candidate.viewerCompatibilityAllowed === 'boolean') {
+    return candidate.viewerCompatibilityAllowed
+      ? accepted
+      : rejected('reciprocal_mismatch');
+  }
   if (!hasExplicitCompatibilityInterest(viewer, normalizePreferences(viewer.discoveryPreferences))) {
     return accepted;
   }
