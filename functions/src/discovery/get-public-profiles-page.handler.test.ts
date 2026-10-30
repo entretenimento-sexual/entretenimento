@@ -39,6 +39,21 @@ describe('get-public-profiles-page boundary', () => {
     assert.equal('ageEligibilityValidUntil' in serialized, false);
   });
 
+  it('entrega somente a apresentação pública e ignora descrição privada residual', () => {
+    const serialized = serializePublicProfileForDiscovery(
+      'profile-about',
+      profile({
+        descricao: 'Texto privado',
+        publicDescription: 'Apresentação autorizada',
+      }),
+      NOW
+    );
+
+    assert.ok(serialized);
+    assert.equal(serialized['publicDescription'], 'Apresentação autorizada');
+    assert.equal('descricao' in serialized, false);
+  });
+
   it('descarta idade social fora da faixa sem bloquear o perfil', () => {
     const serialized = serializePublicProfileForDiscovery(
       'profile-invalid-social-age',
