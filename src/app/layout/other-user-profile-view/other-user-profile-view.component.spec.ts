@@ -359,6 +359,25 @@ describe('OtherUserProfileViewComponent', () => {
     );
   });
 
+  it('exibe navegação social real entre mídias e detalhes, sem abas fictícias', () => {
+    const nav = fixture.nativeElement.querySelector(
+      '.other-profile-page__sections'
+    ) as HTMLElement;
+    const links = Array.from(nav.querySelectorAll('a')) as HTMLAnchorElement[];
+    const hero = fixture.nativeElement.querySelector('.other-profile-page__hero') as HTMLElement;
+
+    expect(links.map((link) => link.textContent?.trim())).toEqual(['Mídias', 'Sobre']);
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '#profile-media',
+      '#profile-details',
+    ]);
+    expect(fixture.nativeElement.querySelector('#profile-media')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('#profile-details')).not.toBeNull();
+    expect(hero.querySelector('.other-profile-page__intro')?.textContent)
+      .toContain('Descrição direta do perfil.');
+    expect(nav.textContent).not.toContain('Seguidores');
+  });
+
   it('consulta associação oficial pelo alvo canônico e participação pública opt-in', () => {
     const officialRepository = TestBed.inject(CommunityPreviewRepository);
     const publicMembershipRepository = TestBed.inject(
@@ -400,8 +419,8 @@ describe('OtherUserProfileViewComponent', () => {
     expect(identity.textContent).toContain('Rio de Janeiro/RJ');
     expect(identity.textContent).not.toContain('Pessoa alvo');
     expect(hero.textContent).not.toContain('32 anos');
-    expect(hero.textContent).not.toContain('Descrição direta do perfil.');
-    expect(about.textContent).toContain('Descrição direta do perfil.');
+    expect(hero.textContent).toContain('Descrição direta do perfil.');
+    expect(about.textContent).not.toContain('Descrição direta do perfil.');
     expect(about.textContent).not.toContain('Rio de Janeiro, RJ');
     expect(about.textContent).toContain('8 km');
   });
