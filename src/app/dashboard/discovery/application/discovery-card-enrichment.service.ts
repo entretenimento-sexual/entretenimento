@@ -438,11 +438,6 @@ export class DiscoveryCardEnrichmentService {
     return text.length ? text : null;
   }
 
-  private toDiscoveryPreferenceValue(value: unknown): readonly string[] | string | null {
-    if (Array.isArray(value)) return this.toStringArray(value);
-    return this.toNullableText(value);
-  }
-
   private toStringArray(value: unknown): readonly string[] | null {
     if (!Array.isArray(value)) return null;
     const items = Array.from(new Set(
