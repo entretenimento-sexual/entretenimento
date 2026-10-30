@@ -42,7 +42,10 @@ describe('perfil público visitado: composição editorial', () => {
     expect(html.indexOf('id="profile-details"')).toBeLessThan(html.indexOf('id="profile-media"'));
     expect(html).toContain('class="other-profile-page__bio-text"');
     expect(html).toContain('Este perfil ainda não compartilhou uma apresentação pública.');
-    expect(html).toContain('Interesses declarados');
+    expect(html).toContain('@for (group of publishedPreferenceGroups; track group.title)');
+    expect(html).toContain('Redes sociais publicadas');
+    expect(html.indexOf('aria-label="Redes sociais publicadas"'))
+      .toBeLessThan(html.indexOf('id="profile-media"'));
     expect(html).toContain('{{ profile.descricao }}');
     expect(html).toContain('class="other-profile-page__sections"');
     expect(html).toContain('aria-current="page"');
