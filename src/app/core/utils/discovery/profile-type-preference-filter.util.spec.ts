@@ -63,6 +63,22 @@ function subscribedUser(
 }
 
 describe('discovery preference policy', () => {
+  it('decisão remota de reciprocidade prevalece sobre inferência local', () => {
+    const viewer = user('viewer', {
+      interestedInGenders: ['woman'],
+      discoveryPreferences: preferences({ genderInterests: [] }),
+    });
+    const accepted = user('allowed', {
+      viewerCompatibilityAllowed: true,
+    });
+    const denied = user('denied', {
+      viewerCompatibilityAllowed: false,
+    });
+    expect(evaluateDiscoveryCandidatePreference(viewer, accepted).accepted).toBe(true);
+    expect(evaluateDiscoveryCandidatePreference(viewer, denied).reason)
+      .toBe('reciprocal_mismatch');
+  });
+
   it('mantém candidatos quando não existe política explícita', () => {
     expect(filterDiscoveryCandidatesByViewerPreferences([
       user('man', { gender: 'homem' }),
