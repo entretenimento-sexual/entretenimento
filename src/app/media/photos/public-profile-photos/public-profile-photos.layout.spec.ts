@@ -37,6 +37,9 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
     expect(cardCss).toContain('.photo-tile--profile .photo-overlay.app-media-overlay {');
     expect(cardCss).toContain('position: static;');
     expect(cardCss).toContain('min-height: 42px;');
+    expect(cardCss).toContain('.photo-tile--profile .photo-card-link {');
+    expect(cardCss).toContain('aspect-ratio: 1;');
+    expect(pageCss).toContain('gap: clamp(8px, 1.2vw, 14px);');
     expect(cardCss).toContain('.photo-tile--profile .stat-chip.app-chip');
     expect(cardCss).toContain('.photo-tile--profile .photo-card-link:hover::after');
     expect(cardCss).toContain('.photo-tile--profile .photo-card-link:focus-visible::after');
