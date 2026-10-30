@@ -9,7 +9,7 @@ A galeria do perfil é uma **coleção de fotografias**, não um feed de publica
 ## Composição canônica
 
 - **Largura e grade**: CSS container `public-photos-gallery`; 1 coluna abaixo de 420 px, 2 colunas de 420 a 799 px, 3 de 800 a 1159 px, 4 a partir de 1160 px, preservando colunas iguais e o limite do page shell. Pontos de quebra baseados no espaço útil, não apenas na viewport (a sidebar pode estar aberta).
-- **Imagem**: card uniforme em proporção 4:5, botão para abrir o viewer da foto selecionada. O rodapé não cobre a foto. Não reconstruir originais nem manter versões privadas.
+- **Imagem**: miniatura quadrada (1:1) na grade social, com recorte visual apenas no navegador; botão abre a mídia íntegra no viewer, sem versão derivada persistida. O rodapé não cobre a foto. Não reconstruir originais nem manter versões privadas.
 - **Rodapé da variante `profile`**: mostrar somente curtidas, comentários e visualizações com contagem positiva. O horário de publicação permanece visível quando há data; selo de capa somente para `isCover`. Com contadores zerados, evitar a sequência de chips 0/0/0. As variantes `feed`, `latest`, `top` e `sponsored` não herdam esta regra visual.
 - **Identificação**: apelido, código de perfil, orientação autorizada e município/UF no cabeçalho por `PublicUserIdentityComponent`. A orientação agregada de casal não pode ser inferida. Não repetir proprietário em cada thumbnail.
 - **Acessibilidade**: botão da imagem com nome acessível; métricas positivas com contagem no `aria-label`; ações reais com alvo mínimo 44 px, foco visível, suporte a teclado e movimento reduzido. O texto de data e o contraste do rodapé devem ser verificados em telas pequenas.
