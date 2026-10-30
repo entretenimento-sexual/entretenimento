@@ -99,7 +99,7 @@ getPublicUserById$(uid: string): Observable<IUserDados | null> {
   const id = (uid ?? '').trim();
   if (!id) return of(null);
 
-  return this.discoveryQuery.getProfilesByUids$([id], { cacheTTL: 30_000 }).pipe(
+  return this.discoveryQuery.getProfilesByUids$([id], { forceRefresh: true }).pipe(
     map((profiles) => {
       const first = Array.isArray(profiles) ? profiles[0] ?? null : null;
       if (first) {
