@@ -44,6 +44,25 @@ export const PUBLIC_SEXUAL_PRACTICE_OPTIONS = [
   { key: 'dirty_talk', label: 'Dirty talk' },
 ] as const satisfies readonly PublicPreferenceOption[];
 
+export const PUBLIC_GENDER_INTEREST_OPTIONS = [
+  { key: 'men', label: 'Homens' },
+  { key: 'women', label: 'Mulheres' },
+  { key: 'couple_mm', label: 'Casal MM' },
+  { key: 'couple_mf', label: 'Casal MF' },
+  { key: 'couple_ff', label: 'Casal FF' },
+  { key: 'travestis', label: 'Travestis' },
+  { key: 'trans_people', label: 'Pessoas trans' },
+  { key: 'crossdressers', label: 'Crossdressers' },
+  { key: 'non_binary', label: 'Não binário' },
+  { key: 'intersex', label: 'Intersexo' },
+  { key: 'drag_queen', label: 'Drag Queen' },
+  { key: 'drag_king', label: 'Drag King' },
+  { key: 'genderfluid', label: 'Genderfluid' },
+  { key: 'agender', label: 'Agênero' },
+  { key: 'genderqueer', label: 'Genderqueer' },
+  { key: 'androgynous', label: 'Andrógino' },
+] as const satisfies readonly PublicPreferenceOption[];
+
 export const PUBLIC_BODY_TRAIT_OPTIONS = [
   { key: 'athletic', label: 'Atlético' },
   { key: 'plus_size', label: 'Plus size' },
@@ -58,6 +77,10 @@ export const PUBLIC_BODY_TRAIT_OPTIONS = [
   { key: 'curvy', label: 'Curvilíneo' },
 ] as const satisfies readonly PublicPreferenceOption[];
 
+const GENDER_INTEREST_LABELS: ReadonlyMap<string, string> = new Map(
+  PUBLIC_GENDER_INTEREST_OPTIONS.map(({ key, label }) => [key, label] as const)
+);
+
 const RELATIONSHIP_LABELS: ReadonlyMap<string, string> = new Map(
   PUBLIC_RELATIONSHIP_INTENT_OPTIONS.map(({ key, label }) => [key, label] as const)
 );
@@ -68,7 +91,7 @@ const BODY_TRAIT_LABELS: ReadonlyMap<string, string> = new Map(
   PUBLIC_BODY_TRAIT_OPTIONS.map(({ key, label }) => [key, label] as const)
 );
 
-export type PublicPreferenceKind = 'relationship' | 'body_trait' | 'sexual_practice';
+export type PublicPreferenceKind = 'relationship' | 'body_trait' | 'sexual_practice' | 'gender_interest';
 
 export function resolvePublicPreferenceLabel(
   kind: PublicPreferenceKind,
@@ -78,6 +101,8 @@ export function resolvePublicPreferenceLabel(
   if (!normalizedKey) return null;
 
   switch (kind) {
+    case 'gender_interest':
+      return GENDER_INTEREST_LABELS.get(normalizedKey) ?? null;
     case 'relationship':
       return RELATIONSHIP_LABELS.get(normalizedKey) ?? null;
     case 'body_trait':
