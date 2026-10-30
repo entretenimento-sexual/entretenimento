@@ -31,15 +31,23 @@
           <span class="visited-gallery-header__unavailable">Perfil indisponível</span>
         }
       </div>
-      @if (ownerUid) {
-        <nav class="visited-gallery-header__actions" aria-label="Navegação do perfil visitado">
-          <a class="app-action app-action--ghost" [routerLink]="['/media/perfil', ownerUid, 'videos-publicos']">
-            <i class="fas fa-video" aria-hidden="true"></i>
-            Vídeos
-          </a>
-        </nav>
-      }
     </div>
+    @if (ownerUid) {
+      <nav class="visited-gallery-header__tabs" aria-label="Seções do perfil visitado">
+        <a class="visited-gallery-header__tab" [routerLink]="['/perfil', ownerUid]">
+          <i class="fas fa-user" aria-hidden="true"></i>
+          <span>Perfil</span>
+        </a>
+        <span class="visited-gallery-header__tab visited-gallery-header__tab--active" aria-current="page">
+          <i class="fas fa-images" aria-hidden="true"></i>
+          <span>Fotos</span>
+        </span>
+        <a class="visited-gallery-header__tab" [routerLink]="['/media/perfil', ownerUid, 'videos-publicos']">
+          <i class="fas fa-film" aria-hidden="true"></i>
+          <span>Vídeos</span>
+        </a>
+      </nav>
+    }
   </header>
 
   @if (state) {
