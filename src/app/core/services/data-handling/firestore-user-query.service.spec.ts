@@ -58,6 +58,15 @@ describe('FirestoreUserQueryService', () => {
     service = TestBed.inject(FirestoreUserQueryService);
   });
 
+  it('revalida sempre o perfil visitado, sem aceitar snapshot antigo do cache', () => {
+    const query = TestBed.inject(UserDiscoveryQueryService);
+    service.getPublicUserById$('target').subscribe();
+    expect(query.getProfilesByUids$).toHaveBeenCalledWith(
+      ['target'],
+      { forceRefresh: true }
+    );
+  });
+
   it('should be created', () => {
     expect(service).toBeTruthy();
   });
