@@ -37,6 +37,30 @@ describe('VisitedProfileAffinityPresenter', () => {
     expect(vm.preferenceChips).toContain('Sério');
   });
 
+  it('separa busca autorizada de identidade e filtra códigos desconhecidos', () => {
+    const presenter = setup({ uid: 'viewer' });
+    const visible = presenter.build({
+      uid: 'target',
+      preferenceBadgesVisible: true,
+      publicSeekingGenders: ['men', 'couple_mf', 'private-field'],
+      interestedInGenders: ['woman'],
+      publicRelationshipIntents: ['casual'],
+      publicSexualPractices: ['bdsm'],
+      publicBodyTraits: ['tattoos'],
+    } as any);
+    expect(visible.seekingChips).toEqual(['Homens', 'Casal MF']);
+    expect(visible.relationshipChips).toEqual(['Casual']);
+    expect(visible.practiceChips).toEqual(['BDSM']);
+    expect(visible.selfTraitChips).toEqual(['Tatuagens']);
+
+    const hidden = presenter.build({
+      uid: 'target',
+      preferenceBadgesVisible: false,
+      publicSeekingGenders: ['men'],
+    } as any);
+    expect(hidden.seekingChips).toEqual([]);
+  });
+
   it('não gera desireMatch para perfil próprio', () => {
     const presenter = setup({ uid: 'same' });
 
