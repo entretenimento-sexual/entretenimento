@@ -47,6 +47,8 @@ import {
 } from 'src/app/core/services/media/public-profile-photo-pagination.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { visitedProfileReturnRoute } from 'src/app/core/utils/media/visited-profile-return-route';
 import {
   normalizePublicUserIdentity,
   type PublicUserIdentity,
@@ -109,6 +111,7 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
   private readonly route = inject(ActivatedRoute);
   private readonly photoPagination = inject(PublicProfilePhotoPaginationService);
   private readonly publicUserQuery = inject(FirestoreUserQueryService);
+  private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly galleryContainer =
     viewChild<ElementRef<HTMLElement>>('galleryContainer');
@@ -128,6 +131,16 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
     ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  readonly viewerUid$: Observable<string | null> = this.currentUserStore.user$.pipe(
+    map((user) => user?.uid ?? null),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  profileReturnRoute(ownerUid: string, viewerUid: string | null): string[] {
+    return visitedProfileReturnRoute(ownerUid, viewerUid);
+  }
 
   /** Mesmo perfil público autorizado da tela visitada; nunca consulta /users. */
   readonly profileIdentity$: Observable<PublicUserIdentity | null> =
