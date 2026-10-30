@@ -375,6 +375,8 @@ export function serializePublicProfileForDiscovery(
       ?? cleanText(data['interestedInOrientations']),
     publicRelationshipIntents:
       cleanStringArray(data['publicRelationshipIntents']),
+    publicSeekingGenders:
+      cleanStringArray(data['publicSeekingGenders']),
     publicSexualPractices:
       cleanStringArray(data['publicSexualPractices']),
     publicBodyTraits: cleanStringArray(data['publicBodyTraits']),
