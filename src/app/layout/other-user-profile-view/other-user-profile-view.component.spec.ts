@@ -407,7 +407,8 @@ describe('OtherUserProfileViewComponent', () => {
   });
 
   it('não infere orientação de casal a partir de campo legado individual', () => {
-    component.userProfile = {
+    const userQuery = TestBed.inject(FirestoreUserQueryService);
+    const casalProfile = {
       ...component.userProfile!,
       identityCode: 'casal-ele-ela',
       gender: 'casal-ele-ela',
@@ -415,11 +416,20 @@ describe('OtherUserProfileViewComponent', () => {
       partner1Orientation: 'heterossexual',
       partner2Orientation: 'bissexual',
     };
-    fixture.changeDetectorRef.markForCheck();
+    vi.mocked(userQuery.getPublicUserById$).mockReturnValue(of(casalProfile));
+
+    // Um perfil visitado é carregado pela consulta autorizada, não por
+    // mutação manual de um componente OnPush já renderizado.
+    fixture.destroy();
+    fixture = TestBed.createComponent(OtherUserProfileViewComponent);
+    component = fixture.componentInstance;
     fixture.detectChanges();
 
+    expect(component.publicIdentity?.identityShortLabel).toBe('Casal');
+    expect(component.publicIdentity?.orientationShortLabel).toBeUndefined();
+
     const identity = fixture.nativeElement.querySelector(
-      'app-public-user-identity'
+      '.other-profile-page__canonical-identity'
     ) as HTMLElement;
     expect(identity.textContent).toContain('Casal');
     expect(identity.textContent).not.toContain('Bi');
