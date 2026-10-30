@@ -347,6 +347,7 @@ export function serializePublicProfileForDiscovery(
     nickname,
     nicknameNormalized:
       cleanText(data['nicknameNormalized']) ?? nickname.toLowerCase(),
+    publicDescription: cleanText(data['publicDescription']),
     photoURL: cleanText(data['photoURL'] ?? data['avatarUrl']),
     gender: cleanText(data['gender']),
     identityCode: cleanText(data['identityCode']),
