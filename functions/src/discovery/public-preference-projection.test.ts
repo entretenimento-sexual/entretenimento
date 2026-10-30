@@ -37,9 +37,44 @@ describe('public preference projection', () => {
       {
         preferenceBadgesVisible: false,
         publicRelationshipIntents: [],
+        publicSeekingGenders: [],
         publicSexualPractices: [],
         publicBodyTraits: [],
       }
+    );
+  });
+
+  it('não publica perfis buscados sem consentimento específico, mesmo com busca preenchida', () => {
+    const result = buildPublicPreferenceProjection(
+      profile({
+        hardRules: {
+          acceptedRelationshipIntents: ['casual'],
+          acceptedGenders: ['men', 'women'],
+        },
+      }),
+      { canPublishAdvanced: true }
+    );
+    assert.deepEqual(result.publicSeekingGenders, []);
+  });
+
+  it('respeita opt-in e catálogo de gêneros, e revoga com opt-out', () => {
+    const base = profile({
+      visibility: { showPreferenceBadges: true, showSeekingPublicly: true },
+      hardRules: {
+        acceptedGenders: ['women', 'private-token', 'couple_mf', 'women'],
+        acceptedRelationshipIntents: ['casual'],
+      },
+    });
+    assert.deepEqual(
+      buildPublicPreferenceProjection(base, { canPublishAdvanced: false }).publicSeekingGenders,
+      ['women', 'couple_mf']
+    );
+    assert.deepEqual(
+      buildPublicPreferenceProjection({
+        ...base,
+        visibility: { showPreferenceBadges: true, showSeekingPublicly: false },
+      }, { canPublishAdvanced: true }).publicSeekingGenders,
+      []
     );
   });
 
