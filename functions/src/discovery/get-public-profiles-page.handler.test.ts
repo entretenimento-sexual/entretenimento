@@ -121,7 +121,9 @@ describe('get-public-profiles-page boundary', () => {
     );
     assert.equal(denied['viewerCompatibilityAllowed'], false);
     assert.equal(denied['viewerCompatibilityReason'], 'incompatible');
-    assert.deepEqual(denied['publicSeekingGenders'], []);
+    // A projeção pública representa listas vazias como null; a recusa de
+    // compatibilidade não pode expor as escolhas privadas da proprietária.
+    assert.equal(denied['publicSeekingGenders'], null);
     assert.equal(Object.hasOwn(denied, 'interestedInGenders'), false);
   });
 
