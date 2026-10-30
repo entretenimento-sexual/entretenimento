@@ -1917,7 +1917,9 @@ describe('Canonical UI boundary', () => {
 
     expect(publicVideos).toContain('<app-page-header title="Vídeos">');
     expect(publicVideos).not.toContain('<h1 id="public-profile-videos-title">');
-    expect(publicVideos).not.toContain('Voltar ao perfil');
+    // O retorno compacto usa o PageHeader canônico, sem recriar cabeçalho legado.
+    expect(publicVideos).toContain('class="public-videos-page__back"');
+    expect(publicVideos).toContain('title="Voltar ao perfil"');
     expect(publicVideoStyles).not.toContain('.back-link');
     expect(publicVideoStyles).not.toContain('.public-videos-header');
     expect(publicVideoStyles).not.toContain('.title-block');
