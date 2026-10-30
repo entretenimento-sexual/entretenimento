@@ -81,7 +81,51 @@ describe('PreferenceProfileFormComponent', () => {
 
     expect(fixture.nativeElement.querySelector('#discoveryMode')).toBeNull();
     expect(fixture.nativeElement.textContent).not.toContain('Sua visibilidade');
-    expect(mapped.visibility).toEqual(profile.visibility);
+    // O editor preserva as demais políticas e só adiciona o opt-in da busca,
+    // desligado para contas antigas que não possuem o novo campo.
+    const seekingToggle = fixture.nativeElement.querySelector(
+      'input[formControlName="showSeekingPublicly"]'
+    ) as HTMLInputElement;
+    expect(seekingToggle).not.toBeNull();
+    expect(seekingToggle.checked).toBe(false);
+    expect(mapped.visibility).toEqual({
+      ...profile.visibility,
+      showSeekingPublicly: false,
+    });
+
+    fixture.destroy();
+  });
+
+  it('publica a busca somente após habilitação explícita sem alterar outras políticas', () => {
+    const fixture = TestBed.createComponent(PreferenceProfileFormComponent);
+    const profile = createEmptyPreferenceProfile('u1');
+    profile.hardRules.acceptedGenders = ['women'];
+    profile.visibility.showPreferenceBadges = true;
+
+    fixture.componentRef.setInput('profile', profile);
+    fixture.componentRef.setInput('capabilities', capabilities);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    const seekingToggle = fixture.nativeElement.querySelector(
+      'input[formControlName="showSeekingPublicly"]'
+    ) as HTMLInputElement;
+
+    expect(seekingToggle.checked).toBe(false);
+    component.form.controls.showSeekingPublicly.setValue(true);
+    fixture.detectChanges();
+    expect(seekingToggle.checked).toBe(true);
+
+    const mapped = mapFormValueToPreferenceProfile(
+      component.form.getRawValue(),
+      profile,
+      capabilities
+    );
+    expect(mapped.visibility).toEqual({
+      ...profile.visibility,
+      showSeekingPublicly: true,
+    });
+    expect(mapped.hardRules.acceptedGenders).toEqual(['women']);
 
     fixture.destroy();
   });
