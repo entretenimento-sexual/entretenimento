@@ -355,8 +355,12 @@ export class DiscoveryCardEnrichmentService {
       viewerCompatibilityAllowed: typeof source['viewerCompatibilityAllowed'] === 'boolean'
         ? source['viewerCompatibilityAllowed'] : null,
       viewerCompatibilityScore: this.toNullableNumber(source['viewerCompatibilityScore']),
-      viewerCompatibilityReason: this.toNullableText(source['viewerCompatibilityReason']) as
-        PublicProfileCard['viewerCompatibilityReason'],
+      viewerCompatibilityReason:
+        source['viewerCompatibilityReason'] === 'compatible'
+        || source['viewerCompatibilityReason'] === 'incompatible'
+        || source['viewerCompatibilityReason'] === 'insufficient_data'
+          ? source['viewerCompatibilityReason'] as PublicProfileCard['viewerCompatibilityReason']
+          : null,
       publicRelationshipIntents: this.toStringArray(source['publicRelationshipIntents']),
       publicSexualPractices: this.toStringArray(source['publicSexualPractices']),
       publicBodyTraits: this.toStringArray(source['publicBodyTraits']),
