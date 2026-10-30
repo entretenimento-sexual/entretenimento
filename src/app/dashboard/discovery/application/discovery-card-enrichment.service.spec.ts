@@ -27,6 +27,34 @@ describe('DiscoveryCardEnrichmentService preference pipeline', () => {
     service = TestBed.inject(DiscoveryCardEnrichmentService);
   });
 
+  it('respeita decisão de reciprocidade do backend sem importar filtros do alvo', () => {
+    const viewer = user('viewer');
+    const result = service.buildCardsResult({
+      profiles: [
+        candidate('allowed', {
+          viewerCompatibilityAllowed: true,
+          viewerCompatibilityScore: 0.83,
+          viewerCompatibilityReason: 'compatible',
+        }),
+        candidate('denied', {
+          viewerCompatibilityAllowed: false,
+          viewerCompatibilityScore: 0,
+          viewerCompatibilityReason: 'incompatible',
+        }),
+      ],
+      currentUser: viewer,
+      mode: 'all',
+      applyVisibility: false,
+    });
+    expect(result.profiles.map((p) => p.uid)).toEqual(['allowed']);
+    expect(result.rejected).toEqual([
+      expect.objectContaining({ uid: 'denied', reason: 'incompatible_profile' }),
+    ]);
+    expect(result.profiles[0].compatibilityScore).toBeGreaterThan(0.5);
+    expect(result.profiles[0]).not.toHaveProperty('interestedInGenders');
+    expect(result.profiles[0]).not.toHaveProperty('interestedInOrientations');
+  });
+
   it('prioriza a localização de runtime sobre coordenadas persistidas do viewer', () => {
     const viewer = user('viewer', {
       latitude: -10,
