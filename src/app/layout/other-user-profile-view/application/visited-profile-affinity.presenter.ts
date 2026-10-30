@@ -11,6 +11,10 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 
 export interface VisitedProfileAffinityVm {
   preferenceChips: readonly string[];
+  seekingChips: readonly string[];
+  relationshipChips: readonly string[];
+  practiceChips: readonly string[];
+  selfTraitChips: readonly string[];
   desireMatch: {
     title: string;
     labels: readonly string[];
@@ -26,8 +30,24 @@ export class VisitedProfileAffinityPresenter {
   build(target: IUserDados | null): VisitedProfileAffinityVm {
     return {
       preferenceChips: this.buildPreferenceChips(target),
+      seekingChips: this.labelsFor(target, 'gender_interest', target?.publicSeekingGenders),
+      relationshipChips: this.labelsFor(target, 'relationship', target?.publicRelationshipIntents),
+      practiceChips: this.labelsFor(target, 'sexual_practice', target?.publicSexualPractices),
+      selfTraitChips: this.labelsFor(target, 'body_trait', target?.publicBodyTraits),
       desireMatch: this.buildDesireMatch(target),
     };
+  }
+
+  private labelsFor(
+    target: IUserDados | null,
+    kind: 'gender_interest' | 'relationship' | 'sexual_practice' | 'body_trait',
+    values: readonly string[] | null | undefined
+  ): readonly string[] {
+    if (!target || target.preferenceBadgesVisible !== true) return [];
+
+    return Array.from(new Set((values ?? [])
+      .map((value) => resolvePublicPreferenceLabel(kind, value))
+      .filter((label): label is string => !!label))).slice(0, 16);
   }
 
   private buildPreferenceChips(
