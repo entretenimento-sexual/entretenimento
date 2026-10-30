@@ -14,6 +14,9 @@
       <i class="fas fa-arrow-left" aria-hidden="true"></i>
       <span class="visually-hidden">Voltar para os perfis</span>
     </a>
+    <span class="other-profile-page__breadcrumb" aria-hidden="true">
+      Pessoas <i class="fas fa-chevron-right"></i> Perfil
+    </span>
   </header>
 
   @if (isLoading) {
@@ -43,6 +46,7 @@
       </figure>
 
       <div class="other-profile-page__identity">
+        <p class="other-profile-page__eyebrow">Perfil público</p>
         <div class="other-profile-page__headline">
           <h1 id="profile-heading" class="other-profile-page__title">
             {{ displayName }}
@@ -64,6 +68,12 @@
             [showAvatar]="false"
             [showName]="false"
           />
+        }
+
+        @if (hasDescription) {
+          <p class="other-profile-page__intro">
+            {{ profile.descricao }}
+          </p>
         }
 
         @if (friendshipInteractionState$ | async; as interactionState) {
@@ -126,8 +136,26 @@
       </div>
     </article>
 
+    <nav class="other-profile-page__sections" aria-label="Navegação do perfil">
+      <a href="#profile-media" class="other-profile-page__section-link">
+        <i class="fas fa-images" aria-hidden="true"></i>
+        <span>Mídias</span>
+      </a>
+      @if (
+        (profile.distanciaKm !== null && profile.distanciaKm !== undefined) ||
+        hasPreferenceChips ||
+        desireMatch
+      ) {
+        <a href="#profile-details" class="other-profile-page__section-link">
+          <i class="fas fa-user" aria-hidden="true"></i>
+          <span>Sobre</span>
+        </a>
+      }
+    </nav>
+
     <div class="other-profile-page__content">
       <main
+        id="profile-media"
         class="other-profile-page__main"
         aria-label="Conteúdo público do perfil"
       >
@@ -138,12 +166,12 @@
       </main>
 
       <aside
+        id="profile-details"
         class="other-profile-page__sidebar"
         aria-label="Informações públicas do perfil"
       >
         @if (
-          hasDescription ||
-          (profile.distanciaKm !== null && profile.distanciaKm !== undefined)
+          profile.distanciaKm !== null && profile.distanciaKm !== undefined
         ) {
           <section
             class="other-profile-page__panel other-profile-page__about app-card app-card--flat"
@@ -165,12 +193,7 @@
             }
 
 
-            @if (hasDescription) {
-              <p class="other-profile-page__description">
-                {{ profile.descricao }}
-              </p>
-            }
-          </section>
+           </section>
         }
 
         @if (publicIntentContext$ | async; as intentContext) {
