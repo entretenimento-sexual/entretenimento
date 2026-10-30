@@ -82,3 +82,14 @@ O `test:ci` do frontend anterior a esta mudança passou com **2.820 testes em 49
 **Ordem de ativação obrigatória em ambiente de teste:** compilar/testar frontend e Functions; compilar e validar regras; exercitar as regras no emulador; verificar que usuários bloqueados, perfis ocultos, contas com assinatura expirada e usuários com filtros incompatíveis não recebem dados indevidos. Para contas legadas, executar o backfill administrativo com `dryRun=true` antes da escrita. O executor disponível é `npm run admin:discovery-backfill`, com token Firebase administrativo (`FIREBASE_ID_TOKEN`); `--dryRun=false` exige `BACKFILL_CONFIRM_WRITE=YES`. A operação é paginada: concluir **todas** as páginas e conferir documentos sem chaves privadas antes de disponibilizar a migração em produção.
 
 **Efeito transitório intencional:** um perfil legado ainda não saneado pode ficar inacessível a terceiros até seu backfill, em vez de expor preferências. Não substituir essa regra por liberação pública para evitar indisponibilidade. Não executar deploy nem escrita administrativa em produção apenas por ter passado na compilação.
+
+## Validação da matriz de visita — testes acrescentados em 30/10/2026
+
+Evidência recebida **antes** dos testes desta etapa: suíte Functions com **2.058 aprovações / 115 suítes / zero falhas**. O trecho recebido não comprova, por si só, a execução da suíte de Firestore Rules ou uma inspeção visual.
+
+Os testes agora abrangem:
+
+- **Firestore Rules** (`public-profiles-eligibility.rules.spec.ts`): visitante elegível acessa perfil público saneado; documento legado com qualquer das principais chaves de busca privada é negado a terceiros e segue acessível ao próprio dono; ausência das chaves após backfill reabilita leitura; bloqueio em qualquer direção nega o GET; ocultação, suspensão do visitado e perda de acesso do visitante negam a leitura.
+- **Functions** (`get-public-profiles-page.handler.test.ts`): função pura `attachViewerCompatibilityToPublicCards` usa as escolhas privadas de ambos os lados para a decisão recíproca, mas entrega somente o resultado e campos públicos; mudança do filtro privado do visitado altera a elegibilidade sem revelar valores privados.
+
+A conclusão desta etapa exige novo `npm run test:rules` e `npm --prefix functions test` executados com os últimos commits da `main`, mais validação end-to-end de migração administrativa no emulador. **Sem deploy automático ou execução de backfill real em produção**.
