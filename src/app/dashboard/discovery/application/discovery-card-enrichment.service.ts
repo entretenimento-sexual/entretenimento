@@ -234,6 +234,16 @@ export class DiscoveryCardEnrichmentService {
     profile: PublicProfileCard,
     currentUser: IUserDados | null
   ): PublicProfileCard {
+    if (typeof profile.viewerCompatibilityAllowed === 'boolean') {
+      return {
+        ...profile,
+        compatibilityScore: profile.viewerCompatibilityScore ?? 0,
+        compatibilityReason: profile.viewerCompatibilityReason === 'insufficient_data'
+          ? 'viewer_data_missing'
+          : profile.viewerCompatibilityAllowed ? 'server_compatible' : 'server_incompatible',
+      };
+    }
+    // Fallback somente para modelos locais/legados sem contrato do callable.
     const result: ProfileCompatibilityResult = evaluateProfileCompatibility(currentUser, profile);
     return {
       ...profile,
@@ -342,9 +352,11 @@ export class DiscoveryCardEnrichmentService {
       compatibilityReady: typeof source['compatibilityReady'] === 'boolean' ? source['compatibilityReady'] : null,
       partner1Orientation: this.toNullableText(source['partner1Orientation']) ?? this.toNullableText(source['orientation1']),
       partner2Orientation: this.toNullableText(source['partner2Orientation']) ?? this.toNullableText(source['orientation2']),
-      preferences: this.toDiscoveryPreferenceValue(source['preferences'] ?? source['preferencias']),
-      interestedInGenders: this.toDiscoveryPreferenceValue(source['interestedInGenders'] ?? source['generosDeInteresse']),
-      interestedInOrientations: this.toDiscoveryPreferenceValue(source['interestedInOrientations'] ?? source['orientacoesDeInteresse']),
+      viewerCompatibilityAllowed: typeof source['viewerCompatibilityAllowed'] === 'boolean'
+        ? source['viewerCompatibilityAllowed'] : null,
+      viewerCompatibilityScore: this.toNullableNumber(source['viewerCompatibilityScore']),
+      viewerCompatibilityReason: this.toNullableText(source['viewerCompatibilityReason']) as
+        PublicProfileCard['viewerCompatibilityReason'],
       publicRelationshipIntents: this.toStringArray(source['publicRelationshipIntents']),
       publicSexualPractices: this.toStringArray(source['publicSexualPractices']),
       publicBodyTraits: this.toStringArray(source['publicBodyTraits']),
@@ -403,6 +415,7 @@ export class DiscoveryCardEnrichmentService {
       'viewer_not_interested',
       'candidate_not_interested',
       'mutual_mismatch',
+      'server_incompatible',
     ].includes(profile.compatibilityReason ?? '');
   }
 
