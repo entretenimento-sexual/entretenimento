@@ -125,3 +125,11 @@ A lista de **21 chaves privadas** inclui estruturas aninhadas (`discoveryPrefere
 Evidência enviada pelo operador: `test:rules` concluiu **45 arquivos/299 testes aprovados**, código de saída 0. O comando original `test:discovery:legacy-backfill:e2e` compilou Functions e verificou 21 chaves privadas, porém a execução E2E **não chegou à callable**: `FIREBASE_STORAGE_EMULATOR_HOST` estava ausente no processo de Functions, pois o comando iniciava apenas Auth, Firestore e Functions. O timeout de `profileId` foi efeito secundário, não prova de falha da migração.
 
 Correções: comando de teste agora inclui `--only auth,firestore,storage,functions`, compatível com `functions-runtime.guard.ts`. Fixture verifica o endpoint local de Storage antes de começar e admite até 30 s para a entrega de gatilhos. **Pendente:** repetir somente `npm.cmd run test:discovery:legacy-backfill:e2e` e analisar o resultado. Não houve deploy ou migração no ambiente real.
+
+### Novo ensaio do E2E — concorrência entre trigger e fixture
+
+Na execução seguinte, Auth, Firestore, Storage e Functions iniciaram corretamente, a callable administrativa ficou disponível, a tentativa de visitante sem privilégios foi bloqueada e o `dryRun` retornou `dryRun: true`. O teste falhou ao comparar o documento antes/depois porque `syncPublicProfileDiscovery` — gatilho legítimo de `users/{uid}` — normalizou a projeção pública no intervalo. A diferença observada foi o **saneamento de campos legados pelo gatilho**, não uma escrita comprovada da callable em `dryRun`.
+
+O fixture passou a criar projeções limpas antes de criar os documentos `users/`, aguarda `profileId` e `discoveryNormalizedAt` válidos, e exige janela de estabilidade das versões de documentos antes de reintroduzir os campos legados exclusivamente em `public_profiles/`. A comparação integral de `dryRun` permanece ativa, sem relaxar as asserções de privacidade, autorização ou preservação dos dados privados.
+
+O build Angular `start:emu` também concluiu com sucesso; os avisos `NG8102`/`NG8107` de diagnósticos estendidos do template de moderação de vídeo não interrompem a compilação e não foram tratados como falha funcional. **A aprovação do E2E corrigido depende de nova execução local.**
