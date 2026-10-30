@@ -12,6 +12,7 @@ describe('normalizePreferenceProfile', () => {
     const profile = createEmptyPreferenceProfile('owner');
 
     expect(profile.selfTraits.bodyTraits).toEqual([]);
+    expect(profile.visibility.showSeekingPublicly).toBe(false);
     expect(profile.matchingModes).toEqual({
       relationshipIntents: 'require',
       sexualPractices: 'prefer',
@@ -53,6 +54,7 @@ describe('normalizePreferenceProfile', () => {
     const normalized = normalizePreferenceProfile(legacy, 'owner');
 
     expect(normalized.relationshipIntents).toEqual(['dating']);
+    expect(normalized.visibility.showSeekingPublicly).toBe(false);
     expect(normalized.softRules.bodyPreferences).toEqual(['athletic']);
     expect(normalized.softRules.sexualPractices).toEqual(['bdsm']);
     expect(normalized.selfTraits.bodyTraits).toEqual([]);
