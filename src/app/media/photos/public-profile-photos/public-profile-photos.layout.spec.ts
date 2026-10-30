@@ -67,10 +67,11 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
     expect(pageHtml).not.toContain('<h1');
     expect(pageHtml).not.toContain('visited-gallery-header__avatar');
     expect(pageCss).toContain('.visited-gallery-header__identity app-public-user-identity');
-    expect(pageHtml).toContain("['/perfil', ownerUid]");
+    expect(pageHtml).toContain('[routerLink]="profileReturnRoute(ownerUid, viewerUid)"');
     expect(pageHtml).toContain("['/media/perfil', ownerUid, 'videos-publicos']");
     expect(pageCss).toContain('.visited-gallery-header__content');
     expect(pageCss).toContain('@container public-photos-gallery (max-width: 540px)');
+    expect(component).toContain('visitedProfileReturnRoute(ownerUid, viewerUid)');
     expect(component).toContain('getPublicUserById$(');
     expect(component).not.toContain('getUserById$(');
   });
@@ -79,7 +80,7 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
     expect(pageHtml).toContain('class="visited-gallery-header__tabs"');
     expect(pageHtml).toContain('aria-label="Seções do perfil visitado"');
     expect(pageHtml).toContain('class="visited-gallery-header__tab visited-gallery-header__tab--active" aria-current="page"');
-    expect(pageHtml).toContain("['/perfil', ownerUid]");
+    expect(pageHtml).toContain('[routerLink]="profileReturnRoute(ownerUid, viewerUid)"');
     expect(pageHtml).toContain("['/media/perfil', ownerUid, 'videos-publicos']");
     expect(pageCss).toContain('.visited-gallery-header__tab--active::after');
     expect(pageCss).toContain('min-height: var(--tap-target, 44px)');
