@@ -61,6 +61,26 @@ describe('perfil público visitado: composição editorial', () => {
     expect(html).not.toContain('Verificado');
   });
 
+  it('separa identidade e ações na hero e adapta a largura útil do shell', () => {
+    const hero = html.slice(html.indexOf('<article'), html.indexOf('</article>'));
+    expect(hero).toMatch(/<\/div>\s*@if \(friendshipInteractionState\$ \| async; as interactionState\) \{\s*<div class="other-profile-page__actions"/u);
+    expect(css).toContain('container: visited-profile / inline-size;');
+    expect(css).toContain('grid-column: 3;');
+    expect(css).toContain('@container visited-profile (max-width: 900px)');
+    expect(css).toContain('grid-column: 1 / -1;');
+    expect(css).toContain('min-height: var(--tap-target, 44px)');
+  });
+
+  it('compacta preferências autorizadas sem ocultá-las ou alterar a ordem', () => {
+    expect(html).toContain('@if (publishedPreferenceGroups.length > 0)');
+    expect(html).toContain('class="other-profile-page__affinities-grid"');
+    expect(html).toContain('@for (group of publishedPreferenceGroups; track group.title)');
+    expect(html).toContain('@for (label of group.labels; track label)');
+    expect(css).toContain('repeat(auto-fit, minmax(min(100%, 23rem), 1fr))');
+    expect(html.indexOf('class="other-profile-page__affinities-grid"'))
+      .toBeLessThan(html.indexOf('id="profile-media"'));
+  });
+
   it('aplica mosaico somente quando há cinco mídias, sem alterar seleção ou rota', () => {
     expect(mosaicHtml).toContain(
       '[class.profile-media-showcase__grid--mosaic]="visibleItems(state.items).length >= 5"'
