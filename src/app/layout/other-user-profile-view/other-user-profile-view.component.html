@@ -173,16 +173,26 @@
         </p>
       }
 
-      @if (hasPreferenceChips) {
-        <div class="other-profile-page__affinities" aria-label="Interesses publicados">
-          <h3>Interesses declarados</h3>
+      @for (group of publishedPreferenceGroups; track group.title) {
+        <div class="other-profile-page__affinities" [attr.aria-label]="group.title">
+          <h3>{{ group.title }}</h3>
           <div class="other-profile-page__preference-cloud">
-            @for (preference of preferenceChips; track preference) {
-              <span class="other-profile-page__preference-chip app-chip">{{ preference }}</span>
+            @for (label of group.labels; track label) {
+              <span class="other-profile-page__preference-chip app-chip">{{ label }}</span>
             }
           </div>
         </div>
       }
+
+      <app-social-links-accordion
+        class="other-profile-page__social"
+        [uid]="uid"
+        [isOwner]="false"
+        [compact]="true"
+        [hideWhenEmpty]="true"
+        aria-label="Redes sociais publicadas"
+      />
+
     </section>
 
     <div class="other-profile-page__content">
@@ -238,14 +248,7 @@
           />
         }
 
-        <app-social-links-accordion
-          class="other-profile-page__panel other-profile-page__social"
-          [uid]="uid"
-          [isOwner]="false"
-          [compact]="true"
-          [hideWhenEmpty]="true"
-          aria-label="Links sociais do perfil"
-        />
+
       </aside>
     </div>
   } @else {
