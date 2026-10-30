@@ -44,7 +44,7 @@ export class UserDiscoveryQueryService {
   private static readonly FILTERED_RESULT_LIMIT = 120;
   private static readonly DEFAULT_CACHE_TTL_MS = 30_000;
   private static readonly SENSITIVE_CACHE_PREFIX =
-    'discovery:public_profiles:uids:v3:';
+    'discovery:public_profiles:uids:v4:';
 
   private readonly uid$ = this.authSession.uid$.pipe(
     distinctUntilChanged(),
@@ -420,28 +420,16 @@ export class UserDiscoveryQueryService {
         'orientation2',
         'orientacaoParceiro2',
       ]),
-      preferences: this.firstStringArray(raw, [
-        'preferences',
-        'preferencias',
-        'interests',
-        'interesses',
-        'lookingFor',
-        'buscando',
-      ]),
-      interestedInGenders: this.firstStringArray(raw, [
-        'interestedInGenders',
-        'interestedInGender',
-        'targetGenders',
-        'preferredGenders',
-        'generosDeInteresse',
-      ]),
-      interestedInOrientations: this.firstStringArray(raw, [
-        'interestedInOrientations',
-        'interestedInOrientation',
-        'targetOrientations',
-        'preferredOrientations',
-        'orientacoesDeInteresse',
-      ]),
+      viewerCompatibilityAllowed:
+        typeof raw['viewerCompatibilityAllowed'] === 'boolean'
+          ? raw['viewerCompatibilityAllowed'] : null,
+      viewerCompatibilityScore: this.firstNumber(raw, ['viewerCompatibilityScore']),
+      viewerCompatibilityReason:
+        raw['viewerCompatibilityReason'] === 'compatible'
+        || raw['viewerCompatibilityReason'] === 'incompatible'
+        || raw['viewerCompatibilityReason'] === 'insufficient_data'
+          ? raw['viewerCompatibilityReason'] as 'compatible' | 'incompatible' | 'insufficient_data'
+          : null,
       publicRelationshipIntents: this.firstStringArray(raw, [
         'publicRelationshipIntents',
       ]),
