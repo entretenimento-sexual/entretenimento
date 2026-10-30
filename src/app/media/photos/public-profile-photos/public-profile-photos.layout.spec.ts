@@ -94,7 +94,7 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
     expect(component).toContain('this.mergePages(pages)');
     expect(component).toContain('selected.id !== expectedPhoto.id');
     expect(component).toContain('selected.ownerUid !== expectedPhoto.ownerUid');
-    expect(component).toContain('this.photoViewerLauncher.open$({');
+    expect(component).toContain('this.photoViewerLauncher.openWithResult$({');
     expect(pageHtml).toContain('(click)="loadMorePhotos()"');
     expect(pageHtml).toContain('(preview)="openPhoto(i, item)"');
   });
