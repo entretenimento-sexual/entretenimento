@@ -72,34 +72,24 @@ const PUBLIC_LOCATION_POLICIES: Record<string, PublicLocationPolicy> = {
   free: { decimals: 2, geohashLen: 5 },
 };
 
-function sameStringArray(
-  current: unknown,
-  expected: readonly string[]
-): boolean {
-  if (!Array.isArray(current) || current.length !== expected.length) {
-    return false;
-  }
-
-  return current.every((value, index) => value === expected[index]);
-}
+/** Campos de interesse legados não podem existir em documento legível via Firestore. */
+export const PRIVATE_DISCOVERY_INTEREST_FIELDS = [
+  'preferences', 'preferencias', 'interests', 'interesses', 'lookingFor', 'buscando',
+  'interestedInGenders', 'interestedInGender', 'targetGenders', 'preferredGenders',
+  'generosDeInteresse', 'interestedInOrientations', 'interestedInOrientation',
+  'targetOrientations', 'preferredOrientations', 'orientacoesDeInteresse',
+] as const;
 
 export function publicProfileDiscoveryProjectionMatches(
   current: Record<string, unknown>,
   expected: CanonicalProfileDiscoveryFields
 ): boolean {
-  return (
-    current['normalizedGender'] === expected.normalizedGender &&
-    current['normalizedOrientation'] === expected.normalizedOrientation &&
-    current['compatibilityReady'] === expected.compatibilityReady &&
-    sameStringArray(
-      current['interestedInGenders'],
-      expected.interestedInGenders
-    ) &&
-    sameStringArray(
-      current['interestedInOrientations'],
-      expected.interestedInOrientations
-    )
-  );
+  return current['normalizedGender'] === expected.normalizedGender
+    && current['normalizedOrientation'] === expected.normalizedOrientation
+    && current['compatibilityReady'] === expected.compatibilityReady
+    && PRIVATE_DISCOVERY_INTEREST_FIELDS.every(
+      (field) => !Object.prototype.hasOwnProperty.call(current, field)
+    );
 }
 
 /**
