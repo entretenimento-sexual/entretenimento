@@ -359,6 +359,11 @@ describe('Firestore Rules / public profile eligibility', () => {
       'preferences',
       'generosDeInteresse',
       'preferredGenders',
+      'discoveryPreferences',
+      'hardRules',
+      'softRules',
+      'matchingModes',
+      'selfTraits',
     ]) {
       await seedPublicProfile({ [privateKey]: ['não autorizado'] });
       await assertFails(
