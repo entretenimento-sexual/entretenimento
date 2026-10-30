@@ -344,8 +344,14 @@
 /* Superfície de galeria: a imagem é protagonista, com resposta discreta
    ao foco/hover. Nada é adicionado às variantes de feed. */
 .photo-tile--profile {
-  border-radius: clamp(0.85rem, 1.5vw, 1.1rem);
-  box-shadow: 0 10px 30px rgb(0 0 0 / 20%);
+  border-radius: clamp(0.65rem, 1vw, 0.85rem);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 14%);
+}
+
+/* A grade de perfil é compacta como coleção social. A imagem original
+   permanece íntegra no viewer, sem corte persistido nem nova versão. */
+.photo-tile--profile .photo-card-link {
+  aspect-ratio: 1;
 }
 
 .photo-tile--profile .photo-card-link::after {
