@@ -24,6 +24,7 @@ import {
   publicAvatarProjectionMatches,
   publicDescriptionProjectionMatches,
   publicLocationProjectionMatches,
+  PRIVATE_DISCOVERY_INTEREST_FIELDS,
   publicProfileDiscoveryProjectionMatches,
   resolvePublicProfileAge,
 } from './public-profile-discovery-projection';
@@ -137,8 +138,11 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
           ...publicDescription,
           normalizedGender: canonical.normalizedGender,
           normalizedOrientation: canonical.normalizedOrientation,
-          interestedInGenders: canonical.interestedInGenders,
-          interestedInOrientations: canonical.interestedInOrientations,
+          // A reciprocidade é calculada com users/{uid} no callable.
+          // Nunca persistir listas de busca no documento público consultável.
+          ...Object.fromEntries(
+            PRIVATE_DISCOVERY_INTEREST_FIELDS.map((field) => [field, FieldValue.delete()])
+          ),
           compatibilityReady: canonical.compatibilityReady,
           age,
           ageEligibilityAdultAccessAllowed: FieldValue.delete(),
