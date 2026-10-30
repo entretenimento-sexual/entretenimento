@@ -67,6 +67,9 @@ export interface PublicProfileCard {
   updatedAt?: number | null;
   createdAt?: number | null;
 
+  viewerCompatibilityAllowed?: boolean | null;
+  viewerCompatibilityScore?: number | null;
+  viewerCompatibilityReason?: 'compatible' | 'incompatible' | 'insufficient_data' | null;
   compatibilityScore?: number | null;
   compatibilityReason?: string | null;
 
