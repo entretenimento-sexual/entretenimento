@@ -58,6 +58,8 @@ match /public_social_links/{userId} {
       || (
         currentUserCanUseAdultSocialPlatform()
         && isActiveSubscriber(userId)
+        && canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)
+        && bilateralExposureAllows(userId)
       )
     );
   allow list: if false;
