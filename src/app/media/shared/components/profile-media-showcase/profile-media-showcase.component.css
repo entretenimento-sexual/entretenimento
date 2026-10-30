@@ -7,11 +7,11 @@
 
 .profile-media-showcase {
   display: grid;
-  gap: 0.75rem;
+  gap: clamp(0.9rem, 1.6vw, 1.4rem);
   width: 100%;
-  max-width: 48rem;
+  max-width: none;
   min-width: 0;
-  padding-top: 1rem;
+  padding-top: clamp(1.1rem, 2vw, 1.75rem);
   border-top: 1px solid color-mix(
     in oklab,
     var(--surface-border, #e5e7eb) 76%,
@@ -23,7 +23,7 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: start;
-  gap: 0.65rem;
+  gap: clamp(0.55rem, 1vw, 0.9rem);
   width: 100%;
   min-width: 0;
 }
@@ -33,7 +33,36 @@
   width: 100%;
   min-width: 0;
   aspect-ratio: 1;
-  border-radius: 0.85rem;
+  border-radius: 1rem;
+}
+
+/* Com cinco itens, a prévia vira uma pequena composição editorial.
+   Isto não altera a ordem do feed nem a grade uniforme da galeria completa. */
+.profile-media-showcase__grid--mosaic {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  aspect-ratio: 2.7;
+}
+
+.profile-media-showcase__grid--mosaic .profile-media-showcase__item {
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+.profile-media-showcase__grid--mosaic .profile-media-showcase__item:first-child {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.profile-media-showcase__header {
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.profile-media-showcase__header h2 {
+  font-size: clamp(1.2rem, 1.05rem + 0.55vw, 1.55rem);
+  font-weight: 850;
+  letter-spacing: -0.025em;
 }
 
 .profile-media-showcase__item {
@@ -154,24 +183,43 @@
   box-shadow: none !important;
 }
 
+@container profile-media-mosaic (max-width: 900px) {
+  .profile-media-showcase__grid--mosaic {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+    aspect-ratio: auto;
+  }
+
+  .profile-media-showcase__grid--mosaic .profile-media-showcase__item {
+    height: auto;
+    aspect-ratio: 1;
+  }
+
+  .profile-media-showcase__grid--mosaic .profile-media-showcase__item:first-child {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    aspect-ratio: 16 / 9;
+  }
+}
+
 @container profile-media-mosaic (max-width: 640px) {
   .profile-media-showcase {
     max-width: none;
-    padding-inline: 0.75rem;
+    padding-inline: 0;
   }
 
   .profile-media-showcase__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.25rem;
+    gap: 0.6rem;
   }
 
   .profile-media-showcase__item {
-    border-radius: 0.4rem;
+    border-radius: 0.75rem;
   }
 }
 
 @container profile-media-mosaic (max-width: 340px) {
-  .profile-media-showcase__grid {
+  .profile-media-showcase__grid:not(.profile-media-showcase__grid--mosaic) {
     grid-template-columns: 1fr;
   }
 }
