@@ -20,7 +20,7 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
     expect(pageCss).not.toContain('grid-column: span 2');
     expect(pageHtml).toContain('[class.photo-grid-item--cover]="item.isCover === true"');
     expect(pageHtml).toContain('class="photos-grid" role="list"');
-    expect(pageHtml).toContain('class="photo-grid-item"\n              role="listitem"');
+    expect(pageHtml).toMatch(/class="photo-grid-item"\s+role="listitem"/);
   });
 
   it('distribui 1 a 4 colunas pela largura disponivel do conteiner', () => {
