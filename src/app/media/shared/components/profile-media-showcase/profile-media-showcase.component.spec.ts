@@ -253,6 +253,41 @@ describe('ProfileMediaShowcaseComponent', () => {
     ).toBe(true);
   });
 
+  it('apresenta cinco itens em mosaico sem alterar a ordem pública de abertura', async () => {
+    mediaItems = [
+      photo,
+      ...[2, 3, 4, 5].map((n) => ({
+        ...photo,
+        id: `photo-${n}`,
+        url: `https://example.test/photo-${n}.jpg`,
+      })),
+    ];
+    totalPhotosCount = 5;
+    fixture.componentInstance.retry();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const grid = fixture.debugElement.query(
+      By.css('.profile-media-showcase__grid')
+    ).nativeElement as HTMLElement;
+    const cards = fixture.debugElement.queryAll(
+      By.css('.profile-media-showcase__item')
+    );
+
+    expect(grid.classList.contains('profile-media-showcase__grid--mosaic'))
+      .toBe(true);
+    expect(cards).toHaveLength(5);
+    expect(cards.map((card) => card.nativeElement.getAttribute('aria-label')))
+      .toEqual([
+        expect.stringContaining('1 de 5'),
+        expect.stringContaining('2 de 5'),
+        expect.stringContaining('3 de 5'),
+        expect.stringContaining('4 de 5'),
+        expect.stringContaining('5 de 5'),
+      ]);
+  });
+
   it('usa a mesma grade para foto única sem aplicar destaque variável', () => {
     const grid = fixture.debugElement.query(
       By.css('.profile-media-showcase__grid')
