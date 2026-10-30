@@ -66,3 +66,19 @@ Prioridade de descoberta: `identidade → Sobre → O que procura → Quem gosta
 **Dívida de arquitetura ainda aberta, impeditiva de certificação completa de confidencialidade das preferências:** os campos legados `interestedInGenders`/`interestedInOrientations` continuam trafegando na serialização pública de discovery para sustentar o motor de reciprocidade atual, mesmo quando a exibição de `publicSeekingGenders` não foi autorizada. A nova UI não os utiliza para renderizar a busca, mas isso não deve ser descrito como sigilo de payload. Antes da operação, separar a avaliação recíproca backend da projeção entregue ao cliente, testar que nenhuma preferência privada continua presente no transporte e avaliar impactos no ranking. Não resolver com mera ocultação CSS.
 
 **Validação pendente:** compilações, `test:ci`, suíte Functions, regras Firestore e inspeção com duas contas, incluindo revogação de busca, assinatura expirada, bloqueio em ambas as direções, perfis ocultos e mídia FRIENDS/PUBLIC. Alterações realizadas na `main`, sem branches nem pull requests.
+
+## Reciprocidade confidencial — corte de leitura (30/10/2026)
+
+O `test:ci` do frontend anterior a esta mudança passou com **2.820 testes em 490 arquivos**. Esse resultado **não valida** os commits posteriores desta seção.
+
+**O dado não pode ser protegido só no HTML ou na resposta do callable:** `public_profiles/{uid}` é legível por GET direto quando a conta e o solicitante são elegíveis. A proteção agora exige simultaneamente:
+
+- `syncPublicProfileDiscovery` e o `backfillPublicProfileDiscovery` **removem** as chaves legadas `preferences`, `interestedInGenders`, `interestedInOrientations` e aliases de interesses do documento público com `FieldValue.delete()`.
+- As regras negam `get` de terceiros enquanto qualquer dessas chaves existir no documento (fail closed). O dono continua podendo consultar a própria projeção, sujeito aos demais gates.
+- `getPublicProfilesPage` serializa só campos públicos e calcula `viewerCompatibilityAllowed`, `viewerCompatibilityScore` e um motivo **agregado** por requisição a partir dos documentos privados de visitante e alvo. Os dados privados nunca entram na resposta.
+- O adaptador Angular e o mapper de cards descartam campos legados mesmo diante de um payload antigo; o cache de discovery avança para `v4`. O score do backend substitui a inferência do cliente quando disponível; filtros próprios de idade, distância, assinatura e sinais públicos continuam independentes.
+- O código de cálculo backend espelha a política pura do frontend; `functions:build` verifica paridade textual e impede divergência silenciosa.
+
+**Ordem de ativação obrigatória em ambiente de teste:** compilar/testar frontend e Functions; compilar e validar regras; exercitar as regras no emulador; verificar que usuários bloqueados, perfis ocultos, contas com assinatura expirada e usuários com filtros incompatíveis não recebem dados indevidos. Para contas legadas, executar o backfill administrativo com `dryRun=true` antes da escrita. O executor disponível é `npm run admin:discovery-backfill`, com token Firebase administrativo (`FIREBASE_ID_TOKEN`); `--dryRun=false` exige `BACKFILL_CONFIRM_WRITE=YES`. A operação é paginada: concluir **todas** as páginas e conferir documentos sem chaves privadas antes de disponibilizar a migração em produção.
+
+**Efeito transitório intencional:** um perfil legado ainda não saneado pode ficar inacessível a terceiros até seu backfill, em vez de expor preferências. Não substituir essa regra por liberação pública para evitar indisponibilidade. Não executar deploy nem escrita administrativa em produção apenas por ter passado na compilação.
