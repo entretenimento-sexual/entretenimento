@@ -33,6 +33,22 @@ describe('perfil público visitado: composição editorial', () => {
     expect(html).not.toContain('profile.idade');
   });
 
+  it('usa estrutura social com bio opcional, âncoras e ações reais', () => {
+    expect(html).toContain('class="other-profile-page__eyebrow"');
+    expect(html).toContain('class="other-profile-page__intro"');
+    expect(html).toContain('{{ profile.descricao }}');
+    expect(html).toContain('class="other-profile-page__sections"');
+    expect(html).toContain('href="#profile-media"');
+    expect(html).toContain('href="#profile-details"');
+    expect(html).toContain('id="profile-media"');
+    expect(html).toContain('id="profile-details"');
+    expect(css).toContain('min-height: var(--tap-target, 44px)');
+    expect(css).toContain('.other-profile-page:has(#profile-details:target)');
+    expect(html).not.toContain('Seguidores');
+    expect(html).not.toContain('Curtidas recebidas');
+    expect(html).not.toContain('Verificado');
+  });
+
   it('aplica mosaico somente quando há cinco mídias, sem alterar seleção ou rota', () => {
     expect(mosaicHtml).toContain(
       '[class.profile-media-showcase__grid--mosaic]="visibleItems(state.items).length >= 5"'
