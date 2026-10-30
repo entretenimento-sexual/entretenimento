@@ -234,6 +234,8 @@ export interface IUserDados {
    */
   age?: number | null;
   publicRelationshipIntents?: readonly string[] | null;
+  /** Lista explícita publicada mediante opt-in separado (nunca usar filtro interno). */
+  publicSeekingGenders?: readonly string[] | null;
   publicSexualPractices?: readonly string[] | null;
   publicBodyTraits?: readonly string[] | null;
   preferenceBadgesVisible?: boolean | null;
