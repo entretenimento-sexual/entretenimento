@@ -75,6 +75,7 @@ const PUBLIC_LOCATION_POLICIES: Record<string, PublicLocationPolicy> = {
 /** Campos de interesse legados não podem existir em documento legível via Firestore. */
 export const PRIVATE_DISCOVERY_INTEREST_FIELDS = [
   'preferences', 'preferencias', 'interests', 'interesses', 'lookingFor', 'buscando',
+  'discoveryPreferences', 'hardRules', 'softRules', 'matchingModes', 'selfTraits',
   'interestedInGenders', 'interestedInGender', 'targetGenders', 'preferredGenders',
   'generosDeInteresse', 'interestedInOrientations', 'interestedInOrientation',
   'targetOrientations', 'preferredOrientations', 'orientacoesDeInteresse',
