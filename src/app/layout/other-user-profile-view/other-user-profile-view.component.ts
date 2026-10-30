@@ -227,6 +227,17 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     return this.affinityVm.preferenceChips;
   }
 
+  /** Somente dados projetados e autorizados; nunca lê discoveryPreferences do alvo. */
+  get publishedPreferenceGroups(): readonly { title: string; labels: readonly string[] }[] {
+    const vm = this.affinityVm;
+    return [
+      { title: 'O que procura', labels: vm.relationshipChips },
+      { title: 'Quem gostaria de conhecer', labels: vm.seekingChips },
+      { title: 'Práticas que interessam', labels: vm.practiceChips },
+      { title: 'Como se descreve', labels: vm.selfTraitChips },
+    ].filter((group) => group.labels.length > 0);
+  }
+
   get desireMatch() {
     return this.affinityVm.desireMatch;
   }
