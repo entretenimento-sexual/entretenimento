@@ -62,6 +62,7 @@ export class ProfileEditSaveOrchestrator {
       municipio: String(value['municipio'] ?? '').trim(),
       gender: String(value['gender'] ?? '').trim(),
       descricao: String(value['descricao'] ?? ''),
+      publicDescriptionVisible: value['publicDescriptionVisible'] === true,
       orientation: isCouple
         ? ''
         : String(value['orientation'] ?? '').trim(),
