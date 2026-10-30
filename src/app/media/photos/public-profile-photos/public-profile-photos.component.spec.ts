@@ -70,7 +70,7 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
   let component: PublicProfilePhotosComponent;
   let routeParams: BehaviorSubject<ParamMap>;
   let pagination: { loadPage$: ReturnType<typeof vi.fn> };
-  let viewer: { open$: ReturnType<typeof vi.fn> };
+  let viewer: { openWithResult$: ReturnType<typeof vi.fn> };
   let errors: { report: ReturnType<typeof vi.fn> };
   let publicUsers: { getPublicUserById$: ReturnType<typeof vi.fn> };
 
@@ -95,7 +95,7 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
     };
 
     viewer = {
-      open$: vi.fn(() => of(void 0)),
+      openWithResult$: vi.fn(() => of(undefined)),
     };
 
     errors = {
@@ -514,7 +514,7 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
     component.loadMorePhotos();
     component.openPhoto(1, SECOND);
 
-    expect(viewer.open$).toHaveBeenCalledWith({
+    expect(viewer.openWithResult$).toHaveBeenCalledWith({
       items: [PHOTO, SECOND],
       selected: SECOND,
       source: 'profile',
@@ -534,11 +534,11 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
       ownerUid: OTHER.ownerUid,
     });
 
-    expect(viewer.open$).not.toHaveBeenCalled();
+    expect(viewer.openWithResult$).not.toHaveBeenCalled();
 
     component.openPhoto(0, PHOTO);
 
-    expect(viewer.open$).toHaveBeenCalledTimes(1);
+    expect(viewer.openWithResult$).toHaveBeenCalledTimes(1);
 
     subscription.unsubscribe();
   });
