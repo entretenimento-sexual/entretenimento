@@ -9,20 +9,26 @@
 
 .public-photos-page {
   width: 100%;
-  max-width: min(100%, var(--content-wide, 1320px));
+  max-width: min(100%, 1480px);
   min-width: 0;
   box-sizing: border-box;
   margin-inline: auto;
-  padding: 16px clamp(12px, 2.5vw, 28px) 36px;
+  padding: clamp(16px, 2vw, 28px) clamp(12px, 2.2vw, 30px) 48px;
   container: public-photos-gallery / inline-size;
 }
 
 
+/* A página usa a largura de trabalho disponível sem reduzir a grade a um feed. */
+app-page-header {
+  display: block;
+  margin-bottom: 0.9rem;
+}
+
 /* Contexto do perfil visitado: identificação acessível antes do grid. */
 .visited-gallery-header {
   display: grid;
-  gap: 12px;
-  margin-bottom: clamp(18px, 2.5vw, 28px);
+  gap: 0.8rem;
+  margin-bottom: clamp(20px, 2.8vw, 34px);
   min-width: 0;
 }
 
@@ -54,10 +60,40 @@
   flex-wrap: wrap;
   gap: 18px;
   min-width: 0;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: var(--radius-lg, 18px);
-  padding: clamp(14px, 2vw, 24px);
-  background: var(--surface-color, #111925);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff6b81) 18%, var(--surface-border, #293545));
+  border-radius: clamp(1.1rem, 2.5vw, 1.6rem);
+  padding: clamp(1.2rem, 2.6vw, 2.1rem);
+  background:
+    radial-gradient(ellipse at 91% 8%, color-mix(in oklab, var(--primary-color, #ff6b81) 16%, transparent), transparent 52%),
+    linear-gradient(125deg, color-mix(in oklab, var(--surface-color, #111925) 94%, #1e263c 6%), var(--surface-color, #111925));
+  box-shadow: 0 18px 40px rgb(0 0 0 / 14%);
+}
+
+.visited-gallery-header__content::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: clamp(9rem, 22vw, 19rem);
+  aspect-ratio: 1;
+  inset: -68% -3% auto auto;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff6b81) 28%, transparent);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.visited-gallery-header__content::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: clamp(1.2rem, 2.6vw, 2.1rem);
+  width: min(28%, 11rem);
+  height: 3px;
+  border-radius: 0 0 999px 999px;
+  background: linear-gradient(90deg, var(--primary-color, #ff6b81), transparent);
+  pointer-events: none;
 }
 
 .visited-gallery-header__identity {
@@ -69,12 +105,12 @@
 }
 
 .visited-gallery-header__identity app-public-user-identity {
-  --public-user-identity-avatar-size: clamp(56px, 7vw, 72px);
-  --public-user-identity-name-size: clamp(1.25rem, 2vw, 1.75rem);
-  --public-user-identity-meta-size: 0.85rem;
+  --public-user-identity-avatar-size: clamp(62px, 6vw, 82px);
+  --public-user-identity-name-size: clamp(1.45rem, 2.35vw, 2.1rem);
+  --public-user-identity-meta-size: 0.89rem;
   --public-user-identity-gap: clamp(12px, 1.5vw, 18px);
   width: 100%;
-  max-width: 520px;
+  max-width: 680px;
 }
 
 .visited-gallery-header__unavailable {
@@ -115,7 +151,7 @@
 .photos-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: clamp(12px, 1.4vw, 18px);
+  gap: clamp(13px, 1.8vw, 24px);
   align-items: start;
   min-width: 0;
 }
