@@ -14,6 +14,7 @@ import {
   assertInteractionAccess,
 } from '../account_lifecycle/interaction-access.policy';
 import { evaluateCanonicalOwnerLifecycle } from '../account_lifecycle/public-owner-exposure.policy';
+import { evaluateProfileCompatibility } from './profile-compatibility.server';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { resolvePublicProfileAge } from './public-profile-discovery-projection';
@@ -365,14 +366,7 @@ export function serializePublicProfileForDiscovery(
         : null,
     partner1Orientation: cleanText(data['partner1Orientation']),
     partner2Orientation: cleanText(data['partner2Orientation']),
-    preferences:
-      cleanStringArray(data['preferences']) ?? cleanText(data['preferences']),
-    interestedInGenders:
-      cleanStringArray(data['interestedInGenders'])
-      ?? cleanText(data['interestedInGenders']),
-    interestedInOrientations:
-      cleanStringArray(data['interestedInOrientations'])
-      ?? cleanText(data['interestedInOrientations']),
+    // Interesses privados são consumidos exclusivamente no backend.
     publicRelationshipIntents:
       cleanStringArray(data['publicRelationshipIntents']),
     publicSeekingGenders:
@@ -498,9 +492,39 @@ async function enforceDiscoveryOwnerLifecycle(
     });
   }
 
+  const visible = filterDiscoveryCardsByViewerBlocks(eligible, blockedUids);
+  if (!visible.length) return { ...page, items: [] };
+
+  // Usar o documento privado do visitante exclusivamente na Function:
+  // nenhum valor de preferência é materializado no payload público.
+  const viewerSnapshot = await db.doc(`users/${viewerUid}`).get();
+  const viewer = viewerSnapshot.exists
+    ? viewerSnapshot.data() as Record<string, unknown>
+    : null;
+  if (!viewer || !evaluateCanonicalOwnerLifecycle(viewer).allowed) {
+    return { ...page, items: [] };
+  }
+
   return {
     ...page,
-    items: filterDiscoveryCardsByViewerBlocks(eligible, blockedUids),
+    items: visible.map((card) => {
+      const owner = owners.get(cleanUid(card['uid'])) ?? null;
+      const match = evaluateProfileCompatibility(
+        { ...viewer, uid: viewerUid },
+        owner ? { ...owner, uid: cleanUid(card['uid']) } : null
+      );
+      const insufficient = match.reason === 'viewer_data_missing'
+        || match.reason === 'candidate_data_missing';
+      return {
+        ...card,
+        viewerCompatibilityAllowed: match.compatible,
+        viewerCompatibilityScore: match.score,
+        // Razão agregada: não indicar qual preferência privada gerou mismatch.
+        viewerCompatibilityReason: insufficient
+          ? 'insufficient_data'
+          : match.compatible ? 'compatible' : 'incompatible',
+      };
+    }),
   };
 }
 
