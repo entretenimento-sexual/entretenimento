@@ -85,6 +85,7 @@
           @for (item of items; track trackByPhotoId($index, item); let i = $index) {
             <div
               class="photo-grid-item"
+              role="listitem"
               [class.photo-grid-item--cover]="item.isCover === true"
             >
               <app-public-photo-card
