@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import {
   IPublicProfilePhotoCursor,
   IPublicProfilePhotoPage,
@@ -126,6 +127,10 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
           useValue: publicUsers,
         },
         {
+          provide: CurrentUserStoreService,
+          useValue: { user$: of({ uid: 'viewer-1' }) },
+        },
+        {
           provide: PublicPhotoViewerLauncherService,
           useValue: viewer,
         },
@@ -147,6 +152,15 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
     // O componente criado diretamente não executa ngAfterViewInit.
     // A dimensão inicial é injetada explicitamente nestes testes.
     component['pageSizeSubject'].next(24);
+  });
+
+  it('retorna ao perfil visitado ou ao perfil próprio conforme o UID', () => {
+    expect(component.profileReturnRoute(PHOTO.ownerUid, 'viewer-1')).toEqual([
+      '/outro-perfil', PHOTO.ownerUid,
+    ]);
+    expect(component.profileReturnRoute(PHOTO.ownerUid, PHOTO.ownerUid)).toEqual([
+      '/perfil',
+    ]);
   });
 
   it('identifica o perfil usando somente a leitura pública autorizada', () => {
