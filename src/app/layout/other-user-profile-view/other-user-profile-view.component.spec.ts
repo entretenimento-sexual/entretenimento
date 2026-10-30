@@ -364,8 +364,6 @@ describe('OtherUserProfileViewComponent', () => {
       '.other-profile-page__sections'
     ) as HTMLElement;
     const links = Array.from(nav.querySelectorAll('a')) as HTMLAnchorElement[];
-    const hero = fixture.nativeElement.querySelector('.other-profile-page__hero') as HTMLElement;
-
     expect(links.map((link) => link.textContent?.trim())).toEqual(['Fotos', 'Vídeos', 'Sobre']);
     expect(links[0].getAttribute('href')).toContain('fotos-publicas');
     expect(links[1].getAttribute('href')).toContain('videos-publicos');
