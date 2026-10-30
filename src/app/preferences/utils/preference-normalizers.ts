@@ -45,6 +45,7 @@ export function createEmptyPreferenceProfile(userId: string): PreferenceProfile 
     },
     visibility: {
       showPreferenceBadges: true,
+      showSeekingPublicly: false,
       showIntentPublicly: false,
       discoveryMode: 'standard',
     },
@@ -121,6 +122,7 @@ export function normalizePreferenceProfile(
       ...(source.visibility ?? {}),
       showPreferenceBadges:
         source.visibility?.showPreferenceBadges !== false,
+      showSeekingPublicly: source.visibility?.showSeekingPublicly === true,
       showIntentPublicly: source.visibility?.showIntentPublicly === true,
       discoveryMode: source.visibility?.discoveryMode ?? 'standard',
     },
