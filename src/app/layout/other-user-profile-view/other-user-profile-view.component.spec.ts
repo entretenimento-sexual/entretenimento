@@ -373,7 +373,7 @@ describe('OtherUserProfileViewComponent', () => {
     expect(nav.querySelector('[aria-current="page"]')?.textContent).toContain('Perfil');
     expect(fixture.nativeElement.querySelector('#profile-media')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('#profile-details')).not.toBeNull();
-    expect(hero.querySelector('.other-profile-page__intro')?.textContent)
+    expect(hero.querySelector('.other-profile-page__bio-text')?.textContent)
       .toContain('Descrição direta do perfil.');
     expect(nav.textContent).not.toContain('Seguidores');
   });
