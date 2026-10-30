@@ -61,6 +61,11 @@ function normalizeLimit(value: unknown): number {
     : 100;
 }
 
+/** A ausência do parâmetro nunca autoriza escrita administrativa. */
+export function normalizeBackfillDryRun(value: unknown): boolean {
+  return value !== false;
+}
+
 function normalizeCursor(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
@@ -127,7 +132,7 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
     const limit = normalizeLimit(request.data?.limit);
     // Segurança também no callable, não só no runner administrativo:
     // payload ausente, inválido ou legado jamais autoriza escrita.
-    const dryRun = request.data?.dryRun !== false;
+    const dryRun = normalizeBackfillDryRun(request.data?.dryRun);
     const startAfterUid = normalizeCursor(request.data?.startAfterUid);
 
     let usersQuery = db.collection('users').orderBy(FieldPath.documentId());
