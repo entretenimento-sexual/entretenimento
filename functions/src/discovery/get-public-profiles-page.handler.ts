@@ -509,25 +509,39 @@ async function enforceDiscoveryOwnerLifecycle(
 
   return {
     ...page,
-    items: visible.map((card) => {
-      const owner = owners.get(cleanUid(card['uid'])) ?? null;
-      const match = evaluateProfileCompatibility(
-        { ...viewer, uid: viewerUid },
-        owner ? { ...owner, uid: cleanUid(card['uid']) } : null
-      );
-      const insufficient = match.reason === 'viewer_data_missing'
-        || match.reason === 'candidate_data_missing';
-      return {
-        ...card,
-        viewerCompatibilityAllowed: match.compatible,
-        viewerCompatibilityScore: match.score,
-        // Razão agregada: não indicar qual preferência privada gerou mismatch.
-        viewerCompatibilityReason: insufficient
-          ? 'insufficient_data'
-          : match.compatible ? 'compatible' : 'incompatible',
-      };
-    }),
+    items: attachViewerCompatibilityToPublicCards(visible, viewerUid, viewer, owners),
   };
+}
+
+/**
+ * A decisão usa dados privados apenas em memória. O retorno herda unicamente
+ * o card sanitizado e os três sinais agregados; não projeta campos de users/.
+ */
+export function attachViewerCompatibilityToPublicCards(
+  cards: readonly Record<string, unknown>[],
+  viewerUid: string,
+  viewer: Record<string, unknown>,
+  owners: ReadonlyMap<string, Record<string, unknown> | null>
+): Record<string, unknown>[] {
+  return cards.map((card) => {
+    const targetUid = cleanUid(card['uid']);
+    const owner = owners.get(targetUid) ?? null;
+    const match = evaluateProfileCompatibility(
+      { ...viewer, uid: viewerUid },
+      owner ? { ...owner, uid: targetUid } : null
+    );
+    const insufficient = match.reason === 'viewer_data_missing'
+      || match.reason === 'candidate_data_missing';
+    return {
+      ...card,
+      viewerCompatibilityAllowed: match.compatible,
+      viewerCompatibilityScore: match.score,
+      // Não indicar qual preferência privada causou incompatibilidade.
+      viewerCompatibilityReason: insufficient
+        ? 'insufficient_data'
+        : match.compatible ? 'compatible' : 'incompatible',
+    };
+  });
 }
 
 /** Preserve the cursor of the last delivered result, not the scan-ahead. */
