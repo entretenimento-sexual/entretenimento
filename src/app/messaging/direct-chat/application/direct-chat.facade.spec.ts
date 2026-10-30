@@ -277,8 +277,6 @@ describe('DirectChatFacade session isolation', () => {
       profileTypeLabel: 'Casal',
     });
     expect(item?.otherParticipantPreview).toMatchObject({
-      age: 34,
-      orientationLabel: 'bissexual',
       isOnline: true,
       approximateDistanceKm: null,
       bioPreview: 'Perfil público para novas conexões.',
@@ -295,6 +293,9 @@ describe('DirectChatFacade session isolation', () => {
     expect(item?.otherParticipantPhotoURL).toBe('https://example.com/casal.webp');
     expect('cpf' in (item?.otherParticipantIdentity ?? {})).toBe(false);
     expect('cpf' in (item?.otherParticipantPreview ?? {})).toBe(false);
+    expect('age' in (item?.otherParticipantPreview ?? {})).toBe(false);
+    expect('orientationLabel' in (item?.otherParticipantPreview ?? {}))
+      .toBe(false);
     expect(applicationError.report).not.toHaveBeenCalled();
 
     subscription.unsubscribe();
