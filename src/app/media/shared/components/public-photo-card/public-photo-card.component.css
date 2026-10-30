@@ -341,6 +341,46 @@
   white-space: nowrap;
 }
 
+/* Superfície de galeria: a imagem é protagonista, com resposta discreta
+   ao foco/hover. Nada é adicionado às variantes de feed. */
+.photo-tile--profile {
+  border-radius: clamp(0.85rem, 1.5vw, 1.1rem);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 20%);
+}
+
+.photo-tile--profile .photo-card-link::after {
+  content: "Ampliar ↗";
+  position: absolute;
+  right: 0.85rem;
+  bottom: 0.85rem;
+  z-index: 1;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid rgb(255 255 255 / 25%);
+  border-radius: 999px;
+  background: rgb(8 14 24 / 76%);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 18%);
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 720;
+  line-height: 1;
+  opacity: 0;
+  transform: translateY(0.25rem);
+  transition: opacity 160ms ease, transform 160ms ease;
+  pointer-events: none;
+}
+
+.photo-tile--profile .photo-card-link:hover::after,
+.photo-tile--profile .photo-card-link:focus-visible::after {
+  opacity: 1;
+  transform: none;
+}
+
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .photo-tile--profile .photo-card-link::after {
+    transition: none;
+  }
+}
+
 /* A galeria do perfil não é feed: métricas ficam ABAIXO da fotografia,
    sem cobrir imagem/legendas ou reduzir a área clicável do viewer.
    Escopo restrito à variante profile; latest/top/feed/sponsored não mudam. */
@@ -351,8 +391,8 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 48px;
-  padding: 8px 10px;
+  min-height: 42px;
+  padding: 7px 12px;
   gap: 6px;
   border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
   background: color-mix(in oklab, var(--surface-color, #0f1620) 94%, black 6%);
