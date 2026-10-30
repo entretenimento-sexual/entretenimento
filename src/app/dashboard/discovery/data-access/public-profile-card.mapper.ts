@@ -137,19 +137,6 @@ function firstStringArray(
   return null;
 }
 
-function firstPreferenceValue(
-  source: PublicProfileSource,
-  keys: readonly string[]
-): readonly string[] | string | null {
-  const arrayValue = firstStringArray(source, keys);
-
-  if (arrayValue?.length) {
-    return arrayValue;
-  }
-
-  return firstText(source, keys);
-}
-
 export function toSerializableEpoch(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
     return Math.trunc(value);
@@ -271,28 +258,17 @@ export function mapPublicProfileCard(
       'orientacaoParceiro2',
     ]),
 
-    preferences: firstPreferenceValue(source, [
-      'preferences',
-      'preferencias',
-      'interests',
-      'interesses',
-      'lookingFor',
-      'buscando',
-    ]),
-    interestedInGenders: firstPreferenceValue(source, [
-      'interestedInGenders',
-      'interestedInGender',
-      'targetGenders',
-      'preferredGenders',
-      'generosDeInteresse',
-    ]),
-    interestedInOrientations: firstPreferenceValue(source, [
-      'interestedInOrientations',
-      'interestedInOrientation',
-      'targetOrientations',
-      'preferredOrientations',
-      'orientacoesDeInteresse',
-    ]),
+    viewerCompatibilityAllowed:
+      typeof source['viewerCompatibilityAllowed'] === 'boolean'
+        ? source['viewerCompatibilityAllowed'] : null,
+    viewerCompatibilityScore: firstNumber(source, ['viewerCompatibilityScore']),
+    viewerCompatibilityReason:
+      source['viewerCompatibilityReason'] === 'compatible'
+      || source['viewerCompatibilityReason'] === 'incompatible'
+      || source['viewerCompatibilityReason'] === 'insufficient_data'
+        ? source['viewerCompatibilityReason'] as
+          'compatible' | 'incompatible' | 'insufficient_data'
+        : null,
 
     publicRelationshipIntents: firstStringArray(source, [
       'publicRelationshipIntents',
