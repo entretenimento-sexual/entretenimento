@@ -207,6 +207,15 @@ describe('PublicProfileVideosComponent', () => {
     );
   });
 
+  it('retorna ao perfil próprio e ao perfil visitado sem usar /perfil/:uid', () => {
+    expect(component.profileReturnRoute(VIDEO.ownerUid, 'viewer-1')).toEqual([
+      '/outro-perfil', VIDEO.ownerUid,
+    ]);
+    expect(component.profileReturnRoute(VIDEO.ownerUid, VIDEO.ownerUid)).toEqual([
+      '/perfil',
+    ]);
+  });
+
   it('usa somente identidade pública reconhecida no cabeçalho de vídeos', () => {
     const identities: Array<{
       nickname: string;
