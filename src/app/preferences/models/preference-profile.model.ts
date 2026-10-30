@@ -54,6 +54,8 @@ export interface PreferenceMatchingModes {
 
 export interface PreferenceVisibilitySettings {
   showPreferenceBadges: boolean;
+  /** Consentimento distinto para publicar os perfis que deseja conhecer. */
+  showSeekingPublicly?: boolean;
   showIntentPublicly: boolean;
   discoveryMode: DiscoveryMode;
 }
