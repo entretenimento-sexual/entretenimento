@@ -135,6 +135,23 @@ describe('UserDiscoveryQueryService', () => {
     expect(profile?.descricao).toBeUndefined();
   });
 
+  it('hidrata exclusivamente a descrição com opt-in publicada pelo backend', async () => {
+    publicProfileReadMock.readByUids$.mockReturnValue(
+      of({
+        items: [{
+          uid: 'profile-public-description',
+          nickname: 'Perfil',
+          descricao: 'Texto privado - nunca enviar',
+          publicDescription: 'Apresentação autorizada.',
+        }],
+        nextCursor: null, reachedEnd: true, fetchedAt: Date.now(), scanned: 1,
+      })
+    );
+    const [profile] = await firstValueFrom(service.getProfilesByUids$(['profile-public-description']));
+    expect(profile?.descricao).toBe('Apresentação autorizada.');
+    expect(profile?.descricao).not.toContain('Texto privado');
+  });
+
   it('preserva somente os sinais públicos de preferências durante hidratação', async () => {
     publicProfileReadMock.readByUids$.mockReturnValue(
       of({
