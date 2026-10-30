@@ -37,7 +37,7 @@ describe('perfil público visitado: composição editorial', () => {
     expect(html).toContain('class="other-profile-page__photo-wrap"');
     expect(css).toContain('aspect-ratio: 1;');
     expect(css).toContain('border-radius: 50%;');
-    expect(html).toContain('class="other-profile-page__intro"');
+    expect(html).toContain('class="other-profile-page__bio-text"');
     expect(html).toContain('{{ profile.descricao }}');
     expect(html).toContain('class="other-profile-page__sections"');
     expect(html).toContain('aria-current="page"');
