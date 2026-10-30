@@ -93,3 +93,29 @@ Os testes agora abrangem:
 - **Functions** (`get-public-profiles-page.handler.test.ts`): função pura `attachViewerCompatibilityToPublicCards` usa as escolhas privadas de ambos os lados para a decisão recíproca, mas entrega somente o resultado e campos públicos; mudança do filtro privado do visitado altera a elegibilidade sem revelar valores privados.
 
 A conclusão desta etapa exige novo `npm run test:rules` e `npm --prefix functions test` executados com os últimos commits da `main`, mais validação end-to-end de migração administrativa no emulador. **Sem deploy automático ou execução de backfill real em produção**.
+
+## Verificação de migração legada em emulador (30/10/2026)
+
+**Evidência recebida:** `npm.cmd --prefix functions test` aprovou **2.062 testes, 115 suítes, zero falhas** antes dos commits deste bloco. Nenhuma aprovação de `test:rules` ou do novo cenário E2E foi apresentada.
+
+O cenário isolado `scripts/tests/discovery-legacy-backfill.e2e.mjs` foi adicionado para testar a callable `backfillPublicProfileDiscovery` contra os emuladores **Auth + Firestore + Functions** usando o projeto fixo `demo-entretenimento-media-e2e`. A execução impede uso sem `FIREBASE_EMULATOR_HUB`, verifica o estado legado antes do saneamento e exige:
+
+1. GET do legado com campos privados **negado** ao visitante; GET de perfil limpo **permitido**.
+2. Visitante comum não pode chamar backfill com escrita.
+3. Chamada administrativa **sem dryRun** não altera dados, pois o padrão do servidor é simulação.
+4. Escrita de teste requer `dryRun:false` explícito e avança em páginas de um usuário, com cursor e limite de segurança.
+5. Após o saneamento, todas as chaves privadas desaparecem de `public_profiles`, porém persistem em `users/{uid}`; o GET saneado passa a ser autorizado.
+
+Comando de validação local:
+
+```powershell
+Set-Location C:\entretenimento
+git pull --ff-only origin main
+npm.cmd run test:rules
+npm.cmd run test:discovery:legacy-backfill:e2e
+npm.cmd --prefix functions test
+```
+
+A lista de **21 chaves privadas** inclui estruturas aninhadas (`discoveryPreferences`, `hardRules`, `softRules`, `matchingModes`, `selfTraits`). `functions:build` verifica a paridade dessas chaves com as Firestore Rules por `scripts/quality/check-discovery-private-fields-contract.mjs`; divergência reprova o build.
+
+**Operação real não autorizada por esta validação.** Nunca trocar o projeto `demo-*` desse cenário por produção. A migração administrativa real continua sujeita a revisão, planejamento, backup e autorização explícita, com `dryRun` prévio e execução paginada.
