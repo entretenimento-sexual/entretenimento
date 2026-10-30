@@ -59,10 +59,14 @@ const publicData = uid => ({ uid, nickname:'Perfil-' + uid, nicknameNormalized:'
   createdAt:new Date(), updatedAt:new Date() });
 
 async function untilDiscoveryTriggersSettled() {
-  // Projeções públicas preexistentes garantem que a primeira sincronização
-  // de users/ efetivamente percorra o ciclo completo do trigger.
-  const deadline = Date.now() + 30_000;
+  // Cada atualização gerada por trigger reinicia a janela de estabilidade.
+  // Só injetar dados legados quando o estado inicial tiver sido normalizado
+  // e as escritas de users/public_profiles estiverem estáveis.
+  const deadline = Date.now() + 45_000;
+  const stableWindowMs = 1_500;
   let pending = ids;
+  let stableSince = 0;
+  let lastVersion = '';
   while (Date.now() < deadline) {
     const [users, profiles] = await Promise.all([
       Promise.all(ids.map(uid => db.doc('users/' + uid).get())),
@@ -72,16 +76,25 @@ async function untilDiscoveryTriggersSettled() {
       typeof users[index].get('profileId') !== 'string'
     );
     const projected = profiles.every(snapshot => snapshot.get('discoveryNormalizedAt'));
+    const version = [...users, ...profiles].map(snapshot => {
+      const timestamp = snapshot.updateTime;
+      return timestamp ? timestamp.seconds + ':' + timestamp.nanoseconds : 'missing';
+    }).join('|');
     if (pending.length === 0 && projected) {
-      // Os gatilhos encadeados também podem observar o mesmo user write;
-      // aguardamos a propagação antes de injetar o legado deliberadamente.
-      await new Promise(resolve => setTimeout(resolve, 1_500));
-      return;
+      if (version !== lastVersion) {
+        lastVersion = version;
+        stableSince = Date.now();
+      } else if (Date.now() - stableSince >= stableWindowMs) {
+        return;
+      }
+    } else {
+      lastVersion = '';
+      stableSince = 0;
     }
     await new Promise(resolve => setTimeout(resolve, 250));
   }
   throw new Error(
-    'Sincronização inicial do fixture incompleta: ' + pending.length
+    'Sincronização inicial do fixture incompleta ou instável: ' + pending.length
     + ' profileIds pendentes e/ou projeções sem discoveryNormalizedAt.'
   );
 }
