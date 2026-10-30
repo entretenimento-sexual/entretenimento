@@ -161,7 +161,6 @@ describe('UserDiscoveryQueryService', () => {
             uid: 'profile-public-signals',
             nickname: 'Profile',
             publicRelationshipIntents: ['serious'],
-      publicSeekingGenders: ['women'],
             publicSeekingGenders: ['women'],
             publicSexualPractices: ['bdsm'],
             publicBodyTraits: ['tattoos'],
@@ -182,6 +181,7 @@ describe('UserDiscoveryQueryService', () => {
 
     expect(profiles[0]).toMatchObject({
       publicRelationshipIntents: ['serious'],
+      publicSeekingGenders: ['women'],
       publicSexualPractices: ['bdsm'],
       publicBodyTraits: ['tattoos'],
       preferenceBadgesVisible: true,
