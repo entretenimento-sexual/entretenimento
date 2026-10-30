@@ -638,7 +638,10 @@ describe('PublicProfilePhotosComponent / inicialização da view', () => {
           } },
           { provide: PublicProfilePhotoPaginationService, useValue: { loadPage$ } },
           { provide: FirestoreUserQueryService, useValue: { getPublicUserById$: vi.fn(() => of(null)) } },
-          { provide: PublicPhotoViewerLauncherService, useValue: { open$: vi.fn() } },
+          // A inicialização da view usa o mesmo usuário fake do teste de paginação.
+          // Não construir AuthSessionService real sem Firebase Auth neste fixture.
+          { provide: CurrentUserStoreService, useValue: { user$: of({ uid: 'viewer-1' }) } },
+          { provide: PublicPhotoViewerLauncherService, useValue: { openWithResult$: vi.fn(() => of(undefined)) } },
           { provide: MediaApplicationErrorService, useValue: { report: vi.fn() } },
           { provide: PrivacyDebugLoggerService, useValue: { log: vi.fn() } },
         ],
