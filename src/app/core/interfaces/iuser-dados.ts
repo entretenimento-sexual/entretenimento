@@ -246,6 +246,8 @@ export interface IUserDados {
   isSidebarOpen?: boolean;
   preferences?: string[];
   descricao: string;
+  /** Autorização explícita do proprietário para exibir a apresentação no perfil visitado. */
+  publicDescriptionVisible?: boolean;
 
   // ---------------------------------------------------------------------------
   // Estado de presença / uso
