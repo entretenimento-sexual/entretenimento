@@ -128,7 +128,7 @@
   text-transform: uppercase;
 }
 
-.other-profile-page__intro {
+.other-profile-page__bio-text {
   max-width: 62ch;
   margin: 0;
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 86%, transparent);
