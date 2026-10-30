@@ -154,11 +154,11 @@
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  min-height: 2.35rem;
-  padding: 0.48rem 0.65rem;
-  border: 0;
-  border-radius: 0.55rem;
-  background: transparent;
+  min-height: var(--tap-target, 44px);
+  padding: 0.65rem 0.95rem;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 14%));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color, #111925) 94%, transparent);
   color: color-mix(in oklab, var(--text-color, #111827) 72%, transparent);
   font: inherit;
   font-size: 0.78rem;
@@ -169,10 +169,11 @@
 }
 
 .profile-media-showcase__links a:hover {
+  border-color: color-mix(in oklab, var(--primary-color, #ff4d57) 36%, var(--surface-border, #293545));
   background: color-mix(
     in oklab,
-    var(--primary-color, #ff4d57) 8%,
-    transparent
+    var(--primary-color, #ff4d57) 12%,
+    var(--surface-color, #111925)
   );
   color: var(--text-color, #111827);
 }
