@@ -165,7 +165,7 @@ export class UserDiscoveryQueryService {
    */
   getProfilesByUids$(
     uids: string[] | null | undefined,
-    options?: { cacheTTL?: number }
+    options?: { cacheTTL?: number; forceRefresh?: boolean }
   ): Observable<IUserDados[]> {
     const normalizedUids = this.normalizeUidList(uids).sort();
 
@@ -193,7 +193,8 @@ export class UserDiscoveryQueryService {
             );
 
             if (
-              cachedProfiles !== null
+              options?.forceRefresh !== true
+              && cachedProfiles !== null
               && cachedSelection.length === normalizedUids.length
               && cachedSelection.every((profile) =>
                 this.hasCurrentAgeEligibilityProjection(profile)
@@ -229,9 +230,11 @@ export class UserDiscoveryQueryService {
                 )
               ),
               tap((profiles) => {
-                this.cache.set(cacheKey, profiles, cacheTTL, {
-                  persist: true,
-                });
+                if (options?.forceRefresh !== true) {
+                  this.cache.set(cacheKey, profiles, cacheTTL, {
+                    persist: true,
+                  });
+                }
               })
             );
           }),
