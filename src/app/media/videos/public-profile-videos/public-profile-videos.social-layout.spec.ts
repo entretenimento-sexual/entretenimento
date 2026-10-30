@@ -14,7 +14,8 @@ describe('galeria pública de vídeos: navegação social', () => {
     expect(html).toContain('class="public-videos-page__tabs"');
     expect(html).toContain('aria-label="Seções do perfil visitado"');
     expect(html).toContain("['/media', 'perfil', galleryProfileUid, 'fotos-publicas']");
-    expect(html).toContain("['/outro-perfil', galleryProfileUid]");
+    expect(html).toContain('profileReturnRoute(galleryProfileUid, viewerUid)');
+    expect(html).toContain('class="public-videos-page__back"');
     expect(html).toContain('class="public-videos-page__tab public-videos-page__tab--active" aria-current="page"');
     expect(photosHtml).toContain('class="visited-gallery-header__tabs"');
     expect(photosHtml).toContain('aria-current="page"');
