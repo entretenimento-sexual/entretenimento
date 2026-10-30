@@ -129,3 +129,26 @@ html.high-contrast .form-actions {
   border-color: currentColor;
   box-shadow: none;
 }
+
+/* Consentimento explícito da apresentação pública. */
+.profile-description-visibility {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding-block: 0.65rem;
+  cursor: pointer;
+  line-height: 1.45;
+}
+
+.profile-description-visibility input[type='checkbox'] {
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.1rem;
+  accent-color: var(--primary-color, #ff6b81);
+}
+
+.profile-description-visibility input:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--primary-color, #ff6b81));
+  outline-offset: 2px;
+}
