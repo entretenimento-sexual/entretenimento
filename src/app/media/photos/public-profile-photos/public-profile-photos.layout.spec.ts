@@ -30,7 +30,7 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
     expect(pageCss).toContain('repeat(4, minmax(0, 1fr))');
     expect(pageCss).toContain('box-sizing: border-box');
     expect(pageCss).toContain('max-width: min(100%, 1480px);');
-    expect(pageCss).toContain('radial-gradient(ellipse at 91% 8%');
+    expect(pageCss).toContain('radial-gradient(ellipse at 80% 8%');
   });
 
   it('coloca metricas em rodape apenas na variante profile', () => {
