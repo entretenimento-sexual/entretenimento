@@ -72,7 +72,7 @@
       </nav>
     }
 
-    @if ((requestedVideoId$ | async) && (ownerUid$ | async); as galleryOwnerUid) {
+    @if ((requestedVideoId$ | async) && galleryOwnerUid) {
       <a
         class="public-videos-page__gallery-return app-action app-action--ghost"
         [routerLink]="['/media/perfil', galleryOwnerUid, 'videos-publicos']"
