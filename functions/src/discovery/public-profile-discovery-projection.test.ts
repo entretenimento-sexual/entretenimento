@@ -50,6 +50,19 @@ test('detecta alteração real de compatibilidade', () => {
   }, CANONICAL), false);
 });
 
+test('recusa projeções legadas que contenham regras privadas aninhadas', () => {
+  for (const privateField of [
+    'discoveryPreferences', 'hardRules', 'softRules', 'matchingModes', 'selfTraits',
+  ]) {
+    assert.equal(publicProfileDiscoveryProjectionMatches({
+      normalizedGender: CANONICAL.normalizedGender,
+      normalizedOrientation: CANONICAL.normalizedOrientation,
+      compatibilityReady: CANONICAL.compatibilityReady,
+      [privateField]: { secret: true },
+    }, CANONICAL), false, privateField);
+  }
+});
+
 test('detecta projeção ausente para backfill', () => {
   assert.equal(publicProfileDiscoveryProjectionMatches({}, CANONICAL), false);
 });
