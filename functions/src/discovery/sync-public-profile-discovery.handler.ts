@@ -19,8 +19,10 @@ import {
 import { isPublicProfileProjectionBlocked } from './public-profile-projection-access';
 import {
   buildPublicAvatarProjection,
+  buildPublicDescriptionProjection,
   buildPublicLocationProjection,
   publicAvatarProjectionMatches,
+  publicDescriptionProjectionMatches,
   publicLocationProjectionMatches,
   publicProfileDiscoveryProjectionMatches,
   resolvePublicProfileAge,
@@ -109,6 +111,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
       );
       const publicLocation = buildPublicLocationProjection(user);
       const publicAvatar = buildPublicAvatarProjection(user);
+      const publicDescription = buildPublicDescriptionProjection(user);
       const currentPublic = publicProfileSnapshot.data() ?? {};
 
       if (
@@ -118,7 +121,8 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         (currentPublic['age'] ?? null) === age &&
         publicPreferenceProjectionMatches(currentPublic, publicPreferences) &&
         publicLocationProjectionMatches(currentPublic, publicLocation) &&
-        publicAvatarProjectionMatches(currentPublic, publicAvatar)
+        publicAvatarProjectionMatches(currentPublic, publicAvatar) &&
+        publicDescriptionProjectionMatches(currentPublic, publicDescription)
       ) {
         return;
       }
@@ -130,6 +134,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
           gender: publicIdentity.identityCode ?? currentPublic['gender'] ?? null,
           ...publicIdentity,
           ...publicAvatar,
+          ...publicDescription,
           normalizedGender: canonical.normalizedGender,
           normalizedOrientation: canonical.normalizedOrientation,
           interestedInGenders: canonical.interestedInGenders,
