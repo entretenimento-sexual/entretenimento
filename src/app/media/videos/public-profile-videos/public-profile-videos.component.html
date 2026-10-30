@@ -5,18 +5,6 @@
   <section class="public-videos-page" aria-label="Vídeos públicos">
     <app-page-header title="Vídeos">
       <div page-actions class="gallery-actions">
-        @if (ownerUid$ | async; as galleryProfileUid) {
-          <a
-            class="app-action app-action--ghost"
-            [routerLink]="viewerUid === galleryProfileUid
-              ? ['/perfil']
-              : ['/outro-perfil', galleryProfileUid]"
-            aria-label="Abrir o perfil que publicou estes vídeos"
-          >
-            <i class="fas fa-user" aria-hidden="true"></i>
-            <span>Ver perfil</span>
-          </a>
-        }
         <div class="gallery-summary" aria-live="polite" aria-atomic="true">
         @if (state.status === 'ready') {
           <strong>{{ state.items.length }}</strong>
@@ -47,6 +35,29 @@
           <span class="public-videos-identity__unavailable">Perfil indisponível</span>
         }
       </header>
+    }
+
+    @if (ownerUid$ | async; as galleryProfileUid) {
+      <nav class="public-videos-page__tabs" aria-label="Seções do perfil visitado">
+        <a
+          class="public-videos-page__tab"
+          [routerLink]="viewerUid === galleryProfileUid ? ['/perfil'] : ['/outro-perfil', galleryProfileUid]"
+        >
+          <i class="fas fa-user" aria-hidden="true"></i>
+          <span>Perfil</span>
+        </a>
+        <a
+          class="public-videos-page__tab"
+          [routerLink]="['/media', 'perfil', galleryProfileUid, 'fotos-publicas']"
+        >
+          <i class="fas fa-images" aria-hidden="true"></i>
+          <span>Fotos</span>
+        </a>
+        <span class="public-videos-page__tab public-videos-page__tab--active" aria-current="page">
+          <i class="fas fa-film" aria-hidden="true"></i>
+          <span>Vídeos</span>
+        </span>
+      </nav>
     }
 
     @if ((requestedVideoId$ | async) && (ownerUid$ | async); as galleryOwnerUid) {
