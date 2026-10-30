@@ -16,7 +16,24 @@
 }
 
 .other-profile-page__topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
   min-height: 2.75rem;
+}
+
+.other-profile-page__breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 65%, transparent);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.other-profile-page__breadcrumb i {
+  font-size: 0.6rem;
+  opacity: 0.65;
 }
 
 .other-profile-page__back {
@@ -86,6 +103,27 @@
   min-width: 0;
   align-content: center;
   padding-block: 1rem;
+}
+
+.other-profile-page__eyebrow {
+  margin: 0;
+  color: var(--primary-color, #ff6b81);
+  font-size: 0.76rem;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.other-profile-page__intro {
+  max-width: 62ch;
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 86%, transparent);
+  font-size: clamp(0.91rem, 0.85rem + 0.3vw, 1.06rem);
+  font-weight: 460;
+  line-height: 1.65;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .other-profile-page__headline {
@@ -190,9 +228,72 @@
   padding-top: 0.5rem;
 }
 
+.other-profile-page__actions > .app-action {
+  min-height: var(--tap-target, 44px);
+  padding-inline: clamp(1rem, 1.8vw, 1.5rem);
+  border-radius: 999px;
+  box-shadow: 0 9px 22px color-mix(in oklab, var(--primary-color, #ff6b81) 16%, transparent);
+}
+
 .other-profile-page__report-button {
   display: block;
   min-width: 0;
+}
+
+.other-profile-page__sections {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: clamp(0.6rem, 1.4vw, 1rem);
+  min-height: 3.3rem;
+  border-bottom: 1px solid var(--surface-border, rgb(255 255 255 / 14%));
+}
+
+.other-profile-page__section-link {
+  display: inline-flex;
+  position: relative;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: var(--tap-target, 44px);
+  padding: 0.65rem clamp(0.8rem, 2vw, 1.3rem);
+  border-radius: 0.7rem 0.7rem 0 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 74%, transparent);
+  font-size: 0.9rem;
+  font-weight: 760;
+  text-decoration: none;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.other-profile-page__section-link:first-child {
+  color: var(--text-color, #f5f7fb);
+}
+
+.other-profile-page__section-link:first-child::after {
+  content: "";
+  position: absolute;
+  right: 0.6rem;
+  bottom: -1px;
+  left: 0.6rem;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: var(--primary-color, #ff6b81);
+}
+
+.other-profile-page__section-link:hover,
+.other-profile-page__section-link:focus-visible {
+  background: color-mix(in oklab, var(--primary-color, #ff6b81) 10%, transparent);
+  color: var(--text-color, #f5f7fb);
+}
+
+.other-profile-page__section-link:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--primary-color, #ff6b81));
+  outline-offset: -2px;
+}
+
+#profile-media,
+#profile-details {
+  scroll-margin-top: 8rem;
 }
 
 .other-profile-page__content {
@@ -365,6 +466,16 @@ app-profile-media-showcase {
     font-size: clamp(1.65rem, 8vw, 2.35rem);
   }
 
+  .other-profile-page__sections {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .other-profile-page__section-link {
+    flex: 0 0 auto;
+  }
+
   .other-profile-page__actions {
     align-items: stretch;
   }
@@ -398,7 +509,8 @@ app-profile-media-showcase {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .other-profile-page__back {
+  .other-profile-page__back,
+  .other-profile-page__section-link {
     transition: none;
   }
 }
