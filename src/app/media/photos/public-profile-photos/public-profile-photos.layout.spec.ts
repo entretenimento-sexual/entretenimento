@@ -29,13 +29,17 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
     }
     expect(pageCss).toContain('repeat(4, minmax(0, 1fr))');
     expect(pageCss).toContain('box-sizing: border-box');
+    expect(pageCss).toContain('max-width: min(100%, 1480px);');
+    expect(pageCss).toContain('radial-gradient(ellipse at 91% 8%');
   });
 
   it('coloca metricas em rodape apenas na variante profile', () => {
     expect(cardCss).toContain('.photo-tile--profile .photo-overlay.app-media-overlay {');
     expect(cardCss).toContain('position: static;');
-    expect(cardCss).toContain('min-height: 48px;');
+    expect(cardCss).toContain('min-height: 42px;');
     expect(cardCss).toContain('.photo-tile--profile .stat-chip.app-chip');
+    expect(cardCss).toContain('.photo-tile--profile .photo-card-link:hover::after');
+    expect(cardCss).toContain('.photo-tile--profile .photo-card-link:focus-visible::after');
     expect(cardCss).toContain('background: transparent;');
     expect(cardCss).toContain('.photo-tile--profile .stat-chip');
     expect(cardHtml).toContain("@if (mode !== 'profile') {");
