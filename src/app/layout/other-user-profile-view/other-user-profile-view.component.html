@@ -68,9 +68,10 @@
             [showName]="false"
           />
         }
+      </div>
 
-        @if (friendshipInteractionState$ | async; as interactionState) {
-          <div class="other-profile-page__actions" aria-label="Ações do perfil">
+      @if (friendshipInteractionState$ | async; as interactionState) {
+        <div class="other-profile-page__actions" aria-label="Ações do perfil">
             @if (interactionState.isFriend) {
               <button
                 type="button"
@@ -125,8 +126,7 @@
               {{ interactionState.liveStatus }}
             }
           </p>
-        }
-      </div>
+      }
     </article>
 
     <nav class="other-profile-page__sections" aria-label="Seções do perfil visitado">
