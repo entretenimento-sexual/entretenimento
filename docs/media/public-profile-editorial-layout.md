@@ -133,3 +133,14 @@ Na execução seguinte, Auth, Firestore, Storage e Functions iniciaram corretame
 O fixture passou a criar projeções limpas antes de criar os documentos `users/`, aguarda `profileId` e `discoveryNormalizedAt` válidos, e exige janela de estabilidade das versões de documentos antes de reintroduzir os campos legados exclusivamente em `public_profiles/`. A comparação integral de `dryRun` permanece ativa, sem relaxar as asserções de privacidade, autorização ou preservação dos dados privados.
 
 O build Angular `start:emu` também concluiu com sucesso; os avisos `NG8102`/`NG8107` de diagnósticos estendidos do template de moderação de vídeo não interrompem a compilação e não foram tratados como falha funcional. **A aprovação do E2E corrigido depende de nova execução local.**
+
+### Validação do backfill E2E — 30/10/2026
+
+Execução isolada em `demo-entretenimento-media-e2e` concluída com saída **0**:
+`[discovery-backfill] OK dryRun, autorização, cursor, saneamento, leitura`.
+Functions compiladas; verificação de paridade de 21 chaves privadas aprovada.
+Os emuladores Auth, Firestore, Storage e Functions foram encerrados normalmente.
+O `dryRun` não alterou o documento legado; a execução explícita paginada saneou a
+projeção pública e preservou as preferências privadas na origem.
+
+**Escopo:** aprovação no emulador, não é autorização para backfill ou deploy em produção.
