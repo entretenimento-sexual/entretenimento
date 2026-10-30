@@ -366,11 +366,11 @@ describe('OtherUserProfileViewComponent', () => {
     const links = Array.from(nav.querySelectorAll('a')) as HTMLAnchorElement[];
     const hero = fixture.nativeElement.querySelector('.other-profile-page__hero') as HTMLElement;
 
-    expect(links.map((link) => link.textContent?.trim())).toEqual(['Mídias', 'Sobre']);
-    expect(links.map((link) => link.getAttribute('href'))).toEqual([
-      '#profile-media',
-      '#profile-details',
-    ]);
+    expect(links.map((link) => link.textContent?.trim())).toEqual(['Fotos', 'Vídeos', 'Sobre']);
+    expect(links[0].getAttribute('href')).toContain('fotos-publicas');
+    expect(links[1].getAttribute('href')).toContain('videos-publicos');
+    expect(links[2].getAttribute('href')).toBe('#profile-details');
+    expect(nav.querySelector('[aria-current="page"]')?.textContent).toContain('Perfil');
     expect(fixture.nativeElement.querySelector('#profile-media')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('#profile-details')).not.toBeNull();
     expect(hero.querySelector('.other-profile-page__intro')?.textContent)
