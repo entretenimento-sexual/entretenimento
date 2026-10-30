@@ -442,6 +442,9 @@ export class UserDiscoveryQueryService {
       publicRelationshipIntents: this.firstStringArray(raw, [
         'publicRelationshipIntents',
       ]),
+      publicSeekingGenders: this.firstStringArray(raw, [
+        'publicSeekingGenders',
+      ]),
       publicSexualPractices: this.firstStringArray(raw, [
         'publicSexualPractices',
       ]),
