@@ -14,7 +14,7 @@ describe('perfil público visitado: composição editorial', () => {
   it('prioriza a mídia em largura integral, sem reservar uma coluna lateral vazia', () => {
     expect(css).toContain('grid-template-areas:\n    "main"\n    "sidebar"');
     expect(css).toContain('grid-template-columns: minmax(0, 1fr);');
-    expect(css).toContain('radial-gradient(ellipse at 84% 8%');
+    expect(css).toContain('radial-gradient(ellipse at 82% 18%');
     expect(css).not.toContain('grid-template-areas: "sidebar main"');
     expect(html).toContain('class="other-profile-page__hero"');
     expect(html).toContain('class="other-profile-page__main"');
@@ -34,16 +34,20 @@ describe('perfil público visitado: composição editorial', () => {
   });
 
   it('usa estrutura social com bio opcional, âncoras e ações reais', () => {
-    expect(html).toContain('class="other-profile-page__eyebrow"');
+    expect(html).toContain('class="other-profile-page__photo-wrap"');
+    expect(css).toContain('aspect-ratio: 1;');
+    expect(css).toContain('border-radius: 50%;');
     expect(html).toContain('class="other-profile-page__intro"');
     expect(html).toContain('{{ profile.descricao }}');
     expect(html).toContain('class="other-profile-page__sections"');
-    expect(html).toContain('href="#profile-media"');
+    expect(html).toContain('aria-current="page"');
+    expect(html).toContain("['/media', 'perfil', uid, 'fotos-publicas']");
+    expect(html).toContain("['/media', 'perfil', uid, 'videos-publicos']");
     expect(html).toContain('href="#profile-details"');
     expect(html).toContain('id="profile-media"');
     expect(html).toContain('id="profile-details"');
     expect(css).toContain('min-height: var(--tap-target, 44px)');
-    expect(css).toContain('.other-profile-page:has(#profile-details:target)');
+    expect(css).toContain('.other-profile-page__section-link--active::after');
     expect(html).not.toContain('Seguidores');
     expect(html).not.toContain('Curtidas recebidas');
     expect(html).not.toContain('Verificado');
