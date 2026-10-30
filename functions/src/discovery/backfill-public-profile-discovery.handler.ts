@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 // Callable administrativa para preencher em users/public_profiles:
 // - profileId público canônico, opaco e separado do Firebase Auth UID;
-// - identidade normalizada e reciprocidade;
+// - identidade normalizada; interesses privados não integram a projeção pública;
 // - avatar público canônico;
 // - idade social declarada, sanitizada e separada da elegibilidade adulta;
 // - intenções, práticas e características autorizadas pelo proprietário;
@@ -27,6 +27,8 @@ import { normalizeProfileDiscoveryFields } from './profile-discovery-normalizati
 import { buildPublicPreferenceProjection } from './public-preference-projection';
 import {
   buildPublicAvatarProjection,
+  buildPublicDescriptionProjection,
+  PRIVATE_DISCOVERY_INTEREST_FIELDS,
   buildPublicLocationProjection,
   resolvePublicProfileAge,
 } from './public-profile-discovery-projection';
@@ -201,6 +203,7 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
       );
       const publicLocation = buildPublicLocationProjection(user);
       const publicAvatar = buildPublicAvatarProjection(user);
+      const publicDescription = buildPublicDescriptionProjection(user);
 
       updated += 1;
 
@@ -210,10 +213,12 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
           {
             profileId,
             ...publicAvatar,
+            ...publicDescription,
             normalizedGender: canonical.normalizedGender,
             normalizedOrientation: canonical.normalizedOrientation,
-            interestedInGenders: canonical.interestedInGenders,
-            interestedInOrientations: canonical.interestedInOrientations,
+            ...Object.fromEntries(
+              PRIVATE_DISCOVERY_INTEREST_FIELDS.map((field) => [field, FieldValue.delete()])
+            ),
             compatibilityReady: canonical.compatibilityReady,
             age: resolvePublicProfileAge(user['idade']),
             ...publicPreferences,
