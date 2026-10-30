@@ -48,7 +48,7 @@ describe('DiscoveryCardEnrichmentService preference pipeline', () => {
     });
     expect(result.profiles.map((p) => p.uid)).toEqual(['allowed']);
     expect(result.rejected).toEqual([
-      expect.objectContaining({ uid: 'denied', reason: 'incompatible_profile' }),
+      expect.objectContaining({ uid: 'denied', reason: 'reciprocal_mismatch' }),
     ]);
     expect(result.profiles[0].compatibilityScore).toBeGreaterThan(0.5);
     expect(result.profiles[0]).not.toHaveProperty('interestedInGenders');
