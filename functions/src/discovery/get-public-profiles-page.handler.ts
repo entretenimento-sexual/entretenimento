@@ -501,7 +501,9 @@ async function enforceDiscoveryOwnerLifecycle(
   const viewer = viewerSnapshot.exists
     ? viewerSnapshot.data() as Record<string, unknown>
     : null;
-  if (!viewer || !evaluateCanonicalOwnerLifecycle(viewer).allowed) {
+  // A conta pode ocultar o próprio perfil e continuar consultando conforme
+  // assertInteractionAccess(). Visibilidade pública do visitante não é gate de leitura.
+  if (!viewer) {
     return { ...page, items: [] };
   }
 
