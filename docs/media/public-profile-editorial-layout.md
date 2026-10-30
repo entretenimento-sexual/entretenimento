@@ -11,6 +11,14 @@
 - **Galeria completa**: grade pública de fotos permanece uniforme e ordenada; o cabeçalho de identidade tem presença visual e as imagens aproveitam melhor a largura disponível. Nada de promover automaticamente a primeira foto, usar masonry, ocultar autor, nem misturar álbum privado. O rodapé exibe somente dados relevantes.
 - **Navegação e segurança**: links para fotos/vídeos, visualizador, retorno e botões de denúncia/conversa/interesse mantêm as rotas e permissões já implementadas. Os alvos de toque têm no mínimo 44 px, foco visível e contraste em alto contraste.
 
+## Camada social de navegação
+
+O perfil visitado agora apresenta uma hierarquia própria de rede social: retorno contextual à descoberta, **nome**, metadados canônicos mínimos, **bio pública opcional** e **ações reais de conexão ou conversa**, seguidos de navegação local entre `Mídias` e `Sobre`. O link `Sobre` é omitido quando não há dados de contexto reconhecidos para esse bloco. A descrição foi movida do painel secundário ao hero **sem duplicação**.
+
+As galerias públicas de fotos e vídeos usam o mesmo caminho visual `Perfil / Fotos / Vídeos` e identificam a seção atual. Os links resolvem as rotas já existentes; no vídeo, o retorno ao perfil próprio ou visitado mantém a distinção de proprietário. O estado ativo não é uma interação falsa.
+
+A camada é de apresentação: **não** criar recursos de seguidores, popularidade, curtidas, chat aberto, status verificado ou recomendações inventadas. Os estados de amizade, online e moderação dependem exclusivamente dos dados já autorizados. Perfil de casal não recebe orientação individual agregada. Não carregar arquivos originais ou dados privados para embelezar a UI.
+
 ## Critérios de verificação
 
 1. Perfil visitado ocupa a área útil do shell sem o corredor em branco causado pela coluna lateral; hero com respiro, mídia em largura integral e painéis opcionais abaixo.
