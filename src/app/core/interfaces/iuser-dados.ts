@@ -236,6 +236,10 @@ export interface IUserDados {
   publicRelationshipIntents?: readonly string[] | null;
   /** Lista explícita publicada mediante opt-in separado (nunca usar filtro interno). */
   publicSeekingGenders?: readonly string[] | null;
+  /** Resultado por visitante calculado no backend, nunca uma lista de filtros do alvo. */
+  viewerCompatibilityAllowed?: boolean | null;
+  viewerCompatibilityScore?: number | null;
+  viewerCompatibilityReason?: 'compatible' | 'incompatible' | 'insufficient_data' | null;
   publicSexualPractices?: readonly string[] | null;
   publicBodyTraits?: readonly string[] | null;
   preferenceBadgesVisible?: boolean | null;
