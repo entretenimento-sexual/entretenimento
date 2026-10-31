@@ -98,7 +98,8 @@ describe('perfil público visitado: composição editorial', () => {
       '[class.profile-media-showcase__grid--mosaic]="visibleItems(state.items).length >= 5"'
     );
     expect(mosaicHtml).toContain('(click)="openMedia(item, index)"');
-    expect(mosaicHtml).toContain('[routerLink]="photoGalleryLink()"');
+    expect(mosaicHtml).not.toContain('profile-media-showcase__links');
+    expect(mosaicHtml).toContain('<h2 class="app-section-title">Mídias</h2>');
     expect(mosaicCss).toContain('.profile-media-showcase__grid--mosaic');
     expect(mosaicCss).toContain('grid-column: span 2;');
     expect(mosaicCss).toContain('@container profile-media-mosaic (max-width: 900px)');
