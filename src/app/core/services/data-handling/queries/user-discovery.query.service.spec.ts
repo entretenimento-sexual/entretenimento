@@ -1,6 +1,6 @@
 // src/app/core/services/data-handling/queries/user-discovery.query.service.spec.ts
 
-import { firstValueFrom, of } from 'rxjs';
+import { firstValueFrom, of, throwError } from 'rxjs';
 import { where } from 'firebase/firestore';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -234,6 +234,24 @@ describe('UserDiscoveryQueryService', () => {
     expect(cacheMock.get).toHaveBeenCalledWith(
       'discovery:public_profiles:uids:v4:query:gender:man:viewer=viewer-1'
     );
+  });
+
+  it('não converte erro 429 em perfil inexistente quando o chamador exige erro explícito', async () => {
+    const quotaError = Object.assign(new Error('Quota excedida'), {
+      code: 'functions/resource-exhausted',
+    });
+    publicProfileReadMock.readByUids$.mockReturnValue(
+      throwError(() => quotaError)
+    );
+
+    await expect(firstValueFrom(
+      service.getProfilesByUids$(['visitado'], {
+        forceRefresh: true,
+        propagateErrors: true,
+      })
+    )).rejects.toBe(quotaError);
+
+    expect(globalErrorHandlerMock.handleError).not.toHaveBeenCalled();
   });
 
   it('deve hidratar somente os UIDs pedidos com chave determinística', async () => {
