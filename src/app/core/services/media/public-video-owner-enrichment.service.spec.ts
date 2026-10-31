@@ -50,6 +50,7 @@ describe('PublicVideoOwnerEnrichmentService', () => {
       estado: 'RJ',
     });
     expect(result[1].owner?.nickname).toBe('prfseves RJ');
+    expect(result[0].ownerIdentityFromPublicProfile).toBe(true);
   });
 
   it('preserva resumo já existente quando o perfil público não é retornado', async () => {
@@ -74,7 +75,10 @@ describe('PublicVideoOwnerEnrichmentService', () => {
     });
     const result = await firstValueFrom(service.enrich$([source]));
 
-    expect(result[0]).toBe(source);
+    expect(result[0]).toMatchObject({
+      ...source,
+      ownerIdentityFromPublicProfile: false,
+    });
     expect(result[0].owner?.nickname).toBe('Autor legado');
   });
 });
