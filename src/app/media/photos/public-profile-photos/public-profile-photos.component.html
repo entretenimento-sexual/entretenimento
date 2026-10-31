@@ -38,7 +38,10 @@
               {{ items.length }}{{ state?.hasMore ? '+' : '' }}
             </span>
             <span class="visually-hidden">
-              {{ items.length }} {{ items.length === 1 ? 'foto carregada' : 'fotos carregadas' }}{{ state?.hasMore ? ' ou mais' : '' }}
+              {{ items.length }} {{ items.length === 1 ? 'foto carregada' : 'fotos carregadas' }}.
+              @if (state?.hasMore) {
+                Há mais fotos disponíveis para carregar.
+              }
             </span>
           }
         </span>
