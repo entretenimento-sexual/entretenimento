@@ -38,6 +38,15 @@ describe('galeria pública de vídeos: navegação social', () => {
     expect(photosHtml).toContain('class="visited-gallery-header__tab-count"');
   });
 
+  it('não excede a largura útil ao aplicar padding no celular ou sidebar estreita', () => {
+    expect(css).toMatch(
+      /\.public-videos-page\s*\{[^}]*width:\s*min\(100%, 1480px\);[^}]*min-width:\s*0;[^}]*box-sizing:\s*border-box;/u
+    );
+    expect(css).toContain('container: public-videos-gallery / inline-size;');
+    expect(css).toContain('@container public-videos-gallery (max-width: 540px)');
+    expect(css).toContain('overflow-x: auto;');
+  });
+
   it('mantém título, identidade, ações de segurança e retorno do viewer', () => {
     expect(html).toContain('<app-page-header title="Vídeos"></app-page-header>');
     expect(html).toContain('<app-public-user-identity');
