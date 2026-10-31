@@ -5,50 +5,7 @@
     [attr.aria-busy]="state.status === 'loading' ? 'true' : 'false'"
   >
     <header class="profile-media-showcase__header app-section-header">
-      <h2 class="app-section-title">
-        @if (state.status === 'ready') {
-          @if (state.photosCount > 0 && state.videosCount === 0) {
-            Fotos
-          } @else if (state.videosCount > 0 && state.photosCount === 0) {
-            Vídeos
-          } @else {
-            Mídias
-          }
-        } @else {
-          Mídias
-        }
-      </h2>
-
-      @if (
-        state.status === 'ready' &&
-        (state.photosCount > 0 || state.videosCount > 0)
-      ) {
-        <nav
-          class="profile-media-showcase__links app-section-actions"
-          aria-label="Abrir galerias completas"
-        >
-          @if (state.photosCount > 0 && state.videosCount === 0) {
-            <a class="app-action app-action--ghost" [routerLink]="photoGalleryLink()">
-              <span>Ver todas</span>
-              <i class="fas fa-arrow-right" aria-hidden="true"></i>
-            </a>
-          } @else if (state.videosCount > 0 && state.photosCount === 0) {
-            <a class="app-action app-action--ghost" [routerLink]="['/media', 'perfil', ownerUid(), 'videos-publicos']">
-              <span>Ver todos</span>
-              <i class="fas fa-arrow-right" aria-hidden="true"></i>
-            </a>
-          } @else {
-            <a class="app-action app-action--ghost" [routerLink]="photoGalleryLink()">
-              <i class="fas fa-images" aria-hidden="true"></i>
-              Fotos
-            </a>
-            <a class="app-action app-action--ghost" [routerLink]="['/media', 'perfil', ownerUid(), 'videos-publicos']">
-              <i class="fas fa-film" aria-hidden="true"></i>
-              Vídeos
-            </a>
-          }
-        </nav>
-      }
+      <h2 class="app-section-title">Mídias</h2>
     </header>
 
     @switch (state.status) {
