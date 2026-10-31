@@ -252,6 +252,45 @@ describe('MediaPublicPreviewQueryService / métricas opcionais', () => {
     expect(deferObservable$).not.toHaveBeenCalled();
   });
 
+  it('considera a capa pública aprovada quando está fora da primeira janela', async () => {
+    const { query, deferObservable$ } = setup();
+    deferObservable$.mockReturnValue(
+      of(photo('cover-outside-window', 99, { isCover: true }))
+    );
+
+    const result = await firstValueFrom(
+      query.getProfilePublicMediaPreview$('owner-1', 2, {
+        propagateErrors: true,
+        profileMetrics: { coverPhotoId: 'cover-outside-window' },
+      })
+    );
+
+    expect(deferObservable$).toHaveBeenCalledTimes(1);
+    expect(result.items.map((item) => item.id)).toEqual([
+      'cover-outside-window',
+      'photo-publica',
+    ]);
+  });
+
+  it('nunca usa uma capa fora da audiência PUBLIC e da moderação APPROVED', async () => {
+    const { query, deferObservable$ } = setup();
+    deferObservable$.mockReturnValue(
+      of({
+        ...photo('cover-restrita', 99, { isCover: true }),
+        visibility: 'FRIENDS',
+      })
+    );
+
+    const result = await firstValueFrom(
+      query.getProfilePublicMediaPreview$('owner-1', 2, {
+        propagateErrors: true,
+        profileMetrics: { coverPhotoId: 'cover-restrita' },
+      })
+    );
+
+    expect(result.items.map((item) => item.id)).toEqual(['photo-publica']);
+  });
+
   it('não ignora a rejeição da callable que autoriza a própria mídia', async () => {
     const { query, denied, reportSilently } = setup(true);
 
