@@ -64,6 +64,45 @@ describe('PublicVideoAccessService / session lifecycle', () => {
     expect(internal.inFlightRefreshes.size).toBe(0);
   });
 
+  it('preserva marcador somente após enriquecimento e não a partir do mapper bruto', () => {
+    const uid$ = new BehaviorSubject<string | null>('viewer-a');
+    TestBed.configureTestingModule({
+      providers: [
+        PublicVideoAccessService,
+        { provide: Functions, useValue: {} },
+        { provide: FirestoreContextService, useValue: {} },
+        { provide: AuthSessionService, useValue: { uid$: uid$.asObservable() } },
+        { provide: MediaApplicationErrorService, useValue: { reportSilently: vi.fn() } },
+        { provide: PublicVideoOwnerEnrichmentService, useValue: {} },
+      ],
+    });
+
+    const service = TestBed.inject(PublicVideoAccessService);
+    const internal = service as unknown as {
+      normalizeProjection: (item: IPublicVideoProjection) => IPublicVideoProjection | null;
+    };
+    const candidate = {
+      id: 'video-1',
+      ownerUid: 'owner-1',
+      mediaType: 'VIDEO',
+      visibility: 'PUBLIC',
+      moderationStatus: 'APPROVED',
+      mimeType: 'video/mp4',
+      durationMs: 60_000,
+      sizeBytes: 2_048,
+      publishedAt: 100,
+      assetAccess: 'SIGNED_URL',
+      posterAccess: 'SIGNED_URL',
+      ownerIdentityFromPublicProfile: true,
+    } as IPublicVideoProjection;
+
+    expect(internal.normalizeProjection(candidate))
+      ?.ownerIdentityFromPublicProfile).toBe(true);
+    expect(internal.normalizeProjection({
+      ...candidate, ownerIdentityFromPublicProfile: false,
+    })).not.toHaveProperty('ownerIdentityFromPublicProfile');
+  });
+
   it('não limpa estruturas quando o UID permanece o mesmo', () => {
     const uid$ = new BehaviorSubject<string | null>('viewer-a');
 
