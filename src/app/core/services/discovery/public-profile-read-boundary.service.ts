@@ -7,9 +7,10 @@
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
+import { Auth } from '@angular/fire/auth';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, defer, from, throwError } from 'rxjs';
+import { finalize, map, shareReplay, tap } from 'rxjs/operators';
 
 export type PublicProfileReadMode = 'all' | 'compatible';
 
@@ -58,6 +59,16 @@ export interface PublicProfileReadResponse {
 @Injectable({ providedIn: 'root' })
 export class PublicProfileReadBoundaryService {
   private readonly functions = inject(Functions);
+  private readonly auth = inject(Auth);
+
+  // Compartilha apenas solicitações simultâneas. Respostas concluídas NÃO são
+  // armazenadas: a autorização e o ciclo de vida seguem no backend.
+  private readonly pendingByViewerAndRequest = new Map<
+    string, Observable<PublicProfileReadResponse>
+  >();
+  private readonly quotaCooldownByViewer = new Map<
+    string, { until: number; error: unknown }
+  >();
 
   private readonly getPublicProfilesPageCallable = httpsCallable<
     PublicProfileReadRequest,
@@ -67,11 +78,70 @@ export class PublicProfileReadBoundaryService {
   read$(
     request: PublicProfileReadRequest
   ): Observable<PublicProfileReadResponse> {
-    return defer(() =>
-      from(this.getPublicProfilesPageCallable(request))
-    ).pipe(
-      map((response) => response.data)
-    );
+    return defer(() => {
+      const viewerUid = this.auth.currentUser?.uid?.trim() ?? '';
+      const now = Date.now();
+
+      // O backend fornece retryAfterMs ao bloquear. Evita novos POSTs durante
+      // a janela, sem inventar autorização nem devolver perfis antigos.
+      for (const [uid, state] of this.quotaCooldownByViewer) {
+        if (state.until <= now) this.quotaCooldownByViewer.delete(uid);
+      }
+      const cooldown = viewerUid
+        ? this.quotaCooldownByViewer.get(viewerUid)
+        : undefined;
+      if (cooldown && cooldown.until > now) {
+        return throwError(() => cooldown.error);
+      }
+
+      const key = viewerUid
+        ? JSON.stringify([viewerUid, request])
+        : null;
+      const pending = key
+        ? this.pendingByViewerAndRequest.get(key)
+        : undefined;
+      if (pending) return pending;
+
+      const response$ = defer(() =>
+        from(this.getPublicProfilesPageCallable(request))
+      ).pipe(
+        map((response) => response.data),
+        tap({
+          error: (error: unknown) => {
+            if (!viewerUid || !this.isRateLimited(error)) return;
+            this.quotaCooldownByViewer.set(viewerUid, {
+              until: Date.now() + this.retryAfterMs(error),
+              error,
+            });
+          },
+        }),
+        finalize(() => {
+          if (key && this.pendingByViewerAndRequest.get(key) === shared$) {
+            this.pendingByViewerAndRequest.delete(key);
+          }
+        }),
+        shareReplay({ bufferSize: 1, refCount: true })
+      );
+
+      const shared$ = response$;
+      if (key) this.pendingByViewerAndRequest.set(key, shared$);
+      return shared$;
+    });
+  }
+
+  private isRateLimited(error: unknown): boolean {
+    const code = (error as { code?: unknown } | null)?.code;
+    return code === 'functions/resource-exhausted'
+      || code === 'resource-exhausted';
+  }
+
+  private retryAfterMs(error: unknown): number {
+    const details = (error as { details?: { retryAfterMs?: unknown } } | null)
+      ?.details;
+    const value = details?.retryAfterMs;
+    return typeof value === 'number' && Number.isFinite(value)
+      ? Math.max(1_000, Math.min(10 * 60_000, Math.ceil(value)))
+      : 60_000;
   }
 
   readByUids$(
