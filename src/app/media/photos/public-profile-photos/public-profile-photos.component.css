@@ -78,6 +78,32 @@
   background: var(--surface-color, #111925);
 }
 
+.public-photos-page__count {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 36px;
+  max-width: 100%;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--surface-border, #293545);
+  border-radius: 999px;
+  background: var(--surface-color, #111925);
+  color: var(--text-secondary, #b6c0cd);
+  font-size: 0.76rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.public-photos-page__count strong {
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.9rem;
+}
+
+.public-photos-page__count-detail {
+  opacity: 0.72;
+}
+
 .visited-gallery-header__content::before {
   content: "";
   position: absolute;
@@ -166,6 +192,15 @@ a.visited-gallery-header__tab:focus-visible {
 }
 
 @container public-photos-gallery (max-width: 540px) {
+  .public-photos-page__count {
+    padding-inline: 0.55rem;
+  }
+
+  .public-photos-page__count-detail {
+    display: none;
+  }
+
+
   .visited-gallery-header__content {
     align-items: stretch;
   }
