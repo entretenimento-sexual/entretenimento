@@ -21,6 +21,7 @@ export function publicGalleryOwnerIdentityFromMedia(
   for (const item of items) {
     if (
       item.ownerUid !== owner ||
+      item.ownerIdentityFromPublicProfile !== true ||
       item.visibility !== 'PUBLIC' ||
       item.moderationStatus !== 'APPROVED'
     ) {
