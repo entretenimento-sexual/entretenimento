@@ -43,7 +43,7 @@ describe('Photo viewer: composição e responsividade', () => {
     expect(html).toContain("@if (data.source !== 'profile')");
     expect(html).toContain('aria-label="Fechar visualizador"');
     expect(html).toContain('aria-label="Foto anterior"');
-    expect(html).toContain('aria-label="Próxima foto"');
+    expect(html).toContain("'Próxima foto'");
     expect(html).toContain('aria-label="Comentários da foto"');
     expect(html).toContain('aria-keyshortcuts="Escape"');
   });
