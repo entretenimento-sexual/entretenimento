@@ -1,5 +1,5 @@
 import { convertToParamMap } from '@angular/router';
-import { firstValueFrom, of } from 'rxjs';
+import { firstValueFrom, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { VisitedProfileBootstrapOrchestrator } from './visited-profile-bootstrap.orchestrator';
@@ -10,13 +10,18 @@ describe('VisitedProfileBootstrapOrchestrator', () => {
     authUid?: string | null;
     profile?: any | null;
     navigateOk?: boolean;
+    profileError?: Error;
   }) {
     const navigate = vi.fn(() =>
       input?.navigateOk === false
         ? Promise.reject(new Error('navigation failed'))
         : Promise.resolve(true)
     );
-    const getPublicUserById$ = vi.fn(() => of(input?.profile ?? null));
+    const getPublicUserById$ = vi.fn(() =>
+      input?.profileError
+        ? throwError(() => input.profileError)
+        : of(input?.profile ?? null)
+    );
     const report = vi.fn();
 
     const orchestrator = new VisitedProfileBootstrapOrchestrator(
@@ -51,7 +56,9 @@ describe('VisitedProfileBootstrapOrchestrator', () => {
       profile,
     });
 
-    expect(getPublicUserById$).toHaveBeenCalledWith('target');
+    expect(getPublicUserById$).toHaveBeenCalledWith('target', {
+      propagateErrors: true,
+    });
     expect(navigate).not.toHaveBeenCalled();
   });
 
@@ -94,6 +101,26 @@ describe('VisitedProfileBootstrapOrchestrator', () => {
           scope: 'VisitedProfileBootstrapOrchestrator',
         },
       }
+    );
+  });
+
+  it('distingue quota 429 de perfil inexistente e permite retry da tela', async () => {
+    const error = Object.assign(new Error('Muitas consultas de perfis'), {
+      code: 'functions/resource-exhausted',
+    });
+    const { orchestrator, report } = setup({ profileError: error });
+
+    await expect(firstValueFrom(orchestrator.load$())).resolves.toEqual({
+      kind: 'load-error',
+      targetUid: 'target',
+    });
+
+    expect(report).toHaveBeenCalledWith(
+      error,
+      expect.objectContaining({
+        feature: 'profile-view',
+        operation: 'VisitedProfileBootstrapOrchestrator.loadPublicProfile',
+      })
     );
   });
 
