@@ -57,6 +57,26 @@ describe('get-public-profiles-page boundary', () => {
     assert.deepEqual(serialized['publicSeekingGenders'], null);
   });
 
+  it('inclui somente métricas públicas e ID da capa aprovada', () => {
+    const serialized = serializePublicProfileForDiscovery(
+      'profile-media',
+      profile({
+        photosCount: 12,
+        videosCount: 3,
+        coverPhotoId: 'cover-public-1',
+        storagePath: 'users/private/secret.jpg',
+        interestedInGenders: ['secret'],
+      }),
+      NOW
+    );
+    assert.ok(serialized);
+    assert.equal(serialized['photosCount'], 12);
+    assert.equal(serialized['videosCount'], 3);
+    assert.equal(serialized['coverPhotoId'], 'cover-public-1');
+    assert.equal(Object.hasOwn(serialized, 'storagePath'), false);
+    assert.equal(Object.hasOwn(serialized, 'interestedInGenders'), false);
+  });
+
   it('não entrega interesses privados ou aliases legados no JSON público', () => {
     const serialized = serializePublicProfileForDiscovery('secret-target', profile({
       preferences: ['segredo'],
