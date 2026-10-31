@@ -9,6 +9,7 @@ import {
 const photo: IPublicPhotoItem = {
   id: 'photo-1',
   ownerUid: 'owner-1',
+  ownerIdentityFromPublicProfile: true,
   createdAt: 1,
   publishedAt: 1,
   orderIndex: 0,
@@ -25,6 +26,7 @@ const photo: IPublicPhotoItem = {
 const video = {
   id: 'video-1',
   ownerUid: 'owner-1',
+  ownerIdentityFromPublicProfile: true,
   visibility: 'PUBLIC',
   moderationStatus: 'APPROVED',
   owner: {
@@ -66,6 +68,13 @@ describe('publicGalleryOwnerIdentityFromMedia', () => {
     expect(publicGalleryOwnerIdentityFromMedia('owner-1', [
       { ...photo, ownerNickname: null },
     ])).toBeNull();
+    expect(publicGalleryOwnerIdentityFromMedia('owner-1', [
+      { ...photo, ownerIdentityFromPublicProfile: false },
+    ])).toBeNull();
+    expect(publicGalleryOwnerIdentityFromMedia('owner-1', [
+      { ...video, ownerIdentityFromPublicProfile: false },
+    ])).toBeNull();
+
   });
 
   it('não substitui a identidade durante paginação equivalente', () => {
