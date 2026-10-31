@@ -5,10 +5,9 @@
 @let viewerUid = (viewerUid$ | async);
 
 <section #galleryContainer class="public-photos-page container-wide" aria-label="Galeria de fotos do perfil visitado">
-  <app-page-header title="Fotos">
+  <div class="visited-gallery-heading">
     @if (ownerUid) {
       <a
-        page-actions
         class="visited-gallery-header__back"
         [routerLink]="profileReturnRoute(ownerUid, viewerUid)"
         [attr.aria-label]="'Voltar ao perfil de ' + (identity?.nickname || 'usuário')"
@@ -18,7 +17,8 @@
         <span class="visually-hidden">Voltar ao perfil</span>
       </a>
     }
-  </app-page-header>
+    <app-page-header title="Fotos"></app-page-header>
+  </div>
   <header class="visited-gallery-header">
     <div class="visited-gallery-header__content">
       <div class="visited-gallery-header__identity">
