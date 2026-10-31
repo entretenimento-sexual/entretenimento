@@ -11,6 +11,15 @@ describe('perfil público visitado: composição editorial', () => {
   const mosaicCss = source('src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component.css');
   const mosaicHtml = source('src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component.html');
 
+  it('distingue erro transitório de perfil inexistente com retry acessível', () => {
+    expect(html).toContain('@else if (profileLoadError)');
+    expect(html).toContain('title="Não foi possível carregar o perfil"');
+    expect(html).toContain('state="error"');
+    expect(html).toContain('(action)="retryProfile()"');
+    expect(html).toContain('state="empty"');
+    expect(html).toContain('title="Perfil indisponível"');
+  });
+
   it('prioriza a mídia em largura integral, sem reservar uma coluna lateral vazia', () => {
     // Verifica a composição independentemente de LF/CRLF no checkout Windows.
     expect(css).toMatch(/grid-template-areas:\s*"main"\s*"sidebar"\s*;/u);
