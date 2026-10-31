@@ -4,37 +4,10 @@
 
 @if (state$ | async; as state) {
   <section class="public-videos-page" aria-label="Vídeos públicos">
-    <div class="public-videos-page__heading">
-      @if (galleryOwnerUid) {
-        <a
-          class="public-videos-page__back"
-          [routerLink]="profileReturnRoute(galleryOwnerUid, viewerUid)"
-          [attr.aria-label]="'Voltar ao perfil de ' + (profileIdentity?.nickname || 'usuário')"
-          title="Voltar ao perfil"
-        >
-          <i class="fas fa-arrow-left" aria-hidden="true"></i>
-          <span class="visually-hidden">Voltar ao perfil</span>
-        </a>
-      }
-      <app-page-header title="Vídeos">
-        <div page-actions class="gallery-actions">
-          <div class="gallery-summary" aria-live="polite" aria-atomic="true">
-            @if (state.status === 'ready') {
-              <strong>{{ state.items.length }}</strong>
-              <span>
-                {{ state.items.length === 1 ? 'vídeo' : 'vídeos' }}
-                {{ state.hasMore ? 'carregados' : '' }}
-              </span>
-            } @else if (state.status === 'loading') {
-              <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>
-              <span>Carregando</span>
-            } @else {
-              <strong>0</strong>
-              <span>vídeos</span>
-            }
-          </div>
-        </div>
-      </app-page-header>
+    <!-- Uma única identificação visual: a aba Vídeos.
+         O PageHeader canônico continua acessível como h1. -->
+    <div class="visually-hidden">
+      <app-page-header title="Vídeos"></app-page-header>
     </div>
 
     @if (ownerUid$ | async) {
@@ -70,6 +43,14 @@
         <span class="public-videos-page__tab public-videos-page__tab--active" aria-current="page">
           <i class="fas fa-film" aria-hidden="true"></i>
           <span>Vídeos</span>
+          @if (state.status === 'ready' || state.status === 'empty') {
+            <span class="public-videos-page__tab-count" aria-hidden="true">
+              {{ state.items.length }}{{ state.hasMore ? '+' : '' }}
+            </span>
+            <span class="visually-hidden">
+              {{ state.items.length }} {{ state.items.length === 1 ? 'vídeo carregado' : 'vídeos carregados' }}{{ state.hasMore ? ' ou mais' : '' }}
+            </span>
+          }
         </span>
       </nav>
     }
