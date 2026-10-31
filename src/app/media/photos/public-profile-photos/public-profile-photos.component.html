@@ -5,28 +5,10 @@
 @let viewerUid = (viewerUid$ | async);
 
 <section #galleryContainer class="public-photos-page container-wide" aria-label="Galeria de fotos do perfil visitado">
-  <div class="visited-gallery-heading">
-    @if (ownerUid) {
-      <a
-        class="visited-gallery-header__back"
-        [routerLink]="profileReturnRoute(ownerUid, viewerUid)"
-        [attr.aria-label]="'Voltar ao perfil de ' + (identity?.nickname || 'usuário')"
-        title="Voltar ao perfil"
-      >
-        <i class="fas fa-arrow-left" aria-hidden="true"></i>
-        <span class="visually-hidden">Voltar ao perfil</span>
-      </a>
-    }
+  <!-- O título canônico permanece disponível a leitores de tela.
+       Visualmente, a aba ativa já identifica a seção. -->
+  <div class="visually-hidden">
     <app-page-header title="Fotos"></app-page-header>
-    @if (state?.status === 'ready') {
-      <span class="public-photos-page__count" aria-label="Quantidade de fotos carregadas">
-        <strong>{{ items.length }}</strong>
-        {{ items.length === 1 ? 'foto' : 'fotos' }}
-        @if (state?.hasMore) {
-          <span class="public-photos-page__count-detail">carregadas</span>
-        }
-      </span>
-    }
   </div>
   <header class="visited-gallery-header">
     <div class="visited-gallery-header__content">
@@ -51,6 +33,14 @@
         <span class="visited-gallery-header__tab visited-gallery-header__tab--active" aria-current="page">
           <i class="fas fa-images" aria-hidden="true"></i>
           <span>Fotos</span>
+          @if (state?.status === 'ready' || state?.status === 'empty') {
+            <span class="visited-gallery-header__tab-count" aria-hidden="true">
+              {{ items.length }}{{ state?.hasMore ? '+' : '' }}
+            </span>
+            <span class="visually-hidden">
+              {{ items.length }} {{ items.length === 1 ? 'foto carregada' : 'fotos carregadas' }}{{ state?.hasMore ? ' ou mais' : '' }}
+            </span>
+          }
         </span>
         <a class="visited-gallery-header__tab" [routerLink]="['/media/perfil', ownerUid, 'videos-publicos']">
           <i class="fas fa-film" aria-hidden="true"></i>
