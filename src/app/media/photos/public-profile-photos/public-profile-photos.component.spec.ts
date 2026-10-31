@@ -163,6 +163,44 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
     ]);
   });
 
+  it('não repete getPublicProfilesPage quando o autor já foi enriquecido na foto autorizada', () => {
+    pagination.loadPage$.mockReturnValue(of(page([{
+      ...PHOTO,
+      ownerNickname: 'Autor já autorizado',
+      ownerPhotoURL: 'https://example.test/avatar.webp',
+      ownerGender: 'mulher',
+      ownerOrientation: 'heterossexual',
+      ownerMunicipio: 'Rio de Janeiro',
+      ownerEstado: 'RJ',
+    }], CURSOR)));
+
+    const identities: Array<{ nickname: string; identityShortLabel?: string | null } | null> = [];
+    const subscription = component.profileIdentity$.subscribe(
+      (identity) => identities.push(identity)
+    );
+
+    expect(identities.at(-1)).toMatchObject({
+      nickname: 'Autor já autorizado',
+      identityShortLabel: 'Mulher',
+    });
+    expect(publicUsers.getPublicUserById$).not.toHaveBeenCalled();
+
+    component.loadMorePhotos();
+    expect(publicUsers.getPublicUserById$).not.toHaveBeenCalled();
+    subscription.unsubscribe();
+  });
+
+  it('revalida a identidade quando a foto não contém autor público autorizado', () => {
+    pagination.loadPage$.mockReturnValue(of(page([{
+      ...PHOTO,
+      ownerNickname: null,
+    }], null)));
+    const subscription = component.profileIdentity$.subscribe();
+
+    expect(publicUsers.getPublicUserById$).toHaveBeenCalledWith(PHOTO.ownerUid);
+    subscription.unsubscribe();
+  });
+
   it('identifica o perfil usando somente a leitura pública autorizada', () => {
     const identities: Array<{ nickname: string; city?: string | null; orientationShortLabel?: string | null } | null> = [];
     const subscription = component.profileIdentity$.subscribe(identity => identities.push(identity));
