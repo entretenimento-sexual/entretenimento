@@ -66,7 +66,10 @@ describe('perfil público visitado: composição editorial', () => {
     expect(hero).toMatch(/<\/div>\s*@if \(friendshipInteractionState\$ \| async; as interactionState\) \{\s*<div class="other-profile-page__actions"/u);
     expect(css).toContain('container: visited-profile / inline-size;');
     expect(css).toContain('grid-column: 3;');
-    expect(css).toContain('@container visited-profile (max-width: 900px)');
+    expect(css).toContain('@container visited-profile (max-width: 740px)');
+    expect(css).toContain('@container visited-profile (max-width: 480px)');
+    expect(css).toContain('align-items: flex-end;');
+    expect(css).toContain('grid-column: 2;');
     expect(css).toContain('grid-column: 1 / -1;');
     expect(css).toContain('min-height: var(--tap-target, 44px)');
   });
