@@ -9,11 +9,10 @@ import {
   type PublicProfileReadResponse,
 } from './public-profile-read-boundary.service';
 
-const callable = vi.hoisted(() => vi.fn());
-vi.mock('@angular/fire/functions', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@angular/fire/functions')>();
-  return { ...original, httpsCallable: vi.fn(() => callable) };
-});
+// AngularFire expõe wrappers que podem ter sido vinculados antes do
+// vi.mock. Substituímos apenas a callable privada da instância testada,
+// sem simular um objeto Functions inválido nem fazer chamadas de rede.
+const callable = vi.fn();
 
 const page = (uid = 'allowed-owner'): PublicProfileReadResponse => ({
   items: [{ uid, nickname: 'Perfil público' }],
@@ -38,6 +37,11 @@ describe('PublicProfileReadBoundaryService: proteção de quota por sessão', ()
       ],
     });
     service = TestBed.inject(PublicProfileReadBoundaryService);
+    // O field readonly de TypeScript é propriedade de instância em runtime.
+    // Evita dependência da resolução de módulos AngularFire no Vitest.
+    if (!Reflect.set(service, 'getPublicProfilesPageCallable', callable)) {
+      throw new Error('Não foi possível substituir a Callable no teste');
+    }
   });
 
   afterEach(() => {
