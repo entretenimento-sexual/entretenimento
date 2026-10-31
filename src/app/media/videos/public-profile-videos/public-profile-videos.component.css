@@ -11,21 +11,6 @@
   container: public-videos-gallery / inline-size;
 }
 
-/* O retorno permanece ao lado do título; a contagem fica nas ações canônicas. */
-.public-videos-page__heading {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-width: 0;
-  margin-bottom: clamp(0.55rem, 1vw, 0.9rem);
-}
-
-.public-videos-page__heading app-page-header {
-  display: block;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
 /* Mesmo componente de identificação usado na galeria pública de fotos. */
 .public-videos-identity {
   position: relative;
@@ -96,6 +81,22 @@
   color: var(--text-color, #f5f7fb);
 }
 
+.public-videos-page__tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding-inline: 0.32rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff6b81) 14%, var(--surface-color, #111925));
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  font-weight: 750;
+}
+
 .public-videos-page__tab--active::after {
   content: "";
   position: absolute;
@@ -128,66 +129,6 @@ a.public-videos-page__tab:focus-visible {
     flex: 1 0 auto;
     padding-inline: 0.75rem;
   }
-}
-
-.gallery-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.public-videos-page__back {
-  display: inline-grid;
-  flex: 0 0 var(--tap-target, 44px);
-  place-items: center;
-  width: var(--tap-target, 44px);
-  height: var(--tap-target, 44px);
-  border-radius: 50%;
-  color: var(--text-color);
-  text-decoration: none;
-  background: transparent;
-}
-
-.public-videos-page__back:hover,
-.public-videos-page__back:focus-visible {
-  background: color-mix(in oklab, var(--primary-color, #ff6b81) 9%, transparent);
-}
-
-.public-videos-page__back:focus-visible {
-  outline: var(--focus-ring, 2px solid currentColor);
-  outline-offset: 2px;
-}
-
-.gallery-actions > .app-action {
-  min-height: var(--tap-target, 44px);
-}
-
-.gallery-summary {
-  display: inline-flex;
-  align-items: center;
-  justify-self: start;
-  gap: 7px;
-  min-height: 44px;
-  padding: 10px 14px;
-  border: 1px solid color-mix(in oklab, var(--surface-border) 88%, transparent);
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--surface-color) 94%, var(--text-color) 4%);
-  box-shadow: var(--box-shadow);
-}
-
-.gallery-summary strong {
-  color: var(--text-color);
-  font-size: 1rem;
-  line-height: 1;
-}
-
-.gallery-summary span,
-.gallery-summary i {
-  color: color-mix(in oklab, var(--text-color) 66%, transparent);
-  font-size: 0.8rem;
-  font-weight: 760;
 }
 
 .videos-grid {
@@ -274,7 +215,6 @@ a.public-videos-page__tab:focus-visible {
   }
 }
 
-html.high-contrast .gallery-summary,
 html.high-contrast .video-card-shell__actions,
 html.high-contrast .gallery-pagination .app-action {
   border-color: currentColor !important;
