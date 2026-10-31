@@ -67,11 +67,11 @@
 .other-profile-page__hero {
   display: grid;
   position: relative;
-  grid-template-columns: clamp(5.75rem, 9vw, 7.5rem) minmax(0, 1fr) minmax(11rem, max-content);
+  grid-template-columns: clamp(5.5rem, 9vw, 7rem) minmax(0, 1fr) minmax(10rem, max-content);
   gap: clamp(0.9rem, 2vw, 1.4rem);
   align-items: center;
   min-width: 0;
-  padding: clamp(4.9rem, 7vw, 6rem) clamp(1rem, 2vw, 1.65rem) clamp(0.85rem, 1.7vw, 1.2rem);
+  padding: clamp(4.2rem, 5.4vw, 4.75rem) clamp(1rem, 2vw, 1.65rem) clamp(0.85rem, 1.7vw, 1.2rem);
   border: 1px solid var(--surface-border, #293545);
   border-radius: 1rem;
   background: var(--surface-color, #111925);
@@ -96,7 +96,7 @@
   width: 100%;
   min-width: 0;
   aspect-ratio: 1;
-  margin: -2.1rem 0 0;
+  margin: -1.65rem 0 0;
   overflow: hidden;
   border: 3px solid var(--surface-color, #111925);
   border-radius: 50%;
@@ -242,7 +242,7 @@
   grid-column: 3;
   grid-row: 1;
   flex-direction: column;
-  align-items: stretch;
+  align-items: flex-end;
   justify-content: center;
   gap: 0.45rem;
   min-width: 0;
@@ -250,7 +250,8 @@
 
 .other-profile-page__actions > .app-action {
   min-height: var(--tap-target, 44px);
-  width: 100%;
+  width: auto;
+  min-width: 10rem;
   max-width: 100%;
   padding-inline: clamp(1rem, 1.8vw, 1.5rem);
   border-radius: 999px;
@@ -500,13 +501,13 @@ app-profile-media-showcase {
 }
 
 /* A responsividade segue a largura real do perfil, mesmo com sidebar do shell. */
-@container visited-profile (max-width: 900px) {
+@container visited-profile (max-width: 740px) {
   .other-profile-page__hero {
     grid-template-columns: clamp(5.75rem, 11vw, 7.5rem) minmax(0, 1fr);
   }
 
   .other-profile-page__actions {
-    grid-column: 1 / -1;
+    grid-column: 2;
     grid-row: auto;
     flex-direction: row;
     flex-wrap: wrap;
@@ -517,7 +518,14 @@ app-profile-media-showcase {
 
   .other-profile-page__actions > .app-action {
     flex: 0 1 auto;
+    min-width: 9rem;
     width: auto;
+  }
+}
+
+@container visited-profile (max-width: 480px) {
+  .other-profile-page__actions {
+    grid-column: 1 / -1;
   }
 }
 
@@ -546,7 +554,7 @@ app-profile-media-showcase {
   .other-profile-page__hero {
     grid-template-columns: clamp(4.6rem, 18vw, 6rem) minmax(0, 1fr);
     gap: 0.75rem;
-    padding: 4.4rem 0.8rem 0.9rem;
+    padding: 4.1rem 0.8rem 0.9rem;
     border-radius: 0.85rem;
   }
 
