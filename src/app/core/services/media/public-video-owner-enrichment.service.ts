@@ -31,7 +31,10 @@ export class PublicVideoOwnerEnrichmentService {
     );
 
     if (!ownerUids.length) {
-      return of(items);
+      return of(items.map((item) => ({
+        ...item,
+        ownerIdentityFromPublicProfile: false,
+      })));
     }
 
     return this.discoveryQuery
@@ -58,14 +61,17 @@ export class PublicVideoOwnerEnrichmentService {
     projection: IPublicVideoProjection,
     owner: IUserDados | null
   ): IPublicVideoProjection {
-    if (!owner) {
-      return projection;
+    // Projeções legadas podem carregar nomes antigos. Só o lookup público
+    // efetivamente confirmado para este UID habilita uso no cabeçalho.
+    if (!owner || !this.cleanText(owner.nickname)) {
+      return { ...projection, ownerIdentityFromPublicProfile: false };
     }
 
     const current = projection.owner;
 
     return {
       ...projection,
+      ownerIdentityFromPublicProfile: true,
       owner: {
         nickname: this.preferText(owner.nickname, current?.nickname),
         photoURL: this.preferText(owner.photoURL, current?.photoURL),
