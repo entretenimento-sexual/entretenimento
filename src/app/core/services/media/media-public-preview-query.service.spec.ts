@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Firestore } from '@angular/fire/firestore';
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { Observable, firstValueFrom, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
@@ -163,7 +163,7 @@ describe('MediaPublicPreviewQueryService / métricas opcionais', () => {
       code: 'permission-denied',
     });
     const reportSilently = vi.fn();
-    const deferObservable$ = vi.fn(() => throwError(() => denied));
+    const deferObservable$ = vi.fn((): Observable<unknown> => throwError(() => denied));
     const read$ = vi.fn((request: { mediaType: string }) =>
       denyBackend && request.mediaType === 'PHOTO'
         ? throwError(() => denied)
