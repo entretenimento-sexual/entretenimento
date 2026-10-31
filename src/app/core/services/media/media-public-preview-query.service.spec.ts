@@ -1,4 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import { Firestore } from '@angular/fire/firestore';
+import { firstValueFrom, of, throwError } from 'rxjs';
+import { describe, expect, it, vi } from 'vitest';
+
+import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
+import { PublicMediaReadBoundaryService } from './public-media-read-boundary.service';
+import { PublicPhotoAccessService } from './public-photo-access.service';
+import { PublicVideoAccessService } from './public-video-access.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
+import { MediaPublicPreviewQueryService } from './media-public-preview-query.service';
 
 import { IPublicPhotoProjection } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { IPublicVideoProjection } from 'src/app/core/interfaces/media/i-public-video-item';
@@ -144,5 +154,100 @@ describe('selectPublicProfileMediaPreviewCandidates', () => {
     );
 
     expect(result.map((item) => item.id)).toEqual(['video-1', 'photo-1']);
+  });
+});
+
+describe('MediaPublicPreviewQueryService / métricas opcionais', () => {
+  function setup(denyBackend = false) {
+    const denied = Object.assign(new Error('Missing or insufficient permissions'), {
+      code: 'permission-denied',
+    });
+    const reportSilently = vi.fn();
+    const read$ = vi.fn((request: { mediaType: string }) =>
+      denyBackend && request.mediaType === 'PHOTO'
+        ? throwError(() => denied)
+        : of({
+            items: request.mediaType === 'PHOTO'
+              ? [photo('photo-publica', 0)]
+              : [],
+            nextCursor: null,
+            hasMore: false,
+            fetchedAt: Date.now(),
+            scanned: 1,
+          })
+    );
+    const hydratePublicPhotoUrls$ = vi.fn((projections: unknown[]) =>
+      of(projections.map((projection) => ({
+        ...projection as Record<string, unknown>,
+        url: 'https://example.test/photo-publica.jpg',
+      })))
+    );
+    TestBed.configureTestingModule({
+      providers: [
+        MediaPublicPreviewQueryService,
+        { provide: Firestore, useValue: {} },
+        {
+          provide: FirestoreContextService,
+          useValue: {
+            deferObservable$: vi.fn(() => throwError(() => denied)),
+          },
+        },
+        { provide: PublicMediaReadBoundaryService, useValue: { read$ } },
+        {
+          provide: PublicPhotoAccessService,
+          useValue: { hydratePublicPhotoUrls$ },
+        },
+        {
+          provide: PublicVideoAccessService,
+          useValue: { hydratePublicVideoPreviews$: vi.fn(() => of([])) },
+        },
+        {
+          provide: MediaApplicationErrorService,
+          useValue: { reportSilently },
+        },
+      ],
+    });
+    return {
+      query: TestBed.inject(MediaPublicPreviewQueryService),
+      read$,
+      reportSilently,
+      denied,
+    };
+  }
+
+  it('mantém fotos autorizadas quando a leitura opcional de métricas é negada', async () => {
+    const { query, read$, reportSilently } = setup();
+    const result = await firstValueFrom(
+      query.getProfilePublicMediaPreview$('owner-1', 5, {
+        propagateErrors: true,
+      })
+    );
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].id).toBe('photo-publica');
+    expect(read$).toHaveBeenCalledTimes(2);
+    expect(reportSilently).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'permission-denied' }),
+      'getProfileMediaMetrics$',
+      expect.any(String),
+      expect.objectContaining({ ownerUid: 'owner-1' })
+    );
+  });
+
+  it('não ignora a rejeição da callable que autoriza a própria mídia', async () => {
+    const { query, denied, reportSilently } = setup(true);
+
+    await expect(firstValueFrom(
+      query.getProfilePublicMediaPreview$('owner-1', 5, {
+        propagateErrors: true,
+      })
+    )).rejects.toBe(denied);
+
+    expect(reportSilently).toHaveBeenCalledWith(
+      denied,
+      'getProfilePublicMediaPreview$',
+      expect.any(String),
+      expect.objectContaining({ ownerUid: 'owner-1' })
+    );
   });
 });
