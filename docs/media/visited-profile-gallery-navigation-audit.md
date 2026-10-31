@@ -222,3 +222,48 @@ do erro e estado diferenciado do perfil visitado.
 **Pendente:** executar compilação e novos testes no checkout Windows e
 reproduzir navegação real após fim da janela de quota. Nenhuma alteração em
 Rules, backend do limitador, deploy de produção, branch ou PR.
+
+## Otimização do percurso Pessoas → Perfil → Fotos/Vídeos — 31/10/2026
+
+Validação de navegador anterior: 10 POSTs HTTP 200 e 3 preflights HTTP 204
+de `getPublicProfilesPage` em cerca de 35 s; zero HTTP 429 na janela.
+O Response de ~2 KB continha somente o perfil visitado (1 UID,
+`scanned=1`); o de ~4,9 KB continha três perfis (`scanned=3`),
+compatível com listagem de descoberta. Apenas esses Responses, sem o
+Payload, **não provam** repetição exata das requisições.
+
+Causa de duplicação confirmada pelo código: `PublicPhotoAccessService` e
+`PublicVideoAccessService` já passam pelo enriquecimento do autor em
+`UserDiscoveryQueryService.getProfilesByUids$` antes da hidratação pública.
+As páginas das galerias realizavam **outra** `getPublicUserById$` só para
+montar o cabeçalho, mesmo quando a primeira leitura autorizada já havia
+retornado nickname/identidade/localidade do mesmo proprietário.
+
+Correção:
+- função pura `publicGalleryOwnerIdentityFromMedia` valida
+  `ownerUid`, audiência `PUBLIC`, moderação `APPROVED` e nickname
+  publicado antes de montar o cabeçalho canônico;
+- galerias de fotos e vídeos derivam o cabeçalho da mesma página **já
+  autorizada**, sem consulta extra quando o item possui identidade;
+  `distinctUntilChanged` evita refetch ao paginar e `switchMap` impede
+  reaproveitamento entre perfis; vídeo compara identidade integral da rota;
+- quando página vazia ou mídia legada não traz o resumo público completo,
+  o fallback permanece via `getPublicUserById$`; erro de autorização da
+  mídia não é transformado em cabeçalho antigo;
+- o cache público por UID deixa de **persistir** resultados sem
+  `ageEligibilityVerifiedAdult` e `ageEligibilityValidUntil` válidos,
+  que o próprio cache já se recusava a usar. Nenhuma validação foi
+  relaxada, e não introduzimos TTL novo para exposição autorizada;
+- no perfil visitado, os botões `Fotos` e `Vídeos` dentro da seção
+  `Mídias` foram removidos, já que as abas de navegação cumprem essa
+  função; o título `Mídias`, o mosaico e os viewers permanecem.
+
+Cobertura adicionada: cabeçalho derivado de fotos/vídeos aprovados,
+sem segunda consulta, fallback sem mídia, preservação após paginação,
+isolamento por UID, moderação/audiência e ausência de inferência de
+orientação para casais. Ajustados contratos de cache e layout.
+
+**Pendente:** executar `build:emu`, suíte Angular e validação Network
+no Windows após sincronizar a `main`. Os 2.859 testes previamente aprovados
+não incluem essa rodada. Nenhuma alteração do backend, Rules, quota ou deploy.
+Trabalho exclusivamente na `main` sem branch ou PR.
