@@ -219,6 +219,7 @@ describe('PublicProfileVideosComponent', () => {
   it('não consulta o perfil novamente quando o vídeo autorizado já contém autor', () => {
     const enriched: IPublicVideoItem = {
       ...VIDEO,
+      ownerIdentityFromPublicProfile: true,
       owner: {
         nickname: 'Autor autorizado do vídeo',
         photoURL: 'https://example.test/avatar.webp',
