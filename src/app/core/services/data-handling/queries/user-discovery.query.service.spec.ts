@@ -277,6 +277,33 @@ describe('UserDiscoveryQueryService', () => {
     );
   });
 
+  it('forceRefresh ignora cache local mesmo quando havia snapshot persistido', async () => {
+    cacheMock.get.mockReturnValue(of([{
+      uid: 'owner-a',
+      nickname: 'Snapshot antigo',
+      ageEligibilityVerifiedAdult: true,
+      ageEligibilityValidUntil: Date.now() + 60_000,
+    }]));
+    publicProfileReadMock.readByUids$.mockReturnValue(of({
+      items: [{
+        uid: 'owner-a',
+        nickname: 'Atualizado no backend',
+      }],
+      nextCursor: null,
+      reachedEnd: true,
+      fetchedAt: Date.now(),
+      scanned: 1,
+    }));
+
+    const profiles = await firstValueFrom(service.getProfilesByUids$(
+      ['owner-a'], { forceRefresh: true }
+    ));
+    expect(profiles[0]?.nickname).toBe('Atualizado no backend');
+    expect(cacheMock.get).not.toHaveBeenCalled();
+    expect(cacheMock.set).not.toHaveBeenCalled();
+    expect(publicProfileReadMock.readByUids$).toHaveBeenCalledWith(['owner-a']);
+  });
+
   it('deve hidratar somente os UIDs pedidos com chave determinística', async () => {
     publicProfileReadMock.readByUids$.mockReturnValue(
       of({
