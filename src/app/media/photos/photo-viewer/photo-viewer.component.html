@@ -30,8 +30,12 @@
           [identity]="currentOwnerIdentity$ | async"
           density="compact"
         >
-          <span publicUserIdentitySupplement class="viewer-owner-supplement">
-            @if ((photo.officialMediaContext?.contexts?.length ?? 0) > 0) {
+          @if (
+            (photo.officialMediaContext?.contexts?.length ?? 0) > 0 ||
+            data.source !== 'profile'
+          ) {
+            <span publicUserIdentitySupplement class="viewer-owner-supplement">
+              @if ((photo.officialMediaContext?.contexts?.length ?? 0) > 0) {
               <app-public-media-badge
                 class="viewer-official-badge"
                 kind="official"
@@ -47,8 +51,9 @@
                 [ownerUid]="currentOwnerUid"
                 [continuationContext]="data.continuationContext || null"
               />
-            }
-          </span>
+              }
+            </span>
+          }
         </app-public-user-identity>
       </a>
     } @else {
