@@ -176,6 +176,21 @@ describe('PhotoViewerComponent mixed-owner safety', () => {
     expect(ownerLink?.textContent).toContain('Da sua rede');
   });
 
+  it('não duplica a origem Do perfil quando aberta a partir do perfil visitado', () => {
+    Object.assign(data, { source: 'profile' });
+    fixture.detectChanges();
+
+    const owner = fixture.nativeElement.querySelector('.viewer-owner') as HTMLAnchorElement;
+    expect(owner).not.toBeNull();
+    expect(owner.getAttribute('href')).toBe('/outro-perfil/owner-a');
+    expect(
+      fixture.nativeElement.querySelector('.viewer-discovery-reason')
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.viewer-close-btn')
+    ).not.toBeNull();
+  });
+
   it('usa o cabeçalho canônico da foto ativa sem inferir orientação de casal', () => {
     const component = fixture.componentInstance;
     let header = fixture.nativeElement.querySelector('.viewer-owner') as HTMLElement;
