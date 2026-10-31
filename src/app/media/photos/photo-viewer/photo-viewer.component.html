@@ -36,21 +36,21 @@
           ) {
             <span publicUserIdentitySupplement class="viewer-owner-supplement">
               @if ((photo.officialMediaContext?.contexts?.length ?? 0) > 0) {
-              <app-public-media-badge
-                class="viewer-official-badge"
-                kind="official"
-                label="Oficial"
-                ariaLabel="Perfil oficial verificado"
-                iconClass="fas fa-circle-check"
-              />
-            }
-            @if (data.source !== 'profile') {
-              <app-public-media-recommendation-badge
-                class="viewer-discovery-reason"
-                [source]="data.source"
-                [ownerUid]="currentOwnerUid"
-                [continuationContext]="data.continuationContext || null"
-              />
+                <app-public-media-badge
+                  class="viewer-official-badge"
+                  kind="official"
+                  label="Oficial"
+                  ariaLabel="Perfil oficial verificado"
+                  iconClass="fas fa-circle-check"
+                />
+              }
+              @if (data.source !== 'profile') {
+                <app-public-media-recommendation-badge
+                  class="viewer-discovery-reason"
+                  [source]="data.source"
+                  [ownerUid]="currentOwnerUid"
+                  [continuationContext]="data.continuationContext || null"
+                />
               }
             </span>
           }
