@@ -73,6 +73,9 @@ describe('PublicVideoOwnerEnrichmentService', () => {
       municipio: null,
       estado: null,
     });
+    // Nem um marcador espúrio na projeção legada concede confiança.
+    (source as { ownerIdentityFromPublicProfile?: boolean })
+      .ownerIdentityFromPublicProfile = true;
     const result = await firstValueFrom(service.enrich$([source]));
 
     expect(result[0]).toMatchObject({
