@@ -53,7 +53,11 @@ describe('publicGalleryOwnerIdentityFromMedia', () => {
 
   it('não infere orientação individual para casal na projeção de vídeo', () => {
     const identity = publicGalleryOwnerIdentityFromMedia('owner-1', [video]);
-    expect(identity?.identityShortLabel).toBe('Casal (Ele/Ela)');
+    // O catálogo apresenta "Casal" como abreviação e a composição
+    // declarada somente no label completo, sem inferir orientação individual.
+    expect(identity?.identityCode).toBe('casal-ele-ela');
+    expect(identity?.identityShortLabel).toBe('Casal');
+    expect(identity?.identityLabel).toBe('Casal (Ele/Ela)');
     expect(identity?.orientationShortLabel).toBeUndefined();
   });
 
