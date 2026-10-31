@@ -58,6 +58,8 @@ type PublicProfileMediaProjection =
   | IPublicVideoProjection;
 
 export interface PublicProfileMediaMetrics {
+  /** Vincula contagens/capa ao dono cuja descoberta autorizou a projeção. */
+  readonly ownerUid?: string | null;
   readonly publicPhotosCount?: unknown;
   readonly photosCount?: unknown;
   readonly publicVideosCount?: unknown;
@@ -142,8 +144,16 @@ export class MediaPublicPreviewQueryService {
       return of(this.emptyPreview());
     }
 
+    // Em reutilização do componente, nunca misturar contagem/capa do perfil
+    // anterior com itens atuais, mesmo durante a troca assíncrona dos inputs.
+    const providedMetrics = options.profileMetrics;
+    const metrics = providedMetrics?.ownerUid &&
+        providedMetrics.ownerUid !== safeOwnerUid
+      ? {}
+      : providedMetrics ?? {};
+
     return combineLatest([
-      of(options.profileMetrics ?? {}),
+      of(metrics),
       this.getPhotoCandidates$(safeOwnerUid, safeLimit),
       this.getVideoCandidates$(safeOwnerUid, safeLimit),
     ]).pipe(
