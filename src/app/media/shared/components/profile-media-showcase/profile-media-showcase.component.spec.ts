@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
-import { of, Subject } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
@@ -10,6 +10,7 @@ import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-i
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { MediaPublicPreviewQueryService } from 'src/app/core/services/media/media-public-preview-query.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { PublicMixedMediaViewerLauncherService } from '../../services/public-mixed-media-viewer-launcher.service';
 import { ProfileMediaShowcaseComponent } from './profile-media-showcase.component';
 
@@ -18,6 +19,7 @@ describe('ProfileMediaShowcaseComponent', () => {
   let mediaItems: IPublicProfileMediaItem[];
   let totalPhotosCount: number;
   let totalVideosCount: number;
+  let mediaError: { report: ReturnType<typeof vi.fn> };
   let mediaPublicPreview: {
     getProfilePublicMediaPreview$: ReturnType<typeof vi.fn>;
   };
@@ -89,6 +91,7 @@ describe('ProfileMediaShowcaseComponent', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mediaError = { report: vi.fn() };
     mediaItems = [photo];
     totalPhotosCount = 1;
     totalVideosCount = 0;
@@ -105,6 +108,7 @@ describe('ProfileMediaShowcaseComponent', () => {
       imports: [ProfileMediaShowcaseComponent],
       providers: [
         provideRouter([]),
+        { provide: MediaApplicationErrorService, useValue: mediaError },
         {
           provide: MediaPublicPreviewQueryService,
           useValue: mediaPublicPreview,
@@ -135,6 +139,30 @@ describe('ProfileMediaShowcaseComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
+  });
+
+  it('usa somente o estado inline quando a leitura pública é negada', async () => {
+    mediaPublicPreview.getProfilePublicMediaPreview$.mockReturnValueOnce(
+      throwError(() => Object.assign(new Error('Firestore negou a leitura'), {
+        code: 'permission-denied',
+      }))
+    );
+
+    fixture.componentInstance.retry();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Não foi possível carregar as mídias'
+    );
+    expect(mediaError.report).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'permission-denied' }),
+      expect.objectContaining({
+        operation: 'loadProfileMediaPreview',
+        silent: true,
+      })
+    );
   });
 
   it('consulta somente a prévia limitada a cinco mídias', () => {
