@@ -27,7 +27,7 @@ describe('PublicProfileReadBoundaryService: proteção de quota por sessão', ()
   let service: PublicProfileReadBoundaryService;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    callable.mockReset();
     auth = { currentUser: { uid: 'viewer-a' } };
     TestBed.configureTestingModule({
       providers: [
