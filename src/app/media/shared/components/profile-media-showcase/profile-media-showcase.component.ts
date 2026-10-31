@@ -8,7 +8,6 @@ import {
   input,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
   Observable,
@@ -56,7 +55,7 @@ const SHOWCASE_ITEM_LIMIT = 5;
 @Component({
   selector: 'app-profile-media-showcase',
   standalone: true,
-  imports: [CommonModule, RouterModule, ContentStateComponent],
+  imports: [CommonModule, ContentStateComponent],
   templateUrl: './profile-media-showcase.component.html',
   styleUrls: [
     './profile-media-showcase.component.css',
