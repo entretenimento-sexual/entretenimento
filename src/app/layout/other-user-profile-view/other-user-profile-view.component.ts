@@ -101,6 +101,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   uid: string | null = null;
   userProfile: IUserDados | null = null;
   isLoading = true;
+  profileLoadError = false;
   profilePhotoFailed = false;
 
   readonly friendRequestBusy$ = new BehaviorSubject<boolean>(false);
@@ -123,7 +124,17 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.loadProfile();
+  }
+
+  retryProfile(): void {
+    if (this.isLoading) return;
+    this.loadProfile();
+  }
+
+  private loadProfile(): void {
     this.isLoading = true;
+    this.profileLoadError = false;
     this.profilePhotoFailed = false;
     this.markView();
 
@@ -140,6 +151,13 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
         if (result.kind === 'redirect-own-profile') {
           this.uid = result.targetUid;
           this.userProfile = null;
+          return;
+        }
+
+        if (result.kind === 'load-error') {
+          this.uid = result.targetUid;
+          this.userProfile = null;
+          this.profileLoadError = true;
           return;
         }
 
