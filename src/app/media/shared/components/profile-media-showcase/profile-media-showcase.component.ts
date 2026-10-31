@@ -87,6 +87,7 @@ export class ProfileMediaShowcaseComponent {
   // Evitar nova Callable quando os valores públicos não mudaram.
   private readonly profileMetrics$ = toObservable(this.profileMetrics).pipe(
     distinctUntilChanged((previous, current) =>
+      previous?.ownerUid === current?.ownerUid &&
       previous?.publicPhotosCount === current?.publicPhotosCount &&
       previous?.photosCount === current?.photosCount &&
       previous?.publicVideosCount === current?.publicVideosCount &&
