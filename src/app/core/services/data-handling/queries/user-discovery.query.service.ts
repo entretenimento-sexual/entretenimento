@@ -184,7 +184,12 @@ export class UserDiscoveryQueryService {
 
         const cacheKey = this.scopeCacheKey(baseCacheKey, authUid);
 
-        return this.cache.get<IUserDados[]>(cacheKey).pipe(
+        // A revalidação obrigatória não lê snapshots persistidos.
+        const cacheRead$ = options?.forceRefresh === true
+          ? of<IUserDados[] | null>(null)
+          : this.cache.get<IUserDados[]>(cacheKey);
+
+        return cacheRead$.pipe(
           take(1),
           switchMap((cachedProfiles) => {
             const cachedSelection = this.pickProfilesByRequestedUids(
