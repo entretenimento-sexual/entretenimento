@@ -254,6 +254,29 @@ describe('UserDiscoveryQueryService', () => {
     expect(globalErrorHandlerMock.handleError).not.toHaveBeenCalled();
   });
 
+  it('persiste somente uma projeção com elegibilidade temporal ainda válida', async () => {
+    publicProfileReadMock.readByUids$.mockReturnValue(of({
+      items: [{
+        uid: 'owner-valid',
+        nickname: 'Perfil validado',
+        ageEligibilityVerifiedAdult: true,
+        ageEligibilityValidUntil: Date.now() + 60_000,
+      }],
+      nextCursor: null,
+      reachedEnd: true,
+      fetchedAt: Date.now(),
+      scanned: 1,
+    }));
+
+    await firstValueFrom(service.getProfilesByUids$(['owner-valid']));
+    expect(cacheMock.set).toHaveBeenCalledWith(
+      'discovery:public_profiles:uids:v4:owner-valid:viewer=viewer-1',
+      expect.any(Array),
+      30_000,
+      { persist: true }
+    );
+  });
+
   it('deve hidratar somente os UIDs pedidos com chave determinística', async () => {
     publicProfileReadMock.readByUids$.mockReturnValue(
       of({
@@ -294,11 +317,8 @@ describe('UserDiscoveryQueryService', () => {
       'profile-b',
     ]);
     expect(cacheMock.get).toHaveBeenCalledWith(expectedCacheKey);
-    expect(cacheMock.set).toHaveBeenCalledWith(
-      expectedCacheKey,
-      expect.any(Array),
-      30_000,
-      { persist: true }
-    );
+    // A projeção pública não transporta prova de validade temporal; o
+    // cache não deve persistir dados que recusaria na próxima leitura.
+    expect(cacheMock.set).not.toHaveBeenCalled();
   });
 });
