@@ -241,8 +241,11 @@ retornado nickname/identidade/localidade do mesmo proprietário.
 
 Correção:
 - função pura `publicGalleryOwnerIdentityFromMedia` valida
-  `ownerUid`, audiência `PUBLIC`, moderação `APPROVED` e nickname
-  publicado antes de montar o cabeçalho canônico;
+  `ownerUid`, audiência `PUBLIC`, moderação `APPROVED`, nickname e
+  marcador **transitório** `ownerIdentityFromPublicProfile`, emitido
+  somente quando o enriquecimento de `public_profiles` retornou um autor
+  atual; projeções legadas sem lookup vigente não podem autenticar cabeçalhos;
+  o mapper de vídeo descarta marcadores presentes no documento de origem;
 - galerias de fotos e vídeos derivam o cabeçalho da mesma página **já
   autorizada**, sem consulta extra quando o item possui identidade;
   `distinctUntilChanged` evita refetch ao paginar e `switchMap` impede
@@ -252,8 +255,10 @@ Correção:
   mídia não é transformado em cabeçalho antigo;
 - o cache público por UID deixa de **persistir** resultados sem
   `ageEligibilityVerifiedAdult` e `ageEligibilityValidUntil` válidos,
-  que o próprio cache já se recusava a usar. Nenhuma validação foi
-  relaxada, e não introduzimos TTL novo para exposição autorizada;
+  que o próprio cache já se recusava a usar; `forceRefresh` pula até
+  a leitura local, exigindo a resposta vigente do backend. Nenhuma
+  validação foi relaxada, e não introduzimos TTL novo para exposição
+  autorizada;
 - no perfil visitado, os botões `Fotos` e `Vídeos` dentro da seção
   `Mídias` foram removidos, já que as abas de navegação cumprem essa
   função; o título `Mídias`, o mosaico e os viewers permanecem.
