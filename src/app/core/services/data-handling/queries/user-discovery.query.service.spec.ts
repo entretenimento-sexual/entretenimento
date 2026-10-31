@@ -153,6 +153,29 @@ describe('UserDiscoveryQueryService', () => {
     expect(profile?.descricao).not.toContain('Texto privado');
   });
 
+  it('hidrata contagem e ID público da capa sem campos de armazenamento privados', async () => {
+    publicProfileReadMock.readByUids$.mockReturnValue(
+      of({
+        items: [{
+          uid: 'media-owner',
+          nickname: 'Perfil',
+          photosCount: 18,
+          videosCount: 2,
+          coverPhotoId: 'cover-approved',
+          storagePath: 'private/secret',
+        }],
+        nextCursor: null, reachedEnd: true, fetchedAt: Date.now(), scanned: 1,
+      })
+    );
+    const [profile] = await firstValueFrom(service.getProfilesByUids$(['media-owner']));
+    expect(profile).toMatchObject({
+      photosCount: 18,
+      videosCount: 2,
+      coverPhotoId: 'cover-approved',
+    });
+    expect('storagePath' in (profile ?? {})).toBe(false);
+  });
+
   it('preserva somente os sinais públicos de preferências durante hidratação', async () => {
     publicProfileReadMock.readByUids$.mockReturnValue(
       of({
