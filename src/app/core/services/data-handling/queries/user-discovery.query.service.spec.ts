@@ -1,6 +1,6 @@
 // src/app/core/services/data-handling/queries/user-discovery.query.service.spec.ts
 
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { firstValueFrom, Observable, of, throwError } from 'rxjs';
 import { where } from 'firebase/firestore';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -8,7 +8,7 @@ import { UserDiscoveryQueryService } from './user-discovery.query.service';
 
 describe('UserDiscoveryQueryService', () => {
   const cacheMock = {
-    get: vi.fn(() => of(null)),
+    get: vi.fn((): Observable<unknown> => of(null)),
     set: vi.fn(),
   };
 
