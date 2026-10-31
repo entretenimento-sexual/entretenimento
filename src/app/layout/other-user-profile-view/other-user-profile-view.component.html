@@ -261,6 +261,14 @@
 
       </aside>
     </div>
+  } @else if (profileLoadError) {
+    <app-content-state
+      state="error"
+      title="Não foi possível carregar o perfil"
+      message="A consulta falhou temporariamente. Tente novamente em instantes."
+      actionLabel="Tentar novamente"
+      (action)="retryProfile()"
+    />
   } @else {
     <app-content-state
       state="empty"
