@@ -19,19 +19,19 @@
       <app-page-header title="Vídeos">
         <div page-actions class="gallery-actions">
           <div class="gallery-summary" aria-live="polite" aria-atomic="true">
-        @if (state.status === 'ready') {
-          <strong>{{ state.items.length }}</strong>
-          <span>
-            {{ state.items.length === 1 ? 'vídeo' : 'vídeos' }}
-            {{ state.hasMore ? 'carregados' : '' }}
-          </span>
-        } @else if (state.status === 'loading') {
-          <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>
-          <span>Carregando</span>
-        } @else {
-          <strong>0</strong>
-          <span>vídeos</span>
-        }
+            @if (state.status === 'ready') {
+              <strong>{{ state.items.length }}</strong>
+              <span>
+                {{ state.items.length === 1 ? 'vídeo' : 'vídeos' }}
+                {{ state.hasMore ? 'carregados' : '' }}
+              </span>
+            } @else if (state.status === 'loading') {
+              <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>
+              <span>Carregando</span>
+            } @else {
+              <strong>0</strong>
+              <span>vídeos</span>
+            }
           </div>
         </div>
       </app-page-header>
