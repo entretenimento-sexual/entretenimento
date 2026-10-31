@@ -3,7 +3,7 @@
 // Objetivo: delegar para o DONO (UserRepositoryService) e marcar aliases como @deprecated.
 // Mantém métodos usados no projeto, mas evita duplicar regra de cache/store/firestore.
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
@@ -95,11 +95,17 @@ getUsersPublicMap$(uids: string[]): Observable<Record<string, UserPublic>> {
  * Não consulta /users.
  * Consulta /public_profiles via discovery.
  */
-getPublicUserById$(uid: string): Observable<IUserDados | null> {
+getPublicUserById$(
+  uid: string,
+  options?: { propagateErrors?: boolean }
+): Observable<IUserDados | null> {
   const id = (uid ?? '').trim();
   if (!id) return of(null);
 
-  return this.discoveryQuery.getProfilesByUids$([id], { forceRefresh: true }).pipe(
+  return this.discoveryQuery.getProfilesByUids$([id], {
+    forceRefresh: true,
+    propagateErrors: options?.propagateErrors === true,
+  }).pipe(
     map((profiles) => {
       const first = Array.isArray(profiles) ? profiles[0] ?? null : null;
       if (first) {
@@ -108,6 +114,11 @@ getPublicUserById$(uid: string): Observable<IUserDados | null> {
       return first;
     }),
     catchError((err) => {
+      // A tela visitada distingue falha transitória de perfil inexistente.
+      // O orchestrator apresenta o diagnóstico pelo handler central.
+      if (options?.propagateErrors === true) {
+        return throwError(() => err);
+      }
       this.firestoreError.handleFirestoreError(err);
       return of(null);
     })
