@@ -32,7 +32,20 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
     expect(pageCss).toContain('repeat(4, minmax(0, 1fr))');
     expect(pageCss).toContain('box-sizing: border-box');
     expect(pageCss).toContain('max-width: min(100%, 1480px);');
-    expect(pageCss).toContain('radial-gradient(ellipse at 80% 8%');
+    expect(pageCss).toContain('radial-gradient(ellipse at 86% 0%');
+  });
+
+  it('mantém cabeçalho compacto, retorno junto ao título e grade sem alongar duas fotos', () => {
+    expect(pageHtml).toContain('class="visited-gallery-heading"');
+    expect(pageHtml).toContain('<app-page-header title="Fotos"></app-page-header>');
+    expect(pageHtml).toContain('class="public-photos-page__count"');
+    expect(pageHtml).toContain('state?.hasMore');
+    expect(pageCss).toContain('display: flex;');
+    expect(pageCss).toContain('margin-bottom: clamp(0.55rem, 1vw, 0.9rem)');
+    expect(pageCss).toContain('--public-user-identity-avatar-size: clamp(44px, 4vw, 54px)');
+    expect(pageCss).not.toContain('padding: 2.85rem');
+    expect(pageCss).toContain('grid-template-columns: repeat(4, minmax(0, 1fr))');
+    expect(pageCss).not.toContain('grid-column: span 2');
   });
 
   it('coloca metricas em rodape apenas na variante profile', () => {
@@ -59,13 +72,14 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
   it('mostra dono identificado e navegacao sem ler documentos privados', () => {
     expect(pageHtml).toContain('<app-page-header title="Fotos">');
     expect(pageHtml).not.toContain('Fotos públicas');
-    expect(pageHtml).toContain('page-actions');
+    expect(pageHtml).toContain('class="visited-gallery-heading"');
+    expect(pageHtml).toContain('class="public-photos-page__count"');
     expect(pageHtml).toContain('<app-public-user-identity');
     expect(pageHtml).toContain('[identity]="identity"');
     expect(pageHtml).toContain('density="comfortable"');
     expect(pageHtml).toContain('class="visited-gallery-header__back"');
     expect(pageHtml).toContain('class="visually-hidden">Voltar ao perfil</span>');
-    expect(pageCss).toContain('opacity: 0.75;');
+    expect(pageCss).toContain('opacity: 0.85;');
     expect(pageHtml).not.toContain('<h1');
     expect(pageHtml).not.toContain('visited-gallery-header__avatar');
     expect(pageCss).toContain('.visited-gallery-header__identity app-public-user-identity');
