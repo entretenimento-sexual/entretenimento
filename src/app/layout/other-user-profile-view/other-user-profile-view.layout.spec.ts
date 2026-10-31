@@ -93,6 +93,23 @@ describe('perfil público visitado: composição editorial', () => {
       .toBeLessThan(html.indexOf('id="profile-media"'));
   });
 
+  it('alinha o cabeçalho Mídias às seções e adapta abas pela largura do perfil', () => {
+    expect(mosaicCss).toContain('.profile-media-showcase__header {');
+    expect(mosaicCss).toMatch(
+      /\.profile-media-showcase__header\s*\{[^}]*justify-content:\s*flex-start;[^}]*text-align:\s*start;/u
+    );
+    expect(mosaicCss).toMatch(
+      /\.profile-media-showcase__header h2\s*\{[^}]*margin:\s*0;/u
+    );
+    expect(css).toContain('@container visited-profile (max-width: 560px)');
+    expect(css).toMatch(
+      /@container visited-profile \(max-width: 560px\)[\s\S]*?\.other-profile-page__sections\s*\{[^}]*overflow-x:\s*auto;/u
+    );
+    expect(css).toContain('overscroll-behavior-inline: contain;');
+    expect(css).toContain('scrollbar-width: thin;');
+    expect(html).toContain('aria-label="Seções do perfil visitado"');
+  });
+
   it('aplica mosaico somente quando há cinco mídias, sem alterar seleção ou rota', () => {
     expect(mosaicHtml).toContain(
       '[class.profile-media-showcase__grid--mosaic]="visibleItems(state.items).length >= 5"'
