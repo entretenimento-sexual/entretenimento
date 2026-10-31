@@ -243,7 +243,9 @@ export class UserDiscoveryQueryService {
               ? throwError(() => error)
               : this.handleError(
                   error,
-                  'user-discovery.getProfilesByUids
+                  'user-discovery.getProfilesByUids$'
+                )
+          )
         );
       }),
       shareReplay({ bufferSize: 1, refCount: true })
