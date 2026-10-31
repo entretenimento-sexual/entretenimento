@@ -110,6 +110,9 @@ export class ProfileMediaShowcaseComponent {
           this.mediaError.report(error, {
             operation: 'loadProfileMediaPreview',
             reasonHint: 'media_discovery_load_failed',
+            // A falha já é apresentada pela seção inline com ação "Tentar
+            // novamente". Não interromper a visita com um modal de permissão.
+            silent: true,
             metadata: {
               scope: 'ProfileMediaShowcaseComponent',
               hasOwnerUid: !!ownerUid,
