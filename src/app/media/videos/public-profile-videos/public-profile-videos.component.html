@@ -4,20 +4,21 @@
 
 @if (state$ | async; as state) {
   <section class="public-videos-page" aria-label="Vídeos públicos">
-    <app-page-header title="Vídeos">
-      <div page-actions class="gallery-actions">
-        @if (galleryOwnerUid) {
-          <a
-            class="public-videos-page__back"
-            [routerLink]="profileReturnRoute(galleryOwnerUid, viewerUid)"
-            [attr.aria-label]="'Voltar ao perfil de ' + (profileIdentity?.nickname || 'usuário')"
-            title="Voltar ao perfil"
-          >
-            <i class="fas fa-arrow-left" aria-hidden="true"></i>
-            <span class="visually-hidden">Voltar ao perfil</span>
-          </a>
-        }
-        <div class="gallery-summary" aria-live="polite" aria-atomic="true">
+    <div class="public-videos-page__heading">
+      @if (galleryOwnerUid) {
+        <a
+          class="public-videos-page__back"
+          [routerLink]="profileReturnRoute(galleryOwnerUid, viewerUid)"
+          [attr.aria-label]="'Voltar ao perfil de ' + (profileIdentity?.nickname || 'usuário')"
+          title="Voltar ao perfil"
+        >
+          <i class="fas fa-arrow-left" aria-hidden="true"></i>
+          <span class="visually-hidden">Voltar ao perfil</span>
+        </a>
+      }
+      <app-page-header title="Vídeos">
+        <div page-actions class="gallery-actions">
+          <div class="gallery-summary" aria-live="polite" aria-atomic="true">
         @if (state.status === 'ready') {
           <strong>{{ state.items.length }}</strong>
           <span>
@@ -31,9 +32,10 @@
           <strong>0</strong>
           <span>vídeos</span>
         }
+          </div>
         </div>
-      </div>
-    </app-page-header>
+      </app-page-header>
+    </div>
 
     @if (ownerUid$ | async) {
       <header class="public-videos-identity" aria-label="Identidade do perfil que publicou os vídeos">
