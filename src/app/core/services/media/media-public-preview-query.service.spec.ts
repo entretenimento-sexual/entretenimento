@@ -178,7 +178,7 @@ describe('MediaPublicPreviewQueryService / métricas opcionais', () => {
     );
     const hydratePublicPhotoUrls$ = vi.fn((projections: unknown[]) =>
       of(projections.map((projection) => ({
-        ...projection as Record<string, unknown>,
+        ...(projection as Record<string, unknown>),
         url: 'https://example.test/photo-publica.jpg',
       })))
     );
