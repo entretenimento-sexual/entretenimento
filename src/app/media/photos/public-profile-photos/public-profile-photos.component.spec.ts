@@ -166,6 +166,7 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
   it('não repete getPublicProfilesPage quando o autor já foi enriquecido na foto autorizada', () => {
     pagination.loadPage$.mockReturnValue(of(page([{
       ...PHOTO,
+      ownerIdentityFromPublicProfile: true,
       ownerNickname: 'Autor já autorizado',
       ownerPhotoURL: 'https://example.test/avatar.webp',
       ownerGender: 'mulher',
