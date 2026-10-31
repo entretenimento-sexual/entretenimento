@@ -252,6 +252,25 @@ describe('MediaPublicPreviewQueryService / métricas opcionais', () => {
     expect(deferObservable$).not.toHaveBeenCalled();
   });
 
+  it('descarta métricas/capa de outro proprietário na troca de rota', async () => {
+    const { query, deferObservable$ } = setup();
+    const result = await firstValueFrom(
+      query.getProfilePublicMediaPreview$('owner-1', 5, {
+        propagateErrors: true,
+        profileMetrics: {
+          ownerUid: 'owner-2',
+          publicPhotosCount: 400,
+          publicVideosCount: 50,
+          coverPhotoId: 'cover-from-other-owner',
+        },
+      })
+    );
+    expect(result.photosCount).toBe(1);
+    expect(result.videosCount).toBe(0);
+    expect(deferObservable$).not.toHaveBeenCalled();
+    expect(result.items.map((item) => item.id)).toEqual(['photo-publica']);
+  });
+
   it('considera a capa pública aprovada quando está fora da primeira janela', async () => {
     const { query, deferObservable$ } = setup();
     deferObservable$.mockReturnValue(
