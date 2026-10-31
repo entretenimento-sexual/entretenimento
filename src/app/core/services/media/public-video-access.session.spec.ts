@@ -96,8 +96,8 @@ describe('PublicVideoAccessService / session lifecycle', () => {
       ownerIdentityFromPublicProfile: true,
     } as IPublicVideoProjection;
 
-    expect(internal.normalizeProjection(candidate))
-      ?.ownerIdentityFromPublicProfile).toBe(true);
+    expect(internal.normalizeProjection(candidate)?.ownerIdentityFromPublicProfile)
+      .toBe(true);
     expect(internal.normalizeProjection({
       ...candidate, ownerIdentityFromPublicProfile: false,
     })).not.toHaveProperty('ownerIdentityFromPublicProfile');
