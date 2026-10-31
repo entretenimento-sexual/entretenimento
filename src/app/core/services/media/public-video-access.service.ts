@@ -381,7 +381,13 @@ export class PublicVideoAccessService {
     });
 
     return projection && this.isEligibleProjection(projection)
-      ? projection
+      ? {
+          ...projection,
+          // O mapper descarta atributos não persistentes. Restaurar somente
+          // o resultado transitório produzido pelo enriquecimento do autor.
+          ownerIdentityFromPublicProfile:
+            candidate.ownerIdentityFromPublicProfile === true,
+        }
       : null;
   }
 
