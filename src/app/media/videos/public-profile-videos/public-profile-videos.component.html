@@ -48,7 +48,10 @@
               {{ state.items.length }}{{ state.hasMore ? '+' : '' }}
             </span>
             <span class="visually-hidden">
-              {{ state.items.length }} {{ state.items.length === 1 ? 'vídeo carregado' : 'vídeos carregados' }}{{ state.hasMore ? ' ou mais' : '' }}
+              {{ state.items.length }} {{ state.items.length === 1 ? 'vídeo carregado' : 'vídeos carregados' }}.
+              @if (state.hasMore) {
+                Há mais vídeos disponíveis para carregar.
+              }
             </span>
           }
         </span>
