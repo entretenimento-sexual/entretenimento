@@ -46,6 +46,10 @@ import {
   PublicProfilePhotoPaginationService,
 } from 'src/app/core/services/media/public-profile-photo-pagination.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
+import {
+  publicGalleryOwnerIdentityFromMedia,
+  samePublicGalleryOwnerIdentity,
+} from 'src/app/core/services/media/public-gallery-owner-identity.util';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { visitedProfileReturnRoute } from 'src/app/core/utils/media/visited-profile-return-route';
@@ -142,39 +146,6 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
     return visitedProfileReturnRoute(ownerUid, viewerUid);
   }
 
-  /** Mesmo perfil público autorizado da tela visitada; nunca consulta /users. */
-  readonly profileIdentity$: Observable<PublicUserIdentity | null> =
-    this.ownerUid$.pipe(
-      switchMap((ownerUid) => {
-        if (!ownerUid) return of(null);
-        return this.publicUserQuery.getPublicUserById$(ownerUid).pipe(
-          map((profile): PublicUserIdentity | null => {
-            if (profile?.uid !== ownerUid || !profile.nickname?.trim()) {
-              return null;
-            }
-            // Fonte pública autorizada; não transportar documento privado ou
-            // inferir orientação a partir de gênero, preferências ou mídia.
-            return normalizePublicUserIdentity({
-              nickname: profile.nickname,
-              avatarUrl: profile.photoURL,
-              identityCode: profile.identityCode ?? profile.gender,
-              orientation: profile.orientation,
-              city: profile.municipio,
-              state: profile.estado,
-            });
-          }),
-          catchError((error: unknown) => {
-            this.reportError('media_discovery_load_failed', error, {
-              op: 'loadGalleryProfileIdentity',
-            });
-            return of(null);
-          }),
-          startWith(null)
-        );
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
   private readonly refreshSubject = new BehaviorSubject<number>(0);
   private readonly pageSizeSubject =
     new BehaviorSubject<PublicProfilePhotoPageSize | null>(null);
@@ -257,6 +228,62 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  /**
+   * O enriquecimento da foto já passou por leitura pública do autor.
+   * Não faz uma segunda getPublicProfilesPage para o cabeçalho quando
+   * a página autorizada inclui identidade. Sem fotos, usa a consulta
+   * pública canônica, sem transportar conteúdo privado.
+   */
+  readonly profileIdentity$: Observable<PublicUserIdentity | null> =
+    this.state$.pipe(
+      map((state) => ({
+        ownerUid: state.ownerUid,
+        status: state.status,
+        mediaIdentity: publicGalleryOwnerIdentityFromMedia(
+          state.ownerUid,
+          state.items
+        ),
+      })),
+      distinctUntilChanged((previous, current) =>
+        previous.ownerUid === current.ownerUid &&
+        previous.status === current.status &&
+        samePublicGalleryOwnerIdentity(
+          previous.mediaIdentity,
+          current.mediaIdentity
+        )
+      ),
+      switchMap(({ ownerUid, status, mediaIdentity }) => {
+        if (!ownerUid || status === 'loading' || status === 'error') {
+          return of(null);
+        }
+        if (mediaIdentity) return of(mediaIdentity);
+
+        return this.publicUserQuery.getPublicUserById$(ownerUid).pipe(
+          map((profile): PublicUserIdentity | null => {
+            if (profile?.uid !== ownerUid || !profile.nickname?.trim()) {
+              return null;
+            }
+            return normalizePublicUserIdentity({
+              nickname: profile.nickname,
+              avatarUrl: profile.photoURL,
+              identityCode: profile.identityCode ?? profile.gender,
+              orientation: profile.orientation,
+              city: profile.municipio,
+              state: profile.estado,
+            });
+          }),
+          catchError((error: unknown) => {
+            this.reportError('media_discovery_load_failed', error, {
+              op: 'loadGalleryProfileIdentity',
+            });
+            return of(null);
+          }),
+          startWith(null)
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   readonly publicPhotos$: Observable<IPublicPhotoItem[]> = this.state$.pipe(
     map((state) => [...state.items]),
