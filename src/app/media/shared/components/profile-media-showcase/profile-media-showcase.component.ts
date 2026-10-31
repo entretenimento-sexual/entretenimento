@@ -36,6 +36,7 @@ import { MediaApplicationErrorService } from 'src/app/core/services/media/media-
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import {
   IPublicProfileMediaPreview,
+  PublicProfileMediaMetrics,
   MediaPublicPreviewQueryService,
 } from 'src/app/core/services/media/media-public-preview-query.service';
 import { ProfileMediaShowcaseViewerFacade } from './profile-media-showcase-viewer.facade';
@@ -72,6 +73,8 @@ export class ProfileMediaShowcaseComponent {
 
   readonly ownerUid = input.required<string>();
   readonly profileName = input('Perfil');
+  /** Snapshot backend-time sanitizado pelo perfil já carregado. */
+  readonly profileMetrics = input<PublicProfileMediaMetrics | null>(null);
   readonly viewerOpening = this.viewerFacade.opening;
 
   private readonly refreshSubject = new BehaviorSubject<number>(0);
@@ -99,7 +102,10 @@ export class ProfileMediaShowcaseComponent {
       return this.mediaPublicPreview.getProfilePublicMediaPreview$(
         ownerUid,
         SHOWCASE_ITEM_LIMIT,
-        { propagateErrors: true }
+        {
+          propagateErrors: true,
+          profileMetrics: this.profileMetrics(),
+        }
       ).pipe(
         map((preview) => this.buildState(
           preview.items.length > 0 ? 'ready' : 'empty',
