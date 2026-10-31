@@ -32,7 +32,10 @@ export class PublicPhotoOwnerEnrichmentService {
     );
 
     if (!ownerUids.length) {
-      return of(items);
+      return of(items.map((item) => ({
+        ...item,
+        ownerIdentityFromPublicProfile: false,
+      })));
     }
 
     return this.discoveryQuery
@@ -59,12 +62,15 @@ export class PublicPhotoOwnerEnrichmentService {
     projection: IPublicPhotoProjection,
     owner: IUserDados | null
   ): IPublicPhotoProjection {
-    if (!owner) {
-      return projection;
+    // Projeções legadas podem carregar nomes antigos. Só o lookup público
+    // efetivamente confirmado para este UID habilita uso no cabeçalho.
+    if (!owner || !this.cleanText(owner.nickname)) {
+      return { ...projection, ownerIdentityFromPublicProfile: false };
     }
 
     return {
       ...projection,
+      ownerIdentityFromPublicProfile: true,
       ownerNickname: this.preferText(owner.nickname, projection.ownerNickname),
       ownerPhotoURL: this.preferText(owner.photoURL, projection.ownerPhotoURL),
       ownerGender: this.preferText(owner.gender, projection.ownerGender),
