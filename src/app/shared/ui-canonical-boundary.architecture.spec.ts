@@ -1900,10 +1900,13 @@ describe('Canonical UI boundary', () => {
     );
 
     expect(publicPhotos).toContain(
-      '<app-page-header title="Fotos">'
+      '<app-page-header title="Fotos"></app-page-header>'
     );
-    // A tela visitada deve identificar o proprietário e permitir retorno ao perfil.
-    expect(publicPhotos).toContain('Voltar ao perfil');
+    // A página mantém h1 acessível, enquanto somente a aba ativa
+    // identifica visualmente a seção e apresenta o número carregado.
+    expect(publicPhotos).toContain('class="visually-hidden"');
+    expect(publicPhotos).toContain('class="visited-gallery-header__tab-count"');
+    expect(publicPhotos).toContain('profileReturnRoute(ownerUid, viewerUid)');
     expect(publicPhotos).toContain('visited-gallery-header__identity');
     expect(publicPhotos).toContain('<app-public-user-identity');
     expect(publicPhotos).toContain('[identity]="identity"');
@@ -1915,11 +1918,12 @@ describe('Canonical UI boundary', () => {
     expect(publicPhotoStyles).not.toContain('.gallery-pill');
     expect(publicPhotoStyles).not.toContain('.gallery-strip');
 
-    expect(publicVideos).toContain('<app-page-header title="Vídeos">');
+    expect(publicVideos).toContain('<app-page-header title="Vídeos"></app-page-header>');
     expect(publicVideos).not.toContain('<h1 id="public-profile-videos-title">');
-    // O retorno compacto usa o PageHeader canônico, sem recriar cabeçalho legado.
-    expect(publicVideos).toContain('class="public-videos-page__back"');
-    expect(publicVideos).toContain('title="Voltar ao perfil"');
+    expect(publicVideos).toContain('class="visually-hidden"');
+    expect(publicVideos).toContain('class="public-videos-page__tab-count"');
+    expect(publicVideos).toContain('profileReturnRoute(galleryProfileUid, viewerUid)');
+    expect(publicVideos).not.toContain('class="public-videos-page__back"');
     expect(publicVideoStyles).not.toContain('.back-link');
     expect(publicVideoStyles).not.toContain('.public-videos-header');
     expect(publicVideoStyles).not.toContain('.title-block');
