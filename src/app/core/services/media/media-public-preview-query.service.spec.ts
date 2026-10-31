@@ -163,6 +163,7 @@ describe('MediaPublicPreviewQueryService / métricas opcionais', () => {
       code: 'permission-denied',
     });
     const reportSilently = vi.fn();
+    const deferObservable$ = vi.fn(() => throwError(() => denied));
     const read$ = vi.fn((request: { mediaType: string }) =>
       denyBackend && request.mediaType === 'PHOTO'
         ? throwError(() => denied)
@@ -189,7 +190,7 @@ describe('MediaPublicPreviewQueryService / métricas opcionais', () => {
         {
           provide: FirestoreContextService,
           useValue: {
-            deferObservable$: vi.fn(() => throwError(() => denied)),
+            deferObservable$,
           },
         },
         { provide: PublicMediaReadBoundaryService, useValue: { read$ } },
@@ -210,28 +211,45 @@ describe('MediaPublicPreviewQueryService / métricas opcionais', () => {
     return {
       query: TestBed.inject(MediaPublicPreviewQueryService),
       read$,
+      deferObservable$,
       reportSilently,
       denied,
     };
   }
 
-  it('mantém fotos autorizadas quando a leitura opcional de métricas é negada', async () => {
-    const { query, read$, reportSilently } = setup();
+  it('reutiliza contagens do discovery sem consultar Firestore diretamente', async () => {
+    const { query, read$, reportSilently, deferObservable$ } = setup();
+    const result = await firstValueFrom(
+      query.getProfilePublicMediaPreview$('owner-1', 5, {
+        propagateErrors: true,
+        profileMetrics: {
+          publicPhotosCount: 42,
+          publicVideosCount: 7,
+        },
+      })
+    );
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].id).toBe('photo-publica');
+    expect(result.photosCount).toBe(42);
+    expect(result.videosCount).toBe(7);
+    expect(result.totalCount).toBe(49);
+    expect(read$).toHaveBeenCalledTimes(2);
+    expect(deferObservable$).not.toHaveBeenCalled();
+    expect(reportSilently).not.toHaveBeenCalled();
+  });
+
+  it('sem métricas fornecidas mantém contagem mínima sem leitura privada', async () => {
+    const { query, deferObservable$ } = setup();
     const result = await firstValueFrom(
       query.getProfilePublicMediaPreview$('owner-1', 5, {
         propagateErrors: true,
       })
     );
 
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0].id).toBe('photo-publica');
-    expect(read$).toHaveBeenCalledTimes(2);
-    expect(reportSilently).toHaveBeenCalledWith(
-      expect.objectContaining({ code: 'permission-denied' }),
-      'getProfileMediaMetrics$',
-      expect.any(String),
-      expect.objectContaining({ ownerUid: 'owner-1' })
-    );
+    expect(result.photosCount).toBe(1);
+    expect(result.videosCount).toBe(0);
+    expect(deferObservable$).not.toHaveBeenCalled();
   });
 
   it('não ignora a rejeição da callable que autoriza a própria mídia', async () => {
