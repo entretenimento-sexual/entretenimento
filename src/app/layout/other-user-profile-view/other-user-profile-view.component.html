@@ -209,6 +209,7 @@
           [ownerUid]="uid || ''"
           [profileName]="displayName"
           [profileMetrics]="{
+            ownerUid: profile.uid,
             publicPhotosCount: profile.photosCount,
             publicVideosCount: profile.videosCount,
             coverPhotoId: profile.coverPhotoId
