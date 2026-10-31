@@ -380,15 +380,15 @@ export class PublicVideoAccessService {
       data: candidate,
     });
 
-    return projection && this.isEligibleProjection(projection)
-      ? {
-          ...projection,
-          // O mapper descarta atributos não persistentes. Restaurar somente
-          // o resultado transitório produzido pelo enriquecimento do autor.
-          ownerIdentityFromPublicProfile:
-            candidate.ownerIdentityFromPublicProfile === true,
-        }
-      : null;
+    if (!projection || !this.isEligibleProjection(projection)) {
+      return null;
+    }
+
+    // O mapper ignora atributos não persistentes. Repor somente o marcador
+    // criado pelo enriquecimento público na mesma operação, nunca do backend.
+    return candidate.ownerIdentityFromPublicProfile === true
+      ? { ...projection, ownerIdentityFromPublicProfile: true }
+      : projection;
   }
 
   private isEligibleProjection(
