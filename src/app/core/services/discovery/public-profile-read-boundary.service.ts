@@ -102,7 +102,7 @@ export class PublicProfileReadBoundaryService {
         : undefined;
       if (pending) return pending;
 
-      const response$ = defer(() =>
+      const shared$ = defer(() =>
         from(this.getPublicProfilesPageCallable(request))
       ).pipe(
         map((response) => response.data),
@@ -116,14 +116,11 @@ export class PublicProfileReadBoundaryService {
           },
         }),
         finalize(() => {
-          if (key && this.pendingByViewerAndRequest.get(key) === shared$) {
-            this.pendingByViewerAndRequest.delete(key);
-          }
+          if (key) this.pendingByViewerAndRequest.delete(key);
         }),
         shareReplay({ bufferSize: 1, refCount: true })
       );
 
-      const shared$ = response$;
       if (key) this.pendingByViewerAndRequest.set(key, shared$);
       return shared$;
     });
