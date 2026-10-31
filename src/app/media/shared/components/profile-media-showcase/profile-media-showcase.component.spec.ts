@@ -165,11 +165,34 @@ describe('ProfileMediaShowcaseComponent', () => {
     );
   });
 
+  it('repassa metadados autorizados recebidos do perfil sem outra consulta', async () => {
+    fixture.componentRef.setInput('profileMetrics', {
+      publicPhotosCount: 8,
+      publicVideosCount: 4,
+      coverPhotoId: 'approved-cover',
+    });
+    fixture.componentInstance.retry();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(mediaPublicPreview.getProfilePublicMediaPreview$).toHaveBeenLastCalledWith(
+      'target-uid', 5, {
+        propagateErrors: true,
+        profileMetrics: {
+          publicPhotosCount: 8,
+          publicVideosCount: 4,
+          coverPhotoId: 'approved-cover',
+        },
+      }
+    );
+  });
+
   it('consulta somente a prévia limitada a cinco mídias', () => {
     expect(mediaPublicPreview.getProfilePublicMediaPreview$).toHaveBeenCalledWith(
       'target-uid',
       5,
-      { propagateErrors: true }
+      { propagateErrors: true, profileMetrics: null }
     );
   });
 
