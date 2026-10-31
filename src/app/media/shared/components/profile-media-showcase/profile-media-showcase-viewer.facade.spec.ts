@@ -72,7 +72,7 @@ describe('ProfileMediaShowcaseViewerFacade', () => {
     expect(getProfilePublicMediaPreview$).toHaveBeenCalledWith(
       'owner-1',
       5,
-      { propagateErrors: true }
+      { propagateErrors: true, profileMetrics: null }
     );
     expect(open$).toHaveBeenCalledWith({
       items: [photo, video],
@@ -80,6 +80,42 @@ describe('ProfileMediaShowcaseViewerFacade', () => {
       source: 'profile',
     });
     expect(facade.opening()).toBe(false);
+  });
+
+  it('repassa a capa já publicada e preserva a seleção da miniatura ao revalidar', async () => {
+    const selectedCover = {
+      ...photo,
+      id: 'cover-outside-initial-window',
+      isCover: true,
+    };
+    const { facade, getProfilePublicMediaPreview$, open$ } = setup({
+      previewItems: [selectedCover, video],
+    });
+
+    await firstValueFrom(facade.open$(
+      'owner-1',
+      selectedCover,
+      0,
+      () => true,
+      { coverPhotoId: selectedCover.id, publicPhotosCount: 13 }
+    ));
+
+    expect(getProfilePublicMediaPreview$).toHaveBeenCalledWith(
+      'owner-1',
+      5,
+      {
+        propagateErrors: true,
+        profileMetrics: {
+          coverPhotoId: 'cover-outside-initial-window',
+          publicPhotosCount: 13,
+        },
+      }
+    );
+    expect(open$).toHaveBeenCalledWith({
+      items: [selectedCover, video],
+      selected: selectedCover,
+      source: 'profile',
+    });
   });
 
   it('não abre uma prévia obsoleta depois da troca de perfil', () => {
