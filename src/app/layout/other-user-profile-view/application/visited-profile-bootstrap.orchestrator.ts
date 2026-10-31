@@ -19,6 +19,10 @@ export type VisitedProfileBootstrapResult =
       targetUid: string | null;
     }
   | {
+      kind: 'load-error';
+      targetUid: string;
+    }
+  | {
       kind: 'redirect-own-profile';
       targetUid: string;
     };
@@ -58,7 +62,9 @@ export class VisitedProfileBootstrapOrchestrator {
           return this.redirectOwnProfile$(targetUid);
         }
 
-        return this.firestoreUserQuery.getPublicUserById$(targetUid).pipe(
+        return this.firestoreUserQuery.getPublicUserById$(targetUid, {
+          propagateErrors: true,
+        }).pipe(
           map((profile) => {
             if (profile) {
               return {
@@ -87,7 +93,7 @@ export class VisitedProfileBootstrapOrchestrator {
             );
 
             return of({
-              kind: 'missing',
+              kind: 'load-error',
               targetUid,
             } as VisitedProfileBootstrapResult);
           })
