@@ -159,3 +159,30 @@ Correção localizada:
 - grid de 1–4 colunas, thumbnails uniformes e sem promoção artificial de capa, além de viewer, seleção por ID e URLs assinadas intactos.
 
 Contratos de layout atualizados para os dois tipos de mídia. **A compilação/testes após estes commits e a confirmação visual ainda precisam ocorrer localmente**; 2.849 testes aprovados não incluem esta revisão. Nenhuma alteração das Rules, moderação, dados pessoais, deploy de produção, branch ou PR.
+
+## Galerias: remover cabeçalho duplicado e mostrar quantitativo na aba — 31/10/2026
+
+Capturas de validação mostram a galeria pública de fotos com **dois títulos visuais**
+para a mesma seção: barra superior “Fotos” com retorno e contador “2 fotos”,
+seguida de cartão de identidade e aba “Fotos” ativa. A duplicação aumenta
+a altura e coloca o contador longe da navegação correspondente.
+
+Decisão editorial aplicada simetricamente a fotos e vídeos:
+- eliminar a barra superior visível e seu retorno redundante, porque **Perfil**
+  na navegação abaixo já é um link canônico de retorno ao proprietário;
+- preservar `app-page-header` como `h1` semanticamente acessível dentro de
+  `visually-hidden`, sem introduzir um segundo título visual;
+- apresentar a quantidade de itens **efetivamente carregados** como badge na
+  aba ativa (por exemplo **Fotos 2** ou **Vídeos 2**), com `+` caso exista
+  paginação pendente; não afirmar quantidade total sem confirmação do backend;
+- continuar anunciando a quantidade e a existência de páginas restantes a
+  leitores de tela, manter `aria-current="page"` e área mínima de toque
+  de 44 px; manter abas **Perfil/Fotos/Vídeos** e rotas existentes;
+- remover seletores CSS aposentados, sem alterar cartões, ordem, moderação,
+  permissões, URLs ou comportamento do viewer.
+
+Os testes estáticos de HTML/CSS e o contrato arquitetural do PageHeader foram
+ajustados para impedir o retorno da duplicação. A última execução **antes**
+dessa revisão aprovou 492/492 arquivos e 2.851/2.851 testes. **A execução da
+nova compilação e testes no Windows ainda precisa ser informada**. Código
+diretamente na `main`; sem branches, PRs, migração ou deploy em produção.
