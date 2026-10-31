@@ -40,12 +40,14 @@
                 iconClass="fas fa-circle-check"
               />
             }
-            <app-public-media-recommendation-badge
-              class="viewer-discovery-reason"
-              [source]="data.source"
-              [ownerUid]="currentOwnerUid"
-              [continuationContext]="data.continuationContext || null"
-            />
+            @if (data.source !== 'profile') {
+              <app-public-media-recommendation-badge
+                class="viewer-discovery-reason"
+                [source]="data.source"
+                [ownerUid]="currentOwnerUid"
+                [continuationContext]="data.continuationContext || null"
+              />
+            }
           </span>
         </app-public-user-identity>
       </a>
