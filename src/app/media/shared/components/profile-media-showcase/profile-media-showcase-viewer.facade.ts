@@ -5,7 +5,7 @@ import { catchError, finalize, switchMap, take } from 'rxjs/operators';
 import { IPublicProfileMediaItem } from 'src/app/core/interfaces/media/i-public-profile-media-item';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
-import { MediaPublicPreviewQueryService } from 'src/app/core/services/media/media-public-preview-query.service';
+import { MediaPublicPreviewQueryService, type PublicProfileMediaMetrics } from 'src/app/core/services/media/media-public-preview-query.service';
 import { buildPublicMediaIdentity } from 'src/app/core/utils/media/public-media-identity';
 import { PublicMixedMediaViewerLauncherService } from '../../services/public-mixed-media-viewer-launcher.service';
 
@@ -34,7 +34,8 @@ export class ProfileMediaShowcaseViewerFacade {
     ownerUid: string,
     requested: IPublicProfileMediaItem,
     fallbackIndex: number,
-    isCurrentOwner?: () => boolean
+    isCurrentOwner?: () => boolean,
+    profileMetrics?: PublicProfileMediaMetrics | null
   ): Observable<void> {
     const safeOwnerUid = String(ownerUid ?? '').trim();
     const requestedIdentity = this.identity(requested);
@@ -55,7 +56,12 @@ export class ProfileMediaShowcaseViewerFacade {
       .getProfilePublicMediaPreview$(
         safeOwnerUid,
         SHOWCASE_ITEM_LIMIT,
-        { propagateErrors: true }
+        {
+          propagateErrors: true,
+          // A mesma capa pública exibida na vitrine deve ser revalidada
+          // ao abrir, inclusive quando não está na primeira página.
+          profileMetrics: profileMetrics ?? null,
+        }
       )
       .pipe(
         take(1),
