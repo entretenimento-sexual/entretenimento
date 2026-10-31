@@ -110,3 +110,38 @@ O operador apresentou nova execução Angular: **491/491 arquivos e 2.840/2.840 
 **Correção:** `open$` recebe opcionalmente o mesmo snapshot público já autorizado, repassa-o a `getProfilePublicMediaPreview$` e mantém o refresh que verifica publicação, audiência e moderação antes do viewer. `ProfileMediaShowcaseComponent` observa mudanças reais dos metadados, mas compara os valores para não executar uma nova callable a cada atualização equivalente do objeto no template. O contexto do snapshot traz `ownerUid`; a query ignora os metadados quando eles pertencem a outro proprietário, evitando reaproveitamento de contagens/capa em mudança de rota. Mídias bloqueadas ou revogadas continuam indisponíveis.
 
 Incluídos testes para a capa fora da janela, estabilidade da reatividade, passagem do snapshot ao viewer e troca de proprietário. **Os novos testes ainda precisam ser executados localmente**: eles não fazem parte dos 2.840 aprovados anteriormente. Sem alteração das Rules, sem deploy, branch ou PR.
+
+## Viewer público de foto: correção visual após captura real — 31/10/2026
+
+A captura do usuário mostra um viewer imersivo de foto do perfil visitado no desktop,
+com a imagem tomando praticamente toda a altura da janela, o selo redundante
+`Do perfil` no cabeçalho e a caixa de comentários separada do campo de resposta
+por uma grande faixa vazia. A suíte entregue antes desta correção estava verde:
+**491/491 arquivos e 2.844/2.844 testes**, sem falhas.
+
+Diagnóstico de CSS:
+- `.viewer-img` usava `max-height: calc(100dvh - 68px)` apesar de ficar
+  dentro de painel que também reserva cabeçalho e padding; o limite do conteúdo
+  não era a dimensão efetiva do grid;
+- `.comments-empty` tinha `flex: 1 1 auto`, empurrando o formulário de
+  comentários para o rodapé mesmo sem mensagens;
+- o componente de recomendação exibia `Do perfil` quando `source='profile'`,
+  um segundo rótulo de origem ao lado do usuário já identificado.
+
+Correção localizada em `photo-viewer.component.css/html`, compartilhada pelo
+`PhotoViewerComponent` e `PublicMixedPhotoViewerComponent`:
+- imagem dimensionada pelo painel (`width/height/max-width/max-height: 100%`
+  e `object-fit: contain`), com padding próprio e overflow contido;
+- coluna de comentários com largura e fluxo compactos; estado vazio não estica,
+  formulário e reações permanecem próximos;
+- cabeçalho compacto sem projeção de suplemento vazio e sem `Do perfil`
+  redundante; selo `Oficial` continua preservado;
+- layout adaptativo em tablet, smartphone e paisagem de baixa altura,
+  mantendo controles de 44px, anúncios/atalhos e as interações existentes.
+
+Cobertura adicional: contrato de CSS/HTML para desktop, tablet, mobile e
+paisagem; teste de componente para ausência do selo redundante sem suprimir
+o link do proprietário. Nenhuma modificação em Rules, autorizações, moderação,
+conteúdo ou rotas. **Os novos testes e a renderização em navegador ainda
+precisam ser verificados no checkout local.** Alterações diretamente na `main`,
+sem branch ou PR, sem deploy de produção.
