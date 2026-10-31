@@ -5,6 +5,8 @@
 
 .public-videos-page {
   width: min(100%, 1480px);
+  min-width: 0;
+  box-sizing: border-box;
   margin-inline: auto;
   padding: clamp(16px, 2vw, 28px) clamp(12px, 2.2vw, 30px) 48px;
   /* Resolve columns against the gallery surface, not the viewport. */
