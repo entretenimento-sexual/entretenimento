@@ -272,3 +272,29 @@ orientação para casais. Ajustados contratos de cache e layout.
 no Windows após sincronizar a `main`. Os 2.859 testes previamente aprovados
 não incluem essa rodada. Nenhuma alteração do backend, Rules, quota ou deploy.
 Trabalho exclusivamente na `main` sem branch ou PR.
+
+## Acabamento responsivo do perfil e galerias — 31/10/2026
+
+Etapa seguinte à validação de quota (captura com sete respostas HTTP 200,
+três preflights 204 e zero HTTP 429 em `getPublicProfilesPage`; não equivale
+a medição estritamente controlada do percurso).
+
+- `ProfileMediaShowcaseComponent`: cabeçalho **Mídias** alinhado ao início,
+  com margem do título zerada, para seguir o mesmo eixo da seção **Sobre**.
+  A grade, a ordem de seleção, o lançamento do viewer e o retorno de foco
+  são preservados.
+- `OtherUserProfileViewComponent`: abas adaptadas à largura efetiva do
+  contêiner `visited-profile`, inclusive quando o navegador é largo e
+  o perfil está restrito por um shell/sidebar. Rolagem horizontal quando
+  necessária, barra fina perceptível e alvos de 44px mantidos.
+- `PublicProfileVideosComponent`: `min-width: 0` e
+  `box-sizing: border-box` evitam que largura integral mais padding
+  excedam o espaço disponível. A galeria de fotos já tinha essa proteção.
+- Novos testes de contrato para alinhamento, quebra responsiva e largura
+  da galeria. Sem mudanças em Callables, permissões, moderação, quotas,
+  paginação, retorno canônico ou URLs de acesso temporário.
+
+Validação estática de seletores e estrutura aprovada no GitHub; executar
+`npm.cmd run build:emu` e `npm.cmd test -- --watch=false` após
+sincronização local. Não foi realizado deploy. Edição somente na `main`,
+sem branches ou PRs.
