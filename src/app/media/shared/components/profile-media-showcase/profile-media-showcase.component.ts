@@ -83,6 +83,18 @@ export class ProfileMediaShowcaseComponent {
     distinctUntilChanged()
   );
 
+  // O shell pode atualizar o objeto do perfil em ciclos de CD.
+  // Evitar nova Callable quando os valores públicos não mudaram.
+  private readonly profileMetrics$ = toObservable(this.profileMetrics).pipe(
+    distinctUntilChanged((previous, current) =>
+      previous?.publicPhotosCount === current?.publicPhotosCount &&
+      previous?.photosCount === current?.photosCount &&
+      previous?.publicVideosCount === current?.publicVideosCount &&
+      previous?.videosCount === current?.videosCount &&
+      previous?.coverPhotoId === current?.coverPhotoId
+    )
+  );
+
   readonly photoGalleryLink = computed(() => [
     '/media',
     'perfil',
@@ -92,9 +104,10 @@ export class ProfileMediaShowcaseComponent {
 
   readonly state$: Observable<ProfileMediaShowcaseState> = combineLatest([
     this.ownerUid$,
+    this.profileMetrics$,
     this.refreshSubject,
   ]).pipe(
-    switchMap(([ownerUid]) => {
+    switchMap(([ownerUid, profileMetrics]) => {
       if (!ownerUid) {
         return of(this.buildState('empty'));
       }
@@ -104,7 +117,7 @@ export class ProfileMediaShowcaseComponent {
         SHOWCASE_ITEM_LIMIT,
         {
           propagateErrors: true,
-          profileMetrics: this.profileMetrics(),
+          profileMetrics,
         }
       ).pipe(
         map((preview) => this.buildState(
