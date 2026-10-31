@@ -40,6 +40,10 @@ import {
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import {
+  publicGalleryOwnerIdentityFromMedia,
+  samePublicGalleryOwnerIdentity,
+} from 'src/app/core/services/media/public-gallery-owner-identity.util';
+import {
   normalizePublicUserIdentity,
   type PublicUserIdentity,
 } from 'src/app/core/domain/public-user-identity/public-user-identity.model';
@@ -171,37 +175,6 @@ export class PublicProfileVideosComponent implements OnInit {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  /** A identidade do proprietário depende apenas de leitura pública autorizada. */
-  readonly profileIdentity$: Observable<PublicUserIdentity | null> =
-    this.ownerUid$.pipe(
-      switchMap((ownerUid) => {
-        if (!ownerUid) return of(null);
-
-        return this.publicUserQuery.getPublicUserById$(ownerUid).pipe(
-          map((profile): PublicUserIdentity | null => {
-            if (profile?.uid !== ownerUid || !profile.nickname?.trim()) {
-              return null;
-            }
-
-            return normalizePublicUserIdentity({
-              nickname: profile.nickname,
-              avatarUrl: profile.photoURL,
-              identityCode: profile.identityCode ?? profile.gender,
-              orientation: profile.orientation,
-              city: profile.municipio,
-              state: profile.estado,
-            });
-          }),
-          catchError((error: unknown) => {
-            this.reportSilent(error, { op: 'loadPublicVideoGalleryIdentity' });
-            return of(null);
-          }),
-          startWith(null)
-        );
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
   readonly requestedVideoId$: Observable<string> = this.galleryRoute$.pipe(
     map((route) => route.requestedVideoId),
     distinctUntilChanged(),
@@ -289,6 +262,61 @@ export class PublicProfileVideosComponent implements OnInit {
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  /**
+   * O acesso ao vídeo já enriquece o autor pela fronteira pública.
+   * O cabeçalho usa esse mesmo resultado quando disponível; a consulta
+   * individual permanece somente para galerias sem identidade publicada.
+   */
+  readonly profileIdentity$: Observable<PublicUserIdentity | null> =
+    combineLatest([this.galleryRoute$, this.state$]).pipe(
+      map(([route, state]) => {
+        const current = state.routeIdentity === routeIdentity(route);
+        return {
+          ownerUid: route.ownerUid,
+          status: current ? state.status : 'loading',
+          mediaIdentity: current
+            ? publicGalleryOwnerIdentityFromMedia(route.ownerUid, state.items)
+            : null,
+        };
+      }),
+      distinctUntilChanged((previous, current) =>
+        previous.ownerUid === current.ownerUid &&
+        previous.status === current.status &&
+        samePublicGalleryOwnerIdentity(
+          previous.mediaIdentity,
+          current.mediaIdentity
+        )
+      ),
+      switchMap(({ ownerUid, status, mediaIdentity }) => {
+        if (!ownerUid || status === 'loading' || status === 'error') {
+          return of(null);
+        }
+        if (mediaIdentity) return of(mediaIdentity);
+
+        return this.publicUserQuery.getPublicUserById$(ownerUid).pipe(
+          map((profile): PublicUserIdentity | null => {
+            if (profile?.uid !== ownerUid || !profile.nickname?.trim()) {
+              return null;
+            }
+            return normalizePublicUserIdentity({
+              nickname: profile.nickname,
+              avatarUrl: profile.photoURL,
+              identityCode: profile.identityCode ?? profile.gender,
+              orientation: profile.orientation,
+              city: profile.municipio,
+              state: profile.estado,
+            });
+          }),
+          catchError((error: unknown) => {
+            this.reportSilent(error, { op: 'loadPublicVideoGalleryIdentity' });
+            return of(null);
+          }),
+          startWith(null)
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   ngOnInit(): void {
     this.watchRequestedVideo();
