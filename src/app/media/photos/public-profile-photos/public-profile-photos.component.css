@@ -19,16 +19,25 @@
 
 
 /* A página usa a largura de trabalho disponível sem reduzir a grade a um feed. */
-app-page-header {
+.visited-gallery-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  margin-bottom: clamp(0.55rem, 1vw, 0.9rem);
+}
+
+.visited-gallery-heading app-page-header {
   display: block;
-  margin-bottom: 0.9rem;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* Contexto do perfil visitado: identificação acessível antes do grid. */
 .visited-gallery-header {
   display: grid;
   gap: 0.45rem;
-  margin-bottom: clamp(0.85rem, 1.8vw, 1.4rem);
+  margin-bottom: clamp(0.7rem, 1.3vw, 1rem);
   min-width: 0;
 }
 
@@ -40,7 +49,7 @@ app-page-header {
   height: 44px;
   border-radius: 50%;
   color: var(--text-secondary, #9ba7b5);
-  opacity: 0.75;
+  opacity: 0.85;
   font-size: 0.86rem;
   text-decoration: none;
 }
@@ -61,7 +70,7 @@ app-page-header {
   flex-wrap: wrap;
   gap: 0.7rem;
   min-width: 0;
-  padding: 2.85rem clamp(0.8rem, 1.7vw, 1.3rem) 0.85rem;
+  padding: clamp(0.7rem, 1.2vw, 0.95rem) clamp(0.8rem, 1.7vw, 1.3rem);
   overflow: hidden;
   isolation: isolate;
   border: 1px solid var(--surface-border, #293545);
@@ -74,10 +83,11 @@ app-page-header {
   position: absolute;
   z-index: -1;
   inset: 0 0 auto;
-  height: 3.6rem;
+  height: 100%;
+  opacity: 0.44;
   background:
-    radial-gradient(ellipse at 80% 8%, color-mix(in oklab, var(--primary-color, #ff6b81) 24%, transparent), transparent 58%),
-    linear-gradient(115deg, color-mix(in oklab, var(--surface-color, #111925) 85%, #321a35 15%), var(--surface-color, #111925));
+    radial-gradient(ellipse at 86% 0%, color-mix(in oklab, var(--primary-color, #ff6b81) 16%, transparent), transparent 62%),
+    linear-gradient(115deg, color-mix(in oklab, var(--surface-color, #111925) 94%, #321a35 6%), var(--surface-color, #111925));
   pointer-events: none;
 }
 
@@ -90,13 +100,12 @@ app-page-header {
 }
 
 .visited-gallery-header__identity app-public-user-identity {
-  --public-user-identity-avatar-size: clamp(52px, 5vw, 66px);
-  --public-user-identity-name-size: clamp(1.25rem, 2vw, 1.65rem);
-  --public-user-identity-meta-size: 0.82rem;
-  --public-user-identity-gap: clamp(0.55rem, 1.2vw, 0.9rem);
+  --public-user-identity-avatar-size: clamp(44px, 4vw, 54px);
+  --public-user-identity-name-size: clamp(1.05rem, 1.5vw, 1.3rem);
+  --public-user-identity-meta-size: 0.76rem;
+  --public-user-identity-gap: clamp(0.5rem, 1vw, 0.8rem);
   width: 100%;
   max-width: 680px;
-  margin-top: -0.8rem;
 }
 
 .visited-gallery-header__unavailable {
