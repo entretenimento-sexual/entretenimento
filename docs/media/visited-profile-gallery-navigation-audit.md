@@ -100,3 +100,13 @@ adicionais publicadas diretamente na `main`, sem branch/PR ou deploy.
 A validação de compilação e testes desta revisão, bem como a inspeção
 visual em diferentes larguras, ainda precisa ocorrer no checkout local;
 não confundir os 2.835 testes aprovados anteriormente com a nova suíte.
+
+## Revisão do retorno do viewer após suíte 2.840/2.840 — 31/10/2026
+
+O operador apresentou nova execução Angular: **491/491 arquivos e 2.840/2.840 testes aprovados**. Os warnings de jsdom, Forms e `httpsCallable` permanecem não bloqueantes na suíte. O arquivo enviado apresenta apenas a execução Angular; a aprovação de builds/backend e a verificação visual da última revisão não são deduzidas desse registro.
+
+**Bug concreto detectado na revisão estática:** a primeira prévia pública preservava `coverPhotoId` vindo de discovery, mas `ProfileMediaShowcaseViewerFacade.open$` reexecutava a mesma consulta sem os metadados. Caso a capa estivesse fora da primeira janela, a miniatura selecionada deixaria de ser encontrada no refresh e o viewer apresentaria falsa indisponibilidade.
+
+**Correção:** `open$` recebe opcionalmente o mesmo snapshot público já autorizado, repassa-o a `getProfilePublicMediaPreview$` e mantém o refresh que verifica publicação, audiência e moderação antes do viewer. `ProfileMediaShowcaseComponent` observa mudanças reais dos metadados, mas compara os valores para não executar uma nova callable a cada atualização equivalente do objeto no template. O contexto do snapshot traz `ownerUid`; a query ignora os metadados quando eles pertencem a outro proprietário, evitando reaproveitamento de contagens/capa em mudança de rota. Mídias bloqueadas ou revogadas continuam indisponíveis.
+
+Incluídos testes para a capa fora da janela, estabilidade da reatividade, passagem do snapshot ao viewer e troca de proprietário. **Os novos testes ainda precisam ser executados localmente**: eles não fazem parte dos 2.840 aprovados anteriormente. Sem alteração das Rules, sem deploy, branch ou PR.
