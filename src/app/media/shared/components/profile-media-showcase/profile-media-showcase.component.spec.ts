@@ -188,6 +188,37 @@ describe('ProfileMediaShowcaseComponent', () => {
     );
   });
 
+  it('evita nova consulta para métricas iguais e reage a mudança real', async () => {
+    const metrics = {
+      publicPhotosCount: 8,
+      publicVideosCount: 2,
+      coverPhotoId: 'cover-approved',
+    };
+    fixture.componentRef.setInput('profileMetrics', metrics);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const afterFirst = mediaPublicPreview.getProfilePublicMediaPreview$.mock.calls.length;
+
+    fixture.componentRef.setInput('profileMetrics', { ...metrics });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(mediaPublicPreview.getProfilePublicMediaPreview$).toHaveBeenCalledTimes(afterFirst);
+
+    fixture.componentRef.setInput('profileMetrics', {
+      ...metrics,
+      publicVideosCount: 3,
+    });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(mediaPublicPreview.getProfilePublicMediaPreview$).toHaveBeenCalledTimes(
+      afterFirst + 1
+    );
+  });
+
   it('consulta somente a prévia limitada a cinco mídias', () => {
     expect(mediaPublicPreview.getProfilePublicMediaPreview$).toHaveBeenCalledWith(
       'target-uid',
@@ -218,6 +249,32 @@ describe('ProfileMediaShowcaseComponent', () => {
 
     expect(mixedViewerLauncher.open$).toHaveBeenCalledWith({
       items: [photo, video],
+      selected: photo,
+      source: 'profile',
+    });
+  });
+
+  it('preserva o ID da capa no refresh antes da abertura do visualizador', async () => {
+    const metrics = {
+      publicPhotosCount: 14,
+      publicVideosCount: 1,
+      coverPhotoId: 'photo-1',
+    };
+    fixture.componentRef.setInput('profileMetrics', metrics);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    fixture.componentInstance.openMedia(photo, 0);
+    await fixture.whenStable();
+
+    expect(mediaPublicPreview.getProfilePublicMediaPreview$).toHaveBeenLastCalledWith(
+      'target-uid',
+      5,
+      { propagateErrors: true, profileMetrics: metrics }
+    );
+    expect(mixedViewerLauncher.open$).toHaveBeenCalledWith({
+      items: [photo],
       selected: photo,
       source: 'profile',
     });
