@@ -65,7 +65,10 @@ describe('PublicPhotoOwnerEnrichmentService', () => {
     });
 
     const service = TestBed.inject(PublicPhotoOwnerEnrichmentService);
-    const source = projection('photo-1', 'owner-1', 'Autor legado');
+    const source = {
+      ...projection('photo-1', 'owner-1', 'Autor legado'),
+      ownerIdentityFromPublicProfile: true, // marcador falso vindo de projeção legada
+    };
     const result = await firstValueFrom(service.enrich$([source]));
 
     expect(result[0]).toMatchObject({
