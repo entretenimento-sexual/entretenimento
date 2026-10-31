@@ -326,19 +326,16 @@ describe('ProfileMediaShowcaseComponent', () => {
     expect(firstAriaLabel).toContain('1 de 11');
   });
 
-  it('usa o tipo disponível como título sem repetir a navegação', () => {
+  it('mantém o título Mídias sem duplicar as abas do perfil', () => {
     const header = fixture.debugElement.query(
       By.css('.profile-media-showcase__header')
     );
     const heading = header.query(By.css('h2')).nativeElement as HTMLElement;
-    const links = header.query(
-      By.css('.profile-media-showcase__links')
-    ).nativeElement as HTMLElement;
     const text = fixture.nativeElement.textContent as string;
 
-    expect(heading.textContent?.trim()).toBe('Fotos');
-    expect(links.textContent?.trim()).toContain('Ver todas');
-    expect(links.textContent).not.toContain('Fotos');
+    expect(heading.textContent?.trim()).toBe('Mídias');
+    expect(header.query(By.css('.profile-media-showcase__links'))).toBeNull();
+    expect(text).not.toContain('Ver todas');
     expect(text).not.toContain('Galeria de');
     expect(text).not.toContain('Toque em uma mídia');
     expect(text).not.toContain('Abrir destaque');
@@ -410,7 +407,7 @@ describe('ProfileMediaShowcaseComponent', () => {
     ).toBe(false);
   });
 
-  it('contextualiza a seção quando há somente vídeos', async () => {
+  it('mantém a seção Mídias estável quando há somente vídeos', async () => {
     mediaItems = [video];
     totalPhotosCount = 0;
     totalVideosCount = 1;
@@ -422,9 +419,6 @@ describe('ProfileMediaShowcaseComponent', () => {
     const heading = fixture.debugElement.query(
       By.css('.profile-media-showcase__header h2')
     ).nativeElement as HTMLElement;
-    const links = fixture.debugElement.query(
-      By.css('.profile-media-showcase__links')
-    ).nativeElement as HTMLElement;
     const grid = fixture.debugElement.query(
       By.css('.profile-media-showcase__grid')
     ).nativeElement as HTMLElement;
@@ -432,15 +426,16 @@ describe('ProfileMediaShowcaseComponent', () => {
       By.css('.profile-media-showcase__item--video')
     ).nativeElement as HTMLElement;
 
-    expect(heading.textContent?.trim()).toBe('Vídeos');
-    expect(links.textContent?.trim()).toContain('Ver todos');
+    expect(heading.textContent?.trim()).toBe('Mídias');
     expect(grid.className).toBe('profile-media-showcase__grid');
     expect(
       item.classList.contains('profile-media-showcase__item--featured')
     ).toBe(false);
+    expect(fixture.debugElement.query(By.css('.profile-media-showcase__links')))
+      .toBeNull();
   });
 
-  it('mantém atalhos separados quando fotos e vídeos coexistem', async () => {
+  it('exibe fotos e vídeos no mesmo mosaico sem duplicar os links das abas', async () => {
     mediaItems = [photo, video];
     totalPhotosCount = 1;
     totalVideosCount = 1;
@@ -452,14 +447,14 @@ describe('ProfileMediaShowcaseComponent', () => {
     const heading = fixture.debugElement.query(
       By.css('.profile-media-showcase__header h2')
     ).nativeElement as HTMLElement;
-    const links = fixture.debugElement.query(
-      By.css('.profile-media-showcase__links')
-    ).nativeElement as HTMLElement;
+    const buttons = fixture.debugElement.queryAll(
+      By.css('.profile-media-showcase__item')
+    );
 
     expect(heading.textContent?.trim()).toBe('Mídias');
-    expect(links.textContent).toContain('Fotos');
-    expect(links.textContent).toContain('Vídeos');
-    expect(links.textContent).not.toContain('Ver todas');
-    expect(links.textContent).not.toContain('Ver todos');
+    expect(buttons).toHaveLength(2);
+    expect(fixture.debugElement.query(By.css('.profile-media-showcase__links')))
+      .toBeNull();
   });
+
 });
