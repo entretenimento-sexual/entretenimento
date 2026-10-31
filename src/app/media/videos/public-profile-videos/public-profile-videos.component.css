@@ -11,13 +11,28 @@
   container: public-videos-gallery / inline-size;
 }
 
+/* O retorno permanece ao lado do título; a contagem fica nas ações canônicas. */
+.public-videos-page__heading {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  margin-bottom: clamp(0.55rem, 1vw, 0.9rem);
+}
+
+.public-videos-page__heading app-page-header {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* Mesmo componente de identificação usado na galeria pública de fotos. */
 .public-videos-identity {
   position: relative;
   isolation: isolate;
   min-width: 0;
   margin-bottom: 0.45rem;
-  padding: 2.85rem clamp(0.8rem, 1.7vw, 1.3rem) 0.85rem;
+  padding: clamp(0.7rem, 1.2vw, 0.95rem) clamp(0.8rem, 1.7vw, 1.3rem);
   overflow: hidden;
   border: 1px solid var(--surface-border, #293545);
   border-radius: 0.9rem;
@@ -29,21 +44,21 @@
   position: absolute;
   z-index: -1;
   inset: 0 0 auto;
-  height: 3.6rem;
+  height: 100%;
+  opacity: 0.44;
   background:
-    radial-gradient(ellipse at 80% 8%, color-mix(in oklab, var(--primary-color, #ff6b81) 24%, transparent), transparent 58%),
-    linear-gradient(115deg, color-mix(in oklab, var(--surface-color, #111925) 85%, #321a35 15%), var(--surface-color, #111925));
+    radial-gradient(ellipse at 86% 0%, color-mix(in oklab, var(--primary-color, #ff6b81) 16%, transparent), transparent 62%),
+    linear-gradient(115deg, color-mix(in oklab, var(--surface-color, #111925) 94%, #321a35 6%), var(--surface-color, #111925));
   pointer-events: none;
 }
 
 .public-videos-identity app-public-user-identity {
-  --public-user-identity-avatar-size: clamp(52px, 5vw, 66px);
-  --public-user-identity-name-size: clamp(1.25rem, 2vw, 1.65rem);
-  --public-user-identity-meta-size: 0.82rem;
-  --public-user-identity-gap: clamp(0.55rem, 1.2vw, 0.9rem);
+  --public-user-identity-avatar-size: clamp(44px, 4vw, 54px);
+  --public-user-identity-name-size: clamp(1.05rem, 1.5vw, 1.3rem);
+  --public-user-identity-meta-size: 0.76rem;
+  --public-user-identity-gap: clamp(0.5rem, 1vw, 0.8rem);
   display: block;
   max-width: 680px;
-  margin-top: -0.8rem;
 }
 
 .public-videos-identity__unavailable {
