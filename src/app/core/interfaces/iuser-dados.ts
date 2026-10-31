@@ -122,6 +122,15 @@ export interface IUserDados {
   uid: string;
   /** Identidade social pública opaca. Nunca deve ser inferida a partir do UID. */
   profileId?: string | null;
+  /** Métricas públicas previamente autorizadas na consulta backend de discovery. */
+  mediaCount?: number | null;
+  publicMediaCount?: number | null;
+  photosCount?: number | null;
+  publicPhotosCount?: number | null;
+  videosCount?: number | null;
+  publicVideosCount?: number | null;
+  /** ID público de capa aprovada, revalidado pelas Rules antes de leitura. */
+  coverPhotoId?: string | null;
   nickname?: string | null;
   roomIds?: string[];
 
