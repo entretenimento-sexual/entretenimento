@@ -50,6 +50,7 @@ describe('PublicPhotoOwnerEnrichmentService', () => {
       ownerEstado: 'RJ',
     });
     expect(result[1].ownerNickname).toBe('serale');
+    expect(result[0].ownerIdentityFromPublicProfile).toBe(true);
   });
 
   it('preserva metadados legados quando o public_profile não é retornado', async () => {
@@ -67,7 +68,10 @@ describe('PublicPhotoOwnerEnrichmentService', () => {
     const source = projection('photo-1', 'owner-1', 'Autor legado');
     const result = await firstValueFrom(service.enrich$([source]));
 
-    expect(result[0]).toBe(source);
+    expect(result[0]).toMatchObject({
+      ...source,
+      ownerIdentityFromPublicProfile: false,
+    });
     expect(result[0].ownerNickname).toBe('Autor legado');
   });
 });
