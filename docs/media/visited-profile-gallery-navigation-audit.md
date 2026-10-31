@@ -298,3 +298,23 @@ Validação estática de seletores e estrutura aprovada no GitHub; executar
 `npm.cmd run build:emu` e `npm.cmd test -- --watch=false` após
 sincronização local. Não foi realizado deploy. Edição somente na `main`,
 sem branches ou PRs.
+
+## Reutilização do perfil visitado ao navegar entre usuários — 31/10/2026
+
+Auditoria funcional do percurso Pessoas → Perfil → Galerias → Perfil identificou
+que `OtherUserProfileViewComponent` chamava o bootstrap somente em `ngOnInit`.
+Ao trocar apenas o parâmetro `/outro-perfil/:id`, o Angular pode reutilizar
+esta instância e manter o perfil anterior em tela.
+
+O carregamento agora observa o `paramMap` e o retry em um único fluxo RxJS:
+`switchMap` cancela resultados obsoletos; ao mudar o alvo, a identidade e
+contextos de amizade/intenção anteriores são limpos enquanto o novo perfil
+carrega. O orquestrador recebe o UID da emissão atual, sem depender do
+`snapshot` desatualizado, preservando a assinatura antiga como padrão para
+outros consumidores. Testes cobrem A → B (pendente) → C, resposta atrasada de
+B e retry após erro transitório. Sem mudança de Rules, política de mídias,
+URLs, galeria, viewer, rotas públicas, backend ou deploy. Alterações somente
+na `main`, sem branch ou PR.
+
+**Validação pendente:** build Angular e suíte no checkout local. A inspeção
+estática e os testes acrescentados não equivalem a execução verde.

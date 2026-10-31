@@ -37,8 +37,14 @@ export class VisitedProfileBootstrapOrchestrator {
     private readonly applicationError: ApplicationErrorService
   ) {}
 
-  load$(): Observable<VisitedProfileBootstrapResult> {
-    const targetUid = this.getTargetUidFromRoute();
+  load$(
+    targetUidFromNavigation?: string | null
+  ): Observable<VisitedProfileBootstrapResult> {
+    // The explicit router emission is authoritative on reused components:
+    // snapshot-only reads can race with a subsequent profile navigation.
+    const targetUid = targetUidFromNavigation === undefined
+      ? this.getTargetUidFromRoute()
+      : String(targetUidFromNavigation ?? '').trim() || null;
 
     if (!targetUid) {
       this.report(

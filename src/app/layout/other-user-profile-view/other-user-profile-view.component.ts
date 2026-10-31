@@ -20,10 +20,11 @@ import {
   inject,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
   Observable,
+  combineLatest,
   map,
   shareReplay,
   switchMap,
@@ -58,7 +59,10 @@ import {
   VisitedProfileIntentContextFacade,
   VisitedProfileIntentContextVm,
 } from './application/visited-profile-intent-context.facade';
-import { VisitedProfileBootstrapOrchestrator } from './application/visited-profile-bootstrap.orchestrator';
+import {
+  VisitedProfileBootstrapOrchestrator,
+  type VisitedProfileBootstrapResult,
+} from './application/visited-profile-bootstrap.orchestrator';
 import { VisitedProfileAffinityPresenter } from './application/visited-profile-affinity.presenter';
 
 interface FriendshipInteractionState {
@@ -92,6 +96,8 @@ const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
 })
 export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
+  private readonly profileRefreshSubject = new BehaviorSubject(0);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly viewedProfileUid$ = new BehaviorSubject<string | null>(null);
 
@@ -124,65 +130,82 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.loadProfile();
+    // Angular reuses this component when only /outro-perfil/:id changes.
+    // A newer route cancels an older public read before it can paint the
+    // previous person's identity, media or actions on the new profile.
+    combineLatest([
+      this.route.paramMap.pipe(
+        map((params) =>
+          String(params.get('uid') ?? params.get('id') ?? '').trim()
+        ),
+        distinctUntilChanged()
+      ),
+      this.profileRefreshSubject,
+    ]).pipe(
+      switchMap(([targetUid]) => this.loadProfile$(targetUid)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe((result) => {
+      if (result.kind === 'redirect-own-profile') {
+        this.uid = result.targetUid;
+        this.userProfile = null;
+        return;
+      }
+
+      if (result.kind === 'load-error') {
+        this.uid = result.targetUid;
+        this.userProfile = null;
+        this.profileLoadError = true;
+        return;
+      }
+
+      if (result.kind === 'missing') {
+        this.uid = result.targetUid;
+        this.userProfile = null;
+        if (result.targetUid) {
+          this.viewedProfileUid$.next(result.targetUid);
+        }
+        return;
+      }
+
+      this.uid = result.targetUid;
+      this.userProfile = { ...result.profile };
+      this.viewedProfileUid$.next(result.targetUid);
+
+      this.debug('bootstrap loaded profile', {
+        hasProfile: true,
+        hasNickname: !!this.userProfile.nickname,
+        hasPhoto: !!this.userProfile.photoURL,
+      });
+    });
   }
 
   retryProfile(): void {
     if (this.isLoading) return;
-    this.loadProfile();
+    this.profileRefreshSubject.next(this.profileRefreshSubject.value + 1);
   }
 
-  private loadProfile(): void {
+  private loadProfile$(
+    targetUid: string
+  ): Observable<VisitedProfileBootstrapResult> {
     this.isLoading = true;
+    this.uid = targetUid || null;
+    this.userProfile = null;
     this.profileLoadError = false;
     this.profilePhotoFailed = false;
+    // Clear previous owner's friendship/intent context during navigation.
+    this.viewedProfileUid$.next(null);
     this.markView();
 
-    this.bootstrapOrchestrator
-      .load$()
-      .pipe(
-        finalize(() => {
-          this.isLoading = false;
-          this.markView();
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe((result) => {
-        if (result.kind === 'redirect-own-profile') {
-          this.uid = result.targetUid;
-          this.userProfile = null;
-          return;
-        }
-
-        if (result.kind === 'load-error') {
-          this.uid = result.targetUid;
-          this.userProfile = null;
-          this.profileLoadError = true;
-          return;
-        }
-
-        if (result.kind === 'missing') {
-          this.uid = result.targetUid;
-          this.userProfile = null;
-          if (result.targetUid) {
-            this.viewedProfileUid$.next(result.targetUid);
-          }
-          return;
-        }
-
-        this.uid = result.targetUid;
-        this.userProfile = { ...result.profile };
-        this.viewedProfileUid$.next(result.targetUid);
-
-        this.debug('bootstrap loaded profile', {
-          hasProfile: true,
-          hasNickname: !!this.userProfile.nickname,
-          hasPhoto: !!this.userProfile.photoURL,
-        });
-      });
+    return this.bootstrapOrchestrator.load$(targetUid).pipe(
+      finalize(() => {
+        this.isLoading = false;
+        this.markView();
+      })
+    );
   }
 
   ngOnDestroy(): void {
+    this.profileRefreshSubject.complete();
     this.viewedProfileUid$.complete();
     this.friendRequestBusy$.complete();
     this.directChatBusy$.complete();

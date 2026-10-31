@@ -3,12 +3,13 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Firestore } from '@angular/fire/firestore';
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, type ParamMap } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { Store } from '@ngrx/store';
-import { of } from 'rxjs';
+import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { IUserDados } from '../../core/interfaces/iuser-dados';
 import { CommunityPreviewRepository } from '../../community/data-access/community-preview.repository';
 import { CommunityProfilePublicCommunitiesRepository } from '../../community/data-access/community-profile-public-communities.repository';
 import { ProfileOfficialCommunitiesComponent } from '../../community/profile-official-communities/profile-official-communities.component';
@@ -31,12 +32,14 @@ import { SocialLinksAccordionComponent } from '../../user-profile/user-profile-v
 describe('OtherUserProfileViewComponent', () => {
   let fixture: ComponentFixture<OtherUserProfileViewComponent>;
   let component: OtherUserProfileViewComponent;
+  let routeParamMap$: BehaviorSubject<ParamMap>;
 
   const targetUid = 'target-uid';
   const targetProfileId = 'profile-12345678-1234-4123-8123-123456789abc';
   const viewerUid = 'viewer-uid';
 
   beforeEach(async () => {
+    routeParamMap$ = new BehaviorSubject<ParamMap>(convertToParamMap({ id: targetUid }));
     await TestBed.configureTestingModule({
       imports: [
         OtherUserProfileViewComponent,
@@ -48,6 +51,7 @@ describe('OtherUserProfileViewComponent', () => {
         {
           provide: ActivatedRoute,
           useValue: {
+            paramMap: routeParamMap$,
             snapshot: {
               paramMap: convertToParamMap({ id: targetUid }),
             },
@@ -292,6 +296,65 @@ describe('OtherUserProfileViewComponent', () => {
     fixture = TestBed.createComponent(OtherUserProfileViewComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  it('troca de perfil na mesma instância limpa a identidade antiga e preserva a rota atual', () => {
+    const query = TestBed.inject(FirestoreUserQueryService);
+    const profileA = component.userProfile!;
+    const pendingB$ = new Subject<IUserDados | null>();
+    vi.mocked(query.getPublicUserById$).mockImplementation((uid) =>
+      uid === 'profile-b'
+        ? pendingB$.asObservable()
+        : of({ ...profileA, uid, nickname: 'Pessoa C' })
+    );
+
+    routeParamMap$.next(convertToParamMap({ id: 'profile-b' }));
+    fixture.detectChanges();
+
+    expect(component.uid).toBe('profile-b');
+    expect(component.userProfile).toBeNull();
+    expect(component.isLoading).toBe(true);
+    expect(fixture.nativeElement.querySelector('.other-profile-page__hero')).toBeNull();
+
+    routeParamMap$.next(convertToParamMap({ id: 'profile-c' }));
+    fixture.detectChanges();
+
+    expect(component.uid).toBe('profile-c');
+    expect(component.userProfile?.nickname).toBe('Pessoa C');
+
+    // An obsolete request may finish after the router has changed owners.
+    pendingB$.next({ ...profileA, uid: 'profile-b', nickname: 'Pessoa B' });
+    pendingB$.complete();
+    fixture.detectChanges();
+
+    expect(component.uid).toBe('profile-c');
+    expect(component.userProfile?.nickname).toBe('Pessoa C');
+    expect(fixture.nativeElement.textContent).not.toContain('Pessoa B');
+  });
+
+  it('permite repetir a leitura pública do perfil atual após erro transitório', () => {
+    const query = TestBed.inject(FirestoreUserQueryService);
+    const profileA = component.userProfile!;
+    let attempts = 0;
+    vi.mocked(query.getPublicUserById$).mockImplementation((uid) => {
+      attempts += 1;
+      return attempts === 1
+        ? throwError(() => new Error('Falha transitória'))
+        : of({ ...profileA, uid, nickname: 'Perfil recuperado' });
+    });
+
+    routeParamMap$.next(convertToParamMap({ id: 'profile-retry' }));
+    fixture.detectChanges();
+    expect(component.profileLoadError).toBe(true);
+    expect(component.userProfile).toBeNull();
+
+    component.retryProfile();
+    fixture.detectChanges();
+
+    expect(component.profileLoadError).toBe(false);
+    expect(component.uid).toBe('profile-retry');
+    expect(component.userProfile?.nickname).toBe('Perfil recuperado');
+    expect(attempts).toBe(2);
   });
 
   it('deve criar e carregar o perfil visitado pela rota', () => {

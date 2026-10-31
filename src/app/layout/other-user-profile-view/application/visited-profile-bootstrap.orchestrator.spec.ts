@@ -44,6 +44,35 @@ describe('VisitedProfileBootstrapOrchestrator', () => {
     };
   }
 
+  it('prioriza UID explícito emitido pela rota reutilizada, não o snapshot anterior', async () => {
+    const profile = { uid: 'novo-alvo', nickname: 'Outro perfil' };
+    const { orchestrator, getPublicUserById$ } = setup({
+      route: { id: 'alvo-anterior' },
+      profile,
+    });
+
+    await expect(firstValueFrom(orchestrator.load$('novo-alvo'))).resolves.toEqual({
+      kind: 'loaded',
+      targetUid: 'novo-alvo',
+      profile,
+    });
+    expect(getPublicUserById$).toHaveBeenCalledWith('novo-alvo', {
+      propagateErrors: true,
+    });
+  });
+
+  it('não reutiliza o snapshot ao receber rota atual sem UID', async () => {
+    const { orchestrator, getPublicUserById$ } = setup({
+      route: { id: 'alvo-anterior' },
+    });
+
+    await expect(firstValueFrom(orchestrator.load$(''))).resolves.toEqual({
+      kind: 'missing',
+      targetUid: null,
+    });
+    expect(getPublicUserById$).not.toHaveBeenCalled();
+  });
+
   it('carrega apenas a projeção pública do perfil alheio', async () => {
     const profile = { uid: 'target', nickname: 'Pessoa' };
     const { orchestrator, getPublicUserById$, navigate } = setup({
