@@ -70,6 +70,7 @@ describe('public-video-item.mapper', () => {
         ...createValidDocument(),
         url: 'https://example.test/permanent.mp4',
         path: 'users/owner-1/videos/private.mp4',
+        ownerIdentityFromPublicProfile: true, // nunca confiar em campo serializado
       },
     });
 
@@ -94,6 +95,7 @@ describe('public-video-item.mapper', () => {
     });
     expect(projection).not.toHaveProperty('url');
     expect(projection).not.toHaveProperty('path');
+    expect(projection).not.toHaveProperty('ownerIdentityFromPublicProfile');
   });
 
   it('usa publishedAt como assetVersion em projeção legada', () => {
