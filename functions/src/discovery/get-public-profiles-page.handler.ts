@@ -398,6 +398,9 @@ export function serializePublicProfileForDiscovery(
       finiteNumber(data['mediaCount'] ?? data['publicMediaCount']),
     photosCount:
       finiteNumber(data['photosCount'] ?? data['publicPhotosCount']),
+    // Capa derivada somente das fotos públicas aprovadas pelo backend.
+    // Não expor conteúdo de imagens nem storage paths nesta projeção.
+    coverPhotoId: cleanText(data['coverPhotoId']),
     videosCount:
       finiteNumber(data['videosCount'] ?? data['publicVideosCount']),
     viewsCount:
