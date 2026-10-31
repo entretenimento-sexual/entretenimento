@@ -18,6 +18,15 @@
       </a>
     }
     <app-page-header title="Fotos"></app-page-header>
+    @if (state?.status === 'ready') {
+      <span class="public-photos-page__count" aria-label="Quantidade de fotos carregadas">
+        <strong>{{ items.length }}</strong>
+        {{ items.length === 1 ? 'foto' : 'fotos' }}
+        @if (state?.hasMore) {
+          <span class="public-photos-page__count-detail">carregadas</span>
+        }
+      </span>
+    }
   </div>
   <header class="visited-gallery-header">
     <div class="visited-gallery-header__content">
