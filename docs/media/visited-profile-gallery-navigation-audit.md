@@ -186,3 +186,39 @@ ajustados para impedir o retorno da duplicação. A última execução **antes**
 dessa revisão aprovou 492/492 arquivos e 2.851/2.851 testes. **A execução da
 nova compilação e testes no Windows ainda precisa ser informada**. Código
 diretamente na `main`; sem branches, PRs, migração ou deploy em produção.
+
+## Consulta pública HTTP 429 ao navegar no perfil — 31/10/2026
+
+O console real do usuário apresentou **7 POSTs HTTP 429** da Callable
+`getPublicProfilesPage` em `127.0.0.1:5001`, seguidos de registros
+duplicados de `Muitas consultas de perfis foram feitas em pouco tempo.`
+O serviço usa limite backend de **20 unidades/60 s** e
+**100 unidades/10 min**, com custo por quantidade de perfis; esses limites
+**não foram aumentados nem removidos**. A suíte Angular 2.851/2.851
+e o `build:emu` aprovados antes não exercitavam esse cenário de interação
+contínua.
+
+Diagnóstico/correções:
+- `PublicProfileReadBoundaryService` compartilha somente requisições
+  *simultâneas e idênticas* da mesma sessão. Após finalizar, a leitura é
+  descartada (sem cache de exposição/autorização).
+- A resposta `functions/resource-exhausted` estabelece cooldown local
+  restrito ao UID do viewer, respeitando `details.retryAfterMs` do
+  backend (fallback conservador). Novas tentativas nesse intervalo
+  falham fechadas **sem novo POST**, sem conteúdo antigo e sem afetar outras
+  sessões.
+- Consulta individual ao perfil visitado mantém `forceRefresh: true`
+  e obtém o erro explícito no bootstrap; erro transitório deixa de ser
+  mascarado como `Perfil indisponível`. A interface apresenta
+  `Não foi possível carregar o perfil` e `Tentar novamente`.
+- Os demais consumidores de `getProfilesByUids$` preservam o contrato
+  legado por padrão; propagação de erro é opt-in. O registro técnico
+  permanece nos handlers de erro canônicos.
+
+Cobertura adicionada: chamadas em voo, cooldown/retorno, separação entre
+sessões, não amortecimento de `permission-denied`, propagação opt-in
+do erro e estado diferenciado do perfil visitado.
+
+**Pendente:** executar compilação e novos testes no checkout Windows e
+reproduzir navegação real após fim da janela de quota. Nenhuma alteração em
+Rules, backend do limitador, deploy de produção, branch ou PR.
