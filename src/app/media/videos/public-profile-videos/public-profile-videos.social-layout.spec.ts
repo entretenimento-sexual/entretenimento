@@ -15,26 +15,31 @@ describe('galeria pública de vídeos: navegação social', () => {
     expect(html).toContain('aria-label="Seções do perfil visitado"');
     expect(html).toContain("['/media', 'perfil', galleryProfileUid, 'fotos-publicas']");
     expect(html).toContain('profileReturnRoute(galleryProfileUid, viewerUid)');
-    expect(html).toContain('class="public-videos-page__back"');
+    expect(html).not.toContain('class="public-videos-page__back"');
     expect(html).toContain('class="public-videos-page__tab public-videos-page__tab--active" aria-current="page"');
     expect(photosHtml).toContain('class="visited-gallery-header__tabs"');
     expect(photosHtml).toContain('aria-current="page"');
   });
 
-  it('mantém retorno junto ao título e identidade editorial na densidade da galeria de fotos', () => {
-    expect(html).toContain('class="public-videos-page__heading"');
-    expect(html).toContain('<app-page-header title="Vídeos">');
-    expect(html).toContain('class="public-videos-page__back"');
-    expect(css).toContain('.public-videos-page__heading app-page-header');
+  it('não duplica título visual, preservando o PageHeader acessível e a aba ativa', () => {
+    expect(html).not.toContain('class="public-videos-page__heading"');
+    expect(html).toContain('<app-page-header title="Vídeos"></app-page-header>');
+    expect(html).not.toContain('class="public-videos-page__back"');
+    expect(css).toContain('.public-videos-page__tab-count {');
     expect(css).toContain('--public-user-identity-avatar-size: clamp(44px, 4vw, 54px)');
     expect(css).not.toContain('padding: 2.85rem');
     expect(css).toContain('container: public-videos-gallery / inline-size');
-    expect(photosHtml).toContain('class="visited-gallery-heading"');
-    expect(photosHtml).toContain('class="public-photos-page__count"');
+    expect(html).toContain('class="visually-hidden"');
+    expect(html).toContain("state.status === 'ready' || state.status === 'empty'");
+    expect(html).toContain("{{ state.items.length }}{{ state.hasMore ? '+' : '' }}");
+    expect(html).toContain('class="public-videos-page__tab-count"');
+    expect(html).not.toContain('class="gallery-summary"');
+    expect(photosHtml).not.toContain('class="visited-gallery-heading"');
+    expect(photosHtml).toContain('class="visited-gallery-header__tab-count"');
   });
 
   it('mantém título, identidade, ações de segurança e retorno do viewer', () => {
-    expect(html).toContain('<app-page-header title="Vídeos">');
+    expect(html).toContain('<app-page-header title="Vídeos"></app-page-header>');
     expect(html).toContain('<app-public-user-identity');
     expect(html).toContain('<app-report-content-button');
     expect(html).toContain('(preview)="openVideo(state.items.indexOf(item), item)"');
