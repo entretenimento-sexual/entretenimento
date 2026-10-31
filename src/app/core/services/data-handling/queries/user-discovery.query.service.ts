@@ -230,7 +230,17 @@ export class UserDiscoveryQueryService {
                 )
               ),
               tap((profiles) => {
-                if (options?.forceRefresh !== true) {
+                // O backend atual omite os campos privados/temporais de
+                // elegibilidade. Sem prova de validade, o próprio cache
+                // rejeitaria esses dados na próxima leitura; não persisti-los
+                // evita escrita inútil e retenção sensível desnecessária.
+                if (
+                  options?.forceRefresh !== true &&
+                  profiles.length === normalizedUids.length &&
+                  profiles.every((profile) =>
+                    this.hasCurrentAgeEligibilityProjection(profile)
+                  )
+                ) {
                   this.cache.set(cacheKey, profiles, cacheTTL, {
                     persist: true,
                   });
