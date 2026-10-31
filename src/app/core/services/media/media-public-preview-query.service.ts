@@ -42,6 +42,8 @@ import { PublicVideoAccessService } from './public-video-access.service';
 
 export interface MediaPublicPreviewQueryOptions {
   readonly propagateErrors?: boolean;
+  /** Metadados já saneados e autorizados pelo discovery backend-time. */
+  readonly profileMetrics?: PublicProfileMediaMetrics | null;
 }
 
 export interface IPublicProfileMediaPreview {
@@ -55,7 +57,7 @@ type PublicProfileMediaProjection =
   | IPublicPhotoProjection
   | IPublicVideoProjection;
 
-interface PublicProfileMediaMetrics {
+export interface PublicProfileMediaMetrics {
   readonly publicPhotosCount?: unknown;
   readonly photosCount?: unknown;
   readonly publicVideosCount?: unknown;
@@ -141,7 +143,7 @@ export class MediaPublicPreviewQueryService {
     }
 
     return combineLatest([
-      this.getProfileMediaMetrics$(safeOwnerUid),
+      of(options.profileMetrics ?? {}),
       this.getPhotoCandidates$(safeOwnerUid, safeLimit),
       this.getVideoCandidates$(safeOwnerUid, safeLimit),
     ]).pipe(
@@ -194,30 +196,6 @@ export class MediaPublicPreviewQueryService {
           : of(this.emptyPreview());
       }),
       shareReplay({ bufferSize: 1, refCount: true })
-    );
-  }
-
-  private getProfileMediaMetrics$(
-    ownerUid: string
-  ): Observable<PublicProfileMediaMetrics> {
-    return this.firestoreCtx.deferObservable$(() => {
-      const profileRef = doc(this.firestore, `public_profiles/${ownerUid}`);
-      return docData(profileRef);
-    }).pipe(
-      map((value) =>
-        (value && typeof value === 'object'
-          ? value
-          : {}) as PublicProfileMediaMetrics
-      ),
-      // Métricas auxiliares não podem bloquear mídias liberadas pela callable.
-      // A fronteira backend-time continua autorizando cada item individual.
-      catchError((error: unknown) => {
-        this.reportError(error, {
-          op: 'getProfileMediaMetrics$',
-          ownerUid,
-        });
-        return of({} as PublicProfileMediaMetrics);
-      })
     );
   }
 
