@@ -70,3 +70,33 @@ callable e apresentação exclusivamente inline. **Teste no navegador e
 build/suíte após esses commits ainda pendentes**. Nenhuma regra de
 privacidade/autorizações foi afrouxada. Fluxo: commits diretos na
 `main`, sem branch/PR e sem deploy.
+
+## Nova confirmação visual e eliminação da leitura duplicada — 31/10/2026
+
+O operador enviou screenshot com duas fotos e um vídeo carregados, sem o
+modal de ação não permitida; a nova suíte Angular teve **491/491 arquivos
+e 2.835/2.835 testes aprovados**. O console ainda registrava o erro
+silencioso de `getProfileMediaMetrics$` em `public_profiles/{uid}` na
+regra de `get` (linha 1318 do gerado). Era uma consulta redundante:
+o bootstrap do perfil já usa a Callable de discovery que saneia os dados,
+revalida o proprietário e retorna `photosCount` e `videosCount`.
+
+A prévia passa a receber os **metadados públicos já autorizados no
+bootstrap**, via `profileMetrics`, em vez de repetir o `get` direto do
+documento `public_profiles`. A projeção backend de discovery publica
+também `coverPhotoId`, exclusivamente como ID da capa pública calculada
+pelo agregador de mídias aprovadas. A seleção de capa fora da janela
+continua revalidando `PUBLIC` e `APPROVED` pela leitura documental
+protegida. Na ausência de métricas, somente os candidatos autorizados
+pela Callable compõem a contagem mínima exibida, sem ler `users/`.
+
+O layout foi compactado: redução do padding superior do hero,
+ações na coluna lateral em áreas úteis amplas, quebra próxima à identidade
+até 740px e expansão para a linha completa até 480px. Acessibilidade,
+44px, métodos, ações, rotas, viewer e restrições permaneceram.
+
+**Estado:** alterações de frontend, backend de discovery e testes
+adicionais publicadas diretamente na `main`, sem branch/PR ou deploy.
+A validação de compilação e testes desta revisão, bem como a inspeção
+visual em diferentes larguras, ainda precisa ocorrer no checkout local;
+não confundir os 2.835 testes aprovados anteriormente com a nova suíte.
