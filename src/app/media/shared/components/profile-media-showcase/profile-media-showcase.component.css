@@ -56,11 +56,17 @@
 }
 
 .profile-media-showcase__header {
-  gap: 0.75rem;
+  display: flex;
   align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+  text-align: start;
 }
 
 .profile-media-showcase__header h2 {
+  margin: 0;
   font-size: clamp(1.2rem, 1.05rem + 0.55vw, 1.55rem);
   font-weight: 850;
   letter-spacing: -0.025em;
