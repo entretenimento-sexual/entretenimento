@@ -463,6 +463,9 @@ export class UserDiscoveryQueryService {
       publicMediaCount: mediaCount,
       photosCount,
       publicPhotosCount: photosCount,
+      // Apenas ID de capa publicado pelo backend; conteúdo ainda requer
+      // leitura documental autorizada e moderação vigente.
+      coverPhotoId: this.firstText(raw, ['coverPhotoId']),
       videosCount,
       publicVideosCount: videosCount,
       viewsCount,
