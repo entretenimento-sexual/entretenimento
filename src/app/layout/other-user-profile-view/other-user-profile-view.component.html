@@ -208,6 +208,11 @@
         <app-profile-media-showcase
           [ownerUid]="uid || ''"
           [profileName]="displayName"
+          [profileMetrics]="{
+            publicPhotosCount: profile.photosCount,
+            publicVideosCount: profile.videosCount,
+            coverPhotoId: profile.coverPhotoId
+          }"
         />
       </main>
 
