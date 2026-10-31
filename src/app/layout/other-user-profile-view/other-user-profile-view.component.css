@@ -529,6 +529,22 @@ app-profile-media-showcase {
   }
 }
 
+/* A navegação responde ao espaço real do perfil, inclusive dentro de
+   sidebars e layouts desktop estreitos, sem esconder abas. */
+@container visited-profile (max-width: 560px) {
+  .other-profile-page__sections {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+
+  .other-profile-page__section-link {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+
 @media (max-width: 820px) {
   .other-profile-page__hero {
     grid-template-columns: 6rem minmax(0, 1fr);
@@ -574,16 +590,6 @@ app-profile-media-showcase {
 
   .other-profile-page__title {
     font-size: clamp(1.3rem, 5.3vw, 1.75rem);
-  }
-
-  .other-profile-page__sections {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .other-profile-page__section-link {
-    flex: 0 0 auto;
   }
 
   .other-profile-page__actions {
