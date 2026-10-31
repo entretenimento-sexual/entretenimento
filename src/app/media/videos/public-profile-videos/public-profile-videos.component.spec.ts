@@ -216,6 +216,46 @@ describe('PublicProfileVideosComponent', () => {
     ]);
   });
 
+  it('não consulta o perfil novamente quando o vídeo autorizado já contém autor', () => {
+    const enriched: IPublicVideoItem = {
+      ...VIDEO,
+      owner: {
+        nickname: 'Autor autorizado do vídeo',
+        photoURL: 'https://example.test/avatar.webp',
+        gender: 'mulher',
+        orientation: 'heterossexual',
+        municipio: 'Rio de Janeiro',
+        estado: 'RJ',
+      },
+    };
+    videoPagination.loadPage$.mockReturnValue(of({
+      items: [enriched],
+      nextCursor: NEXT_CURSOR,
+      hasMore: true,
+    }));
+
+    const identities: Array<{ nickname: string; identityShortLabel?: string | null } | null> = [];
+    const subscription = component.profileIdentity$.subscribe(
+      (identity) => identities.push(identity)
+    );
+
+    expect(identities.at(-1)).toMatchObject({
+      nickname: 'Autor autorizado do vídeo',
+      identityShortLabel: 'Mulher',
+    });
+    expect(publicUserQuery.getPublicUserById$).not.toHaveBeenCalled();
+
+    component.loadMoreVideos();
+    expect(publicUserQuery.getPublicUserById$).not.toHaveBeenCalled();
+    subscription.unsubscribe();
+  });
+
+  it('consulta perfil individual somente quando falta identidade no vídeo', () => {
+    const subscription = component.profileIdentity$.subscribe();
+    expect(publicUserQuery.getPublicUserById$).toHaveBeenCalledTimes(1);
+    subscription.unsubscribe();
+  });
+
   it('usa somente identidade pública reconhecida no cabeçalho de vídeos', () => {
     const identities: Array<{
       nickname: string;
