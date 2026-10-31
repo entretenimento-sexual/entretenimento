@@ -146,7 +146,8 @@ export class ProfileMediaShowcaseComponent {
         selectedOwnerUid,
         item,
         fallbackIndex,
-        () => (this.ownerUid() ?? '').trim() === selectedOwnerUid
+        () => (this.ownerUid() ?? '').trim() === selectedOwnerUid,
+        this.profileMetrics()
       )
       .pipe(
         // Cancel stale preview requests and release the opening lock if the
