@@ -77,6 +77,12 @@ export interface IPublicPhotoBase {
   publicProfilePurpose?: PublicProfilePurposeProjection | null;
   publicMediaPurpose?: PublicMediaPurposeProjection | null;
 
+  /**
+   * Marcador estritamente transitório do enriquecimento por public_profiles.
+   * Não é permissão, não pode vir de documento persistido nem é usado
+   * para abrir/autorizar ativos. Apenas elimina leitura duplicada do cabeçalho.
+   */
+  readonly ownerIdentityFromPublicProfile?: boolean;
   ownerNickname?: string | null;
   ownerPhotoURL?: string | null;
   ownerGender?: string | null;
