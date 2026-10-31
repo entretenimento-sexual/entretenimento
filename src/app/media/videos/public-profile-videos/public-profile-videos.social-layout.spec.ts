@@ -21,6 +21,18 @@ describe('galeria pública de vídeos: navegação social', () => {
     expect(photosHtml).toContain('aria-current="page"');
   });
 
+  it('mantém retorno junto ao título e identidade editorial na densidade da galeria de fotos', () => {
+    expect(html).toContain('class="public-videos-page__heading"');
+    expect(html).toContain('<app-page-header title="Vídeos">');
+    expect(html).toContain('class="public-videos-page__back"');
+    expect(css).toContain('.public-videos-page__heading app-page-header');
+    expect(css).toContain('--public-user-identity-avatar-size: clamp(44px, 4vw, 54px)');
+    expect(css).not.toContain('padding: 2.85rem');
+    expect(css).toContain('container: public-videos-gallery / inline-size');
+    expect(photosHtml).toContain('class="visited-gallery-heading"');
+    expect(photosHtml).toContain('class="public-photos-page__count"');
+  });
+
   it('mantém título, identidade, ações de segurança e retorno do viewer', () => {
     expect(html).toContain('<app-page-header title="Vídeos">');
     expect(html).toContain('<app-public-user-identity');
