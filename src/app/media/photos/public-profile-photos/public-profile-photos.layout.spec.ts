@@ -35,13 +35,17 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
     expect(pageCss).toContain('radial-gradient(ellipse at 86% 0%');
   });
 
-  it('mantém cabeçalho compacto, retorno junto ao título e grade sem alongar duas fotos', () => {
-    expect(pageHtml).toContain('class="visited-gallery-heading"');
+  it('mantém um único título visual nas abas e a grade uniforme de fotos', () => {
+    expect(pageHtml).not.toContain('class="visited-gallery-heading"');
     expect(pageHtml).toContain('<app-page-header title="Fotos"></app-page-header>');
-    expect(pageHtml).toContain('class="public-photos-page__count"');
+    expect(pageHtml).toContain('class="visited-gallery-header__tab-count"');
     expect(pageHtml).toContain('state?.hasMore');
+    expect(pageHtml).toContain("state?.status === 'ready' || state?.status === 'empty'");
+    expect(pageHtml).toContain("{{ items.length }}{{ state?.hasMore ? '+' : '' }}");
+    expect(pageHtml).toContain('aria-current="page"');
+    expect(pageHtml).not.toContain('class="public-photos-page__count"');
     expect(pageCss).toContain('display: flex;');
-    expect(pageCss).toContain('margin-bottom: clamp(0.55rem, 1vw, 0.9rem)');
+    expect(pageCss).toContain('.visited-gallery-header__tab-count {');
     expect(pageCss).toContain('--public-user-identity-avatar-size: clamp(44px, 4vw, 54px)');
     expect(pageCss).not.toContain('padding: 2.85rem');
     expect(pageCss).toContain('grid-template-columns: repeat(4, minmax(0, 1fr))');
@@ -70,16 +74,16 @@ describe('galeria publica de perfil: composicao e navegacao', () => {
   });
 
   it('mostra dono identificado e navegacao sem ler documentos privados', () => {
-    expect(pageHtml).toContain('<app-page-header title="Fotos">');
+    expect(pageHtml).toContain('<app-page-header title="Fotos"></app-page-header>');
     expect(pageHtml).not.toContain('Fotos públicas');
-    expect(pageHtml).toContain('class="visited-gallery-heading"');
-    expect(pageHtml).toContain('class="public-photos-page__count"');
+    expect(pageHtml).not.toContain('class="visited-gallery-heading"');
+    expect(pageHtml).toContain('class="visited-gallery-header__tab-count"');
     expect(pageHtml).toContain('<app-public-user-identity');
     expect(pageHtml).toContain('[identity]="identity"');
     expect(pageHtml).toContain('density="comfortable"');
-    expect(pageHtml).toContain('class="visited-gallery-header__back"');
-    expect(pageHtml).toContain('class="visually-hidden">Voltar ao perfil</span>');
-    expect(pageCss).toContain('opacity: 0.85;');
+    expect(pageHtml).not.toContain('class="visited-gallery-header__back"');
+    expect(pageHtml).not.toContain('class="visually-hidden">Voltar ao perfil</span>');
+    expect(pageHtml).toContain('<!-- O título canônico permanece disponível a leitores de tela.');
     expect(pageHtml).not.toContain('<h1');
     expect(pageHtml).not.toContain('visited-gallery-header__avatar');
     expect(pageCss).toContain('.visited-gallery-header__identity app-public-user-identity');
