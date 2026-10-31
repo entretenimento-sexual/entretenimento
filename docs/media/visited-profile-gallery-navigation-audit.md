@@ -145,3 +145,17 @@ o link do proprietário. Nenhuma modificação em Rules, autorizações, modera�
 conteúdo ou rotas. **Os novos testes e a renderização em navegador ainda
 precisam ser verificados no checkout local.** Alterações diretamente na `main`,
 sem branch ou PR, sem deploy de produção.
+
+## Conferência da galeria de fotos — 31/10/2026
+
+Captura real do operador com o perfil `prfseves RJ` mostra **duas fotos públicas carregadas**; nenhuma falha de permissão ou de viewer é visível nessa tela. O log anexo encerra com **492/492 arquivos e 2.849/2.849 testes Angular aprovados**. Esse resultado corresponde à `main` anterior à correção editorial descrita aqui.
+
+Observações: título e seta de retorno estavam em extremidades opostas do cabeçalho; o bloco de identidade mantinha padding de banner grande mesmo na galeria; duas fotos ocupavam as duas primeiras células da grade, com o restante naturalmente vazio. **Não ampliar duas fotos para preencher quatro colunas**: preservar densidade, proporção, ordem e paginação da coleção.
+
+Correção localizada:
+- seta de voltar junto ao título, mantendo `app-page-header` canônico, `routerLink` já validado e tap-target 44 px;
+- identidade das galerias de fotos e vídeos com menor altura, avatar/tipografia compactos e fundo editorial discreto; ambas seguem a mesma escala;
+- contador discreto indica quantas fotos foram realmente carregadas e distingue carregamento parcial (`hasMore`), sem afirmar total desconhecido;
+- grid de 1–4 colunas, thumbnails uniformes e sem promoção artificial de capa, além de viewer, seleção por ID e URLs assinadas intactos.
+
+Contratos de layout atualizados para os dois tipos de mídia. **A compilação/testes após estes commits e a confirmação visual ainda precisam ocorrer localmente**; 2.849 testes aprovados não incluem esta revisão. Nenhuma alteração das Rules, moderação, dados pessoais, deploy de produção, branch ou PR.
