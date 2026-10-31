@@ -63,7 +63,16 @@ describe('FirestoreUserQueryService', () => {
     service.getPublicUserById$('target').subscribe();
     expect(query.getProfilesByUids$).toHaveBeenCalledWith(
       ['target'],
-      { forceRefresh: true }
+      { forceRefresh: true, propagateErrors: false }
+    );
+  });
+
+  it('propaga explicitamente erros na leitura do perfil visitado', () => {
+    const query = TestBed.inject(UserDiscoveryQueryService);
+    service.getPublicUserById$('target', { propagateErrors: true }).subscribe();
+    expect(query.getProfilesByUids$).toHaveBeenCalledWith(
+      ['target'],
+      { forceRefresh: true, propagateErrors: true }
     );
   });
 
