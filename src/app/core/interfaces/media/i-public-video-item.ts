@@ -103,6 +103,12 @@ export interface IPublicVideoProjection {
   readonly score: number;
   readonly scoreBreakdown: IPublicVideoScoreBreakdown;
 
+  /**
+   * Marcador estritamente transitório do enriquecimento por public_profiles.
+   * Não é permissão, não pode vir de documento persistido nem é usado
+   * para abrir/autorizar ativos. Apenas elimina leitura duplicada do cabeçalho.
+   */
+  readonly ownerIdentityFromPublicProfile?: boolean;
   /** Enriquecimento público opcional; não participa da identidade do vídeo. */
   readonly owner: IPublicVideoOwnerSummary | null;
 
