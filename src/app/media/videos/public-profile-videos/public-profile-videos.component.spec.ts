@@ -691,8 +691,8 @@ describe('public video gallery window direction', () => {
     expect(source).toMatch(/showEarlierWindow\(\)"[\s\S]*Mostrar mais recentes/);
     expect(source).toMatch(/showLaterWindow\(\)"[\s\S]*Mostrar anteriores/);
     expect(source).toContain('[viewerUid]="viewerUid"');
-    expect(source).toContain('class="public-videos-page__back"');
-    expect(source).toContain('[routerLink]="profileReturnRoute(galleryOwnerUid, viewerUid)"');
+    expect(source).not.toContain('class="public-videos-page__back"');
+    expect(source).toContain('class="public-videos-page__tab-count"');
     expect(source).toContain('[routerLink]="profileReturnRoute(galleryProfileUid, viewerUid)"');
     expect(source).toContain('<app-public-user-identity');
     expect(source).toContain('[identity]="profileIdentity"');
