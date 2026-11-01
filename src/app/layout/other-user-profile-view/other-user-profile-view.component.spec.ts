@@ -450,9 +450,9 @@ describe('OtherUserProfileViewComponent', () => {
     expect(main).toBeTruthy();
     expect(sidebar).toBeTruthy();
     expect(showcase).toBeTruthy();
-    expect(main.getAttribute('aria-label')).toBe('Conteúdo público do perfil');
+    expect(main.getAttribute('aria-label')).toBe('Mídias do perfil');
     expect(sidebar.getAttribute('aria-label')).toBe(
-      'Informações públicas do perfil'
+      'Informações do perfil'
     );
   });
 
@@ -622,7 +622,7 @@ describe('OtherUserProfileViewComponent', () => {
     fixture.detectChanges();
 
     const intro = fixture.nativeElement.querySelector('#profile-details') as HTMLElement;
-    expect(intro.textContent).toContain('ainda não compartilhou uma apresentação pública');
+    expect(intro.textContent).toContain('Sem apresentação por enquanto.');
     expect(intro.querySelector('.other-profile-page__bio-text')).toBeNull();
     expect(intro.querySelector('.other-profile-page__affinities')).toBeNull();
     expect(fixture.nativeElement.querySelector('a[href="#profile-details"]')).not.toBeNull();

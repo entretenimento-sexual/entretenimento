@@ -50,7 +50,7 @@ describe('perfil público visitado: composição editorial', () => {
     expect(html).toContain('class="other-profile-page__introduction app-card app-card--flat"');
     expect(html.indexOf('id="profile-details"')).toBeLessThan(html.indexOf('id="profile-media"'));
     expect(html).toContain('class="other-profile-page__bio-text"');
-    expect(html).toContain('Este perfil ainda não compartilhou uma apresentação pública.');
+    expect(html).toContain('Sem apresentação por enquanto.');
     expect(html).toContain('@for (group of publishedPreferenceGroups; track group.title)');
     expect(html).toContain('Redes sociais publicadas');
     expect(html.indexOf('aria-label="Redes sociais publicadas"'))
@@ -131,6 +131,17 @@ describe('perfil público visitado: composição editorial', () => {
     expect(css).toMatch(/\.other-profile-page__introduction\s*\{[^}]*background:\s*transparent;/u);
     expect(html).toContain('<h2 id="profile-about-heading">Sobre</h2>');
     expect(html).not.toContain('Sobre {{ displayName }}');
+  });
+
+  it('evita explicações redundantes sobre visibilidade na apresentação do perfil', () => {
+    expect(html).toContain('Sem apresentação por enquanto.');
+    expect(html).toContain('aria-label="Mídias do perfil"');
+    expect(html).toContain('aria-label="Informações do perfil"');
+    expect(mosaicHtml).toContain('message="Nenhuma mídia para mostrar."');
+    expect(mosaicHtml).toContain("'Mídias de ' + profileName()");
+    expect(mosaicHtml).not.toContain('Mídias públicas');
+    // Preservar nomes internos das rotas: não são textos exibidos.
+    expect(html).toContain("'fotos-publicas'");
   });
 
   it('densifica a vitrine sem alterar toque, foco e matriz de mídia pública', () => {

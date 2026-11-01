@@ -175,7 +175,7 @@
         <p class="other-profile-page__bio-text">{{ profile.descricao }}</p>
       } @else {
         <p class="other-profile-page__intro-empty">
-          Este perfil ainda não compartilhou uma apresentação pública.
+          Sem apresentação por enquanto.
         </p>
       }
 
@@ -200,7 +200,7 @@
         [isOwner]="false"
         [compact]="true"
         [hideWhenEmpty]="true"
-        aria-label="Redes sociais publicadas"
+        aria-label="Redes sociais"
       />
 
     </section>
@@ -209,7 +209,7 @@
       <main
         id="profile-media"
         class="other-profile-page__main"
-        aria-label="Conteúdo público do perfil"
+        aria-label="Mídias do perfil"
       >
         <app-profile-media-showcase
           [ownerUid]="uid || ''"
@@ -225,7 +225,7 @@
 
       <aside
         class="other-profile-page__sidebar"
-        aria-label="Informações públicas do perfil"
+        aria-label="Informações do perfil"
       >
         @if (publicIntentContext$ | async; as intentContext) {
           <section

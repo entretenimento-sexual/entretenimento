@@ -1,7 +1,7 @@
 @if (state$ | async; as state) {
   <section
     class="profile-media-showcase"
-    [attr.aria-label]="'Mídias públicas de ' + profileName()"
+    [attr.aria-label]="'Mídias de ' + profileName()"
     [attr.aria-busy]="state.status === 'loading' ? 'true' : 'false'"
   >
     <header class="profile-media-showcase__header app-section-header">
@@ -12,7 +12,7 @@
       @case ('loading') {
         <app-content-state
           state="loading"
-          message="Carregando mídias públicas..."
+          message="Carregando mídias..."
           [compact]="true"
           [skeletonRows]="3"
           skeletonVariant="media-grid"
@@ -33,7 +33,7 @@
       @case ('empty') {
         <app-content-state
           state="empty"
-          message="Sem mídias públicas."
+          message="Nenhuma mídia para mostrar."
           [compact]="true"
         />
       }
@@ -43,7 +43,7 @@
           class="profile-media-showcase__grid"
           [class.profile-media-showcase__grid--mosaic]="visibleItems(state.items).length >= 5"
           role="group"
-          [attr.aria-label]="'Galeria pública de ' + profileName()"
+          [attr.aria-label]="'Galeria de ' + profileName()"
         >
           @for (
             item of visibleItems(state.items);
@@ -63,7 +63,7 @@
                 @if (item.posterUrl) {
                   <img
                     [src]="item.posterUrl"
-                    [alt]="item.alt || item.title || 'Vídeo público do perfil'"
+                    [alt]="item.alt || item.title || 'Vídeo do perfil'"
                     [attr.loading]="index === 0 ? 'eager' : 'lazy'"
                     [attr.fetchpriority]="index === 0 ? 'high' : null"
                     decoding="async"
@@ -88,7 +88,7 @@
               } @else {
                 <img
                   [src]="item.url"
-                  [alt]="item.alt || 'Foto pública do perfil'"
+                  [alt]="item.alt || 'Foto do perfil'"
                   [attr.loading]="index === 0 ? 'eager' : 'lazy'"
                   [attr.fetchpriority]="index === 0 ? 'high' : null"
                   decoding="async"

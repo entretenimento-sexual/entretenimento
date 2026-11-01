@@ -187,3 +187,19 @@ presença do retorno no cartão pronto e preservação no estado vazio.
 Nenhum contrato de audiência, identidade pública, backend, navegação de
 viewer ou regra de mídia foi alterado. A revisão física no navegador
 e o build/testes desta alteração são pendentes.
+
+## Linguagem de apresentação: não explicar a autorização — 01/11/2026
+
+O usuário não precisa ler “público/pública/públicos/públicas” como
+qualificador de fotos, vídeos e mídias que já está autorizado a ver.
+Rótulos, estados, alt e aria-label de perfil visitado, galerias e
+visualizadores devem usar “Fotos”, “Vídeos”, “Mídias”, “Galeria” e
+mensagens breves. Não repetir um estado vazio com duas frases equivalentes.
+Atributos alt realmente fornecidos por autores são preservados.
+
+Nomes de rotas (`fotos-publicas`, `videos-publicos`), classes,
+métodos, tipos, audiences, autorizações, regras Firestore e moderação
+continuam tecnicamente explícitos. Também é legítimo usar “público”
+quando identifica uma audiência distinta numa escolha de privacidade
+ou quando a palavra é parte necessária da semântica, e “publicar” é
+uma ação, não redundância. Não mudar o acesso nem criar cache por UI.

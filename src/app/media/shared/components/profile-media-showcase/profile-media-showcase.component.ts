@@ -206,7 +206,7 @@ export class ProfileMediaShowcaseComponent {
     const position = `${index + 1} de ${total}`;
     const mediaType = this.isVideo(item) ? 'vídeo' : 'foto';
     const label = item.alt?.trim() ||
-      `${mediaType} publicada por ${this.profileName()}`;
+      `${mediaType} de ${this.profileName()}`;
 
     return `Abrir ${label}. Mídia ${position}.`;
   }
