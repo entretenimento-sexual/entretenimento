@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, of } from 'rxjs';
-import { catchError, map, switchMap, take } from 'rxjs/operators';
+import { catchError, distinctUntilChanged, map, switchMap, take } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -36,6 +36,19 @@ export class VisitedProfileBootstrapOrchestrator {
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly applicationError: ApplicationErrorService
   ) {}
+
+  /**
+   * A fonte de UID pertence à camada de aplicação, não ao componente visual.
+   * Em navegação reutilizada, a emissão vigente substitui o snapshot anterior.
+   */
+  observeTargetUid$(): Observable<string> {
+    return this.route.paramMap.pipe(
+      map((params) =>
+        String(params.get('uid') ?? params.get('id') ?? '').trim()
+      ),
+      distinctUntilChanged()
+    );
+  }
 
   load$(
     targetUidFromNavigation?: string | null

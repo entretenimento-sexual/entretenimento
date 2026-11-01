@@ -1,5 +1,5 @@
 import { convertToParamMap } from '@angular/router';
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { VisitedProfileBootstrapOrchestrator } from './visited-profile-bootstrap.orchestrator';
@@ -23,11 +23,14 @@ describe('VisitedProfileBootstrapOrchestrator', () => {
         : of(input?.profile ?? null)
     );
     const report = vi.fn();
+    const initialParamMap = convertToParamMap(input?.route ?? { id: 'target' });
+    const routeParamMap$ = new BehaviorSubject(initialParamMap);
 
     const orchestrator = new VisitedProfileBootstrapOrchestrator(
       {
+        paramMap: routeParamMap$.asObservable(),
         snapshot: {
-          paramMap: convertToParamMap(input?.route ?? { id: 'target' }),
+          paramMap: initialParamMap,
         },
       } as any,
       { navigate } as any,
@@ -38,11 +41,35 @@ describe('VisitedProfileBootstrapOrchestrator', () => {
 
     return {
       orchestrator,
+      routeParamMap$,
       navigate,
       getPublicUserById$,
       report,
     };
   }
+
+  it('observa rota reutilizada e só emite quando o UID efetivamente muda', () => {
+    const { orchestrator, routeParamMap$ } = setup({
+      route: { id: 'perfil-a' },
+    });
+    const received: string[] = [];
+    const subscription = orchestrator.observeTargetUid$().subscribe((uid) => {
+      received.push(uid);
+    });
+
+    routeParamMap$.next(convertToParamMap({ id: ' perfil-a ' }));
+    routeParamMap$.next(convertToParamMap({ id: 'perfil-b' }));
+    routeParamMap$.next(convertToParamMap({ uid: 'perfil-c', id: 'perfil-b' }));
+    routeParamMap$.next(convertToParamMap({ id: '' }));
+
+    expect(received).toEqual([
+      'perfil-a',
+      'perfil-b',
+      'perfil-c',
+      '',
+    ]);
+    subscription.unsubscribe();
+  });
 
   it('prioriza UID explícito emitido pela rota reutilizada, não o snapshot anterior', async () => {
     const profile = { uid: 'novo-alvo', nickname: 'Outro perfil' };

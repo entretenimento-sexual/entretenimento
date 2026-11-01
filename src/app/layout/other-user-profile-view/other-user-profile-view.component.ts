@@ -20,7 +20,7 @@ import {
   inject,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
   Observable,
@@ -96,7 +96,6 @@ const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
 })
 export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
-  private readonly route = inject(ActivatedRoute);
   private readonly profileRefreshSubject = new BehaviorSubject(0);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly viewedProfileUid$ = new BehaviorSubject<string | null>(null);
@@ -134,12 +133,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     // A newer route cancels an older public read before it can paint the
     // previous person's identity, media or actions on the new profile.
     combineLatest([
-      this.route.paramMap.pipe(
-        map((params) =>
-          String(params.get('uid') ?? params.get('id') ?? '').trim()
-        ),
-        distinctUntilChanged()
-      ),
+      this.bootstrapOrchestrator.observeTargetUid$(),
       this.profileRefreshSubject,
     ]).pipe(
       switchMap(([targetUid]) => this.loadProfile$(targetUid)),

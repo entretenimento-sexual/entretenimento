@@ -354,3 +354,26 @@ Dois testes de regressão cobrem desmontagem/remontagem A → B → A durante um
 POST ainda pendente e isolamento entre viewers. Mantidos nomes de métodos,
 assinaturas, fluxos RxJS e tratamento centralizado de erros. Nenhum deploy,
 branch ou PR. **Build Angular e suíte ainda exigem execução local**.
+
+## Correção do contrato arquitetural do perfil visitado — 01/11/2026
+
+Evidências locais enviadas: `npm.cmd run build:emu` concluído com sucesso
+(avisos NG8102/NG8107 não bloqueantes em moderação administrativa); suíte Angular
+com **493/494 arquivos aprovados e 2.880/2.881 testes aprovados**.
+A única falha está em `src/app/shared/ui-canonical-boundary.architecture.spec.ts`
+(linha 800), porque o componente visual passou a importar `ActivatedRoute`
+para lidar com a reutilização de `/outro-perfil/:id`. Os 6 testes da fronteira
+de leitura pública, incluindo deduplicação de Callables, foram aprovados.
+
+Correção pontual: observação de `paramMap` e normalização/estabilidade do UID
+encapsuladas em `VisitedProfileBootstrapOrchestrator.observeTargetUid$()`.
+O componente conserva `combineLatest`, `switchMap`, o estado de retry, a
+limpeza de proprietário e o cancelamento de resultados obsoletos, mas não importa
+nem injeta `ActivatedRoute`. O contrato arquitetural **não foi alterado nem
+enfraquecido**. Teste unitário adicionado para A → A normalizado → B → C por
+`uid` → rota vazia.
+
+Sem mudança de contratos externos, backend, moderação, regras de acesso,
+URLs assinadas, viewers, cache ou limites. Publicação somente na `main`,
+sem branch ou PR. **A nova suíte e a compilação ainda devem ser executadas
+após sincronização local para considerar a correção validada.**
