@@ -329,7 +329,7 @@
 
 /* Links sociais permanecem disponíveis, mesmo sem bio ou preferências.
    Não reservar espaço visual para uma apresentação inexistente. */
-.other-profile-page__introduction--links-only {
+.other-profile-page__introduction.other-profile-page__introduction--links-only {
   gap: 0;
   padding: 0;
   border: 0;
