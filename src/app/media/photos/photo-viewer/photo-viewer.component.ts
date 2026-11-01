@@ -872,7 +872,7 @@ export class PhotoViewerComponent {
             );
           } else if (result.exhausted) {
             this.continuationAnnouncement.set(
-              'Não há mais fotos públicas disponíveis para continuar.'
+              'Não há mais fotos para mostrar.'
             );
           }
         }

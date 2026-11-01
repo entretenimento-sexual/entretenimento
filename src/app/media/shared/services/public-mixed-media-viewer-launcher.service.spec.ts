@@ -291,7 +291,7 @@ describe('PublicMixedMediaViewerLauncherService', () => {
     }));
 
     expect(errorNotification.showInfo).toHaveBeenCalledWith(
-      'Você chegou ao fim das mídias públicas disponíveis agora.'
+      'Você chegou ao fim das mídias disponíveis.'
     );
     expect(errorNotification.showWarning).not.toHaveBeenCalled();
   });

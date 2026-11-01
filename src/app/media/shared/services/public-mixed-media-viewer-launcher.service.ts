@@ -62,7 +62,7 @@ export class PublicMixedMediaViewerLauncherService {
 
       if (!selectedKey || selectedIndex < 0) {
         return throwError(() => new Error(
-          'Mídia pública não está mais disponível nesta sequência.'
+          'Esta mídia não está mais disponível nesta sequência.'
         ));
       }
 
@@ -174,7 +174,7 @@ export class PublicMixedMediaViewerLauncherService {
 
         session.continuationExhausted = true;
         this.errorNotification.showInfo(
-          'Você chegou ao fim das mídias públicas disponíveis agora.'
+          'Você chegou ao fim das mídias disponíveis.'
         );
         return of(void 0);
       }),
@@ -333,7 +333,7 @@ export class PublicMixedMediaViewerLauncherService {
     itemCount = request.items?.length ?? 0,
     notification: 'error' | 'none' = 'none',
     fallbackMessage =
-      'Não foi possível atualizar a sequência pública de mídias agora.',
+      'Não foi possível atualizar as mídias agora.',
     reasonHint: MediaErrorReason = 'media_discovery_page_failed'
   ): void {
     this.mediaError.report(error, {
