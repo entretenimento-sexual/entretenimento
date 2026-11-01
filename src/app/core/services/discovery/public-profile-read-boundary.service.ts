@@ -118,7 +118,11 @@ export class PublicProfileReadBoundaryService {
         finalize(() => {
           if (key) this.pendingByViewerAndRequest.delete(key);
         }),
-        shareReplay({ bufferSize: 1, refCount: true })
+        // from(Promise) não aborta um POST ao perder o último subscriber.
+        // Manter o voo compartilhado até a Callable resolver impede que
+        // A -> B -> A gere um segundo POST idêntico antes da resposta.
+        // finalize remove a entrada ao concluir/errar: NÃO há cache de acesso.
+        shareReplay({ bufferSize: 1, refCount: false })
       );
 
       if (key) this.pendingByViewerAndRequest.set(key, shared$);

@@ -70,6 +70,52 @@ describe('PublicProfileReadBoundaryService: proteção de quota por sessão', ()
     expect(callable).toHaveBeenCalledTimes(2);
   });
 
+  it('mantém deduplicação em voo quando o componente é destruído e remontado', async () => {
+    let complete!: (value: { data: PublicProfileReadResponse }) => void;
+    callable.mockImplementation(() => new Promise((resolve) => {
+      complete = resolve;
+    }));
+
+    const request = { uids: ['owner-1'] };
+    const obsoleteSubscription = service.read$(request).subscribe();
+    expect(callable).toHaveBeenCalledTimes(1);
+
+    // A rota deixa de usar a resposta, mas a Promise HTTP continua em voo.
+    obsoleteSubscription.unsubscribe();
+
+    // A mesma identidade volta antes da resolução: não iniciar outro POST.
+    const activeResult = firstValueFrom(service.read$(request));
+    expect(callable).toHaveBeenCalledTimes(1);
+
+    complete({ data: page('owner-1') });
+    await expect(activeResult).resolves.toEqual(page('owner-1'));
+
+    // Concluída a chamada, uma nova visita exige nova autorização backend.
+    callable.mockResolvedValueOnce({ data: page('owner-1') });
+    await expect(firstValueFrom(service.read$(request)))
+      .resolves.toEqual(page('owner-1'));
+    expect(callable).toHaveBeenCalledTimes(2);
+  });
+
+  it('não compartilha uma solicitação pendente entre UIDs de viewers distintos', async () => {
+    const completions: Array<(value: { data: PublicProfileReadResponse }) => void> = [];
+    callable.mockImplementation(() => new Promise((resolve) => {
+      completions.push(resolve);
+    }));
+
+    const request = { uids: ['owner-1'] };
+    const abandoned = service.read$(request).subscribe();
+    abandoned.unsubscribe();
+
+    auth.currentUser = { uid: 'viewer-b' };
+    const viewerBResult = firstValueFrom(service.read$(request));
+    expect(callable).toHaveBeenCalledTimes(2);
+
+    completions[0]({ data: page('owner-1') });
+    completions[1]({ data: page('owner-1') });
+    await expect(viewerBResult).resolves.toEqual(page('owner-1'));
+  });
+
   it('respeita retryAfter do servidor e impede novas chamadas do mesmo UID', async () => {
     const quotaError = Object.assign(new Error('Muitas consultas'), {
       code: 'functions/resource-exhausted',

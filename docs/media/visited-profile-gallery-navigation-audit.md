@@ -329,3 +329,28 @@ Auditoria estática adicional da `main` após o commit `3496dcd`:
 - Contratos unitários atualizados para recusa de vídeos de outro perfil, cancelamento de leituras obsoletas, aviso centralizado e preservação da paginação.
 
 Sem mudança nas regras de visibilidade, moderação, assinaturas, backend, URLs, downloads ou compartilhamentos externos. **As alterações estão sujeitas à compilação e execução local da suíte**; a auditoria estática não equivale a testes executados.
+
+
+## Deduplicação de chamadas durante navegação rápida — 01/11/2026
+
+A captura Network exibe 23 requisições filtradas por `getPublicProfilesPage` no
+conjunto de 234 registros (inclui fetch e preflight). Os HTTP 200/204 vistos não
+identificam sozinhos os payloads, portanto **a captura não prova POSTs idênticos**.
+
+Na revisão da fronteira pública foi confirmado um caso reprodutível:
+`shareReplay({ refCount: true })` interrompia a inscrição quando a rota era
+destruída, porém `from(Promise)` não aborta a Callable já iniciada. A entrada
+pendente saía do mapa e uma remontagem imediata podia disparar **novo POST
+idêntico enquanto o primeiro ainda estava em voo**.
+
+Correção restrita a `PublicProfileReadBoundaryService`: compartilhar o
+Observable até a Promise se resolver, com `refCount: false` e descarte da
+entrada em `finalize`. O resultado não é reaproveitado após conclusão,
+erros de autorização continuam falhando fechados, e os limites 20/60 s e
+100/10 min não foram alterados. O escopo continua separado por UID da sessão.
+Se um componente deixar de escutar, a resposta não será renderizada nele.
+
+Dois testes de regressão cobrem desmontagem/remontagem A → B → A durante um
+POST ainda pendente e isolamento entre viewers. Mantidos nomes de métodos,
+assinaturas, fluxos RxJS e tratamento centralizado de erros. Nenhum deploy,
+branch ou PR. **Build Angular e suíte ainda exigem execução local**.
