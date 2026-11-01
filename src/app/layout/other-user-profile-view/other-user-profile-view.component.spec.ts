@@ -636,7 +636,7 @@ describe('OtherUserProfileViewComponent', () => {
     vi.mocked(userQuery.getPublicUserById$).mockReturnValue(of({
       ...component.userProfile!,
       descricao: '',
-      distanciaKm: null,
+      distanciaKm: undefined,
       preferenceBadgesVisible: false,
       publicRelationshipIntents: null,
       publicSexualPractices: null,

@@ -152,7 +152,7 @@ describe('perfil público visitado: composição editorial', () => {
     expect(html).not.toContain('Sem apresentação por enquanto.');
     expect(html).toContain('<app-social-links-accordion');
     expect(html).toContain('[hideWhenEmpty]="true"');
-    expect(css).toContain('.other-profile-page__introduction--links-only {');
+    expect(css).toContain('.other-profile-page__introduction.other-profile-page__introduction--links-only {');
     expect(mosaicCss).toContain('max-inline-size: min(100%, 54rem);');
     expect(mosaicCss).toContain(':not(.profile-media-showcase__grid--mosaic)');
   });

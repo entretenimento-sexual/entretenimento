@@ -225,3 +225,9 @@ publicadas”, substituída antes por “Redes sociais”.
 Não foram alterados serviços, chamadas, controle de acesso, URLs,
 views de mídia, rotas, navegação RxJS ou fluxo de moderação. Validar
 visualmente e repetir build/testes após sincronização local.
+
+## Ajustes dos contratos de teste após a revisão editorial — 01/11/2026
+
+A compilação de `npm.cmd run build:emu` foi concluída pelo usuário; `npm.cmd test -- --watch=false` não chegou a executar a suíte por TS2345 no mock `distanciaKm: null`. O tipo `IUserDados` aceita `number | undefined`, enquanto o template Angular já verifica `== null`, abrangendo ausência por `undefined`. O mock passa a usar `undefined` para simular distância não informada, preservando o teste de recolhimento de apresentação vazia. O contrato estático do seletor `other-profile-page__introduction--links-only` foi atualizado para a especificidade combinada efetivamente aplicada, sem alterar CSS de produção.
+
+Não foram modificadas rotas, acessos, mensagens de erro, dados nem comportamento da aplicação. A compilação dos testes e sua execução completa permanecem a confirmar no checkout local após atualização da `main`.
