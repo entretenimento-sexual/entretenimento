@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { MatDialog } from '@angular/material/dialog';
+import { MatDialog, type MatDialogConfig } from '@angular/material/dialog';
 import { firstValueFrom, of, Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -25,7 +25,7 @@ function photo(ownerUid: string, id: string): IPublicPhotoItem {
 
 describe('PublicPhotoViewerLauncherService', () => {
   const dialog = {
-    open: vi.fn(() => ({
+    open: vi.fn((_component: unknown, _config: MatDialogConfig) => ({
       afterClosed: () => of(undefined),
     })),
   };
