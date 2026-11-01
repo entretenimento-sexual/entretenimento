@@ -7,13 +7,13 @@
 
 .other-profile-page {
   display: grid;
-  gap: clamp(0.7rem, 1.5vw, 1.15rem);
+  gap: clamp(0.55rem, 1vw, 0.85rem);
   width: min(100%, var(--content-wide, 1360px));
   container: visited-profile / inline-size;
   box-sizing: border-box;
   min-width: 0;
   margin-inline: auto;
-  padding: clamp(0.75rem, 1.6vw, 1.5rem);
+  padding: clamp(0.65rem, 1.25vw, 1.1rem);
   color: var(--text-color, #111827);
 }
 
@@ -67,26 +67,26 @@
 .other-profile-page__hero {
   display: grid;
   position: relative;
-  grid-template-columns: clamp(5.5rem, 9vw, 7rem) minmax(0, 1fr) minmax(10rem, max-content);
-  gap: clamp(0.9rem, 2vw, 1.4rem);
+  grid-template-columns: clamp(4.8rem, 7vw, 6rem) minmax(0, 1fr) minmax(8.5rem, max-content);
+  gap: clamp(0.65rem, 1.35vw, 1.05rem);
   align-items: center;
   min-width: 0;
-  padding: clamp(4.2rem, 5.4vw, 4.75rem) clamp(1rem, 2vw, 1.65rem) clamp(0.85rem, 1.7vw, 1.2rem);
+  padding: clamp(2.85rem, 3.6vw, 3.4rem) clamp(0.9rem, 1.65vw, 1.45rem) 0.85rem;
   border: 1px solid var(--surface-border, #293545);
-  border-radius: 1rem;
+  border-radius: 0.9rem;
   background: var(--surface-color, #111925);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 11%);
+  box-shadow: 0 3px 12px rgb(0 0 0 / 7%);
 }
 
 .other-profile-page__hero::before {
   content: "";
   position: absolute;
   inset: 0 0 auto;
-  height: clamp(4.3rem, 6vw, 5.3rem);
-  border-radius: 1rem 1rem 0 0;
+  height: clamp(3rem, 4.4vw, 3.55rem);
+  border-radius: 0.9rem 0.9rem 0 0;
   background:
-    radial-gradient(ellipse at 82% 18%, color-mix(in oklab, var(--primary-color, #ff6b81) 28%, transparent), transparent 55%),
-    linear-gradient(115deg, color-mix(in oklab, var(--surface-color, #111925) 83%, #321a35 17%), var(--surface-color, #111925));
+    radial-gradient(ellipse at 82% 18%, color-mix(in oklab, var(--primary-color, #ff6b81) 19%, transparent), transparent 62%),
+    linear-gradient(115deg, color-mix(in oklab, var(--surface-color, #111925) 92%, #321a35 8%), var(--surface-color, #111925));
   pointer-events: none;
 }
 
@@ -96,12 +96,12 @@
   width: 100%;
   min-width: 0;
   aspect-ratio: 1;
-  margin: -1.65rem 0 0;
+  margin: -1rem 0 0;
   overflow: hidden;
   border: 3px solid var(--surface-color, #111925);
   border-radius: 50%;
   background: #090d13;
-  box-shadow: 0 7px 20px rgb(0 0 0 / 22%);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 18%);
 }
 
 .other-profile-page__photo {
@@ -114,7 +114,7 @@
 
 .other-profile-page__identity {
   display: grid;
-  gap: clamp(0.4rem, 1.1vw, 0.72rem);
+  gap: 0.3rem;
   min-width: 0;
   align-content: center;
   padding: 0.1rem 0 0;
@@ -152,7 +152,7 @@
 .other-profile-page__canonical-identity {
   width: 100%;
   min-width: 0;
-  --public-user-identity-meta-size: 0.94rem;
+  --public-user-identity-meta-size: 0.85rem;
 }
 
 .other-profile-page__title {
@@ -160,10 +160,10 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--text-color, #111827);
-  font-size: clamp(1.5rem, 2.65vw, 2.25rem);
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: -0.04em;
+  font-size: clamp(1.35rem, 1.05rem + 1vw, 1.85rem);
+  font-weight: 850;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
 }
 
 .other-profile-page__online {
@@ -244,16 +244,16 @@
   flex-direction: column;
   align-items: flex-end;
   justify-content: center;
-  gap: 0.45rem;
+  gap: 0.2rem;
   min-width: 0;
 }
 
 .other-profile-page__actions > .app-action {
   min-height: var(--tap-target, 44px);
   width: auto;
-  min-width: 10rem;
+  min-width: 8.5rem;
   max-width: 100%;
-  padding-inline: clamp(1rem, 1.8vw, 1.5rem);
+  padding-inline: clamp(0.85rem, 1.3vw, 1.15rem);
   border-radius: 999px;
   box-shadow: none;
 }
@@ -267,7 +267,7 @@
   display: flex;
   align-items: stretch;
   flex-wrap: wrap;
-  gap: clamp(0.6rem, 1.4vw, 1rem);
+  gap: clamp(0.1rem, 0.5vw, 0.4rem);
   min-height: var(--tap-target, 44px);
   border-bottom: 1px solid var(--surface-border, rgb(255 255 255 / 14%));
 }
@@ -277,13 +277,13 @@
   position: relative;
   align-items: center;
   justify-content: center;
-  gap: 0.55rem;
+  gap: 0.45rem;
   min-height: var(--tap-target, 44px);
-  padding: 0.65rem clamp(0.8rem, 2vw, 1.3rem);
-  border-radius: 0.7rem 0.7rem 0 0;
+  padding: 0.55rem clamp(0.65rem, 1.15vw, 1rem);
+  border-radius: 0.35rem 0.35rem 0 0;
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 74%, transparent);
-  font-size: 0.9rem;
-  font-weight: 760;
+  font-size: 0.86rem;
+  font-weight: 730;
   text-decoration: none;
   transition: background-color 160ms ease, color 160ms ease;
 }
@@ -321,11 +321,14 @@
 
 .other-profile-page__introduction {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.52rem;
   min-width: 0;
-  padding: clamp(1rem, 1.7vw, 1.4rem);
-  border: 1px solid var(--surface-border, #293545);
-  border-radius: 1rem;
+  padding: 0.65rem 0.25rem 0.8rem;
+  border: 0;
+  border-bottom: 1px solid var(--surface-border, #293545);
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
 }
 
 .other-profile-page__intro-header {
@@ -339,14 +342,14 @@
 .other-profile-page__intro-header h2 {
   margin: 0;
   color: var(--text-color, #f5f7fb);
-  font-size: clamp(1rem, 1vw + 0.7rem, 1.25rem);
-  font-weight: 800;
+  font-size: clamp(0.95rem, 0.88rem + 0.2vw, 1.1rem);
+  font-weight: 780;
 }
 
 .other-profile-page__intro-empty {
   margin: 0;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
-  font-size: 0.89rem;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.84rem;
   line-height: 1.5;
 }
 
@@ -361,11 +364,11 @@
 .other-profile-page__affinities {
   display: grid;
   align-content: start;
-  gap: 0.4rem;
+  gap: 0.36rem;
   min-width: 0;
-  padding: 0.7rem 0.8rem;
+  padding: 0.6rem 0.7rem;
   border: 1px solid color-mix(in oklab, var(--surface-border, #293545) 65%, transparent);
-  border-radius: 0.75rem;
+  border-radius: 0.65rem;
   background: color-mix(in oklab, var(--surface-color, #111925) 96%, var(--text-color, #f5f7fb) 4%);
 }
 
@@ -382,7 +385,7 @@
     "sidebar";
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: clamp(1.5rem, 2.6vw, 2.25rem);
+  gap: clamp(0.9rem, 1.5vw, 1.4rem);
   min-width: 0;
 }
 
@@ -402,10 +405,10 @@
 
 .other-profile-page__panel {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.6rem;
   min-width: 0;
-  padding: clamp(1rem, 1.7vw, 1.4rem);
-  border-radius: 1rem;
+  padding: clamp(0.75rem, 1.3vw, 1.1rem);
+  border-radius: 0.8rem;
 }
 
 .other-profile-page__panel h2 {
@@ -545,15 +548,7 @@ app-profile-media-showcase {
   }
 }
 
-@media (max-width: 820px) {
-  .other-profile-page__hero {
-    grid-template-columns: 6rem minmax(0, 1fr);
-  }
-
-  .other-profile-page__social {
-    grid-column: 1 / -1;
-  }
-}
+/* A grade responde à largura interna do perfil, não à largura da janela. */
 
 @media (max-width: 640px) {
   .other-profile-page {
@@ -568,19 +563,19 @@ app-profile-media-showcase {
   }
 
   .other-profile-page__hero {
-    grid-template-columns: clamp(4.6rem, 18vw, 6rem) minmax(0, 1fr);
+    grid-template-columns: clamp(4.35rem, 17vw, 5.65rem) minmax(0, 1fr);
     gap: 0.75rem;
-    padding: 4.1rem 0.8rem 0.9rem;
+    padding: 3.05rem 0.8rem 0.75rem;
     border-radius: 0.85rem;
   }
 
   .other-profile-page__hero::before {
-    height: 4.4rem;
+    height: 3.3rem;
     border-radius: 0.85rem 0.85rem 0 0;
   }
 
   .other-profile-page__photo-wrap {
-    margin-top: -1.65rem;
+    margin-top: -0.95rem;
   }
 
   .other-profile-page__identity {
@@ -589,7 +584,7 @@ app-profile-media-showcase {
   }
 
   .other-profile-page__title {
-    font-size: clamp(1.3rem, 5.3vw, 1.75rem);
+    font-size: clamp(1.25rem, 5.1vw, 1.65rem);
   }
 
   .other-profile-page__actions {
@@ -628,5 +623,36 @@ app-profile-media-showcase {
   .other-profile-page__back,
   .other-profile-page__section-link {
     transition: none;
+  }
+}
+
+/* Densidade social em colunas estreitas, inclusive com sidebar aberta. */
+@container visited-profile (max-width: 640px) {
+  .other-profile-page__hero {
+    grid-template-columns: clamp(4.35rem, 16vw, 5.65rem) minmax(0, 1fr);
+    gap: 0.7rem;
+  }
+
+  .other-profile-page__introduction {
+    padding-inline: 0.65rem;
+  }
+
+  .other-profile-page__sections {
+    gap: 0.1rem;
+  }
+}
+
+@container visited-profile (max-width: 420px) {
+  .other-profile-page__hero {
+    padding-inline: 0.7rem;
+  }
+
+  .other-profile-page__canonical-identity {
+    --public-user-identity-meta-size: 0.78rem;
+  }
+
+  .other-profile-page__actions > .app-action {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 }

@@ -7,23 +7,19 @@
 
 .profile-media-showcase {
   display: grid;
-  gap: clamp(0.9rem, 1.6vw, 1.4rem);
+  gap: clamp(0.55rem, 1vw, 0.85rem);
   width: 100%;
   max-width: none;
   min-width: 0;
-  padding-top: clamp(1.1rem, 2vw, 1.75rem);
-  border-top: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, #e5e7eb) 76%,
-    transparent
-  );
+  padding-top: 0.5rem;
+  border-top: 0;
 }
 
 .profile-media-showcase__grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: start;
-  gap: clamp(0.55rem, 1vw, 0.9rem);
+  gap: clamp(0.28rem, 0.65vw, 0.55rem);
   width: 100%;
   min-width: 0;
 }
@@ -33,8 +29,8 @@
   width: 100%;
   min-width: 0;
   min-height: var(--tap-target, 44px);
-  aspect-ratio: 1;
-  border-radius: 1rem;
+  aspect-ratio: 1.14;
+  border-radius: 0.65rem;
 }
 
 /* Com cinco itens, a prévia vira uma pequena composição editorial.
@@ -42,7 +38,7 @@
 .profile-media-showcase__grid--mosaic {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
-  aspect-ratio: 2.7;
+  aspect-ratio: 3.05;
 }
 
 .profile-media-showcase__grid--mosaic .profile-media-showcase__item {
@@ -67,8 +63,8 @@
 
 .profile-media-showcase__header h2 {
   margin: 0;
-  font-size: clamp(1.2rem, 1.05rem + 0.55vw, 1.55rem);
-  font-weight: 850;
+  font-size: clamp(1.05rem, 0.99rem + 0.3vw, 1.3rem);
+  font-weight: 800;
   letter-spacing: -0.025em;
 }
 
@@ -80,7 +76,7 @@
   padding: 0;
   border: 1px solid color-mix(
     in oklab,
-    var(--surface-border, rgb(255 255 255 / 14%)) 88%,
+    var(--surface-border, rgb(255 255 255 / 14%)) 58%,
     transparent
   );
   background: #0b1119;
@@ -192,7 +188,8 @@
   }
 
   .profile-media-showcase__item {
-    border-radius: 0.75rem;
+    aspect-ratio: 1;
+    border-radius: 0.5rem;
   }
 }
 

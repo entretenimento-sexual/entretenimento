@@ -144,3 +144,24 @@ O `dryRun` não alterou o documento legado; a execução explícita paginada san
 projeção pública e preservou as preferências privadas na origem.
 
 **Escopo:** aprovação no emulador, não é autorização para backfill ou deploy em produção.
+
+## Referências sociais e refinamento responsivo — 01/11/2026
+
+As quatro capturas enviadas (Facebook, perfil atual Entretenimento,
+Instagram e Sexlog) motivaram uma hierarquia mais compacta: identidade pública
+e ações juntas; faixa CSS curta sem inventar capa; Sobre como conteúdo integrado,
+sem repetir apelido; abas mais discretas; mídias com separações e bordas
+menores. A prévia mantém três colunas quando contém até quatro itens e o
+mosaico editorial 2+4 para cinco, sem mudar a ordem nem a identidade selecionada.
+
+O uso de `@container visited-profile` responde à largura do componente mesmo
+com o shell lateral aberto. Removido o override por viewport de 820px que
+entrava em conflito com a mudança de colunas em 740px. Os alvos de toque
+continuam de 44px; foco, redução de movimento e alto contraste ficam intactos.
+
+Referências servem apenas à composição, sem copiar seguidores, histórias,
+feed, tags artificiais, dados privados, capa da galeria ou fotos não autorizadas.
+A alteração é estritamente HTML/CSS do perfil visitado, CSS da vitrine de
+mídias, dois contratos estáticos e documentação. Nenhum TS funcional,
+endpoint, audience, permissão, viewer, compartilhamento ou roteamento foi
+alterado. A revisão visual real e o build/testes posteriores continuam pendentes.

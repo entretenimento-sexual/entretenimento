@@ -110,6 +110,22 @@ describe('perfil público visitado: composição editorial', () => {
     expect(html).toContain('aria-label="Seções do perfil visitado"');
   });
 
+  it('torna a hero social compacta e integra Sobre sem duplicar o nome', () => {
+    expect(css).toMatch(/\.other-profile-page__hero\s*\{[^}]*padding:\s*clamp\(2\.85rem/u);
+    expect(css).toMatch(/\.other-profile-page__hero::before\s*\{[^}]*height:\s*clamp\(3rem/u);
+    expect(css).toMatch(/\.other-profile-page__introduction\s*\{[^}]*background:\s*transparent;/u);
+    expect(html).toContain('<h2 id="profile-about-heading">Sobre</h2>');
+    expect(html).not.toContain('Sobre {{ displayName }}');
+  });
+
+  it('densifica a vitrine sem alterar toque, foco e matriz de mídia pública', () => {
+    expect(mosaicCss).toMatch(/\.profile-media-showcase__grid\s*\{[^}]*repeat\(3, minmax\(0, 1fr\)\)/u);
+    expect(mosaicCss).toMatch(/\.profile-media-showcase__item\s*\{[^}]*aspect-ratio:\s*1\.14;/u);
+    expect(mosaicCss).toContain('min-height: var(--tap-target, 44px)');
+    expect(css).toContain('@container visited-profile (max-width: 420px)');
+    expect(css).not.toContain('@media (max-width: 820px)');
+  });
+
   it('aplica mosaico somente quando há cinco mídias, sem alterar seleção ou rota', () => {
     expect(mosaicHtml).toContain(
       '[class.profile-media-showcase__grid--mosaic]="visibleItems(state.items).length >= 5"'
