@@ -38,6 +38,7 @@ import {
   startWith,
   switchMap,
   take,
+  takeUntil,
   tap,
 } from 'rxjs/operators';
 
@@ -348,6 +349,7 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
     const ownerUid = this.galleryOwnerUid;
     const cursor = this.galleryCursor;
     const revision = this.galleryRevision;
+    const refreshAtRequest = this.refreshSubject.value;
 
     if (
       !ownerUid ||
@@ -366,6 +368,12 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
       pageSize: this.pageSizeSubject.value ?? 24,
     }).pipe(
       take(1),
+      // Um novo perfil ou retry invalida a página em voo.
+      takeUntil(combineLatest([this.ownerUid$, this.refreshSubject]).pipe(
+        filter(([currentOwnerUid, refresh]) =>
+          currentOwnerUid !== ownerUid || refresh !== refreshAtRequest
+        )
+      )),
       tap((page) => {
         if (!this.isCurrentGallery(ownerUid, revision)) {
           return;
@@ -378,8 +386,19 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
           page.items,
         ]);
       }),
-      catchError(() => {
+      catchError((error: unknown) => {
         if (this.isCurrentGallery(ownerUid, revision)) {
+          // A galeria apresenta o erro inline; diagnóstico central sem modal.
+          this.errorHandler.report(error, {
+            operation: 'loadMorePublicProfilePhotos',
+            reasonHint: 'media_discovery_page_failed',
+            silent: true,
+            metadata: {
+              scope: 'PublicProfilePhotosComponent',
+              hasOwnerUid: !!ownerUid,
+              hasCursor: !!cursor,
+            },
+          });
           this.pageErrorSubject.next(true);
         }
 

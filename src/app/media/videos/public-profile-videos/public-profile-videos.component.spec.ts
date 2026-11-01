@@ -530,6 +530,7 @@ describe('PublicProfileVideosComponent', () => {
     component.loadMoreVideos();
 
     component.retry();
+    expect(stalePage$.observed).toBe(false);
     stalePage$.next({
       items: [VIDEO_2],
       nextCursor: null,
@@ -540,6 +541,58 @@ describe('PublicProfileVideosComponent', () => {
       items: [VIDEO],
       hasMore: true,
     });
+    subscription.unsubscribe();
+  });
+
+  it('não mostra vídeos de outro autor ao reutilizar a galeria com nova rota', () => {
+    const states: Array<{ status: string; items: IPublicVideoItem[] }> = [];
+    const subscription = component.state$.subscribe((state) => states.push(state));
+
+    // O mock legado retorna item do owner-1 mesmo quando a rota mudou.
+    routeParamMapSubject.next(convertToParamMap({ id: 'owner-2' }));
+
+    expect(states.at(-1)).toMatchObject({
+      status: 'empty',
+      items: [],
+    });
+    subscription.unsubscribe();
+  });
+
+  it('recusa vídeo de outro autor devolvido a um deep link de perfil', () => {
+    routeParamMapSubject.next(convertToParamMap({
+      ownerUid: 'owner-2',
+      videoId: VIDEO.id,
+    }));
+    const states: Array<{ status: string; items: IPublicVideoItem[] }> = [];
+    const subscription = component.state$.subscribe((state) => states.push(state));
+
+    expect(states.at(-1)).toMatchObject({
+      status: 'empty',
+      items: [],
+    });
+    subscription.unsubscribe();
+  });
+
+  it('desinscreve a página pendente ao trocar a rota da galeria', () => {
+    const pending = new Subject<{
+      items: IPublicVideoItem[];
+      nextCursor: null;
+      hasMore: false;
+    }>();
+    videoPagination.loadPage$.mockImplementation((
+      _ownerUid: string,
+      options: { cursor?: IPublicProfileVideoCursor | null }
+    ) => options.cursor
+      ? pending
+      : of({ items: [VIDEO], nextCursor: NEXT_CURSOR, hasMore: true })
+    );
+    const subscription = component.state$.subscribe();
+
+    component.loadMoreVideos();
+    expect(pending.observed).toBe(true);
+    routeParamMapSubject.next(convertToParamMap({ id: 'owner-2' }));
+    expect(pending.observed).toBe(false);
+
     subscription.unsubscribe();
   });
 

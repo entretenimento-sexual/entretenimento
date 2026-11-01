@@ -463,6 +463,14 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
       hasMore: true,
       pageError: true,
     });
+    expect(errors.report).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'network error' }),
+      expect.objectContaining({
+        operation: 'loadMorePublicProfilePhotos',
+        reasonHint: 'media_discovery_page_failed',
+        silent: true,
+      })
+    );
 
     component.loadMorePhotos();
 
@@ -471,6 +479,7 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
       hasMore: false,
       pageError: false,
     });
+    expect(errors.report).toHaveBeenCalledTimes(1);
 
     subscription.unsubscribe();
   });
@@ -504,6 +513,8 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
 
     routeParams.next(convertToParamMap({ id: OTHER.ownerUid }));
 
+    // Cancelamento real da inscrição, não apenas descarte tardio da emissão.
+    expect(pending.observed).toBe(false);
     pending.next(page([SECOND], null));
 
     expect(states.at(-1)).toMatchObject({
@@ -537,6 +548,7 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
     component.loadMorePhotos();
     component.retry();
 
+    expect(pending.observed).toBe(false);
     pending.next(page([SECOND], null));
 
     expect(states.at(-1)).toMatchObject({

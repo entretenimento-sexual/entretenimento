@@ -318,3 +318,14 @@ na `main`, sem branch ou PR.
 
 **Validação pendente:** build Angular e suíte no checkout local. A inspeção
 estática e os testes acrescentados não equivalem a execução verde.
+
+## Navegação entre galerias: isolamento de requisições e erros — 31/10/2026
+
+Auditoria estática adicional da `main` após o commit `3496dcd`:
+
+- Ao trocar de perfil, deep link ou repetir a leitura, requisições ainda pendentes de páginas adicionais de fotos e vídeos agora perdem sua inscrição RxJS. As guardas de revisão e identidade existentes continuam protegendo o estado. **O cancelamento da inscrição não significa que o transporte HTTP/Callable já iniciado seja abortado no servidor.**
+- Na galeria de vídeos, a agregação das páginas exige `ownerUid` igual ao proprietário atual; itens de outro proprietário não podem compor o mosaico da rota. O carregamento de vídeo individual por deep link também exige coincidência de `ownerUid` e `id` antes de montar a tela, sem substituir validações de autorização do backend.
+- Em fotos, a falha ao carregar mais itens passa por `MediaApplicationErrorService.report` com `silent: true`, mantendo a mensagem inline e a opção de repetir sem modal duplicado.
+- Contratos unitários atualizados para recusa de vídeos de outro perfil, cancelamento de leituras obsoletas, aviso centralizado e preservação da paginação.
+
+Sem mudança nas regras de visibilidade, moderação, assinaturas, backend, URLs, downloads ou compartilhamentos externos. **As alterações estão sujeitas à compilação e execução local da suíte**; a auditoria estática não equivale a testes executados.

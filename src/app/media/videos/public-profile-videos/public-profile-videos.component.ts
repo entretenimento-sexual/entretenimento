@@ -28,12 +28,14 @@ import {
 import {
   catchError,
   distinctUntilChanged,
+  filter,
   finalize,
   map,
   shareReplay,
   startWith,
   switchMap,
   take,
+  takeUntil,
   tap,
 } from 'rxjs/operators';
 
@@ -201,9 +203,15 @@ export class PublicProfileVideosComponent implements OnInit {
             propagateErrors: true,
           })
           .pipe(
-            map((item) =>
-              this.buildState(item ? 'ready' : 'empty', item ? [item] : [])
-            ),
+            map((item) => {
+              // Não associar um vídeo de outro autor ao perfil da rota.
+              const matched = item?.ownerUid === ownerUid &&
+                item.id === requestedVideoId ? item : null;
+              return this.buildState(
+                matched ? 'ready' : 'empty',
+                matched ? [matched] : []
+              );
+            }),
             startWith(this.buildState('loading', [])),
             catchError((error: unknown) => {
               this.reportError(error, ownerUid, requestedVideoId);
@@ -332,6 +340,8 @@ export class PublicProfileVideosComponent implements OnInit {
     const ownerUid = this.galleryOwnerUid;
     const cursor = this.galleryCursor;
     const revision = this.galleryRevision;
+    const routeAtRequest = this.galleryRouteIdentity;
+    const refreshAtRequest = this.refreshSubject.value;
 
     if (
       !ownerUid ||
@@ -349,6 +359,13 @@ export class PublicProfileVideosComponent implements OnInit {
       cursor,
     }).pipe(
       take(1),
+      // Ao trocar proprietário, vídeo deep link ou retry, cancelar a página antiga.
+      takeUntil(combineLatest([this.galleryRoute$, this.refreshSubject]).pipe(
+        filter(([route, refresh]) =>
+          routeIdentity(route) !== routeAtRequest ||
+          refresh !== refreshAtRequest
+        )
+      )),
       tap((page) => {
         if (
           this.galleryOwnerUid !== ownerUid ||
@@ -673,7 +690,11 @@ export class PublicProfileVideosComponent implements OnInit {
 
     for (const item of pages.flat()) {
       const key = this.posterKey(item);
-      if (!key || unique.has(key)) {
+      if (
+        !key ||
+        unique.has(key) ||
+        item.ownerUid?.trim() !== this.galleryOwnerUid
+      ) {
         continue;
       }
 
