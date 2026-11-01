@@ -34,7 +34,13 @@ export class PublicPhotoViewerLauncherService {
   private readonly mediaError = inject(MediaApplicationErrorService);
 
   open$(request: OpenPublicPhotoViewerRequest): Observable<void> {
-    return this.openDialog$(request).pipe(map(() => void 0));
+    // O estado de abertura permanece ocupado até o modal ser fechado.
+    // Mesmo contrato do launcher de vídeo: impede desbloqueio prematuro
+    // de ações de abertura e preserva o foco de retorno da galeria.
+    return this.openDialog$(request).pipe(
+      switchMap((dialogRef) => dialogRef.afterClosed().pipe(take(1))),
+      map(() => void 0)
+    );
   }
 
   openWithResult$(

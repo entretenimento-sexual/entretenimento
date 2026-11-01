@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, of, Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
@@ -25,7 +25,9 @@ function photo(ownerUid: string, id: string): IPublicPhotoItem {
 
 describe('PublicPhotoViewerLauncherService', () => {
   const dialog = {
-    open: vi.fn(),
+    open: vi.fn(() => ({
+      afterClosed: () => of(undefined),
+    })),
   };
   const mediaError = {
     reportSilently: vi.fn(),
@@ -94,6 +96,33 @@ describe('PublicPhotoViewerLauncherService', () => {
     expect(config?.data.startIndex).toBe(1);
     expect(config?.data.items.map((item: { id: string }) => item.id))
       .toEqual(['publica', 'amigos']);
+  });
+
+  it('mantém o Observable de abertura ativo até o fechamento do modal', async () => {
+    const closed$ = new Subject<undefined>();
+    dialog.open.mockImplementationOnce(() => ({
+      afterClosed: () => closed$.asObservable(),
+    }));
+    const service = TestBed.inject(PublicPhotoViewerLauncherService);
+    let completed = false;
+
+    const subscription = service.open$({
+      items: [photo('owner-a', 'a-1')],
+      selected: photo('owner-a', 'a-1'),
+      source: 'profile',
+    }).subscribe({
+      complete: () => { completed = true; },
+    });
+
+    // O componente do viewer é importado de forma assíncrona.
+    await vi.waitFor(() => expect(dialog.open).toHaveBeenCalledTimes(1));
+    expect(completed).toBe(false);
+
+    closed$.next(undefined);
+    closed$.complete();
+
+    expect(completed).toBe(true);
+    subscription.unsubscribe();
   });
 
   it('não abre mídia PRIVATE mesmo que alguém envie uma URL manual', async () => {

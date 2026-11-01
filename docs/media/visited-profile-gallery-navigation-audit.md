@@ -377,3 +377,23 @@ Sem mudança de contratos externos, backend, moderação, regras de acesso,
 URLs assinadas, viewers, cache ou limites. Publicação somente na `main`,
 sem branch ou PR. **A nova suíte e a compilação ainda devem ser executadas
 após sincronização local para considerar a correção validada.**
+
+## Ciclo do visualizador público de fotos — 01/11/2026
+
+A revisão dos percursos Perfil → Galeria → Visualizador → Fechar identificou
+uma diferença de ciclo de vida nos launchers. `PublicVideoViewerLauncherService.open$()`
+já aguardava `MatDialogRef.afterClosed()`, mas
+`PublicPhotoViewerLauncherService.open$()` concluía no evento de abertura
+do modal. Consumidores que vinculam sua trava de abertura a `finalize`
+podiam liberá-la antes do fechamento da foto, permitindo tentativas de
+sobreposição de diálogos.
+
+Alinhado `open$()` de fotos ao de vídeos: a emissão ocorre ao fechar o modal,
+sem alterar a assinatura pública nem `openWithResult$()` (que já tinha esse
+comportamento), regras de acesso, ordenação das fotos, seleção por identidade,
+`restoreFocus: true` ou os tamanhos de `100dvh`.
+Teste novo mantém o Observable pendente até a emissão de `afterClosed`.
+Nenhuma alteração de backend, branches, PRs ou deploy.
+
+A correção foi revisada estaticamente; build e testes precisam ser
+reexecutados no checkout local após sincronizar a `main`.
