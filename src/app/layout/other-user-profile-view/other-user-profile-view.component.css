@@ -63,7 +63,7 @@
 .other-profile-page__hero {
   display: grid;
   position: relative;
-  grid-template-columns: clamp(4.8rem, 7vw, 6rem) minmax(0, 1fr) minmax(8.5rem, max-content);
+  grid-template-columns: clamp(5rem, 7.4vw, 6.2rem) minmax(0, 1fr) minmax(8.5rem, max-content);
   gap: clamp(0.65rem, 1.35vw, 1.05rem);
   align-items: center;
   min-width: 0;
@@ -325,6 +325,14 @@
   background: transparent;
   box-shadow: none;
   border-radius: 0;
+}
+
+/* Links sociais permanecem disponíveis, mesmo sem bio ou preferências.
+   Não reservar espaço visual para uma apresentação inexistente. */
+.other-profile-page__introduction--links-only {
+  gap: 0;
+  padding: 0;
+  border: 0;
 }
 
 .other-profile-page__intro-header {

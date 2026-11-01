@@ -48,13 +48,13 @@ describe('perfil público visitado: composição editorial', () => {
     expect(css).toContain('aspect-ratio: 1;');
     expect(css).toContain('border-radius: 50%;');
     expect(html).toContain('class="other-profile-page__introduction app-card app-card--flat"');
-    expect(html.indexOf('id="profile-details"')).toBeLessThan(html.indexOf('id="profile-media"'));
+    expect(html.indexOf('id="profile-media"')).toBeLessThan(html.indexOf('id="profile-details"'));
     expect(html).toContain('class="other-profile-page__bio-text"');
-    expect(html).toContain('Sem apresentação por enquanto.');
+    expect(html).not.toContain('Sem apresentação por enquanto.');
     expect(html).toContain('@for (group of publishedPreferenceGroups; track group.title)');
-    expect(html).toContain('Redes sociais publicadas');
-    expect(html.indexOf('aria-label="Redes sociais publicadas"'))
-      .toBeLessThan(html.indexOf('id="profile-media"'));
+    expect(html).toContain('aria-label="Redes sociais"');
+    expect(html.indexOf('id="profile-media"'))
+      .toBeLessThan(html.indexOf('aria-label="Redes sociais"'));
     expect(html).toContain('{{ profile.descricao }}');
     expect(html).toContain('class="other-profile-page__sections"');
     expect(html).toContain('aria-current="page"');
@@ -89,8 +89,8 @@ describe('perfil público visitado: composição editorial', () => {
     expect(html).toContain('@for (group of publishedPreferenceGroups; track group.title)');
     expect(html).toContain('@for (label of group.labels; track label)');
     expect(css).toContain('repeat(auto-fit, minmax(min(100%, 23rem), 1fr))');
-    expect(html.indexOf('class="other-profile-page__affinities-grid"'))
-      .toBeLessThan(html.indexOf('id="profile-media"'));
+    expect(html.indexOf('id="profile-media"'))
+      .toBeLessThan(html.indexOf('class="other-profile-page__affinities-grid"'));
   });
 
   it('alinha o cabeçalho Mídias às seções e adapta abas pela largura do perfil', () => {
@@ -129,12 +129,13 @@ describe('perfil público visitado: composição editorial', () => {
     expect(css).toMatch(/\.other-profile-page__hero\s*\{[^}]*padding:\s*clamp\(2\.85rem/u);
     expect(css).toMatch(/\.other-profile-page__hero::before\s*\{[^}]*height:\s*clamp\(3rem/u);
     expect(css).toMatch(/\.other-profile-page__introduction\s*\{[^}]*background:\s*transparent;/u);
-    expect(html).toContain('<h2 id="profile-about-heading">Sobre</h2>');
+    expect(html).toContain('id="profile-about-heading"');
+    expect(html).toContain('[class.visually-hidden]');
     expect(html).not.toContain('Sobre {{ displayName }}');
   });
 
   it('evita explicações redundantes sobre visibilidade na apresentação do perfil', () => {
-    expect(html).toContain('Sem apresentação por enquanto.');
+    expect(html).not.toContain('Sem apresentação por enquanto.');
     expect(html).toContain('aria-label="Mídias do perfil"');
     expect(html).toContain('aria-label="Informações do perfil"');
     expect(mosaicHtml).toContain('message="Nenhuma mídia para mostrar."');
@@ -142,6 +143,18 @@ describe('perfil público visitado: composição editorial', () => {
     expect(mosaicHtml).not.toContain('Mídias públicas');
     // Preservar nomes internos das rotas: não são textos exibidos.
     expect(html).toContain("'fotos-publicas'");
+  });
+
+  it('mantém mídias antes de Sobre e preserva os links sociais na ausência de bio', () => {
+    expect(html.indexOf('id="profile-media"')).toBeLessThan(html.indexOf('id="profile-details"'));
+    expect(html).toContain('[class.other-profile-page__introduction--links-only]');
+    expect(html).toContain('[class.visually-hidden]');
+    expect(html).not.toContain('Sem apresentação por enquanto.');
+    expect(html).toContain('<app-social-links-accordion');
+    expect(html).toContain('[hideWhenEmpty]="true"');
+    expect(css).toContain('.other-profile-page__introduction--links-only {');
+    expect(mosaicCss).toContain('max-inline-size: min(100%, 54rem);');
+    expect(mosaicCss).toContain(':not(.profile-media-showcase__grid--mosaic)');
   });
 
   it('densifica a vitrine sem alterar toque, foco e matriz de mídia pública', () => {

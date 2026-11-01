@@ -27,15 +27,15 @@
       class="other-profile-page__hero"
       aria-labelledby="profile-heading"
     >
-    <a
-      class="other-profile-page__back"
-      [routerLink]="discoveryLink"
-      aria-label="Voltar para os perfis"
-      title="Voltar para os perfis"
-    >
-      <i class="fas fa-arrow-left" aria-hidden="true"></i>
-      <span aria-hidden="true">Pessoas</span>
-    </a>
+      <a
+        class="other-profile-page__back"
+        [routerLink]="discoveryLink"
+        aria-label="Voltar para os perfis"
+        title="Voltar para os perfis"
+      >
+        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+        <span aria-hidden="true">Pessoas</span>
+      </a>
       <figure class="other-profile-page__photo-wrap">
         <img
           [src]="profilePhotoUrl"
@@ -155,56 +155,6 @@
     </nav>
 
 
-    <section
-      id="profile-details"
-      class="other-profile-page__introduction app-card app-card--flat"
-      aria-labelledby="profile-about-heading"
-    >
-      <header class="other-profile-page__intro-header">
-        <h2 id="profile-about-heading">Sobre</h2>
-        @if (profile.distanciaKm !== null && profile.distanciaKm !== undefined) {
-          <p class="other-profile-page__location">
-            <i class="fas fa-location-dot" aria-hidden="true"></i>
-            <span class="visually-hidden">Distância aproximada: </span>
-            {{ profile.distanciaKm | number:'1.0-0' }} km
-          </p>
-        }
-      </header>
-
-      @if (hasDescription) {
-        <p class="other-profile-page__bio-text">{{ profile.descricao }}</p>
-      } @else {
-        <p class="other-profile-page__intro-empty">
-          Sem apresentação por enquanto.
-        </p>
-      }
-
-      @if (publishedPreferenceGroups.length > 0) {
-        <div class="other-profile-page__affinities-grid">
-          @for (group of publishedPreferenceGroups; track group.title) {
-            <section class="other-profile-page__affinities" [attr.aria-label]="group.title">
-              <h3>{{ group.title }}</h3>
-              <div class="other-profile-page__preference-cloud">
-                @for (label of group.labels; track label) {
-                  <span class="other-profile-page__preference-chip app-chip">{{ label }}</span>
-                }
-              </div>
-            </section>
-          }
-        </div>
-      }
-
-      <app-social-links-accordion
-        class="other-profile-page__social"
-        [uid]="uid"
-        [isOwner]="false"
-        [compact]="true"
-        [hideWhenEmpty]="true"
-        aria-label="Redes sociais"
-      />
-
-    </section>
-
     <div class="other-profile-page__content">
       <main
         id="profile-media"
@@ -267,6 +217,57 @@
 
       </aside>
     </div>
+
+    <section
+      id="profile-details"
+      class="other-profile-page__introduction app-card app-card--flat"
+      [class.other-profile-page__introduction--links-only]="!hasDescription && publishedPreferenceGroups.length === 0 && profile.distanciaKm == null"
+      aria-labelledby="profile-about-heading"
+    >
+      <header class="other-profile-page__intro-header">
+        <h2
+          id="profile-about-heading"
+          [class.visually-hidden]="!hasDescription && publishedPreferenceGroups.length === 0 && profile.distanciaKm == null"
+        >Sobre</h2>
+        @if (profile.distanciaKm !== null && profile.distanciaKm !== undefined) {
+          <p class="other-profile-page__location">
+            <i class="fas fa-location-dot" aria-hidden="true"></i>
+            <span class="visually-hidden">Distância aproximada: </span>
+            {{ profile.distanciaKm | number:'1.0-0' }} km
+          </p>
+        }
+      </header>
+
+      @if (hasDescription) {
+        <p class="other-profile-page__bio-text">{{ profile.descricao }}</p>
+      }
+
+      @if (publishedPreferenceGroups.length > 0) {
+        <div class="other-profile-page__affinities-grid">
+          @for (group of publishedPreferenceGroups; track group.title) {
+            <section class="other-profile-page__affinities" [attr.aria-label]="group.title">
+              <h3>{{ group.title }}</h3>
+              <div class="other-profile-page__preference-cloud">
+                @for (label of group.labels; track label) {
+                  <span class="other-profile-page__preference-chip app-chip">{{ label }}</span>
+                }
+              </div>
+            </section>
+          }
+        </div>
+      }
+
+      <app-social-links-accordion
+        class="other-profile-page__social"
+        [uid]="uid"
+        [isOwner]="false"
+        [compact]="true"
+        [hideWhenEmpty]="true"
+        aria-label="Redes sociais"
+      />
+
+    </section>
+
   } @else if (profileLoadError) {
     <app-content-state
       state="error"

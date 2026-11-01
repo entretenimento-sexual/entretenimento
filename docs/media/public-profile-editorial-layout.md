@@ -203,3 +203,25 @@ continuam tecnicamente explícitos. Também é legítimo usar “público”
 quando identifica uma audiência distinta numa escolha de privacidade
 ou quando a palavra é parte necessária da semântica, e “publicar” é
 uma ação, não redundância. Não mudar o acesso nem criar cache por UI.
+
+## Composição editorial com mídia em primeiro plano — 01/11/2026
+
+A área de fotos/vídeos passa a aparecer imediatamente depois das abas.
+`Sobre` vem depois da vitrine, mantendo a âncora `#profile-details`,
+os links sociais, as preferências publicadas e a localização autorizada.
+Sem descrição, preferências nem distância, não é exibido um aviso de
+ausência de apresentação. O título fica acessível a leitores de tela,
+e o bloco decorativo não reserva padding/borda. O componente social
+permanece montado, com `hideWhenEmpty`, para não perder links caso
+sejam a única informação publicada.
+
+A vitrine de até quatro itens tem largura máxima de `54rem`, evitando
+que três miniaturas dominem a tela; grades completas e o mosaico de
+cinco mídias não recebem esse limite. Pequena ênfase adicional no
+avatar sem crescer significativamente a hero. Corrigidas as expectativas
+de teste que ainda procuravam a antiga expressão “Redes sociais
+publicadas”, substituída antes por “Redes sociais”.
+
+Não foram alterados serviços, chamadas, controle de acesso, URLs,
+views de mídia, rotas, navegação RxJS ou fluxo de moderação. Validar
+visualmente e repetir build/testes após sincronização local.

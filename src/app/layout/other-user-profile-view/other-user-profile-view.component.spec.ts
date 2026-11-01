@@ -622,10 +622,36 @@ describe('OtherUserProfileViewComponent', () => {
     fixture.detectChanges();
 
     const intro = fixture.nativeElement.querySelector('#profile-details') as HTMLElement;
-    expect(intro.textContent).toContain('Sem apresentação por enquanto.');
+    const main = fixture.nativeElement.querySelector('#profile-media') as HTMLElement;
+    expect(main.compareDocumentPosition(intro) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(intro.textContent).not.toContain('Sem apresentação por enquanto.');
     expect(intro.querySelector('.other-profile-page__bio-text')).toBeNull();
     expect(intro.querySelector('.other-profile-page__affinities')).toBeNull();
+    expect(intro.querySelector('app-social-links-accordion')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('a[href="#profile-details"]')).not.toBeNull();
+  });
+
+  it('não reserva um painel de apresentação quando não há dados textuais', () => {
+    const userQuery = TestBed.inject(FirestoreUserQueryService);
+    vi.mocked(userQuery.getPublicUserById$).mockReturnValue(of({
+      ...component.userProfile!,
+      descricao: '',
+      distanciaKm: null,
+      preferenceBadgesVisible: false,
+      publicRelationshipIntents: null,
+      publicSexualPractices: null,
+      publicBodyTraits: null,
+    }));
+    fixture.destroy();
+    fixture = TestBed.createComponent(OtherUserProfileViewComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const details = fixture.nativeElement.querySelector('#profile-details') as HTMLElement;
+    expect(details.classList.contains('other-profile-page__introduction--links-only')).toBe(true);
+    expect(details.querySelector('#profile-about-heading')?.classList.contains('visually-hidden')).toBe(true);
+    expect(details.querySelector('app-social-links-accordion')).not.toBeNull();
+    expect(details.textContent).not.toContain('Sem apresentação');
   });
 
   it('não inventa publicações nem repete segurança ou promoção de planos', () => {

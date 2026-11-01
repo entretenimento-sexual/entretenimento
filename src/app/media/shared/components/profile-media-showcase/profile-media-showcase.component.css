@@ -24,6 +24,12 @@
   min-width: 0;
 }
 
+/* Limite editorial apenas na prévia de até quatro itens.
+   O mosaico de cinco e as galerias completas não são reduzidos. */
+.profile-media-showcase__grid:not(.profile-media-showcase__grid--mosaic) {
+  max-inline-size: min(100%, 54rem);
+}
+
 .profile-media-showcase__item {
   display: block;
   width: 100%;
