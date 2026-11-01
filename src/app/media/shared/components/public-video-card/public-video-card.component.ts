@@ -86,7 +86,7 @@ export class PublicVideoCardComponent {
   }
 
   getOwnerName(item: IPublicVideoItem): string {
-    return item.owner?.nickname?.trim() || 'Perfil público';
+    return item.owner?.nickname?.trim() || 'Perfil';
   }
 
   getOwnerInitial(item: IPublicVideoItem): string {

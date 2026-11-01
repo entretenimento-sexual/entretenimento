@@ -3,7 +3,7 @@
 @let galleryOwnerUid = (ownerUid$ | async);
 
 @if (state$ | async; as state) {
-  <section class="public-videos-page" aria-label="Vídeos públicos">
+  <section class="public-videos-page" aria-label="Vídeos do perfil">
     <!-- Uma única identificação visual: a aba Vídeos.
          O PageHeader canônico continua acessível como h1. -->
     <div class="visually-hidden">
@@ -62,7 +62,7 @@
       <a
         class="public-videos-page__gallery-return app-action app-action--ghost"
         [routerLink]="['/media/perfil', galleryOwnerUid, 'videos-publicos']"
-        aria-label="Voltar à galeria pública de vídeos deste perfil"
+        aria-label="Voltar à galeria de vídeos deste perfil"
       >
         <i class="fas fa-arrow-left" aria-hidden="true"></i>
         <span>Ver galeria completa</span>
@@ -73,7 +73,7 @@
       @case ('loading') {
         <app-content-state
           state="loading"
-          message="Carregando vídeos públicos."
+          message="Carregando vídeos."
           skeletonVariant="media-grid"
           [skeletonRows]="4"
         />
@@ -83,7 +83,7 @@
         <app-content-state
           state="error"
           title="Não foi possível carregar os vídeos"
-          message="Tente atualizar a galeria pública."
+          message="Tente atualizar a galeria."
           actionLabel="Tentar novamente"
           (action)="retry()"
         />
@@ -92,8 +92,7 @@
       @case ('empty') {
         <app-content-state
           state="empty"
-          title="Nenhum vídeo público disponível"
-          message="Este perfil ainda não publicou vídeos aprovados para visitantes."
+          title="Nenhum vídeo disponível"
         />
       }
 
@@ -188,7 +187,7 @@
               (click)="loadMoreVideos()"
               [disabled]="state.loadingMore"
               [attr.aria-busy]="state.loadingMore ? 'true' : null"
-              aria-label="Carregar mais vídeos públicos"
+              aria-label="Carregar mais vídeos"
             >
               @if (state.loadingMore) {
                 <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>

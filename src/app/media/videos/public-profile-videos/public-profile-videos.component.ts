@@ -429,7 +429,7 @@ export class PublicProfileVideosComponent implements OnInit {
       switchMap((state) => {
         if (state.status !== 'ready' || !state.items.length) {
           this.errorNotification.showWarning(
-            'Nenhum vídeo público disponível.'
+            'Nenhum vídeo disponível.'
           );
           return EMPTY;
         }
@@ -597,7 +597,7 @@ export class PublicProfileVideosComponent implements OnInit {
     index: number,
     total: number
   ): string {
-    const title = item.title?.trim() || item.alt?.trim() || 'vídeo público';
+    const title = item.title?.trim() || item.alt?.trim() || 'vídeo';
 
     if (this.isVideoOpening(item)) {
       return `Abrindo ${title}.`;
@@ -607,7 +607,7 @@ export class PublicProfileVideosComponent implements OnInit {
   }
 
   getShareAriaLabel(item: IPublicVideoItem): string {
-    const title = item.title?.trim() || item.alt?.trim() || 'vídeo público';
+    const title = item.title?.trim() || item.alt?.trim() || 'vídeo';
 
     return this.isVideoSharing(item)
       ? `Compartilhando ${title}.`

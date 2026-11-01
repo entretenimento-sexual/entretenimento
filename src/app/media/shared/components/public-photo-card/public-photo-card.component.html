@@ -80,14 +80,14 @@
     [attr.aria-label]="thumbnailUnavailable()
       ? 'Miniatura indisponível. Abrir foto em visualização imersiva'
       : mode === 'profile'
-        ? 'Abrir foto pública em visualização imersiva'
+        ? 'Abrir foto em visualização imersiva'
         : 'Abrir publicação de ' + getOwnerName(item)"
     title="Abrir publicação"
   >
     <img
       class="photo"
       [src]="item.url"
-      [alt]="item.alt || 'Foto pública'"
+      [alt]="item.alt || 'Foto'"
       loading="lazy"
       decoding="async"
       referrerpolicy="no-referrer"
@@ -150,7 +150,7 @@
         </a>
       }
 
-      <span class="photo-stats" aria-label="Métricas públicas da foto">
+      <span class="photo-stats" aria-label="Interações da foto">
         @if (mode !== 'profile' || (item.reactionsCount ?? item.likesCount ?? 0) > 0) {
           <span
             class="stat-chip app-chip app-chip--overlay"

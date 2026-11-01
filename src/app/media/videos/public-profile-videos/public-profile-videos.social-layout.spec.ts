@@ -47,6 +47,17 @@ describe('galeria pública de vídeos: navegação social', () => {
     expect(css).toContain('overflow-x: auto;');
   });
 
+  it('não repete que os vídeos exibidos são públicos em rótulos ou estados', () => {
+    expect(html).toContain('aria-label="Vídeos do perfil"');
+    expect(html).toContain('title="Nenhum vídeo disponível"');
+    expect(html).toContain('message="Carregando vídeos."');
+    expect(html).not.toContain('Vídeos públicos');
+    expect(html).not.toContain('galeria pública');
+    expect(html).not.toContain('vídeos aprovados para visitantes');
+    expect(photosHtml).toContain('title="Nenhuma foto disponível"');
+    expect(photosHtml).not.toContain('Este perfil não tem fotos disponíveis para você');
+  });
+
   it('mantém título, identidade, ações de segurança e retorno do viewer', () => {
     expect(html).toContain('<app-page-header title="Vídeos"></app-page-header>');
     expect(html).toContain('<app-public-user-identity');

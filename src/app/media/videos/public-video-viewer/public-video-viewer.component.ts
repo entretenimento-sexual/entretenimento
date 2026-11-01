@@ -1117,7 +1117,7 @@ export class PublicVideoViewerComponent {
             );
           } else if (result.exhausted) {
             this.navigationAnnouncement.set(
-              'Não há mais vídeos públicos disponíveis para continuar.'
+              'Não há mais vídeos para mostrar.'
             );
           }
         }
