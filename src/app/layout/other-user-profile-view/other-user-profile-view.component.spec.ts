@@ -497,6 +497,26 @@ describe('OtherUserProfileViewComponent', () => {
     );
   });
 
+  it('mantém denúncia no cabeçalho utilitário e ação principal isolada', () => {
+    const hero = fixture.nativeElement.querySelector(
+      '.other-profile-page__hero'
+    ) as HTMLElement;
+    const utility = hero.querySelector('.other-profile-page__utility') as HTMLElement;
+    const report = utility.querySelector(
+      'app-report-content-button button'
+    ) as HTMLButtonElement;
+    const actions = hero.querySelector('.other-profile-page__actions') as HTMLElement;
+
+    expect(report).not.toBeNull();
+    expect(report.type).toBe('button');
+    expect(report.classList.contains('report-button--icon')).toBe(true);
+    expect(report.getAttribute('aria-label')).toBe('Denunciar Pessoa alvo');
+    expect(actions.querySelector('app-report-content-button')).toBeNull();
+    expect(actions.querySelector('.app-action--primary')).not.toBeNull();
+    expect(utility.querySelector('a')?.getAttribute('aria-label'))
+      .toBe('Voltar para os perfis');
+  });
+
   it('exibe identidade normalizada sem repetir localização nem idade exata', () => {
     const hero = fixture.debugElement.query(
       By.css('.other-profile-page__hero')

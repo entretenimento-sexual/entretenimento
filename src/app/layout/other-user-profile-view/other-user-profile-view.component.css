@@ -17,12 +17,19 @@
   color: var(--text-color, #111827);
 }
 
-.other-profile-page__back {
-  display: inline-flex;
+.other-profile-page__utility {
   position: absolute;
   z-index: 2;
-  inset-block-start: 0.2rem;
+  inset-block-start: 0.15rem;
   inset-inline-end: clamp(0.7rem, 1.65vw, 1.45rem);
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.other-profile-page__back {
+  display: inline-flex;
+  position: static;
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
@@ -240,7 +247,6 @@
   flex-direction: column;
   align-items: flex-end;
   justify-content: center;
-  gap: 0.2rem;
   min-width: 0;
 }
 
@@ -254,9 +260,21 @@
   box-shadow: none;
 }
 
+/* Denunciar permanece sempre acessível, sem competir com a ação social. */
 .other-profile-page__report-button {
-  display: block;
-  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 3rem;
+  min-width: 3rem;
+  min-height: 3rem;
+  opacity: 0.72;
+  transition: opacity 140ms ease;
+}
+
+.other-profile-page__report-button:hover,
+.other-profile-page__report-button:focus-within {
+  opacity: 1;
 }
 
 .other-profile-page__sections {
@@ -499,6 +517,10 @@ app-profile-media-showcase {
   color: color-mix(in oklab, var(--text-color, #f9fafb) 74%, transparent);
 }
 
+:host-context(.high-contrast) .other-profile-page__report-button {
+  opacity: 1;
+}
+
 :host-context(.high-contrast) .other-profile-page__hero,
 :host-context(.high-contrast) .other-profile-page__sections,
 :host-context(.high-contrast) .other-profile-page__photo-wrap,
@@ -624,6 +646,7 @@ app-profile-media-showcase {
 
 @media (prefers-reduced-motion: reduce) {
   .other-profile-page__back,
+  .other-profile-page__report-button,
   .other-profile-page__section-link {
     transition: none;
   }
@@ -650,7 +673,7 @@ app-profile-media-showcase {
     padding-inline: 0.7rem;
   }
 
-  .other-profile-page__back {
+  .other-profile-page__utility {
     inset-inline-end: 0.45rem;
   }
 

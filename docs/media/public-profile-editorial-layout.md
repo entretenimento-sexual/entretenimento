@@ -231,3 +231,22 @@ visualmente e repetir build/testes após sincronização local.
 A compilação de `npm.cmd run build:emu` foi concluída pelo usuário; `npm.cmd test -- --watch=false` não chegou a executar a suíte por TS2345 no mock `distanciaKm: null`. O tipo `IUserDados` aceita `number | undefined`, enquanto o template Angular já verifica `== null`, abrangendo ausência por `undefined`. O mock passa a usar `undefined` para simular distância não informada, preservando o teste de recolhimento de apresentação vazia. O contrato estático do seletor `other-profile-page__introduction--links-only` foi atualizado para a especificidade combinada efetivamente aplicada, sem alterar CSS de produção.
 
 Não foram modificadas rotas, acessos, mensagens de erro, dados nem comportamento da aplicação. A compilação dos testes e sua execução completa permanecem a confirmar no checkout local após atualização da `main`.
+
+## Finalização da hierarquia de ações do cabeçalho — 01/11/2026
+
+O cabeçalho visitado tem uma ação social predominante, `Conversar`
+ou o estado de `Interesse` definido pela facade já existente. O link
+`Pessoas` e o botão de denúncia (ícone de bandeira) ocupam juntos a
+faixa discreta da hero, sem criar outra linha acima. A denúncia usa a
+variante `appearance="icon"` do componente canônico, com `aria-label`
+descritivo (`Denunciar [apelido]`), alvo Material de 48 px, foco
+por teclado e fluxo de moderação preservado. A instância de denúncia
+não depende mais da emissão da `friendshipInteractionState$`, pois
+não faz parte do estado da amizade.
+
+A utilidade tem posicionamento ancorado dentro do cabeçalho, e os
+ajustes de contêineres estreitos reposicionam o conjunto, não apenas
+o link. Mantidas regras de alto contraste e movimento reduzido. Sem
+alterar rótulos de ações, assinaturas de métodos, rotas, permissões,
+moderação, serviços ou tratamento centralizado de erros. Dois novos
+testes verificam a estrutura e o contrato acessível do botão.

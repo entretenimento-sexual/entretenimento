@@ -112,6 +112,7 @@ describe('perfil público visitado: composição editorial', () => {
 
   it('integra o retorno à faixa da hero, sem breadcrumb ocupando outra linha', () => {
     const hero = html.slice(html.indexOf('<article'), html.indexOf('</article>'));
+    expect(hero).toContain('class="other-profile-page__utility"');
     expect(hero).toContain('class="other-profile-page__back"');
     expect(hero).toContain('[routerLink]="discoveryLink"');
     expect(hero).toContain('aria-label="Voltar para os perfis"');
@@ -119,10 +120,32 @@ describe('perfil público visitado: composição editorial', () => {
     expect(html).not.toContain('other-profile-page__breadcrumb');
     expect(css).not.toContain('.other-profile-page__topbar');
     expect(css).not.toContain('.other-profile-page__breadcrumb');
-    expect(css).toMatch(/\.other-profile-page__back\s*\{[^}]*position:\s*absolute;/u);
+    expect(css).toMatch(/\.other-profile-page__utility\s*\{[^}]*position:\s*absolute;/u);
+    expect(css).toMatch(/\.other-profile-page__back\s*\{[^}]*position:\s*static;/u);
     expect(css).toContain('min-height: var(--tap-target, 44px)');
     expect(css).toContain('.other-profile-page__back--standalone');
     expect(html).toContain('@if (isLoading || !userProfile)');
+  });
+
+  it('mantém Denunciar na faixa superior, sem competir com Conversar/Interesse', () => {
+    const utility = html.slice(
+      html.indexOf('<div class="other-profile-page__utility">'),
+      html.indexOf('<figure class="other-profile-page__photo-wrap">')
+    );
+    const actions = html.slice(
+      html.indexOf('<div class="other-profile-page__actions"'),
+      html.indexOf('</div>', html.indexOf('<div class="other-profile-page__actions"'))
+    );
+    expect(utility).toContain('appearance="icon"');
+    expect(utility).toContain('targetType="profile"');
+    expect(utility).toContain('[targetId]="uid || \'\'"');
+    expect(utility).toContain('[routerLink]="discoveryLink"');
+    expect(actions).not.toContain('<app-report-content-button');
+    expect(actions).toContain('app-action--primary');
+    expect(css).toContain('min-height: 3rem;');
+    expect(css).toContain('.other-profile-page__report-button:focus-within');
+    expect(css).toContain('@container visited-profile (max-width: 420px)');
+    expect(css).toContain(':host-context(.high-contrast) .other-profile-page__report-button');
   });
 
   it('torna a hero social compacta e integra Sobre sem duplicar o nome', () => {

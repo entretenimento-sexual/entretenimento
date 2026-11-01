@@ -27,15 +27,28 @@
       class="other-profile-page__hero"
       aria-labelledby="profile-heading"
     >
-      <a
-        class="other-profile-page__back"
-        [routerLink]="discoveryLink"
-        aria-label="Voltar para os perfis"
-        title="Voltar para os perfis"
-      >
-        <i class="fas fa-arrow-left" aria-hidden="true"></i>
-        <span aria-hidden="true">Pessoas</span>
-      </a>
+      <div class="other-profile-page__utility">
+        <a
+          class="other-profile-page__back"
+          [routerLink]="discoveryLink"
+          aria-label="Voltar para os perfis"
+          title="Voltar para os perfis"
+        >
+          <i class="fas fa-arrow-left" aria-hidden="true"></i>
+          <span aria-hidden="true">Pessoas</span>
+        </a>
+        <app-report-content-button
+          class="other-profile-page__report-button"
+          targetType="profile"
+          [targetId]="uid || ''"
+          [targetOwnerUid]="uid"
+          [title]="displayName"
+          subtitle="Informe o motivo e o contexto essencial para análise da moderação."
+          label="Denunciar"
+          appearance="icon"
+          [disabled]="!uid"
+        ></app-report-content-button>
+      </div>
       <figure class="other-profile-page__photo-wrap">
         <img
           [src]="profilePhotoUrl"
@@ -106,17 +119,6 @@
               </button>
             }
 
-            <app-report-content-button
-              class="other-profile-page__report-button"
-              targetType="profile"
-              [targetId]="uid || ''"
-              [targetOwnerUid]="uid"
-              [title]="displayName"
-              subtitle="Informe o motivo e o contexto essencial para análise da moderação."
-              label="Denunciar"
-              appearance="link"
-              [disabled]="!uid"
-            ></app-report-content-button>
           </div>
 
           <p
