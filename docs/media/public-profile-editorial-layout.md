@@ -165,3 +165,25 @@ A alteração é estritamente HTML/CSS do perfil visitado, CSS da vitrine de
 mídias, dois contratos estáticos e documentação. Nenhum TS funcional,
 endpoint, audience, permissão, viewer, compartilhamento ou roteamento foi
 alterado. A revisão visual real e o build/testes posteriores continuam pendentes.
+
+## Retorno incorporado ao cabeçalho — 01/11/2026
+
+A revisão visual com o usuário apontou uma linha isolada de breadcrumb
+`Pessoas > Perfil` acima da hero. Ela consumia o alvo mínimo de 44 px
+e mais o espaçamento da grade, deslocando as fotos e vídeos para baixo.
+No estado pronto, foi removida a topbar própria. O link de retorno existente
+(`discoveryLink`, sem trocar rota) agora aparece como `← Pessoas`, na
+faixa CSS discreta, no canto superior direito da hero, mantendo
+`aria-label`, `title`, foco visível e alvo de toque de 44 px.
+O avatar e o botão de conversa/interesse continuam separados.
+
+Enquanto o perfil carrega ou está indisponível/erro, o mesmo retorno
+é renderizado em fluxo normal acima do estado, evitando sobreposição.
+A navegação é por link real, não botão inerte, `history.back()` nem
+acionamento imperativo de router. Não há nova chamada de consulta.
+
+Testes de layout e do componente verificam ausência da topbar,
+presença do retorno no cartão pronto e preservação no estado vazio.
+Nenhum contrato de audiência, identidade pública, backend, navegação de
+viewer ou regra de mídia foi alterado. A revisão física no navegador
+e o build/testes desta alteração são pendentes.

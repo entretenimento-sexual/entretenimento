@@ -383,6 +383,26 @@ describe('OtherUserProfileViewComponent', () => {
     expect(primaryAction.textContent).toContain('Mostrar interesse');
   });
 
+  it('posiciona o retorno dentro do perfil e conserva acesso no estado vazio', () => {
+    const hero = fixture.nativeElement.querySelector(
+      '.other-profile-page__hero'
+    ) as HTMLElement;
+    const returnLink = hero.querySelector('.other-profile-page__back') as HTMLAnchorElement;
+    expect(returnLink?.getAttribute('aria-label')).toBe('Voltar para os perfis');
+    expect(returnLink?.getAttribute('href')).toBeTruthy();
+    expect(hero.textContent).toContain('Pessoas');
+    expect(fixture.nativeElement.querySelector('.other-profile-page__topbar')).toBeNull();
+
+    const query = TestBed.inject(FirestoreUserQueryService);
+    vi.mocked(query.getPublicUserById$).mockReturnValue(of(null));
+    routeParamMap$.next(convertToParamMap({ id: 'indisponivel' }));
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.other-profile-page__hero')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.other-profile-page__back--standalone')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Perfil indisponível');
+  });
+
   it('mantém ações no cabeçalho sem comprimir a coluna da identidade', () => {
     const hero = fixture.nativeElement.querySelector(
       '.other-profile-page__hero'

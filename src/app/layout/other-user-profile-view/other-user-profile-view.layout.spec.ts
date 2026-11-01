@@ -110,6 +110,21 @@ describe('perfil público visitado: composição editorial', () => {
     expect(html).toContain('aria-label="Seções do perfil visitado"');
   });
 
+  it('integra o retorno à faixa da hero, sem breadcrumb ocupando outra linha', () => {
+    const hero = html.slice(html.indexOf('<article'), html.indexOf('</article>'));
+    expect(hero).toContain('class="other-profile-page__back"');
+    expect(hero).toContain('[routerLink]="discoveryLink"');
+    expect(hero).toContain('aria-label="Voltar para os perfis"');
+    expect(html).not.toContain('other-profile-page__topbar');
+    expect(html).not.toContain('other-profile-page__breadcrumb');
+    expect(css).not.toContain('.other-profile-page__topbar');
+    expect(css).not.toContain('.other-profile-page__breadcrumb');
+    expect(css).toMatch(/\.other-profile-page__back\s*\{[^}]*position:\s*absolute;/u);
+    expect(css).toContain('min-height: var(--tap-target, 44px)');
+    expect(css).toContain('.other-profile-page__back--standalone');
+    expect(html).toContain('@if (isLoading || !userProfile)');
+  });
+
   it('torna a hero social compacta e integra Sobre sem duplicar o nome', () => {
     expect(css).toMatch(/\.other-profile-page__hero\s*\{[^}]*padding:\s*clamp\(2\.85rem/u);
     expect(css).toMatch(/\.other-profile-page__hero::before\s*\{[^}]*height:\s*clamp\(3rem/u);

@@ -4,20 +4,17 @@
   aria-label="Perfil visitado"
   [attr.aria-busy]="isLoading ? 'true' : 'false'"
 >
-  <header class="other-profile-page__topbar">
+  @if (isLoading || !userProfile) {
     <a
-      class="other-profile-page__back"
+      class="other-profile-page__back other-profile-page__back--standalone"
       [routerLink]="discoveryLink"
       aria-label="Voltar para os perfis"
       title="Voltar para os perfis"
     >
       <i class="fas fa-arrow-left" aria-hidden="true"></i>
-      <span class="visually-hidden">Voltar para os perfis</span>
+      <span aria-hidden="true">Pessoas</span>
     </a>
-    <span class="other-profile-page__breadcrumb" aria-hidden="true">
-      Pessoas <i class="fas fa-chevron-right"></i> Perfil
-    </span>
-  </header>
+  }
 
   @if (isLoading) {
     <app-content-state
@@ -30,6 +27,15 @@
       class="other-profile-page__hero"
       aria-labelledby="profile-heading"
     >
+    <a
+      class="other-profile-page__back"
+      [routerLink]="discoveryLink"
+      aria-label="Voltar para os perfis"
+      title="Voltar para os perfis"
+    >
+      <i class="fas fa-arrow-left" aria-hidden="true"></i>
+      <span aria-hidden="true">Pessoas</span>
+    </a>
       <figure class="other-profile-page__photo-wrap">
         <img
           [src]="profilePhotoUrl"

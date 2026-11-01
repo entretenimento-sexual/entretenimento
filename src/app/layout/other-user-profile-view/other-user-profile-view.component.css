@@ -13,44 +13,40 @@
   box-sizing: border-box;
   min-width: 0;
   margin-inline: auto;
-  padding: clamp(0.65rem, 1.25vw, 1.1rem);
+  padding: clamp(0.35rem, 0.8vw, 0.8rem) clamp(0.65rem, 1.25vw, 1.1rem);
   color: var(--text-color, #111827);
 }
 
-.other-profile-page__topbar {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  min-height: 2.75rem;
-}
-
-.other-profile-page__breadcrumb {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 65%, transparent);
-  font-size: 0.82rem;
-  font-weight: 650;
-}
-
-.other-profile-page__breadcrumb i {
-  font-size: 0.6rem;
-  opacity: 0.65;
-}
-
 .other-profile-page__back {
-  display: inline-grid;
-  place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  display: inline-flex;
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 0.2rem;
+  inset-inline-end: clamp(0.7rem, 1.65vw, 1.45rem);
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-width: var(--tap-target, 44px);
+  min-height: var(--tap-target, 44px);
+  padding-inline: 0.4rem;
   border: 0;
-  border-radius: 50%;
+  border-radius: 0.55rem;
   background: transparent;
-  color: color-mix(in oklab, var(--text-color, #111827) 72%, transparent);
+  color: color-mix(in oklab, var(--text-color, #111827) 74%, transparent);
+  font-size: 0.78rem;
+  font-weight: 720;
+  white-space: nowrap;
   text-decoration: none;
   transition:
     background-color 140ms ease,
     color 140ms ease;
+}
+
+/* Enquanto não há um perfil carregado, o retorno permanece visível
+   no fluxo normal, sem sobrepor loading, erro ou estado vazio. */
+.other-profile-page__back--standalone {
+  position: static;
+  justify-self: start;
 }
 
 .other-profile-page__back:hover,
@@ -557,7 +553,6 @@ app-profile-media-showcase {
     padding-top: 0.35rem;
   }
 
-  .other-profile-page__topbar,
   .other-profile-page__sidebar {
     padding-inline: 0.75rem;
   }
@@ -645,6 +640,10 @@ app-profile-media-showcase {
 @container visited-profile (max-width: 420px) {
   .other-profile-page__hero {
     padding-inline: 0.7rem;
+  }
+
+  .other-profile-page__back {
+    inset-inline-end: 0.45rem;
   }
 
   .other-profile-page__canonical-identity {
