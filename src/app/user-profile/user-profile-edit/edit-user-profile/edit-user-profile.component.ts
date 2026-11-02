@@ -44,6 +44,7 @@ export class EditUserProfileComponent
   userData: IUserDados = {} as IUserDados;
   readonly editForm: FormGroup;
   readonly identityChangeControl = new FormControl('', { nonNullable: true });
+  readonly identityChangeAcknowledged = new FormControl(false, { nonNullable: true });
   identityRequestBusy = false;
   identityRequestStatus: IdentityChangeStatus['status'] = null;
 
@@ -175,7 +176,7 @@ export class EditUserProfileComponent
 
   onRequestIdentityChange(): void {
     const requested = this.identityChangeControl.value.trim();
-    if (this.identityRequestBusy || this.identityRequestStatus === 'PENDING') return;
+    if (this.identityRequestBusy || !this.identityChangeAcknowledged.value) return;
     if (!requested || requested === this.userData.gender) {
       this.notify.showError('Escolha uma identidade diferente da atual.');
       return;
@@ -187,7 +188,11 @@ export class EditUserProfileComponent
       takeUntil(this.destroy$)
     ).subscribe((result) => {
       this.identityRequestStatus = result.status;
-      this.notify.showSuccess('Solicitação enviada para análise.');
+      this.userData = { ...this.userData, gender: result.requestedIdentityCode };
+      this.editForm.get('gender')?.setValue(result.requestedIdentityCode, { emitEvent: false });
+      this.identityChangeControl.setValue('');
+      this.identityChangeAcknowledged.setValue(false);
+      this.notify.showSuccess('Identidade atualizada.');
     });
   }
 

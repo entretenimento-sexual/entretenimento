@@ -1,7 +1,8 @@
-// Controlled identity-change request and staff review. No client-side
-// mutation of gender/declaredIdentityCode/public discovery identity is allowed.
+// Automatic self-service individual identity change; structural couple cases stay blocked.
+// Firestore Rules prohibit any direct client modification of canonical identity.
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { assertStaffAuthorization } from '../account_lifecycle/_shared';
+import { normalizeProfileDiscoveryFields } from '../discovery/profile-discovery-normalization';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { assertCallableAppCheck } from '../shared/security/callable-app-check';
@@ -58,54 +59,96 @@ export const getMyProfileIdentityChange = onCall(
 
 export const requestProfileIdentityChange = onCall<{ identityCode?: unknown }>(
   { region: FUNCTIONS_REGION },
-  async (request): Promise<{ status: 'PENDING'; requestedIdentityCode: string }> => {
+  async (request): Promise<{ status: 'APPROVED'; requestedIdentityCode: string }> => {
     assertCallableAppCheck(request.app);
     const uid = assertSignedIn(request.auth?.uid);
     const target = normalizeRequestedIdentityCode(request.data?.identityCode);
     if (!target) {
       throw new HttpsError('invalid-argument', 'Selecione uma identidade válida.');
     }
+    const identity = resolveProfileIdentityOption(target);
+    if (!identity || !identity.enabled || !identity.selectable) {
+      throw new HttpsError('invalid-argument', 'Identidade indisponível.');
+    }
+
     const ref = db.collection('profile_identity_change_requests').doc(uid);
     const userRef = db.collection('users').doc(uid);
+    const publicRef = db.collection('public_profiles').doc(uid);
+    const auditRef = db.collection('admin_logs').doc();
     const now = Date.now();
     return db.runTransaction(async (tx) => {
-      const [userSnap, caseSnap] = await Promise.all([tx.get(userRef), tx.get(ref)]);
-      if (!userSnap.exists) throw new HttpsError('not-found', 'Conta indisponível.');
+      // Todas as leituras antecedem as escritas da transação.
+      const [userSnap, publicSnap, caseSnap] = await Promise.all([
+        tx.get(userRef), tx.get(publicRef), tx.get(ref),
+      ]);
+      if (!userSnap.exists || !publicSnap.exists) {
+        throw new HttpsError('failed-precondition', 'Perfil não disponível.');
+      }
       const user = userSnap.data() as Record<string, unknown>;
-      if (
-        user['profileCompleted'] !== true ||
-        String(user['accountStatus'] ?? 'active') !== 'active' ||
-        user['interactionBlocked'] === true
-      ) {
+      const projected = publicSnap.data() as Record<string, unknown>;
+      const current = identityOf(user);
+      if (user['profileCompleted'] !== true ||
+          String(user['accountStatus'] ?? 'active') !== 'active' ||
+          user['interactionBlocked'] === true ||
+          !normalizeRequestedIdentityCode(current) ||
+          (projected['identityCode'] != null &&
+            String(projected['identityCode']).trim().toLowerCase() !== current)) {
         throw new HttpsError('failed-precondition',
-          'A conta precisa estar ativa para solicitar essa alteração.');
+          'O estado do perfil precisa ser regularizado antes desta alteração.');
       }
       const previous = caseSnap.data() as RequestRecord | undefined;
-      const status = canRequestIdentityChange({
-        currentCode: identityOf(user),
-        requestedCode: target,
-        activeStatus: previous?.status,
-        requestedAt: previous?.requestedAt,
-        now,
+      const decision = canRequestIdentityChange({
+        currentCode: current, requestedCode: target,
+        activeStatus: previous?.status, reviewedAt: previous?.reviewedAt, now,
       });
-      if (status === 'pending' && previous?.requestedIdentityCode === target) {
-        return { status: 'PENDING' as const, requestedIdentityCode: target };
-      }
-      if (status !== 'allowed') {
+      if (decision !== 'allowed') {
         throw new HttpsError('failed-precondition',
-          status === 'same-identity' ? 'Essa já é a identidade do perfil.'
-          : status === 'pending' ? 'Já existe uma solicitação em análise.'
-          : status === 'rate-limited' ? 'Aguarde antes de enviar outra solicitação.'
-          : 'Solicitação inválida.');
+          decision === 'same-identity' ? 'Essa já é a identidade do perfil.'
+            : decision === 'structural-change'
+              ? 'Mudanças envolvendo casal precisam de consentimento específico e não estão disponíveis neste fluxo.'
+            : decision === 'rate-limited'
+              ? 'Aguarde 90 dias desde a última alteração de identidade.'
+              : 'Identidade inválida.');
       }
 
-      tx.set(ref, {
-        uid, currentIdentityCode: identityOf(user),
-        requestedIdentityCode: target, status: 'PENDING',
-        requestedAt: now, reviewedAt: null, reviewedBy: null,
-        updatedAt: FieldValue.serverTimestamp(),
+      // Descoberta não pode manter a classificação antiga após a atualização.
+      const discovery = normalizeProfileDiscoveryFields({
+        ...user, gender: target,
       });
-      return { status: 'PENDING' as const, requestedIdentityCode: target };
+      const stamp = FieldValue.serverTimestamp();
+      tx.update(userRef, {
+        gender: target,
+        declaredIdentityCode: target,
+        identityCatalogVersion: PROFILE_IDENTITY_CATALOG_VERSION,
+        identityChangedAtMs: now,
+        updatedAt: stamp,
+        updatedAtMs: now,
+      });
+      tx.update(publicRef, {
+        gender: target,
+        identityCode: target,
+        identityLabel: identity.label,
+        identityShortLabel: identity.shortLabel,
+        identityCatalogVersion: PROFILE_IDENTITY_CATALOG_VERSION,
+        normalizedGender: discovery.normalizedGender,
+        normalizedOrientation: discovery.normalizedOrientation,
+        compatibilityReady: discovery.compatibilityReady,
+        updatedAt: stamp,
+      });
+      tx.set(ref, {
+        uid, currentIdentityCode: current, requestedIdentityCode: target,
+        status: 'APPROVED', requestedAt: now,
+        reviewedAt: now, reviewedBy: 'SYSTEM_POLICY',
+        updatedAt: stamp,
+      });
+      tx.create(auditRef, {
+        adminUid: null,
+        action: 'profileIdentityChangeAppliedByPolicy',
+        targetUserUid: uid,
+        details: { from: current, to: target, policyVersion: 1 },
+        timestamp: stamp,
+      });
+      return { status: 'APPROVED' as const, requestedIdentityCode: target };
     });
   }
 );

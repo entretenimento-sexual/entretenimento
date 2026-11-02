@@ -1,72 +1,52 @@
-# Governança da identidade do perfil — primeira entrega
+# Identidade e privacidade de recursos — política escalável (P1)
 
-## Política
-A identidade declarada não é evidência de conduta enganosa. A alteração
-legítima é possível mediante solicitação de análise, sem exigência de
-assinatura. Não há exposição pública do histórico de identidade,
-documentos de identificação, nome anterior ou justificativas íntimas.
+## Mudança de identidade individual: autosserviço
+Não há equipe de revisão. O callable `requestProfileIdentityChange`
+continua com o mesmo nome, mas agora **aplica diretamente**, em uma
+transação Firestore, as mudanças legítimas entre opções individuais do
+catálogo. É necessário autenticação, App Check, cadastro concluído,
+conta ativa e projeção consistente. O usuário confirma a mudança
+explicitamente no formulário. Não depende de plano pago.
 
-Após concluir o cadastro, os campos `gender`, `declaredIdentityCode`
-e `identityCatalogVersion` deixam de integrar a edição comum.
-A proteção é imposta em `firestore-rules/users.rules`, no
-`UsuarioService.atualizarUsuario`, no orquestrador de salvamento
-e no formulário. Drafts antigos não podem reintroduzir mudanças.
+Somente uma alteração é permitida por janela de **90 dias**, medida no
+backend pelo timestamp do último resultado `APPROVED`. A política
+impede alternâncias frequentes, mas não afirma que detecta fraude.
+Nenhuma troca publica a identidade antiga ou notifica terceiros sobre
+históricos íntimos. UID, mídias, amizades e faturamento permanecem
+inalterados; não se reinicia contagem de seguidores, não se inventa
+autenticidade e não se modifica o controle de consentimento.
 
-## Fluxo controlado
-- O usuário visualiza a identidade registrada e pode solicitar outra opção
-  do catálogo canônico em controle separado, sem publicar diretamente.
-- `requestProfileIdentityChange` valida autenticação, App Check, conta
-  ativa, catálogo e duplicidade; grava somente um pedido pendente por UID.
-- `getMyProfileIdentityChange` permite conferir o andamento sem ler
-  coleções privadas diretamente. Falhas seguem tratamento de erros canônico.
-- `reviewProfileIdentityChange` depende de permissão administrativa
-  existente `users:suspend`, exige justificativa objetiva e aprova/rejeita
-  em transação. A aprovação sincroniza `users/{uid}` e
-  `public_profiles/{uid}`. Decisões ficam em `admin_logs`.
-- Não alteram UID, profileId, assinatura, privilégios, vínculos, reações ou
-  mensagens. Não são emitidos avisos contendo a identidade anterior.
-- Uma solicitação pendente bloqueia outra; após rejeição é necessário
-  aguardar sete dias para nova solicitação comum. É necessária política
-  administrativa separada para decisões, recursos e mudanças estruturais
-  individual ↔ casal, incluindo consentimento de ambos, quando cabível.
+A transação sincroniza `users/{uid}` e `public_profiles/{uid}`,
+inclusive `normalizedGender`, `normalizedOrientation` e
+`compatibilityReady`, grava somente um estado privado da última
+mudança e adiciona registro técnico restrito de auditoria. Pedidos
+`PENDING` do mecanismo antigo podem ser convertidos por nova
+confirmação do próprio titular. A fila manual anterior sai da navegação
+normal; seus endpoints históricos não são a forma de operar novas
+alterações.
 
-## Limites deste ciclo
-O processo está implementado em código, mas **não implantado**. Não há
-sistema administrativo visual para percorrer a fila; a chamada de revisão
-exige um operador com autorização específica. Nenhum prazo de atendimento
-é garantido. A validação deve cobrir build Angular, Functions, Rules
-(compilação modular com `npm run rules:build`) e testes com emuladores.
+### Composição de casal
+Qualquer mudança que envolva casal, inclusive entre modalidades de
+casal, é recusada automaticamente. Não se cria fila humana implícita.
+Um procedimento posterior de consentimento vinculado às duas pessoas
+deverá anteceder qualquer autorização de mudança estrutural. Não
+tratar identidade trans, travesti ou crossdresser como suspeita.
 
-Idade e nascimento não foram alterados neste ciclo. Devem receber autoridade
-canônica e procedimento de correção próprio, sem usar edição arbitrária nem
-expor informações sensíveis.
+## Recursos privados para contas gratuitas
+A diretriz de produto é **não conceder a não assinantes novas
+publicações com audiência restrita a amigos ou recursos exclusivos**.
+Isso se refere a uma *capacidade de publicação*, jamais à perda da
+proteção dos dados internos de uma conta gratuita. E-mails, mensagens,
+identificadores internos, estado financeiro, conteúdo não publicado e
+fotos que já estejam privadas continuam protegidos.
 
-A comunicação social com conexões afetadas precisa equilibrar
-transparência e privacidade; é **uma decisão futura**, não comportamento
-implementado por esta mudança.
+Nunca converter conteúdo privado antigo em PUBLIC no downgrade.
+Primeiro impedir novas operações restritas, depois auditar projeções,
+links temporários e leitura das mídias legadas com revogação segura;
+retê-las protegidas até decisão expressa do titular ou nova assinatura.
+A checagem de entitlement deve ser backend-only e baseada na
+projeção versionada de billing, não em role autodeclarado.
 
-## Fase 2 — fila de revisão administrativa
-
-A rota `/admin/identidades` funciona no shell e guard existentes e expõe
-uma lista paginada de até 25 pedidos por chamada. Os documentos privados
-`profile_identity_change_requests` não são lidos pelo frontend diretamente.
-O callable `getProfileIdentityReviewQueue` exige App Check, autenticação
-e permissão administrativa atual (`users:suspend`). Responde com UID,
-códigos atual/solicitado, data e indicador estrutural, sem email, documentos,
-orientação nem histórico íntimo. O índice composto em
-`firestore.indexes.json` é requisito da operação real da fila.
-
-A decisão usa o callable transacional existente, justificativa entre
-8 e 500 caracteres, autorização novamente verificada e `admin_logs`.
-Erros seguem `ApplicationErrorService`; componentes usam RxJS.
-
-Qualquer transição envolvendo casal, inclusive entre composições diferentes,
-não pode ser aprovada por este fluxo:
-exigem procedimento e consentimento próprios. O bloqueio está no
-backend, independente do botão desabilitado no painel. Rejeição
-fundamentada continua possível. Não há divulgação pública de
-identidades anteriores ou modificação automática dos vínculos.
-
-Permanecem pendentes o procedimento próprio para composição de casal,
-contestação formal e a validação integrada em emuladores com índice,
-token/role revogado e concorrência de revisão. Nenhum deploy foi feito.
+## Validação
+Sem branch, PR ou deploy. Compilar Functions, Angular, Rules e
+executar as três suítes antes de avançar em outras autoridades.

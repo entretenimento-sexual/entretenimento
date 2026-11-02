@@ -90,7 +90,7 @@ describe('EditUserProfileComponent', () => {
           useValue: {
             getStatus$: vi.fn(() => of({ status: null, requestedIdentityCode: null })),
             requestChange$: vi.fn((identityCode: string) =>
-              of({ status: 'PENDING', requestedIdentityCode: identityCode })),
+              of({ status: 'APPROVED', requestedIdentityCode: identityCode })),
           },
         },
         {
@@ -165,11 +165,12 @@ describe('EditUserProfileComponent', () => {
     expect(fixture.nativeElement.querySelector('#identityChange')).not.toBeNull();
 
     component.identityChangeControl.setValue('mulher');
+    component.identityChangeAcknowledged.setValue(true);
     component.onRequestIdentityChange();
 
     expect(service.requestChange$).toHaveBeenCalledWith('mulher');
-    expect(component.identityRequestStatus).toBe('PENDING');
-    expect(component.userData.gender).toBe('homem');
+    expect(component.identityRequestStatus).toBe('APPROVED');
+    expect(component.userData.gender).toBe('mulher');
     component.editForm.controls['descricao'].setValue('Atualizei a descrição');
     component.onSubmit();
     const call = usuarioServiceMock.atualizarUsuario.mock.lastCall as unknown as
@@ -177,6 +178,13 @@ describe('EditUserProfileComponent', () => {
     const patch = call[1];
     expect(patch).not.toHaveProperty('gender');
     expect(patch).not.toHaveProperty('declaredIdentityCode');
+  });
+
+  it('exige confirmação explícita antes da alteração automática', () => {
+    const service = TestBed.inject(ProfileIdentityChangeService);
+    component.identityChangeControl.setValue('mulher');
+    component.onRequestIdentityChange();
+    expect(service.requestChange$).not.toHaveBeenCalled();
   });
 
   it('edita o avatar com preset canônico antes de enviar ao Storage', () => {

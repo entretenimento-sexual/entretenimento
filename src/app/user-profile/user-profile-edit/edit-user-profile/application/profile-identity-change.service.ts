@@ -11,8 +11,8 @@ export interface IdentityChangeStatus {
 }
 
 /**
- * O formulário comum nunca escreve identidade. Este serviço apenas consulta
- * o status e solicita avaliação à autoridade do backend, via callable com App Check.
+ * O formulário comum nunca escreve identidade. A alteração individual é
+ * aplicada em transação pelo backend, sem depender de análise humana.
  */
 @Injectable({ providedIn: 'root' })
 export class ProfileIdentityChangeService {
@@ -37,7 +37,7 @@ export class ProfileIdentityChangeService {
   requestChange$(identityCode: string): Observable<IdentityChangeStatus> {
     const callable = runInInjectionContext(this.injector, () =>
       httpsCallable<{ identityCode: string }, {
-        status: 'PENDING'; requestedIdentityCode: string;
+        status: 'APPROVED'; requestedIdentityCode: string;
       }>(inject(Functions), 'requestProfileIdentityChange')
     );
     return from(callable({ identityCode })).pipe(

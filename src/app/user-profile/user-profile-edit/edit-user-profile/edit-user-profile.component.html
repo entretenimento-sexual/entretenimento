@@ -184,9 +184,9 @@
       <h3 id="identity-review-title">Alterar identidade do perfil</h3>
       @if (identityRequestStatus === 'PENDING') {
         <p class="help-text app-field-help" role="status">
-          Solicitação em análise.
+          Existe uma solicitação antiga. Confirme a nova identidade abaixo para processá-la automaticamente.
         </p>
-      } @else {
+      }
         <label class="form-label" for="identityChange">Nova identidade</label>
         <select
           id="identityChange"
@@ -202,18 +202,24 @@
           }
         </select>
         <p id="identity-review-help" class="help-text app-field-help">
-          A solicitação não altera o perfil automaticamente. Não é necessário ter assinatura.
+          A alteração é automática, após sua confirmação, para identidades individuais.
+          Um novo ajuste só poderá ser feito após 90 dias. Perfis de casal exigem um processo próprio.
+          Não é necessário ter assinatura.
         </p>
+        <label class="form-label" for="identityChangeAcknowledged">
+          <input id="identityChangeAcknowledged" type="checkbox"
+            [formControl]="identityChangeAcknowledged" />
+          Confirmo que quero atualizar a identidade exibida em meu perfil.
+        </label>
         <button
           type="button"
           class="app-action app-action--ghost"
-          [disabled]="identityRequestBusy || !identityChangeControl.value"
+          [disabled]="identityRequestBusy || !identityChangeControl.value || !identityChangeAcknowledged.value"
           [attr.aria-busy]="identityRequestBusy ? 'true' : null"
           (click)="onRequestIdentityChange()"
         >
-          {{ identityRequestBusy ? 'Enviando...' : 'Solicitar revisão' }}
+          {{ identityRequestBusy ? 'Atualizando...' : 'Confirmar alteração' }}
         </button>
-      }
     </div>
 
     @if (isCouple()) {
