@@ -454,17 +454,32 @@ export function normalizeDiscoveryCoupleVariant(
 function gendersFromFreeText(value: unknown): NormalizedDiscoveryGender[] {
   const text = normalizeToken(value);
   const genders: NormalizedDiscoveryGender[] = [];
-  const mentionsDiverseGender = /\b(trans|transgenero|transgender|transexual|transsexual|travesti|crossdresser|cross-dresser|nao-binario|nonbinary|non-binary|genderfluid)\b/.test(text);
+  // Quebrar o reconhecimento em alternativas explícitas preserva o contrato
+  // dos catálogos de identidade e mantém a verificação livre de heurísticas de plano.
+  const mentionsDiverseGender = (
+    /\b(trans|transgenero|transgender|transexual|transsexual|travesti)\b/.test(text) ||
+    /\b(crossdresser|cross-dresser|nao-binario|nonbinary|non-binary|genderfluid)\b/.test(text)
+  );
 
   if (/\btravesti\b/.test(text) || /\btravestis\b/.test(text)) {
     genders.push('travesti');
   }
 
-  if (/\bmulher(?:es)?[-\s]+trans\b/.test(text) || /\bmulher(?:es)?[-\s]+transexual\b/.test(text) || /\btrans[-\s]+woman\b/.test(text) || /\btransfeminina\b/.test(text)) {
+  if (
+    /\bmulher(?:es)?[-\s]+trans\b/.test(text) ||
+    /\bmulher(?:es)?[-\s]+transexual\b/.test(text) ||
+    /\btrans[-\s]+woman\b/.test(text) ||
+    /\btransfeminina\b/.test(text)
+  ) {
     genders.push('trans_woman');
   }
 
-  if (/\bhomem(?:s)?[-\s]+trans\b/.test(text) || /\bhomem(?:s)?[-\s]+transexual\b/.test(text) || /\btrans[-\s]+man\b/.test(text) || /\btransmasculino\b/.test(text)) {
+  if (
+    /\bhomem(?:s)?[-\s]+trans\b/.test(text) ||
+    /\bhomem(?:s)?[-\s]+transexual\b/.test(text) ||
+    /\btrans[-\s]+man\b/.test(text) ||
+    /\btransmasculino\b/.test(text)
+  ) {
     genders.push('trans_man');
   }
 
@@ -472,23 +487,56 @@ function gendersFromFreeText(value: unknown): NormalizedDiscoveryGender[] {
     genders.push('crossdresser');
   }
 
-  if (/\bnao-binario\b/.test(text) || /\bnao binario\b/.test(text) || /\bnonbinary\b/.test(text) || /\bnon-binary\b/.test(text) || /\bgenderfluid\b/.test(text)) {
+  if (
+    /\bnao-binario\b/.test(text) ||
+    /\bnao binario\b/.test(text) ||
+    /\bnonbinary\b/.test(text) ||
+    /\bnon-binary\b/.test(text) ||
+    /\bgenderfluid\b/.test(text)
+  ) {
     genders.push('nonbinary');
   }
 
-  if (/\btransgenero\b/.test(text) || /\btransgender\b/.test(text) || /\btransexual\b/.test(text) || /\btranssexual\b/.test(text) || text === 'trans') {
+  if (
+    /\btransgenero\b/.test(text) ||
+    /\btransgender\b/.test(text) ||
+    /\btransexual\b/.test(text) ||
+    /\btranssexual\b/.test(text) ||
+    text === 'trans'
+  ) {
     genders.push('transgender');
   }
 
-  if (!mentionsDiverseGender && (/\bhomem\b/.test(text) || /\bhomens\b/.test(text) || /\bmasculino\b/.test(text) || /\bmale\b/.test(text) || /\bmen\b/.test(text))) {
+  if (!mentionsDiverseGender && (
+    /\bhomem\b/.test(text) ||
+    /\bhomens\b/.test(text) ||
+    /\bmasculino\b/.test(text) ||
+    /\bmale\b/.test(text) ||
+    /\bmen\b/.test(text)
+  )) {
     genders.push('man');
   }
 
-  if (!mentionsDiverseGender && (/\bmulher\b/.test(text) || /\bmulheres\b/.test(text) || /\bfeminino\b/.test(text) || /\bfemale\b/.test(text) || /\bwomen\b/.test(text))) {
+  if (!mentionsDiverseGender && (
+    /\bmulher\b/.test(text) ||
+    /\bmulheres\b/.test(text) ||
+    /\bfeminino\b/.test(text) ||
+    /\bfemale\b/.test(text) ||
+    /\bwomen\b/.test(text)
+  )) {
     genders.push('woman');
   }
 
-  if (/\bcasal\b/.test(text) || /\bcasais\b/.test(text) || /\bcouple\b/.test(text) || /\bcouples\b/.test(text) || /\bdupla\b/.test(text) || /\bcasal-ele-ele\b/.test(text) || /\bcasal-ele-ela\b/.test(text) || /\bcasal-ela-ela\b/.test(text)) {
+  if (
+    /\bcasal\b/.test(text) ||
+    /\bcasais\b/.test(text) ||
+    /\bcouple\b/.test(text) ||
+    /\bcouples\b/.test(text) ||
+    /\bdupla\b/.test(text) ||
+    /\bcasal-ele-ele\b/.test(text) ||
+    /\bcasal-ele-ela\b/.test(text) ||
+    /\bcasal-ela-ela\b/.test(text)
+  ) {
     genders.push('couple');
   }
 
@@ -499,11 +547,24 @@ function orientationsFromFreeText(value: unknown): NormalizedDiscoveryOrientatio
   const text = normalizeText(value);
   const orientations: NormalizedDiscoveryOrientation[] = [];
 
-  if (/\bhetero\b/.test(text) || /\bheteros\b/.test(text) || /\bheterossexual\b/.test(text) || /\bheterosexual\b/.test(text) || /\bstraight\b/.test(text)) {
+  if (
+    /\bhetero\b/.test(text) ||
+    /\bheteros\b/.test(text) ||
+    /\bheterossexual\b/.test(text) ||
+    /\bheterosexual\b/.test(text) ||
+    /\bstraight\b/.test(text)
+  ) {
     orientations.push('heterosexual');
   }
 
-  if (/\bhomo\b/.test(text) || /\bhomossexual\b/.test(text) || /\bhomosexual\b/.test(text) || /\bgay\b/.test(text) || /\blesbica\b/.test(text) || /\blesbian\b/.test(text)) {
+  if (
+    /\bhomo\b/.test(text) ||
+    /\bhomossexual\b/.test(text) ||
+    /\bhomosexual\b/.test(text) ||
+    /\bgay\b/.test(text) ||
+    /\blesbica\b/.test(text) ||
+    /\blesbian\b/.test(text)
+  ) {
     orientations.push('homosexual');
   }
 
@@ -676,7 +737,12 @@ function acceptedTargetGendersByOrientation(
     }
   }
 
-  if (selfGender === 'couple' || selfGender === 'transgender' || selfGender === 'crossdresser' || selfGender === 'nonbinary') {
+  if (
+    selfGender === 'couple' ||
+    selfGender === 'transgender' ||
+    selfGender === 'crossdresser' ||
+    selfGender === 'nonbinary'
+  ) {
     return ALL_DISCOVERY_GENDERS;
   }
 
