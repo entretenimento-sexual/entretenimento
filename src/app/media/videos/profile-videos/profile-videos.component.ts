@@ -42,6 +42,7 @@ import {
 import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
 import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-video-publication-config';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { PlatformSubscriptionAccessService } from 'src/app/core/services/subscriptions/platform-subscription-access.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import {
@@ -143,6 +144,8 @@ export class ProfileVideosComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly formBuilder = inject(FormBuilder);
   private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly subscriptionAccess = inject(PlatformSubscriptionAccessService);
+  readonly canPublishToFriends$ = this.subscriptionAccess.isSubscriber$;
   private readonly profileVideoLibrary = inject(ProfileVideoLibraryFacade);
   private readonly videoPublication = inject(VideoPublicationService);
   private readonly videoUploadFlow = inject(VideoUploadFlowService);
@@ -480,9 +483,15 @@ export class ProfileVideosComponent {
       this.uploadPolicyResult$,
       this.ownerUid$,
       this.uploadPhase$,
+      this.canPublishToFriends$,
     ]).pipe(
       take(1),
-      switchMap(([editorState, policyResult, ownerUid, phase]) => {
+      switchMap(([editorState, policyResult, ownerUid, phase, canPublishToFriends]) => {
+        if (this.uploadPublicationForm.controls.visibility.value === 'FRIENDS' &&
+            !canPublishToFriends) {
+          this.errorNotification.showWarning('Publicações para amigos exigem assinatura ativa.');
+          return EMPTY;
+        }
         if (!editorState?.valid) {
           this.errorNotification.showWarning(
             editorState?.loading
