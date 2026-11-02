@@ -14,6 +14,7 @@ import {
   getDocs,
   query,
   setDoc,
+  updateDoc,
   where,
 } from 'firebase/firestore';
 import {
@@ -81,6 +82,17 @@ async function seedBase(visibility: 'PUBLIC' | 'FRIENDS' = 'FRIENDS') {
       setDoc(doc(db, 'users', OWNER_UID), {
         uid: OWNER_UID,
         accountStatus: 'active',
+        acceptedTerms: {
+          accepted: true, version: 'v3', acknowledgedPrivacyNotice: true,
+        },
+        adultConsent: { accepted: true, version: 'v1' },
+        billingProjectionVersion: 1,
+        isSubscriber: true,
+        subscriptionStatus: 'active',
+        subscriptionScope: 'platform_subscription',
+        subscriptionStartedAt: new Date(Date.now() - 60_000),
+        subscriptionEndsAt: new Date(Date.now() + 60_000),
+        tier: 'basic',
       }),
       setDoc(doc(db, 'age_eligibility_records', OWNER_UID), {
         uid: OWNER_UID,
@@ -133,6 +145,12 @@ async function seedBase(visibility: 'PUBLIC' | 'FRIENDS' = 'FRIENDS') {
         }
       ),
     ]);
+  });
+}
+
+async function setOwnerSubscription(overrides: Record<string, unknown>) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'users', OWNER_UID), overrides);
   });
 }
 
@@ -247,6 +265,46 @@ describe('Firestore Rules / FRIENDS photo comments', () => {
     )));
 
     expect(comments.size).toBe(1);
+  });
+
+  it('nega comentários FRIENDS quando o titular deixa de ser assinante', async () => {
+    await setFriendEdges({ viewerToOwner: true, ownerToViewer: true });
+    await setOwnerSubscription({ isSubscriber: false, subscriptionStatus: 'inactive' });
+
+    await assertFails(getDoc(commentRef(viewerDb())));
+    await assertFails(getDocs(query(
+      collection(viewerDb(), 'public_profiles', OWNER_UID, 'public_photos', PHOTO_ID, 'comments'),
+      where('status', '==', 'VISIBLE')
+    )));
+  });
+
+  it('nega comentários FRIENDS com assinatura expirada mesmo se a projeção ainda for active', async () => {
+    await setFriendEdges({ viewerToOwner: true, ownerToViewer: true });
+    await setOwnerSubscription({ subscriptionEndsAt: new Date(Date.now() - 60_000) });
+
+    await assertFails(getDoc(commentRef(viewerDb())));
+  });
+
+  it('não usa role administrativa como direito de assinatura para comentários FRIENDS', async () => {
+    await setFriendEdges({ viewerToOwner: true, ownerToViewer: true });
+    await setOwnerSubscription({ tier: 'admin', role: 'admin', isSubscriber: true });
+
+    await assertFails(getDoc(commentRef(viewerDb())));
+  });
+
+  it('preserva o acesso aos comentários próprios quando o plano vence', async () => {
+    await setOwnerSubscription({ isSubscriber: false });
+    const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore();
+
+    await assertSucceeds(getDoc(doc(ownerDb, 'public_profiles', OWNER_UID,
+      'public_photos', PHOTO_ID, 'comments', COMMENT_ID)));
+  });
+
+  it('comentários PUBLIC permanecem disponíveis sem assinatura do proprietário', async () => {
+    await testEnv.clearFirestore();
+    await seedBase('PUBLIC');
+    await setOwnerSubscription({ isSubscriber: false });
+    await assertSucceeds(getDoc(commentRef(viewerDb())));
   });
 
   it('expiração do assurance etário do proprietário não revoga comentários', async () => {

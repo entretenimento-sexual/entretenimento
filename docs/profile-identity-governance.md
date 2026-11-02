@@ -103,3 +103,16 @@ URLs já emitidas podem continuar válidas até o TTL contratado;
 a revogação instantânea exige rotação do ativo/credencial. As regras
 de visibilidade de metadados e outras superfícies legadas ainda
 precisam ser alinhadas antes da conclusão global da matriz.
+
+## Comentários legados sob audiência FRIENDS
+As Rules das subcoleções `public_photos/{id}/comments` negam agora o
+acesso de terceiros a comentários de publicações `FRIENDS` quando
+`isActiveSubscriber(ownerUid)` não está vigente. A função da camada
+de segurança reutiliza os helpers canônicos da projeção financeira,
+verifica o prazo com `request.time` e não equipara role `admin` a
+assinatura. `PUBLIC` mantém a leitura conforme lifecycle e bloqueio
+bilateral; o titular pode ler seus próprios comentários. Não altera
+audiência, mídia ou histórico persistido.
+
+Testes de Firestore Rules acrescentados: Basic ativo, cancelamento,
+expiração temporal, role administrativa e acesso próprio.

@@ -56,7 +56,13 @@ match /public_profiles/{userId}/public_photos/{photoId} {
       && bilateralExposureAllows(userId)
       && (
         data.visibility == "PUBLIC"
-        || (data.visibility == "FRIENDS" && hasMutualFriendship())
+        || (
+          data.visibility == "FRIENDS"
+          && hasMutualFriendship()
+          // Comentários seguem o entitlement do proprietário, não apenas
+          // a amizade; não conceder leitura após vencimento/downgrade.
+          && isActiveSubscriber(userId)
+        )
       );
   }
 
