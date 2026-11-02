@@ -44,6 +44,7 @@ describe('ProfileEditDraftFacade', () => {
       nickname: 'Rascunho',
       descricao: 'Texto',
       campoInvalido: 'ignorar',
+      gender: 'mulher',
     }));
     const facade = setup({
       load,
@@ -58,6 +59,7 @@ describe('ProfileEditDraftFacade', () => {
     expect(load).toHaveBeenCalledWith('profile-edit:u1');
     expect(editForm.get('nickname')?.value).toBe('Rascunho');
     expect(editForm.get('descricao')?.value).toBe('Texto');
+    expect(editForm.get('gender')?.value).toBe('homem');
     expect(editForm.dirty).toBe(true);
   });
 

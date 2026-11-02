@@ -68,6 +68,8 @@ describe('ProfileEditFormFacade', () => {
       publicDescriptionVisible: true,
     });
     expect(facade.municipios()).toHaveLength(2);
+    expect(facade.form.get('gender')?.disabled).toBe(true);
+    expect(facade.isCouple()).toBe(false);
   });
 
   it('não expõe apresentação antiga sem opt-in', () => {

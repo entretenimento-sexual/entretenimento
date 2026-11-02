@@ -47,7 +47,6 @@ describe('ProfileEditSaveOrchestrator', () => {
       nickname: 'Alex',
       estado: 'RJ',
       municipio: 'Rio de Janeiro',
-      gender: 'homem',
       descricao: 'Descrição',
       publicDescriptionVisible: true,
       orientation: 'heterossexual',
@@ -56,6 +55,17 @@ describe('ProfileEditSaveOrchestrator', () => {
       partner2Orientation: undefined,
       photoURL: 'photo-url',
     });
+  });
+
+  it('nunca envia identidade no patch ordinário nem ao alternar dados do formulário', async () => {
+    const { orchestrator, atualizarUsuario } = setup();
+    await firstValueFrom(orchestrator.save$('u1', {
+      gender: 'mulher', nickname: 'Nome', orientation: 'pansexual',
+    }, false, null));
+    const patch = atualizarUsuario.mock.calls[0][1] as Record<string, unknown>;
+    expect(patch).not.toHaveProperty('gender');
+    expect(patch).not.toHaveProperty('declaredIdentityCode');
+    expect(patch).not.toHaveProperty('identityCatalogVersion');
   });
 
   it('salva casal usando orientações dos dois perfis', async () => {

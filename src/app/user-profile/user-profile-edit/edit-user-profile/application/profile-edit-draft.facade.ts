@@ -11,7 +11,6 @@ const PROFILE_DRAFT_FIELDS = [
   'nickname',
   'estado',
   'municipio',
-  'gender',
   'orientation',
   'idade',
   'partner1Orientation',

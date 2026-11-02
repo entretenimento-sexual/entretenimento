@@ -14,17 +14,10 @@
 // - a projeção de role/tier é responsabilidade exclusiva do backend financeiro.
 import { Injectable } from '@angular/core';
 import { Observable, throwError } from 'rxjs';
-import {
-  PROFILE_IDENTITY_CATALOG_VERSION,
-  isSelectableProfileIdentityCode,
-} from '../../domain/profile-identity/profile-identity.catalog';
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
 
-type EditableUserPatch = Partial<IUserDados> & {
-  declaredIdentityCode?: string;
-  identityCatalogVersion?: number;
-};
+type EditableUserPatch = Partial<IUserDados>;
 
 @Injectable({ providedIn: 'root' })
 export class UsuarioService {
@@ -55,14 +48,14 @@ export class UsuarioService {
       return throwError(() => new Error('UID inválido em atualizarUsuario().'));
     }
 
-    const gender = dados.gender == null
-      ? undefined
-      : String(dados.gender).trim().toLowerCase();
-    if (gender !== undefined && !isSelectableProfileIdentityCode(gender)) {
-      const error = new Error('A identificação de perfil informada é inválida.') as Error & {
+    // O fluxo comum não pode sequer encaminhar campos de identidade.
+    // As Firestore Rules reforçam a proibição mesmo para clientes alterados.
+    if (dados.gender !== undefined || dados.declaredIdentityCode !== undefined ||
+        dados.identityCatalogVersion !== undefined) {
+      const error = new Error('Solicite a revisão para alterar a identidade.') as Error & {
         code?: string;
       };
-      error.code = 'profile/invalid-gender';
+      error.code = 'profile/identity-change-requires-review';
       return throwError(() => error);
     }
 
@@ -71,11 +64,6 @@ export class UsuarioService {
       nickname: dados.nickname ?? undefined,
       estado: dados.estado ?? undefined,
       municipio: dados.municipio ?? undefined,
-      gender,
-      declaredIdentityCode: gender,
-      identityCatalogVersion: gender === undefined
-        ? undefined
-        : PROFILE_IDENTITY_CATALOG_VERSION,
       orientation: dados.orientation ?? undefined,
       idade: this.normalizeProfileAge(dados.idade),
       partner1Orientation: dados.partner1Orientation ?? undefined,

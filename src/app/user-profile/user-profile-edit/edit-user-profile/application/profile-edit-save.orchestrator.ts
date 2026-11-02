@@ -60,7 +60,6 @@ export class ProfileEditSaveOrchestrator {
       nickname: String(value['nickname'] ?? '').trim(),
       estado: String(value['estado'] ?? '').trim(),
       municipio: String(value['municipio'] ?? '').trim(),
-      gender: String(value['gender'] ?? '').trim(),
       descricao: String(value['descricao'] ?? ''),
       publicDescriptionVisible: value['publicDescriptionVisible'] === true,
       orientation: isCouple

@@ -220,6 +220,32 @@ describe('Firestore Rules / registration and profile completion', () => {
     );
   });
 
+  it('bloqueia a mudança direta de identidade após o cadastro sem impedir descrição', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users', UID), {
+        ...privateRegistrationSeed(),
+        profileCompleted: true,
+        publicVisibility: 'visible',
+        interactionBlocked: false,
+        gender: 'mulher',
+        declaredIdentityCode: 'mulher',
+        identityCatalogVersion: IDENTITY_CATALOG_VERSION,
+      });
+    });
+    const db = authenticatedDb(true);
+    await assertFails(updateDoc(doc(db, 'users', UID), {
+      gender: 'homem', declaredIdentityCode: 'homem',
+      identityCatalogVersion: IDENTITY_CATALOG_VERSION,
+    }));
+    await assertFails(updateDoc(doc(db, 'users', UID), { gender: 'homem' }));
+    await assertFails(updateDoc(doc(db, 'users', UID), {
+      identityCatalogVersion: IDENTITY_CATALOG_VERSION + 1,
+    }));
+    await assertSucceeds(updateDoc(doc(db, 'users', UID), {
+      descricao: 'Nova apresentação.',
+    }));
+  });
+
   it('permite a conclusão atômica elegível e a criação da projeção pública', async () => {
     await seedReadyPrivateUser();
     const db = authenticatedDb(true);

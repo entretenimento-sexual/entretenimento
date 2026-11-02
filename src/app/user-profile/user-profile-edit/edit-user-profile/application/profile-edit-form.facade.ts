@@ -119,6 +119,8 @@ export class ProfileEditFormFacade {
       },
       { emitEvent: true }
     );
+    // Identidade estabelecida não faz parte do editor comum.
+    this.form.get('gender')?.disable({ emitEvent: false });
   }
 
   isCouple(): boolean {

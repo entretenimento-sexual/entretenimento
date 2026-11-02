@@ -147,6 +147,7 @@
           class="app-control"
           formControlName="gender"
           name="gender"
+          aria-describedby="identity-change-help"
         >
           <option value="">Selecione</option>
           @for (genderOption of genderOptions; track genderOption.value) {
@@ -155,6 +156,9 @@
             </option>
           }
         </select>
+        <p id="identity-change-help" class="help-text app-field-help">
+          Para corrigir a identidade registrada, use a solicitação de revisão abaixo.
+        </p>
       </div>
 
       @if (!isCouple()) {
@@ -173,6 +177,42 @@
             <option value="pansexual">Pansexual</option>
           </select>
         </div>
+      }
+    </div>
+
+    <div class="app-field" aria-labelledby="identity-review-title">
+      <h3 id="identity-review-title">Alterar identidade do perfil</h3>
+      @if (identityRequestStatus === 'PENDING') {
+        <p class="help-text app-field-help" role="status">
+          Solicitação em análise.
+        </p>
+      } @else {
+        <label class="form-label" for="identityChange">Nova identidade</label>
+        <select
+          id="identityChange"
+          class="app-control"
+          [formControl]="identityChangeControl"
+          aria-describedby="identity-review-help"
+        >
+          <option value="">Selecione</option>
+          @for (option of genderOptions; track option.value) {
+            @if (option.value !== userData.gender) {
+              <option [value]="option.value">{{ option.label }}</option>
+            }
+          }
+        </select>
+        <p id="identity-review-help" class="help-text app-field-help">
+          A solicitação não altera o perfil automaticamente. Não é necessário ter assinatura.
+        </p>
+        <button
+          type="button"
+          class="app-action app-action--ghost"
+          [disabled]="identityRequestBusy || !identityChangeControl.value"
+          [attr.aria-busy]="identityRequestBusy ? 'true' : null"
+          (click)="onRequestIdentityChange()"
+        >
+          {{ identityRequestBusy ? 'Enviando...' : 'Solicitar revisão' }}
+        </button>
       }
     </div>
 

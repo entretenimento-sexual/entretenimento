@@ -5,7 +5,7 @@ import {
   OnDestroy,
   OnInit,
 } from '@angular/core';
-import { FormGroup } from '@angular/forms';
+import { FormControl, FormGroup } from '@angular/forms';
 import { Router } from '@angular/router';
 
 import { Subject } from 'rxjs';
@@ -26,6 +26,10 @@ import { ProfileEditAvatarFacade } from './application/profile-edit-avatar.facad
 import { ProfileEditSaveOrchestrator } from './application/profile-edit-save.orchestrator';
 import { ProfileEditBootstrapFacade } from './application/profile-edit-bootstrap.facade';
 import { ProfileEditFormFacade } from './application/profile-edit-form.facade';
+import {
+  ProfileIdentityChangeService,
+  type IdentityChangeStatus,
+} from './application/profile-identity-change.service';
 
 @Component({
   selector: 'app-edit-user-profile',
@@ -39,6 +43,14 @@ export class EditUserProfileComponent
 {
   userData: IUserDados = {} as IUserDados;
   readonly editForm: FormGroup;
+  readonly identityChangeControl = new FormControl('', { nonNullable: true });
+  identityRequestBusy = false;
+  identityRequestStatus: IdentityChangeStatus['status'] = null;
+
+  get currentIdentityLabel(): string {
+    const code = String(this.userData.gender ?? '').trim();
+    return this.genderOptions.find((option) => option.value === code)?.label || code;
+  }
 
   uid = '';
   estados: ProfileEditEstado[] = [];
@@ -86,7 +98,8 @@ export class EditUserProfileComponent
     private readonly avatarFacade: ProfileEditAvatarFacade,
     private readonly saveOrchestrator: ProfileEditSaveOrchestrator,
     private readonly bootstrapFacade: ProfileEditBootstrapFacade,
-    private readonly formFacade: ProfileEditFormFacade
+    private readonly formFacade: ProfileEditFormFacade,
+    private readonly identityChangeService: ProfileIdentityChangeService
   ) {
     this.editForm = this.formFacade.form;
   }
@@ -111,6 +124,11 @@ export class EditUserProfileComponent
           () => this.isSaving
         );
         this.draftFacade.restore(this.editForm);
+        this.identityChangeService.getStatus$()
+          .pipe(takeUntil(this.destroy$))
+          .subscribe((status) => {
+            this.identityRequestStatus = status?.status ?? null;
+          });
       });
 
     this.formFacade.bind();
@@ -158,6 +176,24 @@ export class EditUserProfileComponent
           photoURL: imageUrl,
         };
       });
+  }
+
+  onRequestIdentityChange(): void {
+    const requested = this.identityChangeControl.value.trim();
+    if (this.identityRequestBusy || this.identityRequestStatus === 'PENDING') return;
+    if (!requested || requested === this.userData.gender) {
+      this.notify.showError('Escolha uma identidade diferente da atual.');
+      return;
+    }
+
+    this.identityRequestBusy = true;
+    this.identityChangeService.requestChange$(requested).pipe(
+      finalize(() => (this.identityRequestBusy = false)),
+      takeUntil(this.destroy$)
+    ).subscribe((result) => {
+      this.identityRequestStatus = result.status;
+      this.notify.showSuccess('Solicitação enviada para análise.');
+    });
   }
 
   onEstadoChange(_estadoSigla: string): void {

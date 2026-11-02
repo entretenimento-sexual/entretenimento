@@ -20,6 +20,7 @@ import { ApplicationErrorService } from '../../../core/services/error-handler/ap
 import { PhotoEditorLauncherService } from '../../../core/services/image-handling/photo-editor-launcher.service';
 import { StorageService } from '../../../core/services/image-handling/storage.service';
 import { UsuarioService } from '../../../core/services/user-profile/usuario.service';
+import { ProfileIdentityChangeService } from './application/profile-identity-change.service';
 
 describe('EditUserProfileComponent', () => {
   let component: EditUserProfileComponent;
@@ -85,6 +86,14 @@ describe('EditUserProfileComponent', () => {
           useValue: usuarioServiceMock,
         },
         {
+          provide: ProfileIdentityChangeService,
+          useValue: {
+            getStatus$: vi.fn(() => of({ status: null, requestedIdentityCode: null })),
+            requestChange$: vi.fn((identityCode: string) =>
+              of({ status: 'PENDING', requestedIdentityCode: identityCode })),
+          },
+        },
+        {
           provide: PhotoEditorLauncherService,
           useValue: { editFile$: editFileMock },
         },
@@ -148,6 +157,24 @@ describe('EditUserProfileComponent', () => {
       expect.objectContaining({ descricao: 'Descrição salva' })
     );
     expect(component.hasUnsavedChanges()).toBe(false);
+  });
+
+  it('separa revisão de identidade do salvamento comum', () => {
+    const service = TestBed.inject(ProfileIdentityChangeService);
+    expect(component.editForm.get('gender')?.disabled).toBe(true);
+    expect(fixture.nativeElement.querySelector('#identityChange')).not.toBeNull();
+
+    component.identityChangeControl.setValue('mulher');
+    component.onRequestIdentityChange();
+
+    expect(service.requestChange$).toHaveBeenCalledWith('mulher');
+    expect(component.identityRequestStatus).toBe('PENDING');
+    expect(component.userData.gender).toBe('homem');
+    component.editForm.controls['descricao'].setValue('Atualizei a descrição');
+    component.onSubmit();
+    const patch = usuarioServiceMock.atualizarUsuario.mock.calls.at(-1)?.[1] as Record<string, unknown>;
+    expect(patch).not.toHaveProperty('gender');
+    expect(patch).not.toHaveProperty('declaredIdentityCode');
   });
 
   it('edita o avatar com preset canônico antes de enviar ao Storage', () => {
