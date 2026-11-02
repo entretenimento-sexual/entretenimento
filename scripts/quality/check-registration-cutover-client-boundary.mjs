@@ -17,6 +17,7 @@ const bootstrap = read('src/app/core/services/autentication/register/registratio
 const writeService = read('src/app/register-module/data-access/profile-completion-write.service.ts');
 const facade = read('src/app/register-module/data-access/profile-completion.facade.ts');
 const registration = read('src/app/core/services/autentication/register/register.service.ts');
+const nicknameLookup = read('src/app/core/services/data-handling/firestore/validation/firestore-validation.service.ts');
 const email = bootstrap.split('  createEmailPasswordSeed$(')[1]?.split('  createSocialSeed$(')[0] ?? '';
 const completion = writeService.split('  complete$(')[1]?.split('  private validateRequiredProfileFields(')[0] ?? '';
 const requireToken = (text, token, scope) => {
@@ -34,6 +35,10 @@ for (const [text, scope] of [[email, 'email bootstrap'], [completion, 'completio
   }
 }
 requireToken(registration, 'this.registrationBootstrap', 'registration');
+requireToken(nicknameLookup, "'getRegistrationNicknameAvailability'", 'nickname lookup');
+for (const token of ['getDoc(', 'getDocFromServer(', 'getDocFromCache(', 'public_index']) {
+  forbidToken(nicknameLookup, token, 'nickname lookup');
+}
 if (violations.length) {
   console.error('[registration-cutover] boundary violations:\n' + violations.join('\n'));
   process.exitCode = 1;

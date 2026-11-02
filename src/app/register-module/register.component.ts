@@ -56,7 +56,7 @@ type NicknameCheckState =
   | 'idle'
   | 'typing'
   | 'checking'
-  | 'available'
+  | 'provisional'
   | 'taken'
   | 'unverified';
 
@@ -322,7 +322,7 @@ export class RegisterComponent {
             this.nicknameCheckState.set('taken');
           } else {
             this.clearApelidoEmUsoError();
-            this.nicknameCheckState.set('available');
+            this.nicknameCheckState.set('provisional');
           }
         }),
         map(() => void 0),

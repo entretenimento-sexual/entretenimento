@@ -88,7 +88,7 @@
                   (submitted() || form.get('apelidoPrincipal')?.touched || nicknameFeedbackArmed())
                   && (form.get('apelidoPrincipal')?.invalid || form.hasError('invalidFullNickname')),
 
-                'is-valid':
+                'is-provisional':
                   nicknameFeedbackArmed()
                   && !nicknameChecking()
                   && form.get('apelidoPrincipal')?.valid
@@ -96,7 +96,7 @@
                   && ((apelidoCompleto() || '').length >= 4)
                   && ((apelidoCompleto() || '').length <= 24)
                   && !apelidoEmUso()
-                  && nicknameCheckState() === 'available'
+                  && nicknameCheckState() === 'provisional'
               }" />
           </div>
 
@@ -113,9 +113,9 @@
                 && ((apelidoCompleto() || '').length >= 4)
                 && ((apelidoCompleto() || '').length <= 24)
                 && !apelidoEmUso()
-                && nicknameCheckState() === 'available'
-              " class="badge ok">
-              Disponível
+                && nicknameCheckState() === 'provisional'
+              " class="badge info">
+              Sujeito à confirmação no cadastro
             </div>
 
             <div *ngIf="
