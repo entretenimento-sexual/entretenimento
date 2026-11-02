@@ -187,3 +187,29 @@ assinatura, cargo, titularidade ou conclusão do cadastro. Somente operações
 Admin SDK com autorização backend podem criar/reconciliar a reserva. Os testes
 cobrem GET, SET e DELETE negados para o titular. Não expor a existência da
 reserva em páginas públicas nem no mecanismo de descoberta.
+
+### Reconciliação de índices anteriores — ferramenta segura
+
+`scripts/maintenance/backfill-nickname-reservations-admin.mjs` faz um
+levantamento paginado de `public_index/nickname:*` e compara:
+índice público existente, titular privado, normalização canônica compilada
+e reserva backend-only. O padrão é **dry-run**, sem alterações. Não recupera
+apelidos por e-mail e não cria qualquer perfil ou publicação.
+
+Preparação local:
+```powershell
+npm.cmd --prefix functions run build
+$env:FIREBASE_PROJECT_ID = 'ID_DO_PROJETO'
+$env:NICKNAME_RESERVATION_DRY_RUN = 'true'
+node scripts/maintenance/backfill-nickname-reservations-admin.mjs
+```
+
+Uma eventual execução real exige planejamento operacional, credenciais
+Admin, `NICKNAME_RESERVATION_DRY_RUN=false`,
+`NICKNAME_RESERVATION_APPLY=true` e
+`NICKNAME_RESERVATION_CONFIRM_PROJECT=ID_DO_PROJETO`.
+**Não executar a aplicação sem revisar o relatório, garantir acesso ao
+backup e validar a sequência de deploy.** O script é idempotente,
+não reassocia, remove ou libera nicknames; conflitos e ausências exigem
+revisão manual. Limite padrão: 1.000 registros; paginação e teto configuráveis.
+A ferramenta não executa automaticamente em CI nem foi rodada em produção.
