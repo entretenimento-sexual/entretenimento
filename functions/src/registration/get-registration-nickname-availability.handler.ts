@@ -29,7 +29,11 @@ export const getRegistrationNicknameAvailability = onCall<{ nickname?: unknown }
     }
     // Use the platform socket IP, not caller-supplied forwarded headers.
     // The backend limiter hashes the subject and has a finite expiration.
-    const subject = String(request.rawRequest?.ip ?? '').trim();
+    const socketIp = String(request.rawRequest?.ip ?? '').trim();
+    // Functions Emulator may omit Express.ip. Only in the emulator use a
+    // shared test subject; production still fails closed without socket IP.
+    const subject = socketIp ||
+      (process.env.FUNCTIONS_EMULATOR === 'true' ? 'emulator-local' : '');
     if (!subject) {
       throw new HttpsError('failed-precondition',
         'Consulta temporariamente indisponível.');
