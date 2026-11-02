@@ -6,6 +6,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue, Timestamp, auth } from '../firebaseApp';
 import { assertCallableAppCheck } from '../shared/security/callable-app-check';
+import {
+  ADULT_CONSENT_VERSION, TERMS_ACCEPTANCE_VERSION,
+} from '../compliance/platform-legal.constants';
 import { buildInitialUserSeed } from '../auth/user-registration-seed';
 import {
   PROFILE_IDENTITY_CATALOG_VERSION, isSelectableProfileIdentityCode,
@@ -104,6 +107,9 @@ export const reserveRegistrationNickname = onCall<{ nickname?: unknown }>(
     const uid = signedOwner(request.auth?.uid);
     const nickname = nicknameInput(request.data?.nickname);
     const authUser = await auth.getUser(uid);
+    if (authUser.disabled) {
+      throw new HttpsError('failed-precondition', 'Conta indisponível para registro.');
+    }
     const userRef = db.collection('users').doc(uid);
     const indexRef = db.collection('public_index').doc(`nickname:${nickname.key}`);
     const reservationRef = db.collection('nickname_reservations').doc(nickname.key);
@@ -114,7 +120,11 @@ export const reserveRegistrationNickname = onCall<{ nickname?: unknown }>(
       ]);
       const user = userSnap.data() ?? {};
       if (userSnap.exists && (
-        user['accountStatus'] !== 'active' || user['accountLocked'] === true
+        user['accountStatus'] !== 'active' ||
+        user['accountLocked'] === true ||
+        user['suspended'] === true ||
+        user['loginAllowed'] === false ||
+        user['deletionRequestedAt'] != null
       )) {
         throw new HttpsError('failed-precondition', 'Conta indisponível para registro.');
       }
@@ -185,12 +195,19 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
       }
       const user = userSnap.data()!;
       if (user['accountStatus'] !== 'active' || user['accountLocked'] === true ||
-        user['suspended'] === true) {
+        user['suspended'] === true || user['loginAllowed'] === false ||
+        user['deletionRequestedAt'] != null) {
         throw new HttpsError('failed-precondition', 'Conta indisponível.');
       }
       const terms = user['acceptedTerms'] as Record<string, unknown> | undefined;
       const adult = user['adultConsent'] as Record<string, unknown> | undefined;
-      if (terms?.['accepted'] !== true || adult?.['accepted'] !== true) {
+      // A autorização depende da versão vigente e do aceite de privacidade.
+      // Um booleano legado não equivale ao aceite canônico das Rules.
+      if (terms?.['accepted'] !== true ||
+        terms?.['version'] !== TERMS_ACCEPTANCE_VERSION ||
+        terms?.['acknowledgedPrivacyNotice'] !== true ||
+        adult?.['accepted'] !== true ||
+        adult?.['version'] !== ADULT_CONSENT_VERSION) {
         throw new HttpsError('failed-precondition',
           'Confirme os termos e o consentimento de acesso adulto.');
       }
