@@ -182,6 +182,12 @@
 
     <div class="app-field" aria-labelledby="identity-review-title">
       <h3 id="identity-review-title">Alterar identidade do perfil</h3>
+      @if (isCouple()) {
+        <p class="help-text app-field-help" role="status">
+          Alterações na composição de casal exigem confirmação das pessoas envolvidas.
+          Esse procedimento ainda não está disponível.
+        </p>
+      } @else {
       @if (identityRequestStatus === 'PENDING') {
         <p class="help-text app-field-help" role="status">
           Existe uma solicitação antiga. Confirme a nova identidade abaixo para processá-la automaticamente.
@@ -196,7 +202,7 @@
         >
           <option value="">Selecione</option>
           @for (option of genderOptions; track option.value) {
-            @if (option.value !== userData.gender) {
+            @if (option.value !== userData.gender && !option.value.startsWith('casal-')) {
               <option [value]="option.value">{{ option.label }}</option>
             }
           }
@@ -220,6 +226,7 @@
         >
           {{ identityRequestBusy ? 'Atualizando...' : 'Confirmar alteração' }}
         </button>
+      }
     </div>
 
     @if (isCouple()) {
