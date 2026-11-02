@@ -153,7 +153,10 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
     const municipio = String(request.data?.municipio ?? '').trim();
     if (!isSelectableProfileIdentityCode(gender) ||
       (orientation && !ORIENTATIONS.has(orientation)) || !UFS.has(estado) ||
-      !municipio || municipio.length > 120 || /[\u0000-\u001F\u007F]/.test(municipio)) {
+      !municipio || municipio.length > 120 || Array.from(municipio).some((char) => {
+        const code = char.charCodeAt(0);
+        return code < 32 || code === 127;
+      })) {
       throw new HttpsError('invalid-argument', 'Revise os dados necessários para concluir o perfil.');
     }
 

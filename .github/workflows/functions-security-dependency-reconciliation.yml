@@ -1,4 +1,5 @@
 name: Functions security dependency reconciliation
+# Re-run after fixed no-control-regex lint in registration authority.
 
 on:
   workflow_dispatch:
