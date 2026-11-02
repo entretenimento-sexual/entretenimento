@@ -36,5 +36,9 @@ export function canRequestIdentityChange(input: {
 /** Transições individual/casal exigem verificação própria e não são aprováveis
  * pelo fluxo de alteração de identidade pessoal. */
 export function isStructuralProfileTypeChange(from: unknown, to: unknown): boolean {
-  return isCoupleProfileIdentityCode(from) !== isCoupleProfileIdentityCode(to);
+  const current = String(from ?? '').trim().toLowerCase();
+  const requested = String(to ?? '').trim().toLowerCase();
+  // Qualquer mudança envolvendo casal altera a composição declarada.
+  return current !== requested &&
+    (isCoupleProfileIdentityCode(current) || isCoupleProfileIdentityCode(requested));
 }

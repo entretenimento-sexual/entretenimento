@@ -60,7 +60,8 @@ A decisão usa o callable transacional existente, justificativa entre
 8 e 500 caracteres, autorização novamente verificada e `admin_logs`.
 Erros seguem `ApplicationErrorService`; componentes usam RxJS.
 
-Transições individual ↔ casal não podem ser aprovadas por este fluxo:
+Qualquer transição envolvendo casal, inclusive entre composições diferentes,
+não pode ser aprovada por este fluxo:
 exigem procedimento e consentimento próprios. O bloqueio está no
 backend, independente do botão desabilitado no painel. Rejeição
 fundamentada continua possível. Não há divulgação pública de

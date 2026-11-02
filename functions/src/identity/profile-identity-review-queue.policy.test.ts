@@ -23,7 +23,7 @@ describe('profile identity review queue', () => {
   it('identificar alterações estruturais para bloquear aprovação simples', () => {
     assert.equal(isStructuralProfileTypeChange('mulher', 'casal-ele-ela'), true);
     assert.equal(isStructuralProfileTypeChange('casal-ele-ela', 'homem'), true);
-    assert.equal(isStructuralProfileTypeChange('casal-ele-ela', 'casal-ela-ela'), false);
+    assert.equal(isStructuralProfileTypeChange('casal-ele-ela', 'casal-ela-ela'), true);
     assert.equal(isStructuralProfileTypeChange('mulher', 'homem'), false);
   });
   it('validar cursor antes de qualquer consulta', () => {
