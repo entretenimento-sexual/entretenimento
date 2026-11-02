@@ -57,7 +57,6 @@ export class ProfileEditSaveOrchestrator {
     photoURL: string | null | undefined
   ): Partial<IUserDados> {
     return {
-      nickname: String(value['nickname'] ?? '').trim(),
       estado: String(value['estado'] ?? '').trim(),
       municipio: String(value['municipio'] ?? '').trim(),
       descricao: String(value['descricao'] ?? ''),

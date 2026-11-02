@@ -72,7 +72,9 @@ match /public_index/{docId} {
     // ✅ serverTimestamp obrigatório no update
     && request.resource.data.lastChangedAt == request.time;
 
+  // Cliente não pode liberar nickname. Backend gerencia exclusão/suspensão.
   allow delete: if signedIn()
+    && isEmailDoc()
     && resource.data.keys().hasAny(["uid"])
     && resource.data.uid == uid();
 }

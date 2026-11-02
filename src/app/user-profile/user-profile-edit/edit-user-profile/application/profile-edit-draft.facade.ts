@@ -8,7 +8,6 @@ import { LocalDraftService } from 'src/app/core/services/drafts/local-draft.serv
 type ProfileDraft = Record<string, string>;
 
 const PROFILE_DRAFT_FIELDS = [
-  'nickname',
   'estado',
   'municipio',
   'orientation',

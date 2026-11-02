@@ -23,6 +23,7 @@ describe('UsuarioService / proteção da identidade registrada', () => {
     ];
     expect(call[0]).toBe('users');
     expect(call[1]).toBe('u1');
+    expect(call[2]).not.toHaveProperty('nickname');
     expect(call[2]).not.toHaveProperty('gender');
     expect(call[2]).not.toHaveProperty('declaredIdentityCode');
     expect(call[2]).toHaveProperty('descricao', 'Texto atualizado');

@@ -71,18 +71,14 @@
           class="app-control"
           formControlName="nickname"
           name="nickname"
-          autocomplete="nickname"
-          inputmode="text"
-          maxlength="40"
-          [attr.aria-invalid]="editForm.get('nickname')?.invalid && editForm.get('nickname')?.touched ? 'true' : 'false'"
-          [attr.aria-describedby]="editForm.get('nickname')?.invalid && editForm.get('nickname')?.touched ? 'nickname-error' : null"
+          readonly
+          autocomplete="off"
+          aria-describedby="nickname-help"
         />
-
-        @if (editForm.get('nickname')?.invalid && editForm.get('nickname')?.touched) {
-          <div id="nickname-error" class="field-error app-field-error" role="alert">
-            Informe um nickname válido.
-          </div>
-        }
+        <p id="nickname-help" class="help-text app-field-help">
+          O nickname é definido no cadastro e não pode ser alterado.
+          Se houver um erro de registro, contate o suporte.
+        </p>
       </div>
 
       <div class="app-field">

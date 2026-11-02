@@ -45,6 +45,7 @@ function privateUser(
     accountStatus: 'active',
     emailVerified: true,
     profileCompleted: true,
+    nickname: 'Pessoa Segura',
     publicVisibility: 'visible',
     interactionBlocked: false,
     loginAllowed: true,
@@ -200,6 +201,28 @@ describe('Firestore Rules / public profile eligibility', () => {
         identityCode: 'homem',
       })
     );
+  });
+
+  it('recusa criar projeção com nickname diferente do perfil privado', async () => {
+    await seedUser();
+    await assertFails(setDoc(doc(authenticatedDb(), 'public_profiles', UID), {
+      ...publicProfile(), nickname: 'Perfil Impostor',
+    }));
+  });
+
+  it('impede renomear nickname ou chave normalizada da projeção pública', async () => {
+    await seedUser();
+    await seedPublicProfile();
+    const db = authenticatedDb();
+    await assertFails(updateDoc(doc(db, 'public_profiles', UID), {
+      nickname: 'Outro Apelido', updatedAt: serverTimestamp(),
+    }));
+    await assertFails(updateDoc(doc(db, 'public_profiles', UID), {
+      nicknameNormalized: 'outro_apelido', updatedAt: serverTimestamp(),
+    }));
+    await assertSucceeds(updateDoc(doc(db, 'public_profiles', UID), {
+      municipio: 'Niterói', updatedAt: serverTimestamp(),
+    }));
   });
 
   it('permite projeção sem revalidar assurance etário depois que a conta está ativa', async () => {

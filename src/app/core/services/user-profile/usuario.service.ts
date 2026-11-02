@@ -48,8 +48,8 @@ export class UsuarioService {
       return throwError(() => new Error('UID inválido em atualizarUsuario().'));
     }
 
-    // O fluxo comum não pode sequer encaminhar campos de identidade.
-    // As Firestore Rules reforçam a proibição mesmo para clientes alterados.
+    // O fluxo comum não encaminha identidade nem nickname, protegidos nas Rules.
+    // Mesmo consumidores legados que enviem nickname serão ignorados aqui.
     if (dados.gender !== undefined || dados.declaredIdentityCode !== undefined ||
         dados.identityCatalogVersion !== undefined) {
       const error = new Error('Solicite a revisão para alterar a identidade.') as Error & {
@@ -61,7 +61,6 @@ export class UsuarioService {
 
     // whitelist de campos que o usuário pode editar
     const patch: EditableUserPatch = {
-      nickname: dados.nickname ?? undefined,
       estado: dados.estado ?? undefined,
       municipio: dados.municipio ?? undefined,
       orientation: dados.orientation ?? undefined,

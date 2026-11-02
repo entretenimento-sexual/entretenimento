@@ -220,6 +220,24 @@ describe('Firestore Rules / registration and profile completion', () => {
     );
   });
 
+  it('impede renomear nickname ou histórico após o cadastro sem bloquear descrição', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users', UID), {
+        ...privateRegistrationSeed(), profileCompleted: true,
+        publicVisibility: 'visible', interactionBlocked: false,
+      });
+    });
+    const db = authenticatedDb(true);
+    await assertFails(updateDoc(doc(db, 'users', UID), { nickname: 'Outro Apelido' }));
+    await assertFails(updateDoc(doc(db, 'users', UID), {
+      nicknameHistory: [{ nickname: 'outro', date: new Date() }],
+    }));
+    await assertFails(updateDoc(doc(db, 'users', UID), { nicknameNormalized: 'outro' }));
+    await assertSucceeds(updateDoc(doc(db, 'users', UID), {
+      nickname: 'Pessoa Segura', descricao: 'Texto editável',
+    }));
+  });
+
   it('bloqueia a mudança direta de identidade após o cadastro sem impedir descrição', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), 'users', UID), {
@@ -244,6 +262,24 @@ describe('Firestore Rules / registration and profile completion', () => {
     await assertSucceeds(updateDoc(doc(db, 'users', UID), {
       descricao: 'Nova apresentação.',
     }));
+  });
+
+  it('não permite substituir nickname já escolhido durante a conclusão', async () => {
+    await seedReadyPrivateUser();
+    const db = authenticatedDb(true);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'users', UID), {
+      nickname: 'Outro Apelido', gender: 'mulher',
+      declaredIdentityCode: 'mulher', identityCatalogVersion: IDENTITY_CATALOG_VERSION,
+      orientation: 'bissexual', estado: 'RJ', municipio: 'Rio de Janeiro',
+      profileCompleted: true, publicVisibility: 'visible',
+      interactionBlocked: false, registrationCompletedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(), updatedAtMs: Date.now(),
+    });
+    batch.set(doc(db, 'public_profiles', UID), {
+      ...publicProfilePayload(), nickname: 'Outro Apelido',
+    });
+    await assertFails(batch.commit());
   });
 
   it('permite a conclusão atômica elegível e a criação da projeção pública', async () => {

@@ -55,6 +55,14 @@ match /public_profiles/{userId} {
       && adultMediaHasRequiredConsent(user);
   }
 
+  // Cliente não pode escolher apelido distinto na projeção após concluir cadastro.
+  function nicknameMatchesPrivateAfter() {
+    let owner = getAfter(privateUserPath()).data;
+    return owner is map
+      && owner.get("nickname", null) is string
+      && request.resource.data.nickname == owner.get("nickname", null);
+  }
+
   function createKeysValid() {
     return request.resource.data.keys().hasOnly([
       "uid",
@@ -92,9 +100,8 @@ match /public_profiles/{userId} {
   }
 
   function updateKeysValid() {
+    // Nickname e chave normalizada não são campos mutáveis no perfil público.
     return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-      "nickname",
-      "nicknameNormalized",
       "avatarUrl",
       "photoURL",
       "municipio",
@@ -159,6 +166,7 @@ match /public_profiles/{userId} {
     && request.resource.data.createdAt == request.time
     && request.resource.data.updatedAt == request.time
     && identityMatchesPrivateDeclarationAfter()
+    && nicknameMatchesPrivateAfter()
     && privateUserEligibleAfter();
 
   allow update: if resource != null

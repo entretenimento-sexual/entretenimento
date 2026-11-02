@@ -151,3 +151,31 @@ Não obrigar ninguém a fornecer dados íntimos para ter uma conta gratuita.
 Os 5.281 testes históricos validaram `33ccb29c`, não esta política.
 Validar Functions, Rules e Angular antes de declarar o novo commit aprovado;
 nenhum deploy está incluído nesta alteração.
+
+## Nickname estável — autoridade da identidade social
+
+O apelido definido no onboarding é estável após a conclusão do cadastro, em
+qualquer plano. O titular não pode alterar `users/{uid}.nickname`,
+`nicknameNormalized` ou `nicknameHistory` por SDK quando
+`profileCompleted=true`; o histórico e a chave normalizada também não são
+editáveis antes disso. O nickname existente não pode mudar na transação de
+conclusão. O seed inicial vazio continua permitindo escolher nickname na
+primeira conclusão do perfil.
+
+O editor exibe nickname `readonly` (selecionável pelo teclado e cópia);
+o draft não o restaura, e `ProfileEditSaveOrchestrator` e
+`UsuarioService.atualizarUsuario` não o enviam. A `public_profiles`
+não admite update de nickname/nicknameNormalized por cliente e a criação
+requer a igualdade do apelido com o documento `users`.
+O cliente também não pode excluir índices de nickname em `public_index`.
+
+Correções legítimas exigem procedimento futuro por backend administrativo com
+autorização, prova de controle da conta, auditoria, reserva atômica,
+sincronização de índice/projeções e tratamento de links/caches. Não se concede
+mudança automática por assinatura nem role administrativo client-side.
+
+Lacunas a auditar: reserva de nickname ao ocultar/encerrar conta, unicidade
+transacional de nicknameNormalized em perfis legados e possibilidade de
+criação de aliases arbitrários no índice antes de reconciliação. Portanto,
+não se afirma uma unicidade perpétua universal nesta etapa.
+Os testes novos e CI precisam passar antes de homologação; nenhum deploy.

@@ -8,6 +8,7 @@
 // - new accounts are private and interaction-blocked until completion;
 // - accepted terms start false and can only become true through trusted backend.
 // - profileId is generated and maintained only by trusted backend code.
+// - nickname/histórico são identidade social permanente após conclusão.
 // ==============================================================
 
 match /users/{userId} {
@@ -156,6 +157,14 @@ match /users/{userId} {
 
   // Autodeclaração inicial pertence ao onboarding; depois disso,
   // alterações exigem revisão backend e não são atualizações ordinárias.
+  // Nickname é estável depois do onboarding. Rastreio/índice só por backend;
+  // nem o próprio titular altera nicknameHistory ou nicknameNormalized.
+  function nicknameUpdateSafe(changedKeys) {
+    return !changedKeys.hasAny(["nicknameHistory", "nicknameNormalized"])
+      && (resource.data.get("profileCompleted", false) != true
+        || !changedKeys.hasAny(["nickname"]));
+  }
+
   function identityUpdateSafe(changedKeys) {
     return !changedKeys.hasAny([
       "gender", "declaredIdentityCode", "identityCatalogVersion"
@@ -385,6 +394,12 @@ match /users/{userId} {
         "updatedAtMs"
       ])
       && declaredIdentityValid(data)
+      // Depois de escolhido, não substitua nickname na transação de conclusão.
+      && data.nickname is string
+      && data.nickname.size() >= 4
+      && data.nickname.size() <= 40
+      && (current.get("nickname", "") == ""
+        || data.nickname == current.get("nickname", ""))
       && current.get("profileCompleted", false) != true
       && data.profileCompleted == true
       && current.get("accountStatus", "active") == "active"
@@ -410,6 +425,7 @@ match /users/{userId} {
       ])
       && !selfChangingSensitiveKeys(changedKeys)
       && identityUpdateSafe(changedKeys)
+      && nicknameUpdateSafe(changedKeys)
       && emailVerifiedSafeOnUpdate(changedKeys);
   }
 

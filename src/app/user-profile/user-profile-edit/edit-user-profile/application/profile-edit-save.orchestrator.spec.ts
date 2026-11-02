@@ -44,7 +44,6 @@ describe('ProfileEditSaveOrchestrator', () => {
     );
 
     expect(atualizarUsuario).toHaveBeenCalledWith('u1', {
-      nickname: 'Alex',
       estado: 'RJ',
       municipio: 'Rio de Janeiro',
       descricao: 'Descrição',
@@ -65,9 +64,20 @@ describe('ProfileEditSaveOrchestrator', () => {
     const call = atualizarUsuario.mock.lastCall as unknown as
       [string, Record<string, unknown>];
     const patch = call[1];
+    expect(patch).not.toHaveProperty('nickname');
     expect(patch).not.toHaveProperty('gender');
     expect(patch).not.toHaveProperty('declaredIdentityCode');
     expect(patch).not.toHaveProperty('identityCatalogVersion');
+  });
+
+  it('não deixa nickname de rascunho ou cliente alterado entrar no patch', async () => {
+    const { orchestrator, atualizarUsuario } = setup();
+    await firstValueFrom(orchestrator.save$('u1', {
+      nickname: 'nome-falso', descricao: 'Texto válido',
+    }, false, null));
+    const call = atualizarUsuario.mock.lastCall as unknown as [string, Record<string, unknown>];
+    expect(call[1]).not.toHaveProperty('nickname');
+    expect(call[1].descricao).toBe('Texto válido');
   });
 
   it('salva casal usando orientações dos dois perfis', async () => {
