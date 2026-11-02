@@ -143,20 +143,22 @@ export const reviewProfileIdentityChange = onCall<{
       ]);
       const previous = caseSnap.data() as RequestRecord | undefined;
       const user = userSnap.data() as Record<string, unknown> | undefined;
-      if (!previous || previous.status !== 'PENDING' ||
-          !user || !publicSnap.exists) {
+      if (!previous || previous.status !== 'PENDING' || !user) {
         throw new HttpsError('failed-precondition',
-          'A solicitação ou o perfil não está disponível para revisão.');
+          'A solicitação ou a conta não está disponível para revisão.');
       }
-      if (
+      // Rejeitar deve continuar possível se o perfil foi ocultado/suspenso
+      // após o pedido; não deixar uma solicitação pendente sem resolução.
+      if (approved && (
+        !publicSnap.exists ||
         previous.currentIdentityCode !== identityOf(user) ||
         String(user['accountStatus'] ?? 'active') !== 'active' ||
         user['profileCompleted'] !== true ||
         user['interactionBlocked'] === true ||
         !normalizeRequestedIdentityCode(previous.requestedIdentityCode)
-      ) {
+      )) {
         throw new HttpsError('failed-precondition',
-          'A identidade ou o estado da conta mudou. Reavalie antes de decidir.');
+          'A identidade ou o estado da conta mudou. Reavalie antes de aprovar.');
       }
       const now = Date.now();
       const stamp = FieldValue.serverTimestamp();
