@@ -84,13 +84,19 @@ async function run() {
     const complete = httpsCallable(owner.functions, 'completeRegistrationProfile');
     const completeOther = httpsCallable(other.functions, 'completeRegistrationProfile');
     const guestReserve = httpsCallable(guest.functions, 'reserveRegistrationNickname');
+    const checkAvailability = httpsCallable(guest.functions,
+      'getRegistrationNicknameAvailability');
+    const publishedStatus = async nickname =>
+      (await checkAvailability({ nickname })).data;
     await rejects(guestReserve, { nickname: 'Perfil Original' }, 'unauthenticated');
+    assert.deepEqual(await publishedStatus('Perfil Original'), { status: 'unconfirmed' });
     assert.deepEqual((await reserve({ nickname: 'Perfil Original' })).data,
       { nickname: 'Perfil Original', normalized: 'perfil_original' });
     assert.equal((await db.doc('nickname_reservations/perfil_original').get()).get('uid'), uid);
     assert.equal((await db.doc('public_index/nickname:perfil_original').get()).get('uid'), uid);
     assert.equal((await db.doc('public_profiles/' + uid).get()).exists, false);
-    console.log('[registration:e2e] PASS private reservation and no public profile');
+    assert.deepEqual(await publishedStatus('Perfil Original'), { status: 'unconfirmed' });
+    console.log('[registration:e2e] PASS pending reservation is not exposed');
 
     // A propriedade do apelido não autoriza contas suspensas a reservá-lo.
     await privateRef.update({ suspended: true });
@@ -133,6 +139,7 @@ async function run() {
     const publicRef = db.doc('public_profiles/' + uid);
     assert.equal((await privateRef.get()).get('profileCompleted'), true);
     assert.equal((await publicRef.get()).get('nicknameNormalized'), 'perfil_original');
+    assert.deepEqual(await publishedStatus('Perfil Original'), { status: 'taken' });
     assert.equal((await complete(payload)).data.status, 'COMPLETED');
     await rejects(complete, { ...payload, nickname: 'Perfil Alterado' }, 'failed-precondition');
     assert.equal((await db.doc('public_index/nickname:perfil_original').get()).get('uid'), uid);

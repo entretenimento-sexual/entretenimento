@@ -39,6 +39,12 @@ export function buildRegistrationLockdownCandidate() {
     if (fragment === 'public_index.rules') {
       src = replaceExactlyOnce(
         src,
+        'allow get: if isNicknameDoc()',
+        'allow get: if false && isNicknameDoc()',
+        fragment
+      );
+      src = replaceExactlyOnce(
+        src,
         'allow create: if common()\n    && (!isNicknameDoc()',
         'allow create: if isEmailDoc() && common()\n    && (!isNicknameDoc()',
         fragment

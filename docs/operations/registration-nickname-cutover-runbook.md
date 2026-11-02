@@ -71,3 +71,27 @@ Consultar docs/references/README.md para Sexlog, Casal Real e
 SexoComCafé. São inspiração de políticas de consentimento,
 suporte e verificação de casal; não equivalem a autoridade
 técnica ou jurídica sobre o Entretenimento.
+
+## Pré-consulta anônima sem exposição de reserva
+
+`getRegistrationNicknameAvailability` recebe apenas o nome de exibição,
+aplica App Check e rate limit backend (10/minuto, 80/hora por origem de
+rede) e devolve somente `{status: 'taken' | 'unconfirmed'}`.
+`taken` significa que a conta e a projeção pública estão ativas;
+a ausência de nome, reserva de cadastro pendente, perfil oculto ou
+suspenso recebem sempre `unconfirmed`. Não retornar documentos do índice,
+UID, e-mail, nem motivo do estado. A resposta `unconfirmed` nunca
+é garantia de disponibilidade; somente a reserva autenticada transacional
+autoriza a escolha. Na interface Angular, o feedback é provisório.
+
+A candidata de Rules também bloqueia `get` client-side em
+`public_index/nickname:*` para anônimos e autenticados. O E2E
+verifica ausência de leitura direta e ausência de diferenciação de
+reservas pendentes. A Rule ativa permanece com acesso legado até
+que o endpoint e o cliente estejam implantados, e a telemetria
+comprove compatibilidade; **não promover isoladamente**.
+
+A consulta prévia oferece somente status agregado; não usar
+essa API para enumerar identidades. Reavaliar proteção contra
+abuso, custo do rate limit, retenção de registros e cadência
+de resposta antes do rollout real.

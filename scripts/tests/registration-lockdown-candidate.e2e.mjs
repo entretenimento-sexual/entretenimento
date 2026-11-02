@@ -17,6 +17,7 @@ for (const expected of [
   'return false && isSelf(userId)',
   'allow create: if false && resource == null',
   'allow create: if isEmailDoc() && common()',
+  'allow get: if false && isNicknameDoc()',
 ]) {
   assert.ok(rules.includes(expected), 'Missing lockdown guard: ' + expected);
 }
@@ -51,6 +52,9 @@ try {
     uid: UID, nickname: 'Perfil Fixo', nicknameNormalized: 'perfil_fixo',
     role: 'free', createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   }));
+  await assertFails(getDoc(doc(db, 'public_index', 'nickname:perfil_fixo')));
+  await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(),
+    'public_index', 'nickname:perfil_fixo')));
   await assertFails(setDoc(doc(db, 'public_index', 'nickname:perfil_fixo'), {
     uid: UID, type: 'nickname', value: 'perfil_fixo',
     createdAt: serverTimestamp(), lastChangedAt: serverTimestamp(),
