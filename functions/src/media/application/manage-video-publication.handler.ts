@@ -14,6 +14,7 @@ import {
   type AvailableMediaPublicationVisibility,
 } from './media-publication-audience.policy';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
+import { assertNewRestrictedMediaAudienceEntitlement } from './subscriber-friends-audience.policy';
 import {
   prepareProcessedVideoForPublication,
   deletePublishedVideoAssetOrQueue,
@@ -206,6 +207,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
     await assertMediaAuthoringEligibility(ownerUid);
 
     const visibility = cleanVisibility(request.data?.visibility);
+    await assertNewRestrictedMediaAudienceEntitlement(ownerUid, visibility);
     const orderIndex = normalizeOrderIndex(request.data?.orderIndex);
     const ownerVideoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
     const publicationRef = db.doc(
