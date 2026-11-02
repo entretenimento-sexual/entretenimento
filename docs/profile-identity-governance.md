@@ -50,3 +50,21 @@ projeção versionada de billing, não em role autodeclarado.
 ## Validação
 Sem branch, PR ou deploy. Compilar Functions, Angular, Rules e
 executar as três suítes antes de avançar em outras autoridades.
+
+## Operação: audiências de mídia para conta gratuita
+A primeira regra de entitlement foi aplicada aos dois backend entrypoints de
+nova mídia. Foto: `publishPhoto` valida a audiência selecionada antes de
+copiar o arquivo publicado. Vídeo: `registerPrivateVideoUpload` valida antes
+do registro canônico, dentro do ramo que remove assets de tentativas negadas.
+
+`PUBLIC` permanece disponível para conta gratuita com audiência explicitamente
+selecionada, moderação e bloqueios sociais intactos.
+`FRIENDS` exige projeção de assinatura Basic+ ativa e vigente, com versão,
+status, escopo e período validados no backend. A regra **não** muda audiência
+preexistente, não exclui mídia antiga, não libera acesso a histórico privado
+e não modifica estado sensível de pessoas sem assinatura.
+
+Continua necessária auditoria de edição da audiência e de URLs assinadas de
+mídias legadas, além de adaptação da UI para explicar a capacidade quando
+não existir entitlement. Nenhum conteúdo restrito será publicado
+automaticamente como `PUBLIC`.

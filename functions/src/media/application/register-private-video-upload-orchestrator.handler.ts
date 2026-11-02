@@ -13,6 +13,7 @@ import {
   consumeBackendRateLimitQuota,
 } from '../../shared/security/backend-rate-limit.service';
 import { assertPrivateVideoUploadEligibility } from './private-video-upload-eligibility.service';
+import { assertNewRestrictedMediaAudienceEntitlement } from './subscriber-friends-audience.policy';
 import { ensurePrivateVideoProcessingQueued } from './queue-video-processing.handler';
 import {
   registerPrivateVideoUpload as registerPrivateVideoUploadCore,
@@ -260,6 +261,9 @@ export const registerPrivateVideoUpload = onCall<
     if (requesterUid && requesterUid === ownerUid && assets) {
       try {
         await assertPrivateVideoUploadEligibility(ownerUid);
+        await assertNewRestrictedMediaAudienceEntitlement(
+          ownerUid, request.data?.visibility
+        );
       } catch (error) {
         await cleanupDeniedUploadAssets(ownerUid, videoId, assets);
         throw error;

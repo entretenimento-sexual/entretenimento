@@ -40,6 +40,7 @@ import {
   type AvailablePhotoCommentsPolicy,
 } from './media-publication-audience.policy';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
+import { assertNewRestrictedMediaAudienceEntitlement } from './subscriber-friends-audience.policy';
 import { isFeedPhotoCleanupStaged } from './failed-feed-photo.policy';
 import {
   copyPrivatePhotoToPublishedAsset,
@@ -235,6 +236,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
     await assertMediaAuthoringEligibility(ownerUid);
 
     const visibility = cleanVisibility(request.data?.visibility);
+    await assertNewRestrictedMediaAudienceEntitlement(ownerUid, visibility);
     const caption = cleanCaption(request.data?.caption);
     const commentsEnabled = request.data?.commentsEnabled === true;
     const commentsPolicy = cleanCommentsPolicy(
