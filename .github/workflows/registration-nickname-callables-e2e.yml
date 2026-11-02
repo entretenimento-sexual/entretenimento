@@ -54,10 +54,11 @@ jobs:
           npm run functions:exports:check
       - name: Verify pure backfill policy
         run: npm run nickname:reservation-backfill:policy:test
+      # A guarda de runtime exige Auth, Firestore E Storage, mesmo sem upload.
       - name: Verify callables with demo emulators
         run: |
           node node_modules/firebase-tools/lib/bin/firebase.js emulators:exec \
             --config firebase.media-e2e.json \
-            --only auth,firestore,functions \
+            --only auth,firestore,functions,storage \
             --project demo-entretenimento-media-e2e \
             "node scripts/tests/registration-nickname-callables.e2e.mjs"
