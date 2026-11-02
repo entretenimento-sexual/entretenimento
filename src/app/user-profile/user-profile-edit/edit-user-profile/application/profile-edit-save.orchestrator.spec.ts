@@ -62,7 +62,9 @@ describe('ProfileEditSaveOrchestrator', () => {
     await firstValueFrom(orchestrator.save$('u1', {
       gender: 'mulher', nickname: 'Nome', orientation: 'pansexual',
     }, false, null));
-    const patch = atualizarUsuario.mock.calls[0][1] as Record<string, unknown>;
+    const call = atualizarUsuario.mock.lastCall as unknown as
+      [string, Record<string, unknown>];
+    const patch = call[1];
     expect(patch).not.toHaveProperty('gender');
     expect(patch).not.toHaveProperty('declaredIdentityCode');
     expect(patch).not.toHaveProperty('identityCatalogVersion');

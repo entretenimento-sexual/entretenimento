@@ -172,7 +172,9 @@ describe('EditUserProfileComponent', () => {
     expect(component.userData.gender).toBe('homem');
     component.editForm.controls['descricao'].setValue('Atualizei a descrição');
     component.onSubmit();
-    const patch = usuarioServiceMock.atualizarUsuario.mock.calls.at(-1)?.[1] as Record<string, unknown>;
+    const call = usuarioServiceMock.atualizarUsuario.mock.lastCall as unknown as
+      [string, Record<string, unknown>];
+    const patch = call[1];
     expect(patch).not.toHaveProperty('gender');
     expect(patch).not.toHaveProperty('declaredIdentityCode');
   });

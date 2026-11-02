@@ -5,7 +5,10 @@ import { assertStaffAuthorization } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { assertCallableAppCheck } from '../shared/security/callable-app-check';
-import { PROFILE_IDENTITY_CATALOG_VERSION } from './profile-identity.catalog';
+import {
+  PROFILE_IDENTITY_CATALOG_VERSION,
+  isCoupleProfileIdentityCode,
+} from './profile-identity.catalog';
 import {
   canRequestIdentityChange, normalizeRequestedIdentityCode,
 } from './profile-identity-change.policy';
@@ -164,8 +167,22 @@ export const reviewProfileIdentityChange = onCall<{
           identityCatalogVersion: PROFILE_IDENTITY_CATALOG_VERSION,
           updatedAt: stamp, updatedAtMs: now,
         };
-        tx.update(userRef, patch);
+        // A composição individual/casal modifica o tipo de perfil.
+        // Dados específicos da composição anterior não devem permanecer ativos.
+        const wasCouple = isCoupleProfileIdentityCode(previous.currentIdentityCode);
+        const becomesCouple = isCoupleProfileIdentityCode(previous.requestedIdentityCode);
+        if (wasCouple !== becomesCouple) {
+          tx.update(userRef, {
+            ...patch,
+            orientation: '',
+            partner1Orientation: FieldValue.delete(),
+            partner2Orientation: FieldValue.delete(),
+          });
+        } else {
+          tx.update(userRef, patch);
+        }
         tx.update(publicRef, {
+          ...(wasCouple !== becomesCouple ? { orientation: null } : {}),
           gender: previous.requestedIdentityCode,
           identityCode: previous.requestedIdentityCode,
           identityCatalogVersion: PROFILE_IDENTITY_CATALOG_VERSION,

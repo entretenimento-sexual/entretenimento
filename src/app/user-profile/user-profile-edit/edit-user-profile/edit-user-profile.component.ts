@@ -47,11 +47,6 @@ export class EditUserProfileComponent
   identityRequestBusy = false;
   identityRequestStatus: IdentityChangeStatus['status'] = null;
 
-  get currentIdentityLabel(): string {
-    const code = String(this.userData.gender ?? '').trim();
-    return this.genderOptions.find((option) => option.value === code)?.label || code;
-  }
-
   uid = '';
   estados: ProfileEditEstado[] = [];
 
