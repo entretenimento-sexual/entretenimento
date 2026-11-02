@@ -57,7 +57,8 @@ describe('ProfileEditDraftFacade', () => {
     facade.restore(editForm);
 
     expect(load).toHaveBeenCalledWith('profile-edit:u1');
-    expect(editForm.get('nickname')?.value).toBe('Rascunho');
+    // Nickname canônico não pode ser restaurado por rascunho legado.
+    expect(editForm.get('nickname')?.value).toBe('Alex');
     expect(editForm.get('descricao')?.value).toBe('Texto');
     expect(editForm.get('gender')?.value).toBe('homem');
     expect(editForm.dirty).toBe(true);
@@ -85,10 +86,11 @@ describe('ProfileEditDraftFacade', () => {
       expect(save).toHaveBeenCalledWith(
         'profile-edit:u1',
         expect.objectContaining({
-          nickname: 'Alex',
           descricao: 'Nova descrição',
         })
       );
+      expect(save.mock.lastCall?.[1]).not.toHaveProperty('nickname');
+      expect(save.mock.lastCall?.[1]).not.toHaveProperty('gender');
     } finally {
       vi.useRealTimers();
     }
