@@ -134,3 +134,37 @@ migrar históricos de nicknames e comprovar CI e E2E.
 Os registros privados de reserva exigem política de retenção para contas
 excluídas e atendimento a solicitações de privacidade. Não usar o índice
 para identificar pessoas fora da plataforma nem reter PII desnecessária.
+
+## Produção / rollout seguro da autoridade de nickname
+
+A reserva transacional nova está implementada, mas **não pode** ser implantada
+por atualização indiscriminada das Rules. Ordem operacional exigida:
+
+1. Publicar somente os callables `reserveRegistrationNickname` e
+   `completeRegistrationProfile` junto à versão compatível de Functions,
+   observando App Check, Auth, testes de admissão 18+ e log de auditoria;
+2. Validar cadastro por e-mail, social, colisão de nickname, repetição pelo
+   mesmo UID, contas não elegíveis e rollback do cadastro; então liberar o
+   cliente Angular que consome os callables reativos;
+3. Migrar/conciliar índices e reservas de usuários existentes. Nunca atribuir
+   nickname ocupado a UID novo; apontar conflitos para auditoria;
+4. **Só depois** bloquear por Firestore Rules a conclusão do perfil e criação
+   do índice por cliente, fechando o bypass legado. Confirmar testes de
+   rollback, reconciliação e índices de busca. Não ampliar leitura da coleção
+   privada `nickname_reservations`.
+
+A ordem de publicação é uma dependência de segurança e disponibilidade:
+o Angular novo depende de Functions novas, mas o frontend antigo deve
+continuar compatível durante a transição. Não liberar produção sem
+homologação do Quality Gate completo e E2E de cadastro.
+
+### Dependências Functions — reconciliação rastreável
+
+Workflow `functions-security-dependency-reconciliation.yml` atualizou
+`functions/package.json` e `functions/package-lock.json` no commit
+`bb79e6e` com overrides reproduzíveis para `follow-redirects@1.16.2`,
+`glob@14.0.2` e `minimatch@11.0.1`.
+A execução específica aprovou auditoria `--omit=dev`, lint e
+build/testes das Functions; isso **não** é prova de aprovação dos testes
+Angular, Rules ou E2E integrados na revisão atual. O push automatizado
+pode não iniciar o Quality Gate, exigindo um commit normal para validar.
