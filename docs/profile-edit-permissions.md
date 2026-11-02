@@ -301,3 +301,8 @@ Nenhuma Rules restritiva foi promovida nem houve migração real.
 
 Referências de outros serviços arquivadas como resumos autorais
 em `docs/references/README.md`, com links oficiais e datas.
+
+
+## Gate explícito de decisão do cutover
+
+O runbook operacional está em `docs/operations/registration-nickname-cutover-runbook.md`. A ferramenta offline `nickname:cutover-readiness` exige inventários integrais, índice reconciliado, compatibilidade comprovada de clientes antigos, privacidade da leitura pública, deploy ordenado dos callables, rollback e revisão de segurança. O resultado é conservador: `NO_GO` por padrão; mesmo `REVIEW_READY` **não** autoriza deploy. Um check estático de fronteiras do cliente Angular foi incorporado ao `test:ci`, sem confundir o código atual com versões antigas em produção.

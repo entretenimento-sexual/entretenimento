@@ -1,0 +1,73 @@
+# Nickname — decisão de rollout GO/NO-GO (P1)
+
+**Status:** NÃO implantar ainda. Esta documentação é runbook de
+pré-flight, não autorização nem comando de deploy.
+
+## Ponto atual
+
+- Cadastro Angular novo usa reserveRegistrationNickname e
+  completeRegistrationProfile. Foi validado por E2E em emulador.
+- A versão candidata de Firestore Rules nega o batch legado de
+  conclusão e criação do índice, mas não é a regra ativa.
+- Usuários e índices legados ainda não foram auditados integralmente
+  no ambiente real.
+- Clientes antigos ainda podem tentar concluir por operações diretas
+  no Firestore. O CI testa só o código atual, não sessões antigas.
+- O índice público de nickname hoje permite GET mesmo para contas em
+  cadastro, e a reserva server-side nasce antes da projeção pública.
+  **Risco de exposição de UID/nickname**: revisar a autorização de
+  leitura e substituir a checagem pré-auth do registro por alternativa
+  que não exponha documentos. Não promover lockdown sem resolução.
+
+## Portões necessários
+
+1. Implantar callables compatíveis primeiro, verificar App Check,
+   autenticação, termos v3 e admissão etária vigente em homologação.
+2. Inventariar todos os usuários de modo integral e sem dados pessoais
+   nos logs. Usar audit-nickname-cutover-readonly.mjs. Somente
+   um scan com truncated=false pode servir de evidência.
+3. Executar backfill-nickname-reservations-admin.mjs em dry-run para
+   achar índices órfãos/duplicados. candidate>0 significa que a
+   migração ainda não foi executada; conflito não pode ser reparado
+   por heurística nem liberado para outro UID.
+4. Monitorar e impedir clientes com versão antiga que fazem writes
+   diretos. Registrar evidência de zero tentativas de bypass por
+   janela mínima inicial de 30 dias, sem coletar dados íntimos.
+5. Comprovar cadastro social + email, falha segura, reversão,
+   idade, aceite e notificações sem alterar nomes de métodos.
+6. Resolver a visibilidade de public_index/nickname e o tratamento
+   de disponibilidade de nickname antes do login.
+7. Revisar segurança, privacidade, retenção e suporte; obter
+   autorização humana para implantação coordenada.
+
+## Ferramenta offline de decisão
+
+Com relatórios JSON **agregados e sem PII** de inventário,
+dry-run de índices e uma declaração de evidências de rollout:
+
+    npm run nickname:cutover-readiness -- --inventory relatorio-users.json --index-scan relatorio-indices.json --rollout evidencias.json
+
+A ferramenta retorna NO_GO com motivos específicos quando os
+relatórios estão ausentes, incompletos ou inconsistentes, ou quando
+qualquer requisito de rollout não foi confirmado. REVIEW_READY
+significa apenas que a equipe pode deliberar manualmente sobre a
+implantação; deploymentAuthorized permanece false. Nenhuma
+alteração de produção é executada por esses scripts.
+
+## Onde atuar na hora da implantação
+
+O gerador de candidata é build-registration-lockdown-candidate.mjs,
+com E2E de emulador aprovado. Somente depois de fechar os
+portões, revisar manualmente as mudanças nas origens
+firestore-rules/users.rules,
+firestore-rules/public_profiles_next.rules e
+firestore-rules/public_index.rules.
+Nunca editar diretamente o arquivo firestore.rules gerado.
+Não fazer deploy incidental, branch, PR ou merge.
+
+## Referências de outros serviços
+
+Consultar docs/references/README.md para Sexlog, Casal Real e
+SexoComCafé. São inspiração de políticas de consentimento,
+suporte e verificação de casal; não equivalem a autoridade
+técnica ou jurídica sobre o Entretenimento.
