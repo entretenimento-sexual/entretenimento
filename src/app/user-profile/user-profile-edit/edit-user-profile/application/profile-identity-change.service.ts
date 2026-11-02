@@ -10,6 +10,12 @@ export interface IdentityChangeStatus {
   requestedIdentityCode: string | null;
 }
 
+/** Resposta de uma alteração efetivamente aplicada pelo backend. */
+export interface AppliedProfileIdentityChange {
+  status: 'APPROVED';
+  requestedIdentityCode: string;
+}
+
 /**
  * O formulário comum nunca escreve identidade. A alteração individual é
  * aplicada em transação pelo backend, sem depender de análise humana.
@@ -34,16 +40,26 @@ export class ProfileIdentityChangeService {
     );
   }
 
-  requestChange$(identityCode: string): Observable<IdentityChangeStatus> {
+  requestChange$(identityCode: string): Observable<AppliedProfileIdentityChange> {
     const callable = runInInjectionContext(this.injector, () =>
-      httpsCallable<{ identityCode: string }, {
-        status: 'APPROVED'; requestedIdentityCode: string;
-      }>(inject(Functions), 'requestProfileIdentityChange')
+      httpsCallable<{ identityCode: string }, AppliedProfileIdentityChange>(
+        inject(Functions), 'requestProfileIdentityChange'
+      )
     );
     return from(callable({ identityCode })).pipe(
-      map((response) => response.data),
+      map((response) => {
+        const result = response.data;
+        if (
+          result?.status !== 'APPROVED' ||
+          typeof result.requestedIdentityCode !== 'string' ||
+          result.requestedIdentityCode !== identityCode
+        ) {
+          throw new Error('Resposta da alteração de identidade inválida.');
+        }
+        return result;
+      }),
       catchError((error) => {
-        this.report(error, 'requestChange', 'Não foi possível solicitar a alteração.');
+        this.report(error, 'requestChange', 'Não foi possível atualizar a identidade.');
         return EMPTY;
       })
     );
