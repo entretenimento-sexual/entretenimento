@@ -6,7 +6,6 @@ import { Observable, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
 import {
-  PROFILE_IDENTITY_CATALOG_VERSION,
   isSelectableProfileIdentityCode,
 } from 'src/app/core/domain/profile-identity/profile-identity.catalog';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';

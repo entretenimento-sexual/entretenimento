@@ -64,8 +64,6 @@ export class RegistrationBootstrapService {
     const uid = this.cleanText(input.uid);
     const nickname = this.cleanText(input.userData?.nickname);
     const normalized = this.normalizeNickname(nickname);
-    const nowMs = Date.now();
-
     if (!uid) {
       return throwError(
         () => new Error('[RegistrationBootstrapService] UID inválido.')
