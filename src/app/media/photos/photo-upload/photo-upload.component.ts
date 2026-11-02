@@ -27,6 +27,7 @@ import {
 
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { PlatformSubscriptionAccessService } from 'src/app/core/services/subscriptions/platform-subscription-access.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
@@ -80,6 +81,8 @@ export class PhotoUploadComponent {
   private readonly photoFirestore = inject(PhotoFirestoreService);
   private readonly mediaPublication = inject(MediaPublicationService);
   private readonly photoEditor = inject(PhotoEditorLauncherService);
+  private readonly subscriptionAccess = inject(PlatformSubscriptionAccessService);
+  readonly canPublishToFriends$ = this.subscriptionAccess.isSubscriber$;
 
   private readonly DEBUG =
     !environment.production &&
@@ -91,6 +94,12 @@ export class PhotoUploadComponent {
 
   constructor() {
     this.destroyRef.onDestroy(() => this.revokePreviewUrl());
+    this.canPublishToFriends$.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((allowed) => {
+        if (!allowed && this.audienceSubject.value === 'FRIENDS') {
+          this.audienceSubject.next(null);
+        }
+      });
     // Um arquivo selecionado também é dado privado: descarte ao trocar
     // identidade ou navegar para outro perfil, mesmo antes do upload.
     combineLatest([this.authSession.uid$, this.ownerUid$]).pipe(
@@ -259,10 +268,11 @@ export class PhotoUploadComponent {
       this.phase$,
       this.imageState$,
       this.audience$,
+      this.canPublishToFriends$,
     ])
       .pipe(
         take(1),
-        switchMap(([policyResult, file, ownerUid, phase, imageStateStr, audience]) => {
+        switchMap(([policyResult, file, ownerUid, phase, imageStateStr, audience, canPublishToFriends]) => {
           if (phase === 'UPLOADING' || phase === 'EDITING') {
             return EMPTY;
           }
@@ -289,6 +299,11 @@ export class PhotoUploadComponent {
 
           if (!audience) {
             this.errorNotifier.showWarning('Escolha quem poderá ver esta foto.');
+            return EMPTY;
+          }
+          if (audience === 'FRIENDS' && !canPublishToFriends) {
+            this.errorNotifier.showWarning('Publicações para amigos exigem assinatura ativa.');
+            this.audienceSubject.next(null);
             return EMPTY;
           }
 
@@ -556,7 +571,17 @@ export class PhotoUploadComponent {
     if (this.phaseSubject.value === 'UPLOADING' || this.phaseSubject.value === 'EDITING') {
       return;
     }
-
+    if (audience === 'FRIENDS') {
+      this.canPublishToFriends$.pipe(take(1), takeUntilDestroyed(this.destroyRef))
+        .subscribe((allowed) => {
+          if (!allowed) {
+            this.errorNotifier.showWarning('Publicações para amigos exigem assinatura ativa.');
+            return;
+          }
+          this.audienceSubject.next(audience);
+        });
+      return;
+    }
     this.audienceSubject.next(audience);
   }
 

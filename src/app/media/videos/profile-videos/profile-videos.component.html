@@ -107,9 +107,15 @@
                   <fieldset class="profile-videos__settings-options profile-videos__audience-picker" [disabled]="isUploadActive()">
                     <legend>Quem poderá assistir a este vídeo?</legend>
                     <label>
-                      <input type="radio" formControlName="visibility" value="FRIENDS" required />
-                      <span>Amigos — conexões autorizadas</span>
+                      <input type="radio" formControlName="visibility" value="FRIENDS" required
+                        [disabled]="(canPublishToFriends$ | async) !== true" />
+                      <span>Amigos — exclusivo para assinantes ativos</span>
                     </label>
+                    @if ((canPublishToFriends$ | async) !== true) {
+                      <p class="profile-videos__limits" role="status">
+                        A audiência Amigos exige assinatura ativa. Público continua disponível.
+                      </p>
+                    }
                     <label>
                       <input type="radio" formControlName="visibility" value="PUBLIC" required />
                       <span>Público — audiência permitida</span>

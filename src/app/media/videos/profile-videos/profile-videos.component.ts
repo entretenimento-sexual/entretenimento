@@ -317,6 +317,15 @@ export class ProfileVideosComponent {
   }
 
   constructor() {
+    // Uma expiração de assinatura invalida imediatamente a seleção de Amigos.
+    // Não alteramos a audiência para Público sem decisão expressa.
+    this.canPublishToFriends$.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((allowed) => {
+        if (!allowed && this.uploadPublicationForm.controls.visibility.value === 'FRIENDS') {
+          this.uploadPublicationForm.controls.visibility.setValue(null);
+        }
+      });
+
     combineLatest([this.ownerUid$, this.isOwner$]).pipe(
       map(([ownerUid, isOwner]) => isOwner && ownerUid ? ownerUid : null),
       distinctUntilChanged(),

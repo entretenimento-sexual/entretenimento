@@ -9,6 +9,7 @@
 @let selectedFileSizeLabel = (selectedFileSizeLabel$ | async);
 @let uploadPercent = (uploadPercent$ | async);
 @let audience = (audience$ | async);
+@let canPublishToFriends = (canPublishToFriends$ | async) === true;
 
 <section class="upload-page container-wide" aria-label="Adicionar foto">
   <app-page-header title="Adicionar foto">
@@ -137,14 +138,20 @@
                     type="radio"
                     name="photoAudience"
                     value="FRIENDS"
+                    [disabled]="!canPublishToFriends"
                     [checked]="audience === 'FRIENDS'"
                     (change)="selectAudience('FRIENDS')"
                   />
                   <span>
                     <strong>Amigos</strong>
-                    <small>Publica para suas conexões permitidas.</small>
+                    <small>Exclusivo para assinantes com plano ativo.</small>
                   </span>
                 </label>
+                @if (!canPublishToFriends) {
+                  <p class="upload-note" role="status">
+                    A opção Amigos exige assinatura ativa. Você pode publicar como Público.
+                  </p>
+                }
 
                 <label class="audience-option">
                   <input

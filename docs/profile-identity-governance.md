@@ -69,3 +69,23 @@ Continua necessária auditoria de edição da audiência e de URLs assinadas de
 mídias legadas, além de adaptação da UI para explicar a capacidade quando
 não existir entitlement. Nenhum conteúdo restrito será publicado
 automaticamente como `PUBLIC`.
+
+## Audiências no frontend (P2)
+Os editores de fotos e vídeos agora consomem a projeção reativa
+`PlatformSubscriptionAccessService.isSubscriber$`. A opção `FRIENDS`
+fica desabilitada quando a assinatura não está ativa; a seleção é
+limpa se a assinatura expirar durante o preenchimento. A tentativa
+de upload por evento ou código também falha fechado antes do envio
+dos bytes. Nenhuma alteração automática para `PUBLIC` é realizada.
+
+A autorização real continua nas Functions de publicação/registro,
+não na UI. Os caminhos `publishPhoto`, `registerPrivateVideoUpload`
+e `publishVideo` recusam `FRIENDS` sem assinatura Basic+ ativa.
+`publishVideoWhenReady` utiliza `publishVideo` e herda a validação.
+`updateVideoPublicationSettings` não aceita alteração de audiência,
+somente metadados e preferências de interação.
+
+Permanece pendente conferir as políticas de visualização de mídias
+`FRIENDS` antigas quando a assinatura do proprietário vence,
+incluindo URLs temporárias, queries de galeria e regras de visibilidade,
+sem alterar unilateralmente a audiência do documento.
