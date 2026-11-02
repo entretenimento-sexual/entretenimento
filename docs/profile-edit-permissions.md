@@ -213,3 +213,19 @@ backup e validar a sequência de deploy.** O script é idempotente,
 não reassocia, remove ou libera nicknames; conflitos e ausências exigem
 revisão manual. Limite padrão: 1.000 registros; paginação e teto configuráveis.
 A ferramenta não executa automaticamente em CI nem foi rodada em produção.
+
+
+### Referência comparativa e aceite jurídico vigente
+
+Documentação pública resumida em docs/references/sexocomcafe-public-policy-review.md.
+O material do concorrente não altera automaticamente as regras da plataforma.
+
+O backend de cadastro passa a exigir a versão vigente dos termos, a
+confirmação de ciência da privacidade e o consentimento adulto canônico.
+A reserva não pode ser realizada por conta suspensa, bloqueada,
+desativada ou em exclusão. Testes E2E específicos validam cenários
+negativos em emuladores. A homologação exige CI integralmente verde.
+
+Dados básicos do perfil podem ser publicamente consultáveis conforme a
+autoridade da plataforma, mas detalhes de vida sexual e preferências
+íntimas não devem ser publicados automaticamente por a conta ser free.
