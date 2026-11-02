@@ -4,6 +4,8 @@
 import { createRequire } from 'node:module';
 import { applicationDefault, getApps, initializeApp } from 'firebase-admin/app';
 import { FieldPath, FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { writeFileSync } from 'node:fs';
+import { buildNicknameScanReport, shouldInspectNextDocument } from './nickname-scan-report.policy.mjs';
 import { classifyNicknameBackfill } from './nickname-reservation-backfill.policy.mjs';
 
 const require = createRequire(import.meta.url);
@@ -44,6 +46,7 @@ const stats = {
   scanned: 0, candidate: 0, already: 0, invalid: 0, conflict: 0,
   applied: 0, changedDuringTransaction: 0,
 };
+const auditStartedAt = new Date().toISOString();
 
 let cursor = null;
 while (stats.scanned < maxRecords) {
@@ -110,11 +113,25 @@ while (stats.scanned < maxRecords) {
     else stats.changedDuringTransaction += 1;
   }
 }
-console.log('[nickname-reservation-backfill] final', {
-  projectId, mode: dryRun ? 'DRY_RUN' : 'APPLY',
-  maxRecords, ...stats,
-  truncated: stats.scanned >= maxRecords,
+// Check one more document within the nickname prefix before reporting a
+// complete scan. A full final page does not itself prove truncation.
+const boundaryReached = stats.scanned >= maxRecords;
+const nextDocumentExists = shouldInspectNextDocument({
+  scanned: stats.scanned, limit: maxRecords,
+}) ? !(await db.collection('public_index').orderBy(FieldPath.documentId())
+  .startAfter(cursor).endAt('nickname:\uf8ff').limit(1).get()).empty : false;
+const report = buildNicknameScanReport({
+  projectId, mode: dryRun ? 'DRY_RUN' : 'APPLY', limit: maxRecords,
+  truncated: boundaryReached && nextDocumentExists,
+  startedAt: auditStartedAt, completedAt: new Date().toISOString(),
+  counters: stats,
 });
+console.log('[nickname-reservation-backfill] report', JSON.stringify(report, null, 2));
+const reportPath = String(process.env.NICKNAME_RESERVATION_REPORT_PATH ?? '').trim();
+if (reportPath) {
+  writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n',
+    { flag: 'wx', mode: 0o600 });
+}
 if (stats.conflict || stats.invalid || stats.changedDuringTransaction) {
   console.warn(
     '[nickname-reservation-backfill] Inconsistências requerem auditoria manual. ' +

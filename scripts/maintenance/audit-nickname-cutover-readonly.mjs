@@ -3,6 +3,8 @@
 import { createRequire } from 'node:module';
 import { applicationDefault, initializeApp } from 'firebase-admin/app';
 import { FieldPath, getFirestore } from 'firebase-admin/firestore';
+import { writeFileSync } from 'node:fs';
+import { buildNicknameScanReport, shouldInspectNextDocument } from './nickname-scan-report.policy.mjs';
 import {
   classifyNicknameCutoverRecord, createNicknameCutoverSummary,
   accumulateNicknameCutover, evaluateNicknameCutoverGate,
@@ -34,6 +36,7 @@ if (typeof normalizeRegistrationNickname !== 'function') {
 }
 const db = getFirestore(initializeApp({ credential: applicationDefault(), projectId }));
 const summary = createNicknameCutoverSummary();
+const auditStartedAt = new Date().toISOString();
 let cursor = null;
 
 while (summary.scannedUsers < maximum) {
@@ -74,11 +77,26 @@ while (summary.scannedUsers < maximum) {
     accumulateNicknameCutover(summary, decision);
   }
 }
-const truncated = summary.scannedUsers >= maximum;
+// Limit boundary is ambiguous until we prove whether a following document
+// exists. Never claim complete merely because the last page was full.
+const boundaryReached = summary.scannedUsers >= maximum;
+const nextDocumentExists = shouldInspectNextDocument({
+  scanned: summary.scannedUsers, limit: maximum,
+}) ? !(await db.collection('users').orderBy(FieldPath.documentId())
+  .startAfter(cursor).limit(1).get()).empty : false;
+const truncated = boundaryReached && nextDocumentExists;
 const gate = evaluateNicknameCutoverGate(summary, { truncated });
-console.log('[nickname-cutover-readonly] summary', JSON.stringify({
-  projectId, mode: 'READ_ONLY', maxUsers: maximum, truncated,
-  ...summary, ...gate,
-}, null, 2));
+const report = buildNicknameScanReport({
+  projectId, mode: 'READ_ONLY', limit: maximum, truncated,
+  startedAt: auditStartedAt, completedAt: new Date().toISOString(),
+  counters: summary, gate,
+});
+console.log('[nickname-cutover-readonly] report', JSON.stringify(report, null, 2));
+const reportPath = String(process.env.NICKNAME_AUDIT_REPORT_PATH ?? '').trim();
+if (reportPath) {
+  // Local aggregate-only JSON, exclusive file creation, private permissions.
+  writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n',
+    { flag: 'wx', mode: 0o600 });
+}
 console.log('[nickname-cutover-readonly] Also check index-first orphan coverage in dry-run.');
 console.log('[nickname-cutover-readonly] InventoryClean alone DOES NOT authorize Rules deploy.');
