@@ -129,6 +129,7 @@ const expectedDeploymentExports = [
   'getMyAccountPrivilegeHistory',
   'getMyProfileIdentityChange',
   'getProfileIdentityReviewQueue',
+  'getRegistrationNicknameAvailability',
   'getMyBillingSnapshot',
   'getMyCommunitiesPage',
   'getMyCommunityActivityCards',
