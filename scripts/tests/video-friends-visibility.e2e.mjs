@@ -14,7 +14,7 @@ import {
   applicationDefault, deleteApp as deleteAdminApp,
   initializeApp as initializeAdminApp,
 } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 
 import { seedPublicMediaCompliance } from './media-e2e-compliance-fixture.mjs';
@@ -93,6 +93,21 @@ async function run() {
     await Promise.all([waitForUser(db, ownerUid), waitForUser(db, visitorUid)]);
     await seedPublicMediaCompliance(db, [ownerUid, visitorUid]);
 
+    // FRIENDS de terceiros é entitlement financeiro do proprietário.
+    // Sem assinatura ativa, o teste positivo de URL assinada seria inválido.
+    const ownerRef = db.doc(`users/${ownerUid}`);
+    const subscriptionEnd = Date.now() + 3_600_000;
+    await ownerRef.update({
+      role: 'basic',
+      tier: 'basic',
+      billingProjectionVersion: 1,
+      isSubscriber: true,
+      subscriptionStatus: 'active',
+      subscriptionScope: 'platform_subscription',
+      subscriptionStartedAt: Timestamp.fromMillis(Date.now() - 60_000),
+      subscriptionEndsAt: Timestamp.fromMillis(subscriptionEnd),
+    });
+
     const publicId = `public-${id}`;
     const friendsId = `friends-${id}`;
     const publishedAt = Date.now();
@@ -162,6 +177,15 @@ async function run() {
     assert.equal(authorizedSignedItems[0].videoId, friendsId);
     assert.ok(String(authorizedSignedItems[0].url).startsWith('http'),
       'Amigo recíproco recebe URL temporária autorizada.');
+
+    await ownerRef.update({
+      subscriptionEndsAt: Timestamp.fromMillis(Date.now() - 1_000),
+    });
+    assert.deepEqual(await signedFriendItems(), [],
+      'Expiração do plano do autor impede novas URLs FRIENDS a terceiros.');
+    await ownerRef.update({
+      subscriptionEndsAt: Timestamp.fromMillis(subscriptionEnd),
+    });
 
     const blockRef = db.doc(
       `users/${ownerUid}/blocks/${visitorUid}`);

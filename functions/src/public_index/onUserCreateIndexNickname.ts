@@ -94,6 +94,9 @@ export const onUserCreateIndexNickname = onDocumentWritten(
     let hasMutation = false;
 
     for (const indexDocument of ownedIndexes.docs) {
+      // A query por UID também retorna email:*; jamais apagar índices de
+      // autenticação quando a projeção pública do perfil for removida.
+      if (!indexDocument.id.startsWith('nickname:')) continue;
       if (!currentRef || indexDocument.ref.path !== currentRef.path) {
         batch.delete(indexDocument.ref);
         hasMutation = true;

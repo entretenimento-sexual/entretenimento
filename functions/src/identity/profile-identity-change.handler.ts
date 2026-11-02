@@ -136,9 +136,9 @@ export const requestProfileIdentityChange = onCall<{ identityCode?: unknown }>(
           decision === 'same-identity' ? 'Essa já é a identidade do perfil.'
             : decision === 'structural-change'
               ? 'Mudanças envolvendo casal precisam de consentimento específico e não estão disponíveis neste fluxo.'
-            : decision === 'rate-limited'
-              ? 'Aguarde 90 dias desde a última alteração de identidade.'
-              : 'Identidade inválida.');
+              : decision === 'rate-limited'
+                ? 'Aguarde 90 dias desde a última alteração de identidade.'
+                : 'Identidade inválida.');
       }
 
       // Descoberta não pode manter a classificação antiga após a atualização.

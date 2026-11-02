@@ -237,12 +237,16 @@ const boundaries = [
   },
   {
     path: 'src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component.html',
+    // O componente deliberadamente não duplica links de fotos/vídeos:
+    // as abas do perfil já fazem essa navegação. Testes do componente
+    // garantem a ausência de links redundantes. Exigir ações vazias aqui
+    // contradiria o contrato visual e de acessibilidade.
     required: [
-      'app-section-header',
+      'profile-media-showcase__header app-section-header',
       'app-section-title',
-      'app-section-actions',
+      'profile-media-showcase__grid',
     ],
-    forbidden: [],
+    forbidden: ['profile-media-showcase__links'],
   },
 ];
 

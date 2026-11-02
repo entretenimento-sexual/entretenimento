@@ -179,3 +179,29 @@ transacional de nicknameNormalized em perfis legados e possibilidade de
 criação de aliases arbitrários no índice antes de reconciliação. Portanto,
 não se afirma uma unicidade perpétua universal nesta etapa.
 Os testes novos e CI precisam passar antes de homologação; nenhum deploy.
+
+## Segurança da reserva de nickname e validação cruzada (P1)
+
+O índice público `public_index/nickname:{key}` só pode ser criado pelo
+titular quando a projeção pública do mesmo UID já contém `nicknameNormalized`
+igual à chave e ao valor indexado. Isto preserva a transação original do
+cadastro (que usa `getAfter`) e impede reservas client-side para aliases
+totalmente desconectados da projeção. Exclusão de nickname pelo cliente é
+proibida; o trigger `onUserCreateIndexNickname` remove somente entradas
+`nickname:` e nunca apaga índices `email:` do mesmo UID.
+
+A segurança descrita não equivale a unicidade histórica perpétua:
+um cliente malicioso ainda pode tentar forjar `nicknameNormalized` no
+documento público de criação, porque a normalização Unicode e a reserva
+canônica do nome ainda ocorrem no fluxo de onboarding via cliente.
+A futura migração deve passar criação e reserva para backend transacional,
+com índice de ocupação privado, idempotência, migração de legados e políticas
+de apagamento compatíveis com privacidade. Não remover o bloqueio atual.
+
+O Quality Gate 9d6967a falhou também por lint (quebras de linha e
+alinhamento de ternário), contrato visual inconsistente de showcase
+sem ações, auditoria de dependências Functions e outros checks.
+A fase corrente corrige lint e a incompatibilidade visual sem inserir
+elementos vazios, preserva a proibição de links redundantes e adapta o E2E
+de URL FRIENDS para proprietário com plano vigente/expirado. O audit de
+dependências exige atualização e lockfile reproduzível, não dispensa do gate.

@@ -45,6 +45,60 @@ match /public_index/{docId} {
       && adultMediaHasRequiredConsent(user);
   }
 
+  // A criação do índice deve referenciar exatamente o nickname normalizado
+  // que foi escrito na projeção pública do MESMO titular (inclui batch de
+  // conclusão de cadastro). Uma chave arbitrária não é reserva de apelido.
+  // A normalização inicial depende do fluxo de onboarding; não é a fonte
+  // definitiva da reserva irreversível (ver matriz de permissões).
+  function canonicalNicknameReservationAfter() {
+    let profilePath = /databases/$(database)/documents/public_profiles/$(uid());
+    let profile = signedIn() && existsAfter(profilePath)
+      ? getAfter(profilePath).data
+      : null;
+    return profile is map
+      && profile.get("uid", "") == uid()
+      && profile.get("nicknameNormalized", "") is string
+      && profile.nicknameNormalized.matches('^[a-z0-9._-]{3,40}
+    return signedIn()
+      && validDocId()
+      && hasRequiredRequestFields()
+      && request.resource.data.uid == uid()
+      && request.resource.data.type in ["nickname","email"]
+      && request.resource.data.type == (isNicknameDoc() ? "nickname" : "email")
+      && request.resource.data.value is string
+      // ✅ serverTimestamp obrigatório
+      && request.resource.data.createdAt == request.time
+      && request.resource.data.lastChangedAt == request.time;
+  }
+
+  allow create: if common()
+    && (!isNicknameDoc() || (currentNicknameOwnerEligibleAfter()
+      && canonicalNicknameReservationAfter()))
+    && !exists(/databases/$(database)/documents/public_index/$(docId));
+
+  allow update: if signedIn()
+    && isEmailDoc()
+    && hasRequiredRequestFields()
+    && request.resource.data.uid == uid()
+    && request.resource.data.type == "email"
+    && request.resource.data.value is string
+    && resource.data.keys().hasAny(["createdAt"])
+    && request.resource.data.createdAt == resource.data.createdAt
+    // ✅ serverTimestamp obrigatório no update
+    && request.resource.data.lastChangedAt == request.time;
+
+  // Cliente não pode liberar nickname. Backend gerencia exclusão/suspensão.
+  allow delete: if signedIn()
+    && isEmailDoc()
+    && resource.data.keys().hasAny(["uid"])
+    && resource.data.uid == uid();
+}
+)
+      && request.resource.data.type == "nickname"
+      && docId == "nickname:" + profile.nicknameNormalized
+      && request.resource.data.value == profile.nicknameNormalized;
+  }
+
   function common() {
     return signedIn()
       && validDocId()
