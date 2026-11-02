@@ -11,6 +11,7 @@ import {
 import {
   deleteDoc,
   doc,
+  getDoc,
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore';
@@ -126,6 +127,26 @@ describe('Firestore Rules / autoridade da reserva de nickname', () => {
     await assertFails(deleteDoc(
       doc(ownerDb(), 'public_index', 'nickname:perfil_estavel')
     ));
+  });
+
+  it('nega ler, consultar ou modificar reserva exclusiva do backend', async () => {
+    await seed();
+    await environment.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'nickname_reservations', 'perfil_estavel'), {
+        uid: USER_ID,
+        key: 'perfil_estavel',
+        policyVersion: 1,
+        state: 'RESERVED',
+      });
+    });
+    const reservation = doc(ownerDb(), 'nickname_reservations', 'perfil_estavel');
+    await assertFails(getDoc(reservation));
+    await assertFails(setDoc(reservation, {
+      uid: USER_ID,
+      key: 'perfil_estavel',
+      state: 'RESERVED',
+    }));
+    await assertFails(deleteDoc(reservation));
   });
 
   it('não altera a capacidade legada do titular de retirar índice privado de email', async () => {

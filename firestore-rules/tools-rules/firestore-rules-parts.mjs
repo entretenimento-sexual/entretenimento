@@ -38,6 +38,8 @@ export const FIRESTORE_RULE_PARTS = Object.freeze([
   'rooms.rules',
   'rooms_participants.rules',
   'public_index.rules',
+  // Reserva backend-only: não disponibilizar leitura ou escrita client-side.
+  'nickname_reservations.rules',
   'notifications.rules',
 
   // Dados privados/públicos complementares de perfil.

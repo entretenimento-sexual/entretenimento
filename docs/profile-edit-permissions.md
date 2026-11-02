@@ -178,3 +178,12 @@ A nomenclatura CSS de apresentação pública foi padronizada como
 `profile-public-bio-toggle` e `other-profile-page__about-header`, evitando
 terminologia genérica de introdução/descrição. Não houve mudança nos seletores
 de consentimento nem exposição implícita de textos privados.
+
+### Reserva backend-only: fronteira explícita
+
+`firestore-rules/nickname_reservations.rules` nega todas as leituras e
+escritas de cliente em `nickname_reservations/{key}`, independentemente de
+assinatura, cargo, titularidade ou conclusão do cadastro. Somente operações
+Admin SDK com autorização backend podem criar/reconciliar a reserva. Os testes
+cobrem GET, SET e DELETE negados para o titular. Não expor a existência da
+reserva em páginas públicas nem no mecanismo de descoberta.

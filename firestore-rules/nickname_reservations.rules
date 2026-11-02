@@ -1,0 +1,7 @@
+// Reserva canônica de nickname: exclusiva do backend transacional.
+// Nunca conceder permissões SDK por role, uid, assinatura ou status de perfil.
+// As Functions usam Admin SDK e não dependem da autorização client-side.
+// A presença da chave não é dado público.
+match /nickname_reservations/{nicknameKey} {
+  allow read, write: if false;
+}
