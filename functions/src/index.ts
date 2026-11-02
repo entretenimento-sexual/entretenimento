@@ -46,3 +46,9 @@ export * from './discovery';
 export * from './friendship';
 export * from './media';
 export * from './subscriber-experiences';
+
+export {
+  getMyProfileIdentityChange,
+  requestProfileIdentityChange,
+  reviewProfileIdentityChange,
+} from './identity/profile-identity-change.handler';

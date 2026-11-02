@@ -412,7 +412,7 @@ match /users/{userId} {
         "interactionBlocked"
       ])
       && !selfChangingSensitiveKeys(changedKeys)
-      && identityUpdateSafe(changedKeys)
+      && !changedKeys.hasAny(["gender", "declaredIdentityCode", "identityCatalogVersion"])
       && emailVerifiedSafeOnUpdate(changedKeys);
   }
 
