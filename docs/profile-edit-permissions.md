@@ -306,3 +306,14 @@ em `docs/references/README.md`, com links oficiais e datas.
 ## Gate explícito de decisão do cutover
 
 O runbook operacional está em `docs/operations/registration-nickname-cutover-runbook.md`. A ferramenta offline `nickname:cutover-readiness` exige inventários integrais, índice reconciliado, compatibilidade comprovada de clientes antigos, privacidade da leitura pública, deploy ordenado dos callables, rollback e revisão de segurança. O resultado é conservador: `NO_GO` por padrão; mesmo `REVIEW_READY` **não** autoriza deploy. Um check estático de fronteiras do cliente Angular foi incorporado ao `test:ci`, sem confundir o código atual com versões antigas em produção.
+
+
+### Exaustividade dos relatórios de nickname
+
+Os scanners user-first e index-first compartilham contrato de relatório
+JSON e verificam uma página adicional quando o contador atinge o limite.
+`truncated=false` indica que não havia documento adicional na consulta,
+mas não comprova imutabilidade de dados durante a leitura. Ambos são
+somente diagnósticos quando chamados com `DRY_RUN`/`READ_ONLY`;
+`docs/operations/registration-nickname-cutover-runbook.md` apresenta os
+comandos e a disciplina de confidencialidade dos artefatos locais.
