@@ -40,7 +40,10 @@ e os links oficiais de pt-br.sexlog.com.
 ## Casal Real — situação de verificação
 
 - Domínio solicitado: https://casalreal.com/
-- A tentativa de leitura direta não retornou o conteúdo do site.
+- Em 02/11/2026, a página inicial respondeu: login com
+  usuário/e-mail e senha, recuperação de senha, contatos de suporte e
+  aviso genérico de cookies. Não havia na parte pública examinada
+  regras completas de certificação, termos de uso ou APIs técnicas.
 - Há referência pública à rede Casal Real em evento sobre selo de
   certificação: https://www.casalpimenta.com.br/eventos/20-07-festa-certificacao-real/
   Esta referência não documenta o processo interno, requisitos atuais,

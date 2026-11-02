@@ -268,3 +268,36 @@ auditoria, política de prova mínima, prazo de retenção e revogação
 executáveis. Não confundir validação de casal com verificação de
 maioridade nem presumir que mudança de identidade individual seja fraude.
 A assinatura não substitui qualquer dessas autoridades.
+
+
+## Pré-flight complementar de cobertura de nicknames — somente leitura
+
+Nova ferramenta: `scripts/maintenance/audit-nickname-cutover-readonly.mjs`.
+Ela percorre documentos `users` e compara as contas concluídas com
+`public_profiles`, `public_index/nickname:*` e
+`nickname_reservations`, identificando também índices AUSENTES que
+o backfill anterior (iniciado apenas por índices existentes) não vê.
+
+O resultado apresenta **apenas contadores agregados**, nunca UID,
+nickname, email ou informações privadas. A varredura tem limite padrão
+de 1.000 usuários (máximo 50.000 por execução). Quando
+`truncated=true`, a cobertura é insuficiente, mesmo se não houver
+conflitos. A ferramenta é exclusivamente de leitura e recusa sinais
+de execução em modo de escrita.
+
+Execução autorizada em ambiente controlado (não executada aqui):
+
+    npm run functions:build
+    $env:FIREBASE_PROJECT_ID = 'ID_DO_PROJETO'
+    $env:NICKNAME_AUDIT_MAX_USERS = '1000'
+    node scripts/maintenance/audit-nickname-cutover-readonly.mjs
+
+Inventário sem anomalias não autoriza implantação: ainda é necessário
+executar o scanner complementar de índices órfãos em dry-run,
+demonstrar cobertura INTEGRAL, confirmar compatibilidade de clientes
+antigos, publicar callables na ordem correta, revisar retenção
+de reservas, segurança de rollback e resultados completos de CI.
+Nenhuma Rules restritiva foi promovida nem houve migração real.
+
+Referências de outros serviços arquivadas como resumos autorais
+em `docs/references/README.md`, com links oficiais e datas.
