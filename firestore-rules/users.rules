@@ -154,17 +154,12 @@ match /users/{userId} {
       && data.identityCatalogVersion >= 1;
   }
 
+  // Autodeclaração inicial pertence ao onboarding; depois disso,
+  // alterações exigem revisão backend e não são atualizações ordinárias.
   function identityUpdateSafe(changedKeys) {
-    let identityKeys = [
-      "gender",
-      "declaredIdentityCode",
-      "identityCatalogVersion"
-    ];
-    return !changedKeys.hasAny(identityKeys)
-      || (
-        changedKeys.hasAll(identityKeys)
-        && declaredIdentityValid(request.resource.data)
-      );
+    return !changedKeys.hasAny([
+      "gender", "declaredIdentityCode", "identityCatalogVersion"
+    ]);
   }
 
   function selfChangingSensitiveKeys(changedKeys) {
@@ -412,7 +407,7 @@ match /users/{userId} {
         "interactionBlocked"
       ])
       && !selfChangingSensitiveKeys(changedKeys)
-      && !changedKeys.hasAny(["gender", "declaredIdentityCode", "identityCatalogVersion"])
+      && identityUpdateSafe(changedKeys)
       && emailVerifiedSafeOnUpdate(changedKeys);
   }
 
