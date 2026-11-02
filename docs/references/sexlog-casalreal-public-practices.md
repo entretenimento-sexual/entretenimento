@@ -62,3 +62,28 @@ isolado não comprova uma política formal de certificação.
    dados sobre vida sexual não serão automaticamente publicados no plano free.
 4. Verificação de maioridade e verificação de identidade não são equivalentes.
 5. Marcas e código de terceiros não devem ser copiados.
+
+
+### Selo Real e mudança estrutural — fonte oficial adicional
+
+Artigo: https://support.sexlog.com/hc/pt-br/articles/200894068-Selo-Real-Como-pedir-o-meu
+(atualizado em 17/07/2025).
+
+Segundo a Central de Ajuda oficial, o Selo Real é uma verificação de
+autenticidade e pode ser requerido para alterações estruturais envolvendo
+perfil de casal. O texto prevê identificação das duas pessoas quando o
+perfil é de casal. O selo em si não é vendido, enquanto algumas permissões
+de publicação facial dependem de assinatura. NÃO concluir daí que idade,
+identidade civil, concordância sobre cada conteúdo e capacidade de
+consentir sejam verificações equivalentes.
+
+Lição de projeto: mudanças que introduzam ou retirem outro titular de
+um perfil conjunto exigem consentimento verificável de cada pessoa,
+rastreabilidade, revogação e proteção da documentação. Mudanças legítimas
+de identidade pessoal exigem tratamento proporcional e não podem ser
+presumidas fraudulentas ou condicionadas a pagamento. O Entretenimento
+ainda não oferece esse procedimento administrativo completo.
+
+Renomeação via suporte consta do artigo oficial de planos, mas ele não
+comprova disponibilidade irrestrita da renomeação para todas as contas.
+A própria plataforma deve documentar condições objetivas de exceção.

@@ -254,3 +254,17 @@ e conciliação de nicknames legados revisados, plano de rollback, aprovação
 de segurança e CI do cutover. Somente depois promover manualmente as três
 alterações aos fragmentos versionados. Nenhum teste emulador equivale a
 autorização de deploy. A coleção privada não deve ser exposta.
+
+
+### Aprendizado com verificação de perfis de casal
+
+O artigo oficial do Sexlog sobre Selo Real relata que mudanças estruturais
+de perfil conjunto podem exigir comprovação das duas pessoas. Referência:
+https://support.sexlog.com/hc/pt-br/articles/200894068-Selo-Real-Como-pedir-o-meu
+
+Decisão do Entretenimento: a inserção/retirada de co-titular de casal
+continuará **bloqueada** até existir fluxo com consentimento individual,
+auditoria, política de prova mínima, prazo de retenção e revogação
+executáveis. Não confundir validação de casal com verificação de
+maioridade nem presumir que mudança de identidade individual seja fraude.
+A assinatura não substitui qualquer dessas autoridades.
