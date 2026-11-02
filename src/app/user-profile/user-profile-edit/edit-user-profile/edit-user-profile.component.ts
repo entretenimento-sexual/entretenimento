@@ -188,6 +188,12 @@ export class EditUserProfileComponent
       takeUntil(this.destroy$)
     ).subscribe((result) => {
       this.identityRequestStatus = result.status;
+      if (result.status === 'PENDING') {
+        this.identityChangeControl.setValue('');
+        this.identityChangeAcknowledged.setValue(false);
+        this.notify.showSuccess('Solicitação registrada para revisão. A identidade exibida não mudou.');
+        return;
+      }
       this.userData = { ...this.userData, gender: result.requestedIdentityCode };
       this.editForm.get('gender')?.setValue(result.requestedIdentityCode, { emitEvent: false });
       this.identityChangeControl.setValue('');

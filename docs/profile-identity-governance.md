@@ -1,7 +1,8 @@
 # Identidade e privacidade de recursos — política escalável (P1)
 
 ## Mudança de identidade individual: autosserviço
-Não há equipe de revisão. O callable `requestProfileIdentityChange`
+O autosserviço descrito abaixo é histórico; a política v2 ao final prevalece para perfis com conexões.
+Não há equipe dedicada de revisão. O callable `requestProfileIdentityChange`
 continua com o mesmo nome, mas agora **aplica diretamente**, em uma
 transação Firestore, as mudanças legítimas entre opções individuais do
 catálogo. É necessário autenticação, App Check, cadastro concluído,
@@ -116,3 +117,37 @@ audiência, mídia ou histórico persistido.
 
 Testes de Firestore Rules acrescentados: Basic ativo, cancelamento,
 expiração temporal, role administrativa e acesso próprio.
+
+## Política v2 — identidade, conexões e confiança
+
+Identidade individual com amizade previamente aceita exige revisão administrativa,
+sem discriminar plano gratuito, assinante ou identidade de gênero. O marcador privado
+`users/{uid}.socialConnectionsEstablishedAt` é gravado nos dois perfis quando uma
+amizade é aceita e não pode ser modificado pelo cliente. Amizades legadas ainda
+ativas em `users/{uid}/friends` são consultadas para proteger contas antigas.
+O estado `PENDING` preserva a identidade e a descoberta até uma decisão na fila
+administrativa existente. A revisão deve permitir correções legítimas, com
+justificativa e auditoria, sem presumir fraude nem revelar histórico íntimo a
+terceiros. As mudanças estruturais de casal permanecem bloqueadas.
+Uma decisão aprovada atualiza a data canônica da mudança e a descoberta.
+O prazo de 90 dias permanece. Amizades encerradas antes da criação do marcador
+necessitam de backfill para cobertura retrospectiva; outras métricas de
+engajamento ainda exigem auditoria.
+
+## Política v2 — sinais públicos do perfil gratuito
+
+Nova gravação de preferências de conta sem assinatura exige
+`visibility.showPreferenceBadges=true`. A interface pede confirmação explícita;
+não altera o campo por conta própria. Conteúdo legado com opt-out não é
+publicado automaticamente. O catálogo público continua sanitizado.
+`showSeekingPublicly`, `showIntentPublicly`, `publicDescriptionVisible`,
+práticas íntimas, dados cadastrais, documentos, conversas, localização precisa
+e mídia privada seguem seus próprios controles e consentimento.
+
+Pendente: especificar matriz canônica por campo para perfil gratuito, incluindo
+descrição voluntária, descoberta, migração de legados e efeitos do downgrade.
+Não obrigar ninguém a fornecer dados íntimos para ter uma conta gratuita.
+
+Os 5.281 testes históricos validaram `33ccb29c`, não esta política.
+Validar Functions, Rules e Angular antes de declarar o novo commit aprovado;
+nenhum deploy está incluído nesta alteração.

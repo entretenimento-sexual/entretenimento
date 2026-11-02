@@ -12,7 +12,7 @@ export interface IdentityChangeStatus {
 
 /** Resposta de uma alteração efetivamente aplicada pelo backend. */
 export interface AppliedProfileIdentityChange {
-  status: 'APPROVED';
+  status: 'APPROVED' | 'PENDING';
   requestedIdentityCode: string;
 }
 
@@ -50,7 +50,7 @@ export class ProfileIdentityChangeService {
       map((response) => {
         const result = response.data;
         if (
-          result?.status !== 'APPROVED' ||
+          (result?.status !== 'APPROVED' && result?.status !== 'PENDING') ||
           typeof result.requestedIdentityCode !== 'string' ||
           result.requestedIdentityCode !== identityCode
         ) {

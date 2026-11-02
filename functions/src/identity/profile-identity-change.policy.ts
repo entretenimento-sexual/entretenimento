@@ -24,8 +24,10 @@ export function canRequestIdentityChange(input: {
   activeStatus?: unknown;
   reviewedAt?: unknown;
   lastAppliedAt?: unknown;
+  /** Marcador privado de amizade estabelecida; pagamento não muda a decisão. */
+  hasEstablishedSocialConnections?: boolean;
   now: number;
-}): 'allowed' | 'same-identity' | 'structural-change' | 'rate-limited' | 'invalid' {
+}): 'allowed' | 'same-identity' | 'structural-change' | 'rate-limited' | 'review-required' | 'invalid' {
   const target = normalizeRequestedIdentityCode(input.requestedCode);
   if (!target) return 'invalid';
   const current = String(input.currentCode ?? '').trim().toLowerCase();
@@ -41,6 +43,7 @@ export function canRequestIdentityChange(input: {
   if (lastChange > 0 && input.now - lastChange < PROFILE_IDENTITY_CHANGE_COOLDOWN_MS) {
     return 'rate-limited';
   }
-  // Solicitações PENDING do fluxo legado são resolvidas pelo próprio titular.
+  // O cooldown não permite mudar sem revisão a identidade usada em conexões.
+  if (input.hasEstablishedSocialConnections === true) return 'review-required';
   return 'allowed';
 }

@@ -190,7 +190,7 @@
       } @else {
       @if (identityRequestStatus === 'PENDING') {
         <p class="help-text app-field-help" role="status">
-          Existe uma solicitação antiga. Confirme a nova identidade abaixo para processá-la automaticamente.
+          Alteração aguardando revisão. A identidade atual permanece até a decisão.
         </p>
       }
         <label class="form-label" for="identityChange">Nova identidade</label>
@@ -208,9 +208,10 @@
           }
         </select>
         <p id="identity-review-help" class="help-text app-field-help">
-          A alteração é automática, após sua confirmação, para identidades individuais.
-          Um novo ajuste só poderá ser feito após 90 dias. Perfis de casal exigem um processo próprio.
-          Não é necessário ter assinatura.
+          Identidades individuais sem conexões podem ser atualizadas automaticamente após confirmação.
+          Com conexões sociais, a alteração exige revisão para preservar a credibilidade.
+          O intervalo mínimo é de 90 dias. Casais exigem um procedimento específico.
+          A política independe do plano de assinatura.
         </p>
         <label class="form-label" for="identityChangeAcknowledged">
           <input id="identityChangeAcknowledged" type="checkbox"
@@ -220,7 +221,7 @@
         <button
           type="button"
           class="app-action app-action--ghost"
-          [disabled]="identityRequestBusy || !identityChangeControl.value || !identityChangeAcknowledged.value"
+          [disabled]="identityRequestBusy || identityRequestStatus === 'PENDING' || !identityChangeControl.value || !identityChangeAcknowledged.value"
           [attr.aria-busy]="identityRequestBusy ? 'true' : null"
           (click)="onRequestIdentityChange()"
         >

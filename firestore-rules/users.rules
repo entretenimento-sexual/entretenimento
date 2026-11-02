@@ -165,6 +165,7 @@ match /users/{userId} {
   function selfChangingSensitiveKeys(changedKeys) {
     return changedKeys.hasAny([
       "profileId",
+      "socialConnectionsEstablishedAt",
       "adultConsent",
       "acceptedTerms",
       "registrationFlowVersion",
@@ -268,6 +269,7 @@ match /users/{userId} {
       && data.uid == uid()
       && !data.keys().hasAny([
         "profileId",
+        "socialConnectionsEstablishedAt",
         "adultConsent",
         "ageEligibility",
         "ageVerification",

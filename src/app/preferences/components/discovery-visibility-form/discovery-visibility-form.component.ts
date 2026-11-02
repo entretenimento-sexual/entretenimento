@@ -111,6 +111,12 @@ export class DiscoveryVisibilityFormComponent {
     if (!this.canEdit() || this.saving()) return;
 
     const raw = this.form.getRawValue();
+    // Não publicar automaticamente: exigir o consentimento do usuário free.
+    if (!this.capabilities()?.hasActiveSubscription && !raw.showPreferenceBadges) {
+      this.form.controls.showPreferenceBadges.setErrors({ required: true });
+      this.form.controls.showPreferenceBadges.markAsTouched();
+      return;
+    }
 
     this.saveVisibility.emit({
       showPreferenceBadges: raw.showPreferenceBadges,

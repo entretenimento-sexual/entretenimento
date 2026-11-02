@@ -1,4 +1,4 @@
-// Automatic self-service individual identity change; structural couple cases stay blocked.
+// Identidade individual com conexões sociais exige revisão; casal segue bloqueado.
 // Firestore Rules prohibit any direct client modification of canonical identity.
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { assertStaffAuthorization } from '../account_lifecycle/_shared';
@@ -59,7 +59,7 @@ export const getMyProfileIdentityChange = onCall(
 
 export const requestProfileIdentityChange = onCall<{ identityCode?: unknown }>(
   { region: FUNCTIONS_REGION },
-  async (request): Promise<{ status: 'APPROVED'; requestedIdentityCode: string }> => {
+  async (request): Promise<{ status: 'APPROVED' | 'PENDING'; requestedIdentityCode: string }> => {
     assertCallableAppCheck(request.app);
     const uid = assertSignedIn(request.auth?.uid);
     const target = normalizeRequestedIdentityCode(request.data?.identityCode);
@@ -78,8 +78,10 @@ export const requestProfileIdentityChange = onCall<{ identityCode?: unknown }>(
     const now = Date.now();
     return db.runTransaction(async (tx) => {
       // Todas as leituras antecedem as escritas da transação.
-      const [userSnap, publicSnap, caseSnap] = await Promise.all([
+      const [userSnap, publicSnap, caseSnap, friendsSnap] = await Promise.all([
         tx.get(userRef), tx.get(publicRef), tx.get(ref),
+        // Cobertura para contas com amizade ativa anterior ao marcador durável.
+        tx.get(userRef.collection('friends').limit(1)),
       ]);
       if (!userSnap.exists || !publicSnap.exists) {
         throw new HttpsError('failed-precondition', 'Perfil não disponível.');
@@ -97,12 +99,38 @@ export const requestProfileIdentityChange = onCall<{ identityCode?: unknown }>(
           'O estado do perfil precisa ser regularizado antes desta alteração.');
       }
       const previous = caseSnap.data() as RequestRecord | undefined;
+      if (previous?.status === 'PENDING') {
+        if (previous.currentIdentityCode === current && previous.requestedIdentityCode === target) {
+          return { status: 'PENDING' as const, requestedIdentityCode: target };
+        }
+        throw new HttpsError('failed-precondition',
+          'Já existe uma solicitação de alteração de identidade aguardando revisão.');
+      }
       const decision = canRequestIdentityChange({
         currentCode: current, requestedCode: target,
         activeStatus: previous?.status,
         reviewedAt: previous?.reviewedAt,
-        lastAppliedAt: user['identityChangedAtMs'], now,
+        lastAppliedAt: user['identityChangedAtMs'],
+        hasEstablishedSocialConnections:
+          user['socialConnectionsEstablishedAt'] != null || !friendsSnap.empty,
+        now,
       });
+      if (decision === 'review-required') {
+        const stamp = FieldValue.serverTimestamp();
+        // PENDING não altera a identidade, a descoberta nem as amizades.
+        tx.set(ref, {
+          uid, currentIdentityCode: current, requestedIdentityCode: target,
+          status: 'PENDING', requestedAt: now, updatedAt: stamp,
+          reviewReason: 'established-social-connections', policyVersion: 2,
+        });
+        tx.create(auditRef, {
+          adminUid: null, action: 'profileIdentityChangeReviewRequested',
+          targetUserUid: uid,
+          details: { reason: 'established-social-connections', policyVersion: 2 },
+          timestamp: stamp,
+        });
+        return { status: 'PENDING' as const, requestedIdentityCode: target };
+      }
       if (decision !== 'allowed') {
         throw new HttpsError('failed-precondition',
           decision === 'same-identity' ? 'Essa já é a identidade do perfil.'
@@ -223,6 +251,7 @@ export const reviewProfileIdentityChange = onCall<{
           gender: previous.requestedIdentityCode,
           declaredIdentityCode: previous.requestedIdentityCode,
           identityCatalogVersion: PROFILE_IDENTITY_CATALOG_VERSION,
+          identityChangedAtMs: now,
           updatedAt: stamp, updatedAtMs: now,
         };
         // A composição individual/casal modifica o tipo de perfil.
@@ -239,7 +268,14 @@ export const reviewProfileIdentityChange = onCall<{
         } else {
           tx.update(userRef, patch);
         }
+        const discovery = normalizeProfileDiscoveryFields({
+          ...user, gender: previous.requestedIdentityCode,
+          ...(wasCouple !== becomesCouple ? { orientation: '' } : {}),
+        });
         tx.update(publicRef, {
+          normalizedGender: discovery.normalizedGender,
+          normalizedOrientation: discovery.normalizedOrientation,
+          compatibilityReady: discovery.compatibilityReady,
           ...(wasCouple !== becomesCouple ? { orientation: null } : {}),
           gender: previous.requestedIdentityCode,
           identityCode: previous.requestedIdentityCode,

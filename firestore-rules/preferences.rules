@@ -123,6 +123,9 @@ match /users/{userId}/preferences/{docId} {
     let data = request.resource.data;
     return validProfileIdentity(subscriptionRank)
       && advancedModesAllowedOnCreate(data, subscriptionRank)
+      // Sem plano, badges gerais exigem opt-in; nunca publicar legados sem escolha.
+      && (subscriptionRank >= 1 || (data.visibility.keys().hasAny(["showPreferenceBadges"])
+        && data.visibility.showPreferenceBadges == true))
       && (subscriptionRank >= 1
         || (data.softRules.bodyPreferences.size() == 0
           && data.softRules.sexualPractices.size() == 0));
@@ -132,6 +135,8 @@ match /users/{userId}/preferences/{docId} {
     let data = request.resource.data;
     return validProfileIdentity(subscriptionRank)
       && advancedModesAllowedOnUpdate(data, subscriptionRank)
+      && (subscriptionRank >= 1 || (data.visibility.keys().hasAny(["showPreferenceBadges"])
+        && data.visibility.showPreferenceBadges == true))
       && (subscriptionRank >= 1
         || (data.softRules.bodyPreferences == resource.data.softRules.bodyPreferences
           && data.softRules.sexualPractices == resource.data.softRules.sexualPractices));

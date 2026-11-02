@@ -68,6 +68,7 @@ function profilePayload(
     sexualPracticeMode?: 'prefer' | 'require';
     bodyPreferenceMode?: 'prefer' | 'require';
     discoveryMode?: 'standard' | 'discreet' | 'priority';
+    showPreferenceBadges?: boolean;
     ageRange?: { min: number; max: number } | null;
   } = {}
 ) {
@@ -96,7 +97,7 @@ function profilePayload(
       bodyPreferences: options.bodyPreferenceMode ?? 'prefer',
     },
     visibility: {
-      showPreferenceBadges: true,
+      showPreferenceBadges: options.showPreferenceBadges ?? true,
       showIntentPublicly: false,
       discoveryMode: options.discoveryMode ?? 'standard',
     },
@@ -147,6 +148,17 @@ describe('Firestore Rules / preference subscription tiers', () => {
         bodyTraits: ['tattoos'],
         ageRange: { min: 25, max: 45 },
       })
+    ));
+  });
+
+  it('exige escolha expressa do free para publicar badges gerais', async () => {
+    await assertFails(setDoc(
+      doc(authenticatedDb('free-user'), 'users', 'free-user', 'preferences', 'profile'),
+      profilePayload('free-user', { showPreferenceBadges: false })
+    ));
+    await assertSucceeds(setDoc(
+      doc(authenticatedDb('basic-user'), 'users', 'basic-user', 'preferences', 'profile'),
+      profilePayload('basic-user', { showPreferenceBadges: false })
     ));
   });
 

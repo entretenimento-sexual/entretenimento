@@ -46,6 +46,7 @@ interface FriendshipUserDoc {
   interactionBlocked?: unknown;
   accountLocked?: unknown;
   loginAllowed?: unknown;
+  socialConnectionsEstablishedAt?: unknown;
 }
 
 interface PreferencesDoc {
@@ -236,6 +237,13 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
       }
 
       const now = FieldValue.serverTimestamp();
+      // Preservar o primeiro vínculo como fato privado e não editável pelo cliente.
+      if (!requester?.socialConnectionsEstablishedAt) {
+        transaction.update(requesterRef, { socialConnectionsEstablishedAt: now });
+      }
+      if (!target?.socialConnectionsEstablishedAt) {
+        transaction.update(targetRef, { socialConnectionsEstablishedAt: now });
+      }
       const targetNickname = displayNickname(target);
       const shouldNotifyRequester = allowsConnectionNotifications(requesterPreferences);
 

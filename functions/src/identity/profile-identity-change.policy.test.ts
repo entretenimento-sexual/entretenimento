@@ -44,6 +44,12 @@ describe('governança automática da identidade do perfil', () => {
     assert.equal(check('homem', { activeStatus: 'REJECTED',
       reviewedAt: now - 1000 }), 'allowed');
   });
+  it('requer revisão quando existe amizade estabelecida, independentemente do plano', () => {
+    assert.equal(check('homem', { hasEstablishedSocialConnections: true }), 'review-required');
+    assert.equal(check('homem', { hasEstablishedSocialConnections: false }), 'allowed');
+    assert.equal(check('homem', { hasEstablishedSocialConnections: true,
+      lastAppliedAt: now - 1 }), 'rate-limited');
+  });
   it('não distingue perfis gratuitos, premium e VIP', () => {
     assert.equal(check('homem'), 'allowed');
   });

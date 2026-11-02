@@ -25,6 +25,17 @@
         <input type="checkbox" formControlName="showPreferenceBadges" />
         <span>Exibir sinais de preferências</span>
       </label>
+      @if (!capabilities()?.hasActiveSubscription) {
+        <p class="help-text app-field-help">
+          No perfil gratuito, sinais gerais são públicos quando você confirma sua publicação.
+          Marque a opção para salvar; preferências íntimas não serão divulgadas automaticamente.
+        </p>
+        @if (form.controls.showPreferenceBadges.invalid) {
+          <p class="help-text app-field-help" role="alert">
+            Confirme a publicação dos sinais gerais para salvar.
+          </p>
+        }
+      }
 
       <label class="checkbox-item inline-item app-choice">
         <input type="checkbox" formControlName="showIntentPublicly" />
