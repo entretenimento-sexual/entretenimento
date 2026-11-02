@@ -13,7 +13,11 @@ export function canCreateFriendsOnlyPublication(
   now = Date.now()
 ): boolean {
   if (visibility !== 'FRIENDS') return visibility === 'PUBLIC';
-  return !!owner && hasMinimumActiveDiscoveryPlan(owner, 'basic', now);
+  if (!owner || owner['isSubscriber'] !== true) return false;
+  // Roles administrativos não são, por si, direitos financeiros.
+  const plan = String(owner['tier'] ?? owner['role'] ?? '').trim().toLowerCase();
+  if (plan !== 'basic' && plan !== 'premium' && plan !== 'vip') return false;
+  return hasMinimumActiveDiscoveryPlan(owner, 'basic', now);
 }
 
 export async function assertNewRestrictedMediaAudienceEntitlement(

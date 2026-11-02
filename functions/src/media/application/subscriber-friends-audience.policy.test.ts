@@ -23,6 +23,12 @@ describe('new restricted media audience entitlement', () => {
     assert.equal(canCreateFriendsOnlyPublication({
       ...subscriber, billingProjectionVersion: 0
     }, 'FRIENDS', now), false);
+    assert.equal(canCreateFriendsOnlyPublication({
+      ...subscriber, role: 'admin', isSubscriber: false
+    }, 'FRIENDS', now), false);
+    assert.equal(canCreateFriendsOnlyPublication({
+      ...subscriber, role: 'admin'
+    }, 'FRIENDS', now), false);
   });
   it('permite FRIENDS com assinatura Basic vigente e nega após expiração', () => {
     assert.equal(canCreateFriendsOnlyPublication(subscriber, 'FRIENDS', now), true);
