@@ -436,7 +436,7 @@ implements OnInit, UnsavedChangesAware
         takeUntilDestroyed(this.destroyRef),
         catchError((error) => {
           const code = String((error as { code?: unknown })?.code ?? '');
-          if (code === 'nickname/in-use') {
+          if (code === 'nickname/in-use' || code === 'functions/already-exists') {
             this.formErrors['nickname'] = 'Este apelido já está em uso.';
             this.setErrorMessage('Escolha outro apelido para continuar.');
             return EMPTY;

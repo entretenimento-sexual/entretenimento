@@ -10,11 +10,11 @@
 // - o perfil não fica consultável antes de e-mail/termos/consentimento/onboarding;
 // - a reserva de nickname permanece no public_index durante esta migração.
 // =============================================================================
-import { Injectable } from '@angular/core';
+import { EnvironmentInjector, Injectable, Optional, runInInjectionContext } from '@angular/core';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Firestore } from '@angular/fire/firestore';
 import {
   doc,
-  runTransaction,
   serverTimestamp,
   Timestamp,
   writeBatch,
@@ -53,7 +53,9 @@ export class RegistrationBootstrapService {
   constructor(
     private readonly db: Firestore,
     private readonly ctx: FirestoreContextService,
-    private readonly applicationError: ApplicationErrorService
+    private readonly applicationError: ApplicationErrorService,
+    @Optional() private readonly functions?: Functions,
+    @Optional() private readonly injector?: EnvironmentInjector
   ) {}
 
   createEmailPasswordSeed$(
@@ -61,7 +63,6 @@ export class RegistrationBootstrapService {
   ): Observable<void> {
     const uid = this.cleanText(input.uid);
     const nickname = this.cleanText(input.userData?.nickname);
-    const email = this.cleanText(input.userData?.email).toLowerCase();
     const normalized = this.normalizeNickname(nickname);
     const nowMs = Date.now();
 
@@ -77,90 +78,27 @@ export class RegistrationBootstrapService {
       );
     }
 
-    const userRef = doc(this.db as any, 'users', uid);
-    const indexRef = doc(
-      this.db as any,
-      'public_index',
-      `nickname:${normalized}`
-    );
-
+    // A reserva é transacional no backend: o cliente envia apenas o display.
+    // Não gravar public_index ou nicknameHistory a partir do SDK do navegador.
     return this.ctx
-      .deferPromise$(() =>
-        runTransaction(this.db as any, async (tx) => {
-          const indexSnapshot = await tx.get(indexRef);
-
-          if (indexSnapshot.exists()) {
-            const error = new Error('Apelido já está em uso.') as Error & {
-              code?: string;
-            };
-            error.code = 'nickname/in-use';
-            throw error;
-          }
-
-          tx.set(
-            userRef,
-            {
-              uid,
-              email,
-              nickname,
-
-              role: 'free',
-              tier: 'free',
-
-              emailVerified: false,
-              isSubscriber: false,
-              subscriptionStatus: 'inactive',
-              accountStatus: 'active',
-              profileCompleted: false,
-              publicVisibility: 'hidden',
-              interactionBlocked: true,
-              loginAllowed: true,
-              registrationFlowVersion: REGISTRATION_FLOW_VERSION,
-              initialAdultConsentRequired: true,
-              registrationCompletedAt: null,
-
-              acceptedTerms: {
-                accepted: false,
-                date: serverTimestamp(),
-              },
-
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-              registrationDate: serverTimestamp(),
-              firstLogin: serverTimestamp(),
-
-              nicknameHistory: [
-                {
-                  nickname: normalized,
-                  date: Timestamp.fromMillis(nowMs),
-                },
-              ],
-            },
-            { merge: true }
-          );
-
-          tx.set(indexRef, {
-            uid,
-            type: 'nickname',
-            value: normalized,
-            createdAt: serverTimestamp(),
-            lastChangedAt: serverTimestamp(),
-          });
-        })
-      )
+      .deferPromise$(() => {
+        if (!this.functions || !this.injector) {
+          throw new Error('Serviço de reserva de nickname indisponível.');
+        }
+        const callable = runInInjectionContext(this.injector, () =>
+          httpsCallable<{ nickname: string }, { nickname: string; normalized: string }>(
+            this.functions!, 'reserveRegistrationNickname'
+          )
+        );
+        return callable({ nickname });
+      })
       .pipe(
         map(() => void 0),
         catchError((error) => {
-          this.reportOperationalError(
-            error,
-            'createEmailPasswordSeed',
-            {
-              uid,
-              traceId: input.traceId ?? null,
-              nicknamePresent: !!nickname,
-              normalizedLength: normalized.length,
-            }
-          );
+          this.reportOperationalError(error, 'createEmailPasswordSeed', {
+            uid, traceId: input.traceId ?? null,
+            nicknamePresent: !!nickname, normalizedLength: normalized.length,
+          });
           return throwError(() => error);
         })
       );

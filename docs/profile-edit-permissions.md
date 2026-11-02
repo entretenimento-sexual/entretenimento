@@ -103,3 +103,34 @@ sem divulgação tácita e rever as superfícies de discovery no downgrade.
 auditoria de Functions, lint e boundary visual. As falhas não devem ser
 suprimidas. Verificar resultados dos commits posteriores; não afirmar
 homologação sem CI verde. Nenhum deploy está autorizado por este documento.
+
+## Implementação do backend transacional — etapa P1
+
+Os novos callable names `reserveRegistrationNickname` e
+`completeRegistrationProfile` são backend-only, com App Check, autenticação,
+normalização canônica no servidor e transação que compara:
+`users/{uid}`, `public_index/nickname:{key}` e a nova reserva privada
+`nickname_reservations/{key}`. O backend aceita somente a chave normalizada
+que ele próprio calculou; o navegador não pode informar uma segunda key.
+Ambas as operações impedem ocupação por outro UID e troca do nickname
+estabelecido. A conclusão também verifica e-mail no Firebase Auth, termos,
+consentimento adulto e registro canônico de admissão etária, sem usar
+um campo de idade de apresentação como autoridade.
+
+Os serviços reativos Angular **mantêm os mesmos métodos** de cadastro, mas
+passam a chamar essas Functions; as falhas continuam encaminhadas aos serviços
+centralizados de erro, sem liberar o cadastro em caso de ausência do backend.
+`nickname_reservations` é coleção privada e bloqueada para cliente pelas
+Rules padrão. As reservas históricas existentes permanecem consultadas via
+`public_index`, para evitar tomar apelidos já usados.
+
+**Implantação coordenada obrigatória:** publicar as duas Functions e testar
+cadastro por e-mail e social antes de bloquear os caminhos legados de escrita
+direta das Rules. Até essa etapa de rollout, as Rules de conclusão antigas
+continuam aceitando o batch de cadastro, que é uma lacuna residual conhecida.
+Não alegar exclusividade absoluta do servidor até fechar essa permissão,
+migrar históricos de nicknames e comprovar CI e E2E.
+
+Os registros privados de reserva exigem política de retenção para contas
+excluídas e atendimento a solicitações de privacidade. Não usar o índice
+para identificar pessoas fora da plataforma nem reter PII desnecessária.

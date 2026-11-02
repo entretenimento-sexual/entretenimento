@@ -54,3 +54,7 @@ export {
 } from './identity/profile-identity-change.handler';
 
 export { getProfileIdentityReviewQueue } from './identity/get-profile-identity-review-queue.handler';
+export {
+  reserveRegistrationNickname,
+  completeRegistrationProfile,
+} from './registration/registration-profile-authority.handler';
