@@ -119,12 +119,12 @@ async function run() {
     assert.equal((await privateRef.get()).get('profileCompleted'), true);
     assert.equal((await publicRef.get()).get('nicknameNormalized'), 'perfil_original');
     assert.equal((await complete(payload)).data.status, 'COMPLETED');
-    await rejects(complete({ ...payload, nickname: 'Perfil Alterado' }), 'failed-precondition');
+    await rejects(complete, { ...payload, nickname: 'Perfil Alterado' }, 'failed-precondition');
     assert.equal((await db.doc('public_index/nickname:perfil_original').get()).get('uid'), uid);
     console.log('[registration:e2e] PASS eligibility, completion, repeat and immutable nickname');
 
     await grantEligibility(db, adminAuth, otherUid);
-    await rejects(completeOther(payload), 'already-exists');
+    await rejects(completeOther, payload, 'already-exists');
     assert.equal((await otherRef.get()).get('profileCompleted'), false);
     assert.equal((await db.doc('public_profiles/' + otherUid).get()).exists, false);
     console.log('[registration:e2e] PASS second owner cannot claim completed nickname');
