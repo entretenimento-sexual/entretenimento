@@ -1,0 +1,57 @@
+name: Functions security dependency reconciliation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/functions-security-dependency-reconciliation.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: functions-security-dependency-reconciliation
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Upgrade pinned vulnerable Functions dependencies and verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - name: Install patched transitive dependency overrides
+        run: |
+          npm --prefix functions pkg set 'overrides.follow-redirects=1.16.2'
+          npm --prefix functions pkg set 'overrides.glob=14.0.2'
+          npm --prefix functions pkg set 'overrides.minimatch=11.0.1'
+          npm --prefix functions install --package-lock-only --ignore-scripts
+          npm --prefix functions ci
+      - name: Enforce production security audit
+        run: npm --prefix functions audit --omit=dev --audit-level=moderate
+      - name: Enforce Functions lint
+        run: npm --prefix functions run lint
+      - name: Enforce Functions build and tests
+        run: npm --prefix functions run test
+      - name: Validate patch and commit directly on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git add functions/package.json functions/package-lock.json
+          if git diff --cached --quiet; then
+            echo 'No dependency changes required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(functions): resolve production dependency audit advisories'
+          # Fail closed if main advanced after checkout. Never force push.
+          git push origin HEAD:main
