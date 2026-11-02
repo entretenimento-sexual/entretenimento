@@ -90,3 +90,9 @@ ui-debug.log
 /galeria-firebase-teste-download.zip
 /implantacao-galerias-fase1/
 /implantacao-galerias-fase1.zip
+
+# Local nickname cutover audit outputs and operational attestations
+/nickname-users-*.json
+/nickname-indices-*.json
+/evidencias-rollout*.json
+/cutover-readiness*.json

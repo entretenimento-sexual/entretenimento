@@ -1,5 +1,17 @@
 // Pure GO/NO-GO preflight. No private IDs, network calls or mutations.
 // A clean inventory never substitutes release approval.
+import { CUTOVER_FLAGS } from './nickname-cutover-inventory.policy.mjs';
+
+const MAX_AUDIT_AGE_MS = 24 * 60 * 60 * 1000;
+
+function validFreshAudit(report, now) {
+  if (report?.schemaVersion !== 1) return false;
+  const started = Date.parse(report.startedAt ?? '');
+  const completed = Date.parse(report.completedAt ?? '');
+  return Number.isFinite(started) && Number.isFinite(completed) &&
+    completed >= started && completed <= now + 60_000 &&
+    now - completed <= MAX_AUDIT_AGE_MS;
+}
 const requiredEvidence = Object.freeze([
   'callablesDeployed', 'appCheckVerified',
   'verifiedAdultAndLegalFlowTested', 'clientVersionFloorEnforced',
@@ -9,13 +21,28 @@ const requiredEvidence = Object.freeze([
 ]);
 
 export function evaluateNicknameCutoverDecision({
-  inventory, indexScan, rollout,
+  inventory, indexScan, rollout, now = Date.now(),
 } = {}) {
   const reasons = [];
   if (!inventory || inventory.mode !== 'READ_ONLY') {
     reasons.push('MISSING_READ_ONLY_INVENTORY');
   } else {
+    if (!validFreshAudit(inventory, now)) reasons.push('INVALID_OR_STALE_INVENTORY');
     if (inventory.truncated !== false) reasons.push('INVENTORY_NOT_EXHAUSTIVE');
+    if (!Number.isSafeInteger(inventory.incompleteUsers) ||
+      !Number.isSafeInteger(inventory.ready) ||
+      !Number.isSafeInteger(inventory.notPublic) ||
+      inventory.incompleteUsers < 0 || inventory.ready < 0 ||
+      inventory.notPublic < 0 ||
+      inventory.scannedUsers !== inventory.completedUsers + inventory.incompleteUsers ||
+      inventory.completedUsers !== inventory.ready + inventory.notPublic + inventory.review) {
+      reasons.push('INVENTORY_COUNTERS_INCONSISTENT');
+    }
+    if (!inventory.flags || CUTOVER_FLAGS.some(flag =>
+      !Number.isSafeInteger(inventory.flags[flag]) || inventory.flags[flag] < 0
+    )) {
+      reasons.push('INVENTORY_FLAG_COVERAGE_MISSING');
+    }
     if (!Number.isSafeInteger(inventory.scannedUsers) ||
       inventory.scannedUsers < 1 ||
       !Number.isSafeInteger(inventory.completedUsers) ||
@@ -32,7 +59,13 @@ export function evaluateNicknameCutoverDecision({
   if (!indexScan || indexScan.mode !== 'DRY_RUN') {
     reasons.push('MISSING_INDEX_DRY_RUN');
   } else {
+    if (!validFreshAudit(indexScan, now)) reasons.push('INVALID_OR_STALE_INDEX_SCAN');
     if (indexScan.truncated !== false) reasons.push('INDEX_SCAN_NOT_EXHAUSTIVE');
+    if (!Number.isSafeInteger(indexScan.already) || indexScan.already < 0 ||
+      indexScan.scanned !== indexScan.candidate + indexScan.already +
+        indexScan.invalid + indexScan.conflict) {
+      reasons.push('INDEX_COUNTERS_INCONSISTENT');
+    }
     if (!Number.isSafeInteger(indexScan.scanned) ||
       indexScan.scanned < 1) {
       reasons.push('INDEX_SCAN_EMPTY_OR_UNKNOWN');
