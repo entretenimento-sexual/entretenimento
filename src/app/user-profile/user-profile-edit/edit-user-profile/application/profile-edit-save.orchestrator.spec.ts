@@ -77,7 +77,7 @@ describe('ProfileEditSaveOrchestrator', () => {
     }, false, null));
     const call = atualizarUsuario.mock.lastCall as unknown as [string, Record<string, unknown>];
     expect(call[1]).not.toHaveProperty('nickname');
-    expect(call[1].descricao).toBe('Texto válido');
+    expect(call[1]['descricao']).toBe('Texto válido');
   });
 
   it('salva casal usando orientações dos dois perfis', async () => {

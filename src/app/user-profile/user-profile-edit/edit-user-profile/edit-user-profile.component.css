@@ -131,7 +131,7 @@ html.high-contrast .form-actions {
 }
 
 /* Consentimento explícito da apresentação pública. */
-.profile-description-visibility {
+.profile-public-bio-toggle {
   display: flex;
   align-items: flex-start;
   gap: 0.65rem;
@@ -140,7 +140,7 @@ html.high-contrast .form-actions {
   line-height: 1.45;
 }
 
-.profile-description-visibility input[type='checkbox'] {
+.profile-public-bio-toggle input[type='checkbox'] {
   flex: 0 0 auto;
   width: 1.15rem;
   height: 1.15rem;
@@ -148,7 +148,7 @@ html.high-contrast .form-actions {
   accent-color: var(--primary-color, #ff6b81);
 }
 
-.profile-description-visibility input:focus-visible {
+.profile-public-bio-toggle input:focus-visible {
   outline: var(--focus-ring, 2px solid var(--primary-color, #ff6b81));
   outline-offset: 2px;
 }

@@ -168,3 +168,13 @@ A execução específica aprovou auditoria `--omit=dev`, lint e
 build/testes das Functions; isso **não** é prova de aprovação dos testes
 Angular, Rules ou E2E integrados na revisão atual. O push automatizado
 pode não iniciar o Quality Gate, exigindo um commit normal para validar.
+
+### Gate de exports e semântica visual do cadastro
+
+As Functions `completeRegistrationProfile` e `reserveRegistrationNickname`
+foram classificadas explicitamente no contrato de exports permitido e exigido;
+seu App Check, autenticação e políticas de autorização são obrigatórios.
+A nomenclatura CSS de apresentação pública foi padronizada como
+`profile-public-bio-toggle` e `other-profile-page__about-header`, evitando
+terminologia genérica de introdução/descrição. Não houve mudança nos seletores
+de consentimento nem exposição implícita de textos privados.
