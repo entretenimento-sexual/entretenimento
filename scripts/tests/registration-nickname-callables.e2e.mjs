@@ -92,6 +92,10 @@ async function run() {
     assert.equal((await db.doc('public_profiles/' + uid).get()).exists, false);
     console.log('[registration:e2e] PASS private reservation and no public profile');
 
+    // A propriedade do apelido não autoriza contas suspensas a reservá-lo.
+    await privateRef.update({ suspended: true });
+    await rejects(reserve, { nickname: 'Perfil Original' }, 'failed-precondition');
+    await privateRef.update({ suspended: false });
     await rejects(reserveOther, { nickname: 'perfil_original' }, 'already-exists');
     assert.equal((await otherRef.get()).get('nickname'), '');
     await rejects(reserve, { nickname: 'Outro Apelido' }, 'failed-precondition');
@@ -106,6 +110,17 @@ async function run() {
     await rejects(complete, payload, 'failed-precondition');
     assert.equal((await db.doc('public_profiles/' + uid).get()).exists, false);
     await adminAuth.updateUser(uid, { emailVerified: true });
+    await rejects(complete, payload, 'failed-precondition');
+    // Booleanos de aceite legados não substituem a versão jurídica vigente.
+    await privateRef.set({
+      acceptedTerms: { accepted: true, version: 'v2', acknowledgedPrivacyNotice: true },
+      adultConsent: { accepted: true, version: 'v1' },
+    }, { merge: true });
+    await rejects(complete, payload, 'failed-precondition');
+    await privateRef.set({
+      acceptedTerms: { accepted: true, version: 'v3', acknowledgedPrivacyNotice: false },
+      adultConsent: { accepted: true, version: 'v1' },
+    }, { merge: true });
     await rejects(complete, payload, 'failed-precondition');
     await privateRef.set({
       acceptedTerms: { accepted: true, version: 'v3', acknowledgedPrivacyNotice: true },
