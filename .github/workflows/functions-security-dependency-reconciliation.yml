@@ -1,5 +1,5 @@
 name: Functions security dependency reconciliation
-# Re-run after fixed no-control-regex lint in registration authority.
+# Repeat after extracting control-character check into canonical named helper.
 
 on:
   workflow_dispatch:

@@ -30,6 +30,13 @@ const UFS = new Set([
   'MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO',
 ]);
 
+function hasControlCharacter(value: string): boolean {
+  return Array.from(value).some((char) => {
+    const code = char.charCodeAt(0);
+    return code < 32 || code === 127;
+  });
+}
+
 function signedOwner(uid: unknown): string {
   if (typeof uid !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(uid)) {
     throw new HttpsError('unauthenticated', 'Entre na sua conta para continuar.');
@@ -153,10 +160,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
     const municipio = String(request.data?.municipio ?? '').trim();
     if (!isSelectableProfileIdentityCode(gender) ||
       (orientation && !ORIENTATIONS.has(orientation)) || !UFS.has(estado) ||
-      !municipio || municipio.length > 120 || Array.from(municipio).some((char) => {
-        const code = char.charCodeAt(0);
-        return code < 32 || code === 127;
-      })) {
+      !municipio || municipio.length > 120 || hasControlCharacter(municipio)) {
       throw new HttpsError('invalid-argument', 'Revise os dados necessários para concluir o perfil.');
     }
 
