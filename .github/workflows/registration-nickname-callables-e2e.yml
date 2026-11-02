@@ -11,6 +11,8 @@ on:
       - 'functions/src/public_index/**'
       - 'firestore-rules/**'
       - 'scripts/tests/registration-nickname-callables.e2e.mjs'
+      - 'scripts/tests/registration-lockdown-candidate.e2e.mjs'
+      - 'scripts/maintenance/build-registration-lockdown-candidate.mjs'
       - 'scripts/tests/nickname-reservation-backfill.policy.test.mjs'
       - 'scripts/maintenance/nickname-reservation-backfill.policy.mjs'
       - 'firebase.media-e2e.json'
@@ -61,4 +63,4 @@ jobs:
             --config firebase.media-e2e.json \
             --only auth,firestore,functions,storage \
             --project demo-entretenimento-media-e2e \
-            "node scripts/tests/registration-nickname-callables.e2e.mjs"
+            "node scripts/tests/registration-nickname-callables.e2e.mjs && node scripts/tests/registration-lockdown-candidate.e2e.mjs"

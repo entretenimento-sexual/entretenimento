@@ -229,3 +229,28 @@ negativos em emuladores. A homologação exige CI integralmente verde.
 Dados básicos do perfil podem ser publicamente consultáveis conforme a
 autoridade da plataforma, mas detalhes de vida sexual e preferências
 íntimas não devem ser publicados automaticamente por a conta ser free.
+
+
+## Cutover candidate de Firestore Rules — emulador, não produção
+
+Ferramenta: scripts/maintenance/build-registration-lockdown-candidate.mjs.
+Lê os fragmentos do manifesto canônico e produz **somente em memória**
+uma versão estrita, sem alterar firestore.rules, deploy ou banco de dados.
+
+Esta versão desativa exatamente três caminhos de escrita via SDK:
+- users/{uid}: auto-conclusão do perfil; continua permitida a edição ordinária.
+- public_profiles/{uid}: criação client-side; backend Admin SDK faz a projeção.
+- public_index/nickname:*: criação client-side; email:* mantém seu contrato.
+
+O E2E de emulador registra tentativas de concluir cadastro, criar projeção
+e indexar nickname diretamente: todas devem ser negadas. Também prova que
+a descrição ordinária ainda pode ser alterada e que a reserva privada não
+fica legível. O gerador falha se qualquer âncora mudar, impedindo testes
+enganosos sobre Rules diferentes das esperadas.
+
+**Critério de ativação em produção:** Functions de cadastro implantadas,
+clientes antigos tratados com versão mínima compatível, dry-run integral
+e conciliação de nicknames legados revisados, plano de rollback, aprovação
+de segurança e CI do cutover. Somente depois promover manualmente as três
+alterações aos fragmentos versionados. Nenhum teste emulador equivale a
+autorização de deploy. A coleção privada não deve ser exposta.
