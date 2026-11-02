@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { canCreateFriendsOnlyPublication } from './subscriber-friends-audience.policy';
+import {
+  canCreateFriendsOnlyPublication, canIssueFriendsMediaAccess,
+} from './subscriber-friends-audience.policy';
 
 const now = 1_800_000_000_000;
 const subscriber = {
@@ -35,6 +37,24 @@ describe('new restricted media audience entitlement', () => {
     assert.equal(canCreateFriendsOnlyPublication(
       subscriber, 'FRIENDS', now + 10_001
     ), false);
+  });
+  it('nega URL FRIENDS de terceiros sem entitlement do titular', () => {
+    assert.equal(canIssueFriendsMediaAccess({
+      viewerIsOwner: false, viewerIsFriend: true,
+      ownerHasFriendsEntitlement: false,
+    }), false);
+    assert.equal(canIssueFriendsMediaAccess({
+      viewerIsOwner: false, viewerIsFriend: true,
+      ownerHasFriendsEntitlement: true,
+    }), true);
+    assert.equal(canIssueFriendsMediaAccess({
+      viewerIsOwner: false, viewerIsFriend: false,
+      ownerHasFriendsEntitlement: true,
+    }), false);
+    assert.equal(canIssueFriendsMediaAccess({
+      viewerIsOwner: true, viewerIsFriend: false,
+      ownerHasFriendsEntitlement: false,
+    }), true);
   });
   it('recusa audiências desconhecidas', () => {
     assert.equal(canCreateFriendsOnlyPublication(subscriber, 'PRIVATE', now), false);

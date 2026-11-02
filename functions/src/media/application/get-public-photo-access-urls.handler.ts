@@ -4,6 +4,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import { resolveSocialConnectionAccess } from '../../friendship/application/social-connection-access.policy';
+import { canIssueFriendsMediaAccess } from './subscriber-friends-audience.policy';
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
 import { PUBLIC_MEDIA_ACCESS_RATE_LIMIT_CONFIG } from './public-media-rate-limit.config';
 import {
@@ -293,7 +294,12 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
                 profileAccess?.accountAccessExpiresAtMs ?? null,
                 profileAccess?.allowed === true,
                 ownerUid === viewerUid,
-                socialAccess.friendTargetUids.has(ownerUid),
+                canIssueFriendsMediaAccess({
+                  viewerIsOwner: ownerUid === viewerUid,
+                  viewerIsFriend: socialAccess.friendTargetUids.has(ownerUid),
+                  ownerHasFriendsEntitlement:
+                    profileAccess?.friendsAudienceEntitled === true,
+                }),
                 nowMs
               ),
               technicalFailure: false,

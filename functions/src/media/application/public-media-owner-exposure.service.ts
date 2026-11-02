@@ -2,6 +2,7 @@ import {
   evaluateCanonicalOwnerLifecycle,
 } from './owner-lifecycle-exposure.policy';
 import { db } from '../../firebaseApp';
+import { canCreateFriendsOnlyPublication } from './subscriber-friends-audience.policy';
 import {
   evaluatePublicMediaOwnerExposure,
   type PublicMediaOwnerExposureDecision,
@@ -11,6 +12,7 @@ export interface PublicMediaOwnerExposureContext
   extends PublicMediaOwnerExposureDecision {
   readonly ownerUid: string;
   readonly accountAccessExpiresAtMs: number | null;
+  readonly friendsAudienceEntitled: boolean;
 }
 
 function cleanOwnerUid(value: unknown): string {
@@ -69,6 +71,13 @@ async function resolveCanonicalOwnerExposure(
       ownerUid,
       ...decision,
       accountAccessExpiresAtMs: lifecycle.accessExpiresAtMs,
+      // Usa o snapshot canônico já obtido na consulta em lote.
+      friendsAudienceEntitled: canCreateFriendsOnlyPublication(
+        userSnapshot?.exists === true
+          ? userSnapshot.data() as Record<string, unknown> : null,
+        'FRIENDS',
+        nowMs
+      ),
     });
   });
 

@@ -89,3 +89,17 @@ Permanece pendente conferir as políticas de visualização de mídias
 `FRIENDS` antigas quando a assinatura do proprietário vence,
 incluindo URLs temporárias, queries de galeria e regras de visibilidade,
 sem alterar unilateralmente a audiência do documento.
+
+## Renovação de URLs após downgrade
+Os contratos de emissão `getPublicPhotoAccessUrls` e
+`getPublicVideoAccessUrls` agora exigem **entitlement ativo do
+proprietário** para a audiência `FRIENDS` de terceiros, além de
+amizade canônica. Essa verificação usa o documento de conta já lido
+em lote por `resolvePublicMediaSignedOwnerExposure`, sem um read
+extra por ativo. O titular mantém o acesso aos próprios arquivos.
+Nenhuma audiência antiga muda para `PUBLIC` de maneira implícita.
+
+URLs já emitidas podem continuar válidas até o TTL contratado;
+a revogação instantânea exige rotação do ativo/credencial. As regras
+de visibilidade de metadados e outras superfícies legadas ainda
+precisam ser alinhadas antes da conclusão global da matriz.

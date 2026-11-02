@@ -4,6 +4,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import { resolveSocialConnectionAccess } from '../../friendship/application/social-connection-access.policy';
+import { canIssueFriendsMediaAccess } from './subscriber-friends-audience.policy';
 import {
   assertPublicMediaCallableAppCheck,
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
@@ -210,9 +211,12 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
                   ownerAccessExpiresAtMs:
                     profileAccess?.accountAccessExpiresAtMs ?? null,
                   ownerExposureAllowed: profileAccess?.allowed === true,
-                  viewerCanReadFriends:
-                    ownerUid === viewerUid ||
-                    socialAccess.friendTargetUids.has(ownerUid),
+                  viewerCanReadFriends: canIssueFriendsMediaAccess({
+                    viewerIsOwner: ownerUid === viewerUid,
+                    viewerIsFriend: socialAccess.friendTargetUids.has(ownerUid),
+                    ownerHasFriendsEntitlement:
+                      profileAccess?.friendsAudienceEntitled === true,
+                  }),
                   mode,
                   nowMs,
                 },

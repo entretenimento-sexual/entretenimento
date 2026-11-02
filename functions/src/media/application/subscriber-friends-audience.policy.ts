@@ -33,3 +33,14 @@ export async function assertNewRestrictedMediaAudienceEntitlement(
       'A audiência Amigos exige assinatura ativa. Você pode escolher Público sem alterar mídias existentes.');
   }
 }
+
+/** Titular retém leitura dos próprios arquivos, mas terceiros perdem o
+ * acesso restrito quando a assinatura do proprietário expira. */
+export function canIssueFriendsMediaAccess(input: {
+  viewerIsOwner: boolean;
+  viewerIsFriend: boolean;
+  ownerHasFriendsEntitlement: boolean;
+}): boolean {
+  return input.viewerIsOwner ||
+    (input.viewerIsFriend && input.ownerHasFriendsEntitlement);
+}
