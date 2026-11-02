@@ -52,3 +52,5 @@ export {
   requestProfileIdentityChange,
   reviewProfileIdentityChange,
 } from './identity/profile-identity-change.handler';
+
+export { getProfileIdentityReviewQueue } from './identity/get-profile-identity-review-queue.handler';

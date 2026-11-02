@@ -1,7 +1,7 @@
 // Identity changes are reviewed: ordinary profile edits cannot rewrite the
 // established discovery identity or transform an individual into a couple.
 // The previous declaration stays private; no public change history is created.
-import { isSelectableProfileIdentityCode } from './profile-identity.catalog';
+import { isCoupleProfileIdentityCode, isSelectableProfileIdentityCode } from './profile-identity.catalog';
 
 export type ProfileIdentityRequestStatus =
   | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELED';
@@ -31,4 +31,10 @@ export function canRequestIdentityChange(input: {
     input.now - last < 7 * 24 * 60 * 60 * 1000
   ) return 'rate-limited';
   return 'allowed';
+}
+
+/** Transições individual/casal exigem verificação própria e não são aprováveis
+ * pelo fluxo de alteração de identidade pessoal. */
+export function isStructuralProfileTypeChange(from: unknown, to: unknown): boolean {
+  return isCoupleProfileIdentityCode(from) !== isCoupleProfileIdentityCode(to);
 }

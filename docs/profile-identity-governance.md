@@ -44,3 +44,28 @@ expor informações sensíveis.
 A comunicação social com conexões afetadas precisa equilibrar
 transparência e privacidade; é **uma decisão futura**, não comportamento
 implementado por esta mudança.
+
+## Fase 2 — fila de revisão administrativa
+
+A rota `/admin/identidades` funciona no shell e guard existentes e expõe
+uma lista paginada de até 25 pedidos por chamada. Os documentos privados
+`profile_identity_change_requests` não são lidos pelo frontend diretamente.
+O callable `getProfileIdentityReviewQueue` exige App Check, autenticação
+e permissão administrativa atual (`users:suspend`). Responde com UID,
+códigos atual/solicitado, data e indicador estrutural, sem email, documentos,
+orientação nem histórico íntimo. O índice composto em
+`firestore.indexes.json` é requisito da operação real da fila.
+
+A decisão usa o callable transacional existente, justificativa entre
+8 e 500 caracteres, autorização novamente verificada e `admin_logs`.
+Erros seguem `ApplicationErrorService`; componentes usam RxJS.
+
+Transições individual ↔ casal não podem ser aprovadas por este fluxo:
+exigem procedimento e consentimento próprios. O bloqueio está no
+backend, independente do botão desabilitado no painel. Rejeição
+fundamentada continua possível. Não há divulgação pública de
+identidades anteriores ou modificação automática dos vínculos.
+
+Permanecem pendentes o procedimento próprio para composição de casal,
+contestação formal e a validação integrada em emuladores com índice,
+token/role revogado e concorrência de revisão. Nenhum deploy foi feito.

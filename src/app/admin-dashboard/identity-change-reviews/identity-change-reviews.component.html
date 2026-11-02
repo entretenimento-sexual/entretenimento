@@ -1,0 +1,84 @@
+<section class="identity-reviews" aria-labelledby="identity-reviews-title">
+  <header class="identity-reviews__header">
+    <div>
+      <h2 id="identity-reviews-title">Revisão de identidade</h2>
+      <p>Solicitações pendentes. As decisões são internas e auditadas.</p>
+    </div>
+    <button type="button" (click)="refresh()" [disabled]="loading() || busy()">Atualizar</button>
+  </header>
+
+  @if (errorText(); as error) {
+    <div class="identity-reviews__feedback" role="alert">
+      <span>{{ error }}</span>
+      <button type="button" (click)="refresh()" [disabled]="loading() || busy()">Tentar novamente</button>
+    </div>
+  }
+
+  @if (loading()) {
+    <p role="status" aria-live="polite">Carregando solicitações...</p>
+  }
+
+  @if (items$ | async; as items) {
+    <p class="identity-reviews__summary" aria-live="polite">
+      {{ items.length }} solicitação(ões) carregada(s).
+    </p>
+    @if (!loading() && items.length === 0 && !errorText()) {
+      <p role="status">Nenhuma solicitação pendente.</p>
+    }
+
+    <div class="identity-reviews__list" role="list" aria-label="Solicitações de identidade">
+      @for (item of items; track item.uid) {
+        <article class="identity-reviews__card" role="listitem">
+          <header class="identity-reviews__card-header">
+            <h3>Solicitação {{ item.uid }}</h3>
+            <time [attr.datetime]="item.requestedAt | date:'yyyy-MM-ddTHH:mm:ss'">
+              {{ item.requestedAt | date:'dd/MM/yyyy HH:mm' }}
+            </time>
+          </header>
+          <dl class="identity-reviews__facts">
+            <div><dt>Identidade registrada</dt><dd>{{ item.currentIdentityCode }}</dd></div>
+            <div><dt>Solicitada</dt><dd>{{ item.requestedIdentityCode }}</dd></div>
+          </dl>
+          @if (item.structuralChange) {
+            <p class="identity-reviews__caution">
+              Alteração entre perfil individual e casal. Aprovação indisponível
+              neste procedimento; exige verificação de composição e consentimento próprios.
+            </p>
+          }
+          <div class="identity-reviews__actions">
+            <a [routerLink]="['../users', item.uid]">Consultar conta</a>
+            <button type="button" (click)="beginReview(item, 'APPROVE')"
+              [disabled]="busy() || loading() || item.structuralChange">Aprovar</button>
+            <button type="button" (click)="beginReview(item, 'REJECT')"
+              [disabled]="busy() || loading()">Rejeitar</button>
+          </div>
+
+          @if (selected?.uid === item.uid && decision) {
+            <form class="identity-reviews__decision" [formGroup]="reviewForm"
+              (ngSubmit)="confirmReview()" [attr.aria-busy]="busy()">
+              <h4>{{ decision === 'APPROVE' ? 'Confirmar aprovação' : 'Confirmar rejeição' }}</h4>
+              <label [for]="'identity-resolution-' + item.uid">Justificativa administrativa</label>
+              <textarea [id]="'identity-resolution-' + item.uid" rows="3" maxlength="500"
+                formControlName="resolution" autocomplete="off" required
+                aria-describedby="identity-review-privacy-note"></textarea>
+              <p id="identity-review-privacy-note">
+                Registre fundamentos objetivos. Não inclua documentos, informações íntimas
+                ou dados pessoais de terceiros.
+              </p>
+              <div class="identity-reviews__actions">
+                <button type="button" (click)="cancelReview()" [disabled]="busy()">Cancelar</button>
+                <button type="submit" [disabled]="busy() || reviewForm.invalid">
+                  {{ busy() ? 'Registrando...' : 'Confirmar decisão' }}
+                </button>
+              </div>
+            </form>
+          }
+        </article>
+      }
+    </div>
+    @if (hasMore()) {
+      <button type="button" class="identity-reviews__more" (click)="loadMore()"
+        [disabled]="loading() || busy()">Carregar mais solicitações</button>
+    }
+  }
+</section>

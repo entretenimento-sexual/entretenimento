@@ -11,7 +11,7 @@ import {
   resolveProfileIdentityOption,
 } from './profile-identity.catalog';
 import {
-  canRequestIdentityChange, normalizeRequestedIdentityCode,
+  canRequestIdentityChange, isStructuralProfileTypeChange, normalizeRequestedIdentityCode,
 } from './profile-identity-change.policy';
 
 type RequestRecord = {
@@ -163,6 +163,12 @@ export const reviewProfileIdentityChange = onCall<{
       }
       const now = Date.now();
       const stamp = FieldValue.serverTimestamp();
+      if (approved && isStructuralProfileTypeChange(
+        previous.currentIdentityCode, previous.requestedIdentityCode
+      )) {
+        throw new HttpsError('failed-precondition',
+          'Mudanças entre perfil individual e casal exigem análise de composição e consentimento próprios.');
+      }
       if (approved) {
         const identity = resolveProfileIdentityOption(previous.requestedIdentityCode);
         if (!identity || !identity.enabled || !identity.selectable) {
