@@ -205,3 +205,11 @@ A fase corrente corrige lint e a incompatibilidade visual sem inserir
 elementos vazios, preserva a proibição de links redundantes e adapta o E2E
 de URL FRIENDS para proprietário com plano vigente/expirado. O audit de
 dependências exige atualização e lockfile reproduzível, não dispensa do gate.
+
+
+## Fonte atual de permissões de alteração
+
+Consultar `docs/profile-edit-permissions.md` (matriz de quem pode alterar cada
+campo, fluxo autorizado, bloqueios e pendências). O histórico acima registra
+as decisões que levaram à política atual; em caso de diferença de texto,
+prevalecem as Rules e a matriz atual, não descrições antigas de autosserviço.
