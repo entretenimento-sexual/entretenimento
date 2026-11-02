@@ -8,6 +8,7 @@ import { assertCallableAppCheck } from '../shared/security/callable-app-check';
 import {
   PROFILE_IDENTITY_CATALOG_VERSION,
   isCoupleProfileIdentityCode,
+  resolveProfileIdentityOption,
 } from './profile-identity.catalog';
 import {
   canRequestIdentityChange, normalizeRequestedIdentityCode,
@@ -163,6 +164,10 @@ export const reviewProfileIdentityChange = onCall<{
       const now = Date.now();
       const stamp = FieldValue.serverTimestamp();
       if (approved) {
+        const identity = resolveProfileIdentityOption(previous.requestedIdentityCode);
+        if (!identity || !identity.enabled || !identity.selectable) {
+          throw new HttpsError('failed-precondition', 'Identidade inválida para aprovação.');
+        }
         const patch = {
           gender: previous.requestedIdentityCode,
           declaredIdentityCode: previous.requestedIdentityCode,
@@ -187,6 +192,8 @@ export const reviewProfileIdentityChange = onCall<{
           ...(wasCouple !== becomesCouple ? { orientation: null } : {}),
           gender: previous.requestedIdentityCode,
           identityCode: previous.requestedIdentityCode,
+          identityLabel: identity.label,
+          identityShortLabel: identity.shortLabel,
           identityCatalogVersion: PROFILE_IDENTITY_CATALOG_VERSION,
           updatedAt: stamp,
         });
