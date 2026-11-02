@@ -23,6 +23,7 @@ export function canRequestIdentityChange(input: {
   requestedCode: unknown;
   activeStatus?: unknown;
   reviewedAt?: unknown;
+  lastAppliedAt?: unknown;
   now: number;
 }): 'allowed' | 'same-identity' | 'structural-change' | 'rate-limited' | 'invalid' {
   const target = normalizeRequestedIdentityCode(input.requestedCode);
@@ -30,9 +31,14 @@ export function canRequestIdentityChange(input: {
   const current = String(input.currentCode ?? '').trim().toLowerCase();
   if (current === target) return 'same-identity';
   if (isStructuralProfileTypeChange(current, target)) return 'structural-change';
-  const lastChange = Number(input.reviewedAt);
-  if (input.activeStatus === 'APPROVED' && Number.isFinite(lastChange) &&
-      lastChange > 0 && input.now - lastChange < PROFILE_IDENTITY_CHANGE_COOLDOWN_MS) {
+  const lastCanonicalChange = Number(input.lastAppliedAt);
+  const lastRecordApproval = input.activeStatus === 'APPROVED'
+    ? Number(input.reviewedAt) : 0;
+  const lastChange = Math.max(
+    Number.isFinite(lastCanonicalChange) && lastCanonicalChange > 0 ? lastCanonicalChange : 0,
+    Number.isFinite(lastRecordApproval) && lastRecordApproval > 0 ? lastRecordApproval : 0,
+  );
+  if (lastChange > 0 && input.now - lastChange < PROFILE_IDENTITY_CHANGE_COOLDOWN_MS) {
     return 'rate-limited';
   }
   // Solicitações PENDING do fluxo legado são resolvidas pelo próprio titular.

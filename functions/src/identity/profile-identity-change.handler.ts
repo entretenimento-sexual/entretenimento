@@ -99,7 +99,9 @@ export const requestProfileIdentityChange = onCall<{ identityCode?: unknown }>(
       const previous = caseSnap.data() as RequestRecord | undefined;
       const decision = canRequestIdentityChange({
         currentCode: current, requestedCode: target,
-        activeStatus: previous?.status, reviewedAt: previous?.reviewedAt, now,
+        activeStatus: previous?.status,
+        reviewedAt: previous?.reviewedAt,
+        lastAppliedAt: user['identityChangedAtMs'], now,
       });
       if (decision !== 'allowed') {
         throw new HttpsError('failed-precondition',

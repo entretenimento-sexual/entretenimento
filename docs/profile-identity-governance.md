@@ -9,7 +9,8 @@ conta ativa e projeção consistente. O usuário confirma a mudança
 explicitamente no formulário. Não depende de plano pago.
 
 Somente uma alteração é permitida por janela de **90 dias**, medida no
-backend pelo timestamp do último resultado `APPROVED`. A política
+backend pelo carimbo canônico `users/{uid}.identityChangedAtMs` e,
+como compatibilidade, pelo último resultado `APPROVED`. A política
 impede alternâncias frequentes, mas não afirma que detecta fraude.
 Nenhuma troca publica a identidade antiga ou notifica terceiros sobre
 históricos íntimos. UID, mídias, amizades e faturamento permanecem

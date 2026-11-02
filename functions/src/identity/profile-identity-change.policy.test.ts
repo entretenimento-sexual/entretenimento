@@ -33,6 +33,12 @@ describe('governança automática da identidade do perfil', () => {
     assert.equal(check('homem', { activeStatus: 'APPROVED',
       reviewedAt: now - 90_000 }), 'rate-limited');
   });
+  it('não permite contornar cooldown substituindo o último registro de solicitação', () => {
+    assert.equal(check('homem', { activeStatus: 'PENDING',
+      lastAppliedAt: now - 1000 }), 'rate-limited');
+    assert.equal(check('homem', { activeStatus: 'REJECTED',
+      lastAppliedAt: now - 1000 }), 'rate-limited');
+  });
   it('não deixa PENDING antigo nem rejeição antiga prender o usuário', () => {
     assert.equal(check('homem', { activeStatus: 'PENDING' }), 'allowed');
     assert.equal(check('homem', { activeStatus: 'REJECTED',
