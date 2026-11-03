@@ -41,8 +41,9 @@ export class DiscoveryFeedEffects {
       ),
       withLatestFrom(this.access.authUid$),
       filter(([{ request }, uid]) => request.viewerUid === uid),
-      switchMap(([{ request }]) =>
-        this.repository.loadPage$(request, null).pipe(
+      switchMap(([{ request, bypassCache }]) =>
+        this.repository.loadPage$(request, null, bypassCache === true).pipe(
+          takeUntil(this.actions$.pipe(ofType(DiscoveryActions.clearDiscoveryFeeds))),
           takeUntil(this.access.authUid$.pipe(filter(uid => uid !== request.viewerUid))),
           map((page) =>
             DiscoveryActions.loadDiscoveryPageSuccess({
@@ -88,6 +89,7 @@ export class DiscoveryFeedEffects {
       filter(([[{ request }], uid]) => request.viewerUid === uid),
       exhaustMap(([[{ request }, slice]]) =>
         this.repository.loadPage$(request, slice.nextCursor).pipe(
+          takeUntil(this.actions$.pipe(ofType(DiscoveryActions.clearDiscoveryFeeds))),
           takeUntil(this.access.authUid$.pipe(filter(uid => uid !== request.viewerUid))),
           map((page) =>
             DiscoveryActions.loadDiscoveryPageSuccess({

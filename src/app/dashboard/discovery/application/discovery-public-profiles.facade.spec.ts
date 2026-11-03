@@ -1,12 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 import { Store } from '@ngrx/store';
-import { firstValueFrom, of } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserPresenceQueryService } from 'src/app/core/services/data-handling/queries/user-presence.query.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
 import { emptyDiscoveryFeedSlice } from 'src/app/store/states/states.discovery/discovery-feed.state';
@@ -17,6 +18,8 @@ import {
 } from '../data-access/discovery-visible-profile-location.repository';
 import { DiscoveryCardEnrichmentService, type DiscoveryCardEnrichmentResult } from './discovery-card-enrichment.service';
 import { DiscoveryPublicProfilesFacade } from './discovery-public-profiles.facade';
+import { DiscoveryPublicProfilesRepository } from '../data-access/discovery-public-profiles.repository';
+import * as DiscoveryActions from 'src/app/store/actions/actions.discovery/discovery-feed.actions';
 
 describe('DiscoveryPublicProfilesFacade', () => {
   const runtimeLocation = {
@@ -80,6 +83,17 @@ describe('DiscoveryPublicProfilesFacade', () => {
     ),
   };
 
+  const ownBlockedUids$ = new BehaviorSubject<readonly string[]>([]);
+  const friendshipMock = {
+    watchBlockedUids: vi.fn(() => ownBlockedUids$.asObservable()),
+  };
+
+  const repoMock = {
+    invalidateViewerCache$: vi.fn(() => of(void 0)),
+  };
+
+  const applicationErrorMock = { report: vi.fn() };
+
   const intentStatusMock = {
     watchActiveStatusesForUserRegion$: vi.fn(() => of([])),
     watchActiveStatusesForRegion$: vi.fn(() => of([])),
@@ -88,6 +102,9 @@ describe('DiscoveryPublicProfilesFacade', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    ownBlockedUids$.next([]);
+    friendshipMock.watchBlockedUids.mockReturnValue(ownBlockedUids$.asObservable());
+    repoMock.invalidateViewerCache$.mockReturnValue(of(void 0));
     storeMock.select.mockReturnValue(of(emptyDiscoveryFeedSlice));
     visibleLocationRepositoryMock.watchByUids$.mockReturnValue(of([]));
     intentStatusMock.watchActiveStatusesForUserRegion$.mockReturnValue(of([]));
@@ -136,11 +153,125 @@ describe('DiscoveryPublicProfilesFacade', () => {
           useValue: visibleLocationRepositoryMock,
         },
         {
+          provide: FriendshipService,
+          useValue: friendshipMock,
+        },
+        {
+          provide: DiscoveryPublicProfilesRepository,
+          useValue: repoMock,
+        },
+        {
           provide: ApplicationErrorService,
-          useValue: { report: vi.fn() },
+          useValue: applicationErrorMock,
         },
       ],
     });
+  });
+
+
+  it('oculta imediatamente card bloqueado e invalida NgRx + cache somente do viewer', async () => {
+    storeMock.select.mockReturnValue(of({
+      ...emptyDiscoveryFeedSlice,
+      items: [{ uid: 'profile-1', nickname: 'Primeiro' }, { uid: 'profile-2', nickname: 'Segundo' }],
+      reachedEnd: true,
+    } as any));
+    cardEnrichmentMock.buildCardsResult.mockReturnValue({
+      profiles: [{ uid: 'profile-1', nickname: 'Primeiro' }, { uid: 'profile-2', nickname: 'Segundo' }],
+      rejected: [],
+      scores: [],
+      debugSummary: emptyDebugSummary,
+    });
+
+    const facade = TestBed.inject(DiscoveryPublicProfilesFacade);
+    const observed: string[][] = [];
+    const sub = facade.state$.subscribe((state) => {
+      observed.push(state.profiles.map((card) => card.uid));
+    });
+    expect(observed.at(-1)).toEqual(['profile-1', 'profile-2']);
+    expect(friendshipMock.watchBlockedUids).toHaveBeenCalledTimes(1);
+
+    ownBlockedUids$.next(['profile-2']);
+    expect(observed.at(-1)).toEqual(['profile-1']);
+    expect(storeMock.dispatch).toHaveBeenCalledWith(DiscoveryActions.clearDiscoveryFeeds());
+    expect(repoMock.invalidateViewerCache$).toHaveBeenCalledWith('viewer');
+    expect(storeMock.dispatch).toHaveBeenCalledWith(DiscoveryActions.loadDiscoveryFirstPage({
+      request: { viewerUid: 'viewer', mode: 'all', pageSize: 24 },
+      bypassCache: true,
+    }));
+
+    ownBlockedUids$.next(['profile-2']);
+    expect(repoMock.invalidateViewerCache$).toHaveBeenCalledTimes(1);
+    expect(friendshipMock.watchBlockedUids).toHaveBeenCalledTimes(1);
+    sub.unsubscribe();
+  });
+
+
+  it('esconde cache enquanto aguarda a primeira confirmação do listener', () => {
+    const delayed = new Subject<readonly string[]>();
+    friendshipMock.watchBlockedUids.mockReturnValue(delayed.asObservable());
+    storeMock.select.mockReturnValue(of({
+      ...emptyDiscoveryFeedSlice,
+      items: [{ uid: 'profile-1', nickname: 'Primeiro' }],
+    } as any));
+    cardEnrichmentMock.buildCardsResult.mockReturnValue({
+      profiles: [{ uid: 'profile-1', nickname: 'Primeiro' }],
+      rejected: [],
+      scores: [],
+      debugSummary: emptyDebugSummary,
+    });
+
+    const facade = TestBed.inject(DiscoveryPublicProfilesFacade);
+    const states: Array<{ loading: boolean; visible: number }> = [];
+    const sub = facade.state$.subscribe((state) => states.push({
+      loading: state.loading,
+      visible: state.profiles.length,
+    }));
+
+    expect(states.at(-1)).toEqual({ loading: true, visible: 0 });
+    delayed.next([]);
+    expect(states.at(-1)).toEqual({ loading: false, visible: 1 });
+    sub.unsubscribe();
+  });
+
+  it('não expõe cards em falha de leitura e permite retentar o observador', async () => {
+    friendshipMock.watchBlockedUids
+      .mockImplementationOnce(() => throwError(() => new Error('offline')))
+      .mockImplementation(() => ownBlockedUids$.asObservable());
+    storeMock.select.mockReturnValue(of({
+      ...emptyDiscoveryFeedSlice,
+      items: [{ uid: 'profile-1', nickname: 'Primeiro' }],
+    } as any));
+    cardEnrichmentMock.buildCardsResult.mockReturnValue({
+      profiles: [{ uid: 'profile-1', nickname: 'Primeiro' }],
+      rejected: [],
+      scores: [],
+      debugSummary: emptyDebugSummary,
+    });
+
+    const facade = TestBed.inject(DiscoveryPublicProfilesFacade);
+    const state = await firstValueFrom(facade.state$);
+    expect(state.profiles).toEqual([]);
+    expect(state.errorMessage).toContain('Não foi possível verificar');
+    expect(applicationErrorMock.report).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        operation: 'DiscoveryPublicProfilesFacade.watchBlockedUids',
+      })
+    );
+    facade.retry();
+    const next = await firstValueFrom(facade.state$);
+    expect(next.profiles.map((card) => card.uid)).toEqual(['profile-1']);
+    expect(friendshipMock.watchBlockedUids).toHaveBeenCalledTimes(2);
+  });
+
+  it('bloqueio já ativo na entrada também descarta páginas persistidas antigas', () => {
+    ownBlockedUids$.next(['profile-1']);
+    TestBed.inject(DiscoveryPublicProfilesFacade);
+
+    expect(repoMock.invalidateViewerCache$).toHaveBeenCalledOnce();
+    expect(storeMock.dispatch).toHaveBeenCalledWith(
+      DiscoveryActions.clearDiscoveryFeeds()
+    );
   });
 
   it('envia a localização runtime reativa do viewer para o enriquecimento dos cards', async () => {

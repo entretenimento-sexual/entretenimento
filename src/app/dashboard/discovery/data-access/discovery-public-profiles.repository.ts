@@ -23,6 +23,7 @@ import {
   DiscoveryFeedPage,
   DiscoveryFeedRequest,
   buildDiscoveryFeedPageCacheKey,
+  buildDiscoveryViewerCachePrefix,
   normalizeDiscoveryCursor,
   normalizeDiscoveryRequest,
 } from '../models/discovery-feed-page.model';
@@ -39,9 +40,19 @@ export class DiscoveryPublicProfilesRepository {
   private readonly cache = inject(CacheService);
   private readonly access = inject(AccessControlService);
 
+  /** Invalidates only the current viewer's paginated Discovery pages. */
+  invalidateViewerCache$(viewerUid: string): Observable<void> {
+    const prefix = buildDiscoveryViewerCachePrefix(viewerUid);
+    if (!prefix) {
+      return throwError(() => new Error('[DiscoveryPublicProfilesRepository] viewer inválido'));
+    }
+    return this.cache.deleteByPrefix$(prefix);
+  }
+
   loadPage$(
     request: DiscoveryFeedRequest,
-    cursor: DiscoveryFeedCursor | null = null
+    cursor: DiscoveryFeedCursor | null = null,
+    bypassCache = false
   ): Observable<DiscoveryFeedPage> {
     const normalizedRequest = normalizeDiscoveryRequest(request);
     const normalizedCursor = normalizeDiscoveryCursor(cursor);
@@ -84,20 +95,24 @@ export class DiscoveryPublicProfilesRepository {
           })
         );
 
-        return this.cache.get<CachedDiscoveryFeedPage>(cacheKey).pipe(
-          take(1),
-          switchMap((cached) =>
-            concat(
-              cached
-                ? of<DiscoveryFeedPage>({
-                    ...cached,
-                    items: cached.items,
-                    source: 'cache',
-                  })
-                : EMPTY,
-              server$
-            )
-          ),
+        const source$ = bypassCache
+          ? server$
+          : this.cache.get<CachedDiscoveryFeedPage>(cacheKey).pipe(
+              take(1),
+              switchMap((cached) =>
+                concat(
+                  cached
+                    ? of<DiscoveryFeedPage>({
+                        ...cached,
+                        items: cached.items,
+                        source: 'cache',
+                      })
+                    : EMPTY,
+                  server$
+                )
+              )
+            );
+        return source$.pipe(
           takeUntil(
             this.access.authUid$.pipe(
               filter((uid) => uid !== normalizedRequest.viewerUid)

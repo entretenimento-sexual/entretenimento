@@ -102,6 +102,14 @@ export function normalizeDiscoveryCursor(
   };
 }
 
+/** Prefix for all paginated cards of one viewer (all modes and cursors). */
+export function buildDiscoveryViewerCachePrefix(viewerUid: string): string {
+  const normalized = normalizeDiscoveryViewerUid(viewerUid);
+  return normalized
+    ? `${DISCOVERY_CACHE_PREFIX}|viewer=${normalized}|`
+    : '';
+}
+
 export function buildDiscoveryFeedQueryKey(
   request: DiscoveryFeedRequest
 ): string {

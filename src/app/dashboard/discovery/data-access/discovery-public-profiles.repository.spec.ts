@@ -10,6 +10,35 @@ import { DiscoveryPublicProfilesRepository } from './discovery-public-profiles.r
 describe('DiscoveryPublicProfilesRepository / sessão e SWR', () => {
   const request = { viewerUid: 'user-a', mode: 'all' as const, pageSize: 24 };
 
+  it('força servidor sem emitir página persistida após invalidação', () => {
+    const uid = new BehaviorSubject<string | null>('user-a');
+    const cache = {
+      get: vi.fn(() => of({ items: [{ uid: 'old-card' }], nextCursor: null, reachedEnd: true, fetchedAt: 1 })),
+      set: vi.fn(),
+      deleteByPrefix$: vi.fn(() => of(void 0)),
+    };
+    const backend = {
+      read$: vi.fn(() => of({ items: [], nextCursor: null, reachedEnd: true, fetchedAt: 2 })),
+    };
+    TestBed.configureTestingModule({ providers: [
+      DiscoveryPublicProfilesRepository,
+      { provide: AccessControlService, useValue: { authUid$: uid.asObservable() } },
+      { provide: CacheService, useValue: cache },
+      { provide: PublicProfileReadBoundaryService, useValue: backend },
+    ] });
+    const repository = TestBed.inject(DiscoveryPublicProfilesRepository);
+    const output: any[] = [];
+    repository.loadPage$(request, null, true).subscribe((page) => output.push(page));
+    expect(cache.get).not.toHaveBeenCalled();
+    expect(output).toHaveLength(1);
+    expect(output[0].source).toBe('server');
+
+    repository.invalidateViewerCache$('user-a').subscribe();
+    expect(cache.deleteByPrefix$).toHaveBeenCalledWith(
+      expect.stringContaining('viewer=user-a|')
+    );
+  });
+
   it('não consulta cache nem servidor para UID diferente da sessão', () => {
     const uid = new BehaviorSubject<string | null>('user-b');
     const cache = { get: vi.fn(() => of(null)), set: vi.fn() };

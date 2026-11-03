@@ -5,12 +5,24 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDiscoveryFeedPageCacheKey,
   buildDiscoveryFeedQueryKey,
+  buildDiscoveryViewerCachePrefix,
   normalizeDiscoveryCursor,
   normalizeDiscoveryPageSize,
   normalizeDiscoveryRequest,
 } from './discovery-feed-page.model';
 
 describe('discovery-feed-page.model', () => {
+  it('prefixo privado delimita todos os cursores e modos sem atingir outro viewer', () => {
+    const prefix = buildDiscoveryViewerCachePrefix('viewer-a');
+    const page = buildDiscoveryFeedPageCacheKey({
+      viewerUid: 'viewer-a', mode: 'compatible', pageSize: 48,
+    }, { updatedAtMs: 1_700_000_000_000, uid: 'profile-b' });
+
+    expect(page.startsWith(prefix)).toBe(true);
+    expect(buildDiscoveryViewerCachePrefix('viewer-b')).not.toBe(prefix);
+    expect(buildDiscoveryViewerCachePrefix('../../viewer')).toBe('');
+  });
+
   it('deve limitar o tamanho da página dentro do intervalo seguro', () => {
     expect(normalizeDiscoveryPageSize(1)).toBe(6);
     expect(normalizeDiscoveryPageSize(24)).toBe(24);

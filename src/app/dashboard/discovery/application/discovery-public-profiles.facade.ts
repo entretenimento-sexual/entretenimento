@@ -1,15 +1,20 @@
 import { DestroyRef, Injectable, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
-import { Observable, combineLatest, of } from 'rxjs';
+import { BehaviorSubject, Observable, combineLatest, of } from 'rxjs';
 import {
   catchError,
+  concatMap,
   distinctUntilChanged,
+  filter,
   map,
+  pairwise,
   shareReplay,
   startWith,
   switchMap,
   take,
+  tap,
+  withLatestFrom,
 } from 'rxjs/operators';
 
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -23,6 +28,7 @@ import {
 } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
 import * as DiscoveryActions from 'src/app/store/actions/actions.discovery/discovery-feed.actions';
 import { selectDiscoveryFeedSlice } from 'src/app/store/selectors/selectors.discovery/discovery-feed.selectors';
@@ -42,6 +48,7 @@ import {
   DiscoveryCardEnrichmentService,
   type DiscoveryCardEnrichmentResult,
 } from './discovery-card-enrichment.service';
+import { DiscoveryPublicProfilesRepository } from '../data-access/discovery-public-profiles.repository';
 import {
   DiscoveryVisibleProfileLocationRepository,
   type DiscoveryVisibleProfileLocation,
@@ -56,6 +63,12 @@ export interface DiscoveryPublicProfilesState {
   readonly errorMessage: string | null;
   readonly emptyMessage: string;
   readonly filteredByPreferences: boolean;
+}
+
+interface DiscoveryOwnBlockSnapshot {
+  readonly viewerUid: string | null;
+  readonly uids: readonly string[];
+  readonly phase: 'inactive' | 'loading' | 'ready' | 'error';
 }
 
 const EMPTY_STATE: DiscoveryPublicProfilesState = {
@@ -109,6 +122,9 @@ export class DiscoveryPublicProfilesFacade {
     DiscoveryVisibleProfileLocationRepository
   );
   private readonly applicationError = inject(ApplicationErrorService);
+  private readonly friendshipService = inject(FriendshipService);
+  private readonly repository = inject(DiscoveryPublicProfilesRepository);
+  private readonly blockedRefreshSubject = new BehaviorSubject(0);
 
   /**
    * O cache contém apenas perfis públicos brutos. As preferências do viewer são
@@ -143,6 +159,50 @@ export class DiscoveryPublicProfilesFacade {
   private readonly currentFeedSlice$: Observable<DiscoveryFeedSlice> =
     this.feedSlice$;
 
+  /**
+   * A single owner-scoped Firestore listener while Discovery is mounted.
+   * No per-card block checks; incoming blocks are known only to the backend.
+   * A failure leaves all cached cards hidden until an explicit retry.
+   */
+  private readonly ownBlockedUids$ = combineLatest([
+    this.request$,
+    this.blockedRefreshSubject,
+  ]).pipe(
+    switchMap(([request]): Observable<DiscoveryOwnBlockSnapshot> => {
+      if (!request) {
+        return of({ viewerUid: null, uids: [], phase: 'inactive' });
+      }
+
+      return this.friendshipService.watchBlockedUids(request.viewerUid).pipe(
+        map((uids): DiscoveryOwnBlockSnapshot => ({
+          viewerUid: request.viewerUid,
+          uids: Array.from(new Set(uids)).sort(),
+          phase: 'ready',
+        })),
+        startWith({
+          viewerUid: request.viewerUid,
+          uids: [],
+          phase: 'loading',
+        } as DiscoveryOwnBlockSnapshot),
+        catchError((error): Observable<DiscoveryOwnBlockSnapshot> => {
+          this.applicationError.report(error, {
+            feature: 'discovery',
+            operation: 'DiscoveryPublicProfilesFacade.watchBlockedUids',
+            fallbackMessage: 'Não foi possível validar a descoberta agora.',
+            presentation: { surface: 'none', severity: 'error' },
+            metadata: { scope: 'DiscoveryPublicProfilesFacade' },
+          });
+          return of({
+            viewerUid: request.viewerUid,
+            uids: [],
+            phase: 'error',
+          });
+        })
+      );
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   private readonly onlinePresenceByUid$ = this.getOnlinePresenceByUid$().pipe(
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -172,15 +232,20 @@ export class DiscoveryPublicProfilesFacade {
     this.request$,
     this.currentFeedSlice$,
     this.currentViewerIntentStatus$,
+    this.ownBlockedUids$,
   ]).pipe(
-    map(([request, slice, viewerStatus]) => ({
+    map(([request, slice, viewerStatus, ownBlocks]) => ({
       request,
       viewerStatus,
       uids: Array.from(
         new Set(
-          (slice.items ?? [])
+          (ownBlocks.phase === 'ready' && ownBlocks.viewerUid === request?.viewerUid
+            ? (slice.items ?? [])
+            : [])
             .map((item) => this.toNullableText(item?.uid))
-            .filter((uid): uid is string => !!uid)
+            .filter((uid): uid is string =>
+              !!uid && !ownBlocks.uids.includes(uid)
+            )
         )
       ).sort(),
     })),
@@ -225,13 +290,18 @@ export class DiscoveryPublicProfilesFacade {
    * Mantemos ranking/paginação one-shot, mas localização pública dos cards
    * visíveis acompanha alterações de public_profiles sem reordenar o feed.
    */
-  private readonly liveLocationsByUid$ = this.currentFeedSlice$.pipe(
-    map((slice) =>
+  private readonly liveLocationsByUid$ = combineLatest([
+    this.currentFeedSlice$,
+    this.ownBlockedUids$,
+  ]).pipe(
+    map(([slice, ownBlocks]) =>
       Array.from(
         new Set(
-          (slice.items ?? [])
+          (ownBlocks.phase === 'ready' ? (slice.items ?? []) : [])
             .map((item) => this.toNullableText(item?.uid))
-            .filter((uid): uid is string => !!uid)
+            .filter((uid): uid is string =>
+              !!uid && !ownBlocks.uids.includes(uid)
+            )
         )
       ).sort()
     ),
@@ -259,6 +329,7 @@ export class DiscoveryPublicProfilesFacade {
     this.liveLocationsByUid$,
     this.visibleIntentStatusesByUid$,
     this.currentViewerIntentStatus$,
+    this.ownBlockedUids$,
   ]).pipe(
     map(([
       request,
@@ -269,8 +340,22 @@ export class DiscoveryPublicProfilesFacade {
       liveLocationsByUid,
       intentStatusesByUid,
       currentViewerIntentStatus,
+      ownBlocks,
     ]) => {
       if (!request) return EMPTY_STATE;
+      if (ownBlocks.phase !== 'ready' || ownBlocks.viewerUid !== request.viewerUid) {
+        return {
+          ...EMPTY_STATE,
+          loading: ownBlocks.phase !== 'error',
+          errorMessage: ownBlocks.phase === 'error'
+            ? 'Não foi possível verificar a disponibilidade dos perfis. Tente novamente.'
+            : null,
+        };
+      }
+
+      // Own active blocks may only REMOVE a stale backend/cache card.
+      // This never grants visibility or infers another user's private block.
+      const hiddenByViewer = new Set(ownBlocks.uids);
 
       /**
        * A posição runtime pertence ao viewer e serve apenas como origem do
@@ -295,13 +380,15 @@ export class DiscoveryPublicProfilesFacade {
         applyVisibility: true,
       });
       const filteredByPreferences = this.wasFilteredByPreferences(result);
-      const profiles = result.profiles.map((profile) =>
-        this.overlayIntentContext(
-          profile,
-          intentStatusesByUid.get(profile.uid) ?? null,
-          currentViewerIntentStatus
-        )
-      );
+      const profiles = result.profiles
+        .filter((profile) => !hiddenByViewer.has(profile.uid))
+        .map((profile) =>
+          this.overlayIntentContext(
+            profile,
+            intentStatusesByUid.get(profile.uid) ?? null,
+            currentViewerIntentStatus
+          )
+        );
 
       return {
         profiles,
@@ -338,6 +425,7 @@ export class DiscoveryPublicProfilesFacade {
       }
       this.store.dispatch(DiscoveryActions.loadDiscoveryFirstPage({ request }));
     });
+    this.observeOwnBlockChanges();
   }
 
   loadMore(): void {
@@ -347,6 +435,8 @@ export class DiscoveryPublicProfilesFacade {
   }
 
   refresh(): void {
+    // Retry an unreadable block listener as well as the backend page.
+    this.blockedRefreshSubject.next(this.blockedRefreshSubject.value + 1);
     this.withCurrentRequest((request) =>
       this.store.dispatch(DiscoveryActions.refreshDiscoveryFeed({ request }))
     );
@@ -354,6 +444,55 @@ export class DiscoveryPublicProfilesFacade {
 
   retry(): void {
     this.refresh();
+  }
+
+  /**
+   * Reset NgRx immediately after a change in OWN blocks, then purge all
+   * viewer-scoped persisted pages before issuing a fresh backend request.
+   * The first empty snapshot is a baseline; entering with active blocks
+   * also invalidates prior-session persisted pages.
+   */
+  private observeOwnBlockChanges(): void {
+    this.ownBlockedUids$.pipe(
+      filter((snapshot) => snapshot.phase === 'ready' && !!snapshot.viewerUid),
+      distinctUntilChanged((a, b) =>
+        a.viewerUid === b.viewerUid && this.sameStringArray(a.uids, b.uids)
+      ),
+      startWith({ viewerUid: null, uids: [], phase: 'inactive' } as DiscoveryOwnBlockSnapshot),
+      pairwise(),
+      filter(([previous, current]) =>
+        previous.viewerUid === current.viewerUid
+          ? !this.sameStringArray(previous.uids, current.uids)
+          : current.uids.length > 0
+      ),
+      tap(() => this.store.dispatch(DiscoveryActions.clearDiscoveryFeeds())),
+      // Serialize persistence deletions so rapid block/unblock events cannot
+      // race to repopulate the prior cache generation.
+      concatMap(([, current]) =>
+        this.repository.invalidateViewerCache$(current.viewerUid!).pipe(
+          map(() => current.viewerUid!),
+          catchError((error) => {
+            this.applicationError.report(error, {
+              feature: 'discovery',
+              operation: 'DiscoveryPublicProfilesFacade.invalidateViewerCache',
+              fallbackMessage: 'Não foi possível limpar o cache de descoberta.',
+              presentation: { surface: 'none', severity: 'error' },
+              metadata: { scope: 'DiscoveryPublicProfilesFacade' },
+            });
+            return of(current.viewerUid!);
+          })
+        )
+      ),
+      withLatestFrom(this.request$),
+      filter(([viewerUid, request]) => request?.viewerUid === viewerUid),
+      tap(([, request]) => {
+        this.store.dispatch(DiscoveryActions.loadDiscoveryFirstPage({
+          request: request!,
+          bypassCache: true,
+        }));
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
   private overlayLivePublicLocation(

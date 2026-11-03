@@ -9,7 +9,7 @@ import {
 
 export const loadDiscoveryFirstPage = createAction(
   '[Discovery Feed] Load First Page',
-  props<{ request: DiscoveryFeedRequest }>()
+  props<{ request: DiscoveryFeedRequest; bypassCache?: boolean }>()
 );
 
 export const refreshDiscoveryFeed = createAction(

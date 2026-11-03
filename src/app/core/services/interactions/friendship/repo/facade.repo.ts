@@ -36,6 +36,10 @@ watchFriends(uid: string) {
     return this.blocks.watchBlocked(ownerUid, targetUid);
   }
 
+  watchBlockedUids(ownerUid: string) {
+    return this.blocks.watchBlockedUids(ownerUid);
+  }
+
   /* Requests */
   listInboundRequests(uid: string) { return this.reqs.listInboundRequests(uid); }
   listOutboundRequests(uid: string) { return this.reqs.listOutboundRequests(uid); }

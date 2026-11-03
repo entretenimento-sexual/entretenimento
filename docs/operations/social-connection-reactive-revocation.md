@@ -60,3 +60,34 @@ quando for oportuno.
 Angular, Firestore Rules e reconciliação de chat do Quality Gate.
 
 **Decisão de custos pré-deploy:** [memento de auditoria Firestore](./production-release-deferred-audit-checklist.md).
+
+## Complemento — Discovery: invalidação de bloqueios próprios (03/11/2026)
+
+- A rota Discovery assina **uma única consulta realtime** dos documentos
+  `users/{viewerUid}/blocks` com `isBlocked == true`. Nunca cria
+  listener por card nem consulta bloqueios **recebidos** de terceiros.
+- Até a primeira confirmação dessa lista, a interface não reutiliza
+  cards antigos do NgRx/IndexedDB. Falha ao ler os bloqueios próprios
+  oculta os cards e apresenta feedback com possibilidade de nova tentativa.
+- O conjunto de UIDs bloqueados só pode **remover** cards de uma
+  página fornecida pelo backend; não é fonte de elegibilidade positiva.
+  Os observadores auxiliares de localização e intenção também deixam de
+  consultar esses UIDs quando o conjunto muda.
+- Na alteração do conjunto, a página cancela leituras pendentes, limpa
+  o NgRx, elimina a namespace de cache paginado do viewer em memória e
+  IndexedDB e busca novamente do backend **sem emitir cache antigo**.
+  A primeira entrada com bloqueios ativos também purga páginas persistidas.
+  A página só refaz a busca após a limpeza; falha de limpeza é relatada
+  pelo serviço canônico e a nova busca força a fonte backend.
+- Outros usuários não podem consultar esse conjunto. Alterações por
+  outra sessão/dispositivo tornam-se observáveis quando a rota estiver
+  montada e o listener do Firestore receber a atualização.
+- Se **outro usuário** bloquear o viewer, a interface não recebe esse
+  fato em tempo real por Firestore (privacidade). Novas páginas e
+  revalidação backend seguem a regra bilateral canônica. Não se
+  promete desaparecimento imediato sem nova leitura autorizada.
+
+**Custo e escopo:** um listener de coleção próprio somente com
+Discovery aberta, sem leituras por card. A limpeza é local/IndexedDB.
+O refetch após alteração gera uma consulta backend adicional e deve ser
+medido em homologação. Não ativa auditoria DATA_WRITE paga.

@@ -13,6 +13,7 @@ import {
   docData,
   Firestore,
   getDocs,
+  collectionSnapshots,
   query,
   where,
 } from '@angular/fire/firestore';
@@ -57,6 +58,30 @@ export class BlocksRepo extends FirestoreRepoBase {
       )
     ).pipe(
       map((snapshot) => snapshot?.['isBlocked'] === true)
+    );
+  }
+
+  /**
+   * One realtime query for the viewer's own active block edges.
+   * Instantiated at Discovery route scope, never per profile/card.
+   * Incoming block edges remain private.
+   */
+  watchBlockedUids(ownerUid: string): Observable<readonly string[]> {
+    const owner = String(ownerUid ?? '').trim();
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(owner)) {
+      return throwError(() => new Error('Proprietário inválido para observação de bloqueios.'));
+    }
+
+    return defer(() => this.inCtxSync(() =>
+      collectionSnapshots(query(
+        collection(this.db, 'users', owner, 'blocks'),
+        where('isBlocked', '==', true)
+      ))
+    )).pipe(
+      map((snapshots) => snapshots
+        .map((snapshot) => String(snapshot.id ?? '').trim())
+        .filter(Boolean)
+        .sort())
     );
   }
 

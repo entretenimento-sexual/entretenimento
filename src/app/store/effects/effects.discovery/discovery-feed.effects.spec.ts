@@ -13,6 +13,34 @@ import { DiscoveryFeedEffects } from './discovery-feed.effects';
 describe('DiscoveryFeedEffects / isolamento por viewerUid', () => {
   const request = { viewerUid: 'user-a', mode: 'all' as const, pageSize: 24 };
 
+  it('cancelamento de cache de descoberta impede retorno atrasado do servidor', () => {
+    const actions = new Subject<any>();
+    const uid = new BehaviorSubject<string | null>('user-a');
+    const response = new Subject<any>();
+    const repository = { loadPage$: vi.fn(() => response.asObservable()) };
+    TestBed.configureTestingModule({
+      providers: [
+        DiscoveryFeedEffects,
+        { provide: Actions, useValue: new Actions(actions) },
+        { provide: Store, useValue: { select: vi.fn() } },
+        { provide: DiscoveryPublicProfilesRepository, useValue: repository },
+        { provide: AccessControlService, useValue: { authUid$: uid.asObservable() } },
+        { provide: GlobalErrorHandlerService, useValue: { handleError: vi.fn() } },
+      ],
+    });
+    const effects = TestBed.inject(DiscoveryFeedEffects);
+    const emitted: any[] = [];
+    const sub = effects.loadFirstOrRefresh$.subscribe((value) => emitted.push(value));
+
+    actions.next(D.loadDiscoveryFirstPage({ request, bypassCache: true }));
+    expect(repository.loadPage$).toHaveBeenCalledWith(request, null, true);
+    actions.next(D.clearDiscoveryFeeds());
+    expect(response.observers).toHaveLength(0);
+    response.next({ items: [{ uid: 'old' }], source: 'server', reachedEnd: true, nextCursor: null, fetchedAt: 1 });
+    expect(emitted).toEqual([]);
+    sub.unsubscribe();
+  });
+
   it('cancela retorno de primeira página após mudança de conta', () => {
     const actions = new Subject<ReturnType<typeof D.loadDiscoveryFirstPage>>();
     const uid = new BehaviorSubject<string | null>('user-a');

@@ -70,6 +70,20 @@ describe('CacheService', () => {
     vi.restoreAllMocks();
   });
 
+  it('invalida apenas as páginas de um viewer em memória e persistência', async () => {
+    const prefix = 'discovery:public_profiles:uids:v3|viewer=viewer-1|';
+    service.set(prefix + 'mode=all|cursor=first', { uid: 'a' }, 10_000, { persist: false });
+    service.set(prefix + 'mode=compatible|cursor=next', { uid: 'b' }, 10_000, { persist: false });
+    service.set('unrelated:other-viewer', { uid: 'c' }, 10_000, { persist: false });
+
+    await firstValueFrom(service.deleteByPrefix$(prefix));
+
+    expect(deletePersistentByPrefix).toHaveBeenCalledWith(prefix);
+    expect(service.has(prefix + 'mode=all|cursor=first')).toBe(false);
+    expect(service.has(prefix + 'mode=compatible|cursor=next')).toBe(false);
+    expect(service.has('unrelated:other-viewer')).toBe(true);
+  });
+
   it('should be created', () => {
     expect(service).toBeTruthy();
   });

@@ -26,6 +26,7 @@ import {
   of,
   shareReplay,
   switchMap,
+  throwError,
 } from 'rxjs';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
@@ -377,6 +378,27 @@ export class CacheService {
     } else if (this.logNoopDeletes) {
       this.logKey(normalizedKey, `delete → "${normalizedKey}" (noop)`);
     }
+  }
+
+  /**
+   * Remove a namespace prefix from memory and IndexedDB.
+   * Callers must stop obsolete requests before invalidating, so an old
+   * server response cannot write a revoked page back into this cache.
+   */
+  deleteByPrefix$(prefix: string): Observable<void> {
+    const normalizedPrefix = this.normalizeKey(prefix);
+    if (!normalizedPrefix) return of(void 0);
+
+    return defer(() => {
+      this.deleteMemoryByPrefix(normalizedPrefix);
+      return this.cachePersistence.deletePersistentByPrefix(normalizedPrefix).pipe(
+        map(() => void 0),
+        catchError((error) => {
+          this.handlePersistenceError(error, 'CacheService.deleteByPrefix$');
+          return throwError(() => error);
+        })
+      );
+    });
   }
 
   /** Limpa somente a camada em memória. */

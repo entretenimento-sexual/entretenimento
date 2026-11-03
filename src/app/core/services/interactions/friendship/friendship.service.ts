@@ -449,6 +449,11 @@ export class FriendshipService {
     return this.repo.watchBlocked(ownerUid, targetUid);
   }
 
+  /** One owner-scoped realtime collection query; never a per-card listener. */
+  watchBlockedUids(ownerUid: string): Observable<readonly string[]> {
+    return this.repo.watchBlockedUids(ownerUid);
+  }
+
   searchUsers(term: string): Observable<IUserDados[]> {
     return this.repo.searchUsers(term);
   }
