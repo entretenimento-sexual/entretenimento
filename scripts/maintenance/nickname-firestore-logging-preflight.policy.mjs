@@ -20,6 +20,30 @@ export const FIRESTORE_WRITE_METHODS = Object.freeze([
 
 const PROJECT_ID = /^[a-z0-9][a-z0-9-]{3,62}$/;
 
+// Classify local gcloud diagnostics, never return stderr, arguments, account
+// identities or raw log contents in reports. Do not infer absence of events.
+export function classifyNicknameLoggingCliFailure({ errorCode, stderr, signal } = {}) {
+  const diagnostic = typeof stderr === 'string' ? stderr.slice(0, 20_000) : '';
+  if (errorCode === 'ENOENT') return 'cli_not_found';
+  if (errorCode === 'ETIMEDOUT' || signal === 'SIGTERM') return 'command_timeout';
+  if (/PERMISSION_DENIED|permission denied|does not have permission|not authorized/i.test(diagnostic)) {
+    return 'permission_denied';
+  }
+  if (/UNAUTHENTICATED|no active account|not logged in|login required|login to continue/i.test(diagnostic)) {
+    return 'authentication_required';
+  }
+  if (/INVALID_ARGUMENT|unrecognized arguments|invalid choice|invalid filter|unrecognized flag|invalid value/i.test(diagnostic)) {
+    return 'invalid_argument';
+  }
+  if (/NOT_FOUND|not found|does not exist/i.test(diagnostic)) {
+    return 'resource_not_found';
+  }
+  if (/quota exceeded|RESOURCE_EXHAUSTED|rate.?limit/i.test(diagnostic)) {
+    return 'quota_or_rate_limit';
+  }
+  return 'command_failed';
+}
+
 export function assessNicknameFirestoreLoggingPreflight({
   projectId, iamPolicy, exclusions, defaultBucket, defaultSink, writeSample, deniedSample,
   sourceReads = {}, collectedAt = new Date().toISOString(),

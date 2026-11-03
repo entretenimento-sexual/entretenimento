@@ -377,3 +377,28 @@ confirmado, reexecutar o scanner corrigido. A lista de exclusões do
 sink `_Default` não dispensa a revisão de sinks adicionais e regras
 de roteamento herdadas. Não compartilhar logs brutos, tokens ou
 identificadores pessoais em tickets ou repositórios.
+
+## Diagnóstico de falhas da CLI sem conteúdo sensível
+
+Se `writeSample` ou `deniedSample` não for `ok`, a ferramenta
+agora classifica a falha (`permission_denied`, `invalid_argument`,
+`authentication_required`, `command_timeout`,
+`resource_not_found`, `cli_not_found`, `quota_or_rate_limit` ou
+`command_failed`). Não expõe stderr nem logs brutos. Uma falha de
+comando **não significa** ausência de tentativas de escrita.
+
+Para isolar a capacidade de leitura, usar a CLI diretamente com o
+identificador explícito, **sem salvar a saída de logs**:
+
+```powershell
+$env:FIREBASE_PROJECT_ID = 'entretenimento-sexual'
+gcloud logging read 'log_id("cloudaudit.googleapis.com/data_access") AND protoPayload.serviceName="firestore.googleapis.com"' --project=entretenimento-sexual --limit=1 --format='value(timestamp)'
+```
+
+Saída vazia acompanhada de exit code zero significa apenas que
+**não foram encontrados registros correspondentes visíveis**; não
+comprova ausência de escritas. Erros `PERMISSION_DENIED` indicam
+necessidade de revisar permissões, e `INVALID_ARGUMENT` indicam
+consulta/quoting inválido. Verificar permissão específica para logs
+privados antes de qualquer mudança de IAM. Não implantar Rules ou
+habilitar Data Access por causa de um pré-diagnóstico isolado.

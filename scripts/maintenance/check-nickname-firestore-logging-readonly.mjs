@@ -3,6 +3,7 @@
 import { spawnSync } from 'node:child_process';
 import {
   assessNicknameFirestoreLoggingPreflight, FIRESTORE_WRITE_METHODS,
+  classifyNicknameLoggingCliFailure,
 } from './nickname-firestore-logging-preflight.policy.mjs';
 
 const projectId = String(process.env.FIREBASE_PROJECT_ID ?? '').trim();
@@ -20,7 +21,13 @@ function runGcloud(name, args) {
     encoding: 'utf8', timeout: 30_000, maxBuffer: 2 * 1024 * 1024,
     shell: process.platform === 'win32', windowsHide: true,
   });
-  sources[name] = result.error || result.status !== 0 ? 'unavailable' : 'ok';
+  sources[name] = result.error || result.status !== 0
+    ? classifyNicknameLoggingCliFailure({
+      errorCode: result.error?.code,
+      stderr: result.stderr,
+      signal: result.signal,
+    })
+    : 'ok';
   // Never forward potentially sensitive CLI error output or Cloud logs.
   return sources[name] === 'ok' ? result.stdout.trim() : null;
 }

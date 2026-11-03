@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { evaluateNicknameCutoverDecision } from '../maintenance/nickname-cutover-decision.policy.mjs';
 import { CUTOVER_FLAGS } from '../maintenance/nickname-cutover-inventory.policy.mjs';
-import { assessNicknameFirestoreLoggingPreflight } from '../maintenance/nickname-firestore-logging-preflight.policy.mjs';
+import {
+  assessNicknameFirestoreLoggingPreflight, classifyNicknameLoggingCliFailure,
+} from '../maintenance/nickname-firestore-logging-preflight.policy.mjs';
 
 const NOW = Date.parse('2026-11-02T12:10:00.000Z');
 const HOUR = 3_600_000;
@@ -379,4 +381,43 @@ test('Cloud Logging sink exclusion flags are interpreted conservatively', () => 
   });
   assert.equal(result.signals.activeExclusions, 1);
   assert.ok(result.reasons.includes('ACTIVE_EXCLUSIONS_REQUIRE_REVIEW'));
+});
+
+test('Cloud Logging CLI failure categories are safe and useful', () => {
+  const samples = [
+    [{ stderr: 'ERROR: (gcloud.logging.read) PERMISSION_DENIED for private user@example.org' },
+      'permission_denied'],
+    [{ stderr: 'ERROR: INVALID_ARGUMENT: bad filter in project with private-id' },
+      'invalid_argument'],
+    [{ stderr: 'unrecognized arguments: AND protoPayload.methodName' },
+      'invalid_argument'],
+    [{ stderr: 'ERROR: (gcloud) You do not currently have an active account selected. login required' },
+      'authentication_required'],
+    [{ stderr: 'ERROR: resource NOT_FOUND' }, 'resource_not_found'],
+    [{ errorCode: 'ENOENT' }, 'cli_not_found'],
+    [{ errorCode: 'ETIMEDOUT' }, 'command_timeout'],
+    [{ stderr: 'unexpected internal error details' }, 'command_failed'],
+  ];
+  for (const [input, expected] of samples) {
+    const result = classifyNicknameLoggingCliFailure(input);
+    assert.equal(result, expected);
+    assert.ok(!result.includes('@'));
+    assert.ok(!result.includes('private'));
+  }
+});
+
+test('preflight does not misrepresent invalid CLI arguments as no writes', () => {
+  const result = assessNicknameFirestoreLoggingPreflight({
+    ...loggingPreflightFixture,
+    writeSample: null,
+    deniedSample: null,
+    sourceReads: {
+      ...loggingPreflightFixture.sourceReads,
+      writeSample: 'invalid_argument',
+      deniedSample: 'invalid_argument',
+    },
+  });
+  assert.equal(result.signals.recentWriteSampleObserved, false);
+  assert.ok(result.reasons.includes('READ_ONLY_SOURCE_QUERY_FAILED'));
+  assert.equal(result.sources.writeSample, 'invalid_argument');
 });
