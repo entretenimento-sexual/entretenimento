@@ -357,6 +357,15 @@ jobs:
           npm run rules:build
           npm run chat:reconciliation:emulator:test 2>&1 | tee logs/chat-reconciliation-emulator.log
 
+      - name: Run bilateral-block two-session emulator E2E
+        id: bilateral_block_e2e
+        if: steps.app_install.outcome == 'success' && steps.functions_install.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:friendship:bilateral:e2e 2>&1 | tee logs/bilateral-block-two-sessions.log
+
       - name: Resolve aggregate result
         id: aggregate
         if: always()
@@ -374,6 +383,7 @@ jobs:
           ANGULAR_BUILD: ${{ steps.angular_build.outcome }}
           FIRESTORE_RULES: ${{ steps.firestore_rules.outcome }}
           CHAT_RECONCILIATION: ${{ steps.chat_reconciliation.outcome }}
+          BILATERAL_BLOCK_E2E: ${{ steps.bilateral_block_e2e.outcome }}
         run: |
           state='success'
           description='Todos os checks de qualidade passaram.'
@@ -391,6 +401,7 @@ jobs:
             "angular_build:$ANGULAR_BUILD"
             "firestore_rules:$FIRESTORE_RULES"
             "chat_reconciliation:$CHAT_RECONCILIATION"
+            "bilateral_block_e2e:$BILATERAL_BLOCK_E2E"
           )
 
           for check in "${checks[@]}"; do
@@ -423,6 +434,7 @@ jobs:
           ANGULAR_BUILD: ${{ steps.angular_build.outcome }}
           FIRESTORE_RULES: ${{ steps.firestore_rules.outcome }}
           CHAT_RECONCILIATION: ${{ steps.chat_reconciliation.outcome }}
+          BILATERAL_BLOCK_E2E: ${{ steps.bilateral_block_e2e.outcome }}
         run: |
           {
             echo '## Canonical Quality Gate'
@@ -441,6 +453,7 @@ jobs:
             echo "| Angular safe build | $ANGULAR_BUILD |"
             echo "| Firestore Rules tests | $FIRESTORE_RULES |"
             echo "| Direct chat reconciliation emulator | $CHAT_RECONCILIATION |"
+            echo "| Bilateral block two-session E2E | $BILATERAL_BLOCK_E2E |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish aggregate commit status
