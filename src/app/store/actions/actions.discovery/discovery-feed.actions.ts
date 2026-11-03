@@ -14,7 +14,7 @@ export const loadDiscoveryFirstPage = createAction(
 
 export const refreshDiscoveryFeed = createAction(
   '[Discovery Feed] Refresh',
-  props<{ request: DiscoveryFeedRequest }>()
+  props<{ request: DiscoveryFeedRequest; bypassCache?: boolean }>()
 );
 
 export const loadDiscoveryNextPage = createAction(
