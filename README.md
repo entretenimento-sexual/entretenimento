@@ -4,6 +4,16 @@
 
 This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 16.1.4.
 
+
+## Pré-deploy e pendências de produção
+
+A auditoria `DATA_WRITE` do Firestore e a certificação de 30 dias do
+cutover de nickname estão **adiadas por custo durante o desenvolvimento**.
+Antes de qualquer deploy público, revisar o
+[checklist de pré-deploy](./docs/operations/production-release-deferred-audit-checklist.md)
+e o [runbook completo](./docs/operations/registration-nickname-cutover-runbook.md).
+Esses documentos não autorizam deploy, mudança de IAM ou alteração de Rules.
+
 ## Development server
 
 Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.

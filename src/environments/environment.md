@@ -1,3 +1,17 @@
+# Ambientes — lembrete de pré-deploy
+
+**Auditoria Firestore `DATA_WRITE` e certificação de nickname estão adiadas
+por custo durante o desenvolvimento. Não habilitar em staging/produção
+sem revisão e autorização específica.**
+
+Checklist para o lançamento: [Memento — auditoria e cutover de nickname](../../docs/operations/production-release-deferred-audit-checklist.md).
+Documento operacional detalhado: [Runbook de cutover](../../docs/operations/registration-nickname-cutover-runbook.md).
+
+As configurações TypeScript `environment*.ts` são usadas pelo Angular e
+**não** devem conter instruções de deploy, segredos ou dados de auditoria.
+
+---
+
 //src\environments\environment..md
 observações rápidas
 

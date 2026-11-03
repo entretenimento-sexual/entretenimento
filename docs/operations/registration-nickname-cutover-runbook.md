@@ -482,3 +482,19 @@ consultável foi enumerada, sem autorizar D0 nem qualquer deploy.
 As consultas são somente leitura. O script não altera IAM, buckets,
 sinks, Cloud Functions ou Rules. A decisão operacional continua
 `NO-GO` até a comprovação e aprovação manual.
+
+## Decisão atual: adiamento por custo durante desenvolvimento (03/11/2026)
+
+O proprietário decidiu **não habilitar agora** a auditoria de acesso a dados
+`DATA_WRITE` apenas para iniciar a janela de certificação. Mesmo em
+homologação, a configuração selecionada no Console **não deve ser salva**
+sem autorização específica após avaliação do custo. A última evidência
+de leitura indicava `DATA_WRITE=false` em ambos os projetos; não há
+comprovação posterior do estado do Console. Revalidar antes do deploy.
+
+Acompanhar as pendências na lista curta:
+[Checklist de pré-deploy de produção](./production-release-deferred-audit-checklist.md).
+Isto **não dispensa** as verificações de identidade, proteção de dados,
+segurança das Rules ou compatibilidade antes do lançamento.
+Não tratar as 720 horas de monitoramento como iniciadas e não liberar
+cutover por simples passagem do tempo.
