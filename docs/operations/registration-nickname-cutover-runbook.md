@@ -422,3 +422,13 @@ sem gravação ou deploy. Se `sources.writeSample` ou
 de falha sem inferir zero tentativas. Mesmo com código zero e nenhuma
 linha retornada, a ausência de logs **não certifica** cobertura,
 retrospectivamente ou durante a janela de 30 dias.
+
+### Windows CMD: preservação de aspas internas
+
+O teste de integração inicialmente detectou perda de aspas internas
+na passagem da consulta pelo wrapper `.cmd`. Foi acrescentada a
+proteção das aspas com barra invertida no argumento literal do
+PowerShell antes de atravessar o wrapper. O teste em Windows impede
+regressões desse detalhe crítico para a sintaxe do filtro de Cloud
+Logging. Não alterar a configuração de logs com base no resultado de
+um teste de quoting.

@@ -9,7 +9,10 @@ function powerShellLiteral(argument) {
   if (typeof argument !== 'string' || !SAFE_COMMAND_ARGUMENT.test(argument)) {
     throw new TypeError('Invalid Cloud CLI argument.');
   }
-  return "'" + argument.replaceAll("'", "''") + "'";
+  // The downstream gcloud.cmd batch launcher forwards arguments to Python.
+  // Backslash-escape nested quotes so the batch-to-Python boundary retains
+  // Cloud Logging string literals instead of swallowing their quote marks.
+  return "'" + argument.replaceAll('"', '\\\"').replaceAll("'", "''") + "'";
 }
 
 export function buildSafeGcloudPowerShellCommand(args) {

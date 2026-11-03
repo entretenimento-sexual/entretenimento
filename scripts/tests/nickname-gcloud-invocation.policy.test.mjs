@@ -24,7 +24,7 @@ const args = [
 
 test('PowerShell invocation quotes the entire long logging filter', () => {
   const result = buildSafeGcloudPowerShellCommand(['--quiet', ...args]);
-  assert.ok(result.includes("'"+ CLOUD_LOGGING_FILTER + "'"));
+  assert.ok(result.includes("'" + CLOUD_LOGGING_FILTER.replaceAll('"', '\\\"') + "'"));
   assert.ok(result.includes("'--format=value(timestamp)'"));
   assert.ok(result.endsWith('; exit $LASTEXITCODE'));
   assert.equal(result.includes('%2F'), false);
