@@ -241,3 +241,49 @@ A ferramenta offline valida coerência, **não autentica** a fonte ou
 prova que versões antigas foram totalmente eliminadas. Essa prova
 ainda depende de inspeção dos registros originais, mecanismos de
 bloqueio efetivos e aprovação humana.
+
+## P0 — diagnóstico de Cloud Logging sem acesso a dados privados
+
+Antes de atestar cobertura horária de 30 dias, um operador autorizado deve
+verificar a configuração efetiva de auditoria da instância Firestore.
+O serviço usado **na configuração de Data Access** em Firestore Native
+é `datastore.googleapis.com`, enquanto o nome do serviço nos logs de
+operações é `firestore.googleapis.com`.
+
+Ferramenta opcional de pré-diagnóstico (somente leitura):
+
+```powershell
+$env:FIREBASE_PROJECT_ID = 'ID_DO_PROJETO_AUTORIZADO'
+node scripts/maintenance/check-nickname-firestore-logging-readonly.mjs
+```
+
+Requer **gcloud CLI autenticado** e permissões de leitura da política IAM,
+exclusões, bucket e Data Access Audit Logs do projeto. Data Access logs
+na configuração padrão podem exigir `roles/logging.privateLogViewer`.
+O comando consulta IAM de escopo projeto, exclusões do Cloud Logging,
+retenção do bucket `_Default` na localização `global` e amostras de
+timestamps dos registros de escrita das últimas 24h. **Não altera**
+configurações, não executa escritas de teste nem imprime logs brutos.
+Falha de permissão é classificada como `unavailable`, nunca como ausência
+de eventos. Não inserir a saída em um repositório público.
+
+Mesmo a presença de uma amostra de log aceita e uma negada não prova
+cobertura por caminho, completude ou identidade da versão do cliente.
+Uma ausência de amostra negada tampouco prova que ninguém tentou escrever.
+A ferramenta deliberadamente retorna `NO_GO`, com
+`deploymentAuthorized: false` e código de saída 2. Nunca converter
+esse resultado em um atestado de zero tentativas de clientes legados.
+
+A certificação completa exige: rever política herdada de organização/pasta,
+exceções de principals, filtros de exclusão, sinks, buckets e retenção
+efetiva; validar com casos controlados e autorizados, de preferência em
+homologação, se tentativas diretas **aceitas e negadas** nas coleções
+`users` e `public_index` aparecem nos registros; documentar mecanismo
+real de atribuição da versão do cliente. Dados agregados de Security Rules
+não comprovam o caminho nem a versão do cliente. Não habilitar logs,
+criar sondas em produção ou modificar Rules sem autorização específica.
+
+Referências oficiais:
+- https://docs.cloud.google.com/firestore/native/docs/audit-logging
+- https://docs.cloud.google.com/logging/docs/audit/configure-data-access
+- https://firebase.google.com/docs/firestore/monitor-usage

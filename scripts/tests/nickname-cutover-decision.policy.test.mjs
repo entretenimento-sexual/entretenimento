@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { evaluateNicknameCutoverDecision } from '../maintenance/nickname-cutover-decision.policy.mjs';
 import { CUTOVER_FLAGS } from '../maintenance/nickname-cutover-inventory.policy.mjs';
+import { assessNicknameFirestoreLoggingPreflight } from '../maintenance/nickname-firestore-logging-preflight.policy.mjs';
 
 const NOW = Date.parse('2026-11-02T12:10:00.000Z');
 const HOUR = 3_600_000;
@@ -244,4 +245,74 @@ test('hourly incidents, counter mismatch and PII-shaped fields fail closed', () 
     assert.equal(r.status, 'NO_GO');
     assert.ok(r.reasons.some(reason => reason.startsWith('LEGACY_HOURLY_')));
   }
+});
+
+const loggingPreflightFixture = {
+  projectId: 'entertainment-prod',
+  iamPolicy: { auditConfigs: [{
+    service: 'datastore.googleapis.com',
+    auditLogConfigs: [{ logType: 'DATA_WRITE' }],
+  }] },
+  exclusions: [], defaultBucket: { retentionDays: 60 },
+  writeSample: true, deniedSample: true,
+  sourceReads: {
+    iamPolicy: 'ok', exclusions: 'ok', defaultBucket: 'ok',
+    writeSample: 'ok', deniedSample: 'ok',
+  },
+};
+
+test('logging samples do not substitute client version evidence', () => {
+  const result = assessNicknameFirestoreLoggingPreflight(loggingPreflightFixture);
+  assert.equal(result.status, 'NO_GO');
+  assert.equal(result.deploymentAuthorized, false);
+  assert.equal(result.signals.projectScopeWriteConfigured, true);
+  assert.ok(result.reasons.includes('CLIENT_VERSION_ATTRIBUTION_REQUIRES_INDEPENDENT_EVIDENCE'));
+});
+
+test('Firestore logging setup uses datastore.googleapis.com for IAM audit policy', () => {
+  const result = assessNicknameFirestoreLoggingPreflight({
+    ...loggingPreflightFixture, iamPolicy: { auditConfigs: [{
+      service: 'firestore.googleapis.com',
+      auditLogConfigs: [{ logType: 'DATA_WRITE' }],
+    }] },
+  });
+  assert.ok(result.reasons.includes('PROJECT_SCOPE_DATA_WRITE_NOT_PROVEN'));
+});
+
+test('audit exemptions are reported without exposing principals', () => {
+  const result = assessNicknameFirestoreLoggingPreflight({
+    ...loggingPreflightFixture, iamPolicy: { auditConfigs: [{
+      service: 'allServices',
+      auditLogConfigs: [{
+        logType: 'DATA_WRITE', exemptedMembers: ['serviceAccount:private@example.test'],
+      }],
+    }] },
+  });
+  assert.ok(result.reasons.includes('DATA_ACCESS_EXEMPTIONS_REQUIRE_REVIEW'));
+  assert.ok(!JSON.stringify(result).includes('example.test'));
+});
+
+test('logging absence, exclusion, short retention and denied-write blindness block preflight', () => {
+  const result = assessNicknameFirestoreLoggingPreflight({
+    ...loggingPreflightFixture, iamPolicy: null,
+    exclusions: [{ name: 'exclude-all' }], defaultBucket: { retentionDays: 30 },
+    deniedSample: false,
+    sourceReads: { ...loggingPreflightFixture.sourceReads, iamPolicy: 'unavailable' },
+  });
+  for (const reason of [
+    'PROJECT_IAM_AUDIT_POLICY_UNAVAILABLE',
+    'ACTIVE_EXCLUSIONS_REQUIRE_REVIEW',
+    'THIRTY_DAY_LOG_RETENTION_NOT_PROVEN',
+    'DENIED_WRITE_AUDIT_LOG_NOT_CONFIRMED',
+    'READ_ONLY_SOURCE_QUERY_FAILED',
+  ]) assert.ok(result.reasons.includes(reason));
+});
+
+test('preflight rejects emulator and invalid project identifiers', () => {
+  assert.throws(() => assessNicknameFirestoreLoggingPreflight({
+    ...loggingPreflightFixture, projectId: 'demo-project',
+  }));
+  assert.throws(() => assessNicknameFirestoreLoggingPreflight({
+    ...loggingPreflightFixture, projectId: 'invalid;rm',
+  }));
 });
