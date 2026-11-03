@@ -5,6 +5,7 @@ import {
   distinctUntilChanged,
   map,
   shareReplay,
+  startWith,
   switchMap,
 } from 'rxjs/operators';
 
@@ -16,12 +17,14 @@ export interface VisitedProfileFriendshipRelation {
   hasPendingOutboundRequest: boolean;
   /** Unknown on partial observer failure; never grant an action by default. */
   statusVerified: boolean;
+  isBlocked: boolean;
 }
 
 const EMPTY_RELATION: VisitedProfileFriendshipRelation = {
   isFriend: false,
   hasPendingOutboundRequest: false,
   statusVerified: false,
+  isBlocked: false,
 };
 
 @Injectable()
@@ -84,26 +87,49 @@ export class VisitedProfileFriendshipFacade {
               return of(null);
             })
           ),
+          this.friendshipService.watchBlocked(safeViewerUid, safeTargetUid).pipe(
+            catchError((error) => {
+              this.reportSilent(
+                error,
+                'VisitedProfileFriendshipFacade.watchBlocked',
+                safeTargetUid
+              );
+              return of(null);
+            })
+          ),
         ]).pipe(
-          map(([outboundRequests, friends]) => ({
+          map(([outboundRequests, friends, blocked]) => {
+            const isBlocked = blocked === true;
+            return {
+              viewerUid: safeViewerUid,
+              targetUid: safeTargetUid,
+              relation: {
+                // A known outgoing block disables all social actions.
+                // Failure/unknown never becomes an inferred permission.
+                statusVerified: isBlocked || (
+                  typeof blocked === 'boolean' &&
+                  Array.isArray(outboundRequests) &&
+                  Array.isArray(friends)
+                ),
+                isBlocked,
+                isFriend: !isBlocked && (friends ?? []).some(
+                  (friend) =>
+                    String(friend?.friendUid ?? '').trim() === safeTargetUid
+                ),
+                hasPendingOutboundRequest: !isBlocked && (outboundRequests ?? []).some(
+                  (request) =>
+                    String(request?.targetUid ?? '').trim() === safeTargetUid &&
+                    request?.status === 'pending'
+                ),
+              },
+            };
+          }),
+          // Before every new listener emits, revoke the previous state.
+          startWith({
             viewerUid: safeViewerUid,
             targetUid: safeTargetUid,
-            relation: {
-              // An unreadable list is UNKNOWN, not evidence of an empty
-              // relationship. Even a partial failure disables social actions.
-              statusVerified: Array.isArray(outboundRequests) &&
-                Array.isArray(friends),
-              isFriend: (friends ?? []).some(
-                (friend) =>
-                  String(friend?.friendUid ?? '').trim() === safeTargetUid
-              ),
-              hasPendingOutboundRequest: (outboundRequests ?? []).some(
-                (request) =>
-                  String(request?.targetUid ?? '').trim() === safeTargetUid &&
-                  request?.status === 'pending'
-              ),
-            },
-          }))
+            relation: EMPTY_RELATION,
+          })
         );
       }),
       // Compare both the relationship and its source identities. A change
@@ -115,7 +141,8 @@ export class VisitedProfileFriendshipFacade {
           a.targetUid === b.targetUid &&
           a.relation.isFriend === b.relation.isFriend &&
           a.relation.hasPendingOutboundRequest === b.relation.hasPendingOutboundRequest &&
-          a.relation.statusVerified === b.relation.statusVerified
+          a.relation.statusVerified === b.relation.statusVerified &&
+          a.relation.isBlocked === b.relation.isBlocked
       ),
       map(({ relation }) => relation),
       shareReplay({ bufferSize: 1, refCount: true })

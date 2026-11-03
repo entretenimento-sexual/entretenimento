@@ -153,6 +153,7 @@ describe('OtherUserProfileViewComponent', () => {
             sendRequest: vi.fn(() => of(void 0)),
             watchOutboundRequests: vi.fn(() => of([])),
             watchFriends: vi.fn(() => of([])),
+            watchBlocked: vi.fn(() => of(false)),
           },
         },
         {
@@ -395,6 +396,15 @@ describe('OtherUserProfileViewComponent', () => {
   });
 
   it('não abre conversa do perfil anterior após uma troca de rota', () => {
+    const friendship = TestBed.inject(FriendshipService);
+    vi.mocked(friendship.watchFriends).mockReturnValue(
+      of([{ friendUid: targetUid }] as any)
+    );
+    fixture.destroy();
+    fixture = TestBed.createComponent(OtherUserProfileViewComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
     const chat = TestBed.inject(DirectChatService);
     const notifications = TestBed.inject(ErrorNotificationService);
     const query = TestBed.inject(FirestoreUserQueryService);
@@ -425,6 +435,81 @@ describe('OtherUserProfileViewComponent', () => {
     expect(navigate).not.toHaveBeenCalledWith(
       ['/chat'], expect.anything()
     );
+  });
+
+  it('revoga ações sociais imediatamente após bloqueio próprio e as restaura ao desbloquear', () => {
+    const friendship = TestBed.inject(FriendshipService);
+    const chat = TestBed.inject(DirectChatService);
+    const blocked$ = new BehaviorSubject(false);
+    vi.mocked(friendship.watchBlocked).mockReturnValue(blocked$.asObservable());
+
+    fixture.destroy();
+    fixture = TestBed.createComponent(OtherUserProfileViewComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    let actions = fixture.nativeElement.querySelector(
+      '.other-profile-page__actions'
+    ) as HTMLElement;
+    expect(actions.textContent).toContain('Mostrar interesse');
+
+    blocked$.next(true);
+    fixture.detectChanges();
+    actions = fixture.nativeElement.querySelector('.other-profile-page__actions');
+    expect(actions.textContent).toContain('Interação indisponível');
+    expect(actions.querySelector('button')).toBeNull();
+
+    component.sendFriendRequest();
+    component.startDirectChat();
+    expect(friendship.sendRequest).not.toHaveBeenCalled();
+    expect(chat.ensureDirectChatIdWithUser$).not.toHaveBeenCalled();
+
+    blocked$.next(false);
+    fixture.detectChanges();
+    actions = fixture.nativeElement.querySelector('.other-profile-page__actions');
+    expect(actions.textContent).toContain('Mostrar interesse');
+  });
+
+  it('cancela chat pendente se surgir bloqueio ou amizade for encerrada', () => {
+    const friendship = TestBed.inject(FriendshipService);
+    const chat = TestBed.inject(DirectChatService);
+    const router = TestBed.inject(Router);
+    const blocked$ = new BehaviorSubject(false);
+    const friends$ = new BehaviorSubject([{ friendUid: targetUid }] as any);
+    const pending$ = new Subject<string>();
+    vi.mocked(friendship.watchBlocked).mockReturnValue(blocked$.asObservable());
+    vi.mocked(friendship.watchFriends).mockReturnValue(friends$.asObservable());
+    vi.mocked(chat.ensureDirectChatIdWithUser$).mockReturnValue(pending$.asObservable());
+    const navigate = vi.spyOn(router, 'navigate');
+
+    fixture.destroy();
+    fixture = TestBed.createComponent(OtherUserProfileViewComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    component.startDirectChat();
+    expect(chat.ensureDirectChatIdWithUser$).toHaveBeenCalledWith(targetUid);
+    expect(pending$.observers.length).toBeGreaterThan(0);
+
+    blocked$.next(true);
+    fixture.detectChanges();
+    expect(pending$.observers.length).toBe(0);
+    expect(component.directChatBusy$.value).toBe(false);
+    pending$.next('chat-revoked');
+    expect(navigate).not.toHaveBeenCalled();
+
+    blocked$.next(false);
+    fixture.detectChanges();
+    const second$ = new Subject<string>();
+    vi.mocked(chat.ensureDirectChatIdWithUser$).mockReturnValue(second$.asObservable());
+    component.startDirectChat();
+    expect(second$.observers.length).toBeGreaterThan(0);
+
+    friends$.next([]);
+    fixture.detectChanges();
+    expect(second$.observers.length).toBe(0);
+    second$.next('chat-unfriended');
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('permite repetir a leitura pública do perfil atual após erro transitório', () => {

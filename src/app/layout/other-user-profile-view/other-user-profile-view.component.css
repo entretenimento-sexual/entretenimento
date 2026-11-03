@@ -250,6 +250,20 @@
   min-width: 0;
 }
 
+.other-profile-page__blocked-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: var(--tap-target, 44px);
+  max-width: 100%;
+  padding-inline: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.84rem;
+  font-weight: 650;
+  text-align: center;
+}
+
 .other-profile-page__actions > .app-action {
   min-height: var(--tap-target, 44px);
   width: auto;

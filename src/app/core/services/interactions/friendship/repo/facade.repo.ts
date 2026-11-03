@@ -32,6 +32,9 @@ watchFriends(uid: string) {
 
   /* Blocks — leitura apenas; writes passam por FriendshipService/callables */
   listBlocked(uid: string) { return this.blocks.listBlocked(uid); }
+  watchBlocked(ownerUid: string, targetUid: string) {
+    return this.blocks.watchBlocked(ownerUid, targetUid);
+  }
 
   /* Requests */
   listInboundRequests(uid: string) { return this.reqs.listInboundRequests(uid); }

@@ -9,12 +9,14 @@
 import { EnvironmentInjector, Injectable } from '@angular/core';
 import {
   collection,
+  doc,
+  docData,
   Firestore,
   getDocs,
   query,
   where,
 } from '@angular/fire/firestore';
-import { map } from 'rxjs';
+import { map, Observable, throwError } from 'rxjs';
 
 import {
   BlockedUserActive,
@@ -32,6 +34,24 @@ export class BlocksRepo extends FirestoreRepoBase {
     return collection(
       this.db,
       `users/${ownerUid}/blocks/${targetUid}/events`
+    );
+  }
+
+  /**
+   * Realtime of the owner's own block edge only. Incoming blocks are private.
+   * Missing edge means not blocked; read failures must propagate to the UI.
+   */
+  watchBlocked(ownerUid: string, targetUid: string): Observable<boolean> {
+    const owner = String(ownerUid ?? '').trim();
+    const target = String(targetUid ?? '').trim();
+    if (!owner || !target || owner === target || owner.includes('/') || target.includes('/')) {
+      return throwError(() => new Error('Par inválido para leitura de bloqueio.'));
+    }
+
+    return this.inCtx$(() =>
+      docData(doc(this.db, 'users', owner, 'blocks', target))
+    ).pipe(
+      map((snapshot) => snapshot?.['isBlocked'] === true)
     );
   }
 

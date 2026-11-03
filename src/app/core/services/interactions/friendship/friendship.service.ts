@@ -444,6 +444,11 @@ export class FriendshipService {
     return this.repo.listBlocked(uid);
   }
 
+  /** Realtime de bloqueios próprios; bloqueios recebidos permanecem privados. */
+  watchBlocked(ownerUid: string, targetUid: string): Observable<boolean> {
+    return this.repo.watchBlocked(ownerUid, targetUid);
+  }
+
   searchUsers(term: string): Observable<IUserDados[]> {
     return this.repo.searchUsers(term);
   }

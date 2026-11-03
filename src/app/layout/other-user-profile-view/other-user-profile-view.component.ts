@@ -27,6 +27,7 @@ import {
   combineLatest,
   filter,
   map,
+  of,
   shareReplay,
   switchMap,
   take,
@@ -70,6 +71,7 @@ import { VisitedProfileAffinityPresenter } from './application/visited-profile-a
 interface FriendshipInteractionState {
   statusVerified: boolean;
   isFriend: boolean;
+  isBlocked: boolean;
   canSendFriendRequest: boolean;
   friendRequestIcon: string;
   friendRequestLabel: string;
@@ -311,6 +313,11 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
             interactionState.liveStatus
           )
         ),
+        // Revocation in another tab/device cancels stale UI success/feedback.
+        // An already dispatched callable remains governed by the backend.
+        takeUntil(this.friendshipInteractionState$.pipe(
+          filter((state) => !state.canSendFriendRequest)
+        )),
         // The user may navigate to another visited profile while the
         // request is pending. Never display its old result on the new page.
         takeUntil(this.profileNavigationAwayFrom$(targetUid)),
@@ -340,9 +347,19 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
 
     this.directChatBusy$.next(true);
 
-    this.interactionOrchestrator
-      .prepareDirectChat$(targetUid)
+    this.friendshipInteractionState$
       .pipe(
+        take(1),
+        switchMap((state) =>
+          state.statusVerified && state.isFriend && !state.isBlocked
+            ? this.interactionOrchestrator.prepareDirectChat$(targetUid)
+            : of(null)
+        ),
+        // An already dispatched callable remains protected by the backend;
+        // suppress stale navigation after a revoked connection.
+        takeUntil(this.friendshipInteractionState$.pipe(
+          filter((state) => !state.statusVerified || !state.isFriend || state.isBlocked)
+        )),
         takeUntil(this.profileNavigationAwayFrom$(targetUid)),
         finalize(() => {
           this.directChatBusy$.next(false);
@@ -435,6 +452,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       return {
         statusVerified: false,
         isFriend: false,
+        isBlocked: false,
         canSendFriendRequest: false,
         friendRequestIcon: 'fas fa-rotate',
         friendRequestLabel: 'Verificar conexão',
@@ -443,10 +461,24 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       };
     }
 
+    if (relation.isBlocked) {
+      return {
+        statusVerified: true,
+        isFriend: false,
+        isBlocked: true,
+        canSendFriendRequest: false,
+        friendRequestIcon: 'fas fa-ban',
+        friendRequestLabel: 'Interação indisponível',
+        friendRequestAriaLabel: 'Interação indisponível com este perfil.',
+        liveStatus: 'Não é possível interagir com este perfil.',
+      };
+    }
+
     if (relation.isFriend) {
       return {
         statusVerified: true,
         isFriend: true,
+        isBlocked: false,
         canSendFriendRequest: false,
         friendRequestIcon: 'fas fa-user-check',
         friendRequestLabel: 'Conectados',
@@ -459,6 +491,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       return {
         statusVerified: true,
         isFriend: false,
+        isBlocked: false,
         canSendFriendRequest: false,
         friendRequestIcon: 'fas fa-clock',
         friendRequestLabel: 'Interesse enviado',
@@ -470,6 +503,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     return {
       statusVerified: true,
       isFriend: false,
+      isBlocked: false,
       canSendFriendRequest: !!safeTargetUid,
       friendRequestIcon: 'fas fa-heart',
       friendRequestLabel: 'Mostrar interesse',
