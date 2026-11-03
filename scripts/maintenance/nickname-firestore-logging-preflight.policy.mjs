@@ -7,6 +7,15 @@ export const FIRESTORE_WRITE_METHODS = Object.freeze([
   'google.firestore.v1.Firestore.DeleteDocument',
   'google.firestore.v1.Firestore.UpdateDocument',
   'google.firestore.v1.Firestore.Write',
+  // Older Firestore clients may use beta1 paths; ExecutePipeline can write.
+  'google.firestore.v1.Firestore.ExecutePipeline',
+  'google.firestore.v1beta1.Firestore.BatchWrite',
+  'google.firestore.v1beta1.Firestore.Commit',
+  'google.firestore.v1beta1.Firestore.CreateDocument',
+  'google.firestore.v1beta1.Firestore.DeleteDocument',
+  'google.firestore.v1beta1.Firestore.UpdateDocument',
+  'google.firestore.v1beta1.Firestore.Write',
+  'google.firestore.v1beta1.Firestore.ExecutePipeline',
 ]);
 
 const PROJECT_ID = /^[a-z0-9][a-z0-9-]{3,62}$/;

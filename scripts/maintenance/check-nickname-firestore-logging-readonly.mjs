@@ -62,7 +62,11 @@ function sample(name, condition) {
   ]);
   return output === null ? null : output.length > 0;
 }
-const writeSample = sample('writeSample', 'NOT protoPayload.status.code=7');
+// A generic non-PERMISSION_DENIED status is not a successful write.
+// Query only explicit code zero or absent status; controlled allowed-write
+// validation still remains mandatory for D0.
+const writeSample = sample('writeSample',
+  '(protoPayload.status.code=0 OR NOT protoPayload.status.code:*)');
 const deniedSample = sample('deniedSample', 'protoPayload.status.code=7');
 
 const report = assessNicknameFirestoreLoggingPreflight({

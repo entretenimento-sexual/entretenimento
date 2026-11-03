@@ -18,6 +18,7 @@ function validFreshAudit(report, now) {
     completed >= started && completed <= now + 60_000 &&
     now - completed <= MAX_AUDIT_AGE_MS;
 }
+const D0_EVIDENCE_PATTERN = /^[A-Za-z0-9._:/#-]{8,200}$/;
 const requiredEvidence = Object.freeze([
   'callablesDeployed', 'appCheckVerified',
   'verifiedAdultAndLegalFlowTested', 'clientVersionFloorEnforced',
@@ -64,6 +65,23 @@ function verifyLegacyObservation(rollout, projectId, now, reasons) {
   // A 30-day total cannot conceal an hour with missing logging or attribution.
   // This checks arithmetic and completeness, NOT authenticity of source logs.
   reasons.push(...validateNicknameLegacyHourlyCoverage(observation));
+  const d0 = rollout?.d0Certificate;
+  if (!d0 || d0.schemaVersion !== 1 || d0.status !== 'D0_APPROVED' ||
+    d0.projectId !== projectId ||
+    typeof d0.evidenceReference !== 'string' ||
+    !D0_EVIDENCE_PATTERN.test(d0.evidenceReference) ||
+    d0.securityApproved !== true || d0.operationsApproved !== true) {
+    reasons.push('D0_CERTIFICATE_MISSING_OR_INVALID');
+  } else {
+    const approved = Date.parse(d0.approvedAt ?? '');
+    const started = Date.parse(d0.startedAt ?? '');
+    if (!Number.isFinite(approved) || !Number.isFinite(started) ||
+      started % 3600000 !== 0 || approved > started ||
+      approved < started - 86400000 || started > now ||
+      d0.startedAt !== observation.startedAt) {
+      reasons.push('D0_CERTIFICATE_NOT_PRIOR_TO_OBSERVATION');
+    }
+  }
 }
 
 export function evaluateNicknameCutoverDecision({

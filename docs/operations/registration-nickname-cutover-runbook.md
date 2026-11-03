@@ -287,3 +287,64 @@ Referências oficiais:
 - https://docs.cloud.google.com/firestore/native/docs/audit-logging
 - https://docs.cloud.google.com/logging/docs/audit/configure-data-access
 - https://firebase.google.com/docs/firestore/monitor-usage
+
+## D0 oficial — certificação não retroativa da janela de 30 dias
+
+O relógio de 30 dias **não começou automaticamente**. Antes de designar
+D0, execute o pré-diagnóstico de leitura autorizado e obtenha comprovação
+independente de testes de escrita controlada permitida e negada, cobertura
+de ambos os caminhos de cadastro/índice, mecanismo verificável de versão
+do cliente, retenção, rotas dos logs e aprovação de segurança/operação.
+Amostras genéricas de Cloud Logging não comprovam essas propriedades.
+
+O relatório agregado do pré-diagnóstico (JSON, sem logs brutos) e a
+revisão operacional ficam em arquivos privados diferentes. Uma revisão
+operacional precisa conter: `schemaVersion:1`, `environment:"LIVE"`,
+`projectId`, `sourceKind:"INDEPENDENT_OPERATIONAL_REVIEW"`,
+`evidenceReference`, `reviewedAt` em ISO UTC, e os seguintes controles
+**somente após comprovação real**:
+`controlledAllowedWriteVerified`, `controlledDeniedWriteVerified`,
+`registrationCompletionPathsVerified`, `nicknameIndexPathsVerified`,
+`clientVersionAttributionVerified`, `auditPolicyInheritanceReviewed`,
+`routingAndRetentionReviewed`, `sensitiveDataMinimizationReviewed`,
+`clientVersionFloorPlanReviewed`, `securityApproved`, `operationsApproved`.
+Cada controle deve ser exatamente `true`, sem inferência de ausência de
+tráfego. Guardar a referência à evidência fora do repositório.
+
+```powershell
+npm run nickname:d0-readiness -- --preflight ./nickname-logging-preflight.json --controls ./nickname-d0-operational-review.json
+```
+
+O resultado é `D0_BLOCKED`, ou `D0_CANDIDATE` com
+`proposedStartAtUtc` **na próxima hora inteira UTC no futuro**.
+Mesmo um candidato exibe `observationStarted:false` e
+`deploymentAuthorized:false`. O operador deve confirmar e registrar
+manualmente o começo efetivo da cobertura operacional. Não fabricar
+um D0 anterior à verificação, nem alegar 30 dias só com relatórios
+sintéticos ou flags `true`.
+
+Após essa aprovação, manter em arquivo privado o
+`rollout.d0Certificate` como referência da revisão original. Formato
+mínimo de exemplo **não correspondente a uma aprovação real**:
+
+```json
+{
+  "schemaVersion": 1,
+  "projectId": "ID_DO_PROJETO",
+  "status": "D0_APPROVED",
+  "evidenceReference": "internal-d0-review/IDENTIFICADOR",
+  "startedAt": "2026-11-04T12:00:00.000Z",
+  "approvedAt": "2026-11-04T11:30:00.000Z",
+  "securityApproved": true,
+  "operationsApproved": true
+}
+```
+
+O avaliador de cutover agora requer esse certificado, com referência
+rastreável, autorização anterior ao D0 (em até 24 horas), coincidência
+exata entre `startedAt` e o início da série horária de 30 dias,
+mesmo `projectId` e revisões aprovadas. Isso é validação formal
+do resumo, **não prova criptográfica**; a segurança da decisão depende
+da auditoria humana dos registros de origem. O certificado não autoriza
+deploy, não ativa logging e não altera Rules. Nenhum arquivo de
+evidência de produção deve ser versionado.

@@ -48,6 +48,13 @@ const ready = {
     rollbackTested: true, supportAndPrivacyReviewed: true,
     nicknameIndexReadPrivacyReviewed: true, securityApproved: true,
     legacyObservationDays: 30, clientVersionFloor: '2026.11.1',
+    d0Certificate: {
+      schemaVersion: 1, projectId: 'prod-project', status: 'D0_APPROVED',
+      evidenceReference: 'internal-d0-review/2026-10-03',
+      startedAt: '2026-10-03T12:00:00.000Z',
+      approvedAt: '2026-10-03T11:30:00.000Z',
+      securityApproved: true, operationsApproved: true,
+    },
     legacyClientObservation: {
       schemaVersion: 1, projectId: 'prod-project',
       sourceKind: 'REVIEWED_SERVER_TELEMETRY',
@@ -315,4 +322,30 @@ test('preflight rejects emulator and invalid project identifiers', () => {
   assert.throws(() => assessNicknameFirestoreLoggingPreflight({
     ...loggingPreflightFixture, projectId: 'invalid;rm',
   }));
+});
+
+test('30 day observation without a reviewed D0 certificate is NO_GO', () => {
+  const result = evaluateNicknameCutoverDecision({
+    ...ready, rollout: { ...ready.rollout, d0Certificate: undefined },
+  });
+  assert.equal(result.status, 'NO_GO');
+  assert.ok(result.reasons.includes('D0_CERTIFICATE_MISSING_OR_INVALID'));
+});
+
+test('D0 certificates cannot be backdated, post-approved or mismatched', () => {
+  for (const invalid of [
+    { projectId: 'different' },
+    { approvedAt: '2026-10-03T12:30:00.000Z' },
+    { approvedAt: '2026-10-01T12:00:00.000Z' },
+    { startedAt: '2026-10-03T13:00:00.000Z' },
+    { securityApproved: false },
+  ]) {
+    const result = evaluateNicknameCutoverDecision({
+      ...ready, rollout: { ...ready.rollout, d0Certificate: {
+        ...ready.rollout.d0Certificate, ...invalid,
+      } },
+    });
+    assert.equal(result.status, 'NO_GO');
+    assert.ok(result.reasons.some(reason => reason.startsWith('D0_CERTIFICATE')));
+  }
 });
