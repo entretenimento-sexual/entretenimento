@@ -67,9 +67,13 @@ export class DirectChatSelectionContextFacade {
       this.selectedChatId$,
       this.selectedType$,
     ]).pipe(
-      map(([chat, currentUid, selectedChatId, selectedType]) => {
+      map(([chat, currentUid]) => {
         const ownerUid = String(currentUid ?? '').trim();
-        const chatId = String(selectedChatId ?? '').trim();
+        // toObservable(signal) may deliver a prior queued value immediately
+        // after navigation. Use the current synchronous signal snapshot as
+        // the selection authority while retaining those streams as triggers.
+        const chatId = String(this.selectedChatIdSignal() ?? '').trim();
+        const selectedType = this.selectedTypeSignal();
         // Metadata supplied by a card or URL is never authoritative for
         // composer permissions. The currently selected canonical chat must
         // confirm both participants before its peer is considered known.
