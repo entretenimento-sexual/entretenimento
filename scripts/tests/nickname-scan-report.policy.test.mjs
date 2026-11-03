@@ -16,6 +16,7 @@ test('a full page needs one extra read to determine real completion', () => {
 test('read-only inventory output is directly consumable JSON', () => {
   const output = buildNicknameScanReport({
     ...timestamps, projectId: 'demo-entretenimento', mode: 'READ_ONLY',
+    environment: 'EMULATOR',
     limit: 100, truncated: false, counters: {
       scannedUsers: 100, completedUsers: 90, review: 0, flags: { MISSING_RESERVATION: 0 },
     }, gate: { inventoryClean: true, reasons: [] },
@@ -24,11 +25,14 @@ test('read-only inventory output is directly consumable JSON', () => {
   assert.equal(parsed.scannedUsers, 100);
   assert.equal(parsed.truncated, false);
   assert.equal(parsed.mode, 'READ_ONLY');
+  assert.equal(parsed.environment, 'EMULATOR');
+  assert.equal(parsed.schemaVersion, 2);
   assert.deepEqual(parsed.flags, { MISSING_RESERVATION: 0 });
 });
 test('dry-run index output uses the same contract', () => {
   const result = buildNicknameScanReport({
     ...timestamps, projectId: 'demo-entretenimento', mode: 'DRY_RUN',
+    environment: 'EMULATOR',
     limit: 100, truncated: true, counters: {
       scanned: 100, candidate: 12, already: 88, invalid: 0,
       conflict: 0, applied: 0, changedDuringTransaction: 0,
@@ -40,14 +44,23 @@ test('dry-run index output uses the same contract', () => {
 test('private identifiers and arbitrary free text are never exported', () => {
   assert.throws(() => buildNicknameScanReport({
     ...timestamps, projectId: 'demo-entretenimento', mode: 'READ_ONLY',
+    environment: 'EMULATOR',
     limit: 100, truncated: false, counters: {
       scannedUsers: 100, nickname: 'private-user',
     },
   }), /aggregate numeric counters/);
   assert.throws(() => buildNicknameScanReport({
     ...timestamps, projectId: 'demo-entretenimento', mode: 'READ_ONLY',
+    environment: 'EMULATOR',
     limit: 100, truncated: false, counters: {
       flags: { EMAIL_OWNER_UID: -1 },
     },
   }), /Invalid aggregate flag/);
+});
+
+test('report rejects missing environment provenance', () => {
+  assert.throws(() => buildNicknameScanReport({
+    ...timestamps, projectId: 'demo-entretenimento', mode: 'READ_ONLY',
+    limit: 1, truncated: false, counters: { scannedUsers: 1 },
+  }), /Invalid nickname scan report/);
 });

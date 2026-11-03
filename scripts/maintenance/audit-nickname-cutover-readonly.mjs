@@ -87,7 +87,9 @@ const nextDocumentExists = shouldInspectNextDocument({
 const truncated = boundaryReached && nextDocumentExists;
 const gate = evaluateNicknameCutoverGate(summary, { truncated });
 const report = buildNicknameScanReport({
-  projectId, mode: 'READ_ONLY', limit: maximum, truncated,
+  projectId, mode: 'READ_ONLY',
+  environment: process.env.FIRESTORE_EMULATOR_HOST ? 'EMULATOR' : 'LIVE',
+  limit: maximum, truncated,
   startedAt: auditStartedAt, completedAt: new Date().toISOString(),
   counters: summary, gate,
 });

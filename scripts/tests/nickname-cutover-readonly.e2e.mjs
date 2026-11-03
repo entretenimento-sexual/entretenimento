@@ -63,8 +63,12 @@ try {
   const oneUser = users(1);
   const oneIndex = indexes(1);
   assert.equal(oneUser.truncated, false);
+  assert.equal(oneUser.environment, 'EMULATOR');
+  assert.equal(oneUser.schemaVersion, 2);
   assert.equal(oneUser.ready, 1);
   assert.equal(oneIndex.truncated, false);
+  assert.equal(oneIndex.environment, 'EMULATOR');
+  assert.equal(oneIndex.schemaVersion, 2);
   assert.equal(oneIndex.already, 1);
   console.log('[nickname-audit:e2e] PASS exact-limit EOF');
 

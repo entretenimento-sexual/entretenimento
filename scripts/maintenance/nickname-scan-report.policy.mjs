@@ -8,11 +8,12 @@ export function shouldInspectNextDocument({ scanned, limit }) {
 }
 
 export function buildNicknameScanReport({
-  projectId, mode, limit, truncated, startedAt, completedAt,
+  projectId, mode, environment, limit, truncated, startedAt, completedAt,
   counters, gate,
 }) {
   if (!/^[a-z0-9][a-z0-9-]{3,62}$/.test(projectId) ||
     !['READ_ONLY', 'DRY_RUN', 'APPLY'].includes(mode) ||
+    !['LIVE', 'EMULATOR'].includes(environment) ||
     !Number.isSafeInteger(limit) || limit < 1 ||
     typeof truncated !== 'boolean' ||
     !Number.isFinite(Date.parse(startedAt)) ||
@@ -44,7 +45,7 @@ export function buildNicknameScanReport({
     }
   }
   const output = {
-    schemaVersion: 1, projectId, mode, truncated,
+    schemaVersion: 2, projectId, mode, environment, truncated,
     startedAt, completedAt, ...safeCounters,
   };
   if (gate) {

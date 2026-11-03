@@ -121,7 +121,9 @@ const nextDocumentExists = shouldInspectNextDocument({
 }) ? !(await db.collection('public_index').orderBy(FieldPath.documentId())
   .startAfter(cursor).endAt('nickname:\uf8ff').limit(1).get()).empty : false;
 const report = buildNicknameScanReport({
-  projectId, mode: dryRun ? 'DRY_RUN' : 'APPLY', limit: maxRecords,
+  projectId, mode: dryRun ? 'DRY_RUN' : 'APPLY',
+  environment: process.env.FIRESTORE_EMULATOR_HOST ? 'EMULATOR' : 'LIVE',
+  limit: maxRecords,
   truncated: boundaryReached && nextDocumentExists,
   startedAt: auditStartedAt, completedAt: new Date().toISOString(),
   counters: stats,

@@ -3,9 +3,14 @@
 import { CUTOVER_FLAGS } from './nickname-cutover-inventory.policy.mjs';
 
 const MAX_AUDIT_AGE_MS = 24 * 60 * 60 * 1000;
+const LEGACY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+const PROJECT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{3,62}$/;
 
 function validFreshAudit(report, now) {
-  if (report?.schemaVersion !== 1) return false;
+  // Emulator data must not pass as evidence of production completeness.
+  if (report?.schemaVersion !== 2 || report.environment !== 'LIVE' ||
+    (!PROJECT_ID_PATTERN.test(report.projectId ?? '') ||
+      report.projectId.startsWith('demo-'))) return false;
   const started = Date.parse(report.startedAt ?? '');
   const completed = Date.parse(report.completedAt ?? '');
   return Number.isFinite(started) && Number.isFinite(completed) &&
@@ -19,6 +24,43 @@ const requiredEvidence = Object.freeze([
   'rollbackTested', 'supportAndPrivacyReviewed',
   'nicknameIndexReadPrivacyReviewed', 'securityApproved',
 ]);
+
+// Validates an operator-reviewed summary, not the source logs themselves.
+// Sign-off requires independent review of the evidence reference.
+function verifyLegacyObservation(rollout, projectId, now, reasons) {
+  const observation = rollout?.legacyClientObservation;
+  if (!observation || observation.schemaVersion !== 1 ||
+    !PROJECT_ID_PATTERN.test(observation.projectId ?? '') ||
+    observation.projectId !== projectId) {
+    reasons.push('MISSING_VALID_LEGACY_OBSERVATION');
+    return;
+  }
+  const start = Date.parse(observation.startedAt ?? '');
+  const end = Date.parse(observation.completedAt ?? '');
+  const collected = Date.parse(observation.collectedAt ?? '');
+  if (![start, end, collected].every(Number.isFinite) ||
+    end < start || end - start < LEGACY_WINDOW_MS ||
+    end > now + 60_000 || now - end > MAX_AUDIT_AGE_MS ||
+    collected < end || collected > now + 60_000 ||
+    now - collected > MAX_AUDIT_AGE_MS ||
+    rollout.legacyObservationDays > Math.floor((end - start) / 86400000)) {
+    reasons.push('LEGACY_OBSERVATION_WINDOW_UNVERIFIED');
+  }
+  if (observation.sourceKind !== 'REVIEWED_SERVER_TELEMETRY' ||
+    typeof observation.evidenceReference !== 'string' ||
+    !/^[a-zA-Z0-9._:/#-]{8,200}$/.test(observation.evidenceReference) ||
+    observation.coverageComplete !== true ||
+    observation.attributionComplete !== true ||
+    observation.deniedWriteCoverageComplete !== true) {
+    reasons.push('LEGACY_OBSERVATION_COVERAGE_UNPROVEN');
+  }
+  if (!Number.isSafeInteger(observation.legacyCompletionWriteAttempts) ||
+    observation.legacyCompletionWriteAttempts !== 0 ||
+    !Number.isSafeInteger(observation.unattributedCompletionWriteAttempts) ||
+    observation.unattributedCompletionWriteAttempts !== 0) {
+    reasons.push('LEGACY_WRITE_ATTEMPTS_PRESENT_OR_UNKNOWN');
+  }
+}
 
 export function evaluateNicknameCutoverDecision({
   inventory, indexScan, rollout, now = Date.now(),
@@ -92,6 +134,7 @@ export function evaluateNicknameCutoverDecision({
     rollout.legacyObservationDays < 30) {
     reasons.push('INSUFFICIENT_LEGACY_CLIENT_OBSERVATION');
   }
+  verifyLegacyObservation(rollout, inventory?.projectId, now, reasons);
   const version = rollout?.clientVersionFloor;
   if (typeof version !== 'string' || !version.trim()) {
     reasons.push('CLIENT_VERSION_FLOOR_UNSPECIFIED');

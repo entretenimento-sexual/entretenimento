@@ -100,7 +100,7 @@ de resposta antes do rollout real.
 ## Relatórios JSON operacionais (auditoria corrigida)
 
 Os dois scanners de nickname emitem relatório JSON **agregado** com
-`schemaVersion`, `projectId`, `mode`, `startedAt`, `completedAt`,
+`schemaVersion: 2`, `projectId`, `mode`, `environment`, `startedAt`, `completedAt`,
 `truncated` e contadores. A verificação de conclusão do scan utiliza
 uma leitura adicional depois do último documento: atingir exatamente
 `MAX_USERS` ou `MAX_RECORDS` **não** prova que faltam registros.
@@ -138,3 +138,47 @@ não fragmentar relatórios manualmente para forçar aprovação**: implementar
 paginação validada e agregação segura antes de deliberar sobre o cutover.
 Mesmo `truncated=false` não garante consistência instantânea sob escritas
 concorrentes; conferir horário e repetir com operações estabilizadas.
+
+## Evidência da janela de clientes legados (P0)
+
+A declaração de rollout não pode mais comprovar a ausência de
+clientes legados apenas com `zeroLegacyWritesObserved=true` e
+`legacyObservationDays=30`. Exige também `legacyClientObservation`:
+
+```json
+{
+  "schemaVersion": 1,
+  "projectId": "ID_DO_PROJETO",
+  "sourceKind": "REVIEWED_SERVER_TELEMETRY",
+  "evidenceReference": "internal-audit/IDENTIFICADOR",
+  "startedAt": "2026-10-01T00:00:00.000Z",
+  "completedAt": "2026-11-01T00:00:00.000Z",
+  "collectedAt": "2026-11-01T00:05:00.000Z",
+  "coverageComplete": true,
+  "attributionComplete": true,
+  "deniedWriteCoverageComplete": true,
+  "legacyCompletionWriteAttempts": 0,
+  "unattributedCompletionWriteAttempts": 0
+}
+```
+
+Este é um **exemplo de formato**, não uma evidência real ou uma declaração
+de que a telemetria está implantada. Os campos devem ser comprovados por
+dados de observabilidade revisados pela equipe, com origem controlada e
+rastreabilidade interna. Não registrar UID, nickname, IP, e-mail ou payload
+de cadastro no relatório. Monitorar especificamente tentativas de
+conclusão do cadastro e escrita de índice de nickname pelo cliente
+(aceitas e negadas); o seed social legítimo não é bypass.
+
+O avaliador exige 30 dias efetivos de observação, período terminando
+nas últimas 24 horas, coleta atual, ausência de lacunas, atribuição de
+cliente e zero tentativa legada ou não atribuída. `environment=EMULATOR`
+é rejeitado pelo avaliador mesmo com dados limpos. Os scanners registram
+`LIVE` apenas quando `FIRESTORE_EMULATOR_HOST` não está presente.
+Isso **não autentica as credenciais nem o ambiente por si só**: verificar
+externamente destino, credenciais, logs e referência de evidência antes
+de qualquer decisão humana. Sem observabilidade comprovada, manter NO-GO.
+
+Os relatórios reais de Firestore e a janela operacional não foram
+obtidos nesta etapa. Não executar escrita, migração ou deploy como
+substituto das evidências.
