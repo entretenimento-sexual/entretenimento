@@ -16,10 +16,20 @@ function arg(flag) {
   const index = flags.indexOf(flag);
   return index >= 0 ? flags[index + 1] : undefined;
 }
+const rollout = load(arg('--rollout'));
+const legacyObservation = load(arg('--legacy-observation'));
+if (legacyObservation && !rollout) {
+  throw new Error('Informe --rollout junto com --legacy-observation.');
+}
+if (legacyObservation && Object.hasOwn(rollout, 'legacyClientObservation')) {
+  throw new Error('Evidência duplicada: informe apenas uma origem de legacyClientObservation.');
+}
 const result = evaluateNicknameCutoverDecision({
   inventory: load(arg('--inventory')),
   indexScan: load(arg('--index-scan')),
-  rollout: load(arg('--rollout')),
+  rollout: legacyObservation
+    ? { ...rollout, legacyClientObservation: legacyObservation }
+    : rollout,
 });
 console.log(JSON.stringify(result, null, 2));
 if (result.status !== 'REVIEW_READY') process.exitCode = 2;

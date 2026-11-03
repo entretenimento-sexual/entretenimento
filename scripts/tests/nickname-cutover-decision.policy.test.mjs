@@ -4,6 +4,22 @@ import { evaluateNicknameCutoverDecision } from '../maintenance/nickname-cutover
 import { CUTOVER_FLAGS } from '../maintenance/nickname-cutover-inventory.policy.mjs';
 
 const NOW = Date.parse('2026-11-02T12:10:00.000Z');
+const HOUR = 3_600_000;
+function hourCoverage(count = 720) {
+  const start = Date.parse('2026-10-03T12:00:00.000Z');
+  return Array.from({ length: count }, (_, i) => ({
+    hourStart: new Date(start + i * HOUR).toISOString(),
+    dataWriteMonitoringActive: true,
+    acceptedWriteCoverageComplete: true,
+    deniedWriteCoverageComplete: true,
+    clientAttributionComplete: true,
+    registrationCompletionPathsCovered: true,
+    nicknameIndexPathsCovered: true,
+    legacyCompletionWriteAttempts: 0,
+    unattributedCompletionWriteAttempts: 0,
+  }));
+}
+
 const timestamps = {
   schemaVersion: 2,
   environment: 'LIVE',
@@ -36,12 +52,13 @@ const ready = {
       sourceKind: 'REVIEWED_SERVER_TELEMETRY',
       evidenceReference: 'internal-audit/2026-11-02',
       startedAt: '2026-10-03T12:00:00.000Z',
-      completedAt: '2026-11-02T12:05:00.000Z',
+      completedAt: '2026-11-02T12:00:00.000Z',
       collectedAt: '2026-11-02T12:06:00.000Z',
       coverageComplete: true, attributionComplete: true,
       deniedWriteCoverageComplete: true,
       legacyCompletionWriteAttempts: 0,
       unattributedCompletionWriteAttempts: 0,
+      hourlyCoverage: hourCoverage(),
     },
   },
 };
@@ -174,5 +191,57 @@ test('emulator reports cannot be promoted into a production review', () => {
     });
     assert.equal(r.status, 'NO_GO');
     assert.ok(r.reasons.some(reason => reason.startsWith('INVALID_OR_STALE_')));
+  }
+});
+
+test('full 30 day hourly continuity is required even when summary flags are true', () => {
+  const r = evaluateNicknameCutoverDecision({
+    ...ready, rollout: { ...ready.rollout, legacyClientObservation: {
+      ...ready.rollout.legacyClientObservation, hourlyCoverage: undefined,
+    } },
+  });
+  assert.equal(r.status, 'NO_GO');
+  assert.ok(r.reasons.includes('LEGACY_HOURLY_COVERAGE_MISSING'));
+});
+
+test('missing one hour, duplicate hour and delayed source health all block', () => {
+  for (const hourlyCoverage of [
+    hourCoverage(719),
+    hourCoverage().map((row, i) => i === 100
+      ? { ...row, hourStart: new Date(Date.parse(row.hourStart) - HOUR).toISOString() }
+      : row),
+    hourCoverage().map((row, i) => i === 120
+      ? { ...row, deniedWriteCoverageComplete: false }
+      : row),
+    hourCoverage().map((row, i) => i === 120
+      ? { ...row, clientAttributionComplete: false }
+      : row),
+  ]) {
+    const r = evaluateNicknameCutoverDecision({
+      ...ready, rollout: { ...ready.rollout, legacyClientObservation: {
+        ...ready.rollout.legacyClientObservation, hourlyCoverage,
+      } },
+    });
+    assert.equal(r.status, 'NO_GO');
+    assert.ok(r.reasons.some(reason => reason.startsWith('LEGACY_HOURLY_')));
+  }
+});
+
+test('hourly incidents, counter mismatch and PII-shaped fields fail closed', () => {
+  for (const hourlyCoverage of [
+    hourCoverage().map((row, i) => i === 200
+      ? { ...row, legacyCompletionWriteAttempts: 1 } : row),
+    hourCoverage().map((row, i) => i === 200
+      ? { ...row, unattributedCompletionWriteAttempts: 1 } : row),
+    hourCoverage().map((row, i) => i === 200
+      ? { ...row, uid: 'PRIVATE' } : row),
+  ]) {
+    const r = evaluateNicknameCutoverDecision({
+      ...ready, rollout: { ...ready.rollout, legacyClientObservation: {
+        ...ready.rollout.legacyClientObservation, hourlyCoverage,
+      } },
+    });
+    assert.equal(r.status, 'NO_GO');
+    assert.ok(r.reasons.some(reason => reason.startsWith('LEGACY_HOURLY_')));
   }
 });

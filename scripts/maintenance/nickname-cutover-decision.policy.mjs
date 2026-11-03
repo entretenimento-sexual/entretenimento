@@ -1,6 +1,7 @@
 // Pure GO/NO-GO preflight. No private IDs, network calls or mutations.
 // A clean inventory never substitutes release approval.
 import { CUTOVER_FLAGS } from './nickname-cutover-inventory.policy.mjs';
+import { validateNicknameLegacyHourlyCoverage } from './nickname-legacy-hourly-coverage.policy.mjs';
 
 const MAX_AUDIT_AGE_MS = 24 * 60 * 60 * 1000;
 const LEGACY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -60,6 +61,9 @@ function verifyLegacyObservation(rollout, projectId, now, reasons) {
     observation.unattributedCompletionWriteAttempts !== 0) {
     reasons.push('LEGACY_WRITE_ATTEMPTS_PRESENT_OR_UNKNOWN');
   }
+  // A 30-day total cannot conceal an hour with missing logging or attribution.
+  // This checks arithmetic and completeness, NOT authenticity of source logs.
+  reasons.push(...validateNicknameLegacyHourlyCoverage(observation));
 }
 
 export function evaluateNicknameCutoverDecision({

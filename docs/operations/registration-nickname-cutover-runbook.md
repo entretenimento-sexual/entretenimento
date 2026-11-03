@@ -182,3 +182,62 @@ de qualquer decisão humana. Sem observabilidade comprovada, manter NO-GO.
 Os relatórios reais de Firestore e a janela operacional não foram
 obtidos nesta etapa. Não executar escrita, migração ou deploy como
 substituto das evidências.
+
+## P0 — cobertura horária verificável e observabilidade real
+
+**Atenção:** o JSON anterior é apenas um resumo ilustrativo e não basta
+para REVIEW_READY. É obrigatório incluir no objeto
+`legacyClientObservation` um array `hourlyCoverage` com **720 ou mais
+horas UTC consecutivas** (30 dias), sem lacunas e com as somas exatas
+de tentativas correspondendo aos totais do cabeçalho. Cada hora deve ter
+somente os seguintes campos; exemplo ilustrativo de uma única hora:
+
+```json
+{
+  "hourStart": "2026-10-03T12:00:00.000Z",
+  "dataWriteMonitoringActive": true,
+  "acceptedWriteCoverageComplete": true,
+  "deniedWriteCoverageComplete": true,
+  "clientAttributionComplete": true,
+  "registrationCompletionPathsCovered": true,
+  "nicknameIndexPathsCovered": true,
+  "legacyCompletionWriteAttempts": 0,
+  "unattributedCompletionWriteAttempts": 0
+}
+```
+
+`startedAt` e `completedAt` devem cair em horas UTC exatas.
+O primeiro registro inicia em `startedAt` e o intervalo é fechado
+em `completedAt` (exclusivo). **Não preencher os indicadores true
+artificialmente**. Eles precisam de comprovação operacional independente,
+inclusive quando o total de eventos da hora for zero.
+Uma única hora incompleta, tentativas diretas detectadas (aceitas
+ou negadas), lacunas de classificação ou somas divergentes implica NO-GO.
+Campos adicionais, inclusive de identificação pessoal, são rejeitados
+na série horária.
+
+A equipe operacional precisa validar habilitação, permissões e retenção
+dos **Cloud Firestore Data Access Audit Logs**, verificar cobertura
+de solicitações recusadas e aceitas e comprovar se a fonte registra a
+versão ou outro marcador confiável dos clientes. Logs do serviço
+`firebaserules.googleapis.com` referem-se à administração das Rules
+e **não** substituem evidências das operações de dados do Firestore.
+Não assumir que toda negação por Security Rules está capturada sem
+validar essa capacidade no projeto e com testes controlados.
+Verificar o custo e a retenção antes de ativar qualquer logging;
+nada disso foi ativado por esta revisão.
+
+Para facilitar a gestão do arquivo horário, o avaliador aceita
+a série em um JSON local separado, sem dados pessoais:
+
+```powershell
+npm run nickname:cutover-readiness -- --inventory ./nickname-users-readonly.json --index-scan ./nickname-indices-dryrun.json --rollout ./evidencias-rollout.json --legacy-observation ./nickname-legacy-hours.json
+```
+
+Quando `--legacy-observation` for usado, omitir a chave
+`legacyClientObservation` de `evidencias-rollout.json`. Nunca enviar
+logs brutos, arquivos horários ou identificadores pessoais ao Git.
+A ferramenta offline valida coerência, **não autentica** a fonte ou
+prova que versões antigas foram totalmente eliminadas. Essa prova
+ainda depende de inspeção dos registros originais, mecanismos de
+bloqueio efetivos e aprovação humana.
