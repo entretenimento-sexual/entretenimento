@@ -348,3 +348,32 @@ do resumo, **não prova criptográfica**; a segurança da decisão depende
 da auditoria humana dos registros de origem. O certificado não autoriza
 deploy, não ativa logging e não altera Rules. Nenhum arquivo de
 evidência de produção deve ser versionado.
+
+## Diagnóstico Cloud Logging — comandos gcloud compatíveis
+
+A CLI `gcloud logging exclusions list` **não existe** na versão
+atual do SDK; usar somente leitura de `gcloud logging sinks describe
+_Default`, cuja saída inclui os filtros de exclusão e o estado do sink.
+Uma resposta IAM `{}` ou sem `auditConfigs` significa que não há
+configuração `DATA_WRITE` explícita no escopo do projeto; não deve
+aparecer como falha de acesso à política IAM se a leitura foi bem-sucedida.
+
+No PowerShell, usar sempre o ID literal quando houver dúvida sobre
+variáveis locais ou outra janela de terminal:
+
+```powershell
+$env:FIREBASE_PROJECT_ID = 'entretenimento-sexual'
+gcloud projects describe entretenimento-sexual --format='value(projectId)'
+gcloud config get-value project
+gcloud logging sinks describe _Default --project=entretenimento-sexual --format='json(disabled,exclusions)'
+gcloud projects get-iam-policy entretenimento-sexual --format='json(auditConfigs)'
+```
+
+Se o projeto global do `gcloud` ainda estiver com o valor literal
+`ID_DO_PROJETO_AUTORIZADO`, corrigir **apenas a configuração local da
+CLI** com `gcloud config set project entretenimento-sexual`.
+Isso não altera o projeto Firebase nem executa deploy. Com projeto
+confirmado, reexecutar o scanner corrigido. A lista de exclusões do
+sink `_Default` não dispensa a revisão de sinks adicionais e regras
+de roteamento herdadas. Não compartilhar logs brutos, tokens ou
+identificadores pessoais em tickets ou repositórios.

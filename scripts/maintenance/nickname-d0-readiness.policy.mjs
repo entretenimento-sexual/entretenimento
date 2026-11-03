@@ -47,6 +47,7 @@ export function assessNicknameD0Readiness({ preflight, controls, now = Date.now(
   if (!signal?.projectScopeWriteConfigured ||
     signal.exemptionsNeedReview !== false ||
     signal.activeExclusions !== 0 ||
+    signal.defaultSinkDisabled !== false ||
     !Number.isSafeInteger(signal.defaultBucketRetentionDays) ||
     signal.defaultBucketRetentionDays < 31 ||
     signal.recentWriteSampleObserved !== true ||

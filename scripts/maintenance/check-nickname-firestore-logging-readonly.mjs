@@ -36,9 +36,15 @@ function readJson(name, args) {
 const iamPolicy = readJson('iamPolicy', [
   'projects', 'get-iam-policy', projectId,
 ]);
-const exclusions = readJson('exclusions', [
-  'logging', 'exclusions', 'list', '--project=' + projectId,
+// gcloud does not have a "logging exclusions list" command. The _Default
+// sink exposes its configured exclusions and disabled flag via read-only GET.
+const defaultSink = readJson('exclusions', [
+  'logging', 'sinks', 'describe', '_Default', '--project=' + projectId,
 ]);
+const exclusions = defaultSink &&
+  (!Object.hasOwn(defaultSink, 'exclusions') ||
+    Array.isArray(defaultSink.exclusions))
+  ? (defaultSink.exclusions ?? []) : null;
 const defaultBucket = readJson('defaultBucket', [
   'logging', 'buckets', 'describe', '_Default',
   '--location=global', '--project=' + projectId,
@@ -70,7 +76,7 @@ const writeSample = sample('writeSample',
 const deniedSample = sample('deniedSample', 'protoPayload.status.code=7');
 
 const report = assessNicknameFirestoreLoggingPreflight({
-  projectId, iamPolicy, exclusions, defaultBucket,
+  projectId, iamPolicy, exclusions, defaultBucket, defaultSink,
   writeSample, deniedSample, sourceReads: sources,
 });
 console.log(JSON.stringify(report, null, 2));

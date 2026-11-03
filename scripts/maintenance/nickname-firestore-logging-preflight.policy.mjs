@@ -21,14 +21,18 @@ export const FIRESTORE_WRITE_METHODS = Object.freeze([
 const PROJECT_ID = /^[a-z0-9][a-z0-9-]{3,62}$/;
 
 export function assessNicknameFirestoreLoggingPreflight({
-  projectId, iamPolicy, exclusions, defaultBucket, writeSample, deniedSample,
+  projectId, iamPolicy, exclusions, defaultBucket, defaultSink, writeSample, deniedSample,
   sourceReads = {}, collectedAt = new Date().toISOString(),
 } = {}) {
   if (!PROJECT_ID.test(projectId ?? '') || projectId.startsWith('demo-')) {
     throw new Error('Informe um projeto Firebase real explicitamente.');
   }
+  // IAM may legitimately return {} without auditConfigs when Data Access
+  // auditing has not been configured on this project. That is not a read error.
+  const iamReadable = iamPolicy !== null && typeof iamPolicy === 'object' &&
+    !Array.isArray(iamPolicy);
   const configs = Array.isArray(iamPolicy?.auditConfigs)
-    ? iamPolicy.auditConfigs : null;
+    ? iamPolicy.auditConfigs : iamReadable ? [] : null;
   const relevantConfigs = (configs ?? []).filter(item =>
     item?.service === 'datastore.googleapis.com' || item?.service === 'allServices');
   const writeConfigs = relevantConfigs.flatMap(item =>
@@ -41,15 +45,21 @@ export function assessNicknameFirestoreLoggingPreflight({
       config.exemptedMembers != null : config.exemptedMembers.length > 0);
   const activeExclusions = Array.isArray(exclusions)
     ? exclusions.filter(item => item?.disabled !== true).length : null;
+  // Cloud Logging may omit the disabled=false field from an active sink.
+  const sinkAvailable = defaultSink !== null &&
+    typeof defaultSink === 'object' && !Array.isArray(defaultSink);
+  const defaultSinkDisabled = sinkAvailable ? defaultSink.disabled === true : null;
   const retentionDays = Number.isSafeInteger(defaultBucket?.retentionDays)
     ? defaultBucket.retentionDays : null;
 
   const reasons = [];
-  if (!configs) reasons.push('PROJECT_IAM_AUDIT_POLICY_UNAVAILABLE');
+  if (configs === null) reasons.push('PROJECT_IAM_AUDIT_POLICY_UNAVAILABLE');
   if (!projectScopeWriteConfigured) reasons.push('PROJECT_SCOPE_DATA_WRITE_NOT_PROVEN');
   if (exemptionsNeedReview) reasons.push('DATA_ACCESS_EXEMPTIONS_REQUIRE_REVIEW');
   if (activeExclusions === null) reasons.push('LOG_EXCLUSIONS_UNAVAILABLE');
   else if (activeExclusions > 0) reasons.push('ACTIVE_EXCLUSIONS_REQUIRE_REVIEW');
+  if (defaultSinkDisabled === null) reasons.push('DEFAULT_LOG_SINK_UNAVAILABLE');
+  else if (defaultSinkDisabled) reasons.push('DEFAULT_LOG_SINK_DISABLED');
   if (retentionDays === null || retentionDays < 31) {
     reasons.push('THIRTY_DAY_LOG_RETENTION_NOT_PROVEN');
   }
@@ -70,6 +80,7 @@ export function assessNicknameFirestoreLoggingPreflight({
       projectScopeWriteConfigured,
       exemptionsNeedReview,
       activeExclusions,
+      defaultSinkDisabled,
       defaultBucketRetentionDays: retentionDays,
       recentWriteSampleObserved: writeSample === true,
       recentDeniedWriteSampleObserved: deniedSample === true,

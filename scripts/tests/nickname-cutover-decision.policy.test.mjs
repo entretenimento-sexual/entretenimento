@@ -260,7 +260,8 @@ const loggingPreflightFixture = {
     service: 'datastore.googleapis.com',
     auditLogConfigs: [{ logType: 'DATA_WRITE' }],
   }] },
-  exclusions: [], defaultBucket: { retentionDays: 60 },
+  exclusions: [], defaultSink: { name: '_Default' },
+  defaultBucket: { retentionDays: 60 },
   writeSample: true, deniedSample: true,
   sourceReads: {
     iamPolicy: 'ok', exclusions: 'ok', defaultBucket: 'ok',
@@ -348,4 +349,34 @@ test('D0 certificates cannot be backdated, post-approved or mismatched', () => {
     assert.equal(result.status, 'NO_GO');
     assert.ok(result.reasons.some(reason => reason.startsWith('D0_CERTIFICATE')));
   }
+});
+
+test('readable IAM with no auditConfigs is not reported as inaccessible', () => {
+  const result = assessNicknameFirestoreLoggingPreflight({
+    ...loggingPreflightFixture, iamPolicy: {},
+  });
+  assert.ok(!result.reasons.includes('PROJECT_IAM_AUDIT_POLICY_UNAVAILABLE'));
+  assert.ok(result.reasons.includes('PROJECT_SCOPE_DATA_WRITE_NOT_PROVEN'));
+});
+
+test('disabled or missing default logging sink blocks preflight', () => {
+  const disabled = assessNicknameFirestoreLoggingPreflight({
+    ...loggingPreflightFixture, defaultSink: { name: '_Default', disabled: true },
+  });
+  assert.equal(disabled.signals.defaultSinkDisabled, true);
+  assert.ok(disabled.reasons.includes('DEFAULT_LOG_SINK_DISABLED'));
+  const missing = assessNicknameFirestoreLoggingPreflight({
+    ...loggingPreflightFixture, defaultSink: null, exclusions: null,
+  });
+  assert.ok(missing.reasons.includes('DEFAULT_LOG_SINK_UNAVAILABLE'));
+  assert.ok(missing.reasons.includes('LOG_EXCLUSIONS_UNAVAILABLE'));
+});
+
+test('Cloud Logging sink exclusion flags are interpreted conservatively', () => {
+  const result = assessNicknameFirestoreLoggingPreflight({
+    ...loggingPreflightFixture,
+    exclusions: [{ name: 'active-exclusion' }, { disabled: true }],
+  });
+  assert.equal(result.signals.activeExclusions, 1);
+  assert.ok(result.reasons.includes('ACTIVE_EXCLUSIONS_REQUIRE_REVIEW'));
 });

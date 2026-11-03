@@ -13,6 +13,7 @@ const preflight = {
   signals: {
     projectScopeWriteConfigured: true,
     exemptionsNeedReview: false, activeExclusions: 0,
+    defaultSinkDisabled: false,
     defaultBucketRetentionDays: 60,
     recentWriteSampleObserved: true,
     recentDeniedWriteSampleObserved: true,
@@ -86,4 +87,13 @@ test('D0 does not expose operator identity or permit backdated review', () => {
   assert.equal(result.status, 'D0_BLOCKED');
   assert.ok(result.reasons.includes('D0_INVALID_REVIEW_TIME'));
   assert.ok(result.reasons.includes('D0_MISSING_VERIFIABLE_REVIEW_REFERENCE'));
+});
+
+test('D0 blocks disabled or unverified default logging sink', () => {
+  for (const defaultSinkDisabled of [true, null, undefined]) {
+    const result = assess({
+      ...preflight, signals: { ...preflight.signals, defaultSinkDisabled },
+    });
+    assert.ok(result.reasons.includes('D0_LOGGING_COVERAGE_NOT_DEMONSTRATED'));
+  }
 });

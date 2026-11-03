@@ -96,3 +96,8 @@ ui-debug.log
 /nickname-indices-*.json
 /evidencias-rollout*.json
 /cutover-readiness*.json
+
+# Private read-only Firebase Cloud Logging and D0 evidence files
+/nickname-logging-preflight*.json
+/nickname-d0-*.json
+/nickname-legacy-*.json
