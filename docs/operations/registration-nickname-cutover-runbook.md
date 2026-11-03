@@ -402,3 +402,23 @@ necessidade de revisar permissões, e `INVALID_ARGUMENT` indicam
 consulta/quoting inválido. Verificar permissão específica para logs
 privados antes de qualquer mudança de IAM. Não implantar Rules ou
 habilitar Data Access por causa de um pré-diagnóstico isolado.
+
+## Regressão corrigida — Cloud Logging no Windows
+
+No Windows, a execução de `gcloud.cmd` via Node com
+`spawnSync(..., { shell: true })` pode interpretar
+`AND`, `OR`, parênteses e aspas de um filtro Cloud Logging de
+modo diferente do PowerShell interativo. O script agora invoca
+`powershell.exe` sem shell intermediário do Node, protegendo cada
+argumento como literal de PowerShell, e usa
+`log_id("cloudaudit.googleapis.com/data_access")` em vez de
+codificação de barra `%2F`.
+
+Há teste de integração **Windows**, executado no CI com `gcloud.cmd`
+simulado localmente: nenhuma credencial do Google Cloud é usada.
+O teste verifica que a consulta complexa e as flags chegam intactas,
+sem gravação ou deploy. Se `sources.writeSample` ou
+`sources.deniedSample` ainda não for `ok`, investigar a categoria
+de falha sem inferir zero tentativas. Mesmo com código zero e nenhuma
+linha retornada, a ausência de logs **não certifica** cobertura,
+retrospectivamente ou durante a janela de 30 dias.

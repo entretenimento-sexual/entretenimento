@@ -1,6 +1,6 @@
 // Opt-in read-only gcloud preflight. Does not enable logging, write Firestore,
 // change IAM, deploy Functions/Rules, or output raw log entries/principal data.
-import { spawnSync } from 'node:child_process';
+import { spawnReadOnlyGcloud } from './nickname-gcloud-invocation.mjs';
 import {
   assessNicknameFirestoreLoggingPreflight, FIRESTORE_WRITE_METHODS,
   classifyNicknameLoggingCliFailure,
@@ -14,13 +14,8 @@ if (process.env.FIRESTORE_EMULATOR_HOST) {
   throw new Error('Pré-diagnóstico de Cloud Logging não é compatível com emulador.');
 }
 const sources = {};
-const binary = process.platform === 'win32' ? 'gcloud.cmd' : 'gcloud';
-
 function runGcloud(name, args) {
-  const result = spawnSync(binary, ['--quiet', ...args], {
-    encoding: 'utf8', timeout: 30_000, maxBuffer: 2 * 1024 * 1024,
-    shell: process.platform === 'win32', windowsHide: true,
-  });
+  const result = spawnReadOnlyGcloud(args);
   sources[name] = result.error || result.status !== 0
     ? classifyNicknameLoggingCliFailure({
       errorCode: result.error?.code,
@@ -63,7 +58,7 @@ const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 const methods = FIRESTORE_WRITE_METHODS.map(method =>
   'protoPayload.methodName="' + method + '"').join(' OR ');
 const commonFilter = [
-  'logName:"cloudaudit.googleapis.com%2Fdata_access"',
+  'log_id("cloudaudit.googleapis.com/data_access")',
   'protoPayload.serviceName="firestore.googleapis.com"',
   '(' + methods + ')',
   'timestamp>="' + since + '"',

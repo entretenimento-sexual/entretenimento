@@ -1,0 +1,29 @@
+name: Registration Nickname Cloud CLI Windows
+on:
+  push:
+    paths:
+      - '.github/workflows/registration-nickname-logging-cli-windows.yml'
+      - 'scripts/maintenance/nickname-gcloud-invocation.mjs'
+      - 'scripts/maintenance/check-nickname-firestore-logging-readonly.mjs'
+      - 'scripts/tests/nickname-gcloud-invocation.policy.test.mjs'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: nickname-cloud-cli-windows
+  cancel-in-progress: true
+
+jobs:
+  windows-cli:
+    name: Validate local Windows Cloud CLI quoting (no cloud access)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Verify Cloud CLI filter is preserved by PowerShell and CMD
+        run: node --test scripts/tests/nickname-gcloud-invocation.policy.test.mjs
