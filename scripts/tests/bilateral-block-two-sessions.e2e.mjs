@@ -177,6 +177,8 @@ try {
   const bOwnBlocks = observeOwnBlocks(b, bUid);
   const aChat = observeDocument(a, 'direct_chat_access/' + aUid + '/peers/' + bUid);
   const bChat = observeDocument(b, 'direct_chat_access/' + bUid + '/peers/' + aUid);
+  const aMedia = observeDocument(a, 'public_media_access/' + aUid + '/owners/' + bUid);
+  const bMedia = observeDocument(b, 'public_media_access/' + bUid + '/owners/' + aUid);
   await waitAvailable('chat A inicialmente liberado', aChat, true);
   await waitAvailable('chat B inicialmente liberado', bChat, true);
   await until('listas próprias iniciais', () =>
@@ -188,6 +190,13 @@ try {
   assert.equal((await aBlock({ targetUid: bUid })).data.status, 'blocked');
   await waitAvailable('chat A revogado', aChat, false);
   await waitAvailable('chat B revogado', bChat, false);
+  await waitAvailable('mídia A revogada', aMedia, false);
+  await waitAvailable('mídia B revogada', bMedia, false);
+  for (const state of [latest(aChat), latest(bChat), latest(aMedia), latest(bMedia)]) {
+    for (const field of ['blockedByUid', 'actorUid', 'direction', 'reason']) {
+      assert.equal(state[field], undefined, 'Projeção privada não expõe ' + field);
+    }
+  }
   await until('bloqueio próprio A no outro cliente', () => latest(aOwnBlocks),
     (value) => Array.isArray(value) && value.includes(bUid));
   assert.deepEqual(latest(bOwnBlocks), [], 'B não recebe a identidade de quem bloqueou');
@@ -218,12 +227,16 @@ try {
   await aUnblock({ targetUid: bUid });
   await waitAvailable('chat A segue revogado pelo bloqueio inverso', aChat, false);
   await waitAvailable('chat B segue revogado pelo bloqueio inverso', bChat, false);
+  await waitAvailable('mídia A segue revogada pelo bloqueio inverso', aMedia, false);
+  await waitAvailable('mídia B segue revogada pelo bloqueio inverso', bMedia, false);
   assert.deepEqual(await lookup(aDiscovery, bUid), []);
   assert.deepEqual(await lookup(bDiscovery, aUid), []);
 
   await bUnblock({ targetUid: aUid });
   await waitAvailable('chat A restaurado', aChat, true);
   await waitAvailable('chat B restaurado', bChat, true);
+  await waitAvailable('mídia A restaurada', aMedia, true);
+  await waitAvailable('mídia B restaurada', bMedia, true);
   await until('listas de bloqueio limpas', () =>
     [latest(aOwnBlocks), latest(bOwnBlocks)],
     ([left, right]) => Array.isArray(left) && left.length === 0
