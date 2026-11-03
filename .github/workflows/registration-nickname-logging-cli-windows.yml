@@ -6,6 +6,9 @@ on:
       - 'scripts/maintenance/nickname-gcloud-invocation.mjs'
       - 'scripts/maintenance/check-nickname-firestore-logging-readonly.mjs'
       - 'scripts/tests/nickname-gcloud-invocation.policy.test.mjs'
+      - 'scripts/maintenance/nickname-firestore-audit-inheritance.policy.mjs'
+      - 'scripts/maintenance/check-nickname-firestore-audit-inheritance-readonly.mjs'
+      - 'scripts/tests/nickname-firestore-audit-inheritance.policy.test.mjs'
       - 'package.json'
   workflow_dispatch:
 
@@ -26,4 +29,6 @@ jobs:
         with:
           node-version: '22'
       - name: Verify Cloud CLI filter is preserved by PowerShell and CMD
-        run: node --test scripts/tests/nickname-gcloud-invocation.policy.test.mjs
+        run: |
+          node --test scripts/tests/nickname-gcloud-invocation.policy.test.mjs
+          node --test scripts/tests/nickname-firestore-audit-inheritance.policy.test.mjs

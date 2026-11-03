@@ -101,3 +101,6 @@ ui-debug.log
 /nickname-logging-preflight*.json
 /nickname-d0-*.json
 /nickname-legacy-*.json
+
+# Cloud audit inheritance inventory - do not commit private operations reports
+/nickname-audit-inheritance*.json

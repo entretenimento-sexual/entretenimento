@@ -432,3 +432,53 @@ PowerShell antes de atravessar o wrapper. O teste em Windows impede
 regressões desse detalhe crítico para a sintaxe do filtro de Cloud
 Logging. Não alterar a configuração de logs com base no resultado de
 um teste de quoting.
+
+## P0 — inventário da auditoria herdada (não altera o Firebase)
+
+Data Access `DATA_WRITE` pode ser configurado no projeto, pasta ou
+organização e herdar permissões de logging; o IAM da conta pode não ter
+autorização para consultar políticas de entidades superiores. Portanto,
+`auditConfigs` ausente na política do projeto **não comprova ausência
+de auditoria efetiva herdada**.
+
+Nova verificação de leitura do Google Cloud Resource Manager:
+
+```powershell
+cd C:\entretenimento
+$env:FIREBASE_PROJECT_ID = 'entretenimento-sexual'
+npm run nickname:audit-inheritance-readonly
+```
+
+O comando consulta `projects describe`, `projects get-ancestors`
+e, somente após conferir o mesmo projeto e identificador numérico,
+`resource-manager folders get-iam-policy` e
+`organizations get-iam-policy` nos ancestrais encontrados.
+A saída contém apenas contadores, tipos de ancestrais, estados de
+cobertura e flags de `DATA_WRITE`, **nunca** identificadores de
+organização, de pasta, principals, e-mails ou políticas completas.
+`INCOMPLETE` significa leitura negada, formato incompatível ou
+identidade não verificada; não presumir configuração ausente.
+`INVENTORY_COMPLETE_REVIEW_REQUIRED` indica apenas que a cadeia
+consultável foi enumerada, sem autorizar D0 nem qualquer deploy.
+
+**Portões antes de habilitar DATA_WRITE:**
+
+1. Revisar relatórios do projeto e dos pais, herdados ou não.
+2. Verificar roteamento/exclusões do sink `_Default` e outros sinks,
+   retenção, estimativa de custo real e quem pode consultar logs privados.
+3. Tratar logs Firestore como confidenciais: o Google avisa que
+   `thirdPartyPrincipal` pode incluir cabeçalho e payload de JWT
+   de Firebase Authentication. Não salvar JSON bruto em relatórios,
+   repositórios, tickets ou canais de suporte.
+4. Planejar habilitação de `DATA_WRITE` **apenas**
+   para `datastore.googleapis.com`; não ativar `DATA_READ`
+   indiscriminadamente. Avaliar volume e privacidade antes.
+5. Após aprovação explícita e testes em homologação, comprovar que
+   os caminhos de cadastro/índice, tentativas negadas e identificação
+   de clientes antigos são observáveis com evidência independente.
+6. Exigir retenção aprovada de pelo menos 31 dias, evitando alterações
+   destrutivas de logs anteriores. Não iniciar D0 retroativamente.
+
+As consultas são somente leitura. O script não altera IAM, buckets,
+sinks, Cloud Functions ou Rules. A decisão operacional continua
+`NO-GO` até a comprovação e aprovação manual.
