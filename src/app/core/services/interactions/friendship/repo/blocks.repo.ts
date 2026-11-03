@@ -16,7 +16,7 @@ import {
   query,
   where,
 } from '@angular/fire/firestore';
-import { map, Observable, throwError } from 'rxjs';
+import { defer, map, Observable, throwError } from 'rxjs';
 
 import {
   BlockedUserActive,
@@ -48,8 +48,13 @@ export class BlocksRepo extends FirestoreRepoBase {
       return throwError(() => new Error('Par inválido para leitura de bloqueio.'));
     }
 
-    return this.inCtx$(() =>
-      docData(doc(this.db, 'users', owner, 'blocks', target))
+    // FirestoreRepoBase.inCtx$ may infer Observable<Observable<T>> for a
+    // listener. Use inCtxSync only to construct it inside Angular injection
+    // context, then subscribe to the real docData stream with defer.
+    return defer(() =>
+      this.inCtxSync(() =>
+        docData(doc(this.db, 'users', owner, 'blocks', target))
+      )
     ).pipe(
       map((snapshot) => snapshot?.['isBlocked'] === true)
     );
