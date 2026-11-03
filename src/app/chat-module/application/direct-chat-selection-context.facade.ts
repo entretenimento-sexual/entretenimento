@@ -64,28 +64,37 @@ export class DirectChatSelectionContextFacade {
     return combineLatest([
       this.directChatFacade.selectedChat$,
       currentUid$,
-      this.activePeerUid$,
+      this.selectedChatId$,
+      this.selectedType$,
     ]).pipe(
-      map(([chat, currentUid, activePeerUid]) => {
-        const safeActivePeerUid = (activePeerUid ?? '').trim();
-        if (safeActivePeerUid) {
-          return safeActivePeerUid;
-        }
-
-        const safeCurrentUid = (currentUid ?? '').trim();
-        if (!safeCurrentUid) {
+      map(([chat, currentUid, selectedChatId, selectedType]) => {
+        const ownerUid = String(currentUid ?? '').trim();
+        const chatId = String(selectedChatId ?? '').trim();
+        // Metadata supplied by a card or URL is never authoritative for
+        // composer permissions. The currently selected canonical chat must
+        // confirm both participants before its peer is considered known.
+        if (
+          selectedType !== 'chat' ||
+          !ownerUid ||
+          !chatId ||
+          String(chat?.id ?? '').trim() !== chatId
+        ) {
           return null;
         }
 
         const participants = Array.isArray(chat?.participants)
-          ? chat.participants
+          ? chat.participants.map((uid) => String(uid ?? '').trim())
           : [];
+        if (
+          participants.length !== 2 ||
+          !participants.every(Boolean) ||
+          participants[0] === participants[1] ||
+          !participants.includes(ownerUid)
+        ) {
+          return null;
+        }
 
-        return (
-          participants
-            .map((uid) => String(uid ?? '').trim())
-            .find((uid) => !!uid && uid !== safeCurrentUid) ?? null
-        );
+        return participants.find((uid) => uid !== ownerUid) ?? null;
       }),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
@@ -98,6 +107,15 @@ export class DirectChatSelectionContextFacade {
   ): void {
     const safeChatId = String(chatId ?? '').trim() || null;
     const safeType = type ?? null;
+
+    // Never carry a previous conversation's name/photo/UID into another
+    // thread, including deep links and session-level selection changes.
+    if (
+      this.selectedChatIdSignal() !== safeChatId ||
+      this.selectedTypeSignal() !== safeType
+    ) {
+      this.clearPeer();
+    }
 
     this.selectedChatIdSignal.set(safeChatId);
     this.selectedTypeSignal.set(safeType);
@@ -150,6 +168,8 @@ export class DirectChatSelectionContextFacade {
         const safePeerUid = String(peerUid ?? '').trim();
 
         if (selectedType !== 'chat' || !safePeerUid) {
+          // Keep the header empty when there is no confirmed conversation.
+          this.clearPeer();
           return of(void 0);
         }
 
@@ -173,11 +193,19 @@ export class DirectChatSelectionContextFacade {
       return of(void 0);
     }
 
+    if (this.activePeerUidSignal() !== safePeerUid) {
+      this.clearPeer();
+    }
     this.activePeerUidSignal.set(safePeerUid);
 
     return this.navigationOrchestrator.resolvePeer$(safePeerUid).pipe(
       take(1),
       tap((peer) => {
+        // An older lookup must not paint a name or photo on a newly
+        // selected conversation, even if the source ignores cancellation.
+        if (this.activePeerUidSignal() !== safePeerUid) {
+          return;
+        }
         this.activePeerNameSignal.set(
           peer?.name ||
             this.activePeerNameSignal() ||
