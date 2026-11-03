@@ -91,3 +91,38 @@ Angular, Firestore Rules e reconciliação de chat do Quality Gate.
 Discovery aberta, sem leituras por card. A limpeza é local/IndexedDB.
 O refetch após alteração gera uma consulta backend adicional e deve ser
 medido em homologação. Não ativa auditoria DATA_WRITE paga.
+
+## Regressão de bloqueio bilateral entre duas sessões (03/11/2026)
+
+O teste `scripts/tests/bilateral-block-two-sessions.e2e.mjs` utiliza dois
+aplicativos Firebase com autenticação independente, Firestore Rules e Cloud
+Functions **reais dos emuladores descartáveis**. É incorporado ao Quality Gate
+como etapa obrigatória; não usa `.emulator-data`, projeto real ou credenciais
+externas. Executar isoladamente com:
+
+```bash
+npm run test:friendship:bilateral:e2e
+```
+
+**Critérios verificáveis:**
+
+- A e B conseguem consultar os perfis elegíveis e abrir/enviar mensagem
+  na conversa 1:1 já consentida, antes do bloqueio.
+- A bloqueia B por callable autenticada: uma única consulta própria de
+  bloqueios de A observa a alteração; as projeções privadas de chat de
+  **ambos** ficam `available=false`, sem detalhes de direção ou motivo.
+- B não lê `users/A/blocks/B`. Novas páginas de descoberta vindas do
+  backend omitem o par nas duas direções; a Rule nega `get` dos perfis
+  públicos; tentativas de chat com token prévio são revalidadas/negadas.
+- O histórico anterior continua preservado; o bloqueio contrário de B
+  prevalece mesmo se A desbloquear; restaurar os dois lados reabilita
+  apenas os acessos autorizados pelo backend.
+- O teste mantém os observadores de chat por par e a lista única de
+  bloqueios próprios. Não adiciona consultas/listeners por cartão.
+
+**Limite de garantia:** esta regressão integra SDKs, tokens, Rules e Functions;
+ela **não** substitui a inspeção visual em dois navegadores do Angular nem
+promete notificação instantânea de bloqueios **recebidos** na descoberta.
+A UI recebe bloqueios próprios reativamente; bloqueios recebidos dependem de
+revalidação/backend e das projeções autorizadas. Falha do E2E bloqueia o
+Quality Gate, sem autorizar deploy.
