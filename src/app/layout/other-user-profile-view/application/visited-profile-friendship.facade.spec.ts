@@ -56,7 +56,7 @@ describe('VisitedProfileFriendshipFacade', () => {
       isFriend: true,
       hasPendingOutboundRequest: false,
       statusVerified: true,
-      isBlocked: false,
+      blockedByViewer: false,
     });
   });
 
@@ -72,7 +72,7 @@ describe('VisitedProfileFriendshipFacade', () => {
       isFriend: false,
       hasPendingOutboundRequest: true,
       statusVerified: true,
-      isBlocked: false,
+      blockedByViewer: false,
     });
   });
 
@@ -83,7 +83,7 @@ describe('VisitedProfileFriendshipFacade', () => {
         isFriend: false,
         hasPendingOutboundRequest: false,
         statusVerified: false,
-        isBlocked: false,
+        blockedByViewer: false,
       });
     expect(watchOutboundRequests).not.toHaveBeenCalled();
     expect(watchFriends).not.toHaveBeenCalled();
@@ -99,7 +99,7 @@ describe('VisitedProfileFriendshipFacade', () => {
       isFriend: false,
       hasPendingOutboundRequest: false,
       statusVerified: false,
-      isBlocked: false,
+      blockedByViewer: false,
     });
     expect(report).toHaveBeenCalledWith(error, {
       feature: 'profile-view',
@@ -129,7 +129,7 @@ describe('VisitedProfileFriendshipFacade', () => {
     const { facade, report } = setup({ blockedError: new Error('permission denied') });
     const { values, subscription } = collect(facade);
     expect(values.at(-1)?.statusVerified).toBe(false);
-    expect(values.at(-1)?.isBlocked).toBe(false);
+    expect(values.at(-1)?.blockedByViewer).toBe(false);
     expect(report).toHaveBeenCalledWith(
       expect.any(Error),
       expect.objectContaining({
@@ -147,7 +147,7 @@ describe('VisitedProfileFriendshipFacade', () => {
       isFriend: false,
       hasPendingOutboundRequest: false,
       statusVerified: true,
-      isBlocked: true,
+      blockedByViewer: true,
     });
     subscription.unsubscribe();
   });
@@ -160,7 +160,7 @@ describe('VisitedProfileFriendshipFacade', () => {
       isFriend: false,
       hasPendingOutboundRequest: false,
       statusVerified: false,
-      isBlocked: false,
+      blockedByViewer: false,
     }]);
     pendingBlocked$.next(false);
     expect(values.at(-1)?.statusVerified).toBe(true);
@@ -176,19 +176,19 @@ describe('VisitedProfileFriendshipFacade', () => {
     });
     const { values, subscription } = collect(facade);
     expect(values.at(-1)?.isFriend).toBe(true);
-    expect(values.at(-1)?.isBlocked).toBe(false);
+    expect(values.at(-1)?.blockedByViewer).toBe(false);
 
     blocked$.next(true);
     expect(values.at(-1)).toEqual({
       isFriend: false,
       hasPendingOutboundRequest: false,
       statusVerified: true,
-      isBlocked: true,
+      blockedByViewer: true,
     });
 
     blocked$.next(false);
     expect(values.at(-1)?.isFriend).toBe(true);
-    expect(values.at(-1)?.isBlocked).toBe(false);
+    expect(values.at(-1)?.blockedByViewer).toBe(false);
     expect(watchBlocked).toHaveBeenCalledWith('viewer', 'target');
     subscription.unsubscribe();
   });

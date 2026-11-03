@@ -71,7 +71,7 @@ import { VisitedProfileAffinityPresenter } from './application/visited-profile-a
 interface FriendshipInteractionState {
   statusVerified: boolean;
   isFriend: boolean;
-  isBlocked: boolean;
+  blockedByViewer: boolean;
   canSendFriendRequest: boolean;
   friendRequestIcon: string;
   friendRequestLabel: string;
@@ -351,14 +351,14 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       .pipe(
         take(1),
         switchMap((state) =>
-          state.statusVerified && state.isFriend && !state.isBlocked
+          state.statusVerified && state.isFriend && !state.blockedByViewer
             ? this.interactionOrchestrator.prepareDirectChat$(targetUid)
             : of(null)
         ),
         // An already dispatched callable remains protected by the backend;
         // suppress stale navigation after a revoked connection.
         takeUntil(this.friendshipInteractionState$.pipe(
-          filter((state) => !state.statusVerified || !state.isFriend || state.isBlocked)
+          filter((state) => !state.statusVerified || !state.isFriend || state.blockedByViewer)
         )),
         takeUntil(this.profileNavigationAwayFrom$(targetUid)),
         finalize(() => {
@@ -452,7 +452,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       return {
         statusVerified: false,
         isFriend: false,
-        isBlocked: false,
+        blockedByViewer: false,
         canSendFriendRequest: false,
         friendRequestIcon: 'fas fa-rotate',
         friendRequestLabel: 'Verificar conexão',
@@ -461,11 +461,11 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       };
     }
 
-    if (relation.isBlocked) {
+    if (relation.blockedByViewer) {
       return {
         statusVerified: true,
         isFriend: false,
-        isBlocked: true,
+        blockedByViewer: true,
         canSendFriendRequest: false,
         friendRequestIcon: 'fas fa-ban',
         friendRequestLabel: 'Interação indisponível',
@@ -478,7 +478,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       return {
         statusVerified: true,
         isFriend: true,
-        isBlocked: false,
+        blockedByViewer: false,
         canSendFriendRequest: false,
         friendRequestIcon: 'fas fa-user-check',
         friendRequestLabel: 'Conectados',
@@ -491,7 +491,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       return {
         statusVerified: true,
         isFriend: false,
-        isBlocked: false,
+        blockedByViewer: false,
         canSendFriendRequest: false,
         friendRequestIcon: 'fas fa-clock',
         friendRequestLabel: 'Interesse enviado',
@@ -503,7 +503,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     return {
       statusVerified: true,
       isFriend: false,
-      isBlocked: false,
+      blockedByViewer: false,
       canSendFriendRequest: !!safeTargetUid,
       friendRequestIcon: 'fas fa-heart',
       friendRequestLabel: 'Mostrar interesse',

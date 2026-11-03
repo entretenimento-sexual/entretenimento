@@ -17,14 +17,14 @@ export interface VisitedProfileFriendshipRelation {
   hasPendingOutboundRequest: boolean;
   /** Unknown on partial observer failure; never grant an action by default. */
   statusVerified: boolean;
-  isBlocked: boolean;
+  blockedByViewer: boolean;
 }
 
 const EMPTY_RELATION: VisitedProfileFriendshipRelation = {
   isFriend: false,
   hasPendingOutboundRequest: false,
   statusVerified: false,
-  isBlocked: false,
+  blockedByViewer: false,
 };
 
 @Injectable()
@@ -99,24 +99,24 @@ export class VisitedProfileFriendshipFacade {
           ),
         ]).pipe(
           map(([outboundRequests, friends, blocked]) => {
-            const isBlocked = blocked === true;
+            const blockedByViewer = blocked === true;
             return {
               viewerUid: safeViewerUid,
               targetUid: safeTargetUid,
               relation: {
                 // A known outgoing block disables all social actions.
                 // Failure/unknown never becomes an inferred permission.
-                statusVerified: isBlocked || (
+                statusVerified: blockedByViewer || (
                   typeof blocked === 'boolean' &&
                   Array.isArray(outboundRequests) &&
                   Array.isArray(friends)
                 ),
-                isBlocked,
-                isFriend: !isBlocked && (friends ?? []).some(
+                blockedByViewer,
+                isFriend: !blockedByViewer && (friends ?? []).some(
                   (friend) =>
                     String(friend?.friendUid ?? '').trim() === safeTargetUid
                 ),
-                hasPendingOutboundRequest: !isBlocked && (outboundRequests ?? []).some(
+                hasPendingOutboundRequest: !blockedByViewer && (outboundRequests ?? []).some(
                   (request) =>
                     String(request?.targetUid ?? '').trim() === safeTargetUid &&
                     request?.status === 'pending'
@@ -142,7 +142,7 @@ export class VisitedProfileFriendshipFacade {
           a.relation.isFriend === b.relation.isFriend &&
           a.relation.hasPendingOutboundRequest === b.relation.hasPendingOutboundRequest &&
           a.relation.statusVerified === b.relation.statusVerified &&
-          a.relation.isBlocked === b.relation.isBlocked
+          a.relation.blockedByViewer === b.relation.blockedByViewer
       ),
       map(({ relation }) => relation),
       shareReplay({ bufferSize: 1, refCount: true })
