@@ -56,7 +56,11 @@ export class VisitedProfileFriendshipFacade {
           !safeTargetUid ||
           safeViewerUid === safeTargetUid
         ) {
-          return of(EMPTY_RELATION);
+          return of({
+            viewerUid: safeViewerUid,
+            targetUid: safeTargetUid,
+            relation: EMPTY_RELATION,
+          });
         }
 
         return combineLatest([
@@ -82,28 +86,38 @@ export class VisitedProfileFriendshipFacade {
           ),
         ]).pipe(
           map(([outboundRequests, friends]) => ({
-            // An unreadable list is UNKNOWN, not evidence of an empty
-            // relationship. Even a partial failure disables social actions.
-            statusVerified: Array.isArray(outboundRequests) &&
-              Array.isArray(friends),
-            isFriend: (friends ?? []).some(
-              (friend) =>
-                String(friend?.friendUid ?? '').trim() === safeTargetUid
-            ),
-            hasPendingOutboundRequest: (outboundRequests ?? []).some(
-              (request) =>
-                String(request?.targetUid ?? '').trim() === safeTargetUid &&
-                request?.status === 'pending'
-            ),
+            viewerUid: safeViewerUid,
+            targetUid: safeTargetUid,
+            relation: {
+              // An unreadable list is UNKNOWN, not evidence of an empty
+              // relationship. Even a partial failure disables social actions.
+              statusVerified: Array.isArray(outboundRequests) &&
+                Array.isArray(friends),
+              isFriend: (friends ?? []).some(
+                (friend) =>
+                  String(friend?.friendUid ?? '').trim() === safeTargetUid
+              ),
+              hasPendingOutboundRequest: (outboundRequests ?? []).some(
+                (request) =>
+                  String(request?.targetUid ?? '').trim() === safeTargetUid &&
+                  request?.status === 'pending'
+              ),
+            },
           }))
         );
       }),
+      // Compare both the relationship and its source identities. A change
+      // of viewer or profile must notify even if the flags are identical;
+      // otherwise the UI may keep a previous profile's accessibility label.
       distinctUntilChanged(
         (a, b) =>
-          a.isFriend === b.isFriend &&
-          a.hasPendingOutboundRequest === b.hasPendingOutboundRequest &&
-          a.statusVerified === b.statusVerified
+          a.viewerUid === b.viewerUid &&
+          a.targetUid === b.targetUid &&
+          a.relation.isFriend === b.relation.isFriend &&
+          a.relation.hasPendingOutboundRequest === b.relation.hasPendingOutboundRequest &&
+          a.relation.statusVerified === b.relation.statusVerified
       ),
+      map(({ relation }) => relation),
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }

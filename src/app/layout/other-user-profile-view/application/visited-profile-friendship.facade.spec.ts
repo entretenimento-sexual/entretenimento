@@ -128,5 +128,44 @@ describe('VisitedProfileFriendshipFacade', () => {
     expect(states).toEqual([false, true]);
     expect(watchFriends).toHaveBeenCalledTimes(2);
     subscription.unsubscribe();
+  });  it('re-emite um estado igual ao mudar de perfil sem repetir eventos dentro do mesmo perfil', () => {
+    const { facade, watchFriends, watchOutboundRequests } = setup();
+    const target$ = new BehaviorSubject('profile-a');
+    const relations: Array<{ statusVerified: boolean; isFriend: boolean }> = [];
+    const sub = facade.observe$(of('viewer'), target$).subscribe((relation) => {
+      relations.push({
+        statusVerified: relation.statusVerified,
+        isFriend: relation.isFriend,
+      });
+    });
+
+    expect(relations).toEqual([{ statusVerified: true, isFriend: false }]);
+    facade.refresh();
+    // Refreshing a confirmed, unchanged relation need not repaint the UI.
+    expect(relations).toHaveLength(1);
+
+    target$.next('profile-b');
+    // A new profile must emit even if its relationship data is identical.
+    // The component depends on this emission to refresh aria-labels.
+    expect(relations).toEqual([
+      { statusVerified: true, isFriend: false },
+      { statusVerified: true, isFriend: false },
+    ]);
+    expect(watchFriends).toHaveBeenCalledTimes(3);
+    expect(watchOutboundRequests).toHaveBeenCalledTimes(3);
+    sub.unsubscribe();
+  });
+
+  it('não mantém estado desconhecido do perfil anterior após troca de alvo', () => {
+    const { facade, watchFriends } = setup({ friendsError: new Error('offline') });
+    const target$ = new BehaviorSubject('profile-a');
+    const verified: boolean[] = [];
+    const sub = facade.observe$(of('viewer'), target$)
+      .subscribe(({ statusVerified }) => verified.push(statusVerified));
+
+    target$.next('profile-b');
+    expect(verified).toEqual([false, false]);
+    expect(watchFriends).toHaveBeenCalledTimes(2);
+    sub.unsubscribe();
   });
 });
