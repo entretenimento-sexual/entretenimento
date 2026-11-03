@@ -128,7 +128,9 @@ describe('VisitedProfileFriendshipFacade', () => {
     expect(states).toEqual([false, true]);
     expect(watchFriends).toHaveBeenCalledTimes(2);
     subscription.unsubscribe();
-  });  it('re-emite um estado igual ao mudar de perfil sem repetir eventos dentro do mesmo perfil', () => {
+  });
+
+  it('re-emite um estado igual ao mudar de perfil sem repetir eventos dentro do mesmo perfil', () => {
     const { facade, watchFriends, watchOutboundRequests } = setup();
     const target$ = new BehaviorSubject('profile-a');
     const relations: Array<{ statusVerified: boolean; isFriend: boolean }> = [];
