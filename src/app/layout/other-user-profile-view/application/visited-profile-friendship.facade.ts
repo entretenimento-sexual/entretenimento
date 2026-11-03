@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Observable, combineLatest, of } from 'rxjs';
+import { BehaviorSubject, Observable, combineLatest, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -14,15 +14,25 @@ import { FriendshipService } from 'src/app/core/services/interactions/friendship
 export interface VisitedProfileFriendshipRelation {
   isFriend: boolean;
   hasPendingOutboundRequest: boolean;
+  /** Unknown on partial observer failure; never grant an action by default. */
+  statusVerified: boolean;
 }
 
 const EMPTY_RELATION: VisitedProfileFriendshipRelation = {
   isFriend: false,
   hasPendingOutboundRequest: false,
+  statusVerified: false,
 };
 
 @Injectable()
 export class VisitedProfileFriendshipFacade {
+  private readonly refreshSubject = new BehaviorSubject(0);
+
+  /** Re-subscribe to both relationship sources after a recoverable error. */
+  refresh(): void {
+    this.refreshSubject.next(this.refreshSubject.value + 1);
+  }
+
   constructor(
     private readonly friendshipService: FriendshipService,
     private readonly applicationError: ApplicationErrorService
@@ -35,6 +45,7 @@ export class VisitedProfileFriendshipFacade {
     return combineLatest([
       viewerUid$.pipe(distinctUntilChanged()),
       targetUid$.pipe(distinctUntilChanged()),
+      this.refreshSubject,
     ]).pipe(
       switchMap(([viewerUid, targetUid]) => {
         const safeViewerUid = String(viewerUid ?? '').trim();
@@ -56,7 +67,7 @@ export class VisitedProfileFriendshipFacade {
                 'VisitedProfileFriendshipFacade.watchOutboundRequests',
                 safeTargetUid
               );
-              return of([]);
+              return of(null);
             })
           ),
           this.friendshipService.watchFriends(safeViewerUid).pipe(
@@ -66,11 +77,15 @@ export class VisitedProfileFriendshipFacade {
                 'VisitedProfileFriendshipFacade.watchFriends',
                 safeTargetUid
               );
-              return of([]);
+              return of(null);
             })
           ),
         ]).pipe(
           map(([outboundRequests, friends]) => ({
+            // An unreadable list is UNKNOWN, not evidence of an empty
+            // relationship. Even a partial failure disables social actions.
+            statusVerified: Array.isArray(outboundRequests) &&
+              Array.isArray(friends),
             isFriend: (friends ?? []).some(
               (friend) =>
                 String(friend?.friendUid ?? '').trim() === safeTargetUid
@@ -86,7 +101,8 @@ export class VisitedProfileFriendshipFacade {
       distinctUntilChanged(
         (a, b) =>
           a.isFriend === b.isFriend &&
-          a.hasPendingOutboundRequest === b.hasPendingOutboundRequest
+          a.hasPendingOutboundRequest === b.hasPendingOutboundRequest &&
+          a.statusVerified === b.statusVerified
       ),
       shareReplay({ bufferSize: 1, refCount: true })
     );

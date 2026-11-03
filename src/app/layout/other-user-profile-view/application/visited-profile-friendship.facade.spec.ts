@@ -1,4 +1,4 @@
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { VisitedProfileFriendshipFacade } from './visited-profile-friendship.facade';
@@ -40,6 +40,7 @@ describe('VisitedProfileFriendshipFacade', () => {
     ).resolves.toEqual({
       isFriend: true,
       hasPendingOutboundRequest: false,
+      statusVerified: true,
     });
   });
 
@@ -53,6 +54,7 @@ describe('VisitedProfileFriendshipFacade', () => {
     ).resolves.toEqual({
       isFriend: false,
       hasPendingOutboundRequest: true,
+      statusVerified: true,
     });
   });
 
@@ -64,6 +66,7 @@ describe('VisitedProfileFriendshipFacade', () => {
     ).resolves.toEqual({
       isFriend: false,
       hasPendingOutboundRequest: false,
+      statusVerified: false,
     });
 
     expect(watchOutboundRequests).not.toHaveBeenCalled();
@@ -81,6 +84,7 @@ describe('VisitedProfileFriendshipFacade', () => {
     ).resolves.toEqual({
       isFriend: false,
       hasPendingOutboundRequest: false,
+      statusVerified: false,
     });
 
     expect(report).toHaveBeenCalledWith(error, {
@@ -94,5 +98,35 @@ describe('VisitedProfileFriendshipFacade', () => {
         hasTargetUid: true,
       },
     });
+  });
+  it('bloqueia interesse caso o observador de solicitações falhe', async () => {
+    const { facade, report } = setup({
+      outboundError: new Error('requests unreadable'),
+      friends: [],
+    });
+    await expect(
+      firstValueFrom(facade.observe$(of('viewer'), of('target')))
+    ).resolves.toEqual({
+      isFriend: false,
+      hasPendingOutboundRequest: false,
+      statusVerified: false,
+    });
+    expect(report).toHaveBeenCalledOnce();
+  });
+
+  it('pode recuperar o estado de conexão por refresh sem trocar o UID', () => {
+    const { facade, watchFriends } = setup();
+    const target$ = new BehaviorSubject('target');
+    vi.mocked(watchFriends)
+      .mockImplementationOnce(() => throwError(() => new Error('offline')))
+      .mockImplementation(() => of([{ friendUid: 'target' }]));
+    const states: boolean[] = [];
+    const subscription = facade.observe$(of('viewer'), target$)
+      .subscribe((relation) => states.push(relation.statusVerified));
+    expect(states).toEqual([false]);
+    facade.refresh();
+    expect(states).toEqual([false, true]);
+    expect(watchFriends).toHaveBeenCalledTimes(2);
+    subscription.unsubscribe();
   });
 });

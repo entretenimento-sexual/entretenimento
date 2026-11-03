@@ -68,6 +68,7 @@ import {
 import { VisitedProfileAffinityPresenter } from './application/visited-profile-affinity.presenter';
 
 interface FriendshipInteractionState {
+  statusVerified: boolean;
   isFriend: boolean;
   canSendFriendRequest: boolean;
   friendRequestIcon: string;
@@ -326,6 +327,10 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       });
   }
 
+  retryFriendshipStatus(): void {
+    this.visitedFriendship.refresh();
+  }
+
   startDirectChat(): void {
     const targetUid = (this.uid ?? '').trim();
 
@@ -426,8 +431,21 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   ): FriendshipInteractionState {
     const safeTargetUid = (this.uid ?? '').trim();
 
+    if (!relation.statusVerified) {
+      return {
+        statusVerified: false,
+        isFriend: false,
+        canSendFriendRequest: false,
+        friendRequestIcon: 'fas fa-rotate',
+        friendRequestLabel: 'Verificar conexão',
+        friendRequestAriaLabel: `Verificar estado de conexão com ${this.displayName}`,
+        liveStatus: 'Não foi possível confirmar a conexão. Tente novamente.',
+      };
+    }
+
     if (relation.isFriend) {
       return {
+        statusVerified: true,
         isFriend: true,
         canSendFriendRequest: false,
         friendRequestIcon: 'fas fa-user-check',
@@ -439,6 +457,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
 
     if (relation.hasPendingOutboundRequest) {
       return {
+        statusVerified: true,
         isFriend: false,
         canSendFriendRequest: false,
         friendRequestIcon: 'fas fa-clock',
@@ -449,6 +468,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     }
 
     return {
+      statusVerified: true,
       isFriend: false,
       canSendFriendRequest: !!safeTargetUid,
       friendRequestIcon: 'fas fa-heart',

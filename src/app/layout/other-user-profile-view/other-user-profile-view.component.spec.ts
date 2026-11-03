@@ -332,6 +332,37 @@ describe('OtherUserProfileViewComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Pessoa B');
   });
 
+  it('não oferece interesse se o estado da amizade falhar, e permite recarregar', () => {
+    const friendship = TestBed.inject(FriendshipService);
+    const applicationError = TestBed.inject(ApplicationErrorService);
+    const query = TestBed.inject(FirestoreUserQueryService);
+    const profile = component.userProfile!;
+    vi.mocked(query.getPublicUserById$).mockImplementation((uid) =>
+      of({ ...profile, uid, nickname: 'Pessoa B' })
+    );
+    vi.mocked(friendship.watchFriends)
+      .mockImplementationOnce(() => throwError(() => new Error('network failed')))
+      .mockImplementation(() => of([]));
+
+    routeParamMap$.next(convertToParamMap({ id: 'profile-b' }));
+    fixture.detectChanges();
+
+    const actions = fixture.nativeElement.querySelector(
+      '.other-profile-page__actions'
+    ) as HTMLElement;
+    const retry = actions.querySelector('button') as HTMLButtonElement;
+    expect(retry.textContent).toContain('Verificar conexão');
+    expect(retry.getAttribute('aria-label')).toContain('Pessoa B');
+    expect(actions.textContent).not.toContain('Mostrar interesse');
+    expect(applicationError.report).toHaveBeenCalled();
+
+    retry.click();
+    fixture.detectChanges();
+
+    expect(actions.textContent).toContain('Mostrar interesse');
+    expect(vi.mocked(friendship.watchFriends)).toHaveBeenCalledTimes(3);
+  });
+
   it('cancela feedback de interesse antigo ao navegar para outro perfil', () => {
     const friendship = TestBed.inject(FriendshipService);
     const notifications = TestBed.inject(ErrorNotificationService);
