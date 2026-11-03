@@ -25,10 +25,12 @@ import {
   BehaviorSubject,
   Observable,
   combineLatest,
+  filter,
   map,
   shareReplay,
   switchMap,
   take,
+  takeUntil,
 } from 'rxjs';
 import {
   distinctUntilChanged,
@@ -308,6 +310,9 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
             interactionState.liveStatus
           )
         ),
+        // The user may navigate to another visited profile while the
+        // request is pending. Never display its old result on the new page.
+        takeUntil(this.profileNavigationAwayFrom$(targetUid)),
         finalize(() => {
           this.friendRequestBusy$.next(false);
           this.markView();
@@ -315,7 +320,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((sent) => {
-        if (sent) {
+        if (sent && this.uid === targetUid) {
           this.errorNotification.showSuccess('Interesse enviado.');
         }
       });
@@ -333,6 +338,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     this.interactionOrchestrator
       .prepareDirectChat$(targetUid)
       .pipe(
+        takeUntil(this.profileNavigationAwayFrom$(targetUid)),
         finalize(() => {
           this.directChatBusy$.next(false);
           this.markView();
@@ -340,7 +346,8 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((chatId) => {
-        if (!chatId) {
+        // A chat prepared for an old route must not open from a new profile.
+        if (!chatId || this.uid !== targetUid) {
           return;
         }
 
@@ -367,6 +374,18 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
             );
           });
       });
+  }
+
+  /**
+   * Every interaction belongs to the UID shown when the user clicked.
+   * Unsubscribing suppresses stale UI feedback/navigation. A request already
+   * committed by the backend is not reverted by client cancellation.
+   */
+  private profileNavigationAwayFrom$(targetUid: string): Observable<string> {
+    return this.bootstrapOrchestrator.observeTargetUid$().pipe(
+      filter((currentUid) => currentUid !== targetUid),
+      take(1)
+    );
   }
 
   private buildPublicIntentContextStream(): Observable<VisitedProfileIntentContextVm | null> {

@@ -3,7 +3,7 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Firestore } from '@angular/fire/firestore';
-import { ActivatedRoute, convertToParamMap, type ParamMap } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, type ParamMap } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { Store } from '@ngrx/store';
 import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
@@ -330,6 +330,70 @@ describe('OtherUserProfileViewComponent', () => {
     expect(component.uid).toBe('profile-c');
     expect(component.userProfile?.nickname).toBe('Pessoa C');
     expect(fixture.nativeElement.textContent).not.toContain('Pessoa B');
+  });
+
+  it('cancela feedback de interesse antigo ao navegar para outro perfil', () => {
+    const friendship = TestBed.inject(FriendshipService);
+    const notifications = TestBed.inject(ErrorNotificationService);
+    const query = TestBed.inject(FirestoreUserQueryService);
+    const currentProfile = component.userProfile!;
+    const pending$ = new Subject<void>();
+    vi.mocked(friendship.sendRequest).mockReturnValue(pending$.asObservable());
+    vi.mocked(query.getPublicUserById$).mockImplementation((uid) =>
+      of({ ...currentProfile, uid, nickname: 'Pessoa B' })
+    );
+
+    component.sendFriendRequest();
+    expect(component.friendRequestBusy$.value).toBe(true);
+    expect(friendship.sendRequest).toHaveBeenCalledWith(
+      viewerUid, targetUid, expect.any(String)
+    );
+
+    routeParamMap$.next(convertToParamMap({ id: 'profile-b' }));
+    fixture.detectChanges();
+
+    expect(component.uid).toBe('profile-b');
+    expect(component.friendRequestBusy$.value).toBe(false);
+    expect(pending$.observers.length).toBe(0);
+
+    // A write initiated against A could still commit remotely; the component
+    // must not claim that A's action was completed on B's screen.
+    pending$.next();
+    pending$.complete();
+    expect(notifications.showSuccess).not.toHaveBeenCalled();
+  });
+
+  it('não abre conversa do perfil anterior após uma troca de rota', () => {
+    const chat = TestBed.inject(DirectChatService);
+    const notifications = TestBed.inject(ErrorNotificationService);
+    const query = TestBed.inject(FirestoreUserQueryService);
+    const router = TestBed.inject(Router);
+    const currentProfile = component.userProfile!;
+    const pending$ = new Subject<string>();
+    vi.mocked(chat.ensureDirectChatIdWithUser$)
+      .mockReturnValue(pending$.asObservable());
+    vi.mocked(query.getPublicUserById$).mockImplementation((uid) =>
+      of({ ...currentProfile, uid, nickname: 'Pessoa B' })
+    );
+    const navigate = vi.spyOn(router, 'navigate');
+
+    component.startDirectChat();
+    expect(component.directChatBusy$.value).toBe(true);
+    expect(chat.ensureDirectChatIdWithUser$).toHaveBeenCalledWith(targetUid);
+
+    routeParamMap$.next(convertToParamMap({ id: 'profile-b' }));
+    fixture.detectChanges();
+
+    expect(component.uid).toBe('profile-b');
+    expect(component.directChatBusy$.value).toBe(false);
+    expect(pending$.observers.length).toBe(0);
+
+    pending$.next('old-profile-chat-id');
+    pending$.complete();
+    expect(notifications.showSuccess).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalledWith(
+      ['/chat'], expect.anything()
+    );
   });
 
   it('permite repetir a leitura pública do perfil atual após erro transitório', () => {
