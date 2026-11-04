@@ -1,0 +1,44 @@
+name: Discovery Legacy Backfill Guard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/maintenance/backfill-public-profile-discovery-admin.mjs'
+      - 'scripts/tests/legacy-public-profile-backfill.policy.test.mjs'
+      - '.github/workflows/discovery-legacy-backfill-guard.yml'
+  pull_request:
+    paths:
+      - 'scripts/maintenance/backfill-public-profile-discovery-admin.mjs'
+      - 'scripts/tests/legacy-public-profile-backfill.policy.test.mjs'
+      - '.github/workflows/discovery-legacy-backfill-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discovery-backfill-guard-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fail-closed:
+    name: Legacy backfill fails closed (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Validate retired legacy backfill
+        run: node --test scripts/tests/legacy-public-profile-backfill.policy.test.mjs
