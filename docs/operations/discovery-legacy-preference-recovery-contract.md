@@ -69,7 +69,7 @@ Arquivos:
 
 ### Como funciona (somente após integrar o código e sincronizar a main)
 
-O script exige `--dry-run`, projeto `entretenimento-sexual`, snapshot local não vazio em `.emulator-data`, JAR do Firestore Emulator e Java 21. Ele **não usa** o emulador principal `127.0.0.1:8080`: verifica que as portas `28080` e `29150` estão livres e inicializa **um processo filho** em `127.0.0.1:28080` com `--seed_from_export`, encerrando-o ao fim da leitura. A origem não é sobrescrita. Se as portas estiverem ocupadas, a operação é recusada sem encerrar processos alheios.
+O script exige `--dry-run`, projeto `entretenimento-sexual`, snapshot local não vazio em `.emulator-data`, JAR do Firestore Emulator e Java 21. **Pré-condição:** executar `npm run rules:build` após sincronizar a `main`, pois `firestore.rules` é gerado localmente e precisa conter o fragmento de quarentena incorporado no PR #239. O ensaio recusa o arquivo gerado desatualizado e não o atualiza automaticamente. Ele **não usa** o emulador principal `127.0.0.1:8080`: verifica que as portas `28080` e `29150` estão livres e inicializa **um processo filho** em `127.0.0.1:28080` com `--seed_from_export`, encerrando-o ao fim da leitura. A origem não é sobrescrita. Se as portas estiverem ocupadas, a operação é recusada sem encerrar processos alheios.
 
 Na raiz do projeto, após verificar `git status -sb` e a sincronização:
 
@@ -77,6 +77,8 @@ Na raiz do projeto, após verificar `git status -sb` e a sincronização:
 $original = $env:FIRESTORE_EMULATOR_HOST
 try {
     Remove-Item Env:\FIRESTORE_EMULATOR_HOST -ErrorAction SilentlyContinue
+    npm run rules:build
+    if ($LASTEXITCODE -ne 0) { throw 'Geracao das Rules nao concluida.' }
     node scripts/maintenance/rehearse-discovery-legacy-recovery-readonly.mjs --dry-run
     if ($LASTEXITCODE -ne 0) { throw 'Ensaio B1 nao concluido.' }
 } finally {
