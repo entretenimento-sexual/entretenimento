@@ -225,11 +225,11 @@ test('isolated emulator readiness does not require forbidden public profile list
     ),
     'utf8'
   );
-  assert.match(rules, /allow list:\\s*if false;/);
-  assert.match(source, /portAcceptsConnections\\(EMULATOR_PORT\\)/);
-  assert.match(source, /net\\.createConnection\\(\\{ host: '127\\.0\\.0\\.1', port \\}\\)/);
-  assert.doesNotMatch(source, /documents\\/public_profiles/);
-  assert.doesNotMatch(source, /\\bfetch\\s*\\(/);
+  assert.equal(rules.includes('allow list: if false;'), true);
+  assert.equal(source.includes('portAcceptsConnections(EMULATOR_PORT)'), true);
+  assert.equal(source.includes("net.createConnection({ host: '127.0.0.1', port })"), true);
+  assert.equal(source.includes('documents/public_profiles'), false);
+  assert.equal(source.includes('fetch('), false);
 });
 
 test('runner rejects locally generated Rules without the #239 quarantine', () => {
@@ -239,10 +239,10 @@ test('runner rejects locally generated Rules without the #239 quarantine', () =>
       new URL('../../firestore-rules/tools-rules/firestore-rules-parts.mjs', import.meta.url)
     ), 'utf8'
   );
-  assert.match(source, /RECOVERY_RULES_NOT_BUILT/);
-  assert.match(source, /legacy_discovery_preference_recovery\\.rules/);
-  assert.match(source, /match \\/legacy_discovery_preference_recovery\\/\\{ownerUid\\}/);
-  assert.match(rulesManifest, /'legacy_discovery_preference_recovery\\.rules'/);
+  assert.equal(source.includes('RECOVERY_RULES_NOT_BUILT'), true);
+  assert.equal(source.includes('legacy_discovery_preference_recovery.rules'), true);
+  assert.equal(source.includes('match /legacy_discovery_preference_recovery/{ownerUid}'), true);
+  assert.equal(rulesManifest.includes("'legacy_discovery_preference_recovery.rules'"), true);
 });
 
 test('runner never invokes Firestore write operations or emits raw snapshots', () => {
