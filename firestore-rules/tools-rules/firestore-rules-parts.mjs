@@ -57,6 +57,8 @@ export const FIRESTORE_RULE_PARTS = Object.freeze([
   // Moderação, preservação e auditoria operacional.
   'moderation_reports.rules',
   'moderation_evidence.rules',
+  // Quarentena privada de recuperação de preferências legadas (backend-only).
+  'legacy_discovery_preference_recovery.rules',
   'moderation_automation.rules',
 
   // Demais módulos.

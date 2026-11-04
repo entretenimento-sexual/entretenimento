@@ -1,0 +1,19 @@
+// =============================================================================
+// LEGACY DISCOVERY PREFERENCES — RECOVERY QUARANTINE (ISSUE #236)
+// =============================================================================
+// Future administrative retention for values found in older public_profiles.
+// This collection is not an active preference profile or a public projection.
+// NO client SDK access: not owner, linked user, moderator, or administrator.
+// Firestore server SDK bypasses Rules; any future backend writer must have its
+// own explicit authorization, per-owner validation, audit and rollback policy.
+// Neither migration nor any backend write is implemented in this stage.
+// =============================================================================
+
+match /legacy_discovery_preference_recovery/{ownerUid} {
+  allow read, write: if false;
+
+  // Deny arbitrary descendant documents, including accidental future schemas.
+  match /{nestedDocument=**} {
+    allow read, write: if false;
+  }
+}

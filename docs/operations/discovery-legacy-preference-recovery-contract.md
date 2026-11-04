@@ -36,6 +36,29 @@ A rotina consulta os campos proibidos na coleção pública e a **presença** de
 
 Teste de contrato sem emulador: `node --test scripts/tests/discovery-legacy-preferences-readonly.policy.test.mjs`.
 
+
+## Fase B0 — fronteira de quarentena privada (preparação sem migração)
+
+Esta fase reserva **apenas** o namespace `legacy_discovery_preference_recovery/{ownerUid}`, por meio do fragmento `firestore-rules/legacy_discovery_preference_recovery.rules` incluído no manifesto do build. As Firestore Rules negam `get`, `list`, `create`, `update` e `delete` a **todos os clientes**, inclusive ao proprietário e a sessões com claims administrativas; documentos descendentes também são negados. É uma coleção **backend-only**. O Admin SDK ignora Firestore Rules: o futuro writer administrativo requer verificação separada de privilégios, revisão e auditoria. **Não há escritor, callable, endpoint, tarefa de cron, migração ou deploy nesta fase**.
+
+### Modelo proposto para avaliação futura (não persistido)
+
+- **Identificador:** UID do proprietário como ID do documento; proibir ID arbitrário definido pelo cliente.
+- **Origem canônica:** `public_profiles/{ownerUid}` do snapshot validado; aceitar apenas campos explicitamente enumerados no inventário; a leitura deve ser local e em contexto administrativo confiável.
+- **Conteúdo:** preservar os arrays originais sem converter identidade, orientação, filtros, gênero ou ordem. O registro pode armazenar o payload bruto sob `legacyRaw`, somente nessa área privada.
+- **Integridade e proveniência:** registrar versão do esquema, referência de checkpoint, evidência de origem e hash de integridade **somente dentro da área privada**; não imprimir UID, hashes individualizados ou valores em logs. Dada a divergência de `createTime/updateTime` entre imports, comparar o conteúdo explicitamente, sem depender da identidade dos metadados administrativos do emulador.
+- **Estado inicial:** `PENDING_REVIEW`; **não** preencher `users/{uid}/preferences/profile`, `discoveryPreferences`, `publicSeekingGenders` ou outros campos ativos. **Não** definir `showSeekingPublicly`/`showIntentPublicly`/`showPreferenceBadges` como verdadeiro por inferência.
+- **Permissões futuras:** qualquer fluxo de consulta do proprietário deve usar uma Callable dedicada que confirme a identidade, estado da conta e elegibilidade, e retorne apenas os dados que o titular está autorizado a revisar. Nenhum cliente acessa o registro bruto por SDK diretamente.
+- **Trânsito para revisão:** exigir plano separado de retenção, consentimento explícito por campo, versionamento e provas de compatibilidade do modelo. Não inferir que `interestedInOrientations` possui correspondência 1:1 no modelo moderno.
+- **Escrita futura e rollback:** antes de qualquer gravação, validar restauração em instância isolada, regras compiladas, baseline de hashes e dry-run detalhado mas sem PII, idempotência no mesmo `ownerUid`, e verificação posterior sem apagar a origem. A exclusão pública só poderá ocorrer depois de confirmar a cópia privada e o processo de revisão. O backfill administrativo não deve ser utilizado como mecanismo de recuperação.
+- **Regras em produção:** a presença de regras em PR ou na `main` **não confirma deploy**. Mesmo após aprovar o PR, não executar operações na base remota até autorização e rollout separado, com testes.
+
+### Segurança obrigatória para o namespace de quarentena
+
+A suíte `firestore-rules/tests/legacy-discovery-preference-recovery.rules.spec.ts` semeia dados **sintéticos** ignorando regras e exige recusa de leitura, listagem, gravação, alteração e exclusão por visitante, titular, moderador, administrador com claims e sessão anônima, inclusive em documentos descendentes. Testa também ausência de exposição por collection group query. A suíte é executada pelo gate canônico `npm run test:rules`; cada PR deve passar no Quality Gate.
+
+**Aprovar a fronteira de segurança não equivale a autorizar escrever um único documento de recuperação.** A Fase B1 deve preparar uma rotina separada, testada primeiramente contra uma importação isolada e com plano de rollback.
+
 ## Fase B — recuperação privada (NÃO implementada)
 
 1. **Validar proveniência e titularidade:** confrontar os registros com o checkpoint e, se disponíveis, versões históricas; registrar apenas evidências técnicas sem copiar valores para logs.
