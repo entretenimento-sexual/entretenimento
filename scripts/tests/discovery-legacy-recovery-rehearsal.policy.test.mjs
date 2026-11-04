@@ -232,6 +232,19 @@ test('isolated emulator readiness does not require forbidden public profile list
   assert.doesNotMatch(source, /\\bfetch\\s*\\(/);
 });
 
+test('runner rejects locally generated Rules without the #239 quarantine', () => {
+  const source = readFileSync(runner, 'utf8');
+  const rulesManifest = readFileSync(
+    fileURLToPath(
+      new URL('../../firestore-rules/tools-rules/firestore-rules-parts.mjs', import.meta.url)
+    ), 'utf8'
+  );
+  assert.match(source, /RECOVERY_RULES_NOT_BUILT/);
+  assert.match(source, /legacy_discovery_preference_recovery\\.rules/);
+  assert.match(source, /match \\/legacy_discovery_preference_recovery\\/\\{ownerUid\\}/);
+  assert.match(rulesManifest, /'legacy_discovery_preference_recovery\\.rules'/);
+});
+
 test('runner never invokes Firestore write operations or emits raw snapshots', () => {
   const source = readFileSync(runner, 'utf8');
   for (const operation of [
