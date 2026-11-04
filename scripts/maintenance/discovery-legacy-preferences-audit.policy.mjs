@@ -90,7 +90,7 @@ export function makeEmptyAudit() {
     writesPerformed: 0,
     requiresSemanticReview: true,
     requiresOwnerVisibilityDecision: true,
-    checkpointMetadataVerified: false,
+    checkpointMetadataPresent: false,
   };
 }
 
