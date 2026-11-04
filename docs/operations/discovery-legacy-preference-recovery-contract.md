@@ -185,6 +185,32 @@ try {
 
 A B2.1 **não comprova** fidelidade de `createTime/updateTime` entre importações (já foram observadas divergências), persistência em produção, comportamento sob falha abrupta durante o commit, autorização de um futuro backend administrativo ou consentimento dos titulares. Uma aprovação desse ensaio é **apenas um gate técnico** para planejar a preservação privada. A exclusão dos campos legados de `public_profiles`, o uso de backfill administrativo e qualquer deploy permanecem proibidos.
 
+## Fase B2.2 — governança da retenção privada (preparação sem escritor)
+
+Módulo: `scripts/maintenance/discovery-legacy-recovery-persistence.policy.mjs`. Testes puros: `scripts/tests/discovery-legacy-recovery-persistence.policy.test.mjs`.
+
+A B2.1 confirmou **somente no Firestore Emulator isolado** a criação, leitura, idempotência e reversão: 2 registros temporários criados, 0 na segunda tentativa, 2 revertidos, 563 documentos comparados com 0 divergências de conteúdo. Isso não é autorização para copiar dados persistentemente.
+
+**Implementação desta etapa:**
+
+- Constrói, **apenas em memória**, dois *intents* privados de futura retenção, vinculados ao UID e ao digest da origem; não duplica os arrays privados no plano. Exige candidatos íntegros e exatamente 2 perfis, 5 entradas de gênero e 3 de orientação.
+- Exige formato coerente do relatório B2.1: importação isolada, idempotência, rollback completo, ausência de diferenças lógicas e export original preservado. O relatório é um **relato local estrutural, não uma prova assinada/autenticada**; um chamador malicioso poderia falsificar os campos. Um escritor futuro deverá refazer as verificações em servidor confiável.
+- Propõe **30 dias para análise**, sem criar TTL, agendador ou política legal definitiva. O prazo é uma **proposta operacional**, sujeita à revisão de necessidade, consentimento e retenção antes de qualquer persistência. Exclusão de conta deve remover também a quarentena; o fluxo de lifecycle ainda **não foi integrado** a essa nova coleção.
+- Mantém `PENDING_REVIEW`, `visibilityConsentConfirmed: false`, sem `hardRules`, sem `showSeekingPublicly`, sem migração de orientação/gênero e sem modificar `public_profiles`.
+- Retorna um relatório de pré-condições com decisão `BLOCKED` e seis bloqueadores não configuráveis pelo chamador: autenticação administrativa **verificada em backend**, autorização explícita da operação, integração ao expurgo de conta, mecanismo de expiração, escritor de auditoria backend-only e aprovação de migração/rollback persistente. O relatório de auditoria é estritamente agregado, com campos permitidos, sem UID, valores, hashes individuais ou texto livre.
+- `assertPersistentRecoveryMayExecute()` **sempre rejeita** execução persistente. Não existe CLI de persistência, callable, endpoint, trigger, cron, writer, rotina de expurgo, regra de autorização ou deploy neste commit. A ausência desses componentes é proposital.
+
+**Governança exigida para um eventual writer futuro** (não implementada aqui):
+
+1. Verificar a identidade do operador e o papel administrativo em fonte de autoridade *server-side*, conferir conta ativa e privilégios atuais, e registrar autorização específica para cada lote. Não aceitar `admin: true` nem booleanos de aprovação enviados pelo cliente como prova.
+2. Validar a origem no banco no momento da operação, cotejar o checkpoint e sua proveniência, conferir versão das Rules, hashes e conflitos; a transação deve continuar restrita à quarentena backend-only.
+3. Criar trilha de auditoria mínima com garantias de integridade e acesso interno; impedir valores sensíveis, UIDs brutos e hashes individualizados em logs/telemetria.
+4. Definir base jurídica, finalidade, retenção mínima necessária e caminho real de expiração/eliminação, incluindo exclusão da conta e solicitações de titular. O TTL de 30 dias é somente uma proposta.
+5. Testar transação e rollback **com o emulador isolado**, incluindo falhas entre cópia, verificação e exclusão, antes de considerar qualquer execução persistente.
+6. Exigir decisão independente do proprietário para interpretar/ativar preferências; preservação privada não equivale a consentimento de descoberta pública.
+
+**Operação:** testar apenas a política com `node --test scripts/tests/discovery-legacy-recovery-persistence.policy.test.mjs`. O workflow de guarda também a executa em Windows e Ubuntu. Não executar backfill administrativo nem remover campos públicos durante a preparação.
+
 ## Fase B — recuperação privada (NÃO implementada)
 
 1. **Validar proveniência e titularidade:** confrontar os registros com o checkpoint e, se disponíveis, versões históricas; registrar apenas evidências técnicas sem copiar valores para logs.
