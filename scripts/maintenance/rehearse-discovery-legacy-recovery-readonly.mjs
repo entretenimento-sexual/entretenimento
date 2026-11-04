@@ -53,6 +53,15 @@ function assertLocalFiles() {
   if (process.platform === 'win32' && !fs.existsSync(java)) {
     throw new Error('JAVA_NOT_FOUND');
   }
+  // firestore.rules is generated locally and may predate the #239 boundary.
+  // Never run a recovery exercise with stale rules, even though reads here
+  // use Admin SDK (which itself bypasses the Firestore Rules evaluator).
+  const compiledRules = fs.readFileSync(rules, 'utf8');
+  if (!compiledRules.includes('// ===== legacy_discovery_preference_recovery.rules =====') ||
+      !compiledRules.includes('match /legacy_discovery_preference_recovery/{ownerUid}') ||
+      !compiledRules.includes('allow read, write: if false;')) {
+    throw new Error('RECOVERY_RULES_NOT_BUILT');
+  }
 }
 
 function portIsFree(port) {
