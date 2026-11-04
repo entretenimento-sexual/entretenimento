@@ -217,6 +217,21 @@ test('CLI refuses unsafe invocation before using Java or Firebase Admin', () => 
   }
 });
 
+test('isolated emulator readiness does not require forbidden public profile list', () => {
+  const source = readFileSync(runner, 'utf8');
+  const rules = readFileSync(
+    fileURLToPath(
+      new URL('../../firestore-rules/public_profiles_next.rules', import.meta.url)
+    ),
+    'utf8'
+  );
+  assert.match(rules, /allow list:\\s*if false;/);
+  assert.match(source, /portAcceptsConnections\\(EMULATOR_PORT\\)/);
+  assert.match(source, /net\\.createConnection\\(\\{ host: '127\\.0\\.0\\.1', port \\}\\)/);
+  assert.doesNotMatch(source, /documents\\/public_profiles/);
+  assert.doesNotMatch(source, /\\bfetch\\s*\\(/);
+});
+
 test('runner never invokes Firestore write operations or emits raw snapshots', () => {
   const source = readFileSync(runner, 'utf8');
   for (const operation of [
