@@ -1,0 +1,48 @@
+name: Discovery Legacy Recovery Rehearsal Guard
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/maintenance/discovery-legacy-recovery-rehearsal.policy.mjs'
+      - 'scripts/maintenance/rehearse-discovery-legacy-recovery-readonly.mjs'
+      - 'scripts/maintenance/discovery-legacy-preferences-audit.policy.mjs'
+      - 'scripts/tests/discovery-legacy-recovery-rehearsal.policy.test.mjs'
+      - '.github/workflows/discovery-legacy-recovery-rehearsal-guard.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/maintenance/discovery-legacy-recovery-rehearsal.policy.mjs'
+      - 'scripts/maintenance/rehearse-discovery-legacy-recovery-readonly.mjs'
+      - 'scripts/maintenance/discovery-legacy-preferences-audit.policy.mjs'
+      - 'scripts/tests/discovery-legacy-recovery-rehearsal.policy.test.mjs'
+      - '.github/workflows/discovery-legacy-recovery-rehearsal-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discovery-recovery-rehearsal-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy-only:
+    name: Legacy recovery no-write contract (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Verify candidate integrity, idempotence and no-write constraints
+        run: node --test scripts/tests/discovery-legacy-recovery-rehearsal.policy.test.mjs
