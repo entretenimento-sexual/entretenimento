@@ -59,6 +59,53 @@ A suíte `firestore-rules/tests/legacy-discovery-preference-recovery.rules.spec.
 
 **Aprovar a fronteira de segurança não equivale a autorizar escrever um único documento de recuperação.** A Fase B1 deve preparar uma rotina separada, testada primeiramente contra uma importação isolada e com plano de rollback.
 
+## Fase B1 — ensaio sem escrita em snapshot isolado (implementação sob revisão)
+
+Arquivos:
+- `scripts/maintenance/discovery-legacy-recovery-rehearsal.policy.mjs`: contrato puro de preservação, integridade do conteúdo e avaliação de conflitos;
+- `scripts/maintenance/rehearse-discovery-legacy-recovery-readonly.mjs`: cria um processo de Firestore Emulator isolado a partir do export local; lê o conteúdo e **não** grava nenhuma coleção;
+- `scripts/tests/discovery-legacy-recovery-rehearsal.policy.test.mjs`: testes de integridade, ordenação, duplicatas, ausência versus array vazio, idempotência, limites de acesso/volume e recusa de operação perigosa;
+- `.github/workflows/discovery-legacy-recovery-rehearsal-guard.yml`: testes de contrato em Windows e Linux, sem dados reais nem credenciais.
+
+### Como funciona (somente após integrar o código e sincronizar a main)
+
+O script exige `--dry-run`, projeto `entretenimento-sexual`, snapshot local não vazio em `.emulator-data`, JAR do Firestore Emulator e Java 21. Ele **não usa** o emulador principal `127.0.0.1:8080`: verifica que as portas `28080` e `29150` estão livres e inicializa **um processo filho** em `127.0.0.1:28080` com `--seed_from_export`, encerrando-o ao fim da leitura. A origem não é sobrescrita. Se as portas estiverem ocupadas, a operação é recusada sem encerrar processos alheios.
+
+Na raiz do projeto, após verificar `git status -sb` e a sincronização:
+
+```powershell
+$original = $env:FIRESTORE_EMULATOR_HOST
+try {
+    Remove-Item Env:\FIRESTORE_EMULATOR_HOST -ErrorAction SilentlyContinue
+    node scripts/maintenance/rehearse-discovery-legacy-recovery-readonly.mjs --dry-run
+    if ($LASTEXITCODE -ne 0) { throw 'Ensaio B1 nao concluido.' }
+} finally {
+    if ($null -eq $original) {
+        Remove-Item Env:\FIRESTORE_EMULATOR_HOST -ErrorAction SilentlyContinue
+    } else {
+        $env:FIRESTORE_EMULATOR_HOST = $original
+    }
+}
+```
+
+Se a variável `GOOGLE_APPLICATION_CREDENTIALS` estiver definida ou os IDs de projeto apontarem para ambiente diferente, a rotina falha antes de inicializar o Firebase. Nenhuma credencial de produção é necessária.
+
+### Saída e limites do ensaio
+
+- Lê no máximo **200** documentos raiz de `public_profiles`; acima disso, falha sem publicar inventário incompleto.
+- Examina **somente** `interestedInGenders` e `interestedInOrientations`, e **interrompe** caso encontre outros campos privados proibidos ou formatos incompatíveis no mesmo perfil.
+- Preserva **em memória** a sequência, a capitalização, os espaços, as duplicatas e a diferença entre campo ausente e lista vazia. Não interpreta semântica, não transforma em `hardRules`, não altera identidade nem ativa filtros/visibilidade.
+- Confere existência do documento `users/{ownerUid}`, avalia colisões com `legacy_discovery_preference_recovery/{ownerUid}` e compara hash SHA-256 de conteúdo, incluindo presença/ausência de campos. **Hashes e IDs nunca são impressos**.
+- Se houver registro privado pré-existente, o ensaio identifica `ALREADY_PRESERVED` somente quando metadados e conteúdo coincidem; qualquer conflito interrompe a operação sem sobreposição.
+- O relatório apresenta apenas `candidates`, `wouldCreate`, `alreadyPreserved`, contagens agregadas dos itens, total de documentos examinados e **zero** escritas. O candidato `PENDING_REVIEW` nunca é salvo por esta rotina.
+- Não se afirma restauração de metadados: duas importações do snapshot exibiram os mesmos 563 documentos/valores, mas diferenças de `createTime/updateTime` nos 563. O digest do conteúdo não depende desses timestamps administrativos.
+- Testes puros com valores **sintéticos** simulam preservação e idempotência; ainda **não** demonstram rollback de uma transação real, que exige um writer testável e ensaios isolados específicos.
+- O snapshot deve permanecer fora do Git, em armazenamento local protegido. O runner não imprime logs Java, valores sensíveis, UID ou hashes individualizados.
+
+### Critérios bloqueadores para a Fase B2
+
+Mesmo com B1 aprovado, **não executar gravação** enquanto não houver: confirmação do checkpoint a ser usado; contrato de autorização backend e menor privilégio; prova de rollback/idempotência com transação em ambiente isolado; tratamento de conflitos; verificação de integridade após cópia; documentação da retenção; e testes de Rules/visibilidade/bloqueio bilateral. O uso de Admin SDK ignora Firestore Rules. Um eventual writer ficará em **outro PR**, com controle explícito de execução e sem acesso à produção por padrão.
+
 ## Fase B — recuperação privada (NÃO implementada)
 
 1. **Validar proveniência e titularidade:** confrontar os registros com o checkpoint e, se disponíveis, versões históricas; registrar apenas evidências técnicas sem copiar valores para logs.
