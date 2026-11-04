@@ -162,7 +162,7 @@ test('retention deadline is a review proposal, not an automatic expiry or consen
   assert.equal(report.semanticReviewRequired, true);
   assert.equal(report.accountDeletionPurgeReady, false);
   assert.ok(MANDATORY_RELEASE_BLOCKERS.includes('RETENTION_EXPIRY_JOB_NOT_INTEGRATED'));
-  assert.ok(MANDATORY_RELEASE_BLOCKERS.includes('ACCOUNT_DELETION_PURGE_NOT_INTEGRATED'));
+  assert.ok(MANDATORY_RELEASE_BLOCKERS.includes('ACCOUNT_DELETION_PURGE_NOT_DEPLOYED_OR_VERIFIED'));
   assert.ok(MANDATORY_RELEASE_BLOCKERS.includes('SERVER_VERIFIED_ADMIN_AUTH_NOT_IMPLEMENTED'));
   assert.equal(privateIntents[0].recoveryStatus, 'PENDING_REVIEW');
 });

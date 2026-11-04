@@ -9,6 +9,9 @@ import { createHash } from 'node:crypto';
 
 import { resolveCommunityMemberCountDelta } from '../community/community-member-count.policy';
 import { db, FieldValue } from '../firebaseApp';
+import {
+  purgeLegacyDiscoveryRecoveryOnAccountDeletion,
+} from './account-legacy-recovery-purge.policy';
 import type {
   AccountBlockReferenceSummary,
   AccountDataDeletionAdapter,
@@ -66,19 +69,49 @@ export class FirestoreAccountDataDeletionAdapter implements AccountDataDeletionA
 
   async deletePreferences(uid: string): Promise<number> {
     const ref = db.collection('preferences').doc(uid);
-    const snapshot = await ref.get();
+    const recoveryRef = db
+      .collection('legacy_discovery_preference_recovery').doc(uid);
 
-    // Preferências de notificações por Comunidade vivem em uma árvore própria
-    // e o documento pai pode nem existir. recursiveDelete cobre os itens mesmo
-    // nesse caso e mantém a operação idempotente em retries do lifecycle.
+    // A quarentena legada pertence ao dominio 'preferences' do purge.
+    // Exige conta 'deleted' com lease ativo; qualquer erro impede o dominio
+    // de ser concluido e bloqueia a finalizacao da exclusao.
+    const legacyRecoveryRemoved =
+      await purgeLegacyDiscoveryRecoveryOnAccountDeletion({
+        getOwner: async (ownerUid) => {
+          const user = await db.collection('users').doc(ownerUid).get();
+          return {
+            exists: user.exists,
+            accountStatus: user.get('accountStatus'),
+            purgeLeaseOwner: user.get('purgeLeaseOwner'),
+            purgeLeaseUntil: user.get('purgeLeaseUntil'),
+          };
+        },
+        getRecovery: async () => {
+          const recovery = await recoveryRef.get();
+          return {
+            exists: recovery.exists,
+            ownerUid: recovery.get('ownerUid'),
+          };
+        },
+        deleteRecoveryTree: async () => {
+          // Remove inclusive subcolecoes quando o documento raiz nao existe.
+          await db.recursiveDelete(recoveryRef);
+        },
+        recoveryTreeExists: async () => {
+          const current = await recoveryRef.get();
+          if (current.exists) return true;
+          return (await recoveryRef.listCollections()).length > 0;
+        },
+      }, uid, Date.now());
+
+    const snapshot = await ref.get();
+    // A limpeza de notificacoes por Comunidade ja fazia parte do purge.
     await db.recursiveDelete(
       db.collection('community_notification_preferences').doc(uid)
     );
 
-    if (!snapshot.exists) return 0;
-
-    await ref.delete();
-    return 1;
+    if (snapshot.exists) await ref.delete();
+    return legacyRecoveryRemoved + (snapshot.exists ? 1 : 0);
   }
 
   async deletePresence(uid: string): Promise<number> {

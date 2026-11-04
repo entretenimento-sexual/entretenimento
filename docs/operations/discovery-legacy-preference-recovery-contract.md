@@ -197,7 +197,7 @@ A B2.1 confirmou **somente no Firestore Emulator isolado** a criação, leitura,
 - Exige formato coerente do relatório B2.1: importação isolada, idempotência, rollback completo, ausência de diferenças lógicas e export original preservado. O relatório é um **relato local estrutural, não uma prova assinada/autenticada**; um chamador malicioso poderia falsificar os campos. Um escritor futuro deverá refazer as verificações em servidor confiável.
 - Propõe **30 dias para análise**, sem criar TTL, agendador ou política legal definitiva. O prazo é uma **proposta operacional**, sujeita à revisão de necessidade, consentimento e retenção antes de qualquer persistência. Exclusão de conta deve remover também a quarentena; o fluxo de lifecycle ainda **não foi integrado** a essa nova coleção.
 - Mantém `PENDING_REVIEW`, `visibilityConsentConfirmed: false`, sem `hardRules`, sem `showSeekingPublicly`, sem migração de orientação/gênero e sem modificar `public_profiles`.
-- Retorna um relatório de pré-condições com decisão `BLOCKED` e seis bloqueadores não configuráveis pelo chamador: autenticação administrativa **verificada em backend**, autorização explícita da operação, integração ao expurgo de conta, mecanismo de expiração, escritor de auditoria backend-only e aprovação de migração/rollback persistente. O relatório de auditoria é estritamente agregado, com campos permitidos, sem UID, valores, hashes individuais ou texto livre.
+- Retorna um relatório de pré-condições com decisão `BLOCKED` e seis bloqueadores não configuráveis pelo chamador: autenticação administrativa **verificada em backend**, autorização explícita da operação, validação/implantação da integração ao expurgo de conta, mecanismo de expiração, escritor de auditoria backend-only e aprovação de migração/rollback persistente. O relatório de auditoria é estritamente agregado, com campos permitidos, sem UID, valores, hashes individuais ou texto livre.
 - `assertPersistentRecoveryMayExecute()` **sempre rejeita** execução persistente. Não existe CLI de persistência, callable, endpoint, trigger, cron, writer, rotina de expurgo, regra de autorização ou deploy neste commit. A ausência desses componentes é proposital.
 
 **Governança exigida para um eventual writer futuro** (não implementada aqui):
@@ -210,6 +210,27 @@ A B2.1 confirmou **somente no Firestore Emulator isolado** a criação, leitura,
 6. Exigir decisão independente do proprietário para interpretar/ativar preferências; preservação privada não equivale a consentimento de descoberta pública.
 
 **Operação:** testar apenas a política com `node --test scripts/tests/discovery-legacy-recovery-persistence.policy.test.mjs`. O workflow de guarda também a executa em Windows e Ubuntu. Não executar backfill administrativo nem remover campos públicos durante a preparação.
+
+## Fase B2.3 — quarentena vinculada ao expurgo de contas (somente código)
+
+Arquivos:
+- `functions/src/account_lifecycle/account-legacy-recovery-purge.policy.ts`: rotina testável de bloqueio por estado/lease, titularidade, exclusão recursiva e confirmação de ausência.
+- `functions/src/account_lifecycle/account-data-deletion.firestore.ts`: integração **ao método existente `deletePreferences(uid)`**, sem alterar seu nome ou criar novo fluxo agendado.
+- `functions/src/account_lifecycle/account-data-retention.policy.ts`: versão da matriz de retenção elevada para **13**; o domínio `preferences` continua obrigatório antes da finalização.
+- Testes: `account-legacy-recovery-purge.policy.test.ts` e `account-legacy-recovery-purge.integration.contract.test.ts`.
+
+**Comportamento quando o código for futuramente implantado:**
+
+1. O agendador `purgeDeletedAccounts` já exige exclusão programada, respeita `legalHold`/`billingHold`, adquire lease e marca a conta `deleted`; a integração acrescentada **não cria agendador, callable, rota externa ou writer de recuperação**.
+2. A limpeza de quarentena valida que `users/{uid}` ainda existe com `accountStatus === 'deleted'`, `purgeLeaseOwner` preenchido e `purgeLeaseUntil` no futuro. Verifica novamente o lease antes da exclusão.
+3. Se `legacy_discovery_preference_recovery/{uid}` existir, `ownerUid` precisa coincidir; divergência impede a operação. Não lê nem registra `legacyRaw` em logs.
+4. `db.recursiveDelete` remove o documento **e eventuais subcoleções**, inclusive quando o documento raiz já não existe. Após a remoção, verifica documento e subcoleções restantes. Falhas bloqueiam o resultado `preferences`, portanto impedem a finalização e provocam o mecanismo existente de retry do lifecycle.
+5. Ausência da quarentena é tratada de forma idempotente, sem afetar preferências ativas ou campos de visibilidade. A contagem da limpeza do domínio inclui o documento de recuperação removido, quando presente. O método `deletePreferences` preserva seu nome e fluxo de erro existente.
+6. A matriz continua associando o resultado do domínio `preferences` ao bloqueio de finalização de `users/{uid}`. O fluxo não transforma os valores legados em preferências, não remove `interestedInGenders`/`interestedInOrientations` de contas ativas e não habilita acesso a terceiros.
+
+**Limitações relevantes:** a checagem de lease e a exclusão recursiva são operações separadas, logo **não formam uma fence transacional contra um writer concorrente**. O writer futuro deve garantir em uma transação própria que contas `deleted` ou em purge nunca recebam novos registros de recuperação. A verificação de subcoleções depende de `listCollections()`. Ainda faltam validação real no emulador, testes de corrida/aborto e deploy (não autorizado). Até isso ocorrer, permanece o bloqueador `ACCOUNT_DELETION_PURGE_NOT_DEPLOYED_OR_VERIFIED`.
+
+**Decisão de publicação:** esta etapa é somente código e testes. Não executa `purgeDeletedAccounts`, não altera dados da instância principal ou produção, não implementa writer de retenção, TTL, autenticação administrativa ou audit writer. A política B2.2 continua com `persistentWritesAllowed: false` e `assertPersistentRecoveryMayExecute()` recusando qualquer chamada.
 
 ## Fase B — recuperação privada (NÃO implementada)
 

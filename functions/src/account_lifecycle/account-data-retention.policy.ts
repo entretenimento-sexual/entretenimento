@@ -13,7 +13,7 @@
 // - a política é serializável e registrada no tombstone para auditoria/retry.
 // -----------------------------------------------------------------------------
 
-export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 12;
+export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 13;
 
 export type AccountDataDomain =
   | 'public_profile'
@@ -124,7 +124,9 @@ export const ACCOUNT_DATA_RETENTION_POLICY: readonly AccountDataRetentionPolicyE
     phase: 'pre_finalize',
     automation: 'implemented',
     blocksFinalization: true,
-    reason: 'Preferências privadas são removidas diretamente pelo executor do lifecycle.',
+    reason:
+      'Preferências privadas e eventual quarentena de interesses legados ' +
+      'devem ser removidas no purge antes da finalização da conta.',
   },
   {
     domain: 'presence_and_location',
