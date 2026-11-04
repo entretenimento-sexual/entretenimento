@@ -65,22 +65,32 @@ function portIsFree(port) {
   });
 }
 
-async function awaitSnapshotReady(child, getSpawnError, hasExited) {
-  // The URL is the LOCAL child Firestore Emulator; response data is never logged.
-  const endpoint =
-    `http://127.0.0.1:${EMULATOR_PORT}/v1/projects/${PROJECT_ID}` +
-    '/databases/(default)/documents/public_profiles?pageSize=1';
+function portAcceptsConnections(port) {
+  // TCP readiness deliberately avoids an unauthenticated Firestore REST list:
+  // public_profiles list is denied by the canonical Firestore Rules.
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ host: '127.0.0.1', port });
+    let settled = false;
+    const finish = (ready) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(ready);
+    };
+    socket.setTimeout(700);
+    socket.once('connect', () => finish(true));
+    socket.once('timeout', () => finish(false));
+    socket.once('error', () => finish(false));
+  });
+}
 
+async function awaitSnapshotReady(getSpawnError, hasExited) {
+  // This is a local process availability check, NOT a document read.
+  // The actual import is verified by the subsequent Admin SDK scan and
+  // a required nonempty legacy-candidate set.
   for (let attempt = 0; attempt < 60; attempt += 1) {
     if (getSpawnError() || hasExited()) throw new Error('CHILD_EMULATOR_EXITED');
-    try {
-      const response = await fetch(endpoint, {
-        signal: AbortSignal.timeout(700),
-      });
-      if (response.ok) return;
-    } catch {
-      // The isolated Java process may still be importing the export.
-    }
+    if (await portAcceptsConnections(EMULATOR_PORT)) return;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   throw new Error('CHILD_EMULATOR_NOT_READY');
@@ -154,7 +164,7 @@ async function main() {
   let app;
   let report;
   try {
-    await awaitSnapshotReady(child, () => spawnError, () => exited);
+    await awaitSnapshotReady(() => spawnError, () => exited);
     process.env.FIRESTORE_EMULATOR_HOST = ISOLATED_FIRESTORE;
     const requireFunctions = createRequire(
       path.join(root, 'functions', 'package.json')
