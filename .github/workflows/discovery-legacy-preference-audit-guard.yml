@@ -1,0 +1,50 @@
+name: Discovery Legacy Preference Audit Guard
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/maintenance/audit-discovery-legacy-preferences-readonly.mjs'
+      - 'scripts/maintenance/discovery-legacy-preferences-audit.policy.mjs'
+      - 'scripts/tests/discovery-legacy-preferences-readonly.policy.test.mjs'
+      - 'firestore-rules/public_profiles_next.rules'
+      - 'functions/src/discovery/public-profile-discovery-projection.ts'
+      - '.github/workflows/discovery-legacy-preference-audit-guard.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/maintenance/audit-discovery-legacy-preferences-readonly.mjs'
+      - 'scripts/maintenance/discovery-legacy-preferences-audit.policy.mjs'
+      - 'scripts/tests/discovery-legacy-preferences-readonly.policy.test.mjs'
+      - 'firestore-rules/public_profiles_next.rules'
+      - 'functions/src/discovery/public-profile-discovery-projection.ts'
+      - '.github/workflows/discovery-legacy-preference-audit-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: legacy-preference-audit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  read-only-policy:
+    name: Discovery readonly policy (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Test source parity, local-only preflight and no-writes
+        run: node --test scripts/tests/discovery-legacy-preferences-readonly.policy.test.mjs
