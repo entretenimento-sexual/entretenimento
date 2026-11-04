@@ -65,14 +65,14 @@ function portIsFree(port) {
   });
 }
 
-async function awaitSnapshotReady(child, getSpawnError) {
+async function awaitSnapshotReady(child, getSpawnError, hasExited) {
   // The URL is the LOCAL child Firestore Emulator; response data is never logged.
   const endpoint =
     `http://127.0.0.1:${EMULATOR_PORT}/v1/projects/${PROJECT_ID}` +
     '/databases/(default)/documents/public_profiles?pageSize=1';
 
   for (let attempt = 0; attempt < 60; attempt += 1) {
-    if (getSpawnError() || child.exitCode !== null) throw new Error('CHILD_EMULATOR_EXITED');
+    if (getSpawnError() || hasExited()) throw new Error('CHILD_EMULATOR_EXITED');
     try {
       const response = await fetch(endpoint, {
         signal: AbortSignal.timeout(700),
@@ -143,7 +143,9 @@ async function main() {
   });
 
   let spawnError = null;
+  let exited = false;
   child.on('error', (err) => { spawnError = err; });
+  child.once('exit', () => { exited = true; });
   // Never forward raw Java logs, which could include private paths or values.
   child.stdout?.resume();
   child.stderr?.resume();
@@ -152,7 +154,7 @@ async function main() {
   let app;
   let report;
   try {
-    await awaitSnapshotReady(child, () => spawnError);
+    await awaitSnapshotReady(child, () => spawnError, () => exited);
     process.env.FIRESTORE_EMULATOR_HOST = ISOLATED_FIRESTORE;
     const requireFunctions = createRequire(
       path.join(root, 'functions', 'package.json')
@@ -177,16 +179,17 @@ async function main() {
         await requireFunctions('firebase-admin/app').deleteApp(app);
       } catch { /* no logging */ }
     }
-    if (child.pid && child.exitCode === null) {
+    if (child.pid && !exited) {
+      const exitPromise = new Promise((resolve) => child.once('exit', resolve));
       child.kill();
       await Promise.race([
-        new Promise((resolve) => child.once('exit', resolve)),
+        exitPromise,
         new Promise((resolve) => setTimeout(resolve, 5000)),
       ]);
     }
   }
 
-  if (child.exitCode === null) {
+  if (!exited) {
     // Cannot confirm the isolated child exited. Fail closed.
     throw new Error('ISOLATED_CHILD_STILL_RUNNING');
   }
