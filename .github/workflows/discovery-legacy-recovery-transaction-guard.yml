@@ -1,0 +1,42 @@
+name: Discovery Legacy Recovery Transaction Guard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/maintenance/discovery-legacy-recovery-transaction.policy.mjs'
+      - 'scripts/maintenance/discovery-legacy-recovery-rehearsal.policy.mjs'
+      - 'scripts/tests/discovery-legacy-recovery-transaction.policy.test.mjs'
+      - '.github/workflows/discovery-legacy-recovery-transaction-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discovery-recovery-transaction-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reversible-contract:
+    name: Isolated transaction/rollback contract (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Verify isolated-only write, idempotence, conflicts and rollback
+        run: node --test scripts/tests/discovery-legacy-recovery-transaction.policy.test.mjs
+
+      - name: Preserve B1 readonly policy regression
+        run: node --test scripts/tests/discovery-legacy-recovery-rehearsal.policy.test.mjs

@@ -108,6 +108,33 @@ Se a variável `GOOGLE_APPLICATION_CREDENTIALS` estiver definida ou os IDs de pr
 
 Mesmo com B1 aprovado, **não executar gravação** enquanto não houver: confirmação do checkpoint a ser usado; contrato de autorização backend e menor privilégio; prova de rollback/idempotência com transação em ambiente isolado; tratamento de conflitos; verificação de integridade após cópia; documentação da retenção; e testes de Rules/visibilidade/bloqueio bilateral. O uso de Admin SDK ignora Firestore Rules. Um eventual writer ficará em **outro PR**, com controle explícito de execução e sem acesso à produção por padrão.
 
+## Fase B2 — contrato transacional de reversão no emulador isolado
+
+Módulo: `scripts/maintenance/discovery-legacy-recovery-transaction.policy.mjs`.
+
+**Escopo deste commit:** criar e testar um motor de transações **sem executá-lo contra o snapshot do operador**. Não há CLI novo, API, callable, deploy, job agendado nem escritor de produção. O contrato apenas pode ser invocado por uma etapa futura de ensaio que construa uma instância de Firestore Emulator isolada. O módulo não inicializa Firebase e não inicia emuladores por conta própria.
+
+Fronteiras mandatórias antes de qualquer transação:
+
+- `FIRESTORE_EMULATOR_HOST` precisa ser exatamente `127.0.0.1:28080`, sem esquema ou alias; rejeita 8080 e qualquer destino remoto.
+- `GOOGLE_APPLICATION_CREDENTIALS` deve estar ausente. IDs de projeto definidos no ambiente precisam corresponder a `entretenimento-sexual`.
+- No máximo **10 candidatos por transação**, gerados pelo contrato B1; cada um deve ser único, com hash válido, campos estritamente permitidos, `lifecycle: PENDING_REVIEW` e `visibilityConsentConfirmed: false`.
+- Dentro de uma transação Firestore, conferir existência de `public_profiles/{ownerUid}` e `users/{ownerUid}`, revalidando os valores legados e o hash da origem **antes de qualquer escrita**. Uma mudança de origem ou conflito no registro privado aborta o lote inteiro.
+- Gravar apenas `legacy_discovery_preference_recovery/{ownerUid}` com `transaction.create()`; para cópias idênticas pré-existentes, não sobrescrever e tratar como idempotência. Não gravar em `users`, `public_profiles` nem preferências ativas.
+- A reversão é transacional e restrita aos IDs retornados pela **mesma execução de cópia**. Antes de excluir, revalidar conteúdo, proveniência, estado e hash; em caso de divergência, **não excluir** e sinalizar conflito. Registros pré-existentes jamais entram no conjunto de exclusão.
+- `exerciseIsolatedRecoveryRollback()` encadeia cópia, verificação dos registros privados, rollback em `finally` e inspeção pós-rollback das origens e dos registros recuperados. Somente após todas essas etapas retorna um relatório agregado com `created`, `alreadyPreserved`, `rolledBack` e zero modificações declaradas em perfis/visibilidade.
+- Logs, relatórios e documentação não podem conter UIDs, valores sensíveis nem hashes individualizados. Os identificadores retornados internamente pelo contrato de escrita **não devem ser serializados** pelo futuro runner.
+
+Teste de contrato com memória sintética, **sem Firestore ou snapshot real**:
+
+```powershell
+node --test scripts/tests/discovery-legacy-recovery-transaction.policy.test.mjs
+```
+
+A suíte simula transações com aplicação atômica e cobre sucesso, idempotência, conflito, mudança da fonte, exclusão indevida, rollback condicionado e restauração do estado original. O workflow `Discovery Legacy Recovery Transaction Guard` roda esses testes em Windows e Ubuntu após push na `main`.
+
+**Limites do que foi demonstrado:** o teste em memória **não prova** que uma transação real no Firebase Emulator aceita esse fluxo, nem a recuperação de metadados `createTime/updateTime`, nem rollback diante de interrupção abrupta do processo. O próximo gate exige um *runner dedicado*, que invoque o motor **somente** em uma importação isolada e efêmera do snapshot, compare estado antes/depois e encerre o emulador filho mesmo em caso de falha. Nenhuma recuperação deve ser gravada no emulador principal ou remoto durante essa fase. A sanitização de `public_profiles` e o eventual consentimento dos proprietários continuam bloqueados.
+
 ## Fase B — recuperação privada (NÃO implementada)
 
 1. **Validar proveniência e titularidade:** confrontar os registros com o checkpoint e, se disponíveis, versões históricas; registrar apenas evidências técnicas sem copiar valores para logs.
