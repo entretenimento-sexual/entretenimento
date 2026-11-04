@@ -106,7 +106,7 @@ Se a variável `GOOGLE_APPLICATION_CREDENTIALS` estiver definida ou os IDs de pr
 
 ### Critérios bloqueadores para a Fase B2
 
-Mesmo com B1 aprovado, **não executar gravação** enquanto não houver: confirmação do checkpoint a ser usado; contrato de autorização backend e menor privilégio; prova de rollback/idempotência com transação em ambiente isolado; tratamento de conflitos; verificação de integridade após cópia; documentação da retenção; e testes de Rules/visibilidade/bloqueio bilateral. O uso de Admin SDK ignora Firestore Rules. Um eventual writer ficará em **outro PR**, com controle explícito de execução e sem acesso à produção por padrão.
+Mesmo com B1 aprovado, **não executar gravação** enquanto não houver: confirmação do checkpoint a ser usado; contrato de autorização backend e menor privilégio; prova de rollback/idempotência com transação em ambiente isolado; tratamento de conflitos; verificação de integridade após cópia; documentação da retenção; e testes de Rules/visibilidade/bloqueio bilateral. O uso de Admin SDK ignora Firestore Rules. Qualquer futura rotina de retenção persistente exigirá **etapa separada e autorização explícita**, sem criação automática de branch, PR, merge ou deploy.
 
 ## Fase B2 — contrato transacional de reversão no emulador isolado
 
@@ -135,6 +135,56 @@ A suíte simula transações com aplicação atômica e cobre sucesso, idempotê
 
 **Limites do que foi demonstrado:** o teste em memória **não prova** que uma transação real no Firebase Emulator aceita esse fluxo, nem a recuperação de metadados `createTime/updateTime`, nem rollback diante de interrupção abrupta do processo. O próximo gate exige um *runner dedicado*, que invoque o motor **somente** em uma importação isolada e efêmera do snapshot, compare estado antes/depois e encerre o emulador filho mesmo em caso de falha. Nenhuma recuperação deve ser gravada no emulador principal ou remoto durante essa fase. A sanitização de `public_profiles` e o eventual consentimento dos proprietários continuam bloqueados.
 
+## Fase B2.1 — ensaio transacional real em importação isolada
+
+Executor: `scripts/maintenance/rehearse-discovery-legacy-recovery-rollback.mjs`.
+Política de preflight, comparação de snapshots e saída: `scripts/maintenance/discovery-legacy-recovery-rollback-runner.policy.mjs`.
+Testes sintéticos adicionais: `scripts/tests/discovery-legacy-recovery-rollback-runner.policy.test.mjs`.
+
+**Importante:** a B2.1 **escreve temporariamente** dois documentos de quarentena no processo de **Firestore Emulator efêmero** que ela mesma inicia na porta `127.0.0.1:28080`, valida a cópia e a idempotência, **reverte esses documentos**, confere o conteúdo dos documentos originais e encerra o processo. Ela **não executa nenhuma escrita** nos emuladores principais (8080), nos arquivos `.emulator-data`, em Firestore remoto ou nas preferências ativas. Não possui função de persistir ou implantar dados.
+
+### Pré-condições e execução local (somente após sincronizar a main)
+
+- A árvore de trabalho deve estar limpa e `main` sincronizada; antes da execução, reconstruir localmente `firestore.rules` via `npm run rules:build` **sem deploy**.
+- `.emulator-data` precisa conter um export Firestore legítimo, com arquivos de metadados não vazios; preservar esse checkpoint e os backups. A execução exige Java e o JAR do Firestore Emulator local já empregado na comparação de snapshots.
+- As portas `28080` e `29150` precisam estar livres. O runner não mata processos preexistentes nessas portas.
+- Não definir `GOOGLE_APPLICATION_CREDENTIALS` nem outro project ID; o runner só aceita projeto `entretenimento-sexual`. Se `FIRESTORE_EMULATOR_HOST` apontar para a porta principal 8080, o runner recusa a execução; remova temporariamente essa variável apenas no terminal do comando.
+- A operação requer a flag exata `--isolated-rollback-test`. Não há modo `--apply`, `--write`, `--deploy` ou de retenção persistente.
+
+```powershell
+cd C:\entretenimento
+git status -sb
+git rev-list --left-right --count HEAD...origin/main
+
+npm run rules:build
+if ($LASTEXITCODE -ne 0) { throw 'Falha ao gerar Rules locais.' }
+
+$anterior = $env:FIRESTORE_EMULATOR_HOST
+try {
+    Remove-Item Env:\FIRESTORE_EMULATOR_HOST -ErrorAction SilentlyContinue
+    node scripts/maintenance/rehearse-discovery-legacy-recovery-rollback.mjs --isolated-rollback-test
+    if ($LASTEXITCODE -ne 0) { throw 'Ensaio B2.1 isolado nao aprovado.' }
+} finally {
+    if ($null -eq $anterior) {
+        Remove-Item Env:\FIRESTORE_EMULATOR_HOST -ErrorAction SilentlyContinue
+    } else {
+        $env:FIRESTORE_EMULATOR_HOST = $anterior
+    }
+}
+```
+
+### Provas exigidas e limites
+
+1. **Verificação prévia:** identificar exatamente **2 candidatos**, **5 entradas de gênero** e **3 entradas de orientação** na importação; recusar snapshots divergentes, formatos incompatíveis ou ausência dos documentos `users/{uid}`.
+2. **Baseline integral de conteúdo:** percorrer recursivamente coleções e subcoleções no processo temporário (limites defensivos de 2.500 documentos e 600 coleções), mantendo somente hashes em memória, sem publicar IDs/valores.
+3. **Cópia:** transação real `create` exclusivamente em `legacy_discovery_preference_recovery/{ownerUid}`, recusando sobreposição ou conflitos.
+4. **Idempotência e integridade:** leitura independente dos registros copiados e segunda transação, que deve criar **zero** documentos.
+5. **Rollback obrigatório:** transação `delete` somente sobre os registros criados na primeira tentativa; registros anteriores não podem ser apagados.
+6. **Comparação integral:** recolher novo baseline e exigir mesmos documentos, coleções e hashes de campos; comparar também os bytes dos arquivos originais do export Firestore antes e depois. O relatório contém somente totais agregados, nunca os valores sensíveis, UIDs ou hashes.
+7. **Encerramento:** terminar o processo filho mesmo sob erro, sem exportá-lo de volta. Qualquer erro bloqueia o sucesso e exige investigação; não tentar saneamento público automaticamente.
+
+A B2.1 **não comprova** fidelidade de `createTime/updateTime` entre importações (já foram observadas divergências), persistência em produção, comportamento sob falha abrupta durante o commit, autorização de um futuro backend administrativo ou consentimento dos titulares. Uma aprovação desse ensaio é **apenas um gate técnico** para planejar a preservação privada. A exclusão dos campos legados de `public_profiles`, o uso de backfill administrativo e qualquer deploy permanecem proibidos.
+
 ## Fase B — recuperação privada (NÃO implementada)
 
 1. **Validar proveniência e titularidade:** confrontar os registros com o checkpoint e, se disponíveis, versões históricas; registrar apenas evidências técnicas sem copiar valores para logs.
@@ -147,7 +197,7 @@ A suíte simula transações com aplicação atômica e cobre sucesso, idempotê
 
 ## Regras de operação
 
-- **Nenhum deploy, migração ou alteração do Firestore por esta fase.**
+- **Nenhum deploy, migração persistente ou alteração de Firestore principal/remoto por esta fase.** O ensaio B2.1 grava somente no emulador temporário e exige rollback completo antes de reportar sucesso.
 - A primeira etapa não expõe valores; tratar exportações e backups como dados sensíveis.
 - O script legado que republicava interesses privados foi aposentado no PR #237, integrado à `main`.
 - O backfill administrativo canônico pode apagar esses campos em `public_profiles` e **não deve ser executado em modo de escrita** até conclusão da Fase B.

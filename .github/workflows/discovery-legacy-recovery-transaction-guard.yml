@@ -5,8 +5,11 @@ on:
     branches: [main]
     paths:
       - 'scripts/maintenance/discovery-legacy-recovery-transaction.policy.mjs'
+      - 'scripts/maintenance/discovery-legacy-recovery-rollback-runner.policy.mjs'
+      - 'scripts/maintenance/rehearse-discovery-legacy-recovery-rollback.mjs'
       - 'scripts/maintenance/discovery-legacy-recovery-rehearsal.policy.mjs'
       - 'scripts/tests/discovery-legacy-recovery-transaction.policy.test.mjs'
+      - 'scripts/tests/discovery-legacy-recovery-rollback-runner.policy.test.mjs'
       - '.github/workflows/discovery-legacy-recovery-transaction-guard.yml'
   workflow_dispatch:
 
@@ -40,3 +43,6 @@ jobs:
 
       - name: Preserve B1 readonly policy regression
         run: node --test scripts/tests/discovery-legacy-recovery-rehearsal.policy.test.mjs
+
+      - name: Validate isolated snapshot runner and fail-closed preflight
+        run: node --test scripts/tests/discovery-legacy-recovery-rollback-runner.policy.test.mjs
