@@ -17,8 +17,10 @@ const scheduler = readFileSync(
 );
 
 test('private legacy recovery cleanup is part of the existing preferences domain', () => {
-  assert.match(source,
-    /async deletePreferences\(uid: string\): Promise<number>[\s\S]*await purgeLegacyDiscoveryRecoveryOnAccountDeletion/);
+  assert.match(
+    source,
+    /async deletePreferences\(uid: string\): Promise<number>[\s\S]*await purgeLegacyDiscoveryRecoveryOnAccountDeletion/
+  );
   assert.match(source,
     /collection\('legacy_discovery_preference_recovery'\)\.doc\(uid\)/);
   assert.match(source, /await db\.recursiveDelete\(recoveryRef\)/);
@@ -32,8 +34,10 @@ test('private legacy recovery cleanup is part of the existing preferences domain
 test('failed private recovery cleanup blocks the normal pre-finalize domain', () => {
   assert.match(executor,
     /async function executePreferencesDomain[\s\S]*await adapter\.deletePreferences\(uid\)/);
-  assert.match(executor,
-    /async function executePreferencesDomain[\s\S]*catch \(error: unknown\)[\s\S]*failedResult\('preferences', error\)/);
+  assert.match(
+    executor,
+    /async function executePreferencesDomain[\s\S]*catch \(error: unknown\)[\s\S]*failedResult\('preferences', error\)/
+  );
   assert.match(scheduler, /executeAccountDataDeletionDomains\(/);
   assert.match(scheduler, /if \(!canFinalizePrivateUserDeletion\(dataPlan\)\)/);
   assert.match(scheduler, /'blocked'/);
