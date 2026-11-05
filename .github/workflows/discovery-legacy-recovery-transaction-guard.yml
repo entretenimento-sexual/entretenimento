@@ -14,6 +14,8 @@ on:
       - 'functions/src/account_lifecycle/account-legacy-recovery-purge.policy.ts'
       - 'functions/src/account_lifecycle/account-data-deletion.firestore.ts'
       - 'scripts/maintenance/discovery-legacy-recovery-persistence.policy.mjs'
+      - 'scripts/maintenance/discovery-legacy-recovery-governance.policy.mjs'
+      - 'scripts/tests/discovery-legacy-recovery-governance.policy.test.mjs'
       - 'scripts/maintenance/discovery-legacy-recovery-rollback-runner.policy.mjs'
       - 'scripts/maintenance/rehearse-discovery-legacy-recovery-rollback.mjs'
       - 'scripts/maintenance/discovery-legacy-recovery-rehearsal.policy.mjs'
@@ -70,3 +72,6 @@ jobs:
         run: |
           node --check scripts/maintenance/discovery-legacy-owner-fence-race.exercise.mjs
           node --check scripts/maintenance/rehearse-account-legacy-recovery-purge-synthetic.mjs
+
+      - name: Validate B2.6 admin evidence and aggregate-only audit governance
+        run: node --test scripts/tests/discovery-legacy-recovery-governance.policy.test.mjs

@@ -323,6 +323,39 @@ try {
 
 Além dos indicadores B2.4 já aprovados, o relatório precisa conter `staleWriteAfterDeletionRejected: true`, `writerBeforeDeletionPurged: true`, `recreationAfterPurgeRejected: true`, `conflictingTransactionDenied: true` e `raceOwners: 2`. **Não executar** com credenciais, project IDs predefinidos, host de emulador principal ou dados pessoais. O script recusa contexto inseguro.
 
+## Fase B2.6 — preparação de autorização administrativa e auditoria mínima
+
+**Escopo: contrato e testes, sem endpoint nem gravação.** Fonte:
+`scripts/maintenance/discovery-legacy-recovery-governance.policy.mjs`.
+Testes: `scripts/tests/discovery-legacy-recovery-governance.policy.test.mjs`.
+
+O avaliador `evaluateLegacyRecoveryGovernanceEvidence(input)` analisa **somente a forma de evidências recebidas** e devolve um relatório `B2_6_EVIDENCE_ONLY`, sempre com `outcome: 'BLOCKED'` e `persistentWritesAllowed: false`. Mesmo quando todos os cinco testes de coerência passam, a função **não prova a autenticidade das evidências**: os objetos podem ter sido construídos por qualquer chamador. Logo, **nunca** utilizar o campo `evidenceShapeCompatible` como autorização de escrita, de leitura privada ou de divulgação.
+
+A proposta de autorização futura exige validação independente de cinco grupos de evidências, **obtidos pelo backend, não enviados como privilégios pelo cliente**:
+
+1. **Operação específica:** `operationId` único, finalidade exata `PRIVATE_LEGACY_DISCOVERY_PRESERVATION_REVIEW`, projeto `entretenimento-sexual`, destino `legacy_discovery_preference_recovery`, lote máximo já conhecido de 2 candidatos / 8 entradas. Nenhum campo de ativação pública ou saneamento dos perfis originais.
+2. **Identidade autenticada:** principal conferido por Firebase Auth Admin SDK, conta não desabilitada e email verificado; token verificado/revogado e autenticação recente, com revalidação no momento da operação. Os timestamps declarados no contrato são apenas pré-condições de formato: devem ter origem confiável no backend, com controle de relógio.
+3. **Operador:** documento `users/{operatorUid}` lido no backend, `role: 'admin'` atual, `accountStatus: 'active'`, sem indicadores de exclusão/revogação e com autorização operacional **específica** `privateRecoveryOperator: true`. Esta capability é uma **proposta ainda não provisionada**, não um privilégio existente no projeto.
+4. **Revisor independente:** outro administrador ativo, com capability específica `privateRecoveryReviewer: true`. O mesmo UID não pode solicitar/executar e aprovar. Não confiar somente em custom claims antigas ou no token de UI.
+5. **Aprovação privada vinculada ao lote:** registro interno de aprovação **ainda não implementado**, com `APPROVED_FOR_REVIEW_ONLY`, mesmo `operationId`, projeto, coleção e contagens, `approvedByUid` diferente de `requestedByUid`, `revokedAtMs/consumedAtMs` nulos e validade máxima de 15 minutos. O status autoriza no máximo **revisão**, nunca migração. Backend futuro deverá impedir leitura/gravação por cliente nas Rules, revalidar aprovação e estado do proprietário **na transação real** e consumir o registro de modo idempotente. Revogação deve bloquear novas tentativas.
+
+**Trilha de auditoria:** `buildLegacyRecoveryAuditEnvelope()` produz **apenas em memória** um envelope agregado com uma das ações `B2_6_PRECHECK_EVALUATED`, `B2_6_PRECHECK_BLOCKED` ou `B2_6_PRECHECK_REJECTED`, `outcome: 'BLOCKED'`, total fixo de 5 evidências, número de itens coerentes de 0 a 5, `writesPerformed: 0`, `persisted: false`. Não contém UID, ID da operação, hash, valores privados, notas livres ou caminho individual. Possui allowlist rígida; valores/ações extras são rejeitados. **Ainda não existe writer backend-only, assinatura da auditoria, TTL ou cadeia imutável de integridade.** Não chamar este envelope de prova durável.
+
+**Retenção:** 30 dias continuam sendo somente proposta para revisão, não prazo legal definitivo, consentimento ou eliminação agendada. Para qualquer persistência posterior, definir minimização, fundamento/finalidade, eliminação verificável por expiração e por exclusão de conta, inclusive subcoleções, revisão de legal hold e proteção contra recriação após purge. O owner deve decidir separadamente se deseja ativar preferências públicas; nenhuma aprovação administrativa substitui essa decisão.
+
+**Barreiras de publicação:** `assertLegacyRecoveryGovernanceMayPersist()` sempre lança `LEGACY_RECOVERY_PERSISTENCE_NOT_AUTHORIZED`; `assertPersistentRecoveryMayExecute()` da B2.2 também continua bloqueando. Não há nova callable, trigger, endpoint, role, regra permitindo acesso, agendador, escrita no Firestore, deploy ou mudança de perfis. As evidências de teste são **inteiramente sintéticas**.
+
+**Validação sem efeitos colaterais:**
+
+```powershell
+cd C:\entretenimento
+node --test scripts/tests/discovery-legacy-recovery-governance.policy.test.mjs
+node --test scripts/tests/discovery-legacy-recovery-persistence.policy.test.mjs
+node --test scripts/tests/discovery-legacy-owner-fence.policy.test.mjs
+```
+
+A guarda específica também executa testes de governança em Windows e Ubuntu. Esta etapa não executa o runner B2.1, não importa checkpoint e não escreve nem no emulador temporário.
+
 ## Fase B — recuperação privada (NÃO implementada)
 
 1. **Validar proveniência e titularidade:** confrontar os registros com o checkpoint e, se disponíveis, versões históricas; registrar apenas evidências técnicas sem copiar valores para logs.
