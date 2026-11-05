@@ -164,6 +164,9 @@ test('retention deadline is a review proposal, not an automatic expiry or consen
   assert.ok(MANDATORY_RELEASE_BLOCKERS.includes('RETENTION_EXPIRY_JOB_NOT_INTEGRATED'));
   assert.ok(MANDATORY_RELEASE_BLOCKERS.includes('ACCOUNT_DELETION_PURGE_NOT_DEPLOYED_OR_VERIFIED'));
   assert.ok(MANDATORY_RELEASE_BLOCKERS.includes('SERVER_VERIFIED_ADMIN_AUTH_NOT_IMPLEMENTED'));
+  assert.ok(MANDATORY_RELEASE_BLOCKERS.includes(
+    'TRANSACTIONAL_OWNER_FENCE_NOT_INTEGRATED_IN_BACKEND_WRITER'
+  ));
   assert.equal(privateIntents[0].recoveryStatus, 'PENDING_REVIEW');
 });
 

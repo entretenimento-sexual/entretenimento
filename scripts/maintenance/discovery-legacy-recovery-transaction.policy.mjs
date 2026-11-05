@@ -6,6 +6,7 @@ import {
   ISOLATED_FIRESTORE, PROJECT_ID, TARGET_COLLECTION,
   candidateFromPublicProfile, assessExistingRecovery,
 } from './discovery-legacy-recovery-rehearsal.policy.mjs';
+import { assertIsolatedRecoveryOwnerNotDeleting } from './discovery-legacy-owner-fence.policy.mjs';
 
 export const MAX_TRANSACTION_CANDIDATES = 10;
 const ALLOWED_KEYS = new Set([
@@ -84,6 +85,9 @@ function verifyOrigin(candidate, source, owner) {
   if (!source.exists || !owner.exists) {
     throw new Error('SOURCE_OR_OWNER_MISSING');
   }
+  // The isolated historical rehearsal does not authorize persistence.
+  // Even here, reject deleted/purging owners inside the same transaction.
+  assertIsolatedRecoveryOwnerNotDeleting(owner.data());
   const currentCandidate = candidateFromPublicProfile(
     candidate.ownerUid, source.data()
   );

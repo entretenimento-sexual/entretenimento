@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'scripts/maintenance/discovery-legacy-recovery-transaction.policy.mjs'
+      - 'scripts/maintenance/discovery-legacy-owner-fence.policy.mjs'
+      - 'scripts/maintenance/discovery-legacy-owner-fence-race.exercise.mjs'
+      - 'scripts/tests/discovery-legacy-owner-fence.policy.test.mjs'
       - 'scripts/maintenance/account-legacy-recovery-purge-emulator.policy.mjs'
       - 'scripts/maintenance/rehearse-account-legacy-recovery-purge-synthetic.mjs'
       - 'scripts/tests/account-legacy-recovery-purge-emulator.policy.test.mjs'
@@ -59,3 +62,11 @@ jobs:
 
       - name: Verify synthetic-only account purge emulator preflight
         run: node --test scripts/tests/account-legacy-recovery-purge-emulator.policy.test.mjs
+
+      - name: Verify transactional deletion fence and synthetic concurrency contracts
+        run: node --test scripts/tests/discovery-legacy-owner-fence.policy.test.mjs
+
+      - name: Syntax check synthetic race and purge runners
+        run: |
+          node --check scripts/maintenance/discovery-legacy-owner-fence-race.exercise.mjs
+          node --check scripts/maintenance/rehearse-account-legacy-recovery-purge-synthetic.mjs

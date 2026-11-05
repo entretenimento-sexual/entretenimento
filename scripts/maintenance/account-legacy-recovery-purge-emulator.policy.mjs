@@ -29,7 +29,9 @@ const PUBLIC_REPORT_FIELDS = new Set([
   'otherOwnerPreserved', 'mismatchedOwnerRejected',
   'expiredLeaseRejected', 'activeAccountRejected',
   'preferencesDomainFailedOnConflict', 'accountFinalizationBlocked',
-  'privateRecoveryWriterEnabled',
+  'staleWriteAfterDeletionRejected', 'writerBeforeDeletionPurged',
+  'recreationAfterPurgeRejected', 'raceOwners',
+  'concurrentWritePurgedOrDenied', 'privateRecoveryWriterEnabled',
 ]);
 
 export function assertSyntheticEmulatorReport(report) {
@@ -52,6 +54,11 @@ export function assertSyntheticEmulatorReport(report) {
       report.activeAccountRejected !== true ||
       report.preferencesDomainFailedOnConflict !== true ||
       report.accountFinalizationBlocked !== true ||
+      report.staleWriteAfterDeletionRejected !== true ||
+      report.writerBeforeDeletionPurged !== true ||
+      report.recreationAfterPurgeRejected !== true ||
+      report.raceOwners !== 2 ||
+      report.concurrentWritePurgedOrDenied !== true ||
       report.privateRecoveryWriterEnabled !== false) {
     throw new Error('SYNTHETIC_PURGE_EVIDENCE_INCOMPLETE');
   }

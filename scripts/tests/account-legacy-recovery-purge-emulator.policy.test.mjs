@@ -32,6 +32,11 @@ const expected = Object.freeze({
   activeAccountRejected: true,
   preferencesDomainFailedOnConflict: true,
   accountFinalizationBlocked: true,
+  staleWriteAfterDeletionRejected: true,
+  writerBeforeDeletionPurged: true,
+  recreationAfterPurgeRejected: true,
+  raceOwners: 2,
+  concurrentWritePurgedOrDenied: true,
   privateRecoveryWriterEnabled: false,
 });
 
@@ -78,6 +83,8 @@ test('report accepts only full synthetic proof and contains no owner IDs', () =>
     'otherOwnerPreserved', 'mismatchedOwnerRejected',
     'expiredLeaseRejected', 'activeAccountRejected',
     'preferencesDomainFailedOnConflict', 'accountFinalizationBlocked',
+    'staleWriteAfterDeletionRejected', 'writerBeforeDeletionPurged',
+    'recreationAfterPurgeRejected', 'concurrentWritePurgedOrDenied',
     'privateRecoveryWriterEnabled',
   ]) {
     assert.throws(() => assertSyntheticEmulatorReport({
@@ -91,6 +98,7 @@ test('report accepts only full synthetic proof and contains no owner IDs', () =>
     ['successRecoveryDocumentsDeleted', 0],
     ['successDescendantsDeleted', 1],
     ['idempotentRepeatRemoved', 1],
+    ['raceOwners', 0],
   ]) {
     assert.throws(() => assertSyntheticEmulatorReport({
       ...expected, [key]: value,
@@ -131,6 +139,7 @@ test('runner uses compiled real adapter, fresh empty emulator, and no import/exp
   assert.match(source, /realAdapter\.deletePreferences\(mismatch\)/);
   assert.match(source, /executor\.executeAccountDataDeletionDomains/);
   assert.match(source, /canFinalizePrivateUserDeletion/);
+  assert.match(source, /exerciseSyntheticOwnerFenceRaces/);
   assert.match(source, /portIsFree\(SYNTHETIC_PURGE_PORT\)/);
   assert.match(source, /await stopChild\(child/);
   assert.match(source, /--single_project_mode/);

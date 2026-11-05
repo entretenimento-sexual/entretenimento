@@ -197,7 +197,7 @@ A B2.1 confirmou **somente no Firestore Emulator isolado** a criação, leitura,
 - Exige formato coerente do relatório B2.1: importação isolada, idempotência, rollback completo, ausência de diferenças lógicas e export original preservado. O relatório é um **relato local estrutural, não uma prova assinada/autenticada**; um chamador malicioso poderia falsificar os campos. Um escritor futuro deverá refazer as verificações em servidor confiável.
 - Propõe **30 dias para análise**, sem criar TTL, agendador ou política legal definitiva. O prazo é uma **proposta operacional**, sujeita à revisão de necessidade, consentimento e retenção antes de qualquer persistência. Exclusão de conta deve remover também a quarentena; o fluxo de lifecycle ainda **não foi integrado** a essa nova coleção.
 - Mantém `PENDING_REVIEW`, `visibilityConsentConfirmed: false`, sem `hardRules`, sem `showSeekingPublicly`, sem migração de orientação/gênero e sem modificar `public_profiles`.
-- Retorna um relatório de pré-condições com decisão `BLOCKED` e seis bloqueadores não configuráveis pelo chamador: autenticação administrativa **verificada em backend**, autorização explícita da operação, validação/implantação da integração ao expurgo de conta, mecanismo de expiração, escritor de auditoria backend-only e aprovação de migração/rollback persistente. O relatório de auditoria é estritamente agregado, com campos permitidos, sem UID, valores, hashes individuais ou texto livre.
+- Retorna um relatório de pré-condições com decisão `BLOCKED` e sete bloqueadores não configuráveis pelo chamador: autenticação administrativa **verificada em backend**, autorização explícita da operação, validação/implantação da integração ao expurgo de conta, mecanismo de expiração, escritor de auditoria backend-only, barreira transacional integrada ao writer e aprovação de migração/rollback persistente. O relatório de auditoria é estritamente agregado, com campos permitidos, sem UID, valores, hashes individuais ou texto livre.
 - `assertPersistentRecoveryMayExecute()` **sempre rejeita** execução persistente. Não existe CLI de persistência, callable, endpoint, trigger, cron, writer, rotina de expurgo, regra de autorização ou deploy neste commit. A ausência desses componentes é proposital.
 
 **Governança exigida para um eventual writer futuro** (não implementada aqui):
@@ -287,7 +287,41 @@ O relatório esperado (apenas dados agregados) deve confirmar:
 - erro de `preferences` propagado ao `executeAccountDataDeletionDomains` e `canFinalizePrivateUserDeletion` retornando falso em plano com os demais domínios simuladamente concluídos;
 - nenhuma exportação/importação de checkpoint, nenhuma alteração no emulador principal ou remoto.
 
-**Limites:** este é um ensaio isolado com contas artificiais e o adaptador de preferências real. Não executa o agendador de purge completo, não exerce contratos de billing, mídia e moderação, nem prova o comportamento de um writer concorrente; a verificação do lease e a exclusão recursiva ainda não são atômicas. Não é autorização para produção, alteração de perfis reais ou escritor persistente. A política B2.2 continua bloqueada.
+**Limites:** este é um ensaio isolado com contas artificiais e o adaptador de preferências real. Não executa o agendador de purge completo, não exerce contratos de billing, mídia e moderação, nem prova o comportamento de um writer concorrente; a verificação do lease e a exclusão recursiva ainda não são atômicas. Não é autorização para produção, alteração de perfis reais ou escritor persistente. A política B2.2 continua bloqueada, inclusive por `TRANSACTIONAL_OWNER_FENCE_NOT_INTEGRATED_IN_BACKEND_WRITER`.
+
+## Fase B2.5 — fence transacional de exclusão e corrida sintética
+
+**Objetivo:** impedir que uma rotina futura recrie `legacy_discovery_preference_recovery/{ownerUid}` enquanto `users/{uid}` migra para `pending_deletion`/`deleted`, mesmo quando a leitura inicial ocorre antes da transição.
+
+Contratos implementados:
+
+- `scripts/maintenance/discovery-legacy-owner-fence.policy.mjs`: política pura `RECOVERY_OWNER_FENCE_VERSION = 1`. **Regra estrita** `assertRecoveryOwnerEligibleForTransactionalStaging(owner)` exige `accountStatus: 'active'` explícito, ausência de marcadores de solicitação/lease de purge e ausência de bloqueios `interactionBlocked`, `loginAllowed: false`, `legalHold` ou `billingHold`. Exceções são genéricas, sem UID/valores. **A regra estrita é pré-condição técnica, não autorização administrativa para produção.**
+- O motor B2.1 **isolado/histórico** `copyIntoIsolatedRecovery()` passa a aplicar `assertIsolatedRecoveryOwnerNotDeleting()` aos snapshots de `users`, **dentro da transação Firestore que cria a quarentena**. Essa variante preserva a compatibilidade com snapshots legados que não contêm `accountStatus`, mas recusa estados de exclusão e marcadores de purge. **Não reutilizar a variante histórica como permissão de um writer persistente.**
+- `scripts/maintenance/discovery-legacy-owner-fence-race.exercise.mjs`: rotina dedicada **somente** ao projeto demo `demo-entretenimento-legacy-purge`, com `FIRESTORE_EMULATOR_HOST=127.0.0.1:28080`. Cria exclusivamente UIDs e registros artificiais e faz testes reais de `runTransaction` usando o predicado estrito.
+- O executor de teste B2.4 `rehearse-account-legacy-recovery-purge-synthetic.mjs` agora incorpora dois cenários B2.5 e retorna somente cinco novos indicadores agregados. O contrato de relatório rejeita campos extras, UIDs e hashes individuais.
+
+**Cenários de corrida:** (1) uma cópia e a mudança para `pending_deletion` são executadas concorrentemente em transações Firestore que acessam a **mesma** `users/{uid}`, sem pausas artificiais que possam criar deadlock. Ambas as ordens de serialização são legítimas: se a cópia vencer, o purge remove o registro; se o pedido de exclusão vencer, a barreira rejeita a cópia. Uma leitura anterior ao início dessas transações não é aceita como autorização; novas cópias após `pending_deletion` são rejeitadas. (2) a cópia é concluída deliberadamente **antes** de `deleted`; a rotina de purge remove o registro, e qualquer tentativa posterior de recriá-lo é recusada pelo status da conta dentro da transação.
+
+**Limite de prova:** a revalidação do lease imediatamente antes de `recursiveDelete` continua **não atômica**, mas o contrato de qualquer writer futuro exige que as decisões sobre elegibilidade do proprietário e criação de recuperação sejam serializadas pela mesma transação Firestore. O teste verifica o conflito apenas no emulador demo; não verifica um writer persistente, implantação, processos remotos ou interações arbitrárias de serviços que desrespeitem esse contrato. A conclusão B2.5 não libera migração, backfill nem saneamento dos campos públicos.
+
+**Execução local:** após sincronizar a `main`, rodar `npm run rules:build`, `npm --prefix functions run build`, depois `node --test scripts/tests/discovery-legacy-owner-fence.policy.test.mjs` e `node --test scripts/tests/account-legacy-recovery-purge-emulator.policy.test.mjs`. A execução real de corrida é o **mesmo CLI** sintético B2.4:
+
+```powershell
+$hostAnterior = $env:FIRESTORE_EMULATOR_HOST
+try {
+  Remove-Item Env:\FIRESTORE_EMULATOR_HOST -ErrorAction SilentlyContinue
+  node scripts/maintenance/rehearse-account-legacy-recovery-purge-synthetic.mjs --isolated-synthetic-purge-test
+  if ($LASTEXITCODE -ne 0) { throw 'Falha no ensaio B2.5 isolado.' }
+} finally {
+  if ($null -eq $hostAnterior) {
+    Remove-Item Env:\FIRESTORE_EMULATOR_HOST -ErrorAction SilentlyContinue
+  } else {
+    $env:FIRESTORE_EMULATOR_HOST = $hostAnterior
+  }
+}
+```
+
+Além dos indicadores B2.4 já aprovados, o relatório precisa conter `staleWriteAfterDeletionRejected: true`, `writerBeforeDeletionPurged: true`, `recreationAfterPurgeRejected: true`, `conflictingTransactionDenied: true` e `raceOwners: 2`. **Não executar** com credenciais, project IDs predefinidos, host de emulador principal ou dados pessoais. O script recusa contexto inseguro.
 
 ## Fase B — recuperação privada (NÃO implementada)
 

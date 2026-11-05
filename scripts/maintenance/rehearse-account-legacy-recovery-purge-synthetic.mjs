@@ -13,6 +13,9 @@ import {
   SYNTHETIC_PURGE_PORT, SYNTHETIC_PURGE_WEBSOCKET_PORT,
   assertSyntheticPurgeInvocation, assertSyntheticEmulatorReport,
 } from './account-legacy-recovery-purge-emulator.policy.mjs';
+import {
+  exerciseSyntheticOwnerFenceRaces,
+} from './discovery-legacy-owner-fence-race.exercise.mjs';
 
 const root = process.cwd();
 const jar = path.join(os.homedir(), '.cache', 'firebase', 'emulators',
@@ -263,6 +266,10 @@ async function exercise(db, realAdapter, executor, retention) {
   must(bystanderRoot.exists && bystanderChild.exists,
     'UNRELATED_OWNER_MODIFIED');
 
+  // B2.5: same transaction reads the owner status and stages a synthetic
+  // recovery. A concurrent deletion intent must invalidate that read.
+  const race = await exerciseSyntheticOwnerFenceRaces(db, realAdapter);
+
   return assertSyntheticEmulatorReport({
     mode: 'SYNTHETIC_FIRESTORE_PURGE_E2E',
     project: SYNTHETIC_PURGE_PROJECT,
@@ -280,6 +287,11 @@ async function exercise(db, realAdapter, executor, retention) {
     activeAccountRejected: true,
     preferencesDomainFailedOnConflict: true,
     accountFinalizationBlocked: true,
+    staleWriteAfterDeletionRejected: race.staleWriteAfterDeletionRejected,
+    writerBeforeDeletionPurged: race.writerBeforeDeletionPurged,
+    recreationAfterPurgeRejected: race.recreationAfterPurgeRejected,
+    raceOwners: race.raceOwners,
+    concurrentWritePurgedOrDenied: race.concurrentWritePurgedOrDenied,
     privateRecoveryWriterEnabled: false,
   });
 }
