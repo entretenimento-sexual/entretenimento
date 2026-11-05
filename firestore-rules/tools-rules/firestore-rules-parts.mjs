@@ -59,6 +59,8 @@ export const FIRESTORE_RULE_PARTS = Object.freeze([
   'moderation_evidence.rules',
   // Quarentena privada de recuperação de preferências legadas (backend-only).
   'legacy_discovery_preference_recovery.rules',
+  // Proposta de registro de aprovações: sempre fechado ao cliente.
+  'legacy_discovery_recovery_approvals.rules',
   'moderation_automation.rules',
 
   // Demais módulos.

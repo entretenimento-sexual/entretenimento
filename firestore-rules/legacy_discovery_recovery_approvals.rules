@@ -1,0 +1,17 @@
+// =============================================================================
+// ISSUE #236 — PROPOSED PRIVATE LEGACY RECOVERY APPROVAL LEDGER (B2.7)
+// =============================================================================
+// Backend-only future namespace. No approval writer, consumer, retention job
+// or administrative callable is implemented. This is NOT a grant of authority.
+// Firebase Admin SDK bypasses client Rules: backend must independently
+// authenticate, validate scope/owner, audit and protect approval replay.
+// =============================================================================
+
+match /legacy_discovery_recovery_approvals/{operationId} {
+  allow read, write: if false;
+
+  // Deny nested payloads, receipts and any future event subcollections.
+  match /{nestedDocument=**} {
+    allow read, write: if false;
+  }
+}

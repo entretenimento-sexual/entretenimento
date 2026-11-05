@@ -15,6 +15,12 @@ on:
       - 'functions/src/account_lifecycle/account-data-deletion.firestore.ts'
       - 'scripts/maintenance/discovery-legacy-recovery-persistence.policy.mjs'
       - 'scripts/maintenance/discovery-legacy-recovery-governance.policy.mjs'
+      - 'functions/src/discovery/legacy-recovery-admin-readonly.firestore.ts'
+      - 'functions/src/discovery/legacy-recovery-admin-readonly.firestore.test.ts'
+      - 'scripts/tests/discovery-legacy-recovery-backend-readonly.contract.test.mjs'
+      - 'firestore-rules/legacy_discovery_recovery_approvals.rules'
+      - 'firestore-rules/tools-rules/firestore-rules-parts.mjs'
+      - 'firestore-rules/tests/legacy-discovery-recovery-approvals.rules.spec.ts'
       - 'scripts/tests/discovery-legacy-recovery-governance.policy.test.mjs'
       - 'scripts/maintenance/discovery-legacy-recovery-rollback-runner.policy.mjs'
       - 'scripts/maintenance/rehearse-discovery-legacy-recovery-rollback.mjs'
@@ -75,3 +81,6 @@ jobs:
 
       - name: Validate B2.6 admin evidence and aggregate-only audit governance
         run: node --test scripts/tests/discovery-legacy-recovery-governance.policy.test.mjs
+
+      - name: Guard B2.7 backend-only read and unexported entrypoint
+        run: node --test scripts/tests/discovery-legacy-recovery-backend-readonly.contract.test.mjs

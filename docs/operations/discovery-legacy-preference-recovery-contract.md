@@ -356,6 +356,89 @@ node --test scripts/tests/discovery-legacy-owner-fence.policy.test.mjs
 
 A guarda específica também executa testes de governança em Windows e Ubuntu. Esta etapa não executa o runner B2.1, não importa checkpoint e não escreve nem no emulador temporário.
 
+## Fase B2.7 — integração de leitura das fontes de autoridade (sem deploy)
+
+**Código interno não exportado**:
+`functions/src/discovery/legacy-recovery-admin-readonly.firestore.ts`.
+Testes: `legacy-recovery-admin-readonly.firestore.test.ts` e
+`scripts/tests/discovery-legacy-recovery-backend-readonly.contract.test.mjs`.
+
+O método `inspectLegacyRecoveryAdminReadOnly(backend, request, now)`
+recebe instâncias Auth e Firestore **injetadas pelo ambiente confiável**.
+Não importa `firebaseApp`, não inicializa o SDK, não cria callable/HTTP/
+trigger/agendador e **não é reexportado em `functions/src/index.ts`**.
+Opera somente com leitura `Auth.verifyIdToken(token, true)` (checagem de
+revogação), `Auth.getUser(uid)` (usuário existente, ativo e email verificado)
+e `Firestore.collection('users').doc(uid).get()` (papel administrativo
+canônico atual, independentemente de claims JWT antigas).
+
+**Restrição de execução:** consulta somente o `process.env` do servidor (não aceita um ambiente fornecido pelo chamador) e, além de não possuir entrypoint, recusa qualquer
+contexto fora do conjunto exato `FIRESTORE_EMULATOR_HOST=127.0.0.1:28080`,
+`FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:29099`,
+`GCLOUD_PROJECT=demo-entretenimento-legacy-governance` e
+`FUNCTIONS_EMULATOR=true`, e recusa variáveis de credenciais/projeto
+remoto. O projeto lógico da operação continua
+`entretenimento-sexual` **apenas como dado contratual**, não é o destino
+de execução do leitor. Não há autorização para acesso ao ambiente principal
+ou ao banco de produção.
+
+**Fontes e sequência:** verifica assinatura/revogação do ID token e
+`auth_time` recente, depois lê o Auth User atual do operador, em seguida
+`users/{operatorUid}` e exige `role:'admin'`,
+`accountStatus:'active'`, ausência de marcadores de bloqueio/exclusão e
+`privateRecoveryOperator:true` (capacidade **ainda proposta e não
+provisionada**). Somente após esses gates lê
+`legacy_discovery_recovery_approvals/{operationId}` para verificar
+o escopo `APPROVED_FOR_REVIEW_ONLY`, projeto lógico, coleção, contagens,
+validade/revogação/consumo e o UID de revisor distinto. Consulta novamente
+o Auth User e `users/{reviewerUid}`, exigindo administrador ativo e
+`privateRecoveryReviewer:true` (também **não provisionada**).
+Falhas de Auth, rede, documento, revogação ou contrato retornam relatório
+agregado bloqueado e **não expondo JWT, UID ou erros brutos**.
+
+A coleção `legacy_discovery_recovery_approvals` é **proposta**. Nenhum
+escritor, migração ou aprovação real foi criado. O fragmento versionado
+`firestore-rules/legacy_discovery_recovery_approvals.rules` nega
+explicitamente toda leitura e escrita por SDK de cliente, incluindo subcoleções
+e claims administrativas; o manifesto canônico de Rules inclui esse fragmento.
+`firestore-rules/tests/legacy-discovery-recovery-approvals.rules.spec.ts`
+cobre acesso anônimo, operador, revisor, administrador e moderador.
+Isso não impede operações do Firebase Admin SDK, que bypassam Rules. A consulta de um documento de aprovação **não prova** que o revisor
+autorizou aquela operação, pois faltam um writer confiável, protocolo
+antirreplay, autenticação do revisor na emissão, trilha durável de auditoria,
+invalidação por revogação e consumo transacional atômico.
+
+**Resultado:** mesmo com todas as verificações sintéticas consistentes, o
+método retorna `phase:'B2_7_BACKEND_READ_ONLY'`, `decision:'BLOCKED'`,
+`persistentWritesAllowed:false`, `privateRecoveryRead:false`,
+`privateRecoveryWritten:false`, `sourceFieldsDeletionAllowed:false` e
+`visibilityActivationAllowed:false`. Flags de coerência são somente
+evidências parciais, não autorização. Nenhuma leitura de preferências
+sensíveis é realizada por este módulo.
+
+**Validação offline obrigatória (sem Auth Emulator real):**
+
+```powershell
+cd C:\entretenimento
+npm --prefix functions run lint
+npm --prefix functions run test
+node --test scripts/tests/discovery-legacy-recovery-backend-readonly.contract.test.mjs
+node --test scripts/tests/discovery-legacy-recovery-governance.policy.test.mjs
+```
+
+Os testes do leitor utilizam dublês de `verifyIdToken`, `getUser` e
+`Firestore.get`; demonstram o contrato read-only e a reação a revogação,
+roles antigas, contas deletadas, aprovação adulterada e runtime inseguro.
+**Não são ensaio real conectado ao Auth Emulator**, que permanece etapa
+futura; não alegar prova de emissão de aprovações nem de autenticidade
+end-to-end. O teste de contrato também roda no guard Windows e Ubuntu.
+
+**Bloqueios pendentes:** backend writer real continua ausente e vetado,
+não existe ledger persistente de aprovação, consumo de uso único, auditoria
+durável, retenção/TTL de registros nem autorização de migração. O backfill,
+a remoção dos campos originais de `public_profiles` e qualquer deploy
+permanecem proibidos.
+
 ## Fase B — recuperação privada (NÃO implementada)
 
 1. **Validar proveniência e titularidade:** confrontar os registros com o checkpoint e, se disponíveis, versões históricas; registrar apenas evidências técnicas sem copiar valores para logs.
