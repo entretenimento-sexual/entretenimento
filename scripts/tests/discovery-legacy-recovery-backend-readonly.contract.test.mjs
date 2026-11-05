@@ -59,7 +59,9 @@ test('strict orphan check recognizes only this non-deployable B2.7 module', () =
     "    '" + sourcePath + "'",
     "  )),",
   ].join('\n');
-  assert.equal(checker.includes(declaration), true);
+  // Git checkout may produce CRLF on Windows. Normalize line endings
+  // without widening the exact allowlisted file path.
+  assert.equal(checker.replace(/\r\n/g, '\n').includes(declaration), true);
   assert.match(checker, /const functionOrphans = functionsProductionTs/);
   assert.match(checker, /!functionsOperationalArtifacts\.has\(filePath\)/);
   const exports = readFileSync(index, 'utf8');
