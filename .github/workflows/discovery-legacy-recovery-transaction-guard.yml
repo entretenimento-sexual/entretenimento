@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths:
       - 'scripts/maintenance/discovery-legacy-recovery-transaction.policy.mjs'
+      - 'scripts/maintenance/account-legacy-recovery-purge-emulator.policy.mjs'
+      - 'scripts/maintenance/rehearse-account-legacy-recovery-purge-synthetic.mjs'
+      - 'scripts/tests/account-legacy-recovery-purge-emulator.policy.test.mjs'
+      - 'functions/src/account_lifecycle/account-legacy-recovery-purge.policy.ts'
+      - 'functions/src/account_lifecycle/account-data-deletion.firestore.ts'
       - 'scripts/maintenance/discovery-legacy-recovery-persistence.policy.mjs'
       - 'scripts/maintenance/discovery-legacy-recovery-rollback-runner.policy.mjs'
       - 'scripts/maintenance/rehearse-discovery-legacy-recovery-rollback.mjs'
@@ -51,3 +56,6 @@ jobs:
 
       - name: Validate B2.2 persistence remains blocked pending authorization and retention
         run: node --test scripts/tests/discovery-legacy-recovery-persistence.policy.test.mjs
+
+      - name: Verify synthetic-only account purge emulator preflight
+        run: node --test scripts/tests/account-legacy-recovery-purge-emulator.policy.test.mjs

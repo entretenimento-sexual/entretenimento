@@ -232,6 +232,63 @@ Arquivos:
 
 **Decisão de publicação:** esta etapa é somente código e testes. Não executa `purgeDeletedAccounts`, não altera dados da instância principal ou produção, não implementa writer de retenção, TTL, autenticação administrativa ou audit writer. A política B2.2 continua com `persistentWritesAllowed: false` e `assertPersistentRecoveryMayExecute()` recusando qualquer chamada.
 
+## Fase B2.4 — E2E de expurgo com contas sintéticas (sem checkpoint)
+
+Executor: `scripts/maintenance/rehearse-account-legacy-recovery-purge-synthetic.mjs`.
+Contrato prévio: `scripts/maintenance/account-legacy-recovery-purge-emulator.policy.mjs`.
+Testes puros: `scripts/tests/account-legacy-recovery-purge-emulator.policy.test.mjs`.
+
+**Este runner é distinto do B2.1:** não importa `.emulator-data`, não lê o checkpoint real e não chama o agendador `purgeDeletedAccounts`. Inicia **um Firestore Emulator novo e vazio** (projeto `demo-entretenimento-legacy-purge`) nas portas `127.0.0.1:28080` e `29150`, usando o JAR local e Rules compiladas. O projeto demo e a indisponibilidade obrigatória de portas preexistentes impedem usar o emulador principal `8080`. Só manipula documentos sintéticos, encerrando o processo filho sem exportá-lo.
+
+O script carrega o **adaptador real compilado** `FirestoreAccountDataDeletionAdapter` e o método público preservado `deletePreferences(uid)`, com o ciclo normal de erro do domínio `preferences`. Não instala trigger nem callable novo, não ativa writer de recuperação, não importa nem transforma valores do incidente.
+
+**Pré-condições**: `main` sincronizada, árvore limpa, Java disponível, JAR v1.22.0 do Firestore Emulator instalado na cache Firebase, `functions/node_modules` instalado, `functions/lib` compilado e `firestore.rules` recém-gerado. A operação recusa credenciais ADC explícitas, project IDs preconfigurados, `FIREBASE_CONFIG`, `FUNCTIONS_EMULATOR` ou `FIRESTORE_EMULATOR_HOST` predefinidos e só aceita a flag `--isolated-synthetic-purge-test`.
+
+Comandos no PowerShell (sem deploy):
+
+```powershell
+cd C:\entretenimento
+git status -sb
+git rev-list --left-right --count HEAD...origin/main
+
+npm run rules:build
+if ($LASTEXITCODE -ne 0) { throw 'Rules locais invalidas.' }
+
+npm --prefix functions run build
+if ($LASTEXITCODE -ne 0) { throw 'Build das Functions falhou.' }
+
+node --test scripts/tests/account-legacy-recovery-purge-emulator.policy.test.mjs
+if ($LASTEXITCODE -ne 0) { throw 'Preflight B2.4 falhou.' }
+
+# Nao apague configuracoes de credenciais/projeto para contornar os guards.
+# Se qualquer variavel de projeto ou credencial estiver definida, o
+# executor falhara por seguranca. FIRESTORE_EMULATOR_HOST normalmente
+# pode ser removida temporariamente para esta execucao.
+$firestoreAnterior = $env:FIRESTORE_EMULATOR_HOST
+try {
+    Remove-Item Env:\FIRESTORE_EMULATOR_HOST -ErrorAction SilentlyContinue
+    node scripts/maintenance/rehearse-account-legacy-recovery-purge-synthetic.mjs --isolated-synthetic-purge-test
+    if ($LASTEXITCODE -ne 0) { throw 'Ensaio sintetico B2.4 nao aprovado.' }
+} finally {
+    if ($null -eq $firestoreAnterior) {
+        Remove-Item Env:\FIRESTORE_EMULATOR_HOST -ErrorAction SilentlyContinue
+    } else {
+        $env:FIRESTORE_EMULATOR_HOST = $firestoreAnterior
+    }
+}
+```
+
+O relatório esperado (apenas dados agregados) deve confirmar:
+- exclusão de 1 documento de recuperação e 2 documentos descendentes do mesmo UID;
+- segunda chamada idempotente (0 alterações);
+- exclusão de descendentes mesmo quando o documento pai já não existe;
+- bloqueio por `ownerUid` incompatível, lease expirado e conta ativa, preservando esses registros;
+- conta de terceiro sintética inteiramente preservada;
+- erro de `preferences` propagado ao `executeAccountDataDeletionDomains` e `canFinalizePrivateUserDeletion` retornando falso em plano com os demais domínios simuladamente concluídos;
+- nenhuma exportação/importação de checkpoint, nenhuma alteração no emulador principal ou remoto.
+
+**Limites:** este é um ensaio isolado com contas artificiais e o adaptador de preferências real. Não executa o agendador de purge completo, não exerce contratos de billing, mídia e moderação, nem prova o comportamento de um writer concorrente; a verificação do lease e a exclusão recursiva ainda não são atômicas. Não é autorização para produção, alteração de perfis reais ou escritor persistente. A política B2.2 continua bloqueada.
+
 ## Fase B — recuperação privada (NÃO implementada)
 
 1. **Validar proveniência e titularidade:** confrontar os registros com o checkpoint e, se disponíveis, versões históricas; registrar apenas evidências técnicas sem copiar valores para logs.
