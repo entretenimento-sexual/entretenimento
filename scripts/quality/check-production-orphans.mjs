@@ -510,6 +510,13 @@ const functionsOperationalArtifacts = new Set([
     functionsSourceRoot,
     'media/application/admin-video-triage-closed-outbox.policy.ts'
   )),
+  // B2.7 / #236: internal Auth/Firestore evidence probe, emulator-only,
+  // intentionally not exported as a Cloud Function. All decisions remain
+  // BLOCKED. Only this exact file is excluded, not the discovery directory.
+  posix(path.join(
+    functionsSourceRoot,
+    'discovery/legacy-recovery-admin-readonly.firestore.ts'
+  )),
 ]);
 
 const functionOrphans = functionsProductionTs

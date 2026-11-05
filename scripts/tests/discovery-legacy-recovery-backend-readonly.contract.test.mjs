@@ -48,6 +48,25 @@ test('read-only module stays internal, emulator-scoped, without write path', () 
   assert.match(source, /privateRecoveryWritten: false/);
 });
 
+test('strict orphan check recognizes only this non-deployable B2.7 module', () => {
+  const checker = readFileSync(fileURLToPath(new URL(
+    '../quality/check-production-orphans.mjs', import.meta.url
+  )), 'utf8');
+  const sourcePath = 'discovery/legacy-recovery-admin-readonly.firestore.ts';
+  const declaration = [
+    "posix(path.join(",
+    "    functionsSourceRoot,",
+    "    '" + sourcePath + "'",
+    "  )),",
+  ].join('\n');
+  assert.equal(checker.includes(declaration), true);
+  assert.match(checker, /const functionOrphans = functionsProductionTs/);
+  assert.match(checker, /!functionsOperationalArtifacts\.has\(filePath\)/);
+  const exports = readFileSync(index, 'utf8');
+  assert.equal(exports.includes('legacy-recovery-admin-readonly'), false);
+  assert.equal(exports.includes('inspectLegacyRecoveryAdminReadOnly'), false);
+});
+
 test('read-only approval cannot be confused with production authority', () => {
   assert.match(source, /approvalRecordConsumed: false/);
   assert.match(source, /auditPersisted: false/);

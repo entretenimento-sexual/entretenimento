@@ -363,6 +363,17 @@ A guarda específica também executa testes de governança em Windows e Ubuntu. 
 Testes: `legacy-recovery-admin-readonly.firestore.test.ts` e
 `scripts/tests/discovery-legacy-recovery-backend-readonly.contract.test.mjs`.
 
+**Exceção controlada no gate de código órfão:** o módulo B2.7 é
+deliberadamente uma biblioteca interna, não um export implantável. A lista
+exata `functionsOperationalArtifacts` do
+`scripts/quality/check-production-orphans.mjs` registra **somente**
+`functions/src/discovery/legacy-recovery-admin-readonly.firestore.ts`
+como artefato operacional interno. O teste de contrato exige essa exceção
+restrita e confirma a ausência de export pelo `functions/src/index.ts`.
+Isso preserva a verificação `--strict` para todos os outros módulos de
+Functions. Nenhuma alteração no backend de autorização ou na política de
+negação de persistência foi feita para satisfazer o CI.
+
 O método `inspectLegacyRecoveryAdminReadOnly(backend, request, now)`
 recebe instâncias Auth e Firestore **injetadas pelo ambiente confiável**.
 Não importa `firebaseApp`, não inicializa o SDK, não cria callable/HTTP/
