@@ -573,3 +573,32 @@ ou gravacao persistente de recuperacao e autorizado.
 
 Evidencia local: 10 verificacoes integradas aprovadas.
 Evidencia remota: CI_PENDING ate execucao no Actions.
+## B2.9.1 - Ciclo de vida proposto das aprovacoes
+
+A politica pura `discovery-legacy-approval-lifecycle.policy.mjs` e
+seus testes nao acessam Firebase ou arquivos de dados. Esta etapa
+nao cria um emissor administrativo, callable, endpoint ou escritor.
+
+Estados somente de proposta: REQUESTED_FOR_REVIEW,
+APPROVED_FOR_REVIEW_ONLY, REVOKED, EXPIRED e
+CONSUMED_FOR_REVIEW_ONLY. Aprovacao vale somente para revisao.
+O prazo de validade e de 15 minutos, com revisor independente.
+Revogacao, expiracao e consumo sao estados terminais.
+
+A revisao monotona previne propostas obsoletas apenas quando o
+reducer recebe o estado mais recente. Nao ha prova de compare-and-swap
+atomico entre processos, nem transacao real Firestore nesta fase.
+A autoridade do operador e revisor continua dependendo da futura
+verificacao do backend com Auth e users atuais.
+
+O retorno da politica permanece outcome BLOCKED, proposalOnly true,
+backendAuthorityVerified false, transactionCommitted false,
+approvalPersisted false, auditPersisted false,
+persistentRecoveryAllowed false, sourceDeletionAllowed false e
+publicVisibilityAllowed false.
+
+B2.7 permanece inalterado. A simulacao de consumo nao grava no
+ledger legacy_discovery_recovery_approvals nem permite migrar,
+remover ou expor preferencias dos titulares. A janela de retencao,
+revogacao de credenciais, trilha persistente e consentimento ainda
+exigem contratos independentes e autorizacao expressa.

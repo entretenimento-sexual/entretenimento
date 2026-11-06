@@ -15,6 +15,8 @@ on:
       - 'functions/src/account_lifecycle/account-data-deletion.firestore.ts'
       - 'scripts/maintenance/discovery-legacy-recovery-persistence.policy.mjs'
       - 'scripts/maintenance/discovery-legacy-recovery-governance.policy.mjs'
+      - 'scripts/maintenance/discovery-legacy-approval-lifecycle.policy.mjs'
+      - 'scripts/tests/discovery-legacy-approval-lifecycle.policy.test.mjs'
       - 'functions/src/discovery/legacy-recovery-admin-readonly.firestore.ts'
       - 'functions/src/discovery/legacy-recovery-admin-readonly.firestore.test.ts'
       - 'scripts/tests/discovery-legacy-recovery-backend-readonly.contract.test.mjs'
@@ -84,6 +86,9 @@ jobs:
 
       - name: Validate B2.6 admin evidence and aggregate-only audit governance
         run: node --test scripts/tests/discovery-legacy-recovery-governance.policy.test.mjs
+
+      - name: Guard B2.9.1 pure approval lifecycle and replay protections
+        run: node --test scripts/tests/discovery-legacy-approval-lifecycle.policy.test.mjs
 
       - name: Guard B2.7 backend-only read and unexported entrypoint
         run: node --test scripts/tests/discovery-legacy-recovery-backend-readonly.contract.test.mjs
