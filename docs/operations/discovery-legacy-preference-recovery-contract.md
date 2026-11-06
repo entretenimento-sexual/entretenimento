@@ -470,3 +470,106 @@ permanecem proibidos.
 - Uma aprovação do código de auditoria **não autoriza** a Fase B.
 
 Rastreamento: Issues [#236](https://github.com/entretenimento-sexual/entretenimento/issues/236) e [#235](https://github.com/entretenimento-sexual/entretenimento/issues/235).
+
+## B2.8 - Evidencias de isolamento e integracao
+
+Registro operacional: 2026-11-05.
+Referencia inicial: b7bb1f38.
+Issue: #236.
+
+### Escopo
+
+Verificar o leitor interno
+inspectLegacyRecoveryAdminReadOnly()
+utilizando exclusivamente dados sinteticos e os
+emuladores Firebase Auth e Firestore.
+
+Projeto descartavel:
+demo-entretenimento-legacy-governance.
+
+Auth: 127.0.0.1:29099.
+Firestore: 127.0.0.1:28080.
+
+Nenhum checkpoint real deve ser importado.
+
+### Evidencias locais
+
+B2.8.1:
+Preflight manual aprovado. Variaveis proibidas
+ausentes, portas reservadas livres e leitor interno.
+
+B2.8.2:
+Ensaio integrado real aprovado: 10 verificacoes.
+
+Cenarios:
+- baseline administrativo valido;
+- revogacao de privilegio com JWT antigo;
+- revogacao do revisor;
+- independencia entre operador e revisor;
+- aprovacao expirada;
+- aprovacao revogada;
+- aprovacao consumida;
+- negacao de acesso pelas Firestore Rules;
+- conta de operador desabilitada;
+- token de autenticacao revogado.
+
+Resultado do leitor: decision BLOCKED.
+
+Persistencia de recuperacao: proibida.
+Leitura de preferencias privadas: proibida.
+Exposicao publica de preferencias: proibida.
+Exclusao de campos de origem: proibida.
+
+B2.8.3:
+Sete testes de contrato aprovados.
+Preflight aprovado.
+Auditoria estrita de orfaos aprovada.
+
+### Integracao CI
+
+O workflow
+discovery-legacy-recovery-transaction-guard.yml
+passa a incluir verificacao sintatica do executor
+e contratos negativos B2.8 em Windows e Ubuntu.
+
+O workflow agora inclui um job de E2E real em Windows e Ubuntu. A execucao remota ainda nao foi comprovada (CI_PENDING).
+
+Esta alteracao local de workflow nao comprova
+execucao nem aprovacao no GitHub Actions.
+
+### Limites e pendencias
+
+- B2.8.1 ainda precisa de formalizacao versionada
+  completa da politica de isolamento.
+- O job E2E foi configurado localmente; sua aprovacao no
+  GitHub Actions ainda esta pendente.
+- Nao existe emissor confiavel de aprovacoes.
+- Nao existe consumo transacional de aprovacao.
+- Auditoria persistente e retencao ainda pendem
+  de governanca e autorizacao.
+- Consentimento do titular nao foi estabelecido.
+- Nenhuma migracao ou saneamento dos dados
+  legados esta autorizado.
+
+Nao interpretar um resultado PASS como permissao
+para modificar dados reais.
+
+### B2.8.4 - Gate E2E real no CI
+
+Configuracao dedicada:
+firebase.legacy-governance-e2e.json.
+
+O job real-emulator-e2e usa Node.js 22, Java 21,
+Auth e Firestore com portas exclusivas em localhost.
+
+Somente o projeto descartavel
+demo-entretenimento-legacy-governance e permitido.
+
+O executor exige bancos vazios, dados sinteticos,
+preflight e resultado final BLOCKED.
+
+Nenhum import/export, deploy, acesso produtivo
+ou gravacao persistente de recuperacao e autorizado.
+
+Evidencia local: 10 verificacoes integradas aprovadas.
+Evidencia remota: CI_PENDING ate execucao no Actions.

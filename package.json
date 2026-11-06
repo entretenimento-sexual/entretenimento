@@ -176,7 +176,9 @@
     "registration:cutover-client-boundary:check": "node scripts/quality/check-registration-cutover-client-boundary.mjs",
     "maintenance:nickname-cutover-readonly": "npm run functions:build && node scripts/maintenance/audit-nickname-cutover-readonly.mjs",
     "maintenance:nickname-reservation-backfill": "npm run functions:build && node scripts/maintenance/backfill-nickname-reservations-admin.mjs",
-    "media:legacy-photo:date-backfill:emu": "node scripts/dev/backfill-legacy-photo-display-dates.emu.mjs"
+    "media:legacy-photo:date-backfill:emu": "node scripts/dev/backfill-legacy-photo-display-dates.emu.mjs",
+    "discovery:legacy-admin:preflight": "node scripts/maintenance/rehearse-discovery-legacy-admin-synthetic.mjs --preflight",
+    "discovery:legacy-admin:contract": "node --test scripts/tests/discovery-legacy-admin-emulator.contract.test.mjs"
   },
   "private": true,
   "dependencies": {
