@@ -774,3 +774,38 @@ TTL, job de expiracao ou politica de legal hold foi implantada.
 Nao ha callable, endpoint, trigger, deploy, writer real, migracao,
 persistencia de preferencias, publicacao ou exclusao de campos.
 A decisao continua `BLOCKED` e `persistentWritesAllowed: false`.
+
+## B2.9.3d - Reconciliacao pura de evidencias sinteticas
+
+Politica: `scripts/maintenance/discovery-legacy-approval-reconciliation.policy.mjs`.
+Testes: `scripts/tests/discovery-legacy-approval-reconciliation.policy.test.mjs`.
+O contrato analisa APENAS projecoes de fixtures sinteticas passadas em memoria;
+nao consulta Firestore, Auth, arquivos, logs, APIs nem colecoes reais.
+Nao cria callable, writer, trigger, scheduler, endpoint, deploy nem operacao
+administrativa. O campo `syntheticKey` serve exclusivamente para associar
+fixtures descartaveis; nao aceita UID, operacao real, path ou identificador
+de dados pessoais. Nenhum identificador ou hash aparece no relatorio final.
+
+O relatorio agrega contagens de aprovacao consumida sem auditoria, auditoria
+orfÃ£, chave sintetica repetida, registro de auditoria sem consumo, escopo
+incompativel, revisao divergente, cronologia invalida, hash adulterado e
+horario de consumo divergente. Duplicidades nao sao contabilizadas como
+pares integres. Campos inesperados e projecoes excessivas sao rejeitados.
+Apenas pares de aprovacao consumida + evento sintetico canonico com mesmo
+horario e revisao esperada sao classificados como estruturalmente coerentes.
+
+IMPORTANTE: `shapeReconciled=true` comprova SOMENTE coerencia interna de
+fixtures declaradas. Nao comprova leitura integral de uma base real,
+correspondencia de identidade, autenticidade do evento, confianca no
+vinculo entre colecoes, imutabilidade da cadeia sem ancora externa,
+retencao duravel nem ausencia de registros omitidos. O algoritmo nao
+corrige ou reescreve dados, nao deleta, nao expira e nao produz checkpoint.
+30 dias continuam apenas proposta de REVISAO da retencao, nao prazo legal
+aprovado nem autorizacao para exclusao.
+
+Todo resultado mantem `decision: BLOCKED`,
+`persistentWritesAllowed: false`, `automatedRepairAllowed: false`,
+`privateRecoveryRead: false`, `privateRecoveryWritten: false` e
+`publicVisibilityAllowed: false`. B2.9.3d nao integra writer em producao.
+Um futuro ensaio de reconciliacao real no emulador exigira outra etapa
+com revisao independente do escopo e dos leitores somente em dados demo.
