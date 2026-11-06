@@ -634,3 +634,32 @@ Os testes B2.9.2a usam mocks sinteticos do backend. Nao substituem
 um E2E real do novo metodo nos emuladores, nem um futuro controle
 transacional anti-replay (B2.9.3). Qualquer autorizacao de escrita
 continua pendente de governanca propria e consentimento do titular.
+
+## B2.9.2b - Ensaio real isolado do leitor
+
+Runner: `scripts/maintenance/rehearse-discovery-legacy-review-authority-synthetic.mjs`.
+Contrato: `scripts/tests/discovery-legacy-review-authority-emulator.contract.test.mjs`.
+
+O B2.9.2b usa exclusivamente Auth e Firestore Emulators descartaveis,
+sem importar `.emulator-data` ou snapshots. Exige projeto
+`demo-entretenimento-legacy-governance`, hosts 127.0.0.1:29099 e
+127.0.0.1:28080, ambiente limpo de credenciais remotas e bases vazias.
+A preflight recusa qualquer porta ocupada e nao encerra processos alheios.
+
+Testa o leitor B2.9.2a com identidades e aprovacao sinteticas de schema 1,
+revision 1, 15 minutos, revisor distinto e escopo restrito. Exercita
+revogacao de operador/revisor, contas desabilitadas, autoaprovacao,
+status terminal, expiracao, consumo, schema/revisao adulterados,
+campos extras, escopo alterado, token revogado e negacao pelas Rules.
+O backend injetado permite somente leituras em `users` e
+`legacy_discovery_recovery_approvals` e nega outros destinos.
+
+Durante os probes, os documentos de evidencia devem manter seu conteudo.
+A colecao de recuperacao privada nao deve ser criada. O relatorio so contem
+totais e estados agregados; nao publica UIDs, tokens, valores ou hashes.
+Todos os retornos permanecem BLOCKED e persistentWritesAllowed=false.
+
+Os estados de teste sao escritos somente no emulador descartavel para
+simular adversarios. Nenhuma preferencia original e tocada. O ensaio
+nao prova atomicidade entre leituras, consumo unico transacional, nem
+autoriza writer, callable, deploy, migracao ou exclusao publica.

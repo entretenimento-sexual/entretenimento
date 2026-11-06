@@ -179,7 +179,9 @@
     "media:legacy-photo:date-backfill:emu": "node scripts/dev/backfill-legacy-photo-display-dates.emu.mjs",
     "discovery:legacy-admin:preflight": "node scripts/maintenance/rehearse-discovery-legacy-admin-synthetic.mjs --preflight",
     "discovery:legacy-admin:contract": "node --test scripts/tests/discovery-legacy-admin-emulator.contract.test.mjs",
-    "discovery:legacy-approval:contract": "node --test scripts/tests/discovery-legacy-approval-lifecycle.policy.test.mjs"
+    "discovery:legacy-approval:contract": "node --test scripts/tests/discovery-legacy-approval-lifecycle.policy.test.mjs",
+    "discovery:legacy-review-authority:e2e-contract": "node --test scripts/tests/discovery-legacy-review-authority-emulator.contract.test.mjs",
+    "discovery:legacy-review-authority:e2e-preflight": "node scripts/maintenance/rehearse-discovery-legacy-review-authority-synthetic.mjs --preflight"
   },
   "private": true,
   "dependencies": {
