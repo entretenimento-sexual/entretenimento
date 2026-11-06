@@ -28,6 +28,8 @@ on:
       - 'scripts/tests/discovery-legacy-review-authority-emulator.contract.test.mjs'
       - 'scripts/maintenance/rehearse-discovery-legacy-approval-transaction-synthetic.mjs'
       - 'scripts/tests/discovery-legacy-approval-transaction-emulator.contract.test.mjs'
+      - 'scripts/maintenance/discovery-legacy-approval-audit-integrity.policy.mjs'
+      - 'scripts/tests/discovery-legacy-approval-audit-integrity.policy.test.mjs'
       - 'scripts/tests/discovery-legacy-admin-emulator.contract.test.mjs'
       - 'firebase.legacy-governance-e2e.json'
       - 'firestore-rules/legacy_discovery_recovery_approvals.rules'
@@ -111,6 +113,9 @@ jobs:
 
       - name: Guard B2.9.3a transaction runner contracts
         run: node --test scripts/tests/discovery-legacy-approval-transaction-emulator.contract.test.mjs
+
+      - name: Guard B2.9.3b pure review audit integrity and retention proposal
+        run: node --test scripts/tests/discovery-legacy-approval-audit-integrity.policy.test.mjs
 
   real-emulator-e2e:
     name: B2.8 isolated Auth + Firestore (${{ matrix.os }})

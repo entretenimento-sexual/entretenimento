@@ -183,7 +183,8 @@
     "discovery:legacy-review-authority:e2e-contract": "node --test scripts/tests/discovery-legacy-review-authority-emulator.contract.test.mjs",
     "discovery:legacy-review-authority:e2e-preflight": "node scripts/maintenance/rehearse-discovery-legacy-review-authority-synthetic.mjs --preflight",
     "discovery:legacy-approval:transaction-contract": "node --test scripts/tests/discovery-legacy-approval-transaction-emulator.contract.test.mjs",
-    "discovery:legacy-approval:transaction-preflight": "node scripts/maintenance/rehearse-discovery-legacy-approval-transaction-synthetic.mjs --preflight"
+    "discovery:legacy-approval:transaction-preflight": "node scripts/maintenance/rehearse-discovery-legacy-approval-transaction-synthetic.mjs --preflight",
+    "discovery:legacy-approval:audit-contract": "node --test scripts/tests/discovery-legacy-approval-audit-integrity.policy.test.mjs"
   },
   "private": true,
   "dependencies": {

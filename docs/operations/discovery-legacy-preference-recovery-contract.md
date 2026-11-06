@@ -698,3 +698,43 @@ continuam sem writer e retornam BLOCKED. A existencia de uma prova
 transacional no emulador NAO autoriza persistencia, migracao, remocao
 de campos de origem ou publicacao das preferencias. Uma arquitetura de
 aprovacao real precisaria de nova governanca e autorizacao especifica.
+
+## B2.9.3b - Contrato puro de auditoria sintetica
+
+Modulo: `scripts/maintenance/discovery-legacy-approval-audit-integrity.policy.mjs`.
+Testes: `scripts/tests/discovery-legacy-approval-audit-integrity.policy.test.mjs`.
+Esta e uma proposta somente em memoria, sem integracao a Firebase, Admin
+SDK, Cloud Functions, writer, callable, trigger, persistencia ou deploy.
+O contrato opera exclusivamente sobre uma unica cadeia ANONIMA de eventos
+sinteticos, sem UIDs, ID da operacao, tokens, valores privados, paths,
+observacoes livres ou hashes de dados pessoais. Nenhum arquivo de dados,
+colecao ou preferencia e lido ou escrito.
+
+Cada entrada tem chaves e ordem de serializacao fechadas: versao, sequencia,
+evento enumerado, horario de teste, data proposta para revisao da retencao,
+hash anterior e hash da propria entrada (SHA-256 com separacao de dominio).
+Rejeita insercao de campos extras, alteracao de entradas, lacunas,
+reordenacao, segundo consumo, revisao consumida seguida de revogacao,
+novos consumos apos revogacao/expiracao e timestamps invalidos.
+Apos consumo sintetico so sao permitidas observacoes de replay bloqueado.
+
+ATENCAO: hash-chain SEM ancora externa confiavel NAO comprova
+imutabilidade, autenticidade, origem nem completude do registro. Uma cadeia
+inteira pode ser reescrita e recalculada. A associacao da cadeia anonima a
+uma operacao real tambem NAO e demonstrada. O status
+`integrityShapeCompatible=true` significa apenas consistencia interna.
+Nao confundir estes hashes sinteticos com hashes de dados pessoais ou com
+uma trilha de auditoria real.
+
+Os 30 dias sao apenas uma PROPOSTA de prazo para revisao, NAO prazo legal,
+politica aprovada nem autoriza delecao. `retentionReviewCandidates` e
+apenas contagem agregada. Nao ha job de expiracao, TTL, comprovacao de
+retencao, regra de legal hold, auditoria duravel, assinatura/ancora externa,
+chave de integridade, verificacao de identidade do revisor ou autorizacao
+de recuperacao. Todos os relatorios retornam `decision: BLOCKED`,
+`persistentWritesAllowed: false`, `deletionAllowed: false` e
+`publicVisibilityAllowed: false`. A barreira B2.2/B2.6 continua intacta.
+
+Futuro B2.9.3c (a definir): provar atomicidade entre consumo de aprovacao
+e registro sintetico de auditoria em Firestore Emulator descartavel,
+sem habilitar um writer real. Nao incluir essa prova na certificacao B2.9.3b.
