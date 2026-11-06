@@ -738,3 +738,39 @@ de recuperacao. Todos os relatorios retornam `decision: BLOCKED`,
 Futuro B2.9.3c (a definir): provar atomicidade entre consumo de aprovacao
 e registro sintetico de auditoria em Firestore Emulator descartavel,
 sem habilitar um writer real. Nao incluir essa prova na certificacao B2.9.3b.
+
+## B2.9.3c - Atomicidade sintetica de consumo e auditoria
+
+Runner: `scripts/maintenance/rehearse-discovery-legacy-approval-audit-atomic-synthetic.mjs`.
+Contrato: `scripts/tests/discovery-legacy-approval-audit-atomic-emulator.contract.test.mjs`.
+
+Somente no projeto `demo-entretenimento-legacy-governance`, com Auth e
+Firestore Emulators descartaveis (127.0.0.1:29099 / 127.0.0.1:28080).
+Exige ambiente sem credenciais remotas, Auth e Firestore vazios, portas
+livres, sem checkpoint importado. Nao modifica Rules, Functions, index,
+frontend, nem o emulador principal. O runner nao e um writer implantavel.
+
+O ensaio usa `db.runTransaction` para ler a aprovacao, ambos os perfis
+administrativos e o documento sintetico de auditoria, e ENTÃƒO agendar
+`tx.update` da aprovacao e `tx.create` de uma evidencia anonimizada,
+ambos na mesma transacao. Testa sucesso pareado, seis consumidores
+concorrentes (exatamente um vencedor), replay, revisao antiga, rollback
+forcado apos as duas escritas agendadas, colisao de registro de auditoria,
+aprovacao revogada/expirada, escopo adulterado, campo extra, autoaprovacao,
+privilegios revogados e adulteracao do hash sintetico. Nenhuma colecao de
+recuperacao privada pode existir. O relato final agrega apenas 15 controles.
+
+A evidencia na colecao `synthetic_legacy_review_audit_b293c` existe
+EXCLUSIVAMENTE no emulador de teste, sem nomes reais, UIDs, tokens,
+identificadores de operacoes reais nem dados privados no payload.
+O hash e consistente em forma mas, sem ancora independente, NAO prova
+origem, integridade contra reescrita integral, autenticidade nem completude.
+O vinculo entre o documento de auditoria e a aprovacao e inteiramente
+sintetico; NAO substitui uma auditoria real, verificacao de identidade
+ou criterio de legitimidade da recuperacao.
+
+Retencao de 30 dias e somente proposta de revisao: nenhuma exclusao,
+TTL, job de expiracao ou politica de legal hold foi implantada.
+Nao ha callable, endpoint, trigger, deploy, writer real, migracao,
+persistencia de preferencias, publicacao ou exclusao de campos.
+A decisao continua `BLOCKED` e `persistentWritesAllowed: false`.
