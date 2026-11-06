@@ -809,3 +809,43 @@ Todo resultado mantem `decision: BLOCKED`,
 `publicVisibilityAllowed: false`. B2.9.3d nao integra writer em producao.
 Um futuro ensaio de reconciliacao real no emulador exigira outra etapa
 com revisao independente do escopo e dos leitores somente em dados demo.
+
+## B2.9.3e - Reconciliacao de fixtures lidas no Firestore Emulator
+
+Runner: `scripts/maintenance/rehearse-discovery-legacy-approval-reconciliation-synthetic.mjs`.
+Contratos: `scripts/tests/discovery-legacy-approval-reconciliation-emulator.contract.test.mjs`.
+Etapa exclusivamente SINTETICA, nunca para ser implantada como Function ou API.
+O runner valida preflight sem runtime Firebase, portas e credenciais remotas e
+exige Auth/Firestore vazios, projeto demo-entretenimento-legacy-governance,
+Firestore 127.0.0.1:28080 e Auth 127.0.0.1:29099.
+
+Semente descartavel: grava 12 PROJECOES de aprovacoes e 12 PROJECOES de
+auditoria unicamente em `synthetic_b293e_approval_fixtures` e
+`synthetic_b293e_audit_fixtures`. Nenhum usuario Auth e criado.
+As colecoes sao somente do emulador isolado e nao representam o schema
+persistido de aprovacao B2.9.3c, nem um ambiente produtivo. Uma etapa
+posterior seria necessaria para projetar e reconciliar os registros
+originais daquele ensaio com a mesma garantia de isolamento.
+
+A seguir, o runner LE efetivamente via `get()` as duas colecoes demo,
+restringe estritamente os campos aceitos e passa o resultado para a
+politica pura B2.9.3d. Verifica um par coerente, aprovacao sem auditoria,
+auditoria orfa, consumo inexistente, revisao antiga, escopo adulterado,
+cronologia/horarios invalidos, hash adulterado e chaves duplicadas.
+Relatorio SOMENTE agregado e sem identificadores/operacoes/hashes, com
+20 verificacoes. A reconciliacao nao altera os registros, comprovado
+por segunda leitura apos executar o reconciliador.
+
+O ensaio NAO acessa `legacy_discovery_preference_recovery`,
+`legacy_discovery_recovery_approvals`, `users` nem os dados privados.
+NAO realiza import/export, deploy, migracao, limpeza, reparo, TTL,
+exclusao nem escrita fora das duas colecoes sinteticas do emulador.
+O teste de reconciliacao REAL se refere a leitura REAL do emulador,
+NAO a leitura ou integracao de dados reais dos usuarios.
+
+30 dias ainda sao apenas proposta de revisao de retencao. Nenhuma
+aprovacao operacional, autoridade de producao ou ancora criptografica
+confiavel e provada. O resultado segue `decision: BLOCKED`,
+`persistentWritesAllowed: false`, `automatedRepairAllowed: false`,
+`privateRecoveryRead: false`, `privateRecoveryWritten: false` e
+`publicVisibilityAllowed: false`.

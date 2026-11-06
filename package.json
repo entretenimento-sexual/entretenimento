@@ -187,7 +187,9 @@
     "discovery:legacy-approval:audit-contract": "node --test scripts/tests/discovery-legacy-approval-audit-integrity.policy.test.mjs",
     "discovery:legacy-approval:atomic-audit-contract": "node --test scripts/tests/discovery-legacy-approval-audit-atomic-emulator.contract.test.mjs",
     "discovery:legacy-approval:atomic-audit-preflight": "node scripts/maintenance/rehearse-discovery-legacy-approval-audit-atomic-synthetic.mjs --preflight",
-    "discovery:legacy-approval:reconciliation-contract": "node --test scripts/tests/discovery-legacy-approval-reconciliation.policy.test.mjs"
+    "discovery:legacy-approval:reconciliation-contract": "node --test scripts/tests/discovery-legacy-approval-reconciliation.policy.test.mjs",
+    "discovery:legacy-approval:reconciliation-e2e-contract": "node --test scripts/tests/discovery-legacy-approval-reconciliation-emulator.contract.test.mjs",
+    "discovery:legacy-approval:reconciliation-e2e-preflight": "node scripts/maintenance/rehearse-discovery-legacy-approval-reconciliation-synthetic.mjs --preflight"
   },
   "private": true,
   "dependencies": {
