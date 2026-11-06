@@ -517,6 +517,12 @@ const functionsOperationalArtifacts = new Set([
     functionsSourceRoot,
     'discovery/legacy-recovery-admin-readonly.firestore.ts'
   )),
+  // B2.9.2a / #236: emulator-only internal authority bridge,
+  // never exported or deployable, no writes. Exact file allowlist.
+  posix(path.join(
+    functionsSourceRoot,
+    'discovery/legacy-recovery-review-authority-readonly.firestore.ts'
+  )),
 ]);
 
 const functionOrphans = functionsProductionTs

@@ -19,6 +19,9 @@ on:
       - 'scripts/tests/discovery-legacy-approval-lifecycle.policy.test.mjs'
       - 'functions/src/discovery/legacy-recovery-admin-readonly.firestore.ts'
       - 'functions/src/discovery/legacy-recovery-admin-readonly.firestore.test.ts'
+      - 'functions/src/discovery/legacy-recovery-review-authority-readonly.firestore.ts'
+      - 'functions/src/discovery/legacy-recovery-review-authority-readonly.firestore.test.ts'
+      - 'scripts/quality/check-production-orphans.mjs'
       - 'scripts/tests/discovery-legacy-recovery-backend-readonly.contract.test.mjs'
       - 'scripts/maintenance/rehearse-discovery-legacy-admin-synthetic.mjs'
       - 'scripts/tests/discovery-legacy-admin-emulator.contract.test.mjs'
@@ -133,6 +136,10 @@ jobs:
         run: |
           npm run rules:build
           npm --prefix functions run build
+
+      - name: Guard B2.9.2a lifecycle-authority bridge (synthetic backend)
+        working-directory: functions
+        run: node --test lib/discovery/legacy-recovery-review-authority-readonly.firestore.test.js
 
       - name: B2.8 isolated preflight
         run: node scripts/maintenance/rehearse-discovery-legacy-admin-synthetic.mjs --preflight

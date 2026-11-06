@@ -602,3 +602,35 @@ ledger legacy_discovery_recovery_approvals nem permite migrar,
 remover ou expor preferencias dos titulares. A janela de retencao,
 revogacao de credenciais, trilha persistente e consentimento ainda
 exigem contratos independentes e autorizacao expressa.
+
+## B2.9.2a - Vinculo backend somente-leitura
+
+Novo modulo interno:
+`functions/src/discovery/legacy-recovery-review-authority-readonly.firestore.ts`.
+O leitor B2.7 `inspectLegacyRecoveryAdminReadOnly()` permanece inalterado.
+O novo metodo `inspectLegacyRecoveryReviewAuthorityReadOnly()` primeiro
+revalida a evidencia B2.7 e depois exige a forma estrita do B2.9.1:
+`schemaVersion=1`, `revision=1`, `APPROVED_FOR_REVIEW_ONLY`,
+operator/reviewer distintos, escopo exato, 2 candidatos, 8 itens,
+janela de 15 minutos e estados de revogacao/consumo/expiracao nulos.
+Reverifica Auth e as contas administrativas atuais em `users`.
+
+Fronteira: somente Auth Emulator `127.0.0.1:29099` e
+Firestore Emulator `127.0.0.1:28080`, projeto descartavel
+`demo-entretenimento-legacy-governance`, sem credenciais remotas.
+A fonte das preferencias privadas NAO e consultada.
+
+A saida do novo metodo e SEMPRE `decision=BLOCKED`, com relatorio
+agregado sem UID, token, hash, preferencias ou erros brutos.
+Nao existe callable, HTTP, trigger, writer, deploy ou nova
+permissao do cliente. O modulo nao e exportado por `functions/src/index.ts`.
+
+LIMITACAO: as leituras sao sequenciais, portanto nao oferecem
+snapshot atomico nem autorizacao transacional. `reviewEvidenceConsistent`
+e apenas uma evidencia observacional e nao autoriza persistencia,
+consumo real de aprovacao, delecao ou exposicao publica.
+
+Os testes B2.9.2a usam mocks sinteticos do backend. Nao substituem
+um E2E real do novo metodo nos emuladores, nem um futuro controle
+transacional anti-replay (B2.9.3). Qualquer autorizacao de escrita
+continua pendente de governanca propria e consentimento do titular.
