@@ -181,7 +181,9 @@
     "discovery:legacy-admin:contract": "node --test scripts/tests/discovery-legacy-admin-emulator.contract.test.mjs",
     "discovery:legacy-approval:contract": "node --test scripts/tests/discovery-legacy-approval-lifecycle.policy.test.mjs",
     "discovery:legacy-review-authority:e2e-contract": "node --test scripts/tests/discovery-legacy-review-authority-emulator.contract.test.mjs",
-    "discovery:legacy-review-authority:e2e-preflight": "node scripts/maintenance/rehearse-discovery-legacy-review-authority-synthetic.mjs --preflight"
+    "discovery:legacy-review-authority:e2e-preflight": "node scripts/maintenance/rehearse-discovery-legacy-review-authority-synthetic.mjs --preflight",
+    "discovery:legacy-approval:transaction-contract": "node --test scripts/tests/discovery-legacy-approval-transaction-emulator.contract.test.mjs",
+    "discovery:legacy-approval:transaction-preflight": "node scripts/maintenance/rehearse-discovery-legacy-approval-transaction-synthetic.mjs --preflight"
   },
   "private": true,
   "dependencies": {

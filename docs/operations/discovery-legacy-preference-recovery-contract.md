@@ -663,3 +663,38 @@ Os estados de teste sao escritos somente no emulador descartavel para
 simular adversarios. Nenhuma preferencia original e tocada. O ensaio
 nao prova atomicidade entre leituras, consumo unico transacional, nem
 autoriza writer, callable, deploy, migracao ou exclusao publica.
+
+## B2.9.3a - Consumo transacional de revisao somente no emulador
+
+Runner: `scripts/maintenance/rehearse-discovery-legacy-approval-transaction-synthetic.mjs`.
+Contrato: `scripts/tests/discovery-legacy-approval-transaction-emulator.contract.test.mjs`.
+
+Escopo restrito a um ensaio: a funcao de transacao e declarada APENAS
+no runner de manutencao, nunca exportada, nao integrando Functions,
+callable, Admin API nem writer de producao. Permite criar e atualizar
+registros de teste somente no projeto descartavel
+`demo-entretenimento-legacy-governance`, mediante Auth e Firestore
+Emulators em 127.0.0.1:29099 e 127.0.0.1:28080, sem credenciais
+remotas, snapshots, importacao de dados, exportacao ou deploy.
+
+A validacao inicial exige Auth e Firestore vazios. Os documentos de
+`users` e `legacy_discovery_recovery_approvals` usados nos ensaios sao
+inteiramente sinteticos e criados pelo proprio runner. `runTransaction`
+le a aprovacao e os dois perfis administrativos e atualiza somente a
+aprovacao sintetica com `CONSUMED_FOR_REVIEW_ONLY` e `revision: 2`.
+O ensaio exercita seis consumidores concorrentes (exatamente um vencedor),
+replay, revisao antiga, rollback apos escrita agendada, revogacao,
+expiracao, troca de escopo, campo extra, autoaprovacao e revogacao atual
+das capabilities do operador/revisor. Requer que nenhuma colecao de
+recuperacao privada seja criada. A falha `ABORTED` por conflito apos
+retries esgotados e tratada como uma tentativa nao vencedora, nunca
+como evidencia de autorizacao.
+
+IMPORTANTE: a unica escrita de consumo demonstrada ocorre no Firestore
+Emulator descartavel; ela NAO prova identidade real do revisor, trilha
+de auditoria duravel, consentimento do titular, ausencia de TOCTOU em
+Auth, retencao ou operacoes de outros servicos. Os leitores B2.7/B2.9.2a
+continuam sem writer e retornam BLOCKED. A existencia de uma prova
+transacional no emulador NAO autoriza persistencia, migracao, remocao
+de campos de origem ou publicacao das preferencias. Uma arquitetura de
+aprovacao real precisaria de nova governanca e autorizacao especifica.
