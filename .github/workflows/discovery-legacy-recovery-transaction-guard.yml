@@ -36,6 +36,10 @@ on:
       - 'scripts/tests/discovery-legacy-approval-reconciliation.policy.test.mjs'
       - 'scripts/maintenance/rehearse-discovery-legacy-approval-reconciliation-synthetic.mjs'
       - 'scripts/tests/discovery-legacy-approval-reconciliation-emulator.contract.test.mjs'
+      - 'scripts/maintenance/discovery-legacy-original-schema-reconciliation.policy.mjs'
+      - 'scripts/tests/discovery-legacy-original-schema-reconciliation.policy.test.mjs'
+      - 'scripts/tests/discovery-legacy-original-schema-integrated-emulator.contract.test.mjs'
+      - 'docs/operations/discovery-legacy-issue-236-consolidated-audit.md'
       - 'scripts/tests/discovery-legacy-admin-emulator.contract.test.mjs'
       - 'firebase.legacy-governance-e2e.json'
       - 'firestore-rules/legacy_discovery_recovery_approvals.rules'
@@ -132,6 +136,12 @@ jobs:
       - name: Guard B2.9.3e emulator reconciliation runner contracts
         run: node --test scripts/tests/discovery-legacy-approval-reconciliation-emulator.contract.test.mjs
 
+      - name: Guard consolidated original-schema pure reconciliation
+        run: node --test scripts/tests/discovery-legacy-original-schema-reconciliation.policy.test.mjs
+
+      - name: Guard consolidated original-schema integrated runner
+        run: node --test scripts/tests/discovery-legacy-original-schema-integrated-emulator.contract.test.mjs
+
   real-emulator-e2e:
     name: B2.8 isolated Auth + Firestore (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -220,3 +230,13 @@ jobs:
           GCLOUD_PROJECT: demo-entretenimento-legacy-governance
           FUNCTIONS_EMULATOR: 'true'
         run: node node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --project demo-entretenimento-legacy-governance --only auth,firestore --config firebase.legacy-governance-e2e.json "node scripts/maintenance/rehearse-discovery-legacy-approval-reconciliation-synthetic.mjs --execute"
+
+      - name: B2.9.3f original-schema reconciliation preflight
+        run: node scripts/maintenance/rehearse-discovery-legacy-approval-audit-atomic-synthetic.mjs --preflight
+
+      - name: B2.9.3f original-schema reconciliation E2E
+        shell: bash
+        env:
+          GCLOUD_PROJECT: demo-entretenimento-legacy-governance
+          FUNCTIONS_EMULATOR: 'true'
+        run: node node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --project demo-entretenimento-legacy-governance --only auth,firestore --config firebase.legacy-governance-e2e.json "node scripts/maintenance/rehearse-discovery-legacy-approval-audit-atomic-synthetic.mjs --integrated-reconciliation"

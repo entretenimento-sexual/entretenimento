@@ -849,3 +849,18 @@ confiavel e provada. O resultado segue `decision: BLOCKED`,
 `persistentWritesAllowed: false`, `automatedRepairAllowed: false`,
 `privateRecoveryRead: false`, `privateRecoveryWritten: false` e
 `publicVisibilityAllowed: false`.
+
+## Issue #236 - Encerramento tecnico sintetico integrado
+
+Relatorio de auditoria: `docs/operations/discovery-legacy-issue-236-consolidated-audit.md`.
+Politica pura do esquema B2.9.3c: `scripts/maintenance/discovery-legacy-original-schema-reconciliation.policy.mjs`.
+Testes puros e de runner: `scripts/tests/discovery-legacy-original-schema-reconciliation.policy.test.mjs` e
+`scripts/tests/discovery-legacy-original-schema-integrated-emulator.contract.test.mjs`.
+O B2.9.3c foi ESTENDIDO com modo explicito `--integrated-reconciliation`, preservando o
+modo `--execute` original. Ambos executam a mesma transacao de aprovacao e auditoria
+somente no emulador vazio. O novo modo le os documentos originais, identifica divergencias,
+verifica nao-mutacao e emite relatorio agregado. O vinculo por sufixo de documentos e
+apenas convencao de fixture, NAO prova criptografica ou autorizacao de recuperacao.
+Os testes puros e E2E devem passar em Windows e Ubuntu e no Quality Gate.
+Continua BLOQUEADO qualquer writer, migracao, restauraÃ§Ã£o, reparo, exclusao, deploy,
+leitura de preferencias reais ou exposicao publica. Retencao de 30 dias e so proposta.
