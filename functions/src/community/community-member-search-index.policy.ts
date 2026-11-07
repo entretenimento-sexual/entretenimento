@@ -8,6 +8,7 @@
 // -----------------------------------------------------------------------------
 
 import { normalizePublicProfileId } from '../identity/public-profile-id';
+import { hasLegacyPrivateDiscoveryFields } from '../discovery/legacy-public-profile-preservation.policy';
 
 export const COMMUNITY_MEMBER_SEARCH_INDEX_VERSION = 1;
 export const COMMUNITY_MEMBER_SEARCH_MIN_LENGTH = 2;
@@ -112,7 +113,8 @@ export function isCurrentCommunityMemberSearchPublicProfile(
   _nowMs = Date.now()
 ): boolean {
   const profile = (rawProfile ?? {}) as Record<string, unknown>;
-  return normalizePublicProfileId(profile['profileId']) !== null;
+  return normalizePublicProfileId(profile['profileId']) !== null
+    && !hasLegacyPrivateDiscoveryFields(rawProfile);
 }
 
 export function buildCommunityMemberSearchIndexProjection(input: {
@@ -175,6 +177,8 @@ export function communityMemberSearchPublicProfileFingerprint(
   return JSON.stringify({
     profileId: normalizePublicProfileId(profile['profileId']),
     nickname: normalizeDisplayText(profile['nickname'], 60),
+    // Boolean transition only: raw private values never enter this fingerprint.
+    legacyPrivateFieldsPresent: hasLegacyPrivateDiscoveryFields(rawProfile),
   });
 }
 

@@ -14,6 +14,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { normalizePublicProfileId } from '../identity/public-profile-id';
+import { hasLegacyPrivateDiscoveryFields } from '../discovery/legacy-public-profile-preservation.policy';
 import { assertNoActiveBilateralBlock } from '../friendship/application/bilateral-block-access.policy';
 import {
   assertCommunityCallableAppCheck,
@@ -79,7 +80,8 @@ export function isCurrentPublicProfileForCommunityDisclosure(
   profile: Record<string, unknown> | null | undefined,
   _nowMs: number
 ): boolean {
-  return !!profile && normalizePublicProfileId(profile['profileId']) !== null;
+  return !!profile && normalizePublicProfileId(profile['profileId']) !== null
+    && !hasLegacyPrivateDiscoveryFields(profile);
 }
 
 export const getProfilePublicCommunities = onCall<ProfilePublicCommunitiesRequest>(

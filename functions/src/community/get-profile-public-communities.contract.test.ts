@@ -7,6 +7,7 @@ import {
 import {
   isCurrentPublicProfileForCommunityDisclosure,
 } from './get-profile-public-communities.handler';
+import { PRIVATE_DISCOVERY_INTEREST_FIELDS } from '../discovery/public-profile-discovery-projection';
 
 const community = {
   visibility: 'public_preview',
@@ -153,4 +154,15 @@ test('perfil público usa somente o gate de segurança, não o filtro de recomen
 
   assert.match(source, /filterCommunityDiscoveryCardForViewer/);
   assert.doesNotMatch(source, /filterCommunityRecommendationCardForViewer/);
+});
+
+test('comunidades do perfil negam exposição quando existe qualquer campo privado legado', () => {
+  const now = 1_800_000_000_000;
+  const profileId = 'profile-00000000-0000-4000-8000-000000000001';
+  assert.equal(isCurrentPublicProfileForCommunityDisclosure({ profileId }, now), true);
+  for (const key of PRIVATE_DISCOVERY_INTEREST_FIELDS) {
+    assert.equal(isCurrentPublicProfileForCommunityDisclosure({
+      profileId, [key]: null,
+    }, now), false, key);
+  }
 });

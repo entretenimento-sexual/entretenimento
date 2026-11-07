@@ -54,6 +54,14 @@ on:
       - 'functions/src/discovery/get-public-profiles-page.handler.ts'
       - 'functions/src/discovery/get-public-profiles-page.handler.test.ts'
       - 'docs/operations/discovery-legacy-public-profile-runtime-gate.md'
+      - 'functions/src/community/community-member-search-index.policy.ts'
+      - 'functions/src/community/community-member-search-index.policy.test.ts'
+      - 'functions/src/community/get-profile-public-communities.handler.ts'
+      - 'functions/src/community/get-profile-public-communities.contract.test.ts'
+      - 'scripts/quality/audit-public-profile-readers.mjs'
+      - 'scripts/tests/audit-public-profile-readers.test.mjs'
+      - 'scripts/tests/issue-235-236-community-reader-gate.contract.test.mjs'
+      - 'docs/operations/issue-235-236-community-reader-ui-qa.md'
       - 'docs/operations/discovery-legacy-issue-236-consolidated-audit.md'
       - 'scripts/tests/discovery-legacy-admin-emulator.contract.test.mjs'
       - 'firebase.legacy-governance-e2e.json'
@@ -160,6 +168,12 @@ jobs:
       - name: Guard Issue 236 runtime legacy-field hold and backend read exclusion
         run: node --test scripts/tests/discovery-legacy-public-profiles-runtime.contract.test.mjs
 
+      - name: Guard Issue 235/236 community reader source contracts
+        run: node --test scripts/tests/issue-235-236-community-reader-gate.contract.test.mjs scripts/tests/audit-public-profile-readers.test.mjs
+
+      - name: Inventory explicit public profile source readers (read-only)
+        run: node scripts/quality/audit-public-profile-readers.mjs --check-known
+
       - name: Guard B2.9.3g isolated sanitation policies and CI wiring
         run: node --test scripts/tests/discovery-legacy-sanitization-synthetic.policy.test.mjs scripts/tests/discovery-legacy-sanitization-synthetic.contract.test.mjs
 
@@ -208,6 +222,12 @@ jobs:
           node --test lib/discovery/legacy-public-profile-preservation.policy.test.js
           node --test lib/discovery/get-public-profiles-page.handler.test.js
           node --test lib/discovery/backfill-public-profile-discovery.handler.test.js
+
+      - name: Guard Issue 235/236 compiled community public reader policies
+        working-directory: functions
+        run: |
+          node --test lib/community/community-member-search-index.policy.test.js
+          node --test lib/community/get-profile-public-communities.contract.test.js
 
       - name: B2.8 isolated preflight
         run: node scripts/maintenance/rehearse-discovery-legacy-admin-synthetic.mjs --preflight
