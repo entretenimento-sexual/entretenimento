@@ -18,6 +18,7 @@ import { evaluateProfileCompatibility } from './profile-compatibility.server';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { resolvePublicProfileAge } from './public-profile-discovery-projection';
+import { hasLegacyPrivateDiscoveryFields } from './legacy-public-profile-preservation.policy';
 import {
   REQUIRE_CALLABLE_APP_CHECK,
   assertCallableAppCheck,
@@ -332,7 +333,8 @@ export function serializePublicProfileForDiscovery(
 ): Record<string, unknown> | null {
   const nickname = cleanText(data['nickname']);
 
-  if (!uid || !nickname) {
+  // Admin SDK bypasses Rules. Reject the entire contaminated document.
+  if (!uid || !nickname || hasLegacyPrivateDiscoveryFields(data)) {
     return null;
   }
   const latitude = finiteNumber(data['latitude']);

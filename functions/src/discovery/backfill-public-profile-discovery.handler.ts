@@ -16,22 +16,10 @@
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FieldPath } from 'firebase-admin/firestore';
-import { FieldValue, db } from '../firebaseApp';
+import { db } from '../firebaseApp';
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import {
-  normalizePublicProfileId,
-  resolveOrGeneratePublicProfileId,
-} from '../identity/public-profile-id';
-import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
-import { normalizeProfileDiscoveryFields } from './profile-discovery-normalization';
-import { buildPublicPreferenceProjection } from './public-preference-projection';
-import {
-  buildPublicAvatarProjection,
-  buildPublicDescriptionProjection,
-  PRIVATE_DISCOVERY_INTEREST_FIELDS,
-  buildPublicLocationProjection,
-  resolvePublicProfileAge,
-} from './public-profile-discovery-projection';
+import { normalizePublicProfileId } from '../identity/public-profile-id';
+import { mustHoldLegacyPublicProfileMutation } from './legacy-public-profile-preservation.policy';
 
 interface BackfillPublicProfileDiscoveryRequest {
   limit?: number | null;
@@ -50,10 +38,9 @@ interface BackfillPublicProfileDiscoveryResult {
   updated: number;
   profileIdsAssigned: number;
   skippedWithoutPublicProfile: number;
+  skippedUnsafeLegacyProfile: number;
   skippedWithoutUid: number;
 }
-
-const MAX_PENDING_BATCH_WRITES = 400;
 
 function normalizeLimit(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -62,8 +49,8 @@ function normalizeLimit(value: unknown): number {
 }
 
 /** A ausência do parâmetro nunca autoriza escrita administrativa. */
-export function normalizeBackfillDryRun(value: unknown): boolean {
-  return value !== false;
+export function normalizeBackfillDryRun(_value: unknown): boolean {
+  return true;
 }
 
 function normalizeCursor(value: unknown): string | null {
@@ -129,6 +116,10 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
       (request.auth?.token ?? {}) as Record<string, unknown>
     );
 
+    // Reject attempted writes instead of silently claiming a successful backfill.
+    if (request.data?.dryRun === false) {
+      throw new HttpsError('failed-precondition', 'Backfill legado de discovery disponivel apenas em dry-run.');
+    }
     const limit = normalizeLimit(request.data?.limit);
     // Segurança também no callable, não só no runner administrativo:
     // payload ausente, inválido ou legado jamais autoriza escrita.
@@ -139,20 +130,11 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
     if (startAfterUid) usersQuery = usersQuery.startAfter(startAfterUid);
 
     const usersSnap = await usersQuery.limit(limit).get();
-    let batch = db.batch();
-    let pendingWrites = 0;
-
-    const flushPendingWrites = async (): Promise<void> => {
-      if (dryRun || pendingWrites === 0) return;
-      await batch.commit();
-      batch = db.batch();
-      pendingWrites = 0;
-    };
-
     let processed = 0;
     let updated = 0;
     let profileIdsAssigned = 0;
     let skippedWithoutPublicProfile = 0;
+    let skippedUnsafeLegacyProfile = 0;
     let skippedWithoutUid = 0;
 
     for (const userDoc of usersSnap.docs) {
@@ -165,86 +147,25 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
       processed += 1;
 
       const user = (userDoc.data() ?? {}) as Record<string, unknown>;
-      const storedProfileId = normalizePublicProfileId(user['profileId']);
-      const profileId = storedProfileId
-        ?? resolveOrGeneratePublicProfileId(null);
-
-      if (!storedProfileId) {
+      if (!normalizePublicProfileId(user['profileId'])) {
         profileIdsAssigned += 1;
-
-        if (!dryRun) {
-          batch.set(userDoc.ref, { profileId }, { merge: true });
-          pendingWrites += 1;
-        }
       }
 
       const publicProfileRef = db.collection('public_profiles').doc(uid);
-      const preferenceRef = db
-        .collection('users')
-        .doc(uid)
-        .collection('preferences')
-        .doc('profile');
-      const [publicProfileSnap, preferenceSnap] =
-        await Promise.all([
-          publicProfileRef.get(),
-          preferenceRef.get(),
-        ]);
+      const publicProfileSnap = await publicProfileRef.get();
 
       if (!publicProfileSnap.exists) {
         skippedWithoutPublicProfile += 1;
-
-        if (pendingWrites >= MAX_PENDING_BATCH_WRITES) {
-          await flushPendingWrites();
-        }
+        continue;
+      }
+      if (mustHoldLegacyPublicProfileMutation(user, publicProfileSnap.data())) {
+        skippedUnsafeLegacyProfile += 1;
         continue;
       }
 
-      const canonical = normalizeProfileDiscoveryFields(user);
-      const publicPreferences = buildPublicPreferenceProjection(
-        preferenceSnap.exists
-          ? (preferenceSnap.data() ?? {}) as Record<string, unknown>
-          : null,
-        {
-          canPublishAdvanced: hasMinimumActiveDiscoveryPlan(user, 'basic'),
-        }
-      );
-      const publicLocation = buildPublicLocationProjection(user);
-      const publicAvatar = buildPublicAvatarProjection(user);
-      const publicDescription = buildPublicDescriptionProjection(user);
-
+      // Read-only inventory; normal publication remains with the guarded triggers.
       updated += 1;
-
-      if (!dryRun) {
-        batch.set(
-          publicProfileRef,
-          {
-            profileId,
-            ...publicAvatar,
-            ...publicDescription,
-            normalizedGender: canonical.normalizedGender,
-            normalizedOrientation: canonical.normalizedOrientation,
-            ...Object.fromEntries(
-              PRIVATE_DISCOVERY_INTEREST_FIELDS.map((field) => [field, FieldValue.delete()])
-            ),
-            compatibilityReady: canonical.compatibilityReady,
-            age: resolvePublicProfileAge(user['idade']),
-            ...publicPreferences,
-            ...publicLocation,
-            discoveryNormalizedAt: FieldValue.serverTimestamp(),
-            publicPreferencesUpdatedAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
-        pendingWrites += 1;
-
-        if (pendingWrites >= MAX_PENDING_BATCH_WRITES) {
-          await flushPendingWrites();
-        }
-      }
     }
-
-    await flushPendingWrites();
 
     const lastDoc = usersSnap.docs.at(-1) ?? null;
     const nextCursor = lastDoc?.id ?? null;
@@ -261,6 +182,7 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
       updated,
       profileIdsAssigned,
       skippedWithoutPublicProfile,
+      skippedUnsafeLegacyProfile,
       skippedWithoutUid,
     });
 
@@ -275,6 +197,7 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
       updated,
       profileIdsAssigned,
       skippedWithoutPublicProfile,
+      skippedUnsafeLegacyProfile,
       skippedWithoutUid,
     };
   }

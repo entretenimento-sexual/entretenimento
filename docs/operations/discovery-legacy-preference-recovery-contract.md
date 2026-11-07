@@ -864,3 +864,9 @@ apenas convencao de fixture, NAO prova criptografica ou autorizacao de recuperac
 Os testes puros e E2E devem passar em Windows e Ubuntu e no Quality Gate.
 Continua BLOQUEADO qualquer writer, migracao, restauraÃ§Ã£o, reparo, exclusao, deploy,
 leitura de preferencias reais ou exposicao publica. Retencao de 30 dias e so proposta.
+
+## Issue #236 — Proteção runtime de perfis legados (P0)
+
+Consultar `docs/operations/discovery-legacy-public-profile-runtime-gate.md`.
+O guardamento dos três fluxos normais e a exclusão de cartões contaminados
+não são prova de recuperação persistente. A sanitização real continua bloqueada.

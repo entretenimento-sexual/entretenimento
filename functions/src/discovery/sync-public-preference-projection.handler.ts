@@ -8,6 +8,7 @@ import {
   publicPreferenceProjectionMatches,
 } from './public-preference-projection';
 import { isPublicProfileProjectionBlocked } from './public-profile-projection-access';
+import { mustHoldLegacyPublicProfileMutation } from './legacy-public-profile-preservation.policy';
 
 export const syncPublicPreferenceProjection = onDocumentWritten(
   'users/{userId}/preferences/profile',
@@ -89,6 +90,11 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
         }
       }
 
+
+      // Keep intent moderation above active; never mutate private legacy source.
+      if (mustHoldLegacyPublicProfileMutation(
+        user, publicSnapshot.exists ? publicSnapshot.data() : null
+      )) return;
 
       if (isPublicProfileProjectionBlocked(user)) {
         if (publicSnapshot.exists) {

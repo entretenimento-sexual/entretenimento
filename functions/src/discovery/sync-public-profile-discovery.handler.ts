@@ -17,6 +17,7 @@ import {
   publicPreferenceProjectionMatches,
 } from './public-preference-projection';
 import { isPublicProfileProjectionBlocked } from './public-profile-projection-access';
+import { mustHoldLegacyPublicProfileMutation } from './legacy-public-profile-preservation.policy';
 import {
   buildPublicAvatarProjection,
   buildPublicDescriptionProjection,
@@ -68,6 +69,10 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
       }
 
       const user = userSnapshot.data() ?? {};
+      // No routine trigger may overwrite the last private legacy source.
+      if (mustHoldLegacyPublicProfileMutation(
+        user, publicProfileSnapshot.exists ? publicProfileSnapshot.data() : null
+      )) return;
       const storedProfileId = normalizePublicProfileId(user['profileId']);
       const profileId = storedProfileId
         ?? resolveOrGeneratePublicProfileId(null);

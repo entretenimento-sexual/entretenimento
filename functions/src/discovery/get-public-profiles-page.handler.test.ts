@@ -57,42 +57,27 @@ describe('get-public-profiles-page boundary', () => {
     assert.deepEqual(serialized['publicSeekingGenders'], null);
   });
 
-  it('inclui somente métricas públicas e ID da capa aprovada', () => {
+  it('inclui somente métricas públicas e ID da capa aprovada em perfil limpo', () => {
     const serialized = serializePublicProfileForDiscovery(
-      'profile-media',
-      profile({
-        photosCount: 12,
-        videosCount: 3,
-        coverPhotoId: 'cover-public-1',
-        storagePath: 'users/private/secret.jpg',
-        interestedInGenders: ['secret'],
-      }),
-      NOW
+      'profile-media', profile({ photosCount: 12, videosCount: 3,
+        coverPhotoId: 'cover-public-1', storagePath: 'users/private/secret.jpg' }), NOW
     );
     assert.ok(serialized);
     assert.equal(serialized['photosCount'], 12);
     assert.equal(serialized['videosCount'], 3);
     assert.equal(serialized['coverPhotoId'], 'cover-public-1');
     assert.equal(Object.hasOwn(serialized, 'storagePath'), false);
-    assert.equal(Object.hasOwn(serialized, 'interestedInGenders'), false);
   });
 
-  it('não entrega interesses privados ou aliases legados no JSON público', () => {
-    const serialized = serializePublicProfileForDiscovery('secret-target', profile({
-      preferences: ['segredo'],
-      interestedInGenders: ['man'],
-      generosDeInteresse: ['woman'],
-      interestedInOrientations: ['homosexual'],
-      publicSeekingGenders: ['women'],
-    }), NOW);
-    assert.ok(serialized);
-    for (const privateField of [
-      'preferences', 'interestedInGenders', 'generosDeInteresse',
-      'interestedInOrientations',
+  it('nega integralmente cartões de perfil com qualquer chave privada legada', () => {
+    for (const key of [
+      'interestedInGenders', 'interestedInOrientations', 'preferences',
+      'generosDeInteresse', 'discoveryPreferences', 'hardRules',
     ]) {
-      assert.equal(Object.hasOwn(serialized, privateField), false, privateField);
+      assert.equal(serializePublicProfileForDiscovery(
+        'secret-target', profile({ [key]: ['SECRET'], publicSeekingGenders: ['women'] }), NOW
+      ), null, key);
     }
-    assert.deepEqual(serialized['publicSeekingGenders'], ['women']);
   });
 
   it('calcula reciprocidade usando documento privado sem revelar preferências do alvo', () => {

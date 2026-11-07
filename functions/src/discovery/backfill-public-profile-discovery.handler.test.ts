@@ -14,7 +14,7 @@ test('payload inválido não é interpretado como autorização de escrita', () 
   assert.equal(normalizeBackfillDryRun({}), true);
 });
 
-test('backfill só escreve após false booleano explícito', () => {
+test('backfill de discovery não autoriza escrita nem após false explícito', () => {
   assert.equal(normalizeBackfillDryRun(true), true);
-  assert.equal(normalizeBackfillDryRun(false), false);
+  assert.equal(normalizeBackfillDryRun(false), true);
 });

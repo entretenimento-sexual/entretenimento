@@ -39,6 +39,16 @@ on:
       - 'scripts/maintenance/discovery-legacy-original-schema-reconciliation.policy.mjs'
       - 'scripts/tests/discovery-legacy-original-schema-reconciliation.policy.test.mjs'
       - 'scripts/tests/discovery-legacy-original-schema-integrated-emulator.contract.test.mjs'
+      - 'scripts/tests/discovery-legacy-public-profiles-runtime.contract.test.mjs'
+      - 'functions/src/discovery/legacy-public-profile-preservation.policy.ts'
+      - 'functions/src/discovery/legacy-public-profile-preservation.policy.test.ts'
+      - 'functions/src/discovery/sync-public-profile-discovery.handler.ts'
+      - 'functions/src/discovery/sync-public-preference-projection.handler.ts'
+      - 'functions/src/discovery/backfill-public-profile-discovery.handler.ts'
+      - 'functions/src/discovery/backfill-public-profile-discovery.handler.test.ts'
+      - 'functions/src/discovery/get-public-profiles-page.handler.ts'
+      - 'functions/src/discovery/get-public-profiles-page.handler.test.ts'
+      - 'docs/operations/discovery-legacy-public-profile-runtime-gate.md'
       - 'docs/operations/discovery-legacy-issue-236-consolidated-audit.md'
       - 'scripts/tests/discovery-legacy-admin-emulator.contract.test.mjs'
       - 'firebase.legacy-governance-e2e.json'
@@ -142,6 +152,9 @@ jobs:
       - name: Guard consolidated original-schema integrated runner
         run: node --test scripts/tests/discovery-legacy-original-schema-integrated-emulator.contract.test.mjs
 
+      - name: Guard Issue 236 runtime legacy-field hold and backend read exclusion
+        run: node --test scripts/tests/discovery-legacy-public-profiles-runtime.contract.test.mjs
+
   real-emulator-e2e:
     name: B2.8 isolated Auth + Firestore (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -180,6 +193,13 @@ jobs:
       - name: Guard B2.9.2a lifecycle-authority bridge (synthetic backend)
         working-directory: functions
         run: node --test lib/discovery/legacy-recovery-review-authority-readonly.firestore.test.js
+
+      - name: Guard Issue 236 real compiled policy and backend discovery read contracts
+        working-directory: functions
+        run: |
+          node --test lib/discovery/legacy-public-profile-preservation.policy.test.js
+          node --test lib/discovery/get-public-profiles-page.handler.test.js
+          node --test lib/discovery/backfill-public-profile-discovery.handler.test.js
 
       - name: B2.8 isolated preflight
         run: node scripts/maintenance/rehearse-discovery-legacy-admin-synthetic.mjs --preflight
