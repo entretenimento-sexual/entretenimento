@@ -40,6 +40,11 @@ on:
       - 'scripts/tests/discovery-legacy-original-schema-reconciliation.policy.test.mjs'
       - 'scripts/tests/discovery-legacy-original-schema-integrated-emulator.contract.test.mjs'
       - 'scripts/tests/discovery-legacy-public-profiles-runtime.contract.test.mjs'
+      - 'scripts/maintenance/discovery-legacy-sanitization-synthetic.policy.mjs'
+      - 'scripts/maintenance/rehearse-discovery-legacy-sanitization-synthetic.mjs'
+      - 'scripts/tests/discovery-legacy-sanitization-synthetic.policy.test.mjs'
+      - 'scripts/tests/discovery-legacy-sanitization-synthetic.contract.test.mjs'
+      - 'docs/operations/discovery-legacy-isolated-sanitization-rehearsal.md'
       - 'functions/src/discovery/legacy-public-profile-preservation.policy.ts'
       - 'functions/src/discovery/legacy-public-profile-preservation.policy.test.ts'
       - 'functions/src/discovery/sync-public-profile-discovery.handler.ts'
@@ -155,6 +160,9 @@ jobs:
       - name: Guard Issue 236 runtime legacy-field hold and backend read exclusion
         run: node --test scripts/tests/discovery-legacy-public-profiles-runtime.contract.test.mjs
 
+      - name: Guard B2.9.3g isolated sanitation policies and CI wiring
+        run: node --test scripts/tests/discovery-legacy-sanitization-synthetic.policy.test.mjs scripts/tests/discovery-legacy-sanitization-synthetic.contract.test.mjs
+
   real-emulator-e2e:
     name: B2.8 isolated Auth + Firestore (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -260,3 +268,13 @@ jobs:
           GCLOUD_PROJECT: demo-entretenimento-legacy-governance
           FUNCTIONS_EMULATOR: 'true'
         run: node node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --project demo-entretenimento-legacy-governance --only auth,firestore --config firebase.legacy-governance-e2e.json "node scripts/maintenance/rehearse-discovery-legacy-approval-audit-atomic-synthetic.mjs --integrated-reconciliation"
+
+      - name: B2.9.3g synthetic targeted sanitation isolated preflight
+        run: node scripts/maintenance/rehearse-discovery-legacy-sanitization-synthetic.mjs --preflight
+
+      - name: B2.9.3g isolated preservation sanitize and rollback E2E
+        shell: bash
+        env:
+          GCLOUD_PROJECT: demo-entretenimento-legacy-governance
+          FUNCTIONS_EMULATOR: 'true'
+        run: node node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --project demo-entretenimento-legacy-governance --only auth,firestore --config firebase.legacy-governance-e2e.json "node scripts/maintenance/rehearse-discovery-legacy-sanitization-synthetic.mjs --exercise"
