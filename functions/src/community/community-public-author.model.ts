@@ -5,6 +5,7 @@
 // continuam aceitos enquanto a hidratação backend produz PublicUserIdentity.
 // -----------------------------------------------------------------------------
 
+import { hasLegacyPrivateDiscoveryFields } from '../discovery/legacy-public-profile-preservation.policy';
 import type { ProfileIdentityDiscoveryGroup } from '../identity/profile-identity.catalog';
 import {
   PublicUserIdentity,
@@ -17,4 +18,20 @@ export type CommunityPublicAuthor = Pick<PublicUserIdentity, 'label' | 'avatarUr
   & Partial<Omit<PublicUserIdentity, 'label' | 'avatarUrl'>>;
 export type CommunityPublicAuthorFallback = PublicUserIdentityFallback;
 
-export const buildCommunityPublicAuthor = buildPublicUserIdentity;
+/**
+ * Quarentena dos campos privados legados em todas as identidades de Comunidades.
+ * Um fallback historico nao autoriza republicar nickname/avatar antigos.
+ */
+export function buildCommunityPublicAuthor(
+  rawProfile: unknown,
+  fallback: CommunityPublicAuthorFallback
+): CommunityPublicAuthor {
+  if (hasLegacyPrivateDiscoveryFields(rawProfile)) {
+    return buildPublicUserIdentity(null, {
+      label: 'Participante',
+      avatarUrl: null,
+    });
+  }
+
+  return buildPublicUserIdentity(rawProfile, fallback);
+}
