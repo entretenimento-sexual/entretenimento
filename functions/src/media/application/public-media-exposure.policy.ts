@@ -1,6 +1,7 @@
 import {
   canReadPublishedPhotoAudience,
 } from './photo-audience-access.policy';
+import { hasLegacyPrivateDiscoveryFields } from '../../discovery/legacy-public-profile-preservation.policy';
 
 export type PublicMediaOwnerExposureDenialReason =
   | 'OWNER_LIFECYCLE_NOT_CANONICAL'
@@ -62,7 +63,7 @@ export function evaluatePublicMediaOwnerExposure(
     };
   }
 
-  if (!input.publicProfile) {
+  if (!input.publicProfile || hasLegacyPrivateDiscoveryFields(input.publicProfile)) {
     return {
       allowed: false,
       validUntilMs: null,

@@ -62,6 +62,16 @@ on:
       - 'scripts/tests/audit-public-profile-readers.test.mjs'
       - 'scripts/tests/issue-235-236-community-reader-gate.contract.test.mjs'
       - 'docs/operations/issue-235-236-community-reader-ui-qa.md'
+      - 'functions/src/media/application/public-media-exposure.policy.ts'
+      - 'functions/src/media/application/public-media-exposure.policy.test.ts'
+      - 'functions/src/community/get-community-member-roster-page.handler.ts'
+      - 'functions/src/community/get-community-member-roster-page.handler.test.ts'
+      - 'functions/src/community/get-profile-official-communities.handler.ts'
+      - 'functions/src/community/get-profile-official-communities.contract.test.ts'
+      - 'functions/src/community/get-official-communities-for-target.handler.ts'
+      - 'functions/src/community/get-official-communities-for-target.contract.test.ts'
+      - 'scripts/tests/issue235236-public-reader-quarantine-stage2.contract.test.mjs'
+      - 'docs/operations/issue235236-public-reader-quarantine-stage2.md'
       - 'docs/operations/discovery-legacy-issue-236-consolidated-audit.md'
       - 'scripts/tests/discovery-legacy-admin-emulator.contract.test.mjs'
       - 'firebase.legacy-governance-e2e.json'
@@ -169,7 +179,7 @@ jobs:
         run: node --test scripts/tests/discovery-legacy-public-profiles-runtime.contract.test.mjs
 
       - name: Guard Issue 235/236 community reader source contracts
-        run: node --test scripts/tests/issue-235-236-community-reader-gate.contract.test.mjs scripts/tests/audit-public-profile-readers.test.mjs
+        run: node --test scripts/tests/issue-235-236-community-reader-gate.contract.test.mjs scripts/tests/audit-public-profile-readers.test.mjs scripts/tests/issue235236-public-reader-quarantine-stage2.contract.test.mjs
 
       - name: Inventory explicit public profile source readers (read-only)
         run: node scripts/quality/audit-public-profile-readers.mjs --check-known
@@ -228,6 +238,10 @@ jobs:
         run: |
           node --test lib/community/community-member-search-index.policy.test.js
           node --test lib/community/get-profile-public-communities.contract.test.js
+          node --test lib/media/application/public-media-exposure.policy.test.js
+          node --test lib/community/get-community-member-roster-page.handler.test.js
+          node --test lib/community/get-profile-official-communities.contract.test.js
+          node --test lib/community/get-official-communities-for-target.contract.test.js
 
       - name: B2.8 isolated preflight
         run: node scripts/maintenance/rehearse-discovery-legacy-admin-synthetic.mjs --preflight

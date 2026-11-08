@@ -23,6 +23,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import { hasLegacyPrivateDiscoveryFields } from '../discovery/legacy-public-profile-preservation.policy';
 import { resolveBlockedTargetUids } from '../friendship/application/bilateral-block-access.policy';
 import { normalizePublicProfileId } from '../identity/public-profile-id';
 import {
@@ -134,7 +135,8 @@ export function isCurrentCommunityMemberPublicProfile(
   profile: Record<string, unknown> | null | undefined,
   _nowMs: number
 ): boolean {
-  return !!profile && normalizePublicProfileId(profile['profileId']) !== null;
+  return !!profile && !hasLegacyPrivateDiscoveryFields(profile)
+    && normalizePublicProfileId(profile['profileId']) !== null;
 }
 
 async function resolveCursorMemberId(
@@ -150,6 +152,16 @@ async function resolveCursorMemberId(
     .get();
 
   if (profileSnapshot.size !== 1) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Cursor da lista de integrantes inválido.',
+      { reason: 'invalid_community_member_roster_cursor' }
+    );
+  }
+
+  if (!isCurrentCommunityMemberPublicProfile(
+    profileSnapshot.docs[0].data(), Date.now()
+  )) {
     throw new HttpsError(
       'invalid-argument',
       'Cursor da lista de integrantes inválido.',

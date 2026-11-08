@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { PRIVATE_DISCOVERY_INTEREST_FIELDS } from '../discovery/public-profile-discovery-projection';
 
 import {
   isCurrentCommunityMemberPublicProfile,
@@ -29,4 +30,12 @@ describe('community member roster public profile boundary', () => {
       false
     );
   });
+  it('nega presença de qualquer uma das 21 preferências privadas, inclusive null', () => {
+    for (const key of PRIVATE_DISCOVERY_INTEREST_FIELDS) {
+      assert.equal(isCurrentCommunityMemberPublicProfile({
+        profileId: PROFILE_ID, [key]: null,
+      }, NOW), false, key);
+    }
+  });
+
 });

@@ -53,3 +53,14 @@ test('alvos não-profile continuam no query canônico sem resolução de UID', (
     /return loadOfficialCommunitiesForTarget\(command\.target, command\.limit\)/
   );
 });
+
+test('perfil legado com campo privado não revela associações oficiais', () => {
+  const source = readHandlerSource();
+  const profileRead = source.indexOf(".collection('public_profiles')");
+  const legacyDeny = source.indexOf('if (hasLegacyPrivateDiscoveryFields(targetProfileSnapshot.data()))');
+  const blockCheck = source.indexOf('await assertNoActiveBilateralBlock(');
+  const load = source.indexOf('return loadOfficialCommunitiesForTarget(');
+  assert.ok(profileRead >= 0 && legacyDeny > profileRead);
+  assert.ok(blockCheck > legacyDeny && load > blockCheck);
+  assert.match(source.slice(legacyDeny, blockCheck), /return emptyResponse\(\)/);
+});

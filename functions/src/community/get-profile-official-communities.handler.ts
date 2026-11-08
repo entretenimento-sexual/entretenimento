@@ -11,6 +11,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import { hasLegacyPrivateDiscoveryFields } from '../discovery/legacy-public-profile-preservation.policy';
 import {
   assertNoActiveBilateralBlock,
 } from '../friendship/application/bilateral-block-access.policy';
@@ -94,6 +95,11 @@ export const getProfileOfficialCommunities =
 
       const targetProfileSnapshot = publicProfilesSnapshot.docs[0];
       if (!targetProfileSnapshot) {
+        return emptyResponse();
+      }
+
+      // Não divulgar associações de perfil retido por campos privados legados.
+      if (hasLegacyPrivateDiscoveryFields(targetProfileSnapshot.data())) {
         return emptyResponse();
       }
 

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { PRIVATE_DISCOVERY_INTEREST_FIELDS } from '../../discovery/public-profile-discovery-projection';
 
 import {
   evaluatePublicMediaOwnerExposure,
@@ -221,4 +222,23 @@ describe('public media exposure policy', () => {
       false
     );
   });
+  it('nega mídia e URL assinada para as 21 chaves privadas legadas mesmo com lifecycle ativo', () => {
+    for (const key of PRIVATE_DISCOVERY_INTEREST_FIELDS) {
+      const input = {
+        publicProfile: { profileId: 'profile-00000000-0000-4000-8000-000000000001', [key]: null },
+        canonicalOwnerLifecycleAllowed: true,
+        viewerBlocked: false,
+        nowMs: NOW,
+      };
+      const decision = evaluatePublicMediaOwnerExposure(input);
+      assert.equal(decision.allowed, false, key);
+      assert.equal(decision.denialReason, 'OWNER_NOT_PUBLIC', key);
+      assert.deepEqual(evaluatePublicMediaSignedOwnerExposure(input), decision);
+    }
+    assert.equal(evaluatePublicMediaOwnerExposure({
+      publicProfile: { profileId: 'profile-00000000-0000-4000-8000-000000000001' },
+      canonicalOwnerLifecycleAllowed: true, viewerBlocked: false, nowMs: NOW,
+    }).allowed, true);
+  });
+
 });
