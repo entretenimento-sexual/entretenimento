@@ -20,16 +20,18 @@ describe('VisitedProfileInteractionOrchestrator', () => {
         ? throwError(() => input.chatError)
         : of(input?.chatId ?? 'chat-1')
     );
+    const blockUser = vi.fn(() => of(void 0));
+    const unblockUser = vi.fn(() => of(void 0));
     const report = vi.fn();
 
     const orchestrator = new VisitedProfileInteractionOrchestrator(
       { uid$: of(input?.uid ?? 'viewer') } as any,
-      { sendRequest } as any,
+      { sendRequest, blockUser, unblockUser } as any,
       { ensureDirectChatIdWithUser$ } as any,
       { report } as any
     );
 
-    return { orchestrator, sendRequest, ensureDirectChatIdWithUser$, report };
+    return { orchestrator, sendRequest, blockUser, unblockUser, ensureDirectChatIdWithUser$, report };
   }
 
   it('envia interesse quando a interação está liberada', async () => {
@@ -59,6 +61,31 @@ describe('VisitedProfileInteractionOrchestrator', () => {
 
     expect(sendRequest).not.toHaveBeenCalled();
     expect(report).toHaveBeenCalledTimes(1);
+  });
+
+  it('bloqueia e desbloqueia pela identidade autenticada, não pelo perfil público', async () => {
+    const { orchestrator, blockUser, unblockUser } = setup({ uid: 'viewer' });
+    expect(await firstValueFrom(orchestrator.setBlocked$('target', true))).toBe(true);
+    expect(blockUser).toHaveBeenCalledWith('viewer', 'target');
+    expect(await firstValueFrom(orchestrator.setBlocked$('target', false))).toBe(true);
+    expect(unblockUser).toHaveBeenCalledWith('viewer', 'target');
+  });
+
+  it('falha fechado quando alvo é a própria conta', async () => {
+    const { orchestrator, blockUser, report } = setup({ uid: 'viewer' });
+    expect(await firstValueFrom(orchestrator.setBlocked$('viewer', true))).toBe(false);
+    expect(blockUser).not.toHaveBeenCalled();
+    expect(report).toHaveBeenCalledTimes(1);
+  });
+
+  it('centraliza falha do callable sem afirmar bloqueio', async () => {
+    const { orchestrator, blockUser, report } = setup();
+    const error = new Error('callable denied');
+    blockUser.mockReturnValueOnce(throwError(() => error));
+    expect(await firstValueFrom(orchestrator.setBlocked$('target', true))).toBe(false);
+    expect(report).toHaveBeenCalledWith(error, expect.objectContaining({
+      operation: 'VisitedProfileInteractionOrchestrator.blockUser',
+    }));
   });
 
   it('prepara chat direto e preserva fallback nulo em falha', async () => {

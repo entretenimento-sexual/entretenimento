@@ -3,11 +3,12 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Firestore } from '@angular/fire/firestore';
+import { MatDialog } from '@angular/material/dialog';
 import { ActivatedRoute, Router, convertToParamMap, type ParamMap } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { Store } from '@ngrx/store';
 import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IUserDados } from '../../core/interfaces/iuser-dados';
 import { CommunityPreviewRepository } from '../../community/data-access/community-preview.repository';
@@ -30,9 +31,19 @@ import { UserIntentStatusService } from '../../core/services/discovery/user-inte
 import { SocialLinksAccordionComponent } from '../../user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
 
 describe('OtherUserProfileViewComponent', () => {
+  let issue235RestoreDialogOpen: (() => void) | undefined;
+
+  afterEach(() => {
+    issue235RestoreDialogOpen?.();
+    issue235RestoreDialogOpen = undefined;
+  });
+
   let fixture: ComponentFixture<OtherUserProfileViewComponent>;
   let component: OtherUserProfileViewComponent;
   let routeParamMap$: BehaviorSubject<ParamMap>;
+  let dialogAfterClosed$: Subject<boolean>;
+  let dialogOpen: ReturnType<typeof vi.fn>;
+  let dialogPrototypeSpy: { mockRestore(): void } | undefined;
 
   const targetUid = 'target-uid';
   const targetProfileId = 'profile-12345678-1234-4123-8123-123456789abc';
@@ -40,6 +51,15 @@ describe('OtherUserProfileViewComponent', () => {
 
   beforeEach(async () => {
     routeParamMap$ = new BehaviorSubject<ParamMap>(convertToParamMap({ id: targetUid }));
+    dialogAfterClosed$ = new Subject<boolean>();
+    dialogOpen = vi.fn(() => ({
+      afterClosed: () => dialogAfterClosed$.asObservable(),
+      close: vi.fn(),
+    }));
+    const issue235Spy = vi.spyOn(MatDialog.prototype, 'open')
+      .mockImplementation(dialogOpen as any);
+    issue235RestoreDialogOpen = () => issue235Spy.mockRestore();
+    dialogPrototypeSpy = vi.spyOn(MatDialog.prototype, 'open').mockImplementation(dialogOpen as any);
     await TestBed.configureTestingModule({
       imports: [
         OtherUserProfileViewComponent,
@@ -48,6 +68,7 @@ describe('OtherUserProfileViewComponent', () => {
       ],
       providers: [
         { provide: Firestore, useValue: {} },
+        { provide: MatDialog, useValue: { open: dialogOpen } },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -151,6 +172,8 @@ describe('OtherUserProfileViewComponent', () => {
           provide: FriendshipService,
           useValue: {
             sendRequest: vi.fn(() => of(void 0)),
+            blockUser: vi.fn(() => of(void 0)),
+            unblockUser: vi.fn(() => of(void 0)),
             watchOutboundRequests: vi.fn(() => of([])),
             watchFriends: vi.fn(() => of([])),
             watchBlocked: vi.fn(() => of(false)),
@@ -292,11 +315,15 @@ describe('OtherUserProfileViewComponent', () => {
           },
         },
       ],
-    }).compileComponents();
+    }).overrideProvider(MatDialog, { useValue: { open: dialogOpen } }).compileComponents();
 
     fixture = TestBed.createComponent(OtherUserProfileViewComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    dialogPrototypeSpy?.mockRestore();
   });
 
   it('troca de perfil na mesma instância limpa a identidade antiga e preserva a rota atual', () => {
@@ -468,6 +495,93 @@ describe('OtherUserProfileViewComponent', () => {
     fixture.detectChanges();
     actions = fixture.nativeElement.querySelector('.other-profile-page__actions');
     expect(actions.textContent).toContain('Mostrar interesse');
+  });
+
+  it('exibe bloqueio independente da denúncia, com botão acessível', () => {
+    const trigger = fixture.nativeElement.querySelector('.other-profile-page__menu-trigger') as HTMLButtonElement;
+    expect(trigger).not.toBeNull();
+    expect(trigger.getAttribute('aria-label')).toBe('Mais ações para este perfil');
+    expect(fixture.nativeElement.querySelector('app-report-content-button')).not.toBeNull();
+  });
+
+  it('não chama bloqueio ao cancelar confirmação', () => {
+    const friendship = TestBed.inject(FriendshipService);
+    component.confirmBlockChange(false);
+    dialogAfterClosed$.next(false);
+    dialogAfterClosed$.complete();
+    expect(friendship.blockUser).not.toHaveBeenCalled();
+    expect(component.blockActionBusy$.value).toBe(false);
+  });
+
+  it('revoga ações imediatamente após confirmação até o listener atualizar', () => {
+    const friendship = TestBed.inject(FriendshipService);
+    const notifier = TestBed.inject(ErrorNotificationService);
+    component.confirmBlockChange(false);
+    dialogAfterClosed$.next(true);
+    dialogAfterClosed$.complete();
+    fixture.detectChanges();
+    expect(friendship.blockUser).toHaveBeenCalledWith(viewerUid, targetUid);
+    expect(fixture.nativeElement.querySelector('.other-profile-page__actions').textContent)
+      .toContain('Interação indisponível');
+    expect(notifier.showSuccess).toHaveBeenCalledWith('Perfil bloqueado.');
+    expect(fixture.nativeElement.querySelector('app-profile-media-showcase')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Mídias indisponíveis');
+  });
+
+  it('não restaura ações antes de confirmar desbloqueio pelo listener', () => {
+    const friendship = TestBed.inject(FriendshipService);
+    const blocked$ = new BehaviorSubject(true);
+    vi.mocked(friendship.watchBlocked).mockReturnValue(blocked$.asObservable());
+    fixture.destroy();
+    fixture = TestBed.createComponent(OtherUserProfileViewComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    component.confirmBlockChange(true);
+    dialogAfterClosed$.next(true);
+    dialogAfterClosed$.complete();
+    fixture.detectChanges();
+    expect(friendship.unblockUser).toHaveBeenCalledWith(viewerUid, targetUid);
+    expect(fixture.nativeElement.querySelector('.other-profile-page__actions').textContent)
+      .toContain('Interação indisponível');
+    blocked$.next(false);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.other-profile-page__actions').textContent)
+      .toContain('Mostrar interesse');
+  });
+
+  it('revoga bloqueio otimista ao falhar e centraliza erro', () => {
+    const friendship = TestBed.inject(FriendshipService);
+    const report = TestBed.inject(ApplicationErrorService);
+    vi.mocked(friendship.blockUser).mockReturnValueOnce(throwError(() => new Error('denied')));
+    component.confirmBlockChange(false);
+    dialogAfterClosed$.next(true);
+    dialogAfterClosed$.complete();
+    fixture.detectChanges();
+    expect(report.report).toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('.other-profile-page__actions').textContent)
+      .toContain('Mostrar interesse');
+  });
+
+  it('cancela feedback antigo se a navegação muda durante bloqueio', () => {
+    const friendship = TestBed.inject(FriendshipService);
+    const notifier = TestBed.inject(ErrorNotificationService);
+    const query = TestBed.inject(FirestoreUserQueryService);
+    const profileA = component.userProfile!;
+    const pending$ = new Subject<void>();
+    vi.mocked(friendship.blockUser).mockReturnValueOnce(pending$.asObservable());
+    vi.mocked(query.getPublicUserById$).mockImplementation(uid =>
+      of({ ...profileA, uid, nickname: 'Outro perfil' })
+    );
+    component.confirmBlockChange(false);
+    dialogAfterClosed$.next(true);
+    dialogAfterClosed$.complete();
+    expect(pending$.observers.length).toBeGreaterThan(0);
+    routeParamMap$.next(convertToParamMap({ id: 'profile-b' }));
+    fixture.detectChanges();
+    expect(pending$.observers.length).toBe(0);
+    pending$.next();
+    pending$.complete();
+    expect(notifier.showSuccess).not.toHaveBeenCalled();
   });
 
   it('cancela chat pendente se surgir bloqueio ou amizade for encerrada', () => {

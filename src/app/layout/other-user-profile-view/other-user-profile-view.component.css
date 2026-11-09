@@ -274,6 +274,32 @@
   box-shadow: none;
 }
 
+.other-profile-page__menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: var(--tap-target, 44px);
+  min-height: var(--tap-target, 44px);
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--text-color, #f5f7fb);
+  cursor: pointer;
+}
+
+.other-profile-page__menu-trigger:hover,
+.other-profile-page__menu-trigger:focus-visible {
+  background: color-mix(in oklab, var(--primary-color, #ff6b81) 11%, transparent);
+}
+
+.other-profile-page__menu-trigger:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--primary-color, #ff4d57));
+  outline-offset: var(--focus-offset, 2px);
+}
+
+.other-profile-page__menu-trigger:disabled { opacity: 0.5; cursor: wait; }
+
 /* Denunciar permanece sempre acessível, sem competir com a ação social. */
 .other-profile-page__report-button {
   display: inline-flex;

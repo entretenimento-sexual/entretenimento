@@ -21,6 +21,9 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterModule } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
+import { MatMenuModule } from '@angular/material/menu';
+import { ConfirmationDialogComponent } from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 import {
   BehaviorSubject,
   Observable,
@@ -32,6 +35,7 @@ import {
   switchMap,
   take,
   takeUntil,
+  tap,
 } from 'rxjs';
 import {
   distinctUntilChanged,
@@ -91,6 +95,7 @@ const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
   imports: [
     CommonModule,
     RouterModule,
+    MatMenuModule,
     SharedModule,
     ProfileMediaShowcaseComponent,
     SocialLinksAccordionComponent,
@@ -104,6 +109,11 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   private readonly profileRefreshSubject = new BehaviorSubject(0);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly viewedProfileUid$ = new BehaviorSubject<string | null>(null);
+  // This owner's own pending block masks stale relationship actions until the
+  // owner-scoped realtime listener can observe the committed block.
+  private readonly optimisticBlockTarget$ = new BehaviorSubject<string | null>(null);
+  readonly blockActionBusy$ = new BehaviorSubject(false);
+  private readonly dialog = inject(MatDialog);
 
   readonly friendshipInteractionState$: Observable<FriendshipInteractionState>;
   readonly publicIntentContext$: Observable<VisitedProfileIntentContextVm | null>;
@@ -186,6 +196,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   private loadProfile$(
     targetUid: string
   ): Observable<VisitedProfileBootstrapResult> {
+    const previousTargetUid = this.uid;
     this.isLoading = true;
     this.uid = targetUid || null;
     this.userProfile = null;
@@ -193,6 +204,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     this.profilePhotoFailed = false;
     // Clear previous owner's friendship/intent context during navigation.
     this.viewedProfileUid$.next(null);
+    if (previousTargetUid !== targetUid) this.optimisticBlockTarget$.next(null);
     this.markView();
 
     return this.bootstrapOrchestrator.load$(targetUid).pipe(
@@ -208,6 +220,8 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     this.viewedProfileUid$.complete();
     this.friendRequestBusy$.complete();
     this.directChatBusy$.complete();
+    this.optimisticBlockTarget$.complete();
+    this.blockActionBusy$.complete();
   }
 
   /** Normalização única da identidade pública, sem acesso a /users. */
@@ -334,6 +348,71 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       });
   }
 
+  /** Recheck the current relationship before any destructive mutation. */
+  confirmBlockChange(wasBlocked: boolean): void {
+    const targetUid = (this.uid ?? '').trim();
+    if (!targetUid || this.blockActionBusy$.value) return;
+
+    const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
+      width: 'min(92vw, 28rem)',
+      autoFocus: 'first-tabbable',
+      restoreFocus: true,
+      data: wasBlocked ? {
+        title: 'Desbloquear perfil?',
+        message: 'Deseja voltar a permitir interações com este perfil?',
+        detail: 'Isso não restaura automaticamente uma amizade ou outras permissões anteriores.',
+        confirmLabel: 'Desbloquear',
+        cancelLabel: 'Cancelar',
+        tone: 'warning',
+      } : {
+        title: 'Bloquear perfil?',
+        message: 'Deseja impedir novas interações entre vocês?',
+        detail: 'O bloqueio revoga o contato. O histórico anterior segue a política da plataforma.',
+        confirmLabel: 'Bloquear perfil',
+        cancelLabel: 'Cancelar',
+        tone: 'danger',
+      },
+    });
+
+    // Closing after a route change prevents confirming an old person's action.
+    this.profileNavigationAwayFrom$(targetUid).pipe(
+      takeUntil(dialogRef.afterClosed()),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(() => dialogRef.close(false));
+
+    dialogRef.afterClosed().pipe(
+      take(1),
+      filter((confirmed) => confirmed === true),
+      switchMap(() => this.friendshipInteractionState$.pipe(take(1))),
+      filter((state) => state.statusVerified && state.blockedByViewer === wasBlocked),
+      tap(() => {
+        this.blockActionBusy$.next(true);
+        if (!wasBlocked) this.optimisticBlockTarget$.next(targetUid);
+        this.markView();
+      }),
+      switchMap(() => this.interactionOrchestrator.setBlocked$(targetUid, !wasBlocked)),
+      takeUntil(this.profileNavigationAwayFrom$(targetUid)),
+      finalize(() => {
+        this.blockActionBusy$.next(false);
+        this.markView();
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe((success) => {
+      if (this.uid !== targetUid) return;
+      if (!success) {
+        if (!wasBlocked) this.optimisticBlockTarget$.next(null);
+      } else if (wasBlocked) {
+        this.optimisticBlockTarget$.next(null);
+        this.errorNotification.showSuccess('Perfil desbloqueado.');
+      } else {
+        this.errorNotification.showSuccess('Perfil bloqueado.');
+      }
+      // Starts from unknown until the owner's own block listener revalidates.
+      this.visitedFriendship.refresh();
+      this.markView();
+    });
+  }
+
   retryFriendshipStatus(): void {
     this.visitedFriendship.refresh();
   }
@@ -435,12 +514,24 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       distinctUntilChanged()
     );
 
-    return this.visitedFriendship
-      .observe$(viewerUid$, targetUid$)
-      .pipe(
-        map((relation) => this.buildFriendshipInteractionState(relation)),
-        shareReplay({ bufferSize: 1, refCount: true })
-      );
+    return combineLatest([
+      this.visitedFriendship.observe$(viewerUid$, targetUid$),
+      this.optimisticBlockTarget$,
+    ]).pipe(
+      map(([relation, optimisticTarget]) => {
+        const effectiveRelation = optimisticTarget && optimisticTarget === this.uid
+          ? {
+              ...relation,
+              statusVerified: true,
+              blockedByViewer: true,
+              isFriend: false,
+              hasPendingOutboundRequest: false,
+            }
+          : relation;
+        return this.buildFriendshipInteractionState(effectiveRelation);
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
   }
 
   private buildFriendshipInteractionState(

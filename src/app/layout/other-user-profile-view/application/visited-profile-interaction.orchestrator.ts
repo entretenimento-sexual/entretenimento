@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
-import { catchError, switchMap, take } from 'rxjs/operators';
+import { catchError, map, switchMap, take } from 'rxjs/operators';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
@@ -71,6 +71,42 @@ export class VisitedProfileInteractionOrchestrator {
           },
         });
 
+        return of(false);
+      })
+    );
+  }
+
+  /** Block authority is request.auth.uid in the callable, not the supplied viewerUid. */
+  setBlocked$(targetUid: string, shouldBlock: boolean): Observable<boolean> {
+    const safeTargetUid = String(targetUid ?? '').trim();
+    if (!safeTargetUid) return of(false);
+
+    return this.authSession.uid$.pipe(
+      take(1),
+      switchMap((viewerUid) => {
+        const safeViewerUid = String(viewerUid ?? '').trim();
+        if (!safeViewerUid || safeViewerUid === safeTargetUid) {
+          return throwError(() => new Error('Sessão inválida para alterar o bloqueio.'));
+        }
+        return shouldBlock
+          ? this.friendshipService.blockUser(safeViewerUid, safeTargetUid)
+          : this.friendshipService.unblockUser(safeViewerUid, safeTargetUid);
+      }),
+      map(() => true),
+      catchError((error) => {
+        this.applicationError.report(error, {
+          feature: 'profile-view',
+          operation: shouldBlock
+            ? 'VisitedProfileInteractionOrchestrator.blockUser'
+            : 'VisitedProfileInteractionOrchestrator.unblockUser',
+          fallbackMessage: shouldBlock
+            ? 'Não foi possível bloquear este perfil.'
+            : 'Não foi possível desbloquear este perfil.',
+          metadata: {
+            scope: 'VisitedProfileInteractionOrchestrator',
+            hasTargetUid: true,
+          },
+        });
         return of(false);
       })
     );
