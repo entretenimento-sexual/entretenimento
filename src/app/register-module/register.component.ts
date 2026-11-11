@@ -139,6 +139,13 @@ export class RegisterComponent {
         updateOn: 'change',
       }),
 
+      // A declaração de 18+ é condição prévia à criação do UID no Auth.
+      // A decisão canônica backend continua distinta desta confirmação no formulário.
+      confirmarMaioridade: this.fb.control(false, {
+        validators: [Validators.requiredTrue],
+        updateOn: 'change',
+      }),
+
       aceitarTermos: this.fb.control(false, {
         validators: [Validators.requiredTrue],
         updateOn: 'change',
@@ -437,6 +444,7 @@ export class RegisterComponent {
       password: '',
       confirmPassword: '',
       aceitarTermos: false,
+      confirmarMaioridade: false,
     });
     this.showPassword.set(false);
     this.showConfirmPassword.set(false);
@@ -474,7 +482,15 @@ export class RegisterComponent {
       return 'Apelido completo inválido.';
     }
 
-    if (errs['required']) return 'Campo obrigatório';
+    if (errs['required']) {
+      if (controlName === 'confirmarMaioridade') {
+        return 'É necessário declarar que você tem 18 anos ou mais para criar uma conta.';
+      }
+      if (controlName === 'aceitarTermos') {
+        return 'É necessário aceitar os Termos de Uso vigentes para criar uma conta.';
+      }
+      return 'Campo obrigatório';
+    }
 
     if (controlName === 'email' && errs['email']) {
       return 'Formato de e-mail inválido';
@@ -538,12 +554,14 @@ export class RegisterComponent {
     this.infoMessage.set(null);
     this.banner.set(null);
 
-    const { email, password, aceitarTermos } = this.form.getRawValue() as any;
+    const { email, password, aceitarTermos, confirmarMaioridade } = this.form.getRawValue() as any;
     const now = Date.now();
 
     const payload: IUserRegistrationData = {
       email,
       nickname: (this.apelidoCompleto() || '').trim(),
+      // Declaração pré-Auth: NUNCA substitui age_eligibility_records/{uid}.
+      confirmsAdult: confirmarMaioridade === true,
       acceptedTerms: { accepted: aceitarTermos, date: now },
       emailVerified: false,
       isSubscriber: false,

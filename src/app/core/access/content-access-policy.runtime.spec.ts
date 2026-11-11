@@ -22,7 +22,7 @@ function user(role: IUserDados['role'] = 'free'): IUserDados {
     loginAllowed: true,
     initialAdultConsentRequired: true,
     adultConsent: {
-      accepted: true,
+      accepted: false, // histórico v1 não deve interferir na stream de assinatura
       version: '1',
     },
   } as IUserDados;

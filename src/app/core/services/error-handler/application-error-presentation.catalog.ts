@@ -28,6 +28,12 @@ export const COMMON_APPLICATION_ERROR_REASON_MESSAGES:
       'A data efetiva desta mudança já foi alcançada e ela não pode mais ser cancelada.',
     downgrade_requires_lower_plan:
       'Selecione um plano inferior ao plano atualmente ativo.',
+    terms_required:
+      'Os Termos de Uso vigentes precisam ser aceitos para continuar usando os recursos sociais e adultos.',
+    underage:
+      'Esta plataforma é exclusiva para maiores de 18 anos. O acesso adulto não está disponível para esta conta.',
+    review_required:
+      'A verificação etária está em análise. Consulte o andamento em sua conta.',
     verification_required:
       'Conclua a verificação de maioridade para continuar usando recursos adultos e sociais.',
     official_claim_verification_required:
@@ -161,6 +167,30 @@ export const COMMON_APPLICATION_ERROR_REASON_PRESENTATIONS:
       detail:
         'Esta alteração é sensível e exige uma autenticação recente antes de continuar.',
     },
+    terms_required: {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Aceite dos Termos necessário',
+      detail: 'Para continuar usando os recursos sociais e adultos, reveja os Termos vigentes e confirme sua decisão. Sua conta e seus dados permanecem preservados.',
+      primaryAction: { label: 'Ler Termos', route: '/register/aceitar-termos' },
+      dismissLabel: 'Agora não',
+    },
+    underage: {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Acesso exclusivo para maiores de 18 anos',
+      detail: 'O acesso social e adulto não está disponível para esta conta. Consulte o status da conta para verificar informações e opções de revisão.',
+      primaryAction: { label: 'Ver status da conta', route: '/conta/status' },
+      dismissLabel: 'Fechar',
+    },
+    review_required: {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Verificação de maioridade em análise',
+      detail: 'Sua solicitação está em análise. Não é necessário repetir a declaração. Consulte o andamento da conta.',
+      primaryAction: { label: 'Ver status da conta', route: '/conta/status' },
+      dismissLabel: 'Fechar',
+    },
     current_terms_required: {
       surface: 'modal',
       severity: 'info',
@@ -187,15 +217,15 @@ export const COMMON_APPLICATION_ERROR_REASON_PRESENTATIONS:
     },
     adult_access_required: {
       surface: 'modal',
-      severity: 'info',
-      title: 'Confirme seu acesso adulto',
+      severity: 'warning',
+      title: 'Acesso adulto indisponível',
       detail:
-        'Esta confirmação é necessária antes de acessar recursos adultos e sociais.',
+        'Esta conta não atende a uma condição de acesso adulto. Consulte o status para entender o motivo e as opções disponíveis.',
       primaryAction: {
-        label: 'Confirmar acesso',
-        route: '/adulto/confirmar',
+        label: 'Ver situação da conta',
+        route: '/conta/status',
       },
-      dismissLabel: 'Agora não',
+      dismissLabel: 'Fechar',
     },
     adult_access_denied: {
       surface: 'modal',
@@ -387,15 +417,15 @@ export const COMMON_APPLICATION_ERROR_RECOMMENDED_ACTION_PRESENTATIONS:
     },
     confirm_adult_access: {
       surface: 'modal',
-      severity: 'info',
-      title: 'Confirme seu acesso adulto',
+      severity: 'warning',
+      title: 'Acesso adulto indisponível',
       detail:
-        'Esta confirmação é necessária antes de acessar recursos adultos e sociais.',
+        'Consulte o status da conta para identificar as condições de acesso adulto e eventuais ações necessárias.',
       primaryAction: {
-        label: 'Confirmar acesso',
-        route: '/adulto/confirmar',
+        label: 'Ver status da conta',
+        route: '/conta/status',
       },
-      dismissLabel: 'Agora não',
+      dismissLabel: 'Fechar',
     },
     review_account: {
       surface: 'modal',

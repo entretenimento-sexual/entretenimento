@@ -71,19 +71,15 @@ describe('ContentAccessPolicyService', () => {
     expect(decision.recommendedAction).toBe('review_account');
   });
 
-  it('bloqueia perfil sem consentimento adulto quando ele é obrigatório', () => {
+  it('não exige adultConsent v1 para conteúdo quando conta e assinatura estão válidas', () => {
     const policy = createSubscriberContentAccessPolicy('basic');
     const decision = evaluateContentAccessPolicy(
-      createUser({
-        initialAdultConsentRequired: true,
-        adultConsent: null,
-      }),
-      policy,
-      NOW
+      createUser({ role:'basic', isSubscriber:true, monthlyPayer:true,
+        subscriptionStatus:'active', subscriptionExpires:NOW+60_000,
+        initialAdultConsentRequired:true, adultConsent:null }),
+      policy, NOW
     );
-
-    expect(decision.reason).toBe('adult_access_required');
-    expect(decision.recommendedAction).toBe('confirm_adult_access');
+    expect(decision.allowed).toBe(true);
   });
 
   it('bloqueia perfil marcado como menor de idade', () => {

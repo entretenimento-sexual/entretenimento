@@ -7,7 +7,6 @@ export type RegisterFlowStep =
   | 'accountRecovery'
   | 'termsAcceptance'
   | 'ageVerification'
-  | 'adultConsent'
   | 'profileCompletion'
   | 'preferences';
 
@@ -21,8 +20,6 @@ export interface RegisterFlowVm {
   termsAccepted: boolean;
   ageEligibilityAllowed: boolean;
   profileCompleted: boolean;
-  adultConsentAccepted: boolean;
-  initialAdultConsentRequired?: boolean;
   currentStep: RegisterFlowStep;
   nextRoute: string;
   progress: number;
@@ -42,6 +39,4 @@ export interface RegisterFlowAccessState {
   termsAccepted: boolean;
   ageEligibilityAllowed: boolean;
   profileCompleted: boolean;
-  adultConsentAccepted: boolean;
-  initialAdultConsentRequired?: boolean;
 }

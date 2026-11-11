@@ -35,7 +35,6 @@ try {
       acceptedTerms: {
         accepted: true, version: 'v3', acknowledgedPrivacyNotice: true,
       },
-      adultConsent: { accepted: true, version: 'v1' },
     });
   });
   const db = testEnv.authenticatedContext(UID, { email_verified: true }).firestore();

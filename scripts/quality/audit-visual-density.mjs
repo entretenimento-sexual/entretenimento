@@ -124,9 +124,6 @@ const reviewedSemanticContent = new Map([
   ['src/app/community/profile-official-communities/profile-official-communities.component.html', new Set([
     'profile-official-community__description',
   ])],
-  ['src/app/compliance/adult-consent-page/adult-consent-page.component.html', new Set([
-    'app-page-header[subtitle]',
-  ])],
   ['src/app/compliance/age-reverification-page/age-reverification-page.component.html', new Set([
     'app-page-header[subtitle]',
   ])],

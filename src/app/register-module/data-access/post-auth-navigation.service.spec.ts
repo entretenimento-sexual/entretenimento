@@ -23,7 +23,6 @@ function vm(
     termsAccepted: true,
     ageEligibilityAllowed: true,
     profileCompleted: false,
-    adultConsentAccepted: false,
     currentStep,
     nextRoute,
     progress: 50,
@@ -145,9 +144,9 @@ describe('PostAuthNavigationService', () => {
     );
   });
 
-  it('deve usar a máquina de estados também no login Google', async () => {
+  it('login Google de perfil completo não exige consentimento legado', async () => {
     const flow$ = new BehaviorSubject<RegisterFlowVm>(
-      vm('adultConsent', '/adulto/confirmar', {
+      vm('preferences', '/preferencias/editar/u1', {
         profileCompleted: true,
       })
     );
@@ -164,7 +163,7 @@ describe('PostAuthNavigationService', () => {
 
     await expect(
       firstValueFrom(service.resolveAfterSocialLogin$(result, '/friends'))
-    ).resolves.toBe('/adulto/confirmar?redirectTo=%2Ffriends');
+    ).resolves.toBe('/friends');
   });
 
   it('deve priorizar a recuperação quando o Google autenticou e o perfil falhou', async () => {
@@ -198,7 +197,6 @@ describe('PostAuthNavigationService', () => {
     const flow$ = new BehaviorSubject<RegisterFlowVm>(
       vm('preferences', '/preferencias/editar/u1', {
         profileCompleted: true,
-        adultConsentAccepted: true,
       })
     );
     const service = new PostAuthNavigationService({ vm$: flow$ } as any);

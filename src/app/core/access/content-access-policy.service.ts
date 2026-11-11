@@ -150,6 +150,8 @@ function isAccountRestricted(user: IUserDados): boolean {
 }
 
 function hasAdultAccess(user: IUserDados): boolean {
+  // UX espelha a negativa canônica; nunca pode prevalecer sobre o backend.
+  if (user.ageEligibility?.status === 'DENIED_UNDERAGE') return false;
   if (typeof user.idade === 'number' && user.idade < 18) {
     return false;
   }
@@ -166,16 +168,6 @@ function hasAdultAccess(user: IUserDados): boolean {
     return false;
   }
 
-  if (user.adultConsent?.accepted === false) {
-    return false;
-  }
-
-  if (
-    user.initialAdultConsentRequired === true &&
-    user.adultConsent?.accepted !== true
-  ) {
-    return false;
-  }
 
   return true;
 }

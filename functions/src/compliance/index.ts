@@ -1,5 +1,4 @@
 export { acceptAdultSelfDeclaration } from './accept-adult-self-declaration.handler';
-export { acceptAdultConsent } from './adult-consent.handler';
 export {
   assertAdultAgeAccessEligibility,
   assertVerifiedAdultAgeEligibility,

@@ -12,7 +12,6 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { EMPTY, Observable, of } from 'rxjs';
 import {
   catchError,
-  distinctUntilChanged,
   finalize,
   map,
   switchMap,
@@ -82,24 +81,23 @@ export class AgeVerificationPageComponent implements OnInit {
     );
 
   ngOnInit(): void {
+    // Não navegar com projeção antiga antes da reconciliação canônica.
     this.ageEligibility.reconcileTrustedStateOncePerSession$()
       .pipe(
         take(1),
-        catchError(() => of(null)),
+        catchError(() => {
+          this.feedback.set({
+            tone: 'error',
+            title: 'Não foi possível consultar sua elegibilidade etária',
+            message: 'Não conseguimos confirmar o estado registrado da sua conta. Verifique a conexão e tente novamente.',
+          });
+          return of(null);
+        }),
         finalize(() => this.reconciling.set(false)),
         takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe();
-
-    this.ageEligibility.current$
-      .pipe(
-        map((state) => isCurrentAdultAccountAdmissionProjection(state)),
-        distinctUntilChanged(),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe((registrationAgeStepSatisfied) => {
-        if (registrationAgeStepSatisfied && !this.continued) {
-          this.continued = true;
+      .subscribe((state) => {
+        if (state && isCurrentAdultAccountAdmissionProjection(state)) {
           this.continueAfterAgeStep();
         }
       });
@@ -127,6 +125,13 @@ export class AgeVerificationPageComponent implements OnInit {
           tone: 'success',
           title: 'Maioridade registrada',
           message: 'Sua confirmação foi vinculada à conta.',
+        });
+        this.continueAfterAgeStep();
+      } else {
+        this.feedback.set({
+          tone: 'warning',
+          title: 'Elegibilidade ainda pendente',
+          message: 'Sua conta ainda não possui uma decisão etária que permita continuar.',
         });
       }
     });
@@ -162,14 +167,27 @@ export class AgeVerificationPageComponent implements OnInit {
   }
 
   private continueAfterAgeStep(): void {
-    const redirectTo =
-      this.safeRedirectTo(
-        this.route.snapshot.queryParamMap.get('redirectTo')
-      ) ?? '/dashboard/principal';
+    if (this.continued) return;
+    this.continued = true;
+    const target = this.safeRedirectTo(
+      this.route.snapshot.queryParamMap.get('redirectTo')
+    ) ?? '/dashboard/principal';
 
-    void this.router.navigate(['/adulto/confirmar'], {
-      replaceUrl: true,
-      queryParams: { redirectTo },
+    // Retorna à rota protegida. O guard canônico escolhe a etapa
+    // realmente pendente: termos, idade, conclusão de perfil ou acesso final.
+    void this.router.navigateByUrl(target, { replaceUrl: true })
+      .then((navigated) => {
+        if (!navigated) this.reportNavigationFailure();
+      })
+      .catch(() => this.reportNavigationFailure());
+  }
+
+  private reportNavigationFailure(): void {
+    this.continued = false;
+    this.feedback.set({
+      tone: 'error',
+      title: 'Não foi possível continuar',
+      message: 'Sua confirmação permanece registrada. Tente acessar a plataforma novamente.',
     });
   }
 

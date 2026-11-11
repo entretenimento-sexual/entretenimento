@@ -57,7 +57,6 @@ function privateRegistrationSeed(): Record<string, unknown> {
     interactionBlocked: true,
     loginAllowed: true,
     registrationFlowVersion: 'v3-private-by-default',
-    initialAdultConsentRequired: true,
     registrationCompletedAt: null,
     acceptedTerms: {
       accepted: false,
@@ -88,14 +87,12 @@ async function seedReadyPrivateUser(): Promise<void> {
       interactionBlocked: true,
       loginAllowed: true,
       registrationFlowVersion: 'v3-private-by-default',
-      initialAdultConsentRequired: true,
       registrationCompletedAt: null,
       acceptedTerms: {
         accepted: true,
         version: 'v3',
         acknowledgedPrivacyNotice: true,
       },
-      adultConsent: { accepted: true, version: 'v1' },
       createdAt: new Date(),
       updatedAt: new Date(),
       nicknameHistory: [],
@@ -173,6 +170,17 @@ describe('Firestore Rules / registration and profile completion', () => {
       )
     );
   });
+
+  it.each([true, false])(
+    'nega criação v3 com marcador de consentimento legado igual a %s',
+    async (legacyValue) => {
+      const db = authenticatedDb(false);
+      await assertFails(setDoc(doc(db, 'users', UID), {
+        ...privateRegistrationSeed(),
+        initialAdultConsentRequired: legacyValue,
+      }));
+    }
+  );
 
   it('nega reservar nickname público antes do onboarding adulto completo', async () => {
     const db = authenticatedDbWithoutEmailClaim();
@@ -307,6 +315,30 @@ describe('Firestore Rules / registration and profile completion', () => {
       publicProfilePayload()
     );
 
+    await assertSucceeds(batch.commit());
+  });
+
+  it('conclui cadastro de conta histórica com consentimento v1 não aceito, mas admissão 18+ válida', async () => {
+    await seedReadyPrivateUser();
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), 'users', UID), {
+        initialAdultConsentRequired: true,
+        adultConsent: { accepted: false, version: 'v1' },
+      });
+    });
+
+    const db = authenticatedDb(true);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'users', UID), {
+      nickname: 'Pessoa Segura', gender: 'mulher',
+      declaredIdentityCode: 'mulher',
+      identityCatalogVersion: IDENTITY_CATALOG_VERSION,
+      orientation: 'bissexual', estado: 'RJ', municipio: 'Rio de Janeiro',
+      profileCompleted: true, publicVisibility: 'visible',
+      interactionBlocked: false, registrationCompletedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(), updatedAtMs: Date.now(),
+    });
+    batch.set(doc(db, 'public_profiles', UID), publicProfilePayload());
     await assertSucceeds(batch.commit());
   });
 

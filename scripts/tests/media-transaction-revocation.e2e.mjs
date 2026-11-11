@@ -59,7 +59,6 @@ function admittedAccount(uid) {
       version: 'v3',
       acknowledgedPrivacyNotice: true,
     },
-    adultConsent: { accepted: true, version: 'v1' },
     // Stronger verification is assurance, never a Media access gate.
     ageEligibilityAssurance: 'SELF_DECLARED_ADULT',
   };

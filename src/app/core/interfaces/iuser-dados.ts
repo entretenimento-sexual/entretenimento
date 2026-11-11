@@ -183,8 +183,9 @@ export interface IUserDados {
   ageEligibility?: IUserAgeEligibility | null;
 
   /**
-   * Apenas contas criadas no fluxo versionado recebem `true`.
-   * Ausência do campo identifica conta legada e não força novo aceite.
+   * Campo histórico de contas criadas durante o fluxo adultConsent v1.
+   * Não é escrito em novos cadastros e não autoriza nem bloqueia acesso.
+   * Mantido apenas para leitura/compatibilidade; mutação pelo cliente é proibida.
    */
   initialAdultConsentRequired?: boolean;
 

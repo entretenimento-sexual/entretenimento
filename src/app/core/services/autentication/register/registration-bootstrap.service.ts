@@ -146,9 +146,11 @@ export class RegistrationBootstrapService {
             interactionBlocked: true,
             loginAllowed: true,
             registrationFlowVersion: REGISTRATION_FLOW_VERSION,
-            initialAdultConsentRequired: true,
             registrationCompletedAt: null,
 
+            // UID provisório, sem admissão social: a versão jurídica só
+            // fica aceita após resposta confirmada de acceptPlatformTerms.
+            // A autodeclaração 18+ ainda exige persistência canônica backend.
             acceptedTerms: {
               accepted: false,
               date: Timestamp.fromMillis(nowMs),

@@ -358,7 +358,7 @@ export async function notifyInitialAgeEligibilityOutcome(input: {
     type: 'compliance.action.taken',
     title,
     body,
-    route: verified ? '/adulto/confirmar' : '/conta/status',
+    route: '/conta/status',
     actionRequired: !verified,
   });
 }

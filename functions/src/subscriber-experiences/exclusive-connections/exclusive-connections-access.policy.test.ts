@@ -62,14 +62,10 @@ test('nega conta suspensa, bloqueada ou inativa', () => {
   );
 });
 
-test('nega ausência de consentimento ou reverificação restrita', () => {
-  assert.equal(
-    evaluateExclusiveConnectionsEligibility(
-      createUser({ adultConsent: { accepted: false } }),
-      'user-1'
-    ).reason,
-    'adult_access_required'
-  );
+test('reverificação restrita permanece impeditiva', () => {
+  assert.deepEqual(evaluateExclusiveConnectionsEligibility(
+    createUser({ adultConsent: { accepted: false } }), 'user-1'
+  ), { allowed: true, reason: null });
   assert.equal(
     evaluateExclusiveConnectionsEligibility(
       createUser({ ageReverification: { status: 'UNDER_REVIEW' } }),
@@ -93,6 +89,16 @@ test('nega perfil incompleto ou sem campos mínimos', () => {
       'user-1'
     ).reason,
     'profile_field_missing'
+  );
+});
+
+test('consentimento v1 recusado em conta histórica não substitui elegibilidade etária', () => {
+  assert.deepEqual(
+    evaluateExclusiveConnectionsEligibility(
+      createUser({ initialAdultConsentRequired: true, adultConsent: { accepted: false } }),
+      'user-1'
+    ),
+    { allowed: true, reason: null }
   );
 });
 

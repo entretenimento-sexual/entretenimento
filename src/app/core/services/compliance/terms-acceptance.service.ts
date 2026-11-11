@@ -150,10 +150,10 @@ export class TermsAcceptanceService {
     }
 
     /**
-     * Em desenvolvimento local o aceite jurídico está deliberadamente fora do
-     * caminho crítico. Não chamamos Cloud Functions e, principalmente, não
-     * simulamos persistência no Firestore. O registro abaixo existe apenas para
-     * satisfazer o contrato de retorno do fluxo local.
+     * No dev-real com bypass explícito, o aceite continua fora do caminho
+     * crítico e não persiste. Em dev-emu a exigência é verdadeira: clicar
+     * em aceitar executa o callable emulado e grava o registro auditável.
+     * Produção mantém validação obrigatória e fail-closed.
      */
     if (!CURRENT_LEGAL_ACCEPTANCE_ENFORCED) {
       const now = Date.now();

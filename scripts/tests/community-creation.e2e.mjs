@@ -71,15 +71,10 @@ function eligibleUserDocument(uid, email, nickname) {
     interactionBlocked: false,
     loginAllowed: true,
     suspended: false,
-    initialAdultConsentRequired: false,
-    adultConsent: {
-      accepted: true,
-      version: 'v1',
-      acceptedAt: now,
-    },
     acceptedTerms: {
       accepted: true,
-      version: 'v1',
+      version: 'v3',
+      acknowledgedPrivacyNotice: true,
       acceptedAt: now,
     },
     createdAt: now,

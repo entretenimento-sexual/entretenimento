@@ -89,10 +89,10 @@ describe('AgeVerificationPageComponent', () => {
 
     router = TestBed.inject(Router);
     vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
 
     fixture = TestBed.createComponent(AgeVerificationPageComponent);
     component = fixture.componentInstance;
-    fixture.detectChanges();
   });
 
   afterEach(() => {
@@ -101,6 +101,7 @@ describe('AgeVerificationPageComponent', () => {
   });
 
   it('reconcilia silenciosamente antes de oferecer ação', () => {
+    fixture.detectChanges();
     expect(
       ageEligibilityMock.reconcileTrustedStateOncePerSession$
     ).toHaveBeenCalledTimes(1);
@@ -118,13 +119,14 @@ describe('AgeVerificationPageComponent', () => {
     fixture.detectChanges();
 
     expect(ageEligibilityMock.acceptSelfDeclaration$).not.toHaveBeenCalled();
-    await vi.waitFor(() => expect(router.navigate).toHaveBeenCalledWith(
-      ['/adulto/confirmar'],
-      expect.objectContaining({ replaceUrl: true })
+    await vi.waitFor(() => expect(router.navigateByUrl).toHaveBeenCalledWith(
+      '/dashboard/explorar',
+      { replaceUrl: true }
     ));
   });
 
   it('mantém feedback quando a confirmação de maioridade falha', () => {
+    fixture.detectChanges();
     ageEligibilityMock.acceptSelfDeclaration$.mockReturnValueOnce(
       throwError(() => new Error('network unavailable'))
     );
@@ -155,6 +157,7 @@ describe('AgeVerificationPageComponent', () => {
   });
 
   it('mantém conta e notificações acessíveis em estado restrito', async () => {
+    fixture.detectChanges();
     component.goToNotifications();
     component.goToAccount();
 
@@ -164,23 +167,37 @@ describe('AgeVerificationPageComponent', () => {
     });
   });
 
-  it('segue automaticamente somente com VERIFIED_ADULT confiável', async () => {
+  it('segue para a rota protegida após confirmação canônica confiável', async () => {
     current$.next(VERIFIED);
+    fixture.detectChanges();
 
     await vi.waitFor(() => {
-      expect(router.navigate).toHaveBeenCalledWith(
-        ['/adulto/confirmar'],
-        {
-          replaceUrl: true,
-          queryParams: {
-            redirectTo: '/dashboard/explorar',
-          },
-        }
+      expect(router.navigateByUrl).toHaveBeenCalledWith(
+        '/dashboard/explorar', { replaceUrl: true }
       );
     });
   });
 
+  it('não navega apenas porque a projeção local mudou após reconciliação negativa', () => {
+    fixture.detectChanges();
+    current$.next(VERIFIED);
+    fixture.detectChanges();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
+  it('mostra erro específico se a reconciliação canônica falha', () => {
+    ageEligibilityMock.reconcileTrustedStateOncePerSession$.mockReturnValueOnce(
+      throwError(() => new Error('backend indisponível'))
+    );
+    fixture.detectChanges();
+    expect(component.feedback()?.title).toBe(
+      'Não foi possível consultar sua elegibilidade etária'
+    );
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
   it('permite a autodeclaração uma única vez no onboarding', async () => {
+    fixture.detectChanges();
     ageEligibilityMock.acceptSelfDeclaration$.mockImplementationOnce(() => {
       current$.next({
         ...UNVERIFIED,
@@ -193,9 +210,9 @@ describe('AgeVerificationPageComponent', () => {
     });
     component.confirmAdult();
     expect(ageEligibilityMock.acceptSelfDeclaration$).toHaveBeenCalledTimes(1);
-    await vi.waitFor(() => expect(router.navigate).toHaveBeenCalledWith(
-      ['/adulto/confirmar'],
-      expect.objectContaining({ replaceUrl: true })
+    await vi.waitFor(() => expect(router.navigateByUrl).toHaveBeenCalledWith(
+      '/dashboard/explorar',
+      { replaceUrl: true }
     ));
   });
 });

@@ -101,6 +101,15 @@ describe('photo promotion target policy', () => {
       ),
       true
     );
+
+    // Mudança histórica de consentimento não dispara recálculo promocional.
+    assert.equal(
+      advertiserInteractionFieldsChanged(
+        base,
+        { ...base, adultConsent: { accepted: false, version: 'v2' } }
+      ),
+      false
+    );
   });
 
 });

@@ -14,7 +14,6 @@ interface MediaAuthoringAccountSnapshot {
     expiresAtMs?: unknown;
   } | null;
   acceptedTerms?: unknown;
-  adultConsent?: unknown;
 }
 
 export interface MediaAuthoringEligibilityDecision {

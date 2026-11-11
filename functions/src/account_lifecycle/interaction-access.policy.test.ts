@@ -12,10 +12,6 @@ const validUser = {
     version: 'v3',
     acknowledgedPrivacyNotice: true,
   },
-  adultConsent: {
-    accepted: true,
-    version: 'v1',
-  },
 };
 
 describe('interaction access policy', () => {
@@ -88,15 +84,36 @@ describe('interaction access policy', () => {
     );
   });
 
-  it('bloqueia interação sem consentimento adulto vigente', () => {
-    assert.throws(() =>
-      assertPlatformAccountAccessData({
+  it('não usa marcador histórico como gate de produto', () => {
+    for (const adultConsent of [
+      undefined,
+      null,
+      { accepted: false, version: 'v1' },
+      { accepted: true, version: 'v1' },
+    ]) {
+      const historicalAccount = {
         ...validUser,
-        adultConsent: {
-          accepted: false,
-          version: 'v1',
-        },
-      })
-    );
+        initialAdultConsentRequired: true,
+        adultConsent,
+      };
+      assert.doesNotThrow(() => assertPlatformAccountAccessData(historicalAccount));
+    }
+  });
+
+  it('continua negando hold materializado de moderação', () => {
+    assert.throws(() => assertPlatformAccountAccessData({
+      ...validUser,
+      moderationAutomationHold: { active: true, expiresAtMs: Date.now() + 60_000 },
+    }));
+  });
+
+  it('permite conta já admitida sem consentimento adulto legado', () => {
+    assert.doesNotThrow(() => assertPlatformAccountAccessData(validUser));
+
+    const legacyRefusedUser = {
+      ...validUser,
+      adultConsent: { accepted: false, version: 'v1' },
+    };
+    assert.doesNotThrow(() => assertPlatformAccountAccessData(legacyRefusedUser));
   });
 });

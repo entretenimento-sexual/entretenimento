@@ -112,19 +112,6 @@ export class RegisterNavigationService {
       };
     }
 
-    if (!state.adultConsentAccepted) {
-      return {
-        ...state,
-        uid,
-        email,
-        currentStep: 'adultConsent',
-        nextRoute: '/adulto/confirmar',
-        progress: 65,
-        canContinue: true,
-        primaryActionLabel: 'Aceitar acesso adulto',
-      };
-    }
-
     if (!state.profileCompleted) {
       return {
         ...state,

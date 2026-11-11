@@ -20,7 +20,7 @@ export const COMMUNITY_SOCIAL_ACCESS_REASON_MESSAGES:
     age_reverification_required:
       'Conclua a reverificação de maioridade para continuar em Comunidades.',
     adult_access_required:
-      'Confirme seu acesso adulto para continuar em Comunidades.',
+      'Acesso adulto indisponível para continuar em Comunidades. Consulte o status da conta.',
     adult_access_denied:
       'O acesso adulto não está disponível para esta conta.',
     account_restricted:

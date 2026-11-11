@@ -1,127 +1,56 @@
 import { TestBed } from '@angular/core/testing';
-import {
-  ActivatedRouteSnapshot,
-  Router,
-  RouterStateSnapshot,
-  UrlTree,
-} from '@angular/router';
+import { ActivatedRouteSnapshot, Router, RouterStateSnapshot, UrlTree } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
-
 import { firstValueFrom, Observable } from 'rxjs';
 import { beforeEach, describe, expect, it } from 'vitest';
-
 import { RegisterFlowFacade } from './register-flow.facade';
 import type { RegisterFlowVm } from './register-flow.model';
 import { registrationStepGuard } from './registration-step.guard';
 
-describe('registrationStepGuard', () => {
+describe('registrationStepGuard / adult consent retired', () => {
   let router: Router;
   let currentVm: RegisterFlowVm;
-
-  const route = {
-    data: {
-      allowedRegisterSteps: ['adultConsent'],
-    },
-  } as unknown as ActivatedRouteSnapshot;
-
-  const makeVm = (
-    currentStep: RegisterFlowVm['currentStep'],
-    nextRoute: string
-  ): RegisterFlowVm => ({
-    authReady: true,
-    uid: 'u1',
-    email: 'teste@email.com',
-    emailVerified: true,
-    userResolved: true,
-    userExists: true,
-    termsAccepted: currentStep !== 'termsAcceptance',
-    ageEligibilityAllowed:
-      currentStep !== 'ageVerification' &&
-      currentStep !== 'termsAcceptance',
-    profileCompleted:
-      currentStep === 'adultConsent' || currentStep === 'preferences',
-    adultConsentAccepted: currentStep === 'preferences',
-    currentStep,
-    nextRoute,
-    progress: 75,
-    canContinue: true,
-    primaryActionLabel: 'Continuar',
+  const route = { data: {allowedRegisterSteps:['profileCompletion']} } as unknown as ActivatedRouteSnapshot;
+  const makeVm=(currentStep:RegisterFlowVm['currentStep'],nextRoute:string):RegisterFlowVm=>({
+    authReady:true,uid:'u1',email:'teste@email.com',emailVerified:true,
+    userResolved:true,userExists:true,termsAccepted:currentStep!=='termsAcceptance',
+    ageEligibilityAllowed:currentStep!=='ageVerification' && currentStep!=='termsAcceptance',
+    profileCompleted:currentStep==='preferences',currentStep,nextRoute,
+    progress:75,canContinue:true,primaryActionLabel:'Continuar',
   });
-
-  beforeEach(() => {
-    currentVm = makeVm('adultConsent', '/adulto/confirmar');
-
+  beforeEach(()=>{
+    currentVm=makeVm('profileCompletion','/register/finalizar-cadastro');
     TestBed.configureTestingModule({
-      imports: [RouterTestingModule],
-      providers: [
-        {
-          provide: RegisterFlowFacade,
-          useValue: {
-            vm$: new Observable<RegisterFlowVm>((subscriber) => {
-              subscriber.next(currentVm);
-              subscriber.complete();
-            }),
-          },
-        },
-      ],
+      imports:[RouterTestingModule],
+      providers:[{provide:RegisterFlowFacade,useValue:{
+        vm$:new Observable<RegisterFlowVm>(s=>{s.next(currentVm);s.complete();}),
+      }}],
     });
-
-    router = TestBed.inject(Router);
+    router=TestBed.inject(Router);
   });
-
-  async function runGuard(url: string): Promise<boolean | UrlTree> {
-    const state = { url } as RouterStateSnapshot;
-
-    return firstValueFrom(
-      TestBed.runInInjectionContext(
-        () => registrationStepGuard(route, state)
-      ) as Observable<boolean | UrlTree>
-    );
+  async function runGuard(url:string):Promise<boolean|UrlTree>{
+    return firstValueFrom(TestBed.runInInjectionContext(
+      ()=>registrationStepGuard(route,{url} as RouterStateSnapshot)
+    ) as Observable<boolean|UrlTree>);
   }
-
-  it('deve permitir quando consentimento adulto for a etapa atual', async () => {
-    currentVm = makeVm('adultConsent', '/adulto/confirmar');
-
-    await expect(runGuard('/adulto/confirmar')).resolves.toBe(true);
+  it('permite etapa atual de conclusão de perfil',async()=>{
+    await expect(runGuard('/register/finalizar-cadastro')).resolves.toBe(true);
   });
-
-  it('deve redirecionar acesso direto para termos quando essa for a etapa atual', async () => {
-    currentVm = makeVm('termsAcceptance', '/register/aceitar-termos');
-
-    const result = await runGuard(
-      '/adulto/confirmar?redirectTo=%2Fdashboard%2Fprincipal'
-    );
-
-    expect(result).toBeInstanceOf(UrlTree);
+  it('exige termos quando pendentes',async()=>{
+    currentVm=makeVm('termsAcceptance','/register/aceitar-termos');
+    const result=await runGuard('/register/finalizar-cadastro?redirectTo=%2Fdashboard%2Fprincipal');
     expect(router.serializeUrl(result as UrlTree)).toBe(
-      '/register/aceitar-termos?redirectTo=%2Fdashboard%2Fprincipal'
-    );
+      '/register/aceitar-termos?redirectTo=%2Fdashboard%2Fprincipal');
   });
-
-  it('deve redirecionar para verificação etária após os termos', async () => {
-    currentVm = makeVm('ageVerification', '/adulto/verificar-idade');
-
-    const result = await runGuard(
-      '/adulto/confirmar?redirectTo=%2Fdashboard%2Fprincipal'
-    );
-
-    expect(result).toBeInstanceOf(UrlTree);
+  it('exige idade canônica após termos',async()=>{
+    currentVm=makeVm('ageVerification','/adulto/verificar-idade');
+    const result=await runGuard('/register/finalizar-cadastro?redirectTo=%2Fdashboard%2Fprincipal');
     expect(router.serializeUrl(result as UrlTree)).toBe(
-      '/adulto/verificar-idade?redirectTo=%2Fdashboard%2Fprincipal'
-    );
+      '/adulto/verificar-idade?redirectTo=%2Fdashboard%2Fprincipal');
   });
-
-  it('deve redirecionar acesso direto para conclusão do perfil', async () => {
-    currentVm = makeVm(
-      'profileCompletion',
-      '/register/finalizar-cadastro'
-    );
-
-    const result = await runGuard('/adulto/confirmar');
-
-    expect(result).toBeInstanceOf(UrlTree);
-    expect(router.serializeUrl(result as UrlTree)).toBe(
-      '/register/finalizar-cadastro'
-    );
+  it('direciona perfis completos às preferências',async()=>{
+    currentVm=makeVm('preferences','/preferencias/editar/u1');
+    const result=await runGuard('/register/finalizar-cadastro');
+    expect(router.serializeUrl(result as UrlTree)).toBe('/preferencias/editar/u1');
   });
 });

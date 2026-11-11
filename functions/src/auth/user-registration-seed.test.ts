@@ -24,7 +24,9 @@ describe('user-registration-seed', () => {
       'v3-private-by-default'
     );
     assert.equal(seed['profileCompleted'], false);
-    assert.equal(seed['initialAdultConsentRequired'], true);
+    assert.equal(Object.hasOwn(seed, 'initialAdultConsentRequired'), false);
+    assert.equal(Object.hasOwn(seed, 'adultConsent'), false);
+    assert.equal((seed['acceptedTerms'] as { accepted: boolean }).accepted, false);
     assert.equal(seed['registrationCompletedAt'], null);
     assert.equal(seed['publicVisibility'], 'hidden');
     assert.equal(seed['interactionBlocked'], true);

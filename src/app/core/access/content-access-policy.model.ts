@@ -52,8 +52,8 @@ export interface ContentAccessPolicy {
   requiresCompletedProfile?: boolean;
 
   /**
-   * Exige elegibilidade adulta conforme os campos de consentimento e
-   * reverificação já presentes no perfil.
+   * Exige elegibilidade adulta e ausência de restrição etária.
+   * Consentimento v1 é histórico e não participa da autorização.
    */
   requiresAdultAccess?: boolean;
 

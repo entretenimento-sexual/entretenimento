@@ -270,7 +270,6 @@ match /users/{userId} {
     return data.keys().hasAll([
         "uid",
         "registrationFlowVersion",
-        "initialAdultConsentRequired",
         "registrationCompletedAt",
         "profileCompleted",
         "acceptedTerms"
@@ -280,12 +279,12 @@ match /users/{userId} {
         "profileId",
         "socialConnectionsEstablishedAt",
         "adultConsent",
+        "initialAdultConsentRequired",
         "ageEligibility",
         "ageVerification",
         "ageReverification",
         "ageReverificationRestrictedAt"
       ])
-      && data.initialAdultConsentRequired == true
       && data.registrationCompletedAt == null
       && data.profileCompleted == false
       && initialTermsDefaultsOk(data);
@@ -358,13 +357,6 @@ match /users/{userId} {
       && data.acceptedTerms.accepted == true;
   }
 
-  function adultConsentReady(data) {
-    return data.keys().hasAny(["adultConsent"])
-      && data.adultConsent is map
-      && data.adultConsent.keys().hasAny(["accepted"])
-      && data.adultConsent.accepted == true;
-  }
-
   function selfCompletingRegistration(changedKeys) {
     let data = request.resource.data;
     let current = resource.data;
@@ -408,7 +400,6 @@ match /users/{userId} {
       && data.emailVerified == true
       && acceptedTermsReady(data)
       && currentUserHasRegistrationAgeEligibility()
-      && adultConsentReady(data)
       && data.publicVisibility == "visible"
       && data.interactionBlocked == false
       && data.registrationCompletedAt == request.time;

@@ -157,11 +157,6 @@ export class AccountRecoveryPageComponent implements OnInit {
           redirectTo ?? preferencesRoute
         );
 
-      case 'adultConsent':
-        return redirectTo
-          ? `/adulto/confirmar?redirectTo=${encodeURIComponent(redirectTo)}`
-          : '/adulto/confirmar';
-
       case 'preferences':
         return redirectTo ?? vm.nextRoute ?? preferencesRoute;
 

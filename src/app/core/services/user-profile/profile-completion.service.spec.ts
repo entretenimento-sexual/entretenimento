@@ -7,6 +7,13 @@ import { ProfileCompletionService } from './profile-completion.service';
 describe('ProfileCompletionService', () => {
   const service = new ProfileCompletionService();
 
+  it('nao apresenta consentimento adulto legado como etapa ou link', () => {
+    const checklist = service.buildChecklist({ uid: 'user-1' } as IUserDados);
+    expect(checklist.items.map((item) => String(item.id))).not.toContain('adultConsent');
+    expect(checklist.items.map((item) => item.routerLink.join('/')))
+      .not.toContain('/adulto/confirmar');
+  });
+
   it('gera a rota canônica de upload para a pendência de foto', () => {
     const checklist = service.buildChecklist({
       uid: 'user-1',

@@ -14,10 +14,6 @@ function eligibleUser(overrides: Record<string, unknown> = {}) {
       version: 'v3',
       acknowledgedPrivacyNotice: true,
     },
-    adultConsent: {
-      accepted: true,
-      version: 'v1',
-    },
     ageReverification: { status: 'NONE' },
     ...overrides,
   };
@@ -109,27 +105,68 @@ test('não usa idade ou assurance etário como gate social local', () => {
   );
 });
 
-test('nega consentimento adulto inválido', () => {
-  assert.throws(
-    () =>
+test('aceita conta elegível sem consentimento v1 ou com histórico recusado ou inválido', () => {
+  for (const adultConsent of [
+    undefined,
+    null,
+    { accepted: false, version: 'v1' },
+    { accepted: true, version: 'legacy' },
+  ]) {
+    assert.doesNotThrow(() =>
       assertCommunitySocialAccessEligible(
-        eligibleUser({ adultConsent: { accepted: true, version: 'legacy' } }),
+        eligibleUser({ adultConsent }),
         'user-1'
-      ),
-    (error: unknown) => errorReason(error) === 'adult_consent_required'
-  );
+      )
+    );
+  }
 });
 
-test('não aceita bypass legado de consentimento inicial', () => {
-  assert.throws(
-    () =>
+test('marcador de consentimento inicial é histórico, não um bypass de lifecycle', () => {
+  for (const initialAdultConsentRequired of [undefined, false, true]) {
+    assert.doesNotThrow(() =>
       assertCommunitySocialAccessEligible(
+        eligibleUser({ initialAdultConsentRequired, adultConsent: null }),
+        'user-1'
+      )
+    );
+
+    assert.throws(
+      () => assertCommunitySocialAccessEligible(
         eligibleUser({
-          initialAdultConsentRequired: false,
+          initialAdultConsentRequired,
           adultConsent: null,
+          interactionBlocked: true,
         }),
         'user-1'
       ),
-    (error: unknown) => errorReason(error) === 'adult_consent_required'
+      (error: unknown) =>
+        errorCode(error) === 'failed-precondition' &&
+        errorReason(error) === 'account_interaction_blocked'
+    );
+  }
+});
+
+test('hold de moderação e termos vigentes continuam obrigatórios sem consentimento v1', () => {
+  assert.throws(
+    () => assertCommunitySocialAccessEligible(
+      eligibleUser({
+        adultConsent: null,
+        moderationAutomationHold: { active: true, expiresAtMs: Date.now() + 60_000 },
+      }),
+      'user-1'
+    ),
+    (error: unknown) =>
+      errorCode(error) === 'failed-precondition' &&
+      errorReason(error) === 'moderation_automation_hold'
+  );
+
+  assert.throws(
+    () => assertCommunitySocialAccessEligible(
+      eligibleUser({ adultConsent: null, acceptedTerms: null }),
+      'user-1'
+    ),
+    (error: unknown) =>
+      errorCode(error) === 'failed-precondition' &&
+      errorReason(error) === 'terms_required'
   );
 });

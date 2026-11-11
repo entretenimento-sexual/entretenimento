@@ -71,8 +71,6 @@ export function advertiserInteractionFieldsChanged(
   const rightHold = asRecord(right['moderationAutomationHold']);
   const leftTerms = asRecord(left['acceptedTerms']);
   const rightTerms = asRecord(right['acceptedTerms']);
-  const leftConsent = asRecord(left['adultConsent']);
-  const rightConsent = asRecord(right['adultConsent']);
 
   return left['accountStatus'] !== right['accountStatus']
     || left['suspended'] !== right['suspended']
@@ -82,7 +80,5 @@ export function advertiserInteractionFieldsChanged(
     || leftTerms['accepted'] !== rightTerms['accepted']
     || leftTerms['version'] !== rightTerms['version']
     || leftTerms['acknowledgedPrivacyNotice']
-      !== rightTerms['acknowledgedPrivacyNotice']
-    || leftConsent['accepted'] !== rightConsent['accepted']
-    || leftConsent['version'] !== rightConsent['version'];
+      !== rightTerms['acknowledgedPrivacyNotice'];
 }

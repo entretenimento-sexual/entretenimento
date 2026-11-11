@@ -148,6 +148,29 @@ describe('AccessControlService canonical subscription roles', () => {
     TestBed.resetTestingModule();
   });
 
+  it('ignora consentimento legado recusado e ausente na capacidade social', async () => {
+    const terms = {
+      accepted: true,
+      date: 1,
+      version: 'v3',
+      acknowledgedPrivacyNotice: true,
+    };
+    user$.next({
+      ...createUser(),
+      acceptedTerms: terms,
+      adultConsent: { accepted: false, version: 'v1' },
+    });
+    const service = TestBed.inject(AccessControlService);
+    await expect(firstValueFrom(service.canUseAdultSocial$)).resolves.toBe(true);
+
+    user$.next({
+      ...createUser(),
+      acceptedTerms: terms,
+      adultConsent: null,
+    });
+    await expect(firstValueFrom(service.canUseAdultSocial$)).resolves.toBe(true);
+  });
+
   it('libera recursos sociais pela conta ativa com contrato vigente', async () => {
     user$.next({
       ...createUser(),

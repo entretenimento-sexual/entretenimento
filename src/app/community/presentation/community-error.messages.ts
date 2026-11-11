@@ -24,7 +24,7 @@ export const COMMUNITY_CREATE_REASON_MESSAGES: CommunityErrorMessageMap =
     profile_incomplete:
       'Complete seu perfil antes de criar uma Comunidade.',
     adult_access_required:
-      'Confirme seu acesso adulto antes de criar uma Comunidade.',
+      'Acesso adulto indisponível para criar uma Comunidade. Consulte o status da conta.',
     account_restricted:
       'Sua conta não pode criar Comunidades neste momento.',
   });
@@ -185,7 +185,7 @@ export const COMMUNITY_INVITE_MANAGEMENT_REASON_MESSAGES: CommunityErrorMessageM
     account_restricted:
       'Esta conta não pode participar de Comunidades neste momento.',
     adult_access_required:
-      'Esta conta precisa confirmar o acesso adulto antes de participar.',
+      'Esta conta não atende aos requisitos de acesso adulto para participar.',
     profile_incomplete:
       'Esta conta precisa concluir o perfil antes de participar.',
   });
@@ -219,7 +219,7 @@ export const COMMUNITY_MEMBERSHIP_REVIEW_REASON_MESSAGES: CommunityErrorMessageM
     account_restricted:
       'A conta deste participante não está elegível para entrada neste momento.',
     adult_access_required:
-      'A conta deste participante precisa confirmar o acesso adulto antes da entrada.',
+      'A conta deste participante não atende aos requisitos de acesso adulto para entrada.',
     profile_incomplete:
       'A conta deste participante precisa concluir o perfil antes da entrada.',
     community_not_manageable:
@@ -269,7 +269,7 @@ export const COMMUNITY_SETTINGS_REASON_MESSAGES: CommunityErrorMessageMap =
     account_restricted:
       'Sua conta não pode alterar estas configurações neste momento.',
     adult_access_required:
-      'Confirme o acesso adulto antes de alterar estas configurações.',
+      'Acesso adulto indisponível para alterar estas configurações. Consulte o status da conta.',
     profile_incomplete:
       'Complete seu perfil antes de alterar estas configurações.',
     community_settings_idempotency_invalid:
@@ -441,7 +441,7 @@ export const COMMUNITY_FEED_POST_REASON_MESSAGES: CommunityErrorMessageMap =
     account_restricted:
       'Sua conta não pode publicar ou administrar Comunidades neste momento.',
     adult_access_required:
-      'Confirme o acesso adulto antes de continuar nesta Comunidade.',
+      'Acesso adulto indisponível para esta ação. Consulte o status da conta.',
     profile_incomplete:
       'Complete seu perfil antes de continuar nesta Comunidade.',
   });
@@ -503,7 +503,7 @@ export const COMMUNITY_FEED_REACTION_REASON_MESSAGES: CommunityErrorMessageMap =
     account_restricted:
       'Sua conta não pode interagir em Comunidades neste momento.',
     adult_access_required:
-      'Confirme seu acesso adulto antes de interagir nesta Comunidade.',
+      'Acesso adulto indisponível para interagir nesta Comunidade. Consulte o status da conta.',
     profile_incomplete:
       'Complete seu perfil antes de interagir nesta Comunidade.',
   });
@@ -583,7 +583,7 @@ export const COMMUNITY_FEED_CONVERSATION_REASON_MESSAGES: CommunityErrorMessageM
     account_restricted:
       'Sua conta não pode interagir em Comunidades neste momento.',
     adult_access_required:
-      'Confirme seu acesso adulto antes de responder nesta Comunidade.',
+      'Acesso adulto indisponível para responder nesta Comunidade. Consulte o status da conta.',
     profile_incomplete:
       'Complete seu perfil antes de responder nesta Comunidade.',
   });

@@ -6,9 +6,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue, Timestamp, auth } from '../firebaseApp';
 import { assertCallableAppCheck } from '../shared/security/callable-app-check';
-import {
-  ADULT_CONSENT_VERSION, TERMS_ACCEPTANCE_VERSION,
-} from '../compliance/platform-legal.constants';
+import { TERMS_ACCEPTANCE_VERSION } from '../compliance/platform-legal.constants';
 import { buildInitialUserSeed } from '../auth/user-registration-seed';
 import {
   PROFILE_IDENTITY_CATALOG_VERSION, isSelectableProfileIdentityCode,
@@ -200,16 +198,16 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
         throw new HttpsError('failed-precondition', 'Conta indisponível.');
       }
       const terms = user['acceptedTerms'] as Record<string, unknown> | undefined;
-      const adult = user['adultConsent'] as Record<string, unknown> | undefined;
       // A autorização depende da versão vigente e do aceite de privacidade.
       // Um booleano legado não equivale ao aceite canônico das Rules.
+      // O consentimento adulto legado não é condição independente.
+      // Termos v3 + decisão etária canônica permanecem mandatórios.
       if (terms?.['accepted'] !== true ||
         terms?.['version'] !== TERMS_ACCEPTANCE_VERSION ||
-        terms?.['acknowledgedPrivacyNotice'] !== true ||
-        adult?.['accepted'] !== true ||
-        adult?.['version'] !== ADULT_CONSENT_VERSION) {
+        terms?.['acknowledgedPrivacyNotice'] !== true) {
         throw new HttpsError('failed-precondition',
-          'Confirme os termos e o consentimento de acesso adulto.');
+          'Aceite os Termos de Uso vigentes para concluir o cadastro.',
+          { reason: 'terms_required', recommendedAction: 'accept_terms' });
       }
       const age = evaluateCanonicalAgeEligibility({
         uid, rawRecord: ageSnap.data() ?? null,

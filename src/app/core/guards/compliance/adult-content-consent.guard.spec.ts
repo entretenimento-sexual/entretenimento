@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IUserAgeEligibility } from '../../interfaces/iuser-dados';
 import { AuthSessionService } from '../../services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../services/autentication/auth/current-user-store.service';
-import { AdultConsentService } from '../../services/compliance/adult-consent.service';
 import { AgeEligibilityService } from '../../services/compliance/age-eligibility.service';
 import {
   CURRENT_LEGAL_ACCEPTANCE_ENFORCED,
@@ -15,256 +14,105 @@ import {
 import { adultContentConsentGuard } from './adult-content-consent.guard';
 
 const VERIFIED: IUserAgeEligibility = {
-  status: 'VERIFIED_ADULT',
-  policyVersion: 1,
-  source: 'INITIAL_VERIFICATION',
-  method: 'EXTERNAL_PROVIDER',
-  verifiedAtMs: 1,
-  expiresAtMs: null,
-  updatedAtMs: 1,
+  status: 'VERIFIED_ADULT', policyVersion: 1,
+  source: 'INITIAL_VERIFICATION', method: 'EXTERNAL_PROVIDER',
+  verifiedAtMs: 1, expiresAtMs: null, updatedAtMs: 1,
+};
+const DECLARED: IUserAgeEligibility = {
+  status: 'SELF_DECLARED_ADULT', policyVersion: 1,
+  source: 'SELF_DECLARATION', method: 'SELF_DECLARATION',
+  verifiedAtMs: null, expiresAtMs: null, updatedAtMs: 2,
+};
+const CURRENT_TERMS = {
+  accepted: true,
+  version: TERMS_ACCEPTANCE_VERSION,
+  acknowledgedPrivacyNotice: true,
 };
 
-describe('adultContentConsentGuard / account adult boundary', () => {
-  let userSubject: BehaviorSubject<Record<string, unknown>>;
-  let adultConsentSubject: BehaviorSubject<boolean>;
+describe('adultContentConsentGuard / admission 18+ and Terms without legacy consent', () => {
+  let user$: BehaviorSubject<Record<string, unknown>>;
   let ageState: IUserAgeEligibility;
   let reconcileAge: ReturnType<typeof vi.fn>;
   let createUrlTree: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     ageState = VERIFIED;
-    userSubject = new BehaviorSubject<Record<string, unknown>>({
-      uid: 'user-1',
+    user$ = new BehaviorSubject<Record<string, unknown>>({
+      uid: 'user-1', acceptedTerms: CURRENT_TERMS,
       initialAdultConsentRequired: true,
-      acceptedTerms: {
-        accepted: true,
-        version: TERMS_ACCEPTANCE_VERSION,
-        acknowledgedPrivacyNotice: true,
-      },
+      adultConsent: { accepted: false, version: 'v1' },
     });
-    adultConsentSubject = new BehaviorSubject(false);
     reconcileAge = vi.fn(() => of(ageState));
     createUrlTree = vi.fn((commands, options) => ({ commands, options }));
-
-    TestBed.configureTestingModule({
-      providers: [
-        {
-          provide: Router,
-          useValue: { createUrlTree },
-        },
-        {
-          provide: AuthSessionService,
-          useValue: { ready$: of(true), authUser$: of({ uid: 'user-1' }) },
-        },
-        {
-          provide: CurrentUserStoreService,
-          useValue: { user$: userSubject.asObservable() },
-        },
-        {
-          provide: AdultConsentService,
-          useValue: {
-            currentConsentAccepted$: adultConsentSubject.asObservable(),
-          },
-        },
-        {
-          provide: AgeEligibilityService,
-          useValue: {
-            reconcileTrustedStateOncePerSession$: reconcileAge,
-          },
-        },
-      ],
-    });
+    TestBed.configureTestingModule({ providers: [
+      { provide: Router, useValue: { createUrlTree } },
+      { provide: AuthSessionService, useValue: {
+        ready$: of(true), authUser$: of({ uid: 'user-1' }),
+      } },
+      { provide: CurrentUserStoreService, useValue: { user$: user$.asObservable() } },
+      { provide: AgeEligibilityService, useValue: {
+        reconcileTrustedStateOncePerSession$: reconcileAge,
+      } },
+    ] });
   });
 
-  it('permite acessar status da conta sem termos ou assurance adulta', () => {
-    userSubject.next({ uid: 'user-1', acceptedTerms: null });
-
-    const result = TestBed.runInInjectionContext(() =>
-      adultContentConsentGuard(
-        {} as never,
-        { url: '/conta/status' } as never
-      )
+  function run(url: string) {
+    return TestBed.runInInjectionContext(() =>
+      adultContentConsentGuard({} as never, { url } as never)
     );
+  }
 
-    expect(result).toBe(true);
+  it('mantém rotas de direitos da conta acessíveis', () => {
+    user$.next({ uid: 'user-1', acceptedTerms: null });
+    expect(run('/conta/status')).toBe(true);
   });
 
-  it('não bloqueia dev-real por aceite jurídico remoto indisponível quando assurance é válida', async () => {
-    expect(CURRENT_LEGAL_ACCEPTANCE_ENFORCED).toBe(false);
-
-    userSubject.next({
-      uid: 'user-1',
-      initialAdultConsentRequired: false,
-      acceptedTerms: null,
-    });
-
-    const result = TestBed.runInInjectionContext(() =>
-      adultContentConsentGuard(
-        {} as never,
-        { url: '/dashboard/principal' } as never
-      )
-    );
-
-    await expect(firstValueFrom(result as never)).resolves.toBe(true);
-  });
-
-  it('admite autodeclaração 18+ e segue ao consentimento da conta', async () => {
-    ageState = {
-      status: 'SELF_DECLARED_ADULT',
-      policyVersion: 1,
-      source: 'SELF_DECLARATION',
-      method: 'SELF_DECLARATION',
-      verifiedAtMs: null,
-      expiresAtMs: null,
-      updatedAtMs: 2,
-    };
-
-    const result = TestBed.runInInjectionContext(() =>
-      adultContentConsentGuard(
-        {} as never,
-        { url: '/chat' } as never
-      )
-    );
-
-    await firstValueFrom(result as never);
-
-    expect(createUrlTree).toHaveBeenCalledWith(
-      ['/adulto/confirmar'],
-      {
-        queryParams: {
-          reason: 'initial_adult_consent_required',
-          redirectTo: '/chat',
-        },
-      }
-    );
-  });
-
-  it('rejeita estado sem admissão 18+ antes do consentimento', async () => {
-    ageState = {
-      status: 'DENIED_UNDERAGE', policyVersion: 1,
-      source: 'AGE_REVERIFICATION', method: 'MANUAL_REVIEW',
-      verifiedAtMs: null, expiresAtMs: null, updatedAtMs: 2,
-    };
-    const result = TestBed.runInInjectionContext(() =>
-      adultContentConsentGuard({} as never, { url: '/chat' } as never)
-    );
-    await firstValueFrom(result as never);
-    expect(createUrlTree).toHaveBeenCalledWith(
-      ['/adulto/verificar-idade'], expect.any(Object)
-    );
-  });
-
-  it('verifica consentimento depois da assurance confiável', async () => {
-    const result = TestBed.runInInjectionContext(() =>
-      adultContentConsentGuard(
-        {} as never,
-        { url: '/chat' } as never
-      )
-    );
-
-    await firstValueFrom(result as never);
-
-    expect(createUrlTree).toHaveBeenCalledWith(
-      ['/adulto/confirmar'],
-      {
-        queryParams: {
-          reason: 'initial_adult_consent_required',
-          redirectTo: '/chat',
-        },
-      }
-    );
-  });
-
-  it('libera recurso com assurance, termos e consentimento vigentes', async () => {
-    adultConsentSubject.next(true);
-
-    const result = TestBed.runInInjectionContext(() =>
-      adultContentConsentGuard(
-        {} as never,
-        { url: '/descobrir' } as never
-      )
-    );
-
-    await expect(firstValueFrom(result as never)).resolves.toBe(true);
+  it('permite admissão inicial canônica 18+ sem adultConsent legado', async () => {
+    ageState = DECLARED;
+    await expect(firstValueFrom(run('/chat') as never)).resolves.toBe(true);
+    expect(reconcileAge).toHaveBeenCalledTimes(1);
     expect(createUrlTree).not.toHaveBeenCalled();
   });
 
-  it('não exige nova verificação quando a reconciliação falha mas a projeção persistida ainda é confiável', async () => {
-    adultConsentSubject.next(true);
-    userSubject.next({
-      uid: 'user-1',
-      initialAdultConsentRequired: false,
-      acceptedTerms: {
-        accepted: true,
-        version: TERMS_ACCEPTANCE_VERSION,
-        acknowledgedPrivacyNotice: true,
-      },
-      ageEligibility: VERIFIED,
-    });
-    reconcileAge.mockReturnValueOnce(
-      throwError(() => new Error('backend temporariamente indisponível'))
-    );
-
-    const result = TestBed.runInInjectionContext(() =>
-      adultContentConsentGuard(
-        {} as never,
-        { url: '/dashboard/principal' } as never
-      )
-    );
-
-    await expect(firstValueFrom(result as never)).resolves.toBe(true);
-    expect(createUrlTree).not.toHaveBeenCalled();
+  it('nega estado etário de menoridade confirmada', async () => {
+    ageState = { ...DECLARED, status: 'DENIED_UNDERAGE',
+      source: 'AGE_REVERIFICATION', method: 'MANUAL_REVIEW' };
+    await firstValueFrom(run('/chat') as never);
+    expect(createUrlTree).toHaveBeenCalledWith(['/adulto/verificar-idade'],
+      expect.objectContaining({ queryParams: expect.objectContaining({ redirectTo: '/chat' }) }));
   });
 
-  it('não reinterpreta assurance etário de conta já admitida e ativa', async () => {
-    adultConsentSubject.next(true);
-    ageState = {
-      status: 'EXPIRED',
-      policyVersion: 1,
-      source: 'INITIAL_VERIFICATION',
-      method: 'EXTERNAL_PROVIDER',
-      verifiedAtMs: 1,
-      expiresAtMs: 2,
-      updatedAtMs: 3,
-    };
-    userSubject.next({
-      uid: 'user-1',
-      accountStatus: 'active',
-      profileCompleted: true,
-      initialAdultConsentRequired: false,
-      acceptedTerms: {
-        accepted: true,
-        version: TERMS_ACCEPTANCE_VERSION,
-        acknowledgedPrivacyNotice: true,
-      },
-      ageEligibility: ageState,
-    });
+  it('falha fechado no onboarding se a reconciliação canônica indisponível', async () => {
+    user$.next({uid:'user-1',acceptedTerms:CURRENT_TERMS,ageEligibility:VERIFIED});
+    reconcileAge.mockReturnValueOnce(throwError(() => new Error('offline')));
+    await firstValueFrom(run('/chat') as never);
+    expect(createUrlTree).toHaveBeenCalledWith(['/adulto/verificar-idade'],expect.any(Object));
+  });
 
-    const result = TestBed.runInInjectionContext(() =>
-      adultContentConsentGuard(
-        {} as never,
-        { url: '/dashboard/principal' } as never
-      )
-    );
-
-    await expect(firstValueFrom(result as never)).resolves.toBe(true);
+  it('não reinterpreta assurance de conta já admitida e ativa', async () => {
+    user$.next({ uid: 'user-1', acceptedTerms: CURRENT_TERMS,
+      accountStatus: 'active', profileCompleted: true,
+      initialAdultConsentRequired: true, adultConsent: null,
+      ageEligibility: { ...VERIFIED, status: 'EXPIRED' } });
+    await expect(firstValueFrom(run('/dashboard/principal') as never)).resolves.toBe(true);
     expect(reconcileAge).not.toHaveBeenCalled();
     expect(createUrlTree).not.toHaveBeenCalled();
   });
 
-  it('não aplica bypass de conta a rota apenas parecida', async () => {
-    const result = TestBed.runInInjectionContext(() =>
-      adultContentConsentGuard(
-        {} as never,
-        { url: '/conta-falsa' } as never
-      )
-    );
+  it('não confunde rota parecida com rota essencial da conta', async () => {
+    ageState = { ...DECLARED, status: 'REVIEW_REQUIRED' };
+    await firstValueFrom(run('/conta-falsa') as never);
+    expect(createUrlTree).toHaveBeenCalledWith(['/adulto/verificar-idade'],expect.any(Object));
+  });
 
-    await firstValueFrom(result as never);
-
-    expect(createUrlTree).toHaveBeenCalledWith(
-      ['/adulto/confirmar'],
-      expect.any(Object)
-    );
+  it('exige Termos vigentes quando o gating jurídico está ativo', async () => {
+    user$.next({ uid: 'user-1', acceptedTerms: null,
+      accountStatus: 'active', profileCompleted: true });
+    const result = await firstValueFrom(run('/dashboard/principal') as never);
+    if (CURRENT_LEGAL_ACCEPTANCE_ENFORCED) {
+      expect(createUrlTree).toHaveBeenCalledWith(['/register/aceitar-termos'],expect.any(Object));
+    } else {
+      expect(result).toBe(true);
+    }
   });
 });

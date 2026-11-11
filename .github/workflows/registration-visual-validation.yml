@@ -6,7 +6,8 @@ on:
     paths:
       - 'angular.json'
       - 'src/app/register-module/**'
-      - 'src/app/compliance/adult-consent-page/**'
+      - 'src/app/compliance/age-verification-page/**'
+      - 'src/app/compliance/age-reverification-page/**'
       - 'src/app/account/guards/account-lifecycle.guard.ts'
       - 'src/app/core/guards/**'
       - 'src/app/core/services/autentication/register/**'
@@ -592,52 +593,42 @@ jobs:
           playwright-cli snapshot --filename="$OUT/terms/mobile-invalid.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/terms/mobile-invalid.png"
 
+          # Compatibilidade: a URL anterior deve redirecionar sem exibir o formulário removido.
           playwright-cli resize 1440 1000
           playwright-cli run-code "async (page) => {
             await page.goto('$BASE/adulto/confirmar');
-            await page.waitForSelector('.adult-consent__card', { state: 'visible' });
-            const metrics = await page.evaluate(() => {
-              const buttons = Array.from(document.querySelectorAll('.adult-consent__actions button'));
-              return {
-                viewportWidth: window.innerWidth,
-                scrollWidth: document.documentElement.scrollWidth,
-                cardVisible: !!document.querySelector('.adult-consent__card')?.getClientRects().length,
-                actionCount: buttons.length,
-                shortButtons: buttons.filter((el) => el.getBoundingClientRect().height < 44).map((el) => el.textContent?.trim()),
-              };
-            });
+            await page.waitForURL((url) => !url.pathname.startsWith('/adulto/confirmar'), { timeout: 15000 });
+            const metrics = await page.evaluate(() => ({
+              viewportWidth: window.innerWidth,
+              scrollWidth: document.documentElement.scrollWidth,
+              finalPath: window.location.pathname,
+              removedFormVisible: !!document.querySelector('.adult-consent__card')?.getClientRects().length,
+            }));
             console.log(JSON.stringify(metrics));
-            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Adult confirmation desktop overflow');
-            if (!metrics.cardVisible || metrics.actionCount !== 2 || metrics.shortButtons.length) throw new Error('Adult confirmation desktop incomplete');
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Legacy redirect desktop overflow');
+            if (metrics.finalPath.startsWith('/adulto/confirmar') || metrics.removedFormVisible) throw new Error('Legacy adult confirmation route is still active on desktop');
             return metrics;
-          }" | tee "$OUT/adult/desktop.metrics.log"
-          playwright-cli snapshot --filename="$OUT/adult/desktop.accessibility.yml"
-          playwright-cli screenshot --full-page --filename="$OUT/adult/desktop.png"
+          }" | tee "$OUT/adult/desktop-legacy-redirect.metrics.log"
+          playwright-cli snapshot --filename="$OUT/adult/desktop-legacy-redirect.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/adult/desktop-legacy-redirect.png"
 
           playwright-cli resize 390 844
-          playwright-cli reload
           playwright-cli run-code "async (page) => {
-            await page.waitForSelector('.adult-consent__card', { state: 'visible' });
-            const metrics = await page.evaluate(() => {
-              const cardRect = document.querySelector('.adult-consent__card')?.getBoundingClientRect();
-              const actionsRect = document.querySelector('.adult-consent__actions')?.getBoundingClientRect();
-              const buttons = Array.from(document.querySelectorAll('.adult-consent__actions button'));
-              return {
-                viewportWidth: window.innerWidth,
-                scrollWidth: document.documentElement.scrollWidth,
-                cardWidth: cardRect?.width ?? 0,
-                actionCount: buttons.length,
-                narrowButtons: buttons.filter((el) => el.getBoundingClientRect().width < (actionsRect?.width ?? 0) * 0.95).map((el) => el.textContent?.trim()),
-                shortButtons: buttons.filter((el) => el.getBoundingClientRect().height < 44).map((el) => el.textContent?.trim()),
-              };
-            });
+            await page.goto('$BASE/adulto/confirmar');
+            await page.waitForURL((url) => !url.pathname.startsWith('/adulto/confirmar'), { timeout: 15000 });
+            const metrics = await page.evaluate(() => ({
+              viewportWidth: window.innerWidth,
+              scrollWidth: document.documentElement.scrollWidth,
+              finalPath: window.location.pathname,
+              removedFormVisible: !!document.querySelector('.adult-consent__card')?.getClientRects().length,
+            }));
             console.log(JSON.stringify(metrics));
-            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Adult confirmation mobile overflow');
-            if (metrics.cardWidth < metrics.viewportWidth * 0.85 || metrics.actionCount !== 2 || metrics.narrowButtons.length || metrics.shortButtons.length) throw new Error('Adult confirmation mobile actions/layout regression');
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Legacy redirect mobile overflow');
+            if (metrics.finalPath.startsWith('/adulto/confirmar') || metrics.removedFormVisible) throw new Error('Legacy adult confirmation route is still active on mobile');
             return metrics;
-          }" | tee "$OUT/adult/mobile.metrics.log"
-          playwright-cli snapshot --filename="$OUT/adult/mobile.accessibility.yml"
-          playwright-cli screenshot --full-page --filename="$OUT/adult/mobile.png"
+          }" | tee "$OUT/adult/mobile-legacy-redirect.metrics.log"
+          playwright-cli snapshot --filename="$OUT/adult/mobile-legacy-redirect.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/adult/mobile-legacy-redirect.png"
 
           playwright-cli console error > "$OUT/browser-console-errors.log" || true
           playwright-cli close

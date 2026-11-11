@@ -57,7 +57,6 @@ import { ApplicationErrorService } from '../../error-handler/application-error.s
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
 import { TERMS_ACCEPTANCE_VERSION } from '@core/services/compliance/platform-legal.constants';
-import { ADULT_CONSENT_VERSION } from '@core/guards/compliance/adult-content-consent.storage';
 
 export type UserRole = IUserDados['role'];
 
@@ -591,18 +590,14 @@ export class AccessControlService {
       }
 
       const terms = user.acceptedTerms;
-      const adultConsent = user.adultConsent;
+
 
       const termsOk =
         terms?.accepted === true &&
         terms.version === TERMS_ACCEPTANCE_VERSION &&
         terms.acknowledgedPrivacyNotice === true;
 
-      const adultConsentOk =
-        adultConsent?.accepted === true &&
-        adultConsent.version === ADULT_CONSENT_VERSION;
-
-      return termsOk && adultConsentOk;
+      return termsOk;
     }),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),

@@ -27,6 +27,7 @@ function buildRegistrationData(
       accepted: true,
       date: Date.now(),
     },
+    confirmsAdult: true,
     ...overrides,
   } as IUserRegistrationData;
 }
@@ -155,6 +156,14 @@ describe('RegisterService', () => {
         }),
       }
     );
+  });
+
+  it('rejeita inscrição diretamente no serviço sem declaração 18+', async () => {
+    const data = buildRegistrationData({ confirmsAdult: false });
+    await expect(firstValueFrom(service.registerUser(data, 'senha-segura')))
+      .rejects.toThrow('exclusiva para maiores de 18 anos');
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(checkIfNicknameExists).not.toHaveBeenCalled();
   });
 
   it('mantém compatibilidade email-exists-soft e marca o erro já diagnosticado', async () => {

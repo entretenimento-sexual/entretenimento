@@ -183,8 +183,6 @@ export function getNicknameIndexDocId(user: UserDoc): string | null {
 
 export function isUserEligibleForPublicProjection(user: UserDoc): boolean {
   const normalized = resolveNicknameNormalized(user);
-  const adultConsentRequired =
-    user.initialAdultConsentRequired !== false;
   const currentLegalAcceptance =
     user.acceptedTerms?.accepted === true &&
     String(user.acceptedTerms.version ?? '').trim() ===
@@ -204,7 +202,6 @@ export function isUserEligibleForPublicProjection(user: UserDoc): boolean {
     user.emailVerified === true &&
     user.profileCompleted === true &&
     currentLegalAcceptance &&
-    (!adultConsentRequired || user.adultConsent?.accepted === true) &&
     /^[a-z0-9._-]{3,40}$/.test(normalized) &&
     String(user.nickname ?? '').trim().length >= 3
   );

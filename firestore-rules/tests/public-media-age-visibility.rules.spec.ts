@@ -878,27 +878,19 @@ describe('Firestore Rules / public media account and content visibility', () => 
     );
   });
 
-  it('exige consentimento adulto vigente quando ele é obrigatório', async () => {
+  it('não exige adultConsent legado para viewer admitido com Termos vigentes', async () => {
     await setViewerCompliance({
       initialAdultConsentRequired: true,
       adultConsent: null,
     });
     const db = viewerDb();
-    const videoRef = doc(
-      db,
-      'public_profiles',
-      OWNER_UID,
-      'public_videos',
-      VIDEO_ID
-    );
-
-    await assertFails(getDoc(videoRef));
+    const videoRef = doc(db,'public_profiles',OWNER_UID,'public_videos',VIDEO_ID);
+    await assertSucceeds(getDoc(videoRef));
 
     await setViewerCompliance({
       initialAdultConsentRequired: true,
-      adultConsent: { accepted: true, version: 'v1' },
+      adultConsent: { accepted: false, version: 'v1' },
     });
-
     await assertSucceeds(getDoc(videoRef));
   });
 });

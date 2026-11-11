@@ -2,7 +2,6 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const {
-  ADULT_CONSENT_VERSION,
   TERMS_ACCEPTANCE_VERSION,
 } = require('../../functions/lib/compliance/platform-legal.constants.js');
 
@@ -11,7 +10,7 @@ const {
  * começam com uma conta já apta a consumir/interagir com mídia pública.
  *
  * O fixture lê as versões canônicas compiladas das Functions para não mascarar
- * uma futura atualização de termos/consentimento com strings duplicadas.
+ * uma futura atualização dos Termos com strings duplicadas.
  */
 export async function seedPublicMediaCompliance(adminDb, uids) {
   const uniqueUids = [...new Set(
@@ -32,16 +31,10 @@ export async function seedPublicMediaCompliance(adminDb, uids) {
           interactionBlocked: false,
           publicVisibility: 'visible',
           profileCompleted: true,
-          initialAdultConsentRequired: false,
           acceptedTerms: {
             accepted: true,
             version: TERMS_ACCEPTANCE_VERSION,
             acknowledgedPrivacyNotice: true,
-            source: 'e2e-fixture',
-          },
-          adultConsent: {
-            accepted: true,
-            version: ADULT_CONSENT_VERSION,
             source: 'e2e-fixture',
           },
           ageReverification: {

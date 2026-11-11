@@ -16,10 +16,6 @@ describe('media authoring eligibility', () => {
       version: 'v3',
       acknowledgedPrivacyNotice: true,
     },
-    adultConsent: {
-      accepted: true,
-      version: 'v1',
-    },
   };
 
   it('permite autoria para conta ativa sem depender do assurance etário', () => {
@@ -61,6 +57,37 @@ describe('media authoring eligibility', () => {
     );
   });
 
+  it('permite autoria sem consentimento v1, inclusive histórico recusado', () => {
+    const legacyStates = [
+      undefined,
+      null,
+      { accepted: false, version: 'v1' },
+      { accepted: true, version: 'v1' },
+    ];
+
+    for (const adultConsent of legacyStates) {
+      const user = {
+        ...eligibleUser,
+        initialAdultConsentRequired: true,
+        adultConsent,
+      };
+      assert.deepEqual(assertMediaAuthoringEligibilityData(user), { allowed: true });
+    }
+  });
+
+  it('mantém bloqueios materiais de lifecycle e moderação', () => {
+    for (const user of [
+      { ...eligibleUser, accountLocked: true },
+      { ...eligibleUser, loginAllowed: false },
+      {
+        ...eligibleUser,
+        moderationAutomationHold: { active: true, expiresAtMs: Date.now() + 60_000 },
+      },
+    ]) {
+      assert.throws(() => assertMediaAuthoringEligibilityData(user), HttpsError);
+    }
+  });
+
   it('bloqueia quando o lifecycle da conta não autoriza interação', () => {
     for (const user of [
       { ...eligibleUser, suspended: true },
@@ -74,7 +101,18 @@ describe('media authoring eligibility', () => {
     }
   });
 
-  it('bloqueia termos ou consentimento adulto ausentes', () => {
+  it('bloqueia termos atuais ausentes ou inválidos', () => {
+    assert.throws(
+      () => assertMediaAuthoringEligibilityData({ ...eligibleUser, acceptedTerms: null }),
+      HttpsError
+    );
+    assert.throws(
+      () => assertMediaAuthoringEligibilityData({
+        ...eligibleUser,
+        acceptedTerms: { accepted: false, version: 'v3', acknowledgedPrivacyNotice: true },
+      }),
+      HttpsError
+    );
     assert.throws(
       () => assertMediaAuthoringEligibilityData(
         {
@@ -89,14 +127,5 @@ describe('media authoring eligibility', () => {
       HttpsError
     );
 
-    assert.throws(
-      () => assertMediaAuthoringEligibilityData(
-        {
-          ...eligibleUser,
-          adultConsent: null,
-        }
-      ),
-      HttpsError
-    );
   });
 });

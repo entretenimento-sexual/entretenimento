@@ -47,7 +47,6 @@ export function buildInitialUserSeed(
     accountStatus: 'active',
     profileCompleted: false,
     registrationFlowVersion: REGISTRATION_FLOW_VERSION,
-    initialAdultConsentRequired: true,
     registrationCompletedAt: null,
 
     acceptedTerms: {

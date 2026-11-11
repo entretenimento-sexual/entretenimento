@@ -46,8 +46,8 @@ export class TermsAcceptancePageComponent {
 
   /**
    * Uma única manifestação contratual cobre o aceite dos Termos e a ciência de
-   * que a Política de Privacidade foi disponibilizada. O fluxo separado de
-   * acesso adulto permanece responsável por declaração e verificação etária.
+   * que a Política de Privacidade foi disponibilizada. A etapa etária canônica permanece responsável pela admissão 18+, sem
+   * consentimento adulto redundante.
    */
   readonly termsConfirmation = new FormControl(false, {
     nonNullable: true,
@@ -82,10 +82,12 @@ export class TermsAcceptancePageComponent {
         const routedAsUpdate =
           queryParams.get('reason') === 'material_terms_update_required';
 
+        // Histórico sem versão também exige novo aceite explícito.
         return routedAsUpdate || (
           record?.accepted === true &&
-          !!previousVersion &&
-          previousVersion !== TERMS_ACCEPTANCE_VERSION
+          (!previousVersion ||
+            previousVersion !== TERMS_ACCEPTANCE_VERSION ||
+            record.acknowledgedPrivacyNotice !== true)
         );
       }),
       distinctUntilChanged(),
@@ -335,10 +337,10 @@ export class TermsAcceptancePageComponent {
           redirectTo ?? preferencesRoute
         );
 
-      case 'adultConsent':
+      case 'ageVerification':
         return redirectTo
-          ? `/adulto/confirmar?redirectTo=${encodeURIComponent(redirectTo)}`
-          : '/adulto/confirmar';
+          ? `/adulto/verificar-idade?redirectTo=${encodeURIComponent(redirectTo)}`
+          : '/adulto/verificar-idade';
 
       case 'preferences':
         return redirectTo ?? vm.nextRoute ?? preferencesRoute;

@@ -1,104 +1,41 @@
 import { describe, expect, it } from 'vitest';
-
 import { RegisterFlowAccessState } from './register-flow.model';
 import { RegisterNavigationService } from './register-navigation.service';
 
-describe('RegisterNavigationService', () => {
+describe('RegisterNavigationService / onboarding 18+ e Termos', () => {
   const service = new RegisterNavigationService();
-
-  const readyState: RegisterFlowAccessState = {
-    authReady: true,
-    uid: 'u1',
-    email: 'user@example.com',
-    emailVerified: true,
-    userResolved: true,
-    userExists: true,
-    termsAccepted: true,
-    ageEligibilityAllowed: true,
-    profileCompleted: true,
-    adultConsentAccepted: true,
-    initialAdultConsentRequired: true,
+  const ready: RegisterFlowAccessState = {
+    authReady: true, uid: 'u1', email: 'user@example.com',
+    emailVerified: true, userResolved: true, userExists: true,
+    termsAccepted: true, ageEligibilityAllowed: true, profileCompleted: true,
   };
-
-  it('deve priorizar verificação de e-mail antes da recuperação', () => {
-    const vm = service.resolveVm({
-      ...readyState,
-      emailVerified: false,
-      userExists: false,
-    });
-
+  it('pede e-mail antes de recuperar registro', () => {
+    const vm = service.resolveVm({ ...ready, emailVerified: false, userExists: false });
     expect(vm.currentStep).toBe('emailVerification');
-    expect(vm.nextRoute).toBe('/register/welcome');
   });
-
-  it('deve recuperar a conta quando Auth existe sem users/{uid}', () => {
-    const vm = service.resolveVm({
-      ...readyState,
-      userExists: false,
-    });
-
+  it('recupera documento privado ausente', () => {
+    const vm = service.resolveVm({ ...ready, userExists: false });
     expect(vm.currentStep).toBe('accountRecovery');
-    expect(vm.nextRoute).toBe('/register/recuperar-conta');
   });
-
-  it('deve exigir termos antes da conclusão do perfil', () => {
-    const vm = service.resolveVm({
-      ...readyState,
-      termsAccepted: false,
-      profileCompleted: false,
-    });
-
-    expect(vm.currentStep).toBe('termsAcceptance');
+  it('exige termos antes de idade e perfil', () => {
+    const vm = service.resolveVm({ ...ready, termsAccepted: false, profileCompleted: false });
     expect(vm.nextRoute).toBe('/register/aceitar-termos');
   });
-
-  it('deve exigir verificação etária backend depois dos termos', () => {
-    const vm = service.resolveVm({
-      ...readyState,
-      ageEligibilityAllowed: false,
-      profileCompleted: false,
-      adultConsentAccepted: false,
-    });
-
+  it('exige decisão canônica etária antes de finalizar perfil', () => {
+    const vm = service.resolveVm({ ...ready, ageEligibilityAllowed: false, profileCompleted: false });
     expect(vm.currentStep).toBe('ageVerification');
     expect(vm.nextRoute).toBe('/adulto/verificar-idade');
   });
-
-  it('deve exigir consentimento adulto depois da verificação etária', () => {
-    const vm = service.resolveVm({
-      ...readyState,
-      adultConsentAccepted: false,
-      initialAdultConsentRequired: true,
-    });
-
-    expect(vm.currentStep).toBe('adultConsent');
-    expect(vm.nextRoute).toBe('/adulto/confirmar');
-  });
-
-  it('deve concluir o perfil somente depois da verificação e do consentimento', () => {
-    const vm = service.resolveVm({
-      ...readyState,
-      profileCompleted: false,
-    });
-
+  it('avança ao perfil sem adultConsent v1, mesmo com marcador legado', () => {
+    const state = { ...ready, profileCompleted: false,
+      adultConsentAccepted: false, initialAdultConsentRequired: true } as RegisterFlowAccessState;
+    const vm = service.resolveVm(state);
     expect(vm.currentStep).toBe('profileCompletion');
     expect(vm.nextRoute).toBe('/register/finalizar-cadastro');
   });
-
-  it('deve exigir consentimento vigente também de conta legada', () => {
-    const vm = service.resolveVm({
-      ...readyState,
-      adultConsentAccepted: false,
-      initialAdultConsentRequired: undefined,
-    });
-
-    expect(vm.currentStep).toBe('adultConsent');
-    expect(vm.nextRoute).toBe('/adulto/confirmar');
-  });
-
-  it('deve finalizar em preferências quando todas as etapas estiverem concluídas', () => {
-    const vm = service.resolveVm(readyState);
-
+  it('conta completa sem consentimento adulto continua às preferências', () => {
+    const state = { ...ready, adultConsentAccepted: false } as RegisterFlowAccessState;
+    const vm = service.resolveVm(state);
     expect(vm.currentStep).toBe('preferences');
     expect(vm.nextRoute).toBe('/preferencias/editar/u1');
   });

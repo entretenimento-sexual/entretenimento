@@ -78,11 +78,11 @@ export const environment: AppEnvironment = {
     ],
 
     /**
-     * SUPRESSÃO EXPLÍCITA EM DESENVOLVIMENTO EMULADO:
-     * o dev-emu não depende do callable jurídico para liberar a navegação.
-     * Nenhum aceite é persistido por esse bypass; produção continua fail-closed.
+     * E2E emulado deve exercer o mesmo contrato jurídico do backend:
+     * versões vigentes e aceite persistido pela Cloud Function emulada.
+     * O dev-real mantém sua política independente (sem modificação aqui).
      */
-    enforceCurrentLegalAcceptance: false,
+    enforceCurrentLegalAcceptance: true,
 
     subscriberExperiencesPreview: true,
     communitiesEnabled: true,

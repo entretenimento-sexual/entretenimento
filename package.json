@@ -191,7 +191,8 @@
     "discovery:legacy-approval:reconciliation-e2e-contract": "node --test scripts/tests/discovery-legacy-approval-reconciliation-emulator.contract.test.mjs",
     "discovery:legacy-approval:reconciliation-e2e-preflight": "node scripts/maintenance/rehearse-discovery-legacy-approval-reconciliation-synthetic.mjs --preflight",
     "discovery:legacy-approval:original-schema-contract": "node --test scripts/tests/discovery-legacy-original-schema-reconciliation.policy.test.mjs",
-    "discovery:legacy-approval:original-schema-integrated-contract": "node --test scripts/tests/discovery-legacy-original-schema-integrated-emulator.contract.test.mjs"
+    "discovery:legacy-approval:original-schema-integrated-contract": "node --test scripts/tests/discovery-legacy-original-schema-integrated-emulator.contract.test.mjs",
+    "registration:adult-consent-retirement:policy:test": "node --test scripts/tests/adult-consent-cutover-governance.policy.test.mjs scripts/tests/adult-consent-retirement-access-presentation.policy.test.mjs scripts/tests/adult-consent-retirement-community-contract.policy.test.mjs scripts/tests/adult-consent-retirement-e2e-fixtures.policy.test.mjs scripts/tests/adult-consent-retirement-media-authoring.policy.test.mjs scripts/tests/adult-consent-retirement-navigation.policy.test.mjs scripts/tests/registration-adult-consent-marker-retirement.policy.test.mjs"
   },
   "private": true,
   "dependencies": {

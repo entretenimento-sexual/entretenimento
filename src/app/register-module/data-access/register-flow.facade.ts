@@ -13,7 +13,6 @@ import {
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-import { AdultConsentService } from 'src/app/core/services/compliance/adult-consent.service';
 import { AgeEligibilityService } from 'src/app/core/services/compliance/age-eligibility.service';
 import {
   isCurrentAdultAccountAdmissionProjection,
@@ -32,13 +31,11 @@ export class RegisterFlowFacade {
     this.session.ready$,
     this.session.authUser$,
     this.currentUser.user$,
-    this.adultConsent.currentConsentAccepted$,
   ]).pipe(
     switchMap(([
       authReady,
       authUser,
       appUser,
-      adultConsentAccepted,
     ]) => {
       const user = this.asResolvedUser(appUser);
       const uid = authUser?.uid ?? user?.uid ?? null;
@@ -58,9 +55,6 @@ export class RegisterFlowFacade {
           termsAccepted,
           ageEligibilityAllowed,
           profileCompleted: user?.profileCompleted === true,
-          adultConsentAccepted: adultConsentAccepted === true,
-          initialAdultConsentRequired:
-            user?.initialAdultConsentRequired === true,
         };
 
         return this.navigation.resolveVm(state);
@@ -69,6 +63,9 @@ export class RegisterFlowFacade {
       // Registration completion is a one-way, backend-authorized admission.
       // A later assurance expiry must not restart onboarding for that account.
       // Lifecycle/account guards handle any subsequent restriction separately.
+      // Perfil completo não é prova de consentimento adulto.
+      // Se o aceite canônico ainda estiver pendente, reconciliamos a idade
+      // antes de escolher a próxima rota para evitar loop idade/consentimento.
       if (user?.profileCompleted === true) {
         return of(resolve(true));
       }
@@ -106,7 +103,6 @@ export class RegisterFlowFacade {
     private readonly session: AuthSessionService,
     private readonly currentUser: CurrentUserStoreService,
     private readonly ageEligibility: AgeEligibilityService,
-    private readonly adultConsent: AdultConsentService,
     private readonly navigation: RegisterNavigationService
   ) {}
 
@@ -125,8 +121,6 @@ export class RegisterFlowFacade {
       a.termsAccepted === b.termsAccepted &&
       a.ageEligibilityAllowed === b.ageEligibilityAllowed &&
       a.profileCompleted === b.profileCompleted &&
-      a.adultConsentAccepted === b.adultConsentAccepted &&
-      a.initialAdultConsentRequired === b.initialAdultConsentRequired &&
       a.currentStep === b.currentStep &&
       a.nextRoute === b.nextRoute &&
       a.progress === b.progress &&

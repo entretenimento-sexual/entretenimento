@@ -20,10 +20,6 @@ describe('public media consumption access policy', () => {
       version: 'v3',
       acknowledgedPrivacyNotice: true,
     },
-    adultConsent: {
-      accepted: true,
-      version: 'v1',
-    },
   };
 
   function assertBlockedWithReason(
@@ -109,21 +105,14 @@ describe('public media consumption access policy', () => {
     );
   });
 
-  it('bloqueia consentimento adulto ausente ou desatualizado', () => {
-    assertBlockedWithReason(
-      {
-        ...eligibleUser,
-        adultConsent: null,
-      },
-      'ADULT_CONSENT_REQUIRED'
-    );
-    assertBlockedWithReason(
-      {
-        ...eligibleUser,
-        adultConsent: { accepted: true, version: 'legacy' },
-      },
-      'ADULT_CONSENT_REQUIRED'
-    );
+  it('permite consumo quando consentimento histórico está ausente ou recusado', () => {
+    assert.doesNotThrow(() => assertPublicMediaConsumptionAccessData(eligibleUser));
+
+    for (const adultConsent of [null, { accepted: false, version: 'v1' },
+      { accepted: true, version: 'legacy' }]) {
+      const legacyRecord = { ...eligibleUser, adultConsent };
+      assert.doesNotThrow(() => assertPublicMediaConsumptionAccessData(legacyRecord));
+    }
   });
 
   it('revalida a conta na mesma transação mesmo após token anterior', async () => {
@@ -173,10 +162,9 @@ describe('public media consumption access policy', () => {
     }
   });
 
-  it('mantém erros canônicos de termos e consentimento na transação', async () => {
+  it('mantém erro canônico de termos na transação', async () => {
     for (const [state, reason] of [
       [{ ...eligibleUser, acceptedTerms: null }, 'TERMS_REQUIRED'],
-      [{ ...eligibleUser, adultConsent: null }, 'ADULT_CONSENT_REQUIRED'],
     ] as const) {
       const transaction = {
         get: async () => ({ exists: true, data: () => state }),

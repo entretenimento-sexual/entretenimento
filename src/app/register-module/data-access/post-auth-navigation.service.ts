@@ -145,12 +145,6 @@ export class PostAuthNavigationService {
       case 'profileCompletion':
         return this.profileCompletionRoute(vm.uid, redirectTo);
 
-      case 'adultConsent':
-        return this.withRedirectTo(
-          vm.nextRoute || '/adulto/confirmar',
-          redirectTo
-        );
-
       case 'preferences':
         return redirectTo;
 

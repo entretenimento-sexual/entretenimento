@@ -146,6 +146,38 @@ describe('RegisterComponent', () => {
     );
   });
 
+  it('nega criação de conta antes do Auth quando falta declaração 18+', () => {
+    component.form.patchValue({
+      apelidoPrincipal: 'adulteste',
+      complementoApelido: '',
+      email: 'teste@example.com',
+      password: 'Senha123',
+      confirmPassword: 'Senha123',
+      aceitarTermos: true,
+      confirmarMaioridade: false,
+    });
+    component.onSubmit();
+    fixture.detectChanges();
+    expect(registerService.registerUser).not.toHaveBeenCalled();
+    expect(component.getError('confirmarMaioridade')).toContain('18 anos');
+    expect(fixture.nativeElement.textContent).toContain('18 anos');
+  });
+
+  it('nega criação de conta quando falta aceite inicial dos termos', () => {
+    component.form.patchValue({
+      apelidoPrincipal: 'adulteste',
+      complementoApelido: '',
+      email: 'teste@example.com',
+      password: 'Senha123',
+      confirmPassword: 'Senha123',
+      aceitarTermos: false,
+      confirmarMaioridade: true,
+    });
+    component.onSubmit();
+    expect(registerService.registerUser).not.toHaveBeenCalled();
+    expect(component.getError('aceitarTermos')).toContain('Termos de Uso');
+  });
+
   it('deve chamar register e navegar quando o form estiver válido', async () => {
     component.form.patchValue({
       apelidoPrincipal: 'john',
@@ -154,6 +186,7 @@ describe('RegisterComponent', () => {
       password: 'Senha123',
       confirmPassword: 'Senha123',
       aceitarTermos: true,
+      confirmarMaioridade: true,
     });
 
     component.onSubmit();
@@ -165,6 +198,7 @@ describe('RegisterComponent', () => {
         email: 'jd@example.com',
         nickname: expect.stringContaining('john'),
         acceptedTerms: expect.objectContaining({ accepted: true }),
+        confirmsAdult: true,
         emailVerified: false,
       }),
       'Senha123'
@@ -195,6 +229,7 @@ describe('RegisterComponent', () => {
       password: 'Segura123',
       confirmPassword: 'Segura123',
       aceitarTermos: true,
+      confirmarMaioridade: true,
     });
 
     component.onSubmit();
@@ -221,6 +256,7 @@ describe('RegisterComponent', () => {
       password: 'Segura123',
       confirmPassword: 'Segura123',
       aceitarTermos: true,
+      confirmarMaioridade: true,
     });
 
     component.onSubmit();
@@ -245,6 +281,7 @@ describe('RegisterComponent', () => {
       password: 'Segura123',
       confirmPassword: 'Segura123',
       aceitarTermos: true,
+      confirmarMaioridade: true,
     });
 
     component.onSubmit();

@@ -57,8 +57,6 @@ function privateUser(
       version: 'v3',
       acknowledgedPrivacyNotice: true,
     },
-    initialAdultConsentRequired: true,
-    adultConsent: { accepted: true, version: 'v1' },
     ...overrides,
   };
 }
@@ -278,13 +276,22 @@ describe('Firestore Rules / public profile eligibility', () => {
     );
   });
 
-  it('nega projeção antes do consentimento adulto obrigatório', async () => {
-    await seedUser({ adultConsent: { accepted: false } });
+  it('permite projeção pública sem campo de consentimento legado', async () => {
+    await seedUser();
     const db = authenticatedDb();
+    await assertSucceeds(setDoc(doc(db, 'public_profiles', UID), publicProfile()));
+  });
 
-    await assertFails(
-      setDoc(doc(db, 'public_profiles', UID), publicProfile())
-    );
+  it('não bloqueia projeção por recusa do consentimento legado', async () => {
+    await seedUser({ initialAdultConsentRequired: true, adultConsent: { accepted: false, version: 'v1' } });
+    const db = authenticatedDb();
+    await assertSucceeds(setDoc(doc(db, 'public_profiles', UID), publicProfile()));
+  });
+
+  it('não exige consentimento legado aceito para a projeção', async () => {
+    await seedUser({ initialAdultConsentRequired: true, adultConsent: { accepted: true, version: 'v1' } });
+    const db = authenticatedDb();
+    await assertSucceeds(setDoc(doc(db, 'public_profiles', UID), publicProfile()));
   });
 
   it('nega projeção para perfil incompleto', async () => {

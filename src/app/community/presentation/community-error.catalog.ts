@@ -64,7 +64,7 @@ const BLOCKING_PRESENTATIONS: Readonly<
   'recent-authentication-required': { surface: 'modal', severity: 'warning', title: 'Confirme sua identidade novamente' },
   current_terms_required: { surface: 'modal', severity: 'info', title: 'Termos atualizados', primaryAction: { label: 'Revisar termos', route: '/register/aceitar-termos' }, dismissLabel: 'Agora não' },
   age_reverification_required: { surface: 'modal', severity: 'warning', title: 'Confirmação de maioridade necessária', primaryAction: { label: 'Revalidar agora', route: '/adulto/revalidar' }, dismissLabel: 'Agora não' },
-  adult_access_required: { surface: 'modal', severity: 'info', title: 'Confirme seu acesso adulto', primaryAction: { label: 'Confirmar acesso', route: '/adulto/confirmar' }, dismissLabel: 'Agora não' },
+  adult_access_required: { surface: 'modal', severity: 'warning', title: 'Acesso adulto indisponível', primaryAction: { label: 'Ver status da conta', route: '/conta/status' }, dismissLabel: 'Fechar' },
   adult_access_denied: { surface: 'modal', severity: 'warning', title: 'Acesso adulto indisponível', primaryAction: { label: 'Ver status da conta', route: '/conta/status' }, dismissLabel: 'Fechar' },
   account_restricted: { surface: 'modal', severity: 'warning', title: 'Ação bloqueada pelo estado da conta', primaryAction: { label: 'Ver status da conta', route: '/conta/status' }, dismissLabel: 'Fechar' },
   profile_incomplete: { surface: 'modal', severity: 'info', title: 'Complete seu perfil', primaryAction: { label: 'Finalizar perfil', route: '/register/finalizar-cadastro' }, dismissLabel: 'Agora não' },

@@ -1,10 +1,7 @@
 import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
-import {
-  ADULT_CONSENT_VERSION,
-  TERMS_ACCEPTANCE_VERSION,
-} from '../compliance/platform-legal.constants';
+import { TERMS_ACCEPTANCE_VERSION } from '../compliance/platform-legal.constants';
 import { db } from '../firebaseApp';
 
 interface InteractionAccessUserDocument {
@@ -18,7 +15,6 @@ interface InteractionAccessUserDocument {
     expiresAtMs?: unknown;
   } | null;
   acceptedTerms?: unknown;
-  adultConsent?: unknown;
 }
 
 export interface PlatformAccountAccessContext {
@@ -38,13 +34,11 @@ function hasCurrentTerms(value: unknown): boolean {
     terms['acknowledgedPrivacyNotice'] === true;
 }
 
-function hasCurrentAdultConsent(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const consent = value as Record<string, unknown>;
-  return consent['accepted'] === true &&
-    String(consent['version'] ?? '').trim() === ADULT_CONSENT_VERSION;
-}
-
+/**
+ * Produto ativo = lifecycle + Termos vigentes. A admissão 18+ é verificada
+ * antes de concluir o perfil; fatos etários novos materializam o lifecycle.
+ * AdultConsent v1 permanece somente como histórico, sem efeito de autorização.
+ */
 export function assertPlatformAccountAccessData(
   user: InteractionAccessUserDocument | null | undefined
 ): void {
@@ -93,18 +87,14 @@ export function assertPlatformAccountAccessData(
     );
   }
 
-  if (!hasCurrentAdultConsent(user.adultConsent)) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Aceite o acesso à experiência adulta antes de realizar esta ação.',
-      {
-        reason: 'adult_consent_required',
-        recommendedAction: 'accept_adult_consent',
-      }
-    );
-  }
 }
 
+/**
+ * A autorização em uso normal consulta o lifecycle materializado em users/{uid}.
+ * Alterações de elegibilidade (inclusive menoridade confirmada) devem atualizar
+ * o lifecycle transacionalmente na função de decisão etária, nunca consultar
+ * age_eligibility_records a cada requisição social.
+ */
 export async function assertInteractionAccess(
   uid: string
 ): Promise<PlatformAccountAccessContext> {

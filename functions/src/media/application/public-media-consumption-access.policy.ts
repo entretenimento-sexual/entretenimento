@@ -11,6 +11,7 @@ import {
 export type PublicMediaConsumptionAccessReason =
   | 'ACCOUNT_UNAVAILABLE'
   | 'TERMS_REQUIRED'
+  // Razão de compatibilidade histórica; não é emitida pelo gate atual.
   | 'ADULT_CONSENT_REQUIRED';
 
 interface PublicMediaConsumptionAccessUserDocument {
@@ -22,7 +23,6 @@ interface PublicMediaConsumptionAccessUserDocument {
     expiresAtMs?: unknown;
   } | null;
   acceptedTerms?: unknown;
-  adultConsent?: unknown;
 }
 
 function mapAccountReason(error: HttpsError):
@@ -32,7 +32,6 @@ PublicMediaConsumptionAccessReason {
   ).trim();
 
   if (reason === 'terms_required') return 'TERMS_REQUIRED';
-  if (reason === 'adult_consent_required') return 'ADULT_CONSENT_REQUIRED';
   return 'ACCOUNT_UNAVAILABLE';
 }
 
@@ -69,9 +68,7 @@ export function remapAccountAccessError(error: unknown): never {
   throw consumptionAccessError(
     reason === 'TERMS_REQUIRED'
       ? 'Aceite os termos vigentes antes de acessar este conteúdo.'
-      : reason === 'ADULT_CONSENT_REQUIRED'
-        ? 'Aceite o acesso à experiência adulta antes de continuar.'
-        : 'Esta conta não pode acessar conteúdo público no momento.',
+      : 'Esta conta não pode acessar conteúdo público no momento.',
     reason,
     accountError
   );

@@ -47,7 +47,6 @@ function validUserSeed(
     accountStatus: 'active',
     profileCompleted: false,
     registrationFlowVersion: 'v2',
-    initialAdultConsentRequired: true,
     registrationCompletedAt: null,
     acceptedTerms: {
       accepted: false,
@@ -69,7 +68,11 @@ async function seedUserAsAdmin(): Promise<void> {
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await setDoc(
       doc(context.firestore(), 'users', USER_UID),
-      validUserSeed()
+      validUserSeed({
+        // Conta preexistente: dados históricos são legíveis e imutáveis.
+        initialAdultConsentRequired: true,
+        adultConsent: { accepted: false, version: 'v1' },
+      })
     );
   });
 }
@@ -99,7 +102,7 @@ describe('Firestore Rules / users compliance', () => {
     await testEnv.cleanup();
   });
 
-  it('permite criar conta nova somente com marcador versionado', async () => {
+  it('permite criar conta nova sem marcador de consentimento legado', async () => {
     const db = authenticatedDb();
 
     await assertSucceeds(
@@ -107,13 +110,15 @@ describe('Firestore Rules / users compliance', () => {
     );
   });
 
-  it('nega criação sem confirmação inicial marcada como obrigatória', async () => {
-    const db = authenticatedDb();
-    const invalid = validUserSeed();
-    delete invalid['initialAdultConsentRequired'];
-
-    await assertFails(setDoc(doc(db, 'users', USER_UID), invalid));
-  });
+  it.each([true, false])(
+    'nega criação de conta nova com marcador adulto legado igual a %s',
+    async (legacyValue) => {
+      const db = authenticatedDb();
+      await assertFails(setDoc(doc(db, 'users', USER_UID), validUserSeed({
+        initialAdultConsentRequired: legacyValue,
+      })));
+    }
+  );
 
   it('nega criação com projeção ageEligibility controlada pelo cliente', async () => {
     const db = authenticatedDb();
@@ -196,11 +201,25 @@ describe('Firestore Rules / users compliance', () => {
 
     await assertFails(
       updateDoc(doc(db, 'users', USER_UID), {
+        adultConsent: { accepted: true, version: 'v1' },
+      })
+    );
+
+    await assertFails(
+      updateDoc(doc(db, 'users', USER_UID), {
         ageReverification: {
           status: 'VERIFIED',
         },
       })
     );
+  });
+
+  it('permite editar um campo comum na conta nova sem o marcador', async () => {
+    const db = authenticatedDb();
+    await assertSucceeds(setDoc(doc(db, 'users', USER_UID), validUserSeed()));
+    await assertSucceeds(updateDoc(doc(db, 'users', USER_UID), {
+      descricao: 'Descrição permitida após bootstrap privado.',
+    }));
   });
 
   it('preserva atualização de campo comum do próprio perfil', async () => {

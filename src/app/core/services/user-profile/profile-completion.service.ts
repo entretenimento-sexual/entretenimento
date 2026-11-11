@@ -21,7 +21,6 @@ export type ProfileChecklistItemId =
   | 'age'
   | 'region'
   | 'preferences'
-  | 'adultConsent'
   | 'visibility';
 
 export interface IProfileChecklistItemVm {
@@ -95,15 +94,6 @@ export class ProfileCompletionService {
         required: false,
         actionLabel: 'Editar preferências',
         routerLink: ['/preferencias', 'editar', uid],
-      },
-      {
-        id: 'adultConsent',
-        title: 'Consentimento adulto',
-        description: 'Confirmação necessária para acessar a experiência adulta da plataforma.',
-        completed: user.adultConsent?.accepted === true,
-        required: true,
-        actionLabel: 'Confirmar acesso',
-        routerLink: ['/adulto', 'confirmar'],
       },
       {
         id: 'visibility',

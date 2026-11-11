@@ -3,8 +3,8 @@
 // COMMUNITY MEMBERSHIP ELIGIBILITY
 // -----------------------------------------------------------------------------
 // Centraliza a elegibilidade atual da conta para entrada e aprovação. O gate
-// social canônico protege lifecycle/termos/consentimento; membership acrescenta
-// apenas o requisito específico de perfil concluído.
+// social canônico protege lifecycle e Termos vigentes; consentimento v1 é
+// somente histórico. Membership exige também o perfil concluído.
 // -----------------------------------------------------------------------------
 
 import type { Transaction } from 'firebase-admin/firestore';

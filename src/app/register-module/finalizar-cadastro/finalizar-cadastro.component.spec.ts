@@ -70,9 +70,8 @@ describe('FinalizarCadastroComponent', () => {
     termsAccepted: true,
     ageEligibilityAllowed: true,
     profileCompleted: false,
-    adultConsentAccepted: false,
     currentStep: 'profileCompletion',
-    nextRoute: '/adulto/confirmar',
+    nextRoute: '/register/finalizar-cadastro',
     progress: 50,
     canContinue: true,
     primaryActionLabel: 'Concluir cadastro',
@@ -198,7 +197,7 @@ describe('FinalizarCadastroComponent', () => {
     expect(component.selectedMunicipio).toBe('Rio de Janeiro');
   });
 
-  it('should save profile completion and redirect to adult consent when submitted', () => {
+  it('salva conclusão do perfil e segue sem aceite adulto redundante', () => {
     component.onSubmit();
 
     expect(
@@ -226,7 +225,7 @@ describe('FinalizarCadastroComponent', () => {
       'Perfil finalizado com sucesso!'
     );
     expect(router.navigateByUrl).toHaveBeenCalledWith(
-      '/adulto/confirmar',
+      '/perfil/u1',
       { replaceUrl: true }
     );
     expect(component.hasUnsavedChanges()).toBe(false);

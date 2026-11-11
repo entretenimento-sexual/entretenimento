@@ -8,12 +8,12 @@ export const MEDIA_ERROR_MESSAGES = Object.freeze({
     TERMS_REQUIRED:
       'Aceite os termos vigentes antes de acessar conteúdo adulto.',
     ADULT_CONSENT_REQUIRED:
-      'Confirme o acesso à experiência adulta antes de continuar.',
+      'Consulte o status da conta e atualize sua sessão antes de continuar.',
 
     terms_required:
       'Aceite os termos vigentes antes de continuar.',
     adult_consent_required:
-      'Confirme o acesso à experiência adulta antes de continuar.',
+      'Consulte o status da conta e atualize sua sessão antes de continuar.',
     account_interaction_blocked:
       'Esta conta não pode realizar esta ação no momento.',
     moderation_automation_hold:
@@ -351,13 +351,13 @@ export const MEDIA_ERROR_PRESENTATIONS:
     },
     ADULT_CONSENT_REQUIRED: {
       surface: 'modal',
-      severity: 'info',
-      title: 'Confirme seu acesso adulto',
+      severity: 'warning',
+      title: 'Solicitação de cliente antigo',
       primaryAction: {
-        label: 'Confirmar acesso',
-        route: '/adulto/confirmar',
+        label: 'Ver status da conta',
+        route: '/conta/status',
       },
-      dismissLabel: 'Agora não',
+      dismissLabel: 'Fechar',
     },
     terms_required: {
       surface: 'modal',
@@ -371,13 +371,13 @@ export const MEDIA_ERROR_PRESENTATIONS:
     },
     adult_consent_required: {
       surface: 'modal',
-      severity: 'info',
-      title: 'Confirme seu acesso adulto',
+      severity: 'warning',
+      title: 'Solicitação de cliente antigo',
       primaryAction: {
-        label: 'Confirmar acesso',
-        route: '/adulto/confirmar',
+        label: 'Ver status da conta',
+        route: '/conta/status',
       },
-      dismissLabel: 'Agora não',
+      dismissLabel: 'Fechar',
     },
     account_interaction_blocked: {
       surface: 'modal',

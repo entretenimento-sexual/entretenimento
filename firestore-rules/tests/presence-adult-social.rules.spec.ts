@@ -114,6 +114,23 @@ describe('Firestore Rules / presence adult social boundary', () => {
     );
   });
 
+  it('permite presença para conta admitida com termos vigentes sem adultConsent v1', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), 'users', UID), {
+        adultConsent: null,
+        initialAdultConsentRequired: true,
+      });
+    });
+    const db = testEnv.authenticatedContext(UID).firestore();
+    await assertSucceeds(updateDoc(doc(db, 'presence', UID), {
+      presenceSessionId: 'session-1',
+      presenceState: 'online',
+      isOnline: true,
+      lastSeen: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }));
+  });
+
   it('não reinterpreta autodeclaração em presença para conta já ativa', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       const now = Timestamp.now();
@@ -141,6 +158,37 @@ describe('Firestore Rules / presence adult social boundary', () => {
         updatedAt: serverTimestamp(),
       })
     );
+  });
+
+  it('nega presença após menoridade confirmada e suspensão materializada no lifecycle', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'age_eligibility_records', UID), {
+        uid: UID,
+        status: 'DENIED_UNDERAGE',
+        policyVersion: 1,
+        source: 'INITIAL_VERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: null,
+        expiresAt: null,
+      });
+      // Espelha o resultado transacional de reviewInitialAgeVerification.
+      // O produto vê somente o lifecycle, não reconsulta a assurance etária.
+      await updateDoc(doc(db, 'users', UID), {
+        accountStatus: 'moderation_suspended',
+        suspended: true,
+        interactionBlocked: true,
+        publicVisibility: 'hidden',
+      });
+    });
+    const db = testEnv.authenticatedContext(UID).firestore();
+    await assertFails(updateDoc(doc(db, 'presence', UID), {
+      presenceSessionId: 'session-1',
+      presenceState: 'online',
+      isOnline: true,
+      lastSeen: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }));
   });
 
   it('nega presença quando a reverificação materializa bloqueio no lifecycle', async () => {

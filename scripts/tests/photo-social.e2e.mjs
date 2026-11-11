@@ -63,26 +63,6 @@ async function readDocumentData(reference) {
   return snapshot.exists ? snapshot.data() : null;
 }
 
-function eligibleAdultAccessData() {
-  return {
-    accountStatus: 'active',
-    suspended: false,
-    acceptedTerms: {
-      accepted: true,
-      version: 'v3',
-      acknowledgedPrivacyNotice: true,
-    },
-    initialAdultConsentRequired: true,
-    adultConsent: {
-      accepted: true,
-      version: 'v1',
-    },
-    ageReverification: {
-      status: 'NONE',
-    },
-  };
-}
-
 async function expectCallableFailure(callable, payload) {
   try {
     await callable(payload);

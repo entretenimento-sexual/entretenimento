@@ -15,8 +15,9 @@ describe('política de aceite jurídico', () => {
     expect(hasAcceptedCurrentTerms(null)).toBe(true);
   });
 
-  it('mantém o dev-emu explicitamente fora da barreira jurídica remota', () => {
-    expect(devEmuEnvironment.features?.enforceCurrentLegalAcceptance).toBe(false);
+  it('exige registro jurídico real no ambiente emulado para testar o fluxo integral', () => {
+    expect(devEmuEnvironment.useEmulators).toBe(true);
+    expect(devEmuEnvironment.features?.enforceCurrentLegalAcceptance).toBe(true);
   });
 
   it('mantém a validação persistida fail-closed sem evidência', () => {

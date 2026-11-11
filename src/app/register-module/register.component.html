@@ -299,7 +299,32 @@
         </div>
       </div>
 
-      <!-- Aceite de Termos -->
+      <!--
+        Fronteira pré-Auth: sem declaração 18+ não criar identidade.
+        Essa confirmação não é prova documental de idade; o backend deve
+        produzir/manter o registro canônico antes de liberar recursos adultos.
+      -->
+      <div class="form-checkbox">
+        <input type="checkbox" id="maioridade-inicial" formControlName="confirmarMaioridade"
+          autocomplete="off" aria-describedby="maioridade-inicial-ajuda maioridade-inicial-erro"
+          [attr.aria-invalid]="(submitted() || form.get('confirmarMaioridade')?.touched)
+            && form.get('confirmarMaioridade')?.invalid ? true : null" />
+        <label for="maioridade-inicial">
+          Declaro que tenho 18 anos ou mais e estou ciente de que menores de idade
+          não podem criar conta nem utilizar esta plataforma.
+        </label>
+        <small id="maioridade-inicial-ajuda" class="field-hint">
+          A plataforma é exclusiva para maiores de 18 anos. Sua declaração
+          poderá ser submetida a verificação adicional de segurança.
+        </small>
+        <p *ngIf="getError('confirmarMaioridade') && (submitted() || form.get('confirmarMaioridade')?.touched)"
+          id="maioridade-inicial-erro" class="tooltip-error" role="alert"
+          aria-live="polite" aria-atomic="true">
+          {{ getError('confirmarMaioridade') }}
+        </p>
+      </div>
+
+      <!-- Aceite de Termos vigente: separado da ciência do aviso de privacidade. -->
       <div class="form-checkbox">
         <input type="checkbox" id="termos" formControlName="aceitarTermos" autocomplete="off"
           aria-describedby="termosTooltip" [attr.aria-invalid]="
@@ -310,10 +335,10 @@
           " />
 
         <label for="termos">
-          Aceito os
-          <a href="/termos" target="_blank" rel="noopener noreferrer">Termos</a>
-          e a
-          <a href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer">Privacidade</a>.
+          Li e aceito os
+          <a href="/termos-e-condicoes" target="_blank" rel="noopener noreferrer">Termos de Uso</a>
+          vigentes e declaro que tive acesso à
+          <a href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>.
         </label>
 
         <div *ngIf="getError('aceitarTermos') && (submitted() || form.get('aceitarTermos')?.touched)" id="termosTooltip"

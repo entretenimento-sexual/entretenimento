@@ -142,6 +142,43 @@ requireAll(
   'conclusão do cadastro deve exigir 18+ canônico'
 );
 
+// Novo cadastro nunca deve recriar o marcador de consentimento adulto v1.
+// O campo histórico continua protegido contra alterações do próprio usuário.
+const usersRulesSource = codeOnly(read('firestore-rules/users.rules'));
+const userCreateDefaults = usersRulesSource.match(
+  /function createRequiredDefaultsOk\(data\)\s*\{([\s\S]*?)\n\s*\}/
+)?.[1] ?? '';
+const requiredUserCreateKeys = userCreateDefaults.match(
+  /data\.keys\(\)\.hasAll\(\[([\s\S]*?)\]\)/
+)?.[1] ?? '';
+const forbiddenUserCreateKeys = userCreateDefaults.match(
+  /!data\.keys\(\)\.hasAny\(\[([\s\S]*?)\]\)/
+)?.[1] ?? '';
+const selfChangingSensitiveUserKeys = usersRulesSource.match(
+  /function selfChangingSensitiveKeys\(changedKeys\)\s*\{([\s\S]*?)\n\s*\}/
+)?.[1] ?? '';
+if (
+  !userCreateDefaults ||
+  requiredUserCreateKeys.includes('"initialAdultConsentRequired"') ||
+  !forbiddenUserCreateKeys.includes('"initialAdultConsentRequired"') ||
+  userCreateDefaults.includes('data.initialAdultConsentRequired') ||
+  !selfChangingSensitiveUserKeys.includes('"initialAdultConsentRequired"') ||
+  !selfChangingSensitiveUserKeys.includes('"adultConsent"')
+) {
+  violations.push('firestore-rules/users.rules (marcador adulto legado deve ser proibido apenas na criação e protegido em registros históricos)');
+}
+
+forbidAll(
+  'functions/src/auth/user-registration-seed.ts',
+  ['initialAdultConsentRequired', 'adultConsent:'],
+  'seed backend não pode gravar consentimento adulto legado'
+);
+forbidAll(
+  'src/app/core/services/autentication/register/registration-bootstrap.service.ts',
+  ['initialAdultConsentRequired', 'adultConsent:'],
+  'bootstrap Angular não pode gravar consentimento adulto legado'
+);
+
 const helperSource = codeOnly(read('firestore-rules/_helpers.rules'));
 
 const registrationFunction = helperSource.match(
@@ -192,10 +229,9 @@ requireAll(
     'accountStatus',
     'interactionBlocked',
     'acceptedTerms',
-    'adultConsent',
     'accessExpiresAtMs',
   ],
-  'Account Access deve centralizar lifecycle/legal'
+  'Account Access deve centralizar lifecycle/termos, sem consentimento redundante'
 );
 
 forbidAll(
@@ -502,11 +538,6 @@ requireAll(
   'admissão 18+ autodeclarada deve ser o padrão'
 );
 
-requireAll(
-  'functions/src/compliance/adult-consent.handler.ts',
-  ['isAdultAccountAdmissionDecision'],
-  'consentimento deve seguir decisão canônica 18+'
-);
 
 requireAll(
   'functions/src/compliance/request-initial-age-verification-review.handler.ts',

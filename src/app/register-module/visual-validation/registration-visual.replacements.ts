@@ -98,8 +98,6 @@ export class RegisterFlowFacade {
       termsAccepted: true,
       ageEligibilityAllowed: true,
       profileCompleted: true,
-      adultConsentAccepted: true,
-      initialAdultConsentRequired: true,
       progress: 90,
       canContinue: true,
       primaryActionLabel: 'Continuar',
@@ -112,7 +110,6 @@ export class RegisterFlowFacade {
         termsAccepted: false,
         ageEligibilityAllowed: false,
         profileCompleted: false,
-        adultConsentAccepted: false,
         currentStep: 'emailVerification',
         nextRoute: '/register/welcome',
         progress: 20,
@@ -128,7 +125,6 @@ export class RegisterFlowFacade {
         ...base,
         termsAccepted: false,
         profileCompleted: false,
-        adultConsentAccepted: false,
         currentStep: 'termsAcceptance',
         nextRoute: '/register/aceitar-termos',
         progress: 35,
@@ -142,23 +138,10 @@ export class RegisterFlowFacade {
         ...base,
         ageEligibilityAllowed: true,
         profileCompleted: false,
-        adultConsentAccepted: true,
         currentStep: 'profileCompletion',
         nextRoute: '/register/finalizar-cadastro',
         progress: 55,
         primaryActionLabel: 'Completar perfil',
-      };
-    }
-
-    if (path === '/adulto/confirmar') {
-      return {
-        ...base,
-        ageEligibilityAllowed: true,
-        adultConsentAccepted: false,
-        currentStep: 'adultConsent',
-        nextRoute: '/adulto/confirmar',
-        progress: 75,
-        primaryActionLabel: 'Confirmar maioridade',
       };
     }
 

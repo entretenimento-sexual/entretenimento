@@ -341,12 +341,7 @@ implements OnInit, UnsavedChangesAware
     const vm = this.latestVm;
     const redirectTo = this.resolveSafeRedirectTo();
 
-    if (vm?.uid === uid && !vm.adultConsentAccepted) {
-      const query = redirectTo
-        ? `?redirectTo=${encodeURIComponent(redirectTo)}`
-        : '';
-      return `/adulto/confirmar${query}`;
-    }
+    // Cadastro concluído não exige aceite adulto independente.
     if (redirectTo) return redirectTo;
     if (
       vm?.uid === uid &&

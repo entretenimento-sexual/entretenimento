@@ -45,7 +45,6 @@ function hasTextField(
 
 function hasAdultAccess(user: Record<string, unknown>): boolean {
   const idade = user['idade'];
-  const adultConsent = (user['adultConsent'] ?? {}) as Record<string, unknown>;
   const ageReverification = (user['ageReverification'] ?? {}) as Record<
     string,
     unknown
@@ -67,16 +66,6 @@ function hasAdultAccess(user: Record<string, unknown>): boolean {
     return false;
   }
 
-  if (adultConsent['accepted'] === false) {
-    return false;
-  }
-
-  if (
-    user['initialAdultConsentRequired'] === true
-    && adultConsent['accepted'] !== true
-  ) {
-    return false;
-  }
 
   return true;
 }
@@ -146,7 +135,7 @@ export function assertExclusiveConnectionsEligibility(
   case 'adult_access_required':
     throw new HttpsError(
       'failed-precondition',
-      'Confirmação de acesso adulto necessária.'
+      'Acesso adulto indisponível para esta conta.'
     );
 
   case 'profile_incomplete':

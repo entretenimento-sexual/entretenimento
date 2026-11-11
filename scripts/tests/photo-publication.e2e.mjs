@@ -194,11 +194,6 @@ async function run() {
             version: 'v3',
             acknowledgedPrivacyNotice: true,
           },
-          adultConsent: {
-            accepted: true,
-            version: 'v1',
-          },
-          initialAdultConsentRequired: false,
           ageReverification: null,
           updatedAt: Date.now(),
         },

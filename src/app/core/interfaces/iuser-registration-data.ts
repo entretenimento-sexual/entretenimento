@@ -26,6 +26,14 @@ export interface IUserRegistrationData {
   gender?: string;
   orientation?: string;
 
+  /**
+   * Confirmação explícita pré-Auth. Obrigatória no registro com email/senha.
+   * Não é autoridade de idade: a permissão usa age_eligibility_records/{uid}.
+   * Opcional no tipo para não alterar contratos de integração existentes;
+   * RegisterService rejeita qualquer valor que não seja literalmente true.
+   */
+  confirmsAdult?: boolean;
+
   acceptedTerms: IUserTermsAcceptance;
 
   profileCompleted?: boolean;

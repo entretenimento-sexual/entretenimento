@@ -288,6 +288,16 @@ export class RegisterService {
       );
     }
 
+    // Segurança pré-Auth: nenhuma identidade deve nascer neste fluxo sem
+    // declaração explícita 18+. Não confundir com confirmação canônica.
+    if (user?.confirmsAdult !== true) {
+      return this.handleRegisterError(
+        new Error('Esta plataforma é exclusiva para maiores de 18 anos. Confirme sua maioridade para criar a conta.'),
+        'Validação',
+        traceId
+      );
+    }
+
     if (nickname.length < 4 || nickname.length > 24) {
       return this.handleRegisterError(
         new Error('Apelido deve ter entre 4 e 24 caracteres.'),

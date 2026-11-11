@@ -31,7 +31,6 @@ const temporaryCompatibilityExports = [
 ];
 
 const expectedDeploymentExports = [
-  'acceptAdultConsent',
   'acceptAdultSelfDeclaration',
   'acceptCommunityInvite',
   'acceptFriendRequest',
@@ -356,7 +355,6 @@ const requiredExports = [
   'deleteDirectMessage',
   'acceptPlatformTerms',
   'acceptAdultSelfDeclaration',
-  'acceptAdultConsent',
   'completeRegistrationProfile',
   'reserveRegistrationNickname',
   'refreshMyAgeEligibility',

@@ -72,7 +72,6 @@ const CANONICAL_ACTION_TEMPLATES = [
   'src/app/chat-module/chat-module-layout/chat-module-layout.component.html',
   'src/app/compliance/age-reverification-page/age-reverification-page.component.html',
   'src/app/compliance/age-verification-page/age-verification-page.component.html',
-  'src/app/compliance/adult-consent-page/adult-consent-page.component.html',
   'src/app/account/pages/account-home/account-home.component.html',
   'src/app/account/pages/legal-documents/legal-documents.component.html',
   'src/app/account/pages/compliance-cases/compliance-cases.component.html',
@@ -107,7 +106,6 @@ const CANONICAL_ACTION_TEMPLATES = [
 const CANONICAL_HEADER_TEMPLATES = [
   'src/app/compliance/age-reverification-page/age-reverification-page.component.html',
   'src/app/compliance/age-verification-page/age-verification-page.component.html',
-  'src/app/compliance/adult-consent-page/adult-consent-page.component.html',
   'src/app/safety/safety-center/safety-center.component.html',
   'src/app/layout/friend-management/friend-search/friend-search.component.html',
   'src/app/layout/friend-management/friend-blocked/friend-blocked.component.html',
@@ -141,7 +139,6 @@ const CANONICALIZED_STYLES = [
   'src/app/chat-module/chat-module-layout/chat-module-layout.component.css',
   'src/app/compliance/age-reverification-page/age-reverification-page.component.css',
   'src/app/compliance/age-verification-page/age-verification-page.component.css',
-  'src/app/compliance/adult-consent-page/adult-consent-page.component.css',
   'src/app/safety/safety-center/safety-center.component.css',
   'src/app/layout/friend-management/friend-search/friend-search.component.css',
   'src/app/layout/friend-management/friend-blocked/friend-blocked.component.css',
@@ -359,9 +356,6 @@ describe('Canonical UI boundary', () => {
     const safetyStyles = source(
       'src/app/safety/safety-center/safety-center.component.css'
     );
-    const adultConsent = source(
-      'src/app/compliance/adult-consent-page/adult-consent-page.component.ts'
-    );
     const reverification = source(
       'src/app/compliance/age-reverification-page/age-reverification-page.component.ts'
     );
@@ -377,23 +371,16 @@ describe('Canonical UI boundary', () => {
     expect(safetyStyles).not.toContain('.safety-center h1');
     expect(safetyStyles).not.toContain('.safety-center__hero');
 
-    expect(adultConsent).toContain('ApplicationErrorService');
     expect(reverification).toContain('ApplicationErrorService');
     expect(reverification).not.toContain('errorDetail(error');
   });
 
   it('mantém as páginas de maioridade na camada visual canônica', () => {
-    const consent = source(
-      'src/app/compliance/adult-consent-page/adult-consent-page.component.html'
-    );
     const verification = source(
       'src/app/compliance/age-verification-page/age-verification-page.component.html'
     );
     const reverification = source(
       'src/app/compliance/age-reverification-page/age-reverification-page.component.html'
-    );
-    const consentStyles = source(
-      'src/app/compliance/adult-consent-page/adult-consent-page.component.css'
     );
     const verificationStyles = source(
       'src/app/compliance/age-verification-page/age-verification-page.component.css'
@@ -402,7 +389,7 @@ describe('Canonical UI boundary', () => {
       'src/app/compliance/age-reverification-page/age-reverification-page.component.css'
     );
 
-    for (const template of [consent, verification, reverification]) {
+    for (const template of [verification, reverification]) {
       expect(template).toContain('<app-page-header');
       expect(template).toContain('app-card app-card--flat');
       expect(template).toContain('app-action');
@@ -413,7 +400,6 @@ describe('Canonical UI boundary', () => {
     expect(reverification).toContain('app-choice app-choice--roomy');
     expect(reverification).toContain('app-field-error');
 
-    expect(consentStyles).not.toContain('.adult-consent__button');
     expect(verification).toContain(
       'age-verification__secondary-grid app-responsive-grid'
     );

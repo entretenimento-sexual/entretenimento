@@ -26,15 +26,11 @@ const routes: Routes = [
     },
   },
   {
+    // Rota histórica: sem registrar novo consentimento. O guard de welcome
+    // encaminha automaticamente à etapa pendente (termos, idade ou perfil).
     path: 'adulto/confirmar',
-    loadComponent: () =>
-      import('./compliance/adult-consent-page/adult-consent-page.component')
-        .then(m => m.AdultConsentPageComponent),
-    canActivate: [authGuard, accountLifecycleGuard, registrationStepGuard],
-    data: {
-      allowUnverified: true,
-      allowedRegisterSteps: ['adultConsent'],
-    },
+    redirectTo: '/register/welcome',
+    pathMatch: 'full',
   },
   {
     path: 'adulto/revalidar',

@@ -15,7 +15,7 @@
 // - /register/recuperar-conta só é etapa de recuperação do documento privado;
 // - /register/aceitar-termos só é etapa de aceite explícito;
 // - /adulto/verificar-idade é a etapa canônica de verificação confiável da conta;
-// - /adulto/confirmar é a etapa de consentimento adulto;
+// - /adulto/confirmar é somente alias legado, não é etapa do cadastro;
 // - /register/finalizar-cadastro só é etapa de conclusão de perfil;
 // - se o usuário estiver em outro passo, o guard retorna UrlTree para vm.nextRoute.
 //
@@ -111,7 +111,6 @@ function targetSupportsRedirect(target: string): boolean {
     path === '/register/recuperar-conta' ||
     path === '/register/aceitar-termos' ||
     path === '/adulto/verificar-idade' ||
-    path === '/adulto/confirmar' ||
     path === '/register/finalizar-cadastro'
   );
 }

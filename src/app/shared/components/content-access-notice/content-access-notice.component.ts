@@ -67,11 +67,11 @@ export function buildContentAccessNoticeViewModel(
 
     case 'adult_access_required':
       return {
-        message: 'Confirme seu acesso adulto.',
-        actionLabel: 'Confirmar',
-        icon: 'fa-id-card',
+        message: 'Acesso adulto indisponível. Consulte o status da conta.',
+        actionLabel: 'Ver conta',
+        icon: 'fa-shield-halved',
         actionIcon: 'fa-arrow-right',
-        ariaLabel: 'Confirmação de acesso adulto necessária.',
+        ariaLabel: 'Consulte o status da conta para verificar as condições de acesso adulto.',
       };
 
     case 'profile_incomplete':

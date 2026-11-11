@@ -51,7 +51,6 @@ async function grantEligibility(db, adminAuth, uid) {
   await adminAuth.updateUser(uid, { emailVerified: true });
   await db.doc('users/' + uid).set({
     acceptedTerms: { accepted: true, version: 'v3', acknowledgedPrivacyNotice: true },
-    adultConsent: { accepted: true, version: 'v1' },
   }, { merge: true });
   await db.doc('age_eligibility_records/' + uid).set({
     uid, status: 'VERIFIED_ADULT', policyVersion: 1,
@@ -117,20 +116,17 @@ async function run() {
     assert.equal((await db.doc('public_profiles/' + uid).get()).exists, false);
     await adminAuth.updateUser(uid, { emailVerified: true });
     await rejects(complete, payload, 'failed-precondition');
-    // Booleanos de aceite legados não substituem a versão jurídica vigente.
+    // O aceite de Termos desatualizado ou sem aviso de privacidade não conclui o cadastro.
     await privateRef.set({
       acceptedTerms: { accepted: true, version: 'v2', acknowledgedPrivacyNotice: true },
-      adultConsent: { accepted: true, version: 'v1' },
     }, { merge: true });
     await rejects(complete, payload, 'failed-precondition');
     await privateRef.set({
       acceptedTerms: { accepted: true, version: 'v3', acknowledgedPrivacyNotice: false },
-      adultConsent: { accepted: true, version: 'v1' },
     }, { merge: true });
     await rejects(complete, payload, 'failed-precondition');
     await privateRef.set({
       acceptedTerms: { accepted: true, version: 'v3', acknowledgedPrivacyNotice: true },
-      adultConsent: { accepted: true, version: 'v1' },
     }, { merge: true });
     await rejects(complete, payload, 'permission-denied');
     assert.equal((await privateRef.get()).get('profileCompleted'), false);

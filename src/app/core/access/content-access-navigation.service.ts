@@ -27,7 +27,7 @@ const ROUTE_BY_ACTION: Readonly<
   review_account: ['/conta/status'],
   accept_current_terms: ['/register/aceitar-termos'],
   complete_age_reverification: ['/adulto/revalidar'],
-  confirm_adult_access: ['/adulto/confirmar'],
+  confirm_adult_access: ['/conta/status'],
   complete_profile: ['/register/finalizar-cadastro'],
   upgrade_subscription: ['/subscription-plan'],
 });

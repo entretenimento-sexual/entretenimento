@@ -112,14 +112,6 @@ service cloud.firestore {
         && acceptedTerms.acknowledgedPrivacyNotice == true;
     }
 
-    function adultMediaHasRequiredConsent(user) {
-      let adultConsent = mapFieldOrNull(user, "adultConsent");
-      return adultConsent is map
-        && adultConsent.keys().hasAll(["accepted", "version"])
-        && adultConsent.accepted == true
-        && adultConsent.version == "v1";
-    }
-
     // ===============================================================
     // Elegibilidade etária canônica
     // ===============================================================
@@ -194,6 +186,11 @@ service cloud.firestore {
         && canonicalAgeEligibilityAllowsRegistration(uid());
     }
 
+    // Produto ativo usa lifecycle + termos/consentimento. O backend de
+    // decisão etária deve materializar restrições de menoridade no lifecycle.
+    // Conta ativa: lifecycle e Termos vigentes. A decisão 18+ canônica
+    // governa admissão; revalidação muda o lifecycle transacionalmente.
+    // Nunca adicionar AdultConsent v1 como requisito global novamente.
     function currentUserCanUseAdultSocialPlatform() {
       let userPath = currentPrivateUserPath();
       let user = signedIn()
@@ -202,8 +199,7 @@ service cloud.firestore {
 
       return user is map
         && adultMediaLifecycleAllowsAccess(user)
-        && adultMediaHasCurrentTerms(user)
-        && adultMediaHasRequiredConsent(user);
+        && adultMediaHasCurrentTerms(user);
     }
 
     function canConsumeAdultPublicMedia() {

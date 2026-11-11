@@ -33,7 +33,7 @@ export const COMMUNITY_HIGHLIGHT_REASON_MESSAGES: CommunityErrorMessageMap =
     account_restricted:
       'Sua conta não pode executar esta ação administrativa neste momento.',
     adult_access_required:
-      'Confirme o acesso adulto antes de executar esta ação.',
+      'Acesso adulto indisponível para esta ação. Consulte o status da conta.',
     profile_incomplete:
       'Complete seu perfil antes de executar esta ação.',
   });

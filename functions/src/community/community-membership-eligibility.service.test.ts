@@ -15,7 +15,6 @@ function eligibleUser(overrides: Record<string, unknown> = {}) {
       version: 'v3',
       acknowledgedPrivacyNotice: true,
     },
-    adultConsent: { accepted: true, version: 'v1' },
     ageReverification: { status: 'NONE' },
     ...overrides,
   };
@@ -60,16 +59,6 @@ test('nega perfil divergente, restrito ou incompleto sem reavaliar assurance etÃ
       (error as { code?: unknown }).code === 'failed-precondition'
   );
 
-  assert.throws(
-    () =>
-      assertCommunityMembershipActorEligible(
-        eligibleUser({ adultConsent: { accepted: false, version: 'v1' } }),
-        'user-1'
-      ),
-    (error: unknown) =>
-      (error as { code?: unknown }).code === 'failed-precondition'
-  );
-
   assert.doesNotThrow(() =>
     assertCommunityMembershipActorEligible(
       eligibleUser({
@@ -81,4 +70,39 @@ test('nega perfil divergente, restrito ou incompleto sem reavaliar assurance etÃ
       'user-1'
     )
   );
+});
+
+
+test('membership ignora consentimento v1, mas preserva perfil, lifecycle e termos', () => {
+  for (const adultConsent of [
+    undefined,
+    null,
+    { accepted: false, version: 'v1' },
+    { accepted: true, version: 'legacy' },
+  ]) {
+    const legacy = eligibleUser({
+      initialAdultConsentRequired: true,
+      adultConsent,
+    });
+
+    assert.doesNotThrow(() =>
+      assertCommunityMembershipActorEligible(legacy, 'user-1')
+    );
+
+    for (const restrictions of [
+      { profileCompleted: false },
+      { interactionBlocked: true },
+      { accountStatus: 'moderation_suspended' },
+      { acceptedTerms: null },
+    ]) {
+      assert.throws(
+        () => assertCommunityMembershipActorEligible(
+          { ...legacy, ...restrictions },
+          'user-1'
+        ),
+        (error: unknown) =>
+          (error as { code?: unknown }).code === 'failed-precondition'
+      );
+    }
+  }
 });

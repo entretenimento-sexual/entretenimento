@@ -129,11 +129,11 @@ describe('account lifecycle shared guards', () => {
       isUserEligibleForPublicProjection(
         eligibleUser({ adultConsent: { accepted: false } })
       ),
-      false
+      true
     );
   });
 
-  it('permite dispensa adulta somente quando explicitamente registrada', () => {
+  it('não exige consentimento adulto histórico em projeção pública', () => {
     assert.equal(
       isUserEligibleForPublicProjection(
         eligibleUser({

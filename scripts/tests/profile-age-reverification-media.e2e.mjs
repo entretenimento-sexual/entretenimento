@@ -33,7 +33,6 @@ const FUNCTIONS_PORT = 15001;
 const WAIT_TIMEOUT_MS = 20_000;
 const WAIT_INTERVAL_MS = 150;
 const CURRENT_TERMS_VERSION = 'v3';
-const CURRENT_ADULT_CONSENT_VERSION = 'v1';
 
 process.env.GCLOUD_PROJECT = PROJECT_ID;
 process.env.GCP_PROJECT = PROJECT_ID;
@@ -113,17 +112,11 @@ function registeredUser(uid, nickname) {
     loginAllowed: true,
     suspended: false,
     registrationFlowVersion: 'v2',
-    initialAdultConsentRequired: false,
     registrationCompletedAt: Date.now(),
     acceptedTerms: {
       accepted: true,
       version: CURRENT_TERMS_VERSION,
       acknowledgedPrivacyNotice: true,
-      acceptedAt: Date.now(),
-    },
-    adultConsent: {
-      accepted: true,
-      version: CURRENT_ADULT_CONSENT_VERSION,
       acceptedAt: Date.now(),
     },
     createdAt: Date.now(),

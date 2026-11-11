@@ -147,7 +147,6 @@ try {
       accountStatus:'active', suspended:false, publicVisibility:'visible',
       interactionBlocked:false, accountLocked:false, loginAllowed:true,
       acceptedTerms:{accepted:true,version:'v3',acknowledgedPrivacyNotice:true},
-      adultConsent:{accepted:true,version:'v1'}, initialAdultConsentRequired:false,
       ageReverification:null, updatedAt:Date.now(),
     }, {merge:true}),
     db.doc(`age_eligibility_records/${ownerUid}`).set({

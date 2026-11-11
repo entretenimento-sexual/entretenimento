@@ -81,7 +81,6 @@ function isReleasedReport(report: FirebaseFirestore.DocumentData | undefined): b
   const evidenceStatus = String(report?.evidencePreservationStatus ?? '')
     .trim()
     .toUpperCase();
-
   return status === 'rejected' || evidenceStatus === 'RELEASED' || evidenceStatus === 'RELEASING';
 }
 
