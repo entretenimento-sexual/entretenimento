@@ -70,6 +70,7 @@ describe('LoginService', () => {
       code: 'auth/persistence-unavailable',
     });
     expect(deferPromise$).not.toHaveBeenCalled();
+    expect(setSessionPersistence$).toHaveBeenCalledWith('local');
   });
 
   it('deve ser criado', () => {

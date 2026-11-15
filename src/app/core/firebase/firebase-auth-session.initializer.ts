@@ -1,8 +1,8 @@
 import type { Auth } from '@angular/fire/auth';
-import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { LogoutService } from '../services/autentication/auth/logout.service';
+import { AuthAppBlockService } from '../services/autentication/auth/auth-app-block.service';
+import { markAuthInvalidUid, hasAuthInvalidUid, clearAuthInvalidUid } from './auth-invalid-session-marker';
 import { GlobalErrorHandlerService } from '../services/error-handler/global-error-handler.service';
 import {
   firebaseDebugLog,
@@ -42,7 +42,7 @@ function normalizeInitializerError(error: unknown): Error {
 export function authRestoreInitializer(
   auth: Auth,
   globalErrorHandler: GlobalErrorHandlerService,
-  logoutService: LogoutService
+  appBlock: AuthAppBlockService
 ): () => Promise<void> {
   return async (): Promise<void> => {
     try {
@@ -62,43 +62,60 @@ export function authRestoreInitializer(
         currentUserUid: auth.currentUser?.uid ?? null,
       });
 
-      if (!usingAuthEmulator) return;
-
+      // Revalidacao no Cloud e no emulador. Identidade persistente nao
+      // equivale a permissao de acesso se a credencial estiver invalida.
       const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      const restoredUid = currentUser.uid;
 
-      if (persistenceMode === 'memory' && currentUser) {
-        firebaseDebugLog('[AUTH][INIT] memory-mode ghost -> canonical invalidation', {
-          uid: currentUser.uid,
+      // O marcador, separado por UID, preserva um bloqueio confirmado mesmo
+      // quando a pagina e atualizada antes de haver rede para revalidar.
+      if (hasAuthInvalidUid(restoredUid)) {
+        appBlock.set('auth-invalid');
+      }
+
+      if (usingAuthEmulator && persistenceMode === 'memory') {
+        // Modo excepcional de QA. Nao executa signOut automatico: impede
+        // o uso de uma sessao restaurada incompativel com o modo selecionado.
+        markAuthInvalidUid(restoredUid);
+        appBlock.set('auth-invalid');
+        firebaseDebugLog('[AUTH][INIT] memory-mode restored user blocked', {
+          uid: restoredUid,
         });
-
-        await firstValueFrom(
-          logoutService.invalidateRestoredSessionForBootstrap$()
-        );
         return;
       }
 
-      if (!currentUser) return;
-
       try {
         await currentUser.reload();
+        // Nunca desbloquear a conta B por uma resposta atrasada da conta A.
+        if (auth.currentUser?.uid !== restoredUid) return;
+
+        clearAuthInvalidUid(restoredUid);
+        if (appBlock.snapshot === 'auth-invalid') {
+          appBlock.clear();
+        }
 
         firebaseDebugLog('[AUTH][INIT] reload ok', {
-          uid: currentUser.uid,
+          uid: restoredUid,
           emailVerified: currentUser.emailVerified === true,
         });
       } catch (error: unknown) {
+        if (auth.currentUser?.uid !== restoredUid) return;
         const code = extractFirebaseErrorCode(error);
 
         firebaseDebugLog('[AUTH][INIT] reload failed', {
-          uid: currentUser.uid,
+          uid: restoredUid,
           code,
         });
 
         if (INVALID_SESSION_ERROR_CODES.has(code)) {
-          await firstValueFrom(
-            logoutService.invalidateRestoredSessionForBootstrap$()
-          );
+          markAuthInvalidUid(restoredUid);
+          appBlock.set('auth-invalid');
+          return;
         }
+
+        // Oscilacoes de rede nao executam signOut nem apagam bloqueio
+        // persistido. A autorizacao no servidor continua obrigatoria.
       }
     } catch (error: unknown) {
       globalErrorHandler.handleError(normalizeInitializerError(error));

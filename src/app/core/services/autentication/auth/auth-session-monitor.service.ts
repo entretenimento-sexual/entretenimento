@@ -24,7 +24,8 @@ import { from, of, Subscription, timer } from 'rxjs';
 import { catchError, exhaustMap, map } from 'rxjs/operators';
 
 import { AuthSessionService } from './auth-session.service';
-import { LogoutService } from './logout.service';
+import { AuthAppBlockService } from './auth-app-block.service';
+import { markAuthInvalidUid } from '@core/firebase/auth-invalid-session-marker';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
@@ -36,7 +37,7 @@ export class AuthSessionMonitorService {
 
   constructor(
     private readonly authSession: AuthSessionService,
-    private readonly logoutService: LogoutService,
+    private readonly appBlock: AuthAppBlockService,
     private readonly applicationError: ApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService,
   ) {}
@@ -99,7 +100,31 @@ private dbg(message: string, extra?: unknown): void {
                 code === 'auth/invalid-user-token'
               ) {
                 this.dbg('invalid auth detected', { code });
-                this.logoutService.hardSignOutToWelcome('auth-invalid');
+                if (this.appBlock.snapshot !== 'auth-invalid') {
+                  markAuthInvalidUid(monitoredUid);
+                  this.appBlock.set('auth-invalid');
+
+                  try {
+                    this.applicationError.report(err, {
+                      feature: 'auth-session-monitor',
+                      operation: 'session-monitor.invalid',
+                      fallbackMessage:
+                        'Sua autentica??o precisa ser confirmada novamente. O acesso foi bloqueado por seguran?a.',
+                      presentation: {
+                        surface: 'snackbar',
+                        severity: 'error',
+                      },
+                      metadata: {
+                        scope: 'AuthSessionMonitorService',
+                        code,
+                      },
+                    });
+                  } catch (notificationError) {
+                    this.dbg('invalid session notification failed', {
+                      errorType: typeof notificationError,
+                    });
+                  }
+                }
                 return of(null);
               }
 

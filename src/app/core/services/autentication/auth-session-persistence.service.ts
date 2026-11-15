@@ -18,17 +18,20 @@ import {
 
 export type AuthSessionMode = 'local' | 'session' | 'none';
 
+export function resolveEffectiveAuthSessionMode(
+  requestedMode: AuthSessionMode,
+  emulatorMode: 'session' | 'memory' | null = null
+): AuthSessionMode {
+  return emulatorMode === 'memory' || requestedMode === 'none'
+    ? 'none'
+    : 'local';
+}
+
 export function resolveAuthSessionPersistence(
   mode: AuthSessionMode,
   emulatorMode: 'session' | 'memory' | null = null
 ): Persistence {
-  if (emulatorMode !== null) {
-    return emulatorMode === 'session'
-      ? browserSessionPersistence
-      : inMemoryPersistence;
-  }
-
-  switch (mode) {
+  switch (resolveEffectiveAuthSessionMode(mode, emulatorMode)) {
     case 'local': return browserLocalPersistence;
     case 'session': return browserSessionPersistence;
     case 'none': return inMemoryPersistence;
@@ -50,9 +53,9 @@ export class AuthSessionPersistenceService {
         : null;
       const persistence = typeof modeOrPersistence === 'string'
         ? resolveAuthSessionPersistence(modeOrPersistence, emulatorMode)
-        : emulatorMode
-          ? resolveAuthSessionPersistence('none', emulatorMode)
-          : modeOrPersistence;
+        : emulatorMode === 'memory' || modeOrPersistence === inMemoryPersistence
+          ? inMemoryPersistence
+          : browserLocalPersistence;
 
       return runInInjectionContext(this.envInjector, () =>
         setPersistence(this.auth, persistence)

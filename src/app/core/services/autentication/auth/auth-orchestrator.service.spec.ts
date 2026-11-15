@@ -12,7 +12,6 @@ import { AuthSessionMonitorService } from './auth-session-monitor.service';
 import { AuthSessionService } from './auth-session.service';
 import { AuthUserDocumentWatchService } from './auth-user-document-watch.service';
 import { CurrentUserStoreService } from './current-user-store.service';
-import { LogoutService } from './logout.service';
 
 describe('AuthOrchestratorService canonical errors', () => {
   function createHarness(initialUrl = '/dashboard') {
@@ -44,7 +43,6 @@ describe('AuthOrchestratorService canonical errors', () => {
       {} as AuthPostLoginEffectsService,
       {} as UserRepositoryService,
       router as never,
-      {} as LogoutService,
       applicationError as unknown as ApplicationErrorService,
       appBlock as unknown as AuthAppBlockService,
       {} as CurrentUserStoreService,
@@ -129,4 +127,17 @@ describe('AuthOrchestratorService canonical errors', () => {
 
     expect(applicationError.report).not.toHaveBeenCalled();
   });
+  it('preserva bloqueio inicial e limpa na troca real de UID', () => {
+    const { service, appBlock } = createHarness();
+    const target = service as unknown as {
+      handleUidChange(uid: string): void;
+    };
+
+    target.handleUidChange('user-a');
+    expect(appBlock.clear).not.toHaveBeenCalled();
+
+    target.handleUidChange('user-b');
+    expect(appBlock.clear).toHaveBeenCalledTimes(1);
+  });
+
 });

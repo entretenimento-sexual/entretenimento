@@ -32,7 +32,7 @@ import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 
 import { environment } from '../../../environments/environment';
-import { LogoutService } from '../services/autentication/auth/logout.service';
+import { AuthAppBlockService } from '../services/autentication/auth/auth-app-block.service';
 import { GlobalErrorHandlerService } from '../services/error-handler/global-error-handler.service';
 import { authRestoreInitializer } from './firebase-auth-session.initializer';
 import {
@@ -42,7 +42,7 @@ import {
   isFirebaseEmulatorSuiteEnabled,
   isFirebaseAppCheckEnabled,
   resolveFirebaseAppCheckSiteKey,
-  resolveFirebaseAuthEmulatorPersistenceMode,
+  resolveFirebaseAuthEmulatorStartupMode,
 } from './firebase-environment.config';
 import {
   connectAuthEmulatorSafely,
@@ -69,16 +69,21 @@ function provideApplicationAuth(): EnvironmentProviders {
     const authEmulatorEndpoint = getFirebaseEmulatorEndpoint('auth');
     const usingAuthEmulator = authEmulatorEndpoint !== null;
     const emulatorPersistenceMode = usingAuthEmulator
-      ? resolveFirebaseAuthEmulatorPersistenceMode()
+      ? resolveFirebaseAuthEmulatorStartupMode(
+          app.options.apiKey,
+          app.name
+        )
       : 'session';
 
     const emulatorPersistence: Persistence =
       emulatorPersistenceMode === 'memory'
         ? inMemoryPersistence
-        : browserSessionPersistence;
+        : browserLocalPersistence;
 
     const persistence: Persistence[] = usingAuthEmulator
-      ? [emulatorPersistence]
+      ? emulatorPersistenceMode === 'memory'
+        ? [inMemoryPersistence]
+        : [browserLocalPersistence, browserSessionPersistence]
       : [
           indexedDBLocalPersistence,
           browserLocalPersistence,
@@ -250,7 +255,7 @@ export const FIREBASE_APPLICATION_PROVIDERS: Array<
   {
     provide: APP_INITIALIZER,
     useFactory: authRestoreInitializer,
-    deps: [Auth, GlobalErrorHandlerService, LogoutService],
+    deps: [Auth, GlobalErrorHandlerService, AuthAppBlockService],
     multi: true,
   },
 ];

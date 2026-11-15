@@ -35,7 +35,7 @@ http://127.0.0.1:4000/
 - Senha errada mostra erro somente dentro do card.
 - Erro técnico real pode usar snackbar global.
 - Toggle de senha alterna `Mostrar senha` / `Ocultar senha` via `aria-label`.
-- `Lembrar de mim` não quebra o fluxo.
+- Login utiliza sessao persistente; nao apresentar checkbox Lembrar de mim.
 
 ## Recuperação de senha
 

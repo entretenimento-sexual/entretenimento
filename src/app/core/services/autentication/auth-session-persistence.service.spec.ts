@@ -4,12 +4,12 @@ import { firstValueFrom } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   browserLocalPersistence,
-  browserSessionPersistence,
   inMemoryPersistence,
 } from 'firebase/auth';
 import {
   AuthSessionPersistenceService,
   resolveAuthSessionPersistence,
+  resolveEffectiveAuthSessionMode,
 } from './auth-session-persistence.service';
 
 describe('AuthSessionPersistenceService', () => {
@@ -29,7 +29,12 @@ describe('AuthSessionPersistenceService', () => {
 
   it('mapeia as durações de sessão e o modo do emulador', () => {
     expect(resolveAuthSessionPersistence('local')).toBe(browserLocalPersistence);
-    expect(resolveAuthSessionPersistence('session')).toBe(browserSessionPersistence);
+    expect(resolveEffectiveAuthSessionMode('local', 'session')).toBe('local');
+    expect(resolveEffectiveAuthSessionMode('session', 'session')).toBe('local');
+    expect(resolveEffectiveAuthSessionMode('session', null)).toBe('local');
+    expect(resolveEffectiveAuthSessionMode('none', null)).toBe('none');
+    expect(resolveEffectiveAuthSessionMode('local', 'memory')).toBe('none');
+    expect(resolveAuthSessionPersistence('session')).toBe(browserLocalPersistence);
     expect(resolveAuthSessionPersistence('none')).toBe(inMemoryPersistence);
     expect(resolveAuthSessionPersistence('local', 'memory')).toBe(inMemoryPersistence);
   });

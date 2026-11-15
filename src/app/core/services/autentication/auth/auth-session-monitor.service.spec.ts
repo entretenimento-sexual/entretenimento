@@ -5,7 +5,7 @@ import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.se
 
 import { AuthSessionMonitorService } from './auth-session-monitor.service';
 import { AuthSessionService } from './auth-session.service';
-import { LogoutService } from './logout.service';
+import { AuthAppBlockService } from './auth-app-block.service';
 
 function createHarness(reloadImpl?: () => Promise<void>) {
   const currentAuthUser = reloadImpl
@@ -17,9 +17,14 @@ function createHarness(reloadImpl?: () => Promise<void>) {
     isTerminatingSnapshot: false,
   };
 
-  const logoutService = {
-    hardSignOutToWelcome: vi.fn(),
+  const appBlock = {
+    snapshot: null as 'auth-invalid' | null,
+    set: vi.fn(),
   };
+
+  appBlock.set.mockImplementation((reason: 'auth-invalid') => {
+    appBlock.snapshot = reason;
+  });
 
   const applicationError = {
     report: vi.fn(),
@@ -31,7 +36,7 @@ function createHarness(reloadImpl?: () => Promise<void>) {
 
   const service = new AuthSessionMonitorService(
     authSession as unknown as AuthSessionService,
-    logoutService as unknown as LogoutService,
+    appBlock as unknown as AuthAppBlockService,
     applicationError as unknown as ApplicationErrorService,
     privacyDebug as unknown as PrivacyDebugLoggerService
   );
@@ -39,7 +44,7 @@ function createHarness(reloadImpl?: () => Promise<void>) {
   return {
     service,
     authSession,
-    logoutService,
+    appBlock,
     applicationError,
     privacyDebug,
     currentAuthUser,
@@ -61,7 +66,7 @@ describe('AuthSessionMonitorService canonical errors', () => {
     const {
       service,
       applicationError,
-      logoutService,
+      appBlock,
       currentAuthUser,
     } = createHarness(() => Promise.reject(error));
 
@@ -70,7 +75,7 @@ describe('AuthSessionMonitorService canonical errors', () => {
     await vi.advanceTimersByTimeAsync(600_000);
 
     expect(currentAuthUser?.reload).toHaveBeenCalledTimes(1);
-    expect(logoutService.hardSignOutToWelcome).not.toHaveBeenCalled();
+    expect(appBlock.set).not.toHaveBeenCalled();
     expect(applicationError.report).toHaveBeenCalledTimes(1);
     expect(applicationError.report).toHaveBeenCalledWith(error, {
       feature: 'auth-session-monitor',
@@ -88,7 +93,7 @@ describe('AuthSessionMonitorService canonical errors', () => {
     service.stop();
   });
 
-  it('faz hard sign-out para token inválido sem reportar como falha interna', async () => {
+  it('bloqueia acesso por token invalido sem logout', async () => {
     vi.useFakeTimers();
 
     const error = Object.assign(new Error('token expired'), {
@@ -98,7 +103,7 @@ describe('AuthSessionMonitorService canonical errors', () => {
     const {
       service,
       applicationError,
-      logoutService,
+      appBlock,
       currentAuthUser,
     } = createHarness(() => Promise.reject(error));
 
@@ -107,18 +112,28 @@ describe('AuthSessionMonitorService canonical errors', () => {
     await vi.advanceTimersByTimeAsync(600_000);
 
     expect(currentAuthUser?.reload).toHaveBeenCalledTimes(1);
-    expect(logoutService.hardSignOutToWelcome).toHaveBeenCalledTimes(1);
-    expect(logoutService.hardSignOutToWelcome).toHaveBeenCalledWith(
+    expect(appBlock.set).toHaveBeenCalledTimes(1);
+    expect(appBlock.set).toHaveBeenCalledWith(
       'auth-invalid'
     );
-    expect(applicationError.report).not.toHaveBeenCalled();
+    expect(applicationError.report).toHaveBeenCalledWith(
+      error,
+      expect.objectContaining({
+        feature: 'auth-session-monitor',
+        operation: 'session-monitor.invalid',
+        presentation: {
+          surface: 'snackbar',
+          severity: 'error',
+        },
+      })
+    );
 
     service.stop();
   });
 
   it('não executa reload técnico durante o encerramento voluntário', async () => {
     vi.useFakeTimers();
-    const { service, authSession, currentAuthUser, logoutService } =
+    const { service, authSession, currentAuthUser, appBlock } =
       createHarness(() => Promise.reject(new Error('stale token')));
     authSession.isTerminatingSnapshot = true;
 
@@ -126,7 +141,7 @@ describe('AuthSessionMonitorService canonical errors', () => {
     await vi.advanceTimersByTimeAsync(600_000);
 
     expect(currentAuthUser?.reload).not.toHaveBeenCalled();
-    expect(logoutService.hardSignOutToWelcome).not.toHaveBeenCalled();
+    expect(appBlock.set).not.toHaveBeenCalled();
     service.stop();
   });
 
@@ -137,7 +152,7 @@ describe('AuthSessionMonitorService canonical errors', () => {
       rejectReload = reject;
     });
 
-    const { service, authSession, logoutService, applicationError } =
+    const { service, authSession, appBlock, applicationError } =
       createHarness(() => pending);
     service.start();
     await vi.advanceTimersByTimeAsync(600_000);
@@ -151,7 +166,7 @@ describe('AuthSessionMonitorService canonical errors', () => {
     }));
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(logoutService.hardSignOutToWelcome).not.toHaveBeenCalled();
+    expect(appBlock.set).not.toHaveBeenCalled();
     expect(applicationError.report).not.toHaveBeenCalled();
     service.stop();
   });
@@ -163,7 +178,7 @@ describe('AuthSessionMonitorService canonical errors', () => {
       rejectReload = reject;
     });
 
-    const { service, authSession, logoutService } = createHarness(() => pending);
+    const { service, authSession, appBlock } = createHarness(() => pending);
     service.start();
     await vi.advanceTimersByTimeAsync(600_000);
 
@@ -173,7 +188,7 @@ describe('AuthSessionMonitorService canonical errors', () => {
     }));
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(logoutService.hardSignOutToWelcome).not.toHaveBeenCalled();
+    expect(appBlock.set).not.toHaveBeenCalled();
     service.stop();
   });
 

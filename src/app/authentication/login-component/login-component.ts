@@ -102,7 +102,6 @@ export class LoginComponent implements OnInit {
       email: ['', [Validators.required, Validators.email]],
       password: ['', Validators.required],
       honeypot: [''],
-      rememberMe: [false],
     });
   }
 
@@ -190,13 +189,12 @@ export class LoginComponent implements OnInit {
 
     const email = String(this.email?.value ?? '').trim();
     const password = String(this.password?.value ?? '');
-    const rememberMe = !!this.loginForm.get('rememberMe')?.value;
     const redirectTo = this.getRedirectTo();
 
     this.setBusyState(true, 'emailLogin');
 
     this.loginservice
-      .login$(email, password, rememberMe)
+      .login$(email, password)
       .pipe(
         switchMap((result) => {
           if (!result?.success) {
@@ -245,7 +243,7 @@ export class LoginComponent implements OnInit {
     const redirectTo = this.getRedirectTo();
 
     this.authFacade
-      .googleLogin$(!!this.loginForm.get('rememberMe')?.value)
+      .googleLogin$()
       .pipe(
         switchMap((result) => {
           if (!result?.success) {

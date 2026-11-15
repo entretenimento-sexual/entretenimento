@@ -60,8 +60,6 @@ import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-
 
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
-import { environment } from 'src/environments/environment';
-import { LogoutService } from './logout.service';
 
 import {
   inRegistrationFlow as isRegFlow,
@@ -102,15 +100,6 @@ export class AuthOrchestratorService {
 
   private missingDocProbeId: ReturnType<typeof setTimeout> | null = null;
 
-  /**
-   * true:
-   * - bloqueia o app e mantém a sessão autenticada quando o problema é de domínio
-   *
-   * false:
-   * - força hard signOut também nesses cenários
-   */
-  private readonly voluntaryLogoutOnly =
-    (environment as any)?.features?.logoutOnlyVoluntary !== false;
 
   constructor(
     private readonly authSession: AuthSessionService,
@@ -120,7 +109,6 @@ export class AuthOrchestratorService {
     private readonly postLoginEffects: AuthPostLoginEffectsService,
     private readonly userRepo: UserRepositoryService,
     private readonly router: Router,
-    private readonly logoutService: LogoutService,
     private readonly applicationError: ApplicationErrorService,
     private readonly appBlock: AuthAppBlockService,
     private readonly currentUserStore: CurrentUserStoreService,
@@ -385,8 +373,15 @@ export class AuthOrchestratorService {
    * - preserva a responsabilidade do perfil runtime fora deste service
    */
   private handleUidChange(uid: string): void {
+    const previousUid = this.sessionUid;
     this.sessionUid = uid;
-    this.appBlock.clear();
+
+    // Preserva bloqueio da restauracao inicial.
+    // Uma troca real de conta libera o bloqueio anterior.
+    if (previousUid && previousUid !== uid) {
+      this.appBlock.clear();
+    }
+
     this.stopPostLoginEffects();
     this.stopWatchers();
     this.resetTransientSessionState();
@@ -486,12 +481,7 @@ export class AuthOrchestratorService {
     const stillMissing = await firstValueFrom(this.userRepo.confirmUserDocMissing$(uid));
     if (!stillMissing) return;
 
-    if (this.voluntaryLogoutOnly) {
-      this.blockAppSession(reason);
-      return;
-    }
-
-    this.hardSignOutToEntry(reason);
+    this.blockAppSession(reason);
   }
 
   private stopPostLoginEffects(): void {
@@ -678,12 +668,7 @@ export class AuthOrchestratorService {
           return;
         }
 
-        if (this.voluntaryLogoutOnly) {
-          this.blockAppSession('deleted');
-          return;
-        }
-
-        this.hardSignOutToEntry('deleted');
+        this.blockAppSession('deleted');
         return;
       }
 
@@ -701,12 +686,7 @@ export class AuthOrchestratorService {
         const allowAct = this.sawUserDocOnce || Date.now() > this.freshUntil;
         if (!allowAct) return;
 
-        if (this.voluntaryLogoutOnly) {
-          this.blockAppSession('forbidden');
-          return;
-        }
-
-        this.hardSignOutToEntry('forbidden');
+        this.blockAppSession('forbidden');
         return;
       }
 
@@ -719,26 +699,6 @@ export class AuthOrchestratorService {
         });
         return;
       }
-    }
-  }
-
-  /**
-   * Encerramento forte de sessão.
-   *
-   * Usado apenas quando realmente necessário.
-   */
-  private hardSignOutToEntry(reason: TerminateReason): void {
-    if (this.terminating) return;
-    this.terminating = true;
-
-    try {
-      this.stopRuntimeSideEffects();
-      this.clearMissingDocProbe();
-
-      this.logoutService.hardSignOutToWelcome(reason);
-      this.appBlock.clear();
-    } finally {
-      this.terminating = false;
     }
   }
 

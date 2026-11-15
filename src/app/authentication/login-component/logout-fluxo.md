@@ -11,3 +11,7 @@ A plataforma possui uma única fronteira de encerramento de sessão: `LogoutServ
 - `scripts/quality/check-auth-signout-boundary.mjs` protege a fronteira no Quality Gate e deve continuar falhando fechado se surgir `signOut` bruto fora de `logout.service.ts`.
 
 Em falha do `signOut` voluntário, a sessão operacional é restaurada a partir do mesmo Firebase user ainda válido e os orquestradores rearmam seus recursos. Hard signout, ao contrário, permanece fail-closed se o Firebase continuar tecnicamente autenticado após a tentativa de encerramento.
+
+> Politica geral de persistencia, identidade e encerramento:
+> [auth-session-policy.md](../../../docs/dev/auth-session-policy.md).
+> A revisao dos encerramentos involuntarios B3.2C.22E ainda esta pendente.

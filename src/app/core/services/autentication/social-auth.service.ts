@@ -178,10 +178,8 @@ export class SocialAuthService {
   // API pública
   // ==============================================================
 
-  private ensurePersistentAuth$(rememberMe = true): Observable<void> {
-    return this.sessionPersistence.setSessionPersistence$(
-      rememberMe ? 'local' : 'session'
-    );
+  private ensurePersistentAuth$(_rememberMe = true): Observable<void> {
+    return this.sessionPersistence.setSessionPersistence$('local');
   }
 
   googleLogin(rememberMe = true): Observable<SocialAuthResult> {

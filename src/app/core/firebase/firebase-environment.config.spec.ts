@@ -4,6 +4,7 @@ import {
   normalizeFirebaseEmulatorEndpoint,
   requireLocalFirebaseEmulatorEndpoint,
   resolveFirebaseAuthEmulatorPersistenceMode,
+  resolveFirebaseAuthEmulatorStartupMode,
 } from './firebase-environment.config';
 
 
@@ -73,5 +74,33 @@ describe('firebase-environment.config', () => {
         },
       })
     ).toBe('session');
+  });
+
+  it('restaura uma sess?o local existente', () => {
+    const key = 'firebase:authUser:fake-api-key:[DEFAULT]';
+
+    expect(resolveFirebaseAuthEmulatorStartupMode(
+      'fake-api-key',
+      '[DEFAULT]',
+      { getItem: candidate =>
+          candidate === key ? 'registro-local' : null }
+    )).toBe('local');
+  });
+
+  it('usa local por padrao mesmo sem sessao anterior', () => {
+    expect(resolveFirebaseAuthEmulatorStartupMode(
+      'fake-api-key',
+      '[DEFAULT]',
+      { getItem: () => null }
+    )).toBe('local');
+  });
+
+  it('preserva isolamento memory explicitamente solicitado', () => {
+    expect(resolveFirebaseAuthEmulatorStartupMode(
+      'fake-api-key',
+      '[DEFAULT]',
+      { getItem: key =>
+          key === '__EMU_AUTH_PERSIST__' ? 'memory' : 'registro-local' }
+    )).toBe('memory');
   });
 });

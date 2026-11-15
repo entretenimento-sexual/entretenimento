@@ -257,7 +257,7 @@ export class LoginService {
   login$(
     email: string,
     password: string,
-    rememberMe?: boolean
+    _rememberMe?: boolean
   ): Observable<LoginResult> {
     const safeEmail = String(email ?? '').trim().toLowerCase();
     const safePassword = String(password ?? '');
@@ -282,21 +282,13 @@ export class LoginService {
       });
     }
 
-    const requestedMode: SessionMode =
-      typeof rememberMe === 'boolean'
-        ? rememberMe
-          ? 'local'
-          : 'session'
-        : this.isAuthEmuActive()
-          ? this.getEmuPersistMode() === 'session'
-            ? 'session'
-            : 'none'
-          : 'local';
+    const requestedMode: SessionMode = 'local';
 
     this.dbg('login:start', {
       email: this.safeEmail(safeEmail),
       requestedMode,
       usingEmulator: this.isAuthEmuActive(),
+      emulatorOverride: this.isAuthEmuActive() ? this.getEmuPersistMode() : null,
     });
 
     return this.setSessionPersistence$(requestedMode).pipe(

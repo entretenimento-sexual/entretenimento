@@ -135,3 +135,17 @@ export function resolveFirebaseAuthEmulatorPersistenceMode(
     return 'session';
   }
 }
+
+export type FirebaseAuthEmulatorStartupMode =
+  FirebaseAuthEmulatorPersistenceMode | 'local';
+
+export function resolveFirebaseAuthEmulatorStartupMode(
+  _apiKey: string | undefined,
+  _appName: string,
+  storage: FirebasePersistenceStorageReader | null =
+    getBrowserPersistenceStorage()
+): FirebaseAuthEmulatorStartupMode {
+  return resolveFirebaseAuthEmulatorPersistenceMode(storage) === 'memory'
+    ? 'memory'
+    : 'local';
+}
