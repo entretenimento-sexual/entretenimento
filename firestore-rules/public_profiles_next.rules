@@ -22,10 +22,20 @@ match /public_profiles/{userId} {
     ]);
   }
 
+  function lacksPrivateProfileEmailFields() {
+    return !resource.data.keys().hasAny([
+      "email", "emailAddress", "registrationEmail",
+      "authEmail", "accountEmail", "authorEmail"
+    ]);
+  }
+
   allow get: if currentUserCanUseAdultSocialPlatform()
     && bilateralExposureAllows(userId)
     && canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)
-    && (isSelf(userId) || lacksPrivateDiscoveryInterestFields());
+    && (isSelf(userId) || (
+      lacksPrivateDiscoveryInterestFields()
+      && lacksPrivateProfileEmailFields()
+    ));
 
   allow list: if false;
 

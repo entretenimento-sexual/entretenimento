@@ -493,4 +493,77 @@ describe('Firestore Rules / public profile eligibility', () => {
       })
     );
   });
+
+  it('nega GET de perfil legado com email a terceiros', async () => {
+    await seedUser();
+    await seedVisitor();
+
+    const privateKeys = [
+      'email', 'emailAddress', 'registrationEmail',
+      'authEmail', 'accountEmail', 'authorEmail',
+    ];
+
+    for (const key of privateKeys) {
+      await seedPublicProfile({
+        [key]: 'privado@example.invalid',
+      });
+
+      await assertFails(
+        getDoc(doc(visitorDb(), 'public_profiles', UID))
+      );
+
+      await assertSucceeds(
+        getDoc(doc(authenticatedDb(), 'public_profiles', UID))
+      );
+    }
+
+    await seedPublicProfile();
+
+    const clean = await assertSucceeds(
+      getDoc(doc(visitorDb(), 'public_profiles', UID))
+    );
+
+    expect(clean.data()).not.toHaveProperty('email');
+  });
+
+
+  it('isola o email cadastral entre duas contas', async () => {
+    const ownerEmail = 'titular@cadastro.invalid';
+    const visitorEmail = 'visitante@cadastro.invalid';
+
+    await seedUser({ email: ownerEmail });
+    await seedVisitor({ email: visitorEmail });
+    await seedPublicProfile();
+
+    const ownerPrivate = await assertSucceeds(
+      getDoc(doc(authenticatedDb(), 'users', UID))
+    );
+
+    expect(ownerPrivate.data()?.['email'])
+      .toBe(ownerEmail);
+
+    const visitorPrivate = await assertSucceeds(
+      getDoc(doc(visitorDb(), 'users', VISITOR_UID))
+    );
+
+    expect(visitorPrivate.data()?.['email'])
+      .toBe(visitorEmail);
+
+    await assertFails(
+      getDoc(doc(visitorDb(), 'users', UID))
+    );
+
+    await assertFails(
+      getDoc(doc(authenticatedDb(), 'users', VISITOR_UID))
+    );
+
+    const publicProfileRead = await assertSucceeds(
+      getDoc(doc(visitorDb(), 'public_profiles', UID))
+    );
+
+    expect(publicProfileRead.data()).not.toHaveProperty('email');
+    expect(JSON.stringify(publicProfileRead.data()))
+      .not.toContain(ownerEmail);
+  });
+
 });
