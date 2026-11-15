@@ -33,7 +33,7 @@ const args = [
   'firestore',
   '--project',
   'demo-entretenimento-rules',
-  'vitest run --config vitest.rules.config.ts --reporter=verbose',
+  'node node_modules/vitest/vitest.mjs run --config vitest.rules.config.ts --reporter=verbose',
 ];
 
 const forbiddenDiagnostics = [
