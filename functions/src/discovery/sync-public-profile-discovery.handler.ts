@@ -26,6 +26,8 @@ import {
   publicDescriptionProjectionMatches,
   publicLocationProjectionMatches,
   PRIVATE_DISCOVERY_INTEREST_FIELDS,
+  PRIVATE_PUBLIC_PROFILE_EMAIL_FIELDS,
+  publicProfileHasPrivateEmailFields,
   publicProfileDiscoveryProjectionMatches,
   resolvePublicProfileAge,
 } from './public-profile-discovery-projection';
@@ -121,6 +123,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
       const currentPublic = publicProfileSnapshot.data() ?? {};
 
       if (
+        !publicProfileHasPrivateEmailFields(currentPublic) &&
         currentPublic['profileId'] === profileId &&
         publicProfileDiscoveryProjectionMatches(currentPublic, canonical) &&
         publicIdentityProjectionMatches(currentPublic, publicIdentity) &&
@@ -147,6 +150,11 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
           // Nunca persistir listas de busca no documento público consultável.
           ...Object.fromEntries(
             PRIVATE_DISCOVERY_INTEREST_FIELDS.map((field) => [field, FieldValue.delete()])
+          ),
+          ...Object.fromEntries(
+            PRIVATE_PUBLIC_PROFILE_EMAIL_FIELDS.map(
+              field => [field, FieldValue.delete()]
+            )
           ),
           compatibilityReady: canonical.compatibilityReady,
           age,

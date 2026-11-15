@@ -227,3 +227,29 @@ table {
     min-width: 720px;
   }
 }
+
+.page-scope-note {
+  margin: 0;
+  padding: 0 16px;
+  color: var(--muted-text-color, #6b7280);
+  font-size: 0.82rem;
+}
+
+.server-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 16px 16px;
+}
+
+.server-pagination button {
+  min-height: 44px;
+}
+
+.server-pagination span {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted-text-color, #6b7280);
+}

@@ -3,16 +3,16 @@ import { Injectable } from '@angular/core';
 import { Resolve, ActivatedRouteSnapshot, Router } from '@angular/router';
 import { EMPTY, of } from 'rxjs';
 import { catchError, switchMap, take } from 'rxjs/operators';
-import { UserManagementService } from 'src/app/core/services/account-moderation/user-management.service';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { AdminUserDetailService } from 'src/app/core/services/account-moderation/admin-user-detail.service';
+import { type AdminUserRow } from 'src/app/core/services/account-moderation/admin-users-page.model';
 
 @Injectable({ providedIn: 'root' })
-export class UserResolver implements Resolve<IUserDados> {
-  constructor(private userMgmt: UserManagementService, private router: Router) { }
+export class UserResolver implements Resolve<AdminUserRow> {
+  constructor(private adminUserDetail: AdminUserDetailService, private router: Router) { }
 
   resolve(route: ActivatedRouteSnapshot) {
     const uid = route.paramMap.get('uid')!;
-    return this.userMgmt.getUserById(uid).pipe(
+    return this.adminUserDetail.getAdminUserDetail$(uid).pipe(
       take(1),
       switchMap(user => {
         if (user) return of(user);

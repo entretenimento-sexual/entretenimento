@@ -34,13 +34,13 @@ describe('UserDetailsComponent', () => {
               data: {
                 user: {
                   uid: 'u1',
-                  email: 'admin-target@example.com',
                   nickname: 'Target',
-                  photoURL: null,
-                  role: 'free',
-                  lastLogin: 0,
-                  isSubscriber: false,
-                  descricao: '',
+                  profileCompleted: true,
+                  accountStatus: 'active',
+                  suspended: false,
+                  accountLocked: false,
+                  interactionBlocked: false,
+                  loginAllowed: true,
                 },
               },
             },
@@ -92,6 +92,40 @@ describe('UserDetailsComponent', () => {
 
   it('deve criar o componente', () => {
     expect(component).toBeTruthy();
+  });
+
+
+  it('uses only the safe nickname or UID for notices', () => {
+    const keys = Object.keys(component.user).sort();
+
+    expect(keys).toEqual([
+      'uid',
+      'nickname',
+      'profileCompleted',
+      'accountStatus',
+      'suspended',
+      'accountLocked',
+      'interactionBlocked',
+      'loginAllowed',
+    ].sort());
+
+    component.user.nickname = null;
+    fixture.detectChanges();
+
+    const rendered = String(fixture.nativeElement.textContent);
+    expect(rendered).not.toContain('@');
+
+    component.issueComplianceNotice();
+
+    expect(dialogOpen).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        data: {
+          targetUid: 'u1',
+          targetLabel: 'u1',
+        },
+      })
+    );
   });
 
   it('deve agendar exclusão pelo lifecycle autorizado', () => {

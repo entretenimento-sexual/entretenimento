@@ -10,7 +10,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatSort, MatSortModule } from '@angular/material/sort';
 import { MatDialog } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -26,8 +25,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { Observable } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { UserManagementService } from 'src/app/core/services/account-moderation/user-management.service';
+import { type AdminUserRow } from 'src/app/core/services/account-moderation/admin-users-page.model';
+import { AdminUsersPageService } from 'src/app/core/services/account-moderation/admin-users-page.service';
 import { UserModerationService } from 'src/app/core/services/account-moderation/user-moderation.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { AccountLifecycleService } from 'src/app/account/application/account-lifecycle.service';
@@ -36,7 +35,7 @@ import { ConfirmDialogComponent } from '../shared/confirm-dialog/confirm-dialog.
 type AdminUserFilter = 'pending' | 'restricted' | 'active' | 'all';
 type UserStatusSeverity = 'success' | 'warning' | 'danger' | 'info';
 
-interface IUserDadosExtended extends IUserDados {
+interface IUserDadosExtended extends AdminUserRow {
   suspended: boolean;
   accountLocked: boolean;
   profileCompleted: boolean;
@@ -46,7 +45,6 @@ interface IUserDadosExtended extends IUserDados {
   profileStatusLabel: string;
   operationalStatusLabel: string;
   statusSeverity: UserStatusSeverity;
-  lastActivity: number;
   operationalPriority: number;
 }
 
@@ -66,7 +64,6 @@ interface AdminUserFilterOption {
     CommonModule,
     FormsModule,
     MatTableModule,
-    MatPaginatorModule,
     MatSortModule,
     MatFormFieldModule,
     MatInputModule,
@@ -86,15 +83,21 @@ export class UserListComponent implements OnInit {
   loading = false;
   activeFilter: AdminUserFilter = 'pending';
   searchTerm = '';
+  loadFailed = false;
+  hasMore = false;
+  pageIndex = 0;
+
+  private pageCursor: string | null = null;
+  private nextCursor: string | null = null;
+  private cursorHistory: Array<string | null> = [];
 
   private allUsers: IUserDadosExtended[] = [];
   private readonly pendingActionUids = new Set<string>();
 
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
 
   constructor(
-    private readonly userManagementService: UserManagementService,
+    private readonly adminUsersPage: AdminUsersPageService,
     private readonly userModeration: UserModerationService,
     private readonly accountLifecycle: AccountLifecycleService,
     private readonly notifications: ErrorNotificationService,
@@ -154,28 +157,78 @@ export class UserListComponent implements OnInit {
   }
 
   loadUsers(): void {
+    this.loadPage(this.pageCursor, 'refresh');
+  }
+
+  nextServerPage(): void {
+    if (
+      this.loading ||
+      this.loadFailed ||
+      !this.hasMore ||
+      !this.nextCursor
+    ) return;
+
+    this.loadPage(this.nextCursor, 'next');
+  }
+
+  previousServerPage(): void {
+    if (
+      this.loading ||
+      this.cursorHistory.length === 0
+    ) return;
+
+    const previous =
+      this.cursorHistory[this.cursorHistory.length - 1];
+
+    this.loadPage(previous, 'previous');
+  }
+
+  private loadPage(
+    cursor: string | null,
+    direction: 'refresh' | 'next' | 'previous'
+  ): void {
+    if (this.loading) return;
+
     this.loading = true;
+    this.loadFailed = false;
     this.cdr.markForCheck();
 
-    this.userManagementService
-      .getAllUsers()
-      .pipe(
-        finalize(() => {
-          this.loading = false;
-          this.cdr.markForCheck();
-        })
-      )
-      .subscribe({
-        next: (users) => {
-          this.allUsers = users.map((user) => this.toAdminRow(user));
-          this.renderRows();
-        },
-        error: (error) =>
-          this.notifications.showError(
-            'Falha ao carregar usuários.',
-            error instanceof Error ? error.message : undefined
-          ),
-      });
+    this.adminUsersPage.getAdminUsersPage$({
+      cursor,
+      limit: 25,
+    }).pipe(
+      finalize(() => {
+        this.loading = false;
+        this.cdr.markForCheck();
+      })
+    ).subscribe({
+      next: page => {
+        if (direction === 'next') {
+          this.cursorHistory.push(this.pageCursor);
+        } else if (direction === 'previous') {
+          this.cursorHistory.pop();
+        }
+
+        this.pageCursor = cursor;
+        this.pageIndex = this.cursorHistory.length;
+        this.nextCursor = page.nextCursor;
+        this.hasMore = page.hasMore;
+        this.allUsers = page.items.map(
+          user => this.toAdminRow(user)
+        );
+
+        this.renderRows();
+      },
+      error: () => {
+        this.loadFailed = true;
+        this.allUsers = [];
+        this.renderRows();
+
+        this.notifications.showError(
+          'Falha ao carregar usuarios administrativos.'
+        );
+      },
+    });
   }
 
   viewUserDetails(row: IUserDadosExtended): void {
@@ -215,7 +268,6 @@ export class UserListComponent implements OnInit {
           this.updateLocalUser(row.uid, {
             suspended: willSuspend,
             accountStatus: willSuspend ? 'moderation_suspended' : 'active',
-            statusUpdatedAt: Date.now(),
           })
       );
     });
@@ -249,7 +301,6 @@ export class UserListComponent implements OnInit {
         () =>
           this.updateLocalUser(row.uid, {
             accountLocked: willLock,
-            statusUpdatedAt: Date.now(),
           })
       );
     });
@@ -277,17 +328,11 @@ export class UserListComponent implements OnInit {
         'Exclusão do usuário agendada.',
         'Falha ao agendar exclusão do usuário.',
         () => {
-          const now = Date.now();
-
           this.updateLocalUser(row.uid, {
             accountStatus: 'pending_deletion',
-            publicVisibility: 'hidden',
             interactionBlocked: true,
             loginAllowed: true,
             suspended: false,
-            deletionRequestedAt: now,
-            deletionRequestedBy: 'moderator',
-            statusUpdatedAt: now,
           });
         }
       );
@@ -302,16 +347,10 @@ export class UserListComponent implements OnInit {
     this.dataSource.filterPredicate = (row, filter) =>
       [
         row.displayName,
-        row.email,
         row.uid,
-        row.municipio,
-        row.estado,
         row.profileStatusLabel,
         row.operationalStatusLabel,
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(filter);
+      ].join(' ').toLowerCase().includes(filter);
 
     this.dataSource.sortingDataAccessor = (row, property) => {
       switch (property) {
@@ -322,7 +361,7 @@ export class UserListComponent implements OnInit {
         case 'risco':
           return row.operationalPriority;
         default:
-          return String((row as any)[property] ?? '').toLowerCase();
+          return '';
       }
     };
   }
@@ -341,10 +380,6 @@ export class UserListComponent implements OnInit {
 
   private bindTableTools(): void {
     Promise.resolve().then(() => {
-      if (this.paginator) {
-        this.dataSource.paginator = this.paginator;
-      }
-
       if (this.sort) {
         this.dataSource.sort = this.sort;
       }
@@ -407,63 +442,44 @@ export class UserListComponent implements OnInit {
     this.renderRows();
   }
 
-  private updateLocalUser(uid: string, patch: Partial<IUserDados>): void {
+  private updateLocalUser(uid: string, patch: Partial<AdminUserRow>): void {
     this.allUsers = this.allUsers.map((user) =>
       user.uid === uid ? this.toAdminRow({ ...user, ...patch }) : user
     );
     this.renderRows();
   }
 
-  private toAdminRow(user: IUserDados): IUserDadosExtended {
-    const uid = String(user.uid ?? '').trim();
+  private toAdminRow(user: AdminUserRow): IUserDadosExtended {
+    const uid = user.uid;
     const suspended =
-      user.suspended === true || user.accountStatus === 'moderation_suspended';
+      user.suspended === true ||
+      user.accountStatus === 'moderation_suspended';
     const accountLocked = user.accountLocked === true;
     const profileCompleted = user.profileCompleted === true;
-    const displayName = String(
-      user.nickname || user.nome || user.email || 'Usuário sem identificação'
-    ).trim();
-    const region = [user.municipio, user.estado].filter(Boolean).join(' / ');
-    const isSubscriber =
-      user.isSubscriber === true ||
-      user.subscriptionStatus === 'active' ||
-      ['premium', 'vip'].includes(String(user.role ?? ''));
-    const statusSeverity = this.userStatusSeverity({
+
+    const operational = {
       ...user,
       suspended,
       accountLocked,
       profileCompleted,
-    });
+    };
 
     return {
-      ...user,
-      uid,
-      suspended,
-      accountLocked,
-      profileCompleted,
+      ...operational,
       actionPending: this.pendingActionUids.has(uid),
-      displayName,
-      adminSubtitle: [
-        region || 'Região não informada',
-        isSubscriber ? 'Assinante' : 'Sem assinatura ativa',
-      ].join(' · '),
+      displayName: String(
+        user.nickname || 'Usuario sem apelido'
+      ).trim(),
+      adminSubtitle: 'UID: ' + uid,
       profileStatusLabel: profileCompleted
         ? 'Perfil completo'
         : 'Cadastro pendente',
-      operationalStatusLabel: this.userStatusLabel({
-        ...user,
-        suspended,
-        accountLocked,
-        profileCompleted,
-      }),
-      statusSeverity,
-      lastActivity: this.userTime(user),
-      operationalPriority: this.userOperationalPriority({
-        ...user,
-        suspended,
-        accountLocked,
-        profileCompleted,
-      }),
+      operationalStatusLabel:
+        this.userStatusLabel(operational),
+      statusSeverity:
+        this.userStatusSeverity(operational),
+      operationalPriority:
+        this.userOperationalPriority(operational),
     };
   }
 
@@ -563,15 +579,4 @@ export class UserListComponent implements OnInit {
     );
   }
 
-  private userTime(user: IUserDados): number {
-    return (
-      Number(
-        user.lastLogin ??
-          user.createdAt ??
-          user.registrationDate ??
-          user.firstLogin ??
-          0
-      ) || 0
-    );
-  }
 }

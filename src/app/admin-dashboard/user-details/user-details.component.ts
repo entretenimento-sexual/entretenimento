@@ -7,7 +7,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { EMPTY } from 'rxjs';
 import { finalize, switchMap } from 'rxjs/operators';
 
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { type AdminUserRow } from 'src/app/core/services/account-moderation/admin-users-page.model';
 import { AccountLifecycleService } from 'src/app/account/application/account-lifecycle.service';
 import { StaffComplianceService } from 'src/app/core/services/compliance/staff-compliance.service';
 import { ConfirmDialogComponent } from '../shared/confirm-dialog/confirm-dialog.component';
@@ -16,7 +16,6 @@ import {
 } from './compliance-notice-dialog.component';
 import {
   MatCardTitle,
-  MatCardSubtitle,
   MatCardContent,
   MatCardActions,
   MatCardHeader,
@@ -34,7 +33,6 @@ import { MatButtonModule } from '@angular/material/button';
   imports: [
     CommonModule,
     MatCardTitle,
-    MatCardSubtitle,
     MatCardContent,
     MatChip,
     MatProgressBar,
@@ -45,7 +43,7 @@ import { MatButtonModule } from '@angular/material/button';
   ],
 })
 export class UserDetailsComponent {
-  user!: IUserDados & { suspended?: boolean };
+  user!: AdminUserRow;
   loading = false;
 
   constructor(
@@ -58,6 +56,35 @@ export class UserDetailsComponent {
     this.user = route.snapshot.data['user'];
   }
 
+  userStatusLabel(user: AdminUserRow): string {
+    if (user.accountStatus === 'pending_deletion') {
+      return 'Exclus?o agendada';
+    }
+
+    if (user.accountStatus === 'deleted') {
+      return 'Conta exclu?da';
+    }
+
+    if (
+      user.suspended ||
+      user.accountStatus === 'self_suspended' ||
+      user.accountStatus === 'moderation_suspended'
+    ) {
+      return 'Suspensa';
+    }
+
+    if (
+      user.accountStatus !== 'active' ||
+      user.accountLocked ||
+      user.interactionBlocked ||
+      !user.loginAllowed
+    ) {
+      return 'Restrita';
+    }
+
+    return 'Ativa';
+  }
+
   issueComplianceNotice(): void {
     if (this.loading) return;
 
@@ -67,8 +94,7 @@ export class UserDetailsComponent {
       data: {
         targetUid: this.user.uid,
         targetLabel:
-          String(this.user.nickname ?? this.user.nome ?? '').trim() ||
-          this.user.email ||
+          String(this.user.nickname ?? '').trim() ||
           this.user.uid,
       },
     });
@@ -123,7 +149,6 @@ export class UserDetailsComponent {
               ...this.user,
               suspended: true,
               accountStatus: 'moderation_suspended',
-              publicVisibility: 'hidden',
               interactionBlocked: true,
             };
             this.snack.open('Usuário suspenso e notificado', 'Fechar', {
@@ -188,18 +213,11 @@ export class UserDetailsComponent {
         .pipe(finalize(() => (this.loading = false)))
         .subscribe({
           next: () => {
-            const now = Date.now();
-
             this.user = {
               ...this.user,
               accountStatus: 'pending_deletion',
-              publicVisibility: 'hidden',
               interactionBlocked: true,
-              loginAllowed: true,
               suspended: false,
-              deletionRequestedAt: now,
-              deletionRequestedBy: 'moderator',
-              statusUpdatedAt: now,
             };
 
             this.snack.open('Exclusão agendada', 'Fechar', { duration: 3000 });

@@ -73,9 +73,10 @@ export class AccountFacade {
   ): AccountOverviewVm {
     const nickname = String(user?.nickname ?? '').trim() || null;
     const uid = String(user?.uid ?? authUser?.uid ?? '').trim() || null;
-    const email = user?.email ?? authUser?.email ?? null;
-    const emailVerified =
-      user?.emailVerified === true || authUser?.emailVerified === true;
+    // Firebase Authentication e a autoridade do email de acesso.
+    // Nao utilizar copias eventualmente desatualizadas do perfil.
+    const email = authUser?.email ?? null;
+    const emailVerified = authUser?.emailVerified === true;
 
     const providerIds = (authUser?.providerData ?? [])
       .map((provider) => String(provider?.providerId ?? '').trim())

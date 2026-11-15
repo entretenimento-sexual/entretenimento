@@ -7,6 +7,8 @@ import {
   buildPublicProfileIdProjection,
   publicAvatarProjectionMatches,
   publicLocationProjectionMatches,
+  PRIVATE_PUBLIC_PROFILE_EMAIL_FIELDS,
+  publicProfileHasPrivateEmailFields,
   publicProfileDiscoveryProjectionMatches,
   publicProfileIdProjectionMatches,
   resolvePublicProfileAge,
@@ -275,4 +277,17 @@ test('projeta idade social somente na faixa pública adulta', () => {
   assert.equal(resolvePublicProfileAge(17), null);
   assert.equal(resolvePublicProfileAge(101), null);
   assert.equal(resolvePublicProfileAge('abc'), null);
+});
+
+test('detecta campos privados de email em perfil publico', () => {
+  assert.equal(publicProfileHasPrivateEmailFields({
+    nickname: 'Pessoa Teste',
+  }), false);
+
+  for (const field of PRIVATE_PUBLIC_PROFILE_EMAIL_FIELDS) {
+    assert.equal(publicProfileHasPrivateEmailFields({
+      nickname: 'Pessoa Teste',
+      [field]: 'privado@example.invalid',
+    }), true, field);
+  }
 });

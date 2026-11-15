@@ -12,7 +12,7 @@
         matInput
         [value]="searchTerm"
         (input)="applyFilter(searchInput.value)"
-        placeholder="Nome, e-mail, UID ou cidade"
+        placeholder="Apelido ou UID nesta pagina"
       />
       <mat-icon matSuffix aria-hidden="true">search</mat-icon>
     </mat-form-field>
@@ -20,9 +20,15 @@
 
   <mat-progress-bar *ngIf="loading" mode="indeterminate" aria-label="Carregando usuários"></mat-progress-bar>
 
-  <section class="user-review-summary" aria-label="Resumo de usuários">
+  <p class="page-scope-note" role="status">
+    Indicadores, busca, filtros e ordenacao
+    consideram somente a pagina carregada.
+  </p>
+
+  <section class="user-review-summary"
+    aria-label="Resumo da pagina atual">
     <article class="summary-tile summary-tile--info">
-      <span>Total</span>
+      <span>Nesta pagina</span>
       <strong>{{ totalUsers }}</strong>
     </article>
     <article class="summary-tile summary-tile--warning">
@@ -60,7 +66,6 @@
         <td mat-cell *matCellDef="let row" data-label="Usuário">
           <div class="user-cell">
             <strong>{{ row.displayName }}</strong>
-            <span>{{ row.email || 'E-mail não informado' }}</span>
             <small>{{ row.adminSubtitle }}</small>
           </div>
         </td>
@@ -82,9 +87,6 @@
             <mat-chip [ngClass]="['status-chip', 'status-chip--' + row.statusSeverity]" selected>
               {{ row.operationalStatusLabel }}
             </mat-chip>
-            <time *ngIf="row.lastActivity" [attr.datetime]="row.lastActivity | date: 'yyyy-MM-ddTHH:mm:ss'">
-              Última atividade: {{ row.lastActivity | date: 'dd/MM HH:mm' }}
-            </time>
           </div>
         </td>
       </ng-container>
@@ -129,12 +131,35 @@
       <tr mat-row *matRowDef="let row; columns: displayedColumns" [class.row-pending]="row.actionPending"></tr>
     </table>
 
-    <div class="empty-state" *ngIf="!loading && !dataSource.filteredData.length" role="status" aria-live="polite">
+    <div class="empty-state" *ngIf="loadFailed"
+      role="alert">
+      <strong>Consulta indisponivel</strong>
+      <button type="button" mat-stroked-button
+        (click)="loadUsers()">Tentar novamente</button>
+    </div>
+
+    <div class="empty-state"
+      *ngIf="!loading && !loadFailed && !dataSource.filteredData.length" role="status" aria-live="polite">
       <mat-icon aria-hidden="true">person_search</mat-icon>
       <strong>Nenhum usuário neste recorte</strong>
       <span>Altere o filtro ou revise o termo de busca.</span>
     </div>
   </div>
 
-  <mat-paginator [pageSize]="10" [pageSizeOptions]="[5,10,25,50]" aria-label="Paginação de usuários"></mat-paginator>
+<nav class="server-pagination"
+    aria-label="Navegacao entre paginas de usuarios">
+    <button type="button" mat-stroked-button
+      [disabled]="loading || pageIndex === 0"
+      (click)="previousServerPage()">
+      Anterior
+    </button>
+    <span role="status" aria-live="polite">
+      Pagina {{ pageIndex + 1 }}
+    </span>
+    <button type="button" mat-stroked-button
+      [disabled]="loading || loadFailed || !hasMore"
+      (click)="nextServerPage()">
+      Proxima
+    </button>
+  </nav>
 </mat-card>

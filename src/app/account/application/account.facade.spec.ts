@@ -154,4 +154,44 @@ describe('AccountFacade canonical subscription state', () => {
     expect(roleLabel).toBe('Administrador');
     sub.unsubscribe();
   });
+
+  it('usa exclusivamente o email e a verificacao do Auth atual', () => {
+    userSubject.next({
+      ...user(),
+      email: 'antigo@cadastro.invalid',
+      emailVerified: true,
+    });
+
+    authUserSubject.next({
+      uid: 'user-1',
+      email: 'atual@cadastro.invalid',
+      emailVerified: false,
+      providerData: [],
+    });
+
+    const facade = TestBed.inject(AccountFacade);
+    const emails: Array<string | null> = [];
+    const statuses: boolean[] = [];
+
+    const sub = facade.vm$.subscribe(vm => {
+      emails.push(vm?.email ?? null);
+      statuses.push(vm?.emailVerified ?? false);
+    });
+
+    expect(emails.at(-1)).toBe('atual@cadastro.invalid');
+    expect(statuses.at(-1)).toBe(false);
+
+    authUserSubject.next({
+      uid: 'user-1',
+      email: null,
+      emailVerified: false,
+      providerData: [],
+    });
+
+    expect(emails.at(-1)).toBeNull();
+    expect(statuses.at(-1)).toBe(false);
+
+    sub.unsubscribe();
+  });
+
 });

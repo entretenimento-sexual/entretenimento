@@ -26,7 +26,7 @@
       >
         <span class="mobile-summary-card__icon" aria-hidden="true"><mat-icon>{{ metric.icon }}</mat-icon></span>
         <span class="mobile-summary-card__body">
-          <strong>{{ metric.value }}</strong>
+          <strong>{{ metric.value ?? '--' }}</strong>
           <span>{{ metric.label }}</span>
         </span>
       </article>
@@ -38,7 +38,7 @@
       <div class="metric-card__icon" aria-hidden="true"><mat-icon>{{ metric.icon }}</mat-icon></div>
       <div>
         <p>{{ metric.label }}</p>
-        <strong>{{ metric.value }}</strong>
+        <strong>{{ metric.value ?? '--' }}</strong>
         <span>{{ metric.hint }}</span>
       </div>
     </article>
@@ -58,7 +58,7 @@
           <strong>{{ action.title }}</strong>
           <span>{{ action.description }}</span>
         </span>
-        <span class="quick-action__meta">{{ action.count }}</span>
+        <span class="quick-action__meta">{{ action.count ?? '--' }}</span>
         <span class="quick-action__cta">{{ action.cta }}</span>
       </a>
     </div>
@@ -199,36 +199,31 @@
       </ng-template>
     </article>
 
-    <article class="operational-panel" aria-labelledby="users-title">
+    <article class="operational-panel"
+      aria-labelledby="users-title">
       <header class="operational-panel__header">
         <div>
-          <h3 id="users-title">Entradas recentes</h3>
+          <h3 id="users-title">Usuarios</h3>
         </div>
-        <a mat-button routerLink="/admin-dashboard/users">Ver usuários</a>
       </header>
 
-      <ol class="compact-list" *ngIf="vm.recentUsers.length; else noUsers">
-        <li *ngFor="let user of vm.recentUsers; trackBy: trackByUserUid">
-          <div>
-            <strong>{{ user.label }}</strong>
-            <span>{{ user.subtitle }}</span>
-          </div>
-          <time *ngIf="user.timestamp" [attr.datetime]="user.timestamp | date: 'yyyy-MM-ddTHH:mm:ss'">{{ user.timestamp | date: 'dd/MM HH:mm' }}</time>
-        </li>
-      </ol>
-
-      <ng-template #noUsers>
-        <div class="empty-state" role="status" aria-live="polite">
-          <div class="empty-state__icon" aria-hidden="true"><mat-icon>person_off</mat-icon></div>
-          <div class="empty-state__content">
-            <strong>Nenhum usuário carregado</strong>
-            <span>Os dados de usuários ainda não foram retornados para este painel.</span>
-          </div>
-          <div class="empty-state__actions">
-            <a mat-button routerLink="/admin-dashboard/users">Abrir usuários</a>
-          </div>
+      <div class="empty-state" role="status">
+        <div class="empty-state__icon" aria-hidden="true">
+          <mat-icon>manage_accounts</mat-icon>
         </div>
-      </ng-template>
+        <div class="empty-state__content">
+          <strong>Consulta administrativa paginada</strong>
+          <span>
+            Os dados individuais nao sao carregados neste painel.
+            Utilize a lista administrativa para revisar contas.
+          </span>
+        </div>
+        <div class="empty-state__actions">
+          <a mat-button routerLink="/admin-dashboard/users">
+            Abrir lista de usuarios
+          </a>
+        </div>
+      </div>
     </article>
   </section>
 </section>

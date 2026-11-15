@@ -97,6 +97,9 @@ const expectedDeploymentExports = [
   'expireAgeEligibilityRecords',
   'findCommunityInviteCandidate',
   'getAccountDeletionOperations',
+  'getAdminUserDetail',
+  'getAdminUserOverview',
+  'getAdminUsersPage',
   'getAuthorizedPhotoOwnerPage',
   // Consulta contextual, autenticada, protegida por App Check e amizade recíproca.
   // A descoberta global permanece restrita a PUBLIC.

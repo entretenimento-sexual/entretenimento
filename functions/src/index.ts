@@ -59,3 +59,7 @@ export {
   completeRegistrationProfile,
 } from './registration/registration-profile-authority.handler';
 export { getRegistrationNicknameAvailability } from './registration/get-registration-nickname-availability.handler';
+
+export { getAdminUsersPage } from './admin-users/get-admin-users-page.handler';
+export { getAdminUserOverview } from './admin-users/get-admin-user-overview.handler';
+export { getAdminUserDetail } from './admin-users/get-admin-user-detail.handler';

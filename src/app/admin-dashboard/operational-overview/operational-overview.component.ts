@@ -7,8 +7,8 @@ import { catchError, finalize, map, shareReplay, startWith } from 'rxjs/operator
 
 import { AdminMaterialModule } from '../admin-material.module';
 import { isAgedOpenModerationReport, moderationReportDateValue } from '../moderation-reports/moderation-report-age.util';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { UserManagementService } from 'src/app/core/services/account-moderation/user-management.service';
+import { type AdminUserOverview } from 'src/app/core/services/account-moderation/admin-user-overview.model';
+import { AdminUserOverviewService } from 'src/app/core/services/account-moderation/admin-user-overview.service';
 import {
   AdminModerationReportService,
   AdminModerationReportVm,
@@ -29,7 +29,7 @@ interface LoadState<T> {
 
 interface OperationalMetric {
   label: string;
-  value: number;
+  value: number | null;
   hint: string;
   icon: string;
   severity: OperationalSeverity;
@@ -47,7 +47,7 @@ interface OperationalQuickAction {
   title: string;
   description: string;
   cta: string;
-  count: number;
+  count: number | null;
   severity: OperationalSeverity;
   icon: string;
   routerLink: string;
@@ -72,13 +72,6 @@ interface OperationalReportItem extends AdminModerationReportVm {
   canReject: boolean;
 }
 
-interface RecentOperationalUser {
-  uid: string;
-  label: string;
-  subtitle: string;
-  timestamp: number;
-}
-
 interface OperationalOverviewVm {
   metrics: OperationalMetric[];
   alerts: OperationalAlert[];
@@ -89,10 +82,9 @@ interface OperationalOverviewVm {
   reportSortOptions: OperationalReportSortOption[];
   filteredReports: OperationalReportItem[];
   recentReports: AdminModerationReportVm[];
-  recentUsers: RecentOperationalUser[];
   loading: boolean;
   failed: boolean;
-  totalUsers: number;
+  totalUsers: number | null;
   totalReports: number;
 }
 
@@ -105,7 +97,7 @@ interface OperationalOverviewVm {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OperationalOverviewComponent {
-  private readonly userManagement = inject(UserManagementService);
+  private readonly adminUserOverview = inject(AdminUserOverviewService);
   private readonly reportsService = inject(AdminModerationReportService);
   private readonly notifications = inject(ErrorNotificationService);
   private readonly applicationError = inject(ApplicationErrorService);
@@ -113,14 +105,22 @@ export class OperationalOverviewComponent {
   private readonly reportSortSubject = new BehaviorSubject<OperationalReportSort>('priority');
   private readonly reportActionIdsSubject = new BehaviorSubject<ReadonlySet<string>>(new Set<string>());
 
-  private readonly usersState$: Observable<LoadState<IUserDados[]>> = this.userManagement.getAllUsers().pipe(
-    map((users) => this.loadedState(users)),
-    catchError((error) => this.handleLoadError<IUserDados[]>(
-      error,
-      'Não foi possível carregar os usuários do painel operacional.',
-      []
-    )),
-    startWith(this.loadingState<IUserDados[]>([])),
+  private readonly usersState$: Observable<
+    LoadState<AdminUserOverview | null>
+  > = this.adminUserOverview.getAdminUserOverview$().pipe(
+    map(value => this.loadedState<AdminUserOverview | null>(value)),
+    catchError(() => {
+      this.notifications.showError(
+        'Nao foi possivel carregar indicadores administrativos.'
+      );
+
+      return of({
+        value: null,
+        loading: false,
+        failed: true,
+      } as LoadState<AdminUserOverview | null>);
+    }),
+    startWith(this.loadingState<AdminUserOverview | null>(null)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -211,10 +211,6 @@ export class OperationalOverviewComponent {
     return report.id;
   }
 
-  trackByUserUid(_: number, user: RecentOperationalUser): string {
-    return user.uid;
-  }
-
   statusLabel(status: AdminModerationReportVm['status']): string {
     switch (status) {
       case 'open':
@@ -235,21 +231,25 @@ export class OperationalOverviewComponent {
   }
 
   private buildVm(
-    usersState: LoadState<IUserDados[]>,
+    usersState: LoadState<AdminUserOverview | null>,
     reportsState: LoadState<AdminModerationReportVm[]>,
     reportFilter: OperationalReportFilter,
     reportSort: OperationalReportSort,
     reportActionIds: ReadonlySet<string>
   ): OperationalOverviewVm {
-    const users = usersState.value;
+    const overview = usersState.value;
     const reports = reportsState.value;
 
-    const totalUsers = users.length;
-    const completedProfiles = users.filter((user) => user.profileCompleted === true).length;
-    const incompleteProfiles = users.filter((user) => user.profileCompleted !== true).length;
-    const suspendedUsers = users.filter((user) => this.isSuspendedUser(user)).length;
-    const onlineUsers = users.filter((user) => user.isOnline === true).length;
-    const subscribers = users.filter((user) => this.isActiveSubscriber(user)).length;
+    const totalUsers = overview?.totalUsers ?? null;
+    const completedProfiles = overview?.completedProfiles ?? null;
+    const incompleteProfiles = overview?.incompleteProfiles ?? null;
+    const suspendedUsers = overview?.restrictedUsers ?? null;
+    const onlineUsers = overview?.onlineUsers ?? null;
+    const subscribers = overview?.subscribers ?? null;
+
+    const unavailable = usersState.loading
+      ? 'Carregando indicador'
+      : 'Indicador indisponivel';
 
     const openReports = reports.filter((report) => report.status === 'open');
     const agedOpenReports = openReports.filter((report) => isAgedOpenModerationReport(report));
@@ -266,16 +266,16 @@ export class OperationalOverviewComponent {
         {
           label: 'Usuários',
           value: totalUsers,
-          hint: `${completedProfiles} com perfil completo`,
+          hint: overview ? `${completedProfiles} com perfil completo` : unavailable,
           icon: 'groups',
           severity: 'info',
         },
         {
           label: 'Cadastros pendentes',
           value: incompleteProfiles,
-          hint: 'Precisam finalizar o perfil',
+          hint: overview ? 'Precisam finalizar o perfil' : unavailable,
           icon: 'assignment_late',
-          severity: incompleteProfiles > 0 ? 'warning' : 'success',
+          severity: incompleteProfiles === null ? 'info' : incompleteProfiles > 0 ? 'warning' : 'success',
         },
         {
           label: 'Denúncias abertas',
@@ -292,22 +292,32 @@ export class OperationalOverviewComponent {
           severity: reviewingReports.length > 0 ? 'info' : 'success',
         },
         {
-          label: 'Online agora',
+          label: 'Sinal online',
           value: onlineUsers,
-          hint: 'Sinal de presença ativo',
+          hint: overview
+            ? 'Sinal persistido, nao presenca em tempo real'
+            : unavailable,
           icon: 'radio_button_checked',
-          severity: 'success',
+          severity: 'info',
         },
         {
-          label: 'Assinantes',
+          label: 'Assinantes (provisorio)',
           value: subscribers,
-          hint: 'Premium, VIP ou assinatura ativa',
+          hint: overview
+            ? 'Aguardando validacao do entitlement canonico'
+            : unavailable,
           icon: 'workspace_premium',
           severity: 'info',
         },
       ],
       alerts: this.buildAlerts({
         failed: usersState.failed || reportsState.failed,
+        ready:
+          !usersState.loading &&
+          !reportsState.loading &&
+          !usersState.failed &&
+          !reportsState.failed &&
+          overview !== null,
         agedOpenReports: agedOpenReports.length,
         openReports: openReports.length,
         incompleteProfiles,
@@ -331,7 +341,6 @@ export class OperationalOverviewComponent {
       reportSortOptions: this.buildReportSortOptions(),
       filteredReports,
       recentReports: this.sortReportsByCreatedAt(openReports.length ? openReports : reports).slice(0, 5),
-      recentUsers: this.recentUsers(users),
       loading: usersState.loading || reportsState.loading,
       failed: usersState.failed || reportsState.failed,
       totalUsers,
@@ -341,10 +350,11 @@ export class OperationalOverviewComponent {
 
   private buildAlerts(input: {
     failed: boolean;
+    ready: boolean;
     agedOpenReports: number;
     openReports: number;
-    incompleteProfiles: number;
-    suspendedUsers: number;
+    incompleteProfiles: number | null;
+    suspendedUsers: number | null;
   }): OperationalAlert[] {
     const alerts: OperationalAlert[] = [];
 
@@ -375,7 +385,7 @@ export class OperationalOverviewComponent {
       });
     }
 
-    if (input.incompleteProfiles > 0) {
+    if ((input.incompleteProfiles ?? 0) > 0) {
       alerts.push({
         title: 'Cadastros incompletos',
         description: `${input.incompleteProfiles} usuário(s) ainda não concluíram o perfil.`,
@@ -385,7 +395,7 @@ export class OperationalOverviewComponent {
       });
     }
 
-    if (input.suspendedUsers > 0) {
+    if ((input.suspendedUsers ?? 0) > 0) {
       alerts.push({
         title: 'Contas com restrição',
         description: `${input.suspendedUsers} conta(s) possuem suspensão, bloqueio ou restrição operacional.`,
@@ -395,7 +405,7 @@ export class OperationalOverviewComponent {
       });
     }
 
-    if (!alerts.length) {
+    if (!alerts.length && input.ready) {
       alerts.push({
         title: 'Operação estável',
         description: 'Nenhum bloqueio crítico foi identificado nos indicadores principais.',
@@ -411,8 +421,8 @@ export class OperationalOverviewComponent {
     agedOpenReports: number;
     openReports: number;
     reviewingReports: number;
-    incompleteProfiles: number;
-    suspendedUsers: number;
+    incompleteProfiles: number | null;
+    suspendedUsers: number | null;
   }): OperationalQuickAction[] {
     const moderationCount = input.agedOpenReports || input.openReports;
 
@@ -442,7 +452,7 @@ export class OperationalOverviewComponent {
         description: 'Identifique usuários que ainda não concluíram o perfil.',
         cta: 'Abrir usuários',
         count: input.incompleteProfiles,
-        severity: input.incompleteProfiles > 0 ? 'warning' : 'success',
+        severity: input.incompleteProfiles === null ? 'info' : input.incompleteProfiles > 0 ? 'warning' : 'success',
         icon: 'person_search',
         routerLink: '/admin-dashboard/users',
       },
@@ -451,7 +461,7 @@ export class OperationalOverviewComponent {
         description: 'Acompanhe contas suspensas, bloqueadas ou com restrição de interação.',
         cta: 'Ver contas',
         count: input.suspendedUsers,
-        severity: input.suspendedUsers > 0 ? 'warning' : 'success',
+        severity: input.suspendedUsers === null ? 'info' : input.suspendedUsers > 0 ? 'warning' : 'success',
         icon: 'shield',
         routerLink: '/admin-dashboard/users',
       },
@@ -641,42 +651,12 @@ export class OperationalOverviewComponent {
     return 0;
   }
 
-  private isSuspendedUser(user: IUserDados): boolean {
-    return user.suspended === true
-      || user.accountLocked === true
-      || user.interactionBlocked === true
-      || ['self_suspended', 'moderation_suspended', 'pending_deletion'].includes(String(user.accountStatus ?? ''));
-  }
-
-  private isActiveSubscriber(user: IUserDados): boolean {
-    return user.isSubscriber === true
-      || user.subscriptionStatus === 'active'
-      || ['premium', 'vip'].includes(String(user.role ?? ''));
-  }
-
   private sortReportsByCreatedAt(reports: AdminModerationReportVm[]): AdminModerationReportVm[] {
     return [...reports].sort((a, b) => this.reportTime(b) - this.reportTime(a));
   }
 
   private reportTime(report: AdminModerationReportVm): number {
     return moderationReportDateValue(report.createdAt)?.getTime() ?? 0;
-  }
-
-  private recentUsers(users: IUserDados[]): RecentOperationalUser[] {
-    return [...users]
-      .map((user) => ({
-        uid: String(user.uid ?? '').trim(),
-        label: String(user.nickname || user.nome || user.email || 'Usuário sem identificação'),
-        subtitle: user.profileCompleted === true ? 'Perfil completo' : 'Perfil pendente',
-        timestamp: this.userTime(user),
-      }))
-      .filter((user) => !!user.uid)
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, 5);
-  }
-
-  private userTime(user: IUserDados): number {
-    return Number(user.createdAt ?? user.registrationDate ?? user.firstLogin ?? user.lastLogin ?? 0) || 0;
   }
 
   private loadedState<T>(value: T): LoadState<T> {

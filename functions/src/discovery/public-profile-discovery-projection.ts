@@ -73,6 +73,19 @@ const PUBLIC_LOCATION_POLICIES: Record<string, PublicLocationPolicy> = {
 };
 
 /** Campos de interesse legados não podem existir em documento legível via Firestore. */
+export const PRIVATE_PUBLIC_PROFILE_EMAIL_FIELDS = [
+  'email', 'emailAddress', 'registrationEmail',
+  'authEmail', 'accountEmail', 'authorEmail',
+] as const;
+
+export function publicProfileHasPrivateEmailFields(
+  current: Record<string, unknown>
+): boolean {
+  return PRIVATE_PUBLIC_PROFILE_EMAIL_FIELDS.some(field =>
+    Object.prototype.hasOwnProperty.call(current, field)
+  );
+}
+
 export const PRIVATE_DISCOVERY_INTEREST_FIELDS = [
   'preferences', 'preferencias', 'interests', 'interesses', 'lookingFor', 'buscando',
   'discoveryPreferences', 'hardRules', 'softRules', 'matchingModes', 'selfTraits',
