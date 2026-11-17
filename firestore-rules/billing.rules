@@ -141,32 +141,10 @@ match /billing_plans/{planId} {
 }
 
 
-match /provider_webhook_events/{eventId} {
-  /**
-   * Inbox autenticado de eventos financeiros. Contém somente envelope
-   * sanitizado, mas permanece integralmente backend-only.
-   */
-  allow read, write: if false;
-}
-
-match /platform_subscription_state/{uid} {
-  /**
-   * Ponteiro interno da recorrência atual do usuário. A UI recebe apenas uma
-   * projeção sanitizada via getMyBillingSnapshot.
-   */
-  allow read, write: if false;
-}
-
-match /platform_subscription_checkout_locks/{uid} {
-  /**
-   * Lock efêmero que impede múltiplas recorrências simultâneas.
-   */
-  allow read, write: if false;
-}
-
 match /subscriptions/{subscriptionId} {
   /**
-   * Futuro ciclo de assinatura recorrente.
+   * Contratos de assinatura recorrente. A área financeira consome projeções
+   * do backend para o titular.
    */
   allow read, write: if false;
 }
