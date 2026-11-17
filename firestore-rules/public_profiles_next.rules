@@ -35,12 +35,24 @@ match /public_profiles/{userId} {
     && (isSelf(userId) || (
       lacksPrivateDiscoveryInterestFields()
       && lacksPrivateProfileEmailFields()
+      && publicProfileTextSafe(resource.data, get(privateUserPath()).data.get("email", null))
     ));
 
   allow list: if false;
 
   function privateUserPath() {
     return /databases/$(database)/documents/users/$(userId);
+  }
+
+  function publicProfileTextSafe(data, email) {
+    return publicTextExcludesRegisteredEmail(data.get("nickname", null), email)
+      && publicTextExcludesRegisteredEmail(data.get("nicknameNormalized", null), email)
+      && publicTextExcludesRegisteredEmail(data.get("publicDescription", null), email)
+      && publicTextExcludesRegisteredEmail(data.get("municipio", null), email)
+      && publicTextExcludesRegisteredEmail(data.get("estado", null), email)
+      && publicTextExcludesRegisteredEmail(data.get("orientation", null), email)
+      && publicTextExcludesRegisteredEmail(data.get("avatarUrl", null), email)
+      && publicTextExcludesRegisteredEmail(data.get("photoURL", null), email);
   }
 
   function privateUserEligibleAfter() {
@@ -160,7 +172,7 @@ match /public_profiles/{userId} {
   }
 
   function avatarOnlyUpdate() {
-    let changed = request.resource.data.diff(resource.data).changedKeys();
+    let changed = request.resource.data.diff(resource.data).affectedKeys();
     return changed.hasOnly(["photoURL", "avatarUrl", "updatedAt"])
       && changed.hasAny(["photoURL", "avatarUrl"])
       && request.resource.data.updatedAt == request.time;
@@ -175,10 +187,12 @@ match /public_profiles/{userId} {
     && request.resource.data.updatedAt == request.time
     && identityMatchesPrivateDeclarationAfter()
     && nicknameMatchesPrivateAfter()
+    && publicProfileTextSafe(request.resource.data, getAfter(privateUserPath()).data.get("email", null))
     && privateUserEligibleAfter();
 
   allow update: if resource != null
     && isSelf(userId)
+    && publicProfileTextSafe(request.resource.data, get(privateUserPath()).data.get("email", null))
     && (
       avatarOnlyUpdate()
       || (

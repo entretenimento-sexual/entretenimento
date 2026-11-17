@@ -61,6 +61,24 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
       auth: { uid: actorUid, token: { email_verified: true } },
     }, {});
 
+  it('impede o envio do e-mail da conta ao outro participante', async () => {
+    const email = 'titular+qa@example.test';
+    const account = db.doc(`users/${actorUid}`);
+    const chat = db.doc(`chats/${chatId}`);
+    await account.update({ email });
+    const before = await chat.collection('messages').count().get();
+    try {
+      await assert.rejects(send(`Contato ${email.toUpperCase()}`, randomUUID()), {
+        code: 'invalid-argument',
+        details: { reason: 'registration-email-private' },
+      });
+      const after = await chat.collection('messages').count().get();
+      assert.equal(after.data().count, before.data().count);
+    } finally {
+      await account.update({ email: null });
+    }
+  });
+
   it('deduplica duas chamadas simultâneas com o mesmo requestId', async () => {
     const id = randomUUID();
     const results = await Promise.all([

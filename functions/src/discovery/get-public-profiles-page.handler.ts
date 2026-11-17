@@ -17,7 +17,8 @@ import { evaluateCanonicalOwnerLifecycle } from '../account_lifecycle/public-own
 import { evaluateProfileCompatibility } from './profile-compatibility.server';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
-import { resolvePublicProfileAge } from './public-profile-discovery-projection';
+import { publicProfileHasPrivateEmailFields, resolvePublicProfileAge } from './public-profile-discovery-projection';
+import { containsRegisteredEmail } from '../shared/registered-email-privacy';
 import { hasLegacyPrivateDiscoveryFields } from './legacy-public-profile-preservation.policy';
 import {
   REQUIRE_CALLABLE_APP_CHECK,
@@ -334,7 +335,7 @@ export function serializePublicProfileForDiscovery(
   const nickname = cleanText(data['nickname']);
 
   // Admin SDK bypasses Rules. Reject the entire contaminated document.
-  if (!uid || !nickname || hasLegacyPrivateDiscoveryFields(data)) {
+  if (!uid || !nickname || hasLegacyPrivateDiscoveryFields(data) || publicProfileHasPrivateEmailFields(data)) {
     return null;
   }
   const latitude = finiteNumber(data['latitude']);
@@ -441,7 +442,9 @@ export function filterDiscoveryCardsByOwnerLifecycle(
 ): Record<string, unknown>[] {
   return cards.filter((card) => {
     const uid = cleanUid(card['uid']);
-    return !!uid && evaluateCanonicalOwnerLifecycle(owners.get(uid) ?? null).allowed;
+    const owner = uid ? owners.get(uid) : null;
+    return !!owner && evaluateCanonicalOwnerLifecycle(owner).allowed &&
+      !Object.values(card).flat().some(value => containsRegisteredEmail(value, owner['email']));
   });
 }
 

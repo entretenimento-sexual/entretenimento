@@ -2,7 +2,7 @@
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { Router } from '@angular/router';
 
-import { EMPTY, Observable, Subscription, interval, of } from 'rxjs';
+import { EMPTY, Observable, Subscription, defer, interval, of } from 'rxjs';
 import {
   catchError,
   exhaustMap,
@@ -62,10 +62,11 @@ export class WelcomeComponent implements OnInit {
   lastCheckedAt: Date | null = null;
   profileCompleted = false;
   profileStateLoaded = false;
+  nextStepUnavailable = false;
   verificationEmailDelivery: VerificationEmailDeliveryState = 'unknown';
 
   private latestVm: RegisterFlowVm | null = null;
-  private redirecting = false;
+  redirecting = false;
   private pollingSub: Subscription | null = null;
   private pollTries = 0;
 
@@ -142,6 +143,7 @@ export class WelcomeComponent implements OnInit {
   }
 
   private applyVm(vm: RegisterFlowVm): void {
+    if (this.latestVm?.uid !== vm.uid) this.nextStepUnavailable = false;
     this.latestVm = vm;
     this.email = vm.email;
     this.emailVerified = vm.emailVerified;
@@ -502,6 +504,7 @@ export class WelcomeComponent implements OnInit {
       !vm?.uid ||
       this.sessionInvalid ||
       this.redirecting ||
+      this.nextStepUnavailable ||
       !this.router.url.startsWith('/register/welcome')
     ) {
       return;
@@ -520,8 +523,10 @@ export class WelcomeComponent implements OnInit {
 
   private navigateToFlowRoute(vm: RegisterFlowVm): void {
     const target = this.resolveTargetRoute(vm);
+    const uid = vm.uid;
 
     if (
+      !uid || this.redirecting || this.authSession.currentAuthUser?.uid !== uid ||
       !target ||
       this.router.url === target ||
       this.router.url.startsWith(target)
@@ -530,12 +535,24 @@ export class WelcomeComponent implements OnInit {
     }
 
     this.redirecting = true;
-
-    this.router
-      .navigateByUrl(target, { replaceUrl: true })
-      .finally(() => {
-        this.redirecting = false;
-      });
+    this.nextStepUnavailable = false;
+    defer(() => this.router.navigateByUrl(target, { replaceUrl: true })).pipe(
+      timeout({ first: this.ACTION_TIMEOUT_MS }),
+      tap((navigated) => {
+        if (!navigated || this.router.url.split(/[?#]/)[0] === '/register/welcome') {
+          throw new Error('A próxima etapa do cadastro não abriu.');
+        }
+      }),
+      catchError((error: unknown) => {
+        if (this.latestVm?.uid === uid && this.authSession.currentAuthUser?.uid === uid) {
+          this.nextStepUnavailable = true;
+          this.reportError('WelcomeComponent.navigateToFlowRoute', error, true);
+        }
+        return EMPTY;
+      }),
+      finalize(() => { this.redirecting = false; }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
   private resolveTargetRoute(vm: RegisterFlowVm): string {

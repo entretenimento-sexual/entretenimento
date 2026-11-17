@@ -236,6 +236,39 @@ describe('FinalizarCadastroComponent', () => {
     expect(component.hasUnsavedChanges()).toBe(false);
   });
 
+  it('oferece continuar com o perfil já salvo sem repetir a gravação', async () => {
+    vi.mocked(router.navigateByUrl).mockRejectedValueOnce(new Error('Navegação indisponível'));
+    component.onSubmit();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.profileSaved).toBe(true);
+    expect(fixture.nativeElement.querySelector('form')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Seu perfil foi salvo. Não foi possível abrir');
+    const button: HTMLButtonElement = fixture.nativeElement.querySelector('button');
+    button.click();
+    component.onSubmit();
+    await fixture.whenStable();
+
+    expect(router.navigateByUrl).toHaveBeenCalledTimes(2);
+    expect(profileCompletionFacadeMock.saveProfileCompletion$).toHaveBeenCalledTimes(1);
+  });
+
+  it('permite continuar com o perfil salvo quando a foto opcional falha', () => {
+    component.avatarFile = new File(['image'], 'avatar.jpg', { type: 'image/jpeg' });
+    profileCompletionFacadeMock.uploadProfileAvatarAfterSave$.mockReturnValueOnce(of({ status: 'upload_failed' }));
+
+    component.onSubmit();
+    fixture.detectChanges();
+
+    expect(component.profileSaved).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Não foi possível enviar a foto');
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+    component.continueAfterProfileSave();
+    expect(router.navigateByUrl).toHaveBeenCalledTimes(1);
+    expect(profileCompletionFacadeMock.saveProfileCompletion$).toHaveBeenCalledTimes(1);
+  });
+
   it('abre o editor canônico com preset quadrado antes de guardar o avatar', () => {
     const source = new File(['source'], 'avatar.jpeg', { type: 'image/jpeg' });
     const edited = new File(['edited'], 'avatar-editada.jpg', {

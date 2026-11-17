@@ -29,6 +29,7 @@ let testEnv: RulesTestEnvironment;
 
 function authenticatedDb() {
   return testEnv.authenticatedContext(USER_UID, {
+    email: 'compliance@example.test',
     email_verified: true,
   }).firestore();
 }

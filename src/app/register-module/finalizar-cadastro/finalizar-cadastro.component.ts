@@ -9,7 +9,7 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { EMPTY, Observable, Subject, of } from 'rxjs';
+import { EMPTY, Observable, Subject, defer, of } from 'rxjs';
 import {
   catchError,
   debounceTime,
@@ -19,6 +19,7 @@ import {
   switchMap,
   take,
   tap,
+  timeout,
 } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -75,6 +76,13 @@ implements OnInit, UnsavedChangesAware
 {
   private readonly destroyRef = inject(DestroyRef);
   private readonly draftChanges$ = new Subject<void>();
+  private savedProfileDestination: { uid: string; target: string } | null = null;
+  public openingSavedProfile = false;
+  public savedProfileNavigationFailed = false;
+
+  get profileSaved(): boolean {
+    return this.savedProfileDestination !== null;
+  }
 
   public entryReason: 'profile_incomplete' | 'email_unverified' | null = null;
   public pageTitle = 'Complete seu perfil';
@@ -178,7 +186,7 @@ implements OnInit, UnsavedChangesAware
   }
 
   hasUnsavedChanges(): boolean {
-    if (!this.draftReady || this.isSubmitting) return false;
+    if (!this.draftReady || this.isSubmitting || this.profileSaved) return false;
     return (
       this.currentDraftSnapshot() !== this.initialDraftSnapshot ||
       this.avatarFile !== null
@@ -388,7 +396,7 @@ implements OnInit, UnsavedChangesAware
   }
 
   onSubmit(): void {
-    if (this.isSubmitting || this.isEditingAvatar) return;
+    if (this.profileSaved || this.isSubmitting || this.isEditingAvatar) return;
     if (!this.canSubmitProfileCompletion()) return;
 
     const uid = this.latestVm?.uid?.trim() || null;
@@ -436,7 +444,18 @@ implements OnInit, UnsavedChangesAware
       .pipe(
         take(1),
         switchMap(() => this.isCurrentAccount(uid)
-          ? this.uploadAvatarAfterProfileSave$(uid)
+          ? defer(() => this.uploadAvatarAfterProfileSave$(uid)).pipe(
+            catchError((error: unknown) => {
+              if (this.isCurrentAccount(uid)) {
+                this.setUploadWarning('Não foi possível enviar a foto. Você pode adicioná-la ao editar o perfil.');
+              }
+              this.globalErrorHandler.handleError(Object.assign(
+                new Error('Falha no envio da foto após salvar o perfil.', { cause: error }),
+                { skipUserNotification: true }
+              ));
+              return of(void 0);
+            })
+          )
           : of(void 0)
         ),
         map(() => void 0),
@@ -470,7 +489,7 @@ implements OnInit, UnsavedChangesAware
             return;
           }
 
-          this.setSuccessMessage('Perfil finalizado com sucesso!');
+          if (!this.uploadMessage) this.setSuccessMessage('Perfil finalizado com sucesso!');
           const normalizedNickname = NicknameUtils.normalizarApelido(this.nickname);
           if (this.currentUserStore.getSnapshot()?.uid === uid) {
             this.currentUserStore.patch({
@@ -485,14 +504,40 @@ implements OnInit, UnsavedChangesAware
           this.localDraft.remove(this.draftKey);
           this.initialDraftSnapshot = this.currentDraftSnapshot();
           this.avatarFile = null;
-          const target = this.getRedirectToAfterCompletion(uid);
-          this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
+          this.savedProfileDestination = { uid, target: this.getRedirectToAfterCompletion(uid) };
+          if (!this.uploadMessage) this.continueAfterProfileSave();
         },
       });
   }
 
   private isCurrentAccount(uid: string): boolean {
     return this.currentUserStore.getLoggedUserUIDSnapshot() === uid;
+  }
+
+  continueAfterProfileSave(): void {
+    const saved = this.savedProfileDestination;
+    if (!saved || this.openingSavedProfile || !this.isCurrentAccount(saved.uid)) return;
+
+    this.openingSavedProfile = true;
+    this.savedProfileNavigationFailed = false;
+    defer(() => this.router.navigateByUrl(saved.target, { replaceUrl: true })).pipe(
+      timeout({ first: 15_000 }),
+      tap((navigated) => {
+        if (!navigated || this.router.url.split(/[?#]/)[0] === '/register/finalizar-cadastro') {
+          throw new Error('A próxima tela não abriu após salvar o perfil.');
+        }
+      }),
+      catchError((error: unknown) => {
+        if (this.isCurrentAccount(saved.uid)) this.savedProfileNavigationFailed = true;
+        this.globalErrorHandler.handleError(Object.assign(
+          new Error('Não foi possível abrir a próxima tela após salvar o perfil.', { cause: error }),
+          { skipUserNotification: true }
+        ));
+        return EMPTY;
+      }),
+      finalize(() => { this.openingSavedProfile = false; }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
   private uploadAvatarAfterProfileSave$(uid: string): Observable<void> {
@@ -516,6 +561,7 @@ implements OnInit, UnsavedChangesAware
         uid,
         file: this.avatarFile,
         onProgress: (progress) => {
+          if (!this.isCurrentAccount(uid)) return;
           this.isUploading = true;
           this.progressValue = Math.max(
             0,
@@ -525,6 +571,7 @@ implements OnInit, UnsavedChangesAware
       })
       .pipe(
         tap((result) => {
+          if (!this.isCurrentAccount(uid)) return;
           if (result.status === 'uploaded' && result.photoURL) {
             this.progressValue = 100;
             this.currentUserStore.patch({ photoURL: result.photoURL });
@@ -533,12 +580,12 @@ implements OnInit, UnsavedChangesAware
           if (result.status === 'avatar_patch_failed') {
             this.progressValue = 100;
             this.setUploadWarning(
-              'Perfil salvo. A foto foi enviada, mas não foi possível atualizar o avatar agora.'
+              'A foto foi enviada, mas o avatar não foi atualizado. Você pode tentar de novo ao editar o perfil.'
             );
             return;
           }
           if (result.status === 'upload_failed') {
-            this.setUploadWarning('Perfil salvo. Não foi possível enviar a foto agora.');
+            this.setUploadWarning('Não foi possível enviar a foto. Você pode adicioná-la ao editar o perfil.');
           }
         }),
         finalize(() => {

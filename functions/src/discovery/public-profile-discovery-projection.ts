@@ -2,6 +2,7 @@
 // Comparações e projeções puras usadas pelo discovery público.
 import { normalizePublicIdentityMediaUrl } from '../identity/public-media-url.normalizer';
 import { normalizePublicProfileId } from '../identity/public-profile-id';
+import { containsRegisteredEmail } from '../shared/registered-email-privacy';
 import type {
   CanonicalProfileDiscoveryFields,
 } from './profile-discovery-normalization';
@@ -38,7 +39,8 @@ export function buildPublicDescriptionProjection(
     : '';
 
   return {
-    publicDescription: user['publicDescriptionVisible'] === true && text
+    publicDescription: user['publicDescriptionVisible'] === true && text &&
+      !containsRegisteredEmail(text, user['email'])
       ? text
       : null,
   };

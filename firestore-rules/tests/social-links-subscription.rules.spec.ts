@@ -182,6 +182,27 @@ describe('Firestore Rules / social links subscription', () => {
     );
   });
 
+  it('impede que os links públicos revelem o e-mail de cadastro', async () => {
+    const email = 'dono+social@example.test';
+    const uid = SUBSCRIBER_UID;
+    const db = authenticatedDb(uid);
+    const publicLinks = doc(db, 'public_social_links', uid);
+    const linktree = `https://linktr.ee/?referencia=${email.toUpperCase()}`;
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), 'users', uid), { email });
+    });
+    await assertSucceeds(setDoc(doc(db, 'users', uid, 'profileData', 'socialLinks'), { linktree }));
+    await assertFails(setDoc(publicLinks, { uid, linktree, updatedAt: serverTimestamp() }));
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'public_social_links', uid), { uid, linktree });
+    });
+    const visitor = authenticatedDb(VISITOR_UID);
+    await assertFails(getDoc(doc(visitor, 'public_social_links', uid)));
+    await assertSucceeds(getDoc(publicLinks));
+  });
+
   it('nega criação ou alteração para conta sem assinatura', async () => {
     const db = authenticatedDb(FREE_UID);
 

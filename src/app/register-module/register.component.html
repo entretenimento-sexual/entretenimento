@@ -177,7 +177,7 @@
 
         <input id="email" formControlName="email" type="email" class="app-control" name="email" autocomplete="email"
           placeholder="email@exemplo.com" autocapitalize="none" inputmode="email" aria-label="E-mail"
-          aria-describedby="emailTooltip" [attr.aria-invalid]="
+          aria-describedby="register-email-help emailTooltip" [attr.aria-invalid]="
             (submitted() || form.get('email')?.touched)
             && form.get('email')?.invalid
               ? true
@@ -186,6 +186,7 @@
             'is-invalid': (submitted() || form.get('email')?.touched) && form.get('email')?.invalid,
             'is-valid': (submitted() || form.get('email')?.touched) && form.get('email')?.valid
           }" />
+        <small id="register-email-help" class="field-hint">Usamos seu e-mail para acesso e segurança da conta. Ele fica fora do perfil público.</small>
 
         <div *ngIf="getError('email') && (submitted() || form.get('email')?.touched)" id="emailTooltip"
           class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">

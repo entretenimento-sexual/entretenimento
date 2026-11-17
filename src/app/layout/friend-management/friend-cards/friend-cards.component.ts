@@ -194,7 +194,7 @@ private debugLog(message: string, extra?: unknown): void {
     lastLogin: i.lastLogin ?? i.lastSeen ?? i.updatedAt ?? null,
 
     // obrigatórios do IUserDados (ajuste se seu tipo for mais restrito)
-    email: i.email ?? '',
+    email: null,
     role: (i.role ?? 'free') as any,
     isSubscriber: !!(i.isSubscriber ?? i.isPro ?? i.premium),
 

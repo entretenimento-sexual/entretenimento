@@ -77,7 +77,8 @@
 
         <div class="actions primary-actions">
           <button
-            class="app-action app-action--primary"
+            class="app-action"
+            [class.app-action--primary]="verificationEmailDelivery !== 'failed'"
             (click)="checkNow()"
             [disabled]="checkingVerification || resendingVerificationEmail || markingVerifiedDev || sessionInvalid"
             [attr.aria-busy]="checkingVerification"
@@ -97,6 +98,7 @@
 
           <button
             class="app-action"
+            [class.app-action--primary]="verificationEmailDelivery === 'failed'"
             (click)="resendVerificationEmail()"
             [disabled]="resendingVerificationEmail || checkingVerification || markingVerifiedDev || sessionInvalid"
             [attr.aria-busy]="resendingVerificationEmail"
@@ -110,13 +112,19 @@
           <button class="app-action app-action--ghost" (click)="copyEmail()" [disabled]="!email">Copiar e-mail</button>
         </div>
       } @else {
+        @if (nextStepUnavailable) {
+          <p role="status">
+            Seu e-mail está confirmado. Não foi possível abrir a próxima etapa do cadastro.
+          </p>
+        }
         <div class="actions primary-actions">
           <button
             class="app-action app-action--primary"
             (click)="continueToPreferences()"
-            [disabled]="busy"
+            [disabled]="busy || redirecting"
+            [attr.aria-busy]="redirecting"
           >
-            {{ profileCompleted ? 'Ir para minhas preferências' : 'Completar perfil' }}
+            {{ redirecting ? 'Abrindo próxima etapa…' : profileCompleted ? 'Ir para minhas preferências' : 'Continuar cadastro' }}
           </button>
         </div>
       }

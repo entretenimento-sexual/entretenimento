@@ -28,6 +28,13 @@ service cloud.firestore {
     function uid() { return request.auth.uid; }
     function isSelf(userId) { return signedIn() && uid() == userId; }
 
+    function publicTextExcludesRegisteredEmail(value, email) {
+      return value == null || (value is string && (
+        !(email is string) || email.trim().size() == 0
+        || !value.lower().matches("(?s).*\\Q" + email.lower().trim() + "\\E.*")
+      ));
+    }
+
     // ===============================================================
     // Acesso a conteúdo adulto público
     // ===============================================================

@@ -566,4 +566,34 @@ describe('Firestore Rules / public profile eligibility', () => {
       .not.toContain(ownerEmail);
   });
 
+  it('bloqueia email colado em projeções públicas pelo titular e em registros legados', async () => {
+    await seedUser({ email: 'dono+teste@cadastro.invalid' });
+    await seedVisitor();
+    await seedPublicProfile();
+    const ownRef = doc(authenticatedDb(), 'public_profiles', UID);
+
+    await assertFails(updateDoc(ownRef, {
+      photoURL: 'https://example.invalid/avatar.png',
+      contacto: { endereco: 'dono+teste@cadastro.invalid' },
+      updatedAt: serverTimestamp(),
+    }));
+    await assertFails(updateDoc(ownRef, {
+      municipio: 'DONO+TESTE@CADASTRO.INVALID',
+      updatedAt: serverTimestamp(),
+    }));
+    await seedPublicProfile({ publicDescription: 'Olá\nUse DONO+TESTE@CADASTRO.INVALID para contato' });
+    await assertFails(getDoc(doc(visitorDb(), 'public_profiles', UID)));
+    await assertSucceeds(getDoc(ownRef));
+  });
+
+  it('restringe o documento privado ao titular, inclusive diante de uma conta administrativa', async () => {
+    await seedUser({ email: 'privado@cadastro.invalid' });
+    await seedVisitor({ role: 'admin' });
+    const admin = testEnv.authenticatedContext(VISITOR_UID, { admin: true, email_verified: true }).firestore();
+    await assertFails(getDoc(doc(admin, 'users', UID)));
+    await assertFails(updateDoc(doc(authenticatedDb(), 'users', UID), {
+      email: 'outro@cadastro.invalid',
+    }));
+  });
+
 });

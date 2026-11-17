@@ -90,6 +90,22 @@ describe('Firestore Rules / autoridade da reserva de nickname', () => {
     ));
   });
 
+  it('nega campos extras no índice público e impede ler um índice legado contaminado', async () => {
+    await seed();
+    const index = doc(ownerDb(), 'public_index', 'nickname:perfil_estavel');
+    await assertFails(setDoc(index, {
+      ...indexPayload(), contato: { email: 'privado@example.test' },
+    }));
+    await environment.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'public_index', 'nickname:perfil_estavel'), {
+        ...indexPayload(), contato: { email: 'privado@example.test' },
+      });
+    });
+    await assertFails(getDoc(doc(
+      environment.unauthenticatedContext().firestore(), 'public_index', 'nickname:perfil_estavel'
+    )));
+  });
+
   it('nega aliases avulsos, valores divergentes e tipo incompatível', async () => {
     await seed();
     await assertFails(setDoc(

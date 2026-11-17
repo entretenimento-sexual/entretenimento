@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { CommonModule } from '@angular/common';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
+import { Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -38,6 +39,7 @@ describe('WelcomeComponent', () => {
               userResolved: true,
               authReady: true,
               currentStep: 'profileCompletion',
+              nextRoute: '/register/finalizar-cadastro',
               blockingMessage: null,
             }),
             reloadAndSyncEmailVerification$: vi.fn(() => of(false)),
@@ -49,6 +51,7 @@ describe('WelcomeComponent', () => {
             uid$: of('u1'),
             authUser$: of({ uid: 'u1', email: 'user@example.com' }),
             ready$: of(true),
+            currentAuthUser: { uid: 'u1' },
             refreshCurrentUser$: vi.fn(() =>
               of({
                 uid: 'u1',
@@ -105,6 +108,8 @@ describe('WelcomeComponent', () => {
     expect(copy).toContain('primeiro envio do link');
     expect(copy).toContain('não foi confirmado');
     expect(copy).not.toContain('Enviamos um link de verificação');
+    expect(fixture.nativeElement.querySelector('.primary-actions .app-action--primary')?.textContent?.trim())
+      .toBe('Reenviar e-mail');
   });
 
   it('mantém mensagem neutra quando o estado do envio é desconhecido', () => {
@@ -211,9 +216,26 @@ describe('WelcomeComponent', () => {
     );
 
     expect(buttons).toHaveLength(1);
-    expect(buttons[0].textContent?.trim()).toBe('Completar perfil');
+    expect(buttons[0].textContent?.trim()).toBe('Continuar cadastro');
     expect(fixture.nativeElement.querySelector('.steps')).toBeNull();
     expect(fixture.nativeElement.querySelector('.success-card')).toBeNull();
+  });
+
+  it('preserva o e-mail confirmado e permite tentar de novo se a navegação for cancelada', async () => {
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValueOnce(false).mockResolvedValue(true);
+    component.emailVerified = true;
+    component.continueToPreferences();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Seu e-mail está confirmado. Não foi possível abrir');
+    const button: HTMLButtonElement = fixture.nativeElement.querySelector('.primary-actions button');
+    expect(button.disabled).toBe(false);
+    button.click();
+    await fixture.whenStable();
+    expect(navigate).toHaveBeenCalledTimes(2);
+    expect(component.emailVerified).toBe(true);
   });
 
   it('não mantém ações de verificação quando a sessão está encerrada', () => {

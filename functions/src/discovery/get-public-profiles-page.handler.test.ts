@@ -72,7 +72,7 @@ describe('get-public-profiles-page boundary', () => {
   it('nega integralmente cartões de perfil com qualquer chave privada legada', () => {
     for (const key of [
       'interestedInGenders', 'interestedInOrientations', 'preferences',
-      'generosDeInteresse', 'discoveryPreferences', 'hardRules',
+      'generosDeInteresse', 'discoveryPreferences', 'hardRules', 'registrationEmail',
     ]) {
       assert.equal(serializePublicProfileForDiscovery(
         'secret-target', profile({ [key]: ['SECRET'], publicSeekingGenders: ['women'] }), NOW
@@ -197,6 +197,19 @@ describe('get-public-profiles-page boundary', () => {
       filterDiscoveryCardsByOwnerLifecycle(cards, owners),
       [{ uid: 'active', nickname: 'Ativa' }]
     );
+  });
+
+  it('descarta cartões de descoberta que repetem o e-mail de cadastro do titular', () => {
+    const cards = [
+      { uid: 'owner-a', publicDescription: 'Contato: TITULAR+QA@example.test' },
+      { uid: 'owner-b', publicDescription: 'Contato pelo perfil' },
+    ];
+    const owners = new Map([
+      ['owner-a', { accountStatus: 'active', email: 'titular+qa@example.test' }],
+      ['owner-b', { accountStatus: 'active', email: 'outra@example.test' }],
+    ]);
+
+    assert.deepEqual(filterDiscoveryCardsByOwnerLifecycle(cards, owners), [cards[1]]);
   });
 
   it('repõe perfis válidos e mantém cursor sem perder candidatos pré-carregados', () => {

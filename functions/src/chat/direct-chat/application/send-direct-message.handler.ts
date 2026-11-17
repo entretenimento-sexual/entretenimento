@@ -38,6 +38,7 @@ import {
 } from '../../../account_lifecycle/interaction-access.policy';
 import { db, FieldValue } from '../../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
+import { containsRegisteredEmail } from '../../../shared/registered-email-privacy';
 
 import {
   assertMessagingAccountOperational,
@@ -256,6 +257,17 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
         actorFriendExists: actorFriendSnapshot.exists,
         targetFriendExists: targetFriendSnapshot.exists,
       });
+
+      if (
+        containsRegisteredEmail(content, actorSnapshot.get('email')) ||
+        containsRegisteredEmail(content, request.auth?.token.email)
+      ) {
+        throw new HttpsError(
+          'invalid-argument',
+          'O e-mail de cadastro é privado. Remova o endereço para enviar a mensagem.',
+          { reason: 'registration-email-private' }
+        );
+      }
 
       /**
        * Idempotência.

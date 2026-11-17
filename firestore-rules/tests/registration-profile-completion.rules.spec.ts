@@ -33,12 +33,12 @@ let testEnv: RulesTestEnvironment;
 
 function authenticatedDb(emailVerified: boolean) {
   return testEnv
-    .authenticatedContext(UID, { email_verified: emailVerified })
+    .authenticatedContext(UID, { email: 'user@example.com', email_verified: emailVerified })
     .firestore();
 }
 
 function authenticatedDbWithoutEmailClaim() {
-  return testEnv.authenticatedContext(UID, {}).firestore();
+  return testEnv.authenticatedContext(UID, { email: 'user@example.com' }).firestore();
 }
 
 function privateRegistrationSeed(): Record<string, unknown> {
@@ -157,6 +157,12 @@ describe('Firestore Rules / registration and profile completion', () => {
     await assertSucceeds(
       setDoc(doc(db, 'users', UID), privateRegistrationSeed())
     );
+  });
+
+  it('nega bootstrap privado com e-mail ausente ou diferente da conta autenticada', async () => {
+    const user = doc(authenticatedDb(false), 'users', UID);
+    await assertFails(setDoc(user, { ...privateRegistrationSeed(), email: null }));
+    await assertFails(setDoc(user, { ...privateRegistrationSeed(), email: 'outra@example.test' }));
   });
 
   it('permite o bootstrap privado sem a claim email_verified inicial', async () => {

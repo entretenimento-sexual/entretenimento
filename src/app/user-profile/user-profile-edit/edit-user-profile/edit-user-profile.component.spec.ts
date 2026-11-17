@@ -146,6 +146,25 @@ describe('EditUserProfileComponent', () => {
     expect(component.hasUnsavedChanges()).toBe(false);
   });
 
+  it('pede a remoção do e-mail cadastral antes de publicar a descrição', () => {
+    component.userData.email = 'titular+qa@example.test';
+    component.editForm.patchValue({
+      descricao: 'Contato TITULAR+QA@example.test',
+      publicDescriptionVisible: true,
+    });
+
+    component.onSubmit();
+
+    expect(usuarioServiceMock.atualizarUsuario).not.toHaveBeenCalled();
+    expect(TestBed.inject(ErrorNotificationService).showError).toHaveBeenCalledWith(
+      'Remova seu e-mail de cadastro da descrição ou desmarque a opção de publicar.'
+    );
+
+    component.editForm.patchValue({ publicDescriptionVisible: false });
+    component.onSubmit();
+    expect(usuarioServiceMock.atualizarUsuario).toHaveBeenCalledTimes(1);
+  });
+
   it('salva dados pessoais sem depender de redes sociais', () => {
     component.editForm.controls['descricao'].setValue('Descrição salva');
     component.editForm.markAsDirty();

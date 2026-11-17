@@ -230,12 +230,25 @@ export class EditUserProfileComponent
       return;
     }
 
+    const rawValue = this.editForm.getRawValue();
+    const email = this.userData.email?.trim().toLowerCase();
+    if (
+      rawValue['publicDescriptionVisible'] === true &&
+      email &&
+      String(rawValue['descricao'] ?? '').toLowerCase().includes(email)
+    ) {
+      this.notify.showError(
+        'Remova seu e-mail de cadastro da descrição ou desmarque a opção de publicar.'
+      );
+      return;
+    }
+
     this.isSaving = true;
 
     this.saveOrchestrator
       .save$(
         this.uid,
-        this.editForm.getRawValue(),
+        rawValue,
         this.isCouple(),
         this.userData.photoURL
       )

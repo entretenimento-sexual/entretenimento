@@ -47,4 +47,12 @@ describe('public profile description projection', () => {
       false
     );
   });
+
+  it('mantém privada a apresentação com o email cadastral mesmo com autorização', () => {
+    assert.deepEqual(buildPublicDescriptionProjection({
+      email: 'dono+teste@cadastro.invalid',
+      descricao: 'Contato: DONO+TESTE@CADASTRO.INVALID',
+      publicDescriptionVisible: true,
+    }), { publicDescription: null });
+  });
 });

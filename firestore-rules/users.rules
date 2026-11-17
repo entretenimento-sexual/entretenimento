@@ -173,6 +173,7 @@ match /users/{userId} {
 
   function selfChangingSensitiveKeys(changedKeys) {
     return changedKeys.hasAny([
+      "email",
       "profileId",
       "socialConnectionsEstablishedAt",
       "adultConsent",
@@ -448,11 +449,14 @@ match /users/{userId} {
           : ordinarySelfUpdateAllowed(changedKeys);
   }
 
-  allow get: if isSelf(userId) || isAdminActor();
+  // O painel administrativo consome projeções autorizadas via Functions.
+  // O documento privado completo pertence ao titular.
+  allow get: if isSelf(userId);
   allow list: if false;
 
   allow create: if resource == null
     && isSelf(userId)
+    && request.resource.data.get("email", null) == request.auth.token.get("email", null)
     && emailVerifiedMatchesToken()
     && createDefaultsOk();
 

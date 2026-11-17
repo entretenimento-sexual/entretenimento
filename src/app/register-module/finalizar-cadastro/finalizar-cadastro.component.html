@@ -1,7 +1,21 @@
 <!-- src/app/register-module/finalizar-cadastro/finalizar-cadastro.component.html -->
 <div class="auth-container">
   <div class="form-container">
-    <h1>{{ pageTitle }}</h1>
+    <h1>{{ profileSaved ? 'Perfil salvo' : pageTitle }}</h1>
+    @if (profileSaved) {
+      <p role="status">
+        {{ openingSavedProfile
+          ? 'Abrindo a próxima tela…'
+          : savedProfileNavigationFailed
+            ? 'Seu perfil foi salvo. Não foi possível abrir a próxima tela.'
+            : 'Seu perfil está pronto.' }}
+      </p>
+      @if (uploadMessage) {
+        <p class="alert alert-warning" role="status">{{ uploadMessage }}</p>
+      }
+      <button type="button" class="app-action app-action--primary"
+        [disabled]="openingSavedProfile" (click)="continueAfterProfileSave()">Continuar</button>
+    } @else {
     <p>{{ introText }}</p>
 
     @if (hasUnsavedChanges()) {
@@ -239,6 +253,7 @@
         {{ isSubmitting ? 'Concluindo…' : 'Concluir cadastro' }}
       </button>
     </form>
+    }
 
     @if (uploadMessage) {
       <div

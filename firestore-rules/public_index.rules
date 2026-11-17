@@ -18,7 +18,23 @@ match /public_index/{docId} {
     ]);
   }
 
-  allow get: if isNicknameDoc()
+  function publicNicknameIndexData(data) {
+    return data.keys().hasOnly([
+      "uid", "type", "value", "createdAt", "lastChangedAt", "updatedAt"
+    ])
+      && data.get("uid", "") is string
+      && data.get("uid", "").matches("^[^@ ]{1,128}$")
+      && data.get("type", "") == "nickname"
+      && data.get("value", "") is string
+      && data.get("value", "").matches("^[a-z0-9._-]{3,40}$")
+      && docId == "nickname:" + data.value
+      && (!data.keys().hasAny(["createdAt"]) || data.createdAt is timestamp)
+      && (!data.keys().hasAny(["lastChangedAt"]) || data.lastChangedAt is timestamp)
+      && (!data.keys().hasAny(["updatedAt"]) || data.updatedAt is timestamp);
+  }
+
+  allow get: if (isNicknameDoc()
+      && (resource == null || publicNicknameIndexData(resource.data)))
     || (
       signedIn()
       && isEmailDoc()
@@ -74,12 +90,14 @@ match /public_index/{docId} {
   }
 
   allow create: if common()
-    && (!isNicknameDoc() || (currentNicknameOwnerEligibleAfter()
+    && (!isNicknameDoc() || (publicNicknameIndexData(request.resource.data)
+      && currentNicknameOwnerEligibleAfter()
       && canonicalNicknameReservationAfter()))
     && !exists(/databases/$(database)/documents/public_index/$(docId));
 
   allow update: if signedIn()
     && isEmailDoc()
+    && resource.data.uid == uid()
     && hasRequiredRequestFields()
     && request.resource.data.uid == uid()
     && request.resource.data.type == "email"
