@@ -8,7 +8,8 @@
    ================================ */
 
 :host {
-  display: block;
+  display: grid;
+  flex: 1;
 }
 
 .auth-container {
@@ -16,10 +17,11 @@
   isolation: isolate;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+  grid-template-rows: 1fr auto;
   align-items: center;
-  gap: clamp(1.5rem, 4vw, 4rem);
-  min-height: calc(100svh - 88px);
+  gap: 1rem clamp(1.5rem, 4vw, 4rem);
   padding: clamp(1rem, 4vw, 3rem);
+  padding-block-end: max(1rem, env(safe-area-inset-bottom));
   font-family: var(--font-family-primary);
 }
 
@@ -37,7 +39,34 @@
   pointer-events: none;
   background: #170910;
   object-fit: cover;
-  object-position: 36% top;
+  object-position: 36% bottom;
+}
+
+.signup-footer-link {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-block-size: 44px;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #846069;
+  border-radius: 999px;
+  background: #211619;
+  color: #fff4ef;
+  font-size: 0.875rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+.signup-footer-link:hover {
+  text-decoration: underline;
+}
+
+.signup-footer-link:focus-visible {
+  outline: 2px solid #ffc3a9;
+  outline-offset: 2px;
 }
 
 .auth-badge,
@@ -69,6 +98,7 @@
   --success-color: #a4e3bd;
 
   grid-column: 2;
+  grid-row: 1;
   width: 100%;
   padding: clamp(1.125rem, 2.8vw, 1.65rem);
   color-scheme: dark;
@@ -516,7 +546,7 @@
   .auth-container {
     grid-template-columns: minmax(0, 1fr);
     /* Deixa a cena em primeiro plano antes de começar o formulário. */
-    padding-block-start: clamp(9rem, 25svh, 14rem);
+    padding-block-start: clamp(8rem, 22svh, 14rem);
   }
 
   .form-container {
@@ -524,7 +554,7 @@
   }
 
   .signup-backdrop {
-    object-position: 18% top;
+    object-position: 18% bottom;
   }
 }
 
@@ -542,7 +572,6 @@
 @media (max-width: 600px) {
   .auth-container {
     padding-inline: 1rem;
-    padding-block-end: 1rem;
   }
 
   .form-container {

@@ -1,34 +1,48 @@
-/* src\app\footer\footer-shared.css */
 .footer-container {
-  background-color: #ff6565;
-
+  background: #211619;
+  color: #fff4ef;
 }
 
-.footer-container {
-  background-color: rgb(255, 101, 101);
+.public-footer {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem 0 max(1rem, env(safe-area-inset-bottom));
+  scroll-margin-block-start: calc(var(--header-height, 72px) + 1rem);
+  border-block-start: 1px solid #846069;
 }
 
-h5 {
-  color: white;
+.public-footer app-contact-footer {
+  display: contents;
 }
 
-ul {
-  list-style-type: none;
+.public-footer:focus-visible {
+  outline: 2px solid #ffc3a9;
+  outline-offset: -3px;
 }
 
-li {
-  margin: 5px 0;
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  column-gap: clamp(0.75rem, 3vw, 2rem);
 }
 
-a {
-  color: white;
-  text-decoration: none;
-}
-
-a:hover {
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  color: #fff4ef;
+  font-size: 0.875rem;
   text-decoration: underline;
+  text-underline-offset: 0.18em;
 }
 
-small {
-  color: white;
+.footer-links a:hover {
+  color: #ffc3a9;
+}
+
+.footer-links a:focus-visible {
+  outline: 2px solid #ffc3a9;
+  outline-offset: 3px;
 }

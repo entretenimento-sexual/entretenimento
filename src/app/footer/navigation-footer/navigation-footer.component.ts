@@ -1,7 +1,5 @@
 //src\app\footer\navigation-footer\navigation-footer.component.ts
 import { Component } from '@angular/core';
-import { MatDialog } from '@angular/material/dialog';
-import { TermosECondicoesComponent } from '../legal-footer/termos-e-condicoes/termos-e-condicoes.component';
 
 @Component({
     selector: 'app-navigation-footer',
@@ -9,14 +7,5 @@ import { TermosECondicoesComponent } from '../legal-footer/termos-e-condicoes/te
     styleUrl: '../footer-shared.css',
     standalone: false
 })
-export class NavigationFooterComponent {
-  constructor(public dialog: MatDialog) { }
-
-  openTermsAndConditions() {
-    this.dialog.open(TermosECondicoesComponent, {
-      width: '40%',
-      // outras configurações se necessário
-    });
-  }
-}
+export class NavigationFooterComponent {}
 
