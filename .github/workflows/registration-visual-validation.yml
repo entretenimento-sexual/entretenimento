@@ -141,8 +141,33 @@ jobs:
           async (page) => {
             const backdrop = page.locator('.signup-backdrop');
             await backdrop.evaluate(image => image.decode());
-            const viewport = page.viewportSize();
-            const clip = { x: Math.floor(viewport.width * 0.21), y: Math.floor(viewport.height * 0.20), width: 96, height: 64 };
+            const framing = await backdrop.evaluate(image => {
+              const box = image.getBoundingClientRect();
+              const position = getComputedStyle(image).objectPosition.split(' ');
+              const scale = Math.max(box.width / image.naturalWidth, box.height / image.naturalHeight);
+              const width = image.naturalWidth * scale;
+              const height = image.naturalHeight * scale;
+              const x = box.left + (box.width - width) * parseFloat(position[0]) / 100;
+              const y = box.top + (box.height - height) * parseFloat(position[1]) / 100;
+              // Bounds of the two heads in the source image.
+              const faces = { left: x + width * 0.07, right: x + width * 0.535, top: y + height * 0.026, bottom: y + height * 0.46 };
+              const header = document.querySelector('app-navbar').getBoundingClientRect();
+              const form = document.querySelector('.form-container').getBoundingClientRect();
+              const insidePhoto = faces.left >= box.left && faces.right <= box.right &&
+                faces.top >= Math.max(box.top, header.bottom) && faces.bottom <= box.bottom;
+              const clearOfForm = faces.right <= form.left || faces.left >= form.right ||
+                faces.bottom <= form.top || faces.top >= form.bottom;
+              return { faces, insidePhoto, clearOfForm };
+            });
+            if (!framing.insidePhoto || !framing.clearOfForm) {
+              throw new Error('Signup portrait is cropped or covered by the form: ' + JSON.stringify(framing));
+            }
+            const clip = {
+              x: Math.floor((framing.faces.left + framing.faces.right) / 2) - 48,
+              y: Math.floor((framing.faces.top + framing.faces.bottom) / 2) - 32,
+              width: 96,
+              height: 64,
+            };
             const painted = await page.screenshot({ clip, animations: 'disabled' });
             const hidden = await page.screenshot({
               clip,
@@ -177,12 +202,20 @@ jobs:
             if (changed < 0.15) {
               throw new Error('Signup backdrop is loaded but not visible in the screenshot. Changed pixel ratio: ' + changed);
             }
-            return { changedPixelRatio: changed };
+            return { changedPixelRatio: changed, faces: framing.faces };
           }
           PLAYWRIGHT
           )
 
           playwright-cli open "$URL"
+
+          playwright-cli resize 1920 520
+          playwright-cli run-code "$CHECK_SIGNUP_PHOTO" | tee "$OUT/short-desktop-framing.log"
+          playwright-cli screenshot --full-page --filename="$OUT/short-desktop-framing.png"
+
+          playwright-cli resize 320 640
+          playwright-cli run-code "$CHECK_SIGNUP_PHOTO" | tee "$OUT/narrow-mobile-framing.log"
+          playwright-cli screenshot --full-page --filename="$OUT/narrow-mobile-framing.png"
 
           playwright-cli resize 1440 1000
           playwright-cli reload
@@ -201,11 +234,10 @@ jobs:
               submitVisible: !!document.querySelector('button[type=submit]')?.getClientRects().length,
               nicknameVisible: !!document.querySelector('#apelidoPrincipal')?.getClientRects().length,
               laterFieldsPresent: !!document.querySelector('#email, #password, #maioridade-inicial, #termos'),
-              viewportImage: document.querySelector('.signup-backdrop')?.getBoundingClientRect().toJSON(),
+              viewportImage: document.querySelector('.signup-image')?.getBoundingClientRect().toJSON(),
               bodyWidth: document.documentElement.clientWidth,
               bodyHeight: document.documentElement.clientHeight,
               photoSource: document.querySelector('.signup-backdrop')?.currentSrc.endsWith('signup-shadow.webp'),
-              imageAlignment: getComputedStyle(document.querySelector('.signup-backdrop')).objectPosition,
               footerCount: document.querySelectorAll('.public-footer').length,
               footer: document.querySelector('.public-footer--compact')?.getBoundingClientRect().toJSON(),
               footerDocs: Array.from(document.querySelectorAll('.public-footer--compact nav.legal-top a'), link => link.getAttribute('href')),
@@ -230,7 +262,7 @@ jobs:
             if (!metrics.photoSource || !metrics.viewportImage || Math.abs(metrics.viewportImage.width - metrics.bodyWidth) > 1 || Math.abs(metrics.viewportImage.height - metrics.bodyHeight) > 1) {
               throw new Error('Desktop must show the photographic background across the viewport');
             }
-            if (!metrics.imageAlignment.endsWith('100%') || Math.abs(metrics.viewportImage.bottom - metrics.viewportHeight) > 2 ||
+            if (Math.abs(metrics.viewportImage.bottom - metrics.viewportHeight) > 2 ||
                 metrics.footerCount !== 1 || !metrics.footer || Math.abs(metrics.footer.bottom - metrics.viewportHeight) > 2 ||
                 metrics.footer.height > 60 || metrics.footerDocs.length !== 3 ||
                 metrics.footerDocs.some(path => !['/politica-de-privacidade', '/termos-e-condicoes', '/politica-de-cookies'].includes(path))) {
@@ -318,7 +350,7 @@ jobs:
                 viewportHeight: window.innerHeight,
                 scrollWidth: document.documentElement.scrollWidth,
                 scrollHeight: document.documentElement.scrollHeight,
-                viewportImage: document.querySelector('.signup-backdrop')?.getBoundingClientRect().toJSON(),
+                viewportImage: document.querySelector('.signup-image')?.getBoundingClientRect().toJSON(),
                 bodyWidth: document.documentElement.clientWidth,
                 bodyHeight: document.documentElement.clientHeight,
                 footer: document.querySelector('.public-footer--compact')?.getBoundingClientRect().toJSON(),
@@ -361,7 +393,7 @@ jobs:
             await page.setViewportSize({ width: 390, height: 500 });
             await page.locator('.public-footer--compact').scrollIntoViewIfNeeded();
             const scrolled = await page.evaluate(() => {
-              const photo = document.querySelector('.signup-backdrop').getBoundingClientRect();
+              const photo = document.querySelector('.signup-image').getBoundingClientRect();
               const footer = document.querySelector('.public-footer--compact').getBoundingClientRect();
               return { y: window.scrollY, height: innerHeight, photoBottom: photo.bottom, footerBottom: footer.bottom };
             });
@@ -402,7 +434,7 @@ jobs:
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
-                backdropDocumentBottom: document.querySelector('.signup-backdrop')?.getBoundingClientRect().bottom + scrollY,
+                backdropDocumentBottom: document.querySelector('.signup-image')?.getBoundingClientRect().bottom + scrollY,
                 viewportHeight: innerHeight,
                 formWidth: formRect?.width ?? 0,
                 firstInputWidth: inputRect?.width ?? 0,

@@ -8,6 +8,9 @@
    ================================ */
 
 :host {
+  --signup-photo-top: calc(var(--header-height, 64px) + 1rem + 1px);
+  --signup-photo-height: min(110vw, 100dvh - var(--signup-photo-top));
+
   display: grid;
   flex: 1;
 }
@@ -24,20 +27,24 @@
 }
 
 .signup-image {
-  display: contents;
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: -1;
+  block-size: 100dvh;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .signup-backdrop {
   position: absolute;
-  inset: 0 0 auto;
-  z-index: -1;
-  inline-size: 100%;
-  block-size: 100dvh;
-  max-inline-size: none;
-  pointer-events: none;
-  background: #170910;
+  inset-block-start: var(--signup-photo-top);
+  inset-inline-start: 0;
+  /* Os limites preservam o casal quando a janela fica muito alta ou muito baixa. */
+  inline-size: min(100%, var(--signup-photo-height) * 2.7);
+  block-size: var(--signup-photo-height);
   object-fit: cover;
-  object-position: 36% bottom;
+  object-position: 10% top;
+  mask-image: linear-gradient(to right, #000 80%, transparent);
 }
 
 .auth-badge,
@@ -512,11 +519,11 @@
   }
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 1000px), (max-aspect-ratio: 5/4) {
   .auth-container {
     grid-template-columns: minmax(0, 1fr);
-    /* Deixa a cena em primeiro plano antes de começar o formulário. */
-    padding-block-start: clamp(8rem, 22svh, 14rem);
+    /* Reserva altura para os rostos antes do cartão, inclusive em janelas baixas. */
+    padding-block-start: max(8rem, max(30vw, var(--signup-photo-height) * 0.46) + 0.75rem);
   }
 
   .form-container {
@@ -524,7 +531,7 @@
   }
 
   .signup-backdrop {
-    object-position: 18% bottom;
+    mask-image: linear-gradient(to bottom, #000 58%, transparent);
   }
 }
 
