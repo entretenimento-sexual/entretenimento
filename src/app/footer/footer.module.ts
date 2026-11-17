@@ -7,7 +7,7 @@ import { LegalFooterComponent } from './legal-footer/legal-footer.component';
 import { NavigationFooterComponent } from './navigation-footer/navigation-footer.component';
 import { FooterComponent } from './footer/footer.component';
 import { AuthenticatedFooterComponent } from './authenticated-footer/authenticated-footer.component';
-import { FooterRoutingModule } from './footer-routing.module';
+import { RouterModule } from '@angular/router';
 
 @NgModule({
   declarations: [
@@ -18,7 +18,7 @@ import { FooterRoutingModule } from './footer-routing.module';
     FooterComponent,
     AuthenticatedFooterComponent,
   ],
-  imports: [CommonModule, FooterRoutingModule],
+  imports: [CommonModule, RouterModule],
   exports: [
     ContactFooterComponent,
     CopyrightFooterComponent,

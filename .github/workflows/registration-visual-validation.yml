@@ -306,7 +306,7 @@ jobs:
               throw new Error('Mobile form controls are compressed into a narrow column');
             }
             await page.getByRole('link', { name: 'Política de Privacidade' }).press('Enter');
-            await page.waitForURL('**/politica-de-privacidade');
+            await page.waitForURL('**/politica-de-privacidade', { timeout: 10000 });
             await page.locator('#privacy-title').waitFor({ state: 'visible' });
             await page.goBack();
             await page.locator('.public-footer--compact').waitFor({ state: 'visible' });

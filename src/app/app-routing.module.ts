@@ -10,6 +10,7 @@ import { profileCompletedGuard } from './core/guards/profile-guard/profile-compl
 import { adultContentConsentGuard } from './core/guards/compliance/adult-content-consent.guard';
 
 import { LayoutShellComponent } from './layout/layout-shell/layout-shell.component';
+import { FooterRoutingModule } from './footer/footer-routing.module';
 import { accountLifecycleGuard } from './account/guards/account-lifecycle.guard';
 import { registrationStepGuard } from './register-module/data-access/registration-step.guard';
 
@@ -316,6 +317,7 @@ const routes: Routes = [
 
 @NgModule({
   imports: [
+    FooterRoutingModule,
     RouterModule.forRoot(routes, {
       preloadingStrategy: NoPreloading,
       bindToComponentInputs: true,
