@@ -59,6 +59,8 @@ describe('AppComponent', () => {
         RouterTestingModule.withRoutes([
           { path: 'home', component: DummyComponent },
           { path: 'chat/:id', component: DummyComponent },
+          { path: 'register', component: DummyComponent },
+          { path: 'register/welcome', component: DummyComponent },
         ]),
       ],
       declarations: [AppComponent],
@@ -216,6 +218,14 @@ describe('AppComponent', () => {
     expect(subscriptionAccessStub.start).toHaveBeenCalledTimes(1);
 
     await fixture.ngZone!.run(() => router.navigateByUrl('/home'));
+    fixture.detectChanges();
+    await expect(firstValueFrom(component.showFooter$)).resolves.toBe(true);
+
+    await fixture.ngZone!.run(() => router.navigateByUrl('/register?source=home'));
+    fixture.detectChanges();
+    await expect(firstValueFrom(component.showFooter$)).resolves.toBe(false);
+
+    await fixture.ngZone!.run(() => router.navigateByUrl('/register/welcome'));
     fixture.detectChanges();
     await expect(firstValueFrom(component.showFooter$)).resolves.toBe(true);
 

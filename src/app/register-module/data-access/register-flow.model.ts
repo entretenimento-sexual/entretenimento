@@ -10,6 +10,11 @@ export type RegisterFlowStep =
   | 'profileCompletion'
   | 'preferences';
 
+export function isRegistrationStartRoute(url: string): boolean {
+  const path = url.trim().split(/[?#]/)[0];
+  return path === '/register' || path === '/register/';
+}
+
 export function isRegistrationStepRoute(url: string): boolean {
   const path = url.split(/[?#]/)[0];
   return path === '/register/welcome' ||

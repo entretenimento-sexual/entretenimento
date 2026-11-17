@@ -98,6 +98,17 @@ app-navbar {
   overflow-y: auto;
 }
 
+/* O cadastro ancora a fotografia no topo do shell, incluindo a área da navbar. */
+.auth-shell[data-shell-mode='guest']:has(app-register) {
+  position: relative;
+  isolation: isolate;
+  background: #170910;
+}
+
+.auth-shell[data-shell-mode='guest']:has(app-register) .auth-shell__body {
+  position: static;
+}
+
 .auth-shell[data-shell-mode='guest'] .auth-shell__content:has(> app-register) {
   display: flex;
   flex-direction: column;

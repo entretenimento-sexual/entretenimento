@@ -60,4 +60,8 @@
     [currentUrl]="vm.currentUrl"
     [friendRequestsCount]="vm.friendRequestsCount"
   ></app-mobile-bottom-nav>
+
+  @if (isRegistrationStartRoute(vm.currentUrl)) {
+    <app-footer [compact]="true" />
+  }
 </div>

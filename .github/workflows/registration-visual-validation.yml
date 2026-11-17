@@ -7,7 +7,7 @@ on:
       - 'angular.json'
       - 'src/app/register-module/**'
       - 'src/app/footer/**'
-      - 'src/app/layout/layout-shell/layout-shell.component.css'
+      - 'src/app/layout/layout-shell/**'
       - 'src/app/compliance/age-verification-page/**'
       - 'src/app/compliance/age-reverification-page/**'
       - 'src/app/account/guards/account-lifecycle.guard.ts'
@@ -160,9 +160,9 @@ jobs:
               bodyHeight: document.documentElement.clientHeight,
               photoSource: document.querySelector('.signup-backdrop')?.currentSrc.endsWith('signup-shadow.webp'),
               imageAlignment: getComputedStyle(document.querySelector('.signup-backdrop')).objectPosition,
-              footerTop: document.querySelector('#public-footer')?.getBoundingClientRect().top,
-              footerShortcutBottom: document.querySelector('.signup-footer-link')?.getBoundingClientRect().bottom,
-              footerDocs: Array.from(document.querySelectorAll('#public-footer nav.legal-top a'), link => link.getAttribute('href')),
+              footerCount: document.querySelectorAll('.public-footer').length,
+              footer: document.querySelector('.public-footer--compact')?.getBoundingClientRect().toJSON(),
+              footerDocs: Array.from(document.querySelectorAll('.public-footer--compact nav.legal-top a'), link => link.getAttribute('href')),
               formStart: document.querySelector('.form-container')?.getBoundingClientRect().left ?? 0,
               formHeight: document.querySelector('.form-container')?.getBoundingClientRect().height ?? 0,
               nicknameRow: Math.abs(
@@ -184,10 +184,11 @@ jobs:
             if (!metrics.photoSource || !metrics.viewportImage || Math.abs(metrics.viewportImage.width - metrics.bodyWidth) > 1 || Math.abs(metrics.viewportImage.height - metrics.bodyHeight) > 1) {
               throw new Error('Desktop must show the photographic background across the viewport');
             }
-            if (!metrics.imageAlignment.endsWith('100%') || Math.abs(metrics.footerTop - metrics.viewportHeight) > 2 ||
-                !(metrics.footerShortcutBottom <= metrics.viewportHeight) || metrics.footerDocs.length !== 3 ||
+            if (!metrics.imageAlignment.endsWith('100%') || Math.abs(metrics.viewportImage.bottom - metrics.viewportHeight) > 2 ||
+                metrics.footerCount !== 1 || !metrics.footer || Math.abs(metrics.footer.bottom - metrics.viewportHeight) > 2 ||
+                metrics.footer.height > 60 || metrics.footerDocs.length !== 3 ||
                 metrics.footerDocs.some(path => !['/politica-de-privacidade', '/termos-e-condicoes', '/politica-de-cookies'].includes(path))) {
-              throw new Error('Desktop signup must align the photo to the viewport bottom and expose the public legal footer below it');
+              throw new Error('Desktop signup must show the compact legal footer and the photo within the first viewport');
             }
             if (!metrics.nicknameRow || !metrics.formHeight || metrics.formHeight > 420) {
               throw new Error('Desktop signup form must keep the nickname fields in a compact row');
@@ -273,8 +274,8 @@ jobs:
                 viewportImage: document.querySelector('.signup-backdrop')?.getBoundingClientRect().toJSON(),
                 bodyWidth: document.documentElement.clientWidth,
                 bodyHeight: document.documentElement.clientHeight,
-                footerTop: document.querySelector('#public-footer')?.getBoundingClientRect().top,
-                footerShortcutBottom: document.querySelector('.signup-footer-link')?.getBoundingClientRect().bottom,
+                footer: document.querySelector('.public-footer--compact')?.getBoundingClientRect().toJSON(),
+                formBottom: formRect?.bottom,
                 formStart: formRect?.top ?? 0,
                 formHeight: formRect?.height ?? 0,
                 formVisible: !!document.querySelector('.form-container')?.getClientRects().length,
@@ -290,8 +291,10 @@ jobs:
             if (!metrics.viewportImage || Math.abs(metrics.viewportImage.width - metrics.bodyWidth) > 1 || Math.abs(metrics.viewportImage.height - metrics.bodyHeight) > 1 || metrics.formStart < 190) {
               throw new Error('Mobile must show the artwork across the viewport and leave it visible above the form');
             }
-            if (Math.abs(metrics.footerTop - metrics.viewportHeight) > 2 || !(metrics.footerShortcutBottom <= metrics.viewportHeight)) {
-              throw new Error('Mobile must fit the legal footer shortcut in the first viewport and keep the full footer below it');
+            if (Math.abs(metrics.viewportImage.bottom - metrics.viewportHeight) > 2 || !metrics.footer ||
+                Math.abs(metrics.footer.bottom - metrics.viewportHeight) > 2 || metrics.footer.top < metrics.formBottom ||
+                metrics.footer.height > 94) {
+              throw new Error('Mobile signup must fit the compact legal footer below the form within the first viewport');
             }
             if (!metrics.formVisible || !metrics.submitVisible || !metrics.formHeight || metrics.formHeight > 435) {
               throw new Error('Mobile initial registration form is incomplete');
@@ -302,8 +305,24 @@ jobs:
             if (metrics.firstInputWidth < metrics.viewportWidth * 0.70) {
               throw new Error('Mobile form controls are compressed into a narrow column');
             }
-            await page.getByRole('link', { name: 'Termos, privacidade e cookies' }).press('Enter');
-            await page.waitForFunction(() => document.activeElement?.id === 'public-footer' && window.scrollY > 0);
+            await page.getByRole('link', { name: 'Política de Privacidade' }).press('Enter');
+            await page.waitForURL('**/politica-de-privacidade');
+            await page.locator('#privacy-title').waitFor({ state: 'visible' });
+            await page.goBack();
+            await page.locator('.public-footer--compact').waitFor({ state: 'visible' });
+
+            await page.setViewportSize({ width: 390, height: 500 });
+            await page.locator('.public-footer--compact').scrollIntoViewIfNeeded();
+            const scrolled = await page.evaluate(() => {
+              const photo = document.querySelector('.signup-backdrop').getBoundingClientRect();
+              const footer = document.querySelector('.public-footer--compact').getBoundingClientRect();
+              return { y: window.scrollY, height: innerHeight, photoBottom: photo.bottom, footerBottom: footer.bottom };
+            });
+            if (scrolled.y <= 0 || Math.abs(scrolled.photoBottom + scrolled.y - scrolled.height) > 2 ||
+                scrolled.photoBottom >= scrolled.height || scrolled.footerBottom > scrolled.height + 1) {
+              throw new Error('The photo must scroll with the document and stop at the first viewport boundary');
+            }
+            await page.setViewportSize({ width: 390, height: 844 });
             await page.evaluate(() => window.scrollTo(0, 0));
             return metrics;
           }" | tee "$OUT/mobile-initial.metrics.log"
@@ -336,7 +355,8 @@ jobs:
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
-                backdropPosition: document.querySelector('.signup-backdrop')?.getBoundingClientRect().top,
+                backdropDocumentBottom: document.querySelector('.signup-backdrop')?.getBoundingClientRect().bottom + scrollY,
+                viewportHeight: innerHeight,
                 formWidth: formRect?.width ?? 0,
                 firstInputWidth: inputRect?.width ?? 0,
                 visibleErrors: errors.length,
@@ -354,8 +374,8 @@ jobs:
             if (metrics.scrollWidth > metrics.viewportWidth + 1) {
               throw new Error('Mobile invalid state has horizontal overflow');
             }
-            if (Math.abs(metrics.backdropPosition ?? Number.POSITIVE_INFINITY) > 1) {
-              throw new Error('Mobile validation state must keep the artwork fixed while scrolling');
+            if (Math.abs(metrics.backdropDocumentBottom - metrics.viewportHeight) > 2) {
+              throw new Error('Validation feedback must keep the photo limited to the first viewport');
             }
             if (metrics.formWidth < metrics.viewportWidth * 0.85 || metrics.firstInputWidth < metrics.viewportWidth * 0.70) {
               throw new Error('Mobile invalid form lost its useful content width');

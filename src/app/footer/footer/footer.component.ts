@@ -1,5 +1,5 @@
 //src\app\footer\footer\footer.component.ts
-import { Component } from '@angular/core';
+import { Component, input } from '@angular/core';
 
 @Component({
     selector: 'app-footer',
@@ -8,5 +8,5 @@ import { Component } from '@angular/core';
     standalone: false
 })
 export class FooterComponent {
-
+  readonly compact = input(false);
 }
