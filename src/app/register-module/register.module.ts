@@ -21,6 +21,7 @@ import { RegisterRoutingModule } from './register-routing.module';
 import { RegisterComponent } from './register.component';
 import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';
 import { WelcomeComponent } from './welcome/welcome.component';
+import { RegisterProgressComponent } from './register-progress/register-progress.component';
 
 import { SharedModule } from '../shared/shared.module';
 import { RegisterErrorMessagePipe } from '../shared/pipes/register-error-message.pipe';
@@ -40,6 +41,7 @@ import { FormValidationFocusDirective } from '../shared/form-validation-focus/fo
     FormsModule,
     SharedModule,
     RegisterRoutingModule,
+    RegisterProgressComponent,
     RegisterErrorMessagePipe,
     EmailInputModalComponent,
     ActionStateDirective,

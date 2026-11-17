@@ -42,10 +42,26 @@
 | Bloqueios, suspensão e ciclo de exclusão | Autoridade backend | Apenas solicitações/ações explicitamente autorizadas | Equipe de moderação com permissão específica, backend | Proteção contra bypass e auditoria de eventos |
 | E-mail, autenticação, documentos e mensagens | Fluxos privados específicos | Atualizações somente pelo fluxo canônico respectivo | Backend conforme finalidade autorizada | Não publicar em `public_profiles` nem no discovery |
 
-O e-mail informado no campo de cadastro pertence aos dados privados da conta.
-Projeções públicas e respostas destinadas a outros usuários excluem esse campo.
-O texto digitado pelo titular em outros campos segue as regras de visibilidade e
-publicação do próprio campo, inclusive quando contém o mesmo endereço.
+### Dados privados da conta e do pagamento
+
+- O e-mail cadastral vem da identidade em Firebase Auth e já tem projeção privada
+  em `users/{uid}.email`. A leitura do documento completo pelo cliente é restrita
+  ao titular. Projeções públicas e respostas para outros usuários excluem esse
+  campo. O texto digitado em outros campos segue a visibilidade e as regras de
+  publicação daquele campo, inclusive quando contém o mesmo endereço.
+- Checkouts, contratos, eventos e transações usam as coleções financeiras já
+  protegidas em `billing.rules`. A área financeira do titular consome respostas
+  sanitizadas de `getMyBillingSnapshot` e
+  `getMyPlatformSubscriptionHistory`, que consultam o UID autenticado.
+  Perfis públicos e descoberta podem usar os atributos de produto já previstos
+  para a exibição de benefícios. Dados de pagamento e identificadores do provedor
+  permanecem nas superfícies financeiras autorizadas.
+- A captura do cartão ocorre no checkout hospedado do Asaas. O aplicativo e
+  o Firestore ficam fora da captura de número e código de segurança do cartão.
+
+[Regras da conta](../firestore-rules/users.rules) ·
+[Regras financeiras](../firestore-rules/billing.rules) ·
+[Política de cobrança Asaas](architecture/ASAAS_RECURRING_BILLING.md)
 
 ## Fluxos e quem decide
 

@@ -25,6 +25,7 @@ import {
 } from 'src/app/core/interfaces/iuser-dados';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { RegisterFlowFacade } from 'src/app/register-module/data-access/register-flow.facade';
+import { RegisterProgressComponent } from 'src/app/register-module/register-progress/register-progress.component';
 import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
 import {
   AgeEligibilityService,
@@ -54,7 +55,7 @@ interface PageFeedback {
 @Component({
   selector: 'app-age-verification-page',
   standalone: true,
-  imports: [CommonModule, RouterModule, PageHeaderComponent],
+  imports: [CommonModule, RouterModule, PageHeaderComponent, RegisterProgressComponent],
   templateUrl: './age-verification-page.component.html',
   styleUrls: ['./age-verification-page.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

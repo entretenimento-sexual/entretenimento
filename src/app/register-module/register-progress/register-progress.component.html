@@ -1,0 +1,31 @@
+<section class="register-progress" aria-label="Progresso do cadastro">
+  <p class="summary" aria-live="polite" aria-atomic="true">
+    @if (finishedCount() === stages.length) {
+      Cadastro concluído
+    } @else if (completed()) {
+      {{ finishedCount() }} de {{ stages.length }} etapas concluídas
+    } @else {
+      Etapa {{ position() + 1 }} de {{ stages.length }}
+    }
+  </p>
+
+  <ol class="stage-list" role="list">
+    @for (stage of stages; track stage.step; let index = $index) {
+      <li
+        class="stage"
+        [class.stage--done]="index < finishedCount()"
+        [attr.aria-current]="index === position() && !completed() ? 'step' : null"
+      >
+        <span class="marker" aria-hidden="true">{{ index < finishedCount() ? '✓' : index + 1 }}</span>
+        <span>{{ stage.label }}</span>
+        @if (index < finishedCount()) {
+          <span class="sr-only">concluída</span>
+        }
+      </li>
+    }
+  </ol>
+
+  @if (nextStage(); as next) {
+    <p class="next">Próxima etapa <strong>{{ next.action }}</strong></p>
+  }
+</section>

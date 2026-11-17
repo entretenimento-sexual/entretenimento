@@ -172,6 +172,7 @@ export class RegisterComponent {
   readonly showTech = signal(false);
 
   readonly creating = signal(false);
+  readonly accountCreated = signal(false);
   readonly creatingMsg = signal('Estamos criando seu usuário, aguarde…');
   readonly syncing = signal(false);
 
@@ -550,6 +551,7 @@ export class RegisterComponent {
 
     this.registerService.registerUser(payload, password)
       .pipe(
+        tap(() => this.accountCreated.set(true)),
         switchMap((result) => this.waitForAuthUserOnce(8000, result.user.uid).pipe(
           switchMap(() => {
             if (this.auth.currentUser?.uid !== result.user.uid) {
@@ -607,6 +609,7 @@ export class RegisterComponent {
           }
 
           if (code === 'registration-account-created') {
+            this.accountCreated.set(true);
             this.setBanner('warn', 'Sua conta foi criada',
               'Entre com o e-mail usado no cadastro para continuar.', err, true);
             return;

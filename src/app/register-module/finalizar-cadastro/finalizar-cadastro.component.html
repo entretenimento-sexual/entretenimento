@@ -2,6 +2,7 @@
 <div class="auth-container">
   <div class="form-container">
     <h1>{{ profileSaved ? 'Perfil salvo' : pageTitle }}</h1>
+    <app-register-progress step="profileCompletion" [completed]="profileSaved" />
     @if (profileSaved) {
       <p role="status">
         {{ openingSavedProfile

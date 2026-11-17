@@ -12,7 +12,9 @@
 // - o cliente não escreve entitlement;
 // - o cliente não acessa eventos, transações ou auditorias financeiras;
 // - leituras necessárias à UI devem ocorrer por Cloud Functions que retornem
-//   somente projeções sanitizadas e pertencentes ao usuário autenticado.
+//   somente projeções sanitizadas e pertencentes ao usuário autenticado
+//   (getMyBillingSnapshot e getMyPlatformSubscriptionHistory);
+// - perfis públicos e descoberta não reutilizam documentos financeiros.
 //
 // Importante:
 // - Cloud Functions com Admin SDK não dependem destas permissões do cliente;
@@ -79,8 +81,8 @@ match /payment_events/{paymentEventId} {
 match /payment_transactions/{transactionId} {
   /**
    * Registro financeiro normalizado.
-   * Uma futura tela de histórico deverá consumir projeção sanitizada via
-   * callable, e não esta coleção bruta.
+   * A tela de histórico consome getMyPlatformSubscriptionHistory, com
+   * projeção sanitizada para o UID autenticado.
    */
   allow read, write: if false;
 }

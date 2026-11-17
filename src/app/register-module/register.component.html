@@ -8,6 +8,7 @@
   </section>
 
   <div class="form-container">
+    <app-register-progress step="signup" [completed]="accountCreated()" />
 
     <div *ngIf="banner() as b" class="alert" [ngClass]="{
         'alert-secondary': b.variant === 'info',

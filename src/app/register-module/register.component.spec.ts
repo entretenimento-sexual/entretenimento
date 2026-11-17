@@ -342,6 +342,7 @@ describe('RegisterComponent', () => {
 
     expect(router.navigate).not.toHaveBeenCalled();
     expect(component.banner()?.title).toBe('Sua conta foi criada');
+    expect(component.accountCreated()).toBe(true);
     expect(component.isLoading()).toBe(false);
   });
 

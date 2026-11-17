@@ -1,0 +1,92 @@
+:host {
+  display: block;
+  min-width: 0;
+  margin-block-end: 1rem;
+}
+
+.register-progress {
+  display: grid;
+  gap: 0.65rem;
+  padding-block-end: 0.85rem;
+  border-block-end: 1px solid var(--surface-border, currentColor);
+  color: var(--text-color);
+  text-align: start;
+}
+
+.summary,
+.next {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.summary {
+  font-weight: 700;
+}
+
+.stage-list {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  padding-block-start: 0.35rem;
+  border-block-start: 2px solid var(--surface-border, currentColor);
+  border-radius: 0.125rem;
+  color: var(--text-muted, var(--text-color));
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.stage--done,
+.stage[aria-current='step'] {
+  border-color: var(--primary-color);
+  color: var(--text-color);
+}
+
+.stage[aria-current='step'] {
+  font-weight: 800;
+}
+
+.marker {
+  display: grid;
+  place-items: center;
+  inline-size: 1.4rem;
+  block-size: 1.4rem;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--text-color) 8%, transparent);
+}
+
+.stage--done .marker,
+.stage[aria-current='step'] .marker {
+  background: color-mix(in oklab, var(--primary-color) 20%, transparent);
+}
+
+.next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.4rem;
+  color: var(--text-muted, var(--text-color));
+}
+
+.next strong {
+  color: var(--text-color);
+}
+
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

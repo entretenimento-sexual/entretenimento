@@ -17,6 +17,10 @@
     </p>
   </section>
 
+  @if (!sessionInvalid && !profileCompleted) {
+    <app-register-progress step="emailVerification" [completed]="emailVerified" />
+  }
+
   <div
     *ngIf="banner as b"
     class="alert welcome-alert"

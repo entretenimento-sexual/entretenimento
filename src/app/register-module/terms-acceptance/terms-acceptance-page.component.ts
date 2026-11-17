@@ -31,11 +31,12 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { RegisterFlowVm } from '../data-access/register-flow.model';
+import { RegisterProgressComponent } from '../register-progress/register-progress.component';
 
 @Component({
   selector: 'app-terms-acceptance-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, RegisterProgressComponent],
   templateUrl: './terms-acceptance-page.component.html',
   styleUrls: ['./terms-acceptance-page.component.css'],
 })
@@ -55,6 +56,7 @@ export class TermsAcceptancePageComponent {
   });
 
   readonly isMaterialUpdate$: Observable<boolean>;
+  readonly currentTermsAccepted$: Observable<boolean>;
   readonly isSaving = signal(false);
 
   constructor(
@@ -67,6 +69,12 @@ export class TermsAcceptancePageComponent {
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService,
   ) {
+    this.currentTermsAccepted$ = this.currentUser.user$.pipe(
+      map(user => hasAcceptedCurrentTerms(user?.acceptedTerms)),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
     this.isMaterialUpdate$ = combineLatest([
       this.currentUser.user$,
       this.route.queryParamMap,
@@ -258,10 +266,9 @@ export class TermsAcceptancePageComponent {
    * restaurada.
    */
   private redirectRecognizedAcceptance(): void {
-    this.currentUser.user$
+    this.currentTermsAccepted$
       .pipe(
-        filter((user) => user !== undefined),
-        filter((user) => hasAcceptedCurrentTerms(user?.acceptedTerms)),
+        filter(accepted => accepted),
         take(1)
       )
       .subscribe(() => {

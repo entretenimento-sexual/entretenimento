@@ -27,6 +27,7 @@
         </section>
       } @else {
         <h1 id="terms-acceptance-title">Termos da plataforma</h1>
+        <app-register-progress step="termsAcceptance" [completed]="(currentTermsAccepted$ | async) === true" />
 
         <p class="terms-acceptance__lead">
           Versão {{ legalManifest.termsAcceptanceVersion }}. Antes de continuar, consulte os Termos de Uso e a Política de Privacidade. Esta confirmação será solicitada novamente somente se houver alteração material.

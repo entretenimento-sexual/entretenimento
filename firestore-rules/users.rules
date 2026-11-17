@@ -449,8 +449,10 @@ match /users/{userId} {
           : ordinarySelfUpdateAllowed(changedKeys);
   }
 
-  // O painel administrativo consome projeções autorizadas via Functions.
-  // O documento privado completo pertence ao titular.
+  // users/{uid}.email é a projeção privada do e-mail cadastral do Auth.
+  // Projeções públicas e respostas de terceiros omitem esse campo.
+  // O painel administrativo consome projeções próprias via Functions.
+  // Pelo cliente, o documento privado completo pertence ao titular.
   allow get: if isSelf(userId);
   allow list: if false;
 

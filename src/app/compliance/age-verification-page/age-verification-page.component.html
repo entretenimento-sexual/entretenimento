@@ -8,6 +8,9 @@
       />
     </div>
 
+    @let ageVm = vm$ | async;
+    <app-register-progress step="ageVerification" [completed]="!reconciling() && ageVm?.accessAllowed === true" />
+
     @if (feedback(); as message) {
       <section
         class="age-verification__feedback"
@@ -31,7 +34,7 @@
           </p>
         </div>
       </section>
-    } @else if (vm$ | async; as vm) {
+    } @else if (ageVm; as vm) {
       @if (vm.accessAllowed) {
         <section class="age-verification__status age-verification__status--success" role="status">
           <span class="age-verification__status-icon" aria-hidden="true">✓</span>
