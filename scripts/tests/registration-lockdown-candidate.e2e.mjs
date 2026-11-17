@@ -17,7 +17,7 @@ for (const expected of [
   'return false && isSelf(userId)',
   'allow create: if false && resource == null',
   'allow create: if isEmailDoc() && common()',
-  'allow get: if false && isNicknameDoc()',
+  'allow get: if (false && isNicknameDoc()',
 ]) {
   assert.ok(rules.includes(expected), 'Missing lockdown guard: ' + expected);
 }
