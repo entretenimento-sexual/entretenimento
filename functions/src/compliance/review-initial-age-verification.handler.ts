@@ -158,11 +158,11 @@ export const reviewInitialAgeVerification = onCall<
           // Nunca tratar REJECT como uma simples falha cosmética de verificação.
           ...(finalStatus === 'DENIED_UNDERAGE'
             ? buildConfirmedUnderageSuspensionPatch({
-                reviewedAt,
-                reviewedBy: adminUid,
-                reason: 'Revisão inicial confirmou menoridade.',
-                caseId: reportId,
-              })
+              reviewedAt,
+              reviewedBy: adminUid,
+              reason: 'Revisão inicial confirmou menoridade.',
+              caseId: reportId,
+            })
             : {}),
           updatedAt: timestamp,
         },
