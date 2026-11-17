@@ -209,7 +209,8 @@ export class RegisterComponent {
   // enviadas ao serviço depois da validação final das três telas.
   readonly sectionIndex = signal(0);
   readonly currentSection = computed(() => SIGNUP_SECTIONS[this.sectionIndex()]);
-  readonly lastSection = computed(() => this.sectionIndex() === SIGNUP_SECTIONS.length - 1);
+  readonly sectionCount = SIGNUP_SECTIONS.length;
+  readonly lastSection = computed(() => this.sectionIndex() === this.sectionCount - 1);
   readonly nextSectionTitle = computed(() => this.accountCreated()
     ? null
     : SIGNUP_SECTIONS[this.sectionIndex() + 1]?.title ?? null

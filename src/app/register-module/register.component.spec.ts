@@ -100,6 +100,7 @@ describe('RegisterComponent', () => {
 
     expect(view.querySelector('#apelidoPrincipal')).not.toBeNull();
     expect(view.querySelector('#email, #password, #termos, #maioridade-inicial')).toBeNull();
+    expect(view.querySelector('.signup-section-count')?.textContent).toBe('1 de 3');
     submit();
     expect(view.querySelector('#email')).toBeNull();
     expect(component.form.get('email')?.untouched).toBe(true);
@@ -108,6 +109,7 @@ describe('RegisterComponent', () => {
     submit();
     expect(view.querySelector('#email')).not.toBeNull();
     expect(view.querySelector('#apelidoPrincipal, #termos')).toBeNull();
+    expect(view.querySelector('.signup-section-count')?.textContent).toBe('2 de 3');
     expect(registerService.registerUser).not.toHaveBeenCalled();
 
     component.form.patchValue({ email: 'a@example.test', password: 'Senha123', confirmPassword: 'Outro123' });
@@ -119,6 +121,7 @@ describe('RegisterComponent', () => {
 
     expect(view.querySelector('#maioridade-inicial')).not.toBeNull();
     expect(view.querySelector('#email, #password, #apelidoPrincipal')).toBeNull();
+    expect(view.querySelector('.signup-section-count')?.textContent).toBe('3 de 3');
     submit();
     expect(registerService.registerUser).not.toHaveBeenCalled();
 

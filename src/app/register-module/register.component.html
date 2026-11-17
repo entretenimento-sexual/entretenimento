@@ -1,14 +1,13 @@
 <!-- src/app/register-module/register.component.html -->
 <div class="auth-container">
-  <section class="auth-intro" aria-labelledby="register-intro-title">
-    <img class="auth-intro-photo" src="assets/registration/signup-evening.webp" alt="" decoding="async" />
-    <div class="auth-intro-copy">
-      <h1 id="register-intro-title">Criar conta</h1>
-      <p>Escolha seu apelido e configure o acesso. Você completa o perfil depois.</p>
-    </div>
-  </section>
+  <img class="signup-backdrop" src="assets/registration/signup-noir.svg" alt="" decoding="async" />
 
   <div class="form-container">
+    <header class="auth-intro">
+      <h1 id="register-intro-title">Criar conta</h1>
+      <p>Escolha seu apelido e configure o acesso. Você completa o perfil depois.</p>
+    </header>
+
     <app-register-progress
       step="signup"
       [completed]="accountCreated()"
@@ -63,7 +62,10 @@
       [attr.aria-busy]="(isLoading() || creating()) ? 'true' : null">
 
       <header class="signup-section-intro">
-        <h2 id="register-section-title" #sectionHeading tabindex="-1">{{ currentSection().title }}</h2>
+        <h2 id="register-section-title" #sectionHeading tabindex="-1">
+          {{ currentSection().title }}
+          <span class="signup-section-count">{{ sectionIndex() + 1 }} de {{ sectionCount }}</span>
+        </h2>
         <p>{{ currentSection().description }}</p>
       </header>
 

@@ -142,7 +142,7 @@ jobs:
           playwright-cli snapshot --filename="$OUT/desktop-initial.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/desktop-initial.png"
           playwright-cli run-code "async (page) => {
-            await page.locator('.auth-intro-photo').evaluate(image => image.decode());
+            await page.locator('.signup-backdrop').evaluate(image => image.decode());
             const metrics = await page.evaluate(() => ({
               viewportWidth: window.innerWidth,
               viewportHeight: window.innerHeight,
@@ -153,7 +153,11 @@ jobs:
               submitVisible: !!document.querySelector('button[type=submit]')?.getClientRects().length,
               nicknameVisible: !!document.querySelector('#apelidoPrincipal')?.getClientRects().length,
               laterFieldsPresent: !!document.querySelector('#email, #password, #maioridade-inicial, #termos'),
-              imageWidth: document.querySelector('.auth-intro-photo')?.naturalWidth ?? 0,
+              viewportImage: document.querySelector('.signup-backdrop')?.getBoundingClientRect().toJSON(),
+              bodyWidth: document.documentElement.clientWidth,
+              bodyHeight: document.documentElement.clientHeight,
+              svgSource: document.querySelector('.signup-backdrop')?.getAttribute('src')?.endsWith('.svg'),
+              formStart: document.querySelector('.form-container')?.getBoundingClientRect().left ?? 0,
               nextAction: document.querySelector('app-register-progress .next strong')?.textContent?.trim(),
             }));
             console.log(JSON.stringify(metrics));
@@ -166,8 +170,11 @@ jobs:
             if (!metrics.nicknameVisible || metrics.laterFieldsPresent) {
               throw new Error('Desktop must start with only the nickname fields');
             }
-            if (!metrics.imageWidth || metrics.nextAction !== 'Configure seu acesso') {
-              throw new Error('Desktop must show the registration photo and the next signup screen');
+            if (!metrics.svgSource || !metrics.viewportImage || Math.abs(metrics.viewportImage.width - metrics.bodyWidth) > 1 || Math.abs(metrics.viewportImage.height - metrics.bodyHeight) > 1) {
+              throw new Error('Desktop must show the vector artwork across the viewport');
+            }
+            if (metrics.formStart < metrics.viewportWidth * 0.52 || metrics.nextAction !== 'Configure seu acesso') {
+              throw new Error('Desktop must keep the form to the right and show the next signup screen');
             }
             return metrics;
           }" | tee "$OUT/desktop-initial.metrics.log"
@@ -235,7 +242,7 @@ jobs:
           playwright-cli snapshot --filename="$OUT/mobile-initial.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/mobile-initial.png"
           playwright-cli run-code "async (page) => {
-            await page.locator('.auth-intro-photo').evaluate(image => image.decode());
+            await page.locator('.signup-backdrop').evaluate(image => image.decode());
             const metrics = await page.evaluate(() => {
               const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
               const inputRect = document.querySelector('.input-field')?.getBoundingClientRect();
@@ -244,8 +251,10 @@ jobs:
                 viewportHeight: window.innerHeight,
                 scrollWidth: document.documentElement.scrollWidth,
                 scrollHeight: document.documentElement.scrollHeight,
-                introHeight: document.querySelector('.auth-intro')?.getBoundingClientRect().height ?? 0,
-                imageWidth: document.querySelector('.auth-intro-photo')?.naturalWidth ?? 0,
+                viewportImage: document.querySelector('.signup-backdrop')?.getBoundingClientRect().toJSON(),
+                bodyWidth: document.documentElement.clientWidth,
+                bodyHeight: document.documentElement.clientHeight,
+                formStart: formRect?.top ?? 0,
                 formVisible: !!document.querySelector('.form-container')?.getClientRects().length,
                 submitVisible: !!document.querySelector('button[type=submit]')?.getClientRects().length,
                 formWidth: formRect?.width ?? 0,
@@ -256,8 +265,8 @@ jobs:
             if (metrics.scrollWidth > metrics.viewportWidth + 1) {
               throw new Error('Mobile initial state has horizontal overflow');
             }
-            if (!metrics.imageWidth || metrics.introHeight < 90 || metrics.introHeight > 145) {
-              throw new Error('Mobile must show the registration photo in a compact banner');
+            if (!metrics.viewportImage || Math.abs(metrics.viewportImage.width - metrics.bodyWidth) > 1 || Math.abs(metrics.viewportImage.height - metrics.bodyHeight) > 1 || metrics.formStart < 190) {
+              throw new Error('Mobile must show the artwork across the viewport and leave it visible above the form');
             }
             if (!metrics.formVisible || !metrics.submitVisible) {
               throw new Error('Mobile initial registration form is incomplete');
@@ -299,7 +308,7 @@ jobs:
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
-                introHeight: document.querySelector('.auth-intro')?.getBoundingClientRect().height ?? 0,
+                backdropPosition: document.querySelector('.signup-backdrop')?.getBoundingClientRect().top,
                 formWidth: formRect?.width ?? 0,
                 firstInputWidth: inputRect?.width ?? 0,
                 visibleErrors: errors.length,
@@ -317,8 +326,8 @@ jobs:
             if (metrics.scrollWidth > metrics.viewportWidth + 1) {
               throw new Error('Mobile invalid state has horizontal overflow');
             }
-            if (metrics.introHeight < 90 || metrics.introHeight > 145) {
-              throw new Error('Mobile validation state must keep the photo banner compact');
+            if (Math.abs(metrics.backdropPosition ?? Number.POSITIVE_INFINITY) > 1) {
+              throw new Error('Mobile validation state must keep the artwork fixed while scrolling');
             }
             if (metrics.formWidth < metrics.viewportWidth * 0.85 || metrics.firstInputWidth < metrics.viewportWidth * 0.70) {
               throw new Error('Mobile invalid form lost its useful content width');

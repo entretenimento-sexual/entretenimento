@@ -12,53 +12,28 @@
 }
 
 .auth-container {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 560px);
-  align-items: center;
-  gap: clamp(1.5rem, 4vw, 4rem);
-  min-height: calc(100vh - 88px);
-  padding: clamp(1rem, 4vw, 3rem);
-  background:
-    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color) 16%, transparent), transparent 32rem),
-    var(--background-color);
-  color: var(--text-color);
-  font-family: var(--font-family-primary);
-}
-
-.auth-intro {
   position: relative;
   isolation: isolate;
   display: grid;
-  align-content: end;
-  align-self: stretch;
-  min-block-size: 30rem;
-  min-inline-size: 0;
-  overflow: hidden;
-  border-radius: 24px;
-  background: #261317;
-  color: #fff;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+  align-items: center;
+  gap: clamp(1.5rem, 4vw, 4rem);
+  min-height: calc(100svh - 88px);
+  padding: clamp(1rem, 4vw, 3rem);
+  font-family: var(--font-family-primary);
 }
 
-.auth-intro-photo {
-  position: absolute;
+.signup-backdrop {
+  position: fixed;
   inset: 0;
+  z-index: -1;
   inline-size: 100%;
   block-size: 100%;
+  max-inline-size: none;
+  pointer-events: none;
+  background: #170910;
   object-fit: cover;
-  object-position: 66% 39%;
-}
-
-.auth-intro::after {
-  position: absolute;
-  inset: 0;
-  content: '';
-  background: linear-gradient(0deg, #14090e 0%, #14090eaa 27%, transparent 64%);
-}
-
-.auth-intro-copy {
-  position: relative;
-  z-index: 1;
-  padding: clamp(1.25rem, 4vw, 3rem);
+  object-position: 36% top;
 }
 
 .auth-badge,
@@ -80,26 +55,40 @@
 
 .auth-intro h1 {
   margin: 0;
-  max-width: 11ch;
-  font-size: clamp(2.25rem, 5.5vw, 4rem);
-  line-height: 1;
+  font-size: clamp(1.6rem, 3vw, 2.25rem);
+  line-height: 1.12;
   letter-spacing: -0.045em;
-  color: inherit;
 }
 
 .auth-intro p {
-  max-width: 38ch;
-  margin: 0.625rem 0 0;
-  font-size: 1rem;
-  line-height: 1.5;
+  margin: 0.4rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.auth-intro {
+  margin-block-end: 1rem;
 }
 
 .form-container {
+  --background-color: #21151f;
+  --surface-color: #2b1d2a;
+  --surface-border: #765668;
+  --text-color: #fff4f7;
+  --text-muted: #e0c5d1;
+  --primary-color: #ffa4bb;
+  --button-text-color: #2e1220;
+  --danger-color: #ffabb4;
+  --success-color: #a4e3bd;
+
+  grid-column: 2;
   width: 100%;
   padding: clamp(1.25rem, 4vw, 2rem);
-  background: color-mix(in oklab, var(--background-color) 92%, white 8%);
+  color-scheme: dark;
+  background: color-mix(in srgb, var(--background-color) 94%, transparent);
   color: var(--text-color);
-  border: 1px solid var(--surface-border, color-mix(in oklab, var(--text-color) 14%, transparent));
+  border: 1px solid var(--surface-border);
   border-radius: 24px;
   box-shadow: 0 24px 70px color-mix(in oklab, black 18%, transparent);
   transition: background-color .3s ease, color .3s ease, border-color .3s ease;
@@ -115,9 +104,21 @@
 }
 
 .signup-section-intro h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.65rem;
   margin: 0;
   font-size: clamp(1.25rem, 3vw, 1.65rem);
   line-height: 1.2;
+}
+
+.signup-section-count {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .signup-section-intro p {
@@ -493,50 +494,19 @@
 
 @media (max-width: 1000px) {
   .auth-container {
-    /* Tablet/mobile muda deliberadamente para uma coluna. */
-    grid-template-columns: minmax(0, 1fr) !important;
-    align-items: stretch;
-    gap: 1.25rem;
-    min-height: auto;
+    grid-template-columns: minmax(0, 1fr);
+    /* Deixa a cena em primeiro plano antes de começar o formulário. */
+    padding-block-start: clamp(12rem, 33svh, 19rem);
   }
 
-  .auth-intro h1 {
-    max-width: 14ch;
-  }
-
-  .auth-intro {
-    min-block-size: 16rem;
+  .form-container {
+    grid-column: 1;
   }
 }
 
 @media (max-width: 768px) {
-  .auth-intro {
-    min-block-size: clamp(6rem, 27vw, 9rem);
-    border-radius: 16px;
-  }
-
-  .auth-intro-photo {
-    object-position: 50% 32%;
-  }
-
-  .auth-intro::after {
-    background: linear-gradient(90deg, #14090edb 0%, #14090e80 48%, transparent 82%);
-  }
-
-  .auth-intro-copy {
-    padding: 0.85rem 1rem;
-  }
-
-  .auth-intro h1 {
-    font-size: clamp(1.35rem, 5vw, 1.85rem);
-  }
-
   .auth-intro p {
     display: none;
-  }
-
-  .auth-container {
-    gap: 0.875rem;
   }
 
   .field-row {
@@ -551,7 +521,8 @@
 
 @media (max-width: 600px) {
   .auth-container {
-    padding: 1rem;
+    padding-inline: 1rem;
+    padding-block-end: 1rem;
   }
 
   .form-container {
@@ -586,10 +557,6 @@
    Regras antigas sem consumidor (Google, badges de hero e overrides externos)
    foram removidas em vez de transferidas.
 ----------------------------------------------------------------------------- */
-.auth-container {
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
-}
-
 .form-container {
   width: min(100%, 440px);
   max-width: 440px;
@@ -753,8 +720,7 @@
 
 @media (max-width: 1000px) {
   .form-container {
-    max-width: none;
-    justify-self: stretch;
+    justify-self: center;
   }
 }
 
