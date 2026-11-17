@@ -1,11 +1,26 @@
 <!-- src/app/authentication/login-component/login-component.html -->
 <div class="auth-container">
+  @let registrationTarget = registrationRetryTarget;
+  @let hasRegistrationSession = registrationTarget !== null && !!(sessionUid$ | async);
   <section class="auth-intro" aria-labelledby="auth-intro-title">
     <h1 id="auth-intro-title">
-      Entrar
+      {{ hasRegistrationSession ? 'Retomar cadastro' : 'Entrar' }}
     </h1>
 
-    @if (sessionNotice; as notice) {
+    @if (hasRegistrationSession && registrationTarget) {
+      <p role="status" aria-live="polite">
+        {{ isRetryingRegistration
+          ? 'Consultando a próxima etapa do cadastro…'
+          : 'Sua sessão está ativa. Não conseguimos consultar a próxima etapa do cadastro.' }}
+      </p>
+      @if (registrationRetryError) {
+        <p class="alert alert-error" role="alert">{{ registrationRetryError }}</p>
+      }
+      <button class="app-action app-action--secondary" type="button"
+        [disabled]="isRetryingRegistration" (click)="retryRegistration(registrationTarget)">
+        Tentar novamente
+      </button>
+    } @else if (sessionNotice; as notice) {
       <p role="status" aria-live="polite">{{ notice }}</p>
       @if (sessionRetryHref; as href) {
         <a class="app-action app-action--secondary" [href]="href">Tentar novamente</a>
@@ -15,7 +30,8 @@
     }
   </section>
 
-  <div class="form-container">
+  @if (!hasRegistrationSession) {
+    <div class="form-container">
 
     <form
       [formGroup]="loginForm"
@@ -158,7 +174,8 @@
         <a [routerLink]="['/register']">Cadastre-se</a>
       </p>
     </form>
-  </div>
+    </div>
+  }
 
   <app-email-input-modal></app-email-input-modal>
 </div>

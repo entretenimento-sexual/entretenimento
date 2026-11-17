@@ -10,6 +10,15 @@ export type RegisterFlowStep =
   | 'profileCompletion'
   | 'preferences';
 
+export function isRegistrationStepRoute(url: string): boolean {
+  const path = url.split(/[?#]/)[0];
+  return path === '/register/welcome' ||
+    path === '/register/recuperar-conta' ||
+    path === '/register/aceitar-termos' ||
+    path === '/adulto/verificar-idade' ||
+    path === '/register/finalizar-cadastro';
+}
+
 export interface RegisterFlowVm {
   authReady: boolean;
   uid: string | null;

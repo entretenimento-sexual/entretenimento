@@ -222,7 +222,9 @@ export class AgeEligibilityService {
           this.reconcileInFlight = null;
         }
       }),
-      shareReplay({ bufferSize: 1, refCount: false })
+      // Ao sair da etapa, libera uma consulta pendente sem outros consumidores
+      // para que a próxima tentativa possa consultar a autoridade novamente.
+      shareReplay({ bufferSize: 1, refCount: true })
     );
 
     this.reconcileInFlight = { uid, stream };

@@ -43,6 +43,7 @@ import { EmailInputModalService } from 'src/app/core/services/autentication/emai
 import { LoginService } from 'src/app/core/services/autentication/login.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PostAuthNavigationService } from 'src/app/register-module/data-access/post-auth-navigation.service';
+import { isRegistrationStepRoute } from 'src/app/register-module/data-access/register-flow.model';
 
 import { VOLUNTARY_LOGOUT_NOTICE } from '@core/services/autentication/auth/auth-session-exit.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
@@ -74,16 +75,25 @@ export class LoginComponent implements OnInit {
   private readonly location = inject(Location);
 
   get sessionRetryHref(): string | null {
+    const target = this.sessionRetryTarget;
+    return target === null ? null : this.location.prepareExternalUrl(target);
+  }
+
+  get registrationRetryTarget(): string | null {
+    const target = this.sessionRetryTarget;
+    return target && isRegistrationStepRoute(target) ? target : null;
+  }
+
+  private get sessionRetryTarget(): string | null {
     if (this.reason !== AUTH_UNAVAILABLE_REASON) return null;
     const requested = this.route.snapshot.queryParamMap.get('redirectTo');
     const fallback = this.router.serializeUrl(this.router.createUrlTree(['/login']));
     // Mantém URL interna, inclusive a etapa de cadastro que estava aberta.
-    const target = requested && /^\/(?![\/\\])/.test(requested) &&
+    return requested && /^\/(?![\/\\])/.test(requested) &&
       !/[\\\x00-\x1f\x7f]/.test(requested) &&
       !['/login', '/post-verification/action', '/__/auth/action'].includes(requested.split(/[?#]/)[0])
       ? requested
       : fallback;
-    return this.location.prepareExternalUrl(target);
   }
 
   get sessionNotice(): string | null {
@@ -97,12 +107,15 @@ export class LoginComponent implements OnInit {
   errorMessage = '';
   isLoading = false;
   currentAction: LoginAction = 'idle';
+  isRetryingRegistration = false;
+  registrationRetryError = '';
   isPasswordVisible = false;
 
   hasRequiredFields$!: Observable<boolean>;
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly authSession = inject(AuthSessionService);
+  readonly sessionUid$ = this.authSession.uid$;
 
   constructor(
     private readonly router: Router,
@@ -127,6 +140,30 @@ export class LoginComponent implements OnInit {
     );
 
     this.resumeSharedSession();
+  }
+
+  retryRegistration(target: string): void {
+    if (this.isRetryingRegistration || !this.authSession.currentAuthUser ||
+        this.registrationRetryTarget !== target) return;
+    this.isRetryingRegistration = true;
+    this.registrationRetryError = '';
+    this.navigateAfterLogin$(target).pipe(
+      catchError((error: unknown) => {
+        this.applicationError.report(error, {
+          feature: 'registration',
+          operation: 'retryRegistration',
+          fallbackMessage: 'Não foi possível consultar a próxima etapa do cadastro.',
+          presentation: { surface: 'none', severity: 'warning' },
+        });
+        this.registrationRetryError = 'Ainda não conseguimos retomar seu cadastro. Tente novamente em instantes.';
+        return of(void 0);
+      }),
+      finalize(() => {
+        this.isRetryingRegistration = false;
+        this.cdr.markForCheck();
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
   private resumeSharedSession(): void {

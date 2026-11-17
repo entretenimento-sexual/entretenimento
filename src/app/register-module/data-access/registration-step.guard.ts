@@ -42,8 +42,10 @@ import {
   timeout,
 } from 'rxjs/operators';
 
+import { buildAuthRetryTree, buildRedirectTree } from '@core/guards/_shared-guard/guard-utils';
 import { RegisterFlowFacade } from './register-flow.facade';
 import {
+  isRegistrationStepRoute,
   RegisterFlowStep,
   RegisterFlowVm,
 } from './register-flow.model';
@@ -64,19 +66,6 @@ function getAllowedSteps(raw: unknown): RegisterFlowStep[] {
   return Array.isArray(raw)
     ? raw.filter((step): step is RegisterFlowStep => typeof step === 'string')
     : [];
-}
-
-function buildLoginRedirect(
-  router: Router,
-  currentUrl: string,
-  reason: string
-): UrlTree {
-  return router.createUrlTree(['/login'], {
-    queryParams: {
-      redirectTo: currentUrl,
-      reason,
-    },
-  });
 }
 
 function resolveSafeRedirectTo(router: Router, currentUrl: string): string | null {
@@ -103,18 +92,6 @@ function resolveSafeRedirectTo(router: Router, currentUrl: string): string | nul
   }
 }
 
-function targetSupportsRedirect(target: string): boolean {
-  const path = normalizePath(target);
-
-  return (
-    path === '/register/welcome' ||
-    path === '/register/recuperar-conta' ||
-    path === '/register/aceitar-termos' ||
-    path === '/adulto/verificar-idade' ||
-    path === '/register/finalizar-cadastro'
-  );
-}
-
 function buildTargetTree(
   router: Router,
   target: string,
@@ -124,7 +101,7 @@ function buildTargetTree(
 
   if (
     !redirectTo ||
-    !targetSupportsRedirect(target) ||
+    !isRegistrationStepRoute(target) ||
     targetTree.queryParams?.['redirectTo']
   ) {
     return targetTree;
@@ -144,11 +121,11 @@ function resolveGuardResult(
   allowedSteps: RegisterFlowStep[]
 ): RegistrationStepGuardResult {
   if (!vm) {
-    return buildLoginRedirect(router, currentUrl, 'register_flow_timeout');
+    return buildAuthRetryTree(router, currentUrl);
   }
 
   if (!vm.uid) {
-    return buildLoginRedirect(router, currentUrl, 'register_no_session');
+    return buildRedirectTree(router, '/login', currentUrl, { reason: 'session-ended' });
   }
 
   if (allowedSteps.includes(vm.currentStep)) {
@@ -190,8 +167,6 @@ export const registrationStepGuard: CanActivateFn = (
       with: () => of(null),
     }),
     map((vm) => resolveGuardResult(router, state.url, vm, allowedSteps)),
-    catchError(() =>
-      of(buildLoginRedirect(router, state.url, 'register_flow_error'))
-    )
+    catchError(() => of(buildAuthRetryTree(router, state.url)))
   );
 };

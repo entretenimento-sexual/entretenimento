@@ -1,5 +1,5 @@
-import { BehaviorSubject, firstValueFrom, map } from 'rxjs';
-import { describe, expect, it } from 'vitest';
+import { BehaviorSubject, firstValueFrom, map, NEVER, of } from 'rxjs';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AgeEligibilityService } from './age-eligibility.service';
@@ -37,6 +37,25 @@ describe('AgeEligibilityService', () => {
 
     expect(state.status).toBe('UNVERIFIED');
     expect(state.policyVersion).toBe(0);
+  });
+
+  it('consulta novamente quando a etapa cancela a única assinatura pendente', async () => {
+    const service = createService(new BehaviorSubject<IUserDados | null | undefined>({
+      uid: 'user-1',
+    } as IUserDados));
+    const refresh = vi.spyOn(service, 'refreshTrustedSources$')
+      .mockReturnValueOnce(NEVER)
+      .mockReturnValueOnce(of('UNVERIFIED'));
+
+    const inFlight$ = service.reconcileTrustedStateOncePerSession$();
+    const subscription = inFlight$.subscribe();
+    expect(service.reconcileTrustedStateOncePerSession$()).toBe(inFlight$);
+    subscription.unsubscribe();
+
+    await expect(firstValueFrom(service.reconcileTrustedStateOncePerSession$()))
+      .resolves.toMatchObject({ status: 'UNVERIFIED' });
+    await firstValueFrom(service.reconcileTrustedStateOncePerSession$());
+    expect(refresh).toHaveBeenCalledTimes(2);
   });
 
 });
