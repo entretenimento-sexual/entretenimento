@@ -18,7 +18,6 @@ import { evaluateProfileCompatibility } from './profile-compatibility.server';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { publicProfileHasPrivateEmailFields, resolvePublicProfileAge } from './public-profile-discovery-projection';
-import { containsRegisteredEmail } from '../shared/registered-email-privacy';
 import { hasLegacyPrivateDiscoveryFields } from './legacy-public-profile-preservation.policy';
 import {
   REQUIRE_CALLABLE_APP_CHECK,
@@ -443,8 +442,7 @@ export function filterDiscoveryCardsByOwnerLifecycle(
   return cards.filter((card) => {
     const uid = cleanUid(card['uid']);
     const owner = uid ? owners.get(uid) : null;
-    return !!owner && evaluateCanonicalOwnerLifecycle(owner).allowed &&
-      !Object.values(card).flat().some(value => containsRegisteredEmail(value, owner['email']));
+    return !!owner && evaluateCanonicalOwnerLifecycle(owner).allowed;
   });
 }
 

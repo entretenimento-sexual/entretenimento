@@ -146,23 +146,22 @@ describe('EditUserProfileComponent', () => {
     expect(component.hasUnsavedChanges()).toBe(false);
   });
 
-  it('pede a remoção do e-mail cadastral antes de publicar a descrição', () => {
-    component.userData.email = 'titular+qa@example.test';
+  it('salva a descrição voluntária mesmo quando contém o endereço cadastral', () => {
+    const email = 'titular+qa@example.test';
+    const descricao = `Contato ${email}`;
+    component.userData.email = email;
     component.editForm.patchValue({
-      descricao: 'Contato TITULAR+QA@example.test',
+      descricao,
       publicDescriptionVisible: true,
     });
 
     component.onSubmit();
 
-    expect(usuarioServiceMock.atualizarUsuario).not.toHaveBeenCalled();
-    expect(TestBed.inject(ErrorNotificationService).showError).toHaveBeenCalledWith(
-      'Remova seu e-mail de cadastro da descrição ou desmarque a opção de publicar.'
+    expect(usuarioServiceMock.atualizarUsuario).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({ descricao, publicDescriptionVisible: true })
     );
-
-    component.editForm.patchValue({ publicDescriptionVisible: false });
-    component.onSubmit();
-    expect(usuarioServiceMock.atualizarUsuario).toHaveBeenCalledTimes(1);
+    expect(usuarioServiceMock.atualizarUsuario.mock.calls[0][1]).not.toHaveProperty('email');
   });
 
   it('salva dados pessoais sem depender de redes sociais', () => {

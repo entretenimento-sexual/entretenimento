@@ -42,6 +42,11 @@
 | Bloqueios, suspensão e ciclo de exclusão | Autoridade backend | Apenas solicitações/ações explicitamente autorizadas | Equipe de moderação com permissão específica, backend | Proteção contra bypass e auditoria de eventos |
 | E-mail, autenticação, documentos e mensagens | Fluxos privados específicos | Atualizações somente pelo fluxo canônico respectivo | Backend conforme finalidade autorizada | Não publicar em `public_profiles` nem no discovery |
 
+O e-mail informado no campo de cadastro pertence aos dados privados da conta.
+Projeções públicas e respostas destinadas a outros usuários excluem esse campo.
+O texto digitado pelo titular em outros campos segue as regras de visibilidade e
+publicação do próprio campo, inclusive quando contém o mesmo endereço.
+
 ## Fluxos e quem decide
 
 1. **Atualização ordinária**: `ProfileEditSaveOrchestrator.save$` /

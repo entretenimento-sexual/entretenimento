@@ -17,8 +17,8 @@ match /public_social_links/{userId} {
       && activeSubscriptionRankFromProjection(user) > 0;
   }
 
-  function allowedKeys() {
-    return request.resource.data.keys().hasOnly([
+  function allowedKeys(data) {
+    return data.keys().hasOnly([
       "uid",
       "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
       "sexlog","d4swing",
@@ -45,21 +45,9 @@ match /public_social_links/{userId} {
       && diff.removedKeys().size() > 0;
   }
 
-  function publicLinksExcludeRegisteredEmail(data) {
-    let owner = get(/databases/$(database)/documents/users/$(userId)).data;
-    let text = [
-      data.get("facebook", ""), data.get("instagram", ""), data.get("twitter", ""),
-      data.get("linkedin", ""), data.get("youtube", ""), data.get("tiktok", ""),
-      data.get("snapchat", ""), data.get("sexlog", ""), data.get("d4swing", ""),
-      data.get("hotvips", ""), data.get("privacy", ""), data.get("onlyfans", ""),
-      data.get("fansly", ""), data.get("linktree", "")
-    ].join("\n");
-    return owner is map && publicTextExcludesRegisteredEmail(text, owner.get("email", null));
-  }
-
   function writeEnvelopeValid() {
     return request.resource.data.uid == uid()
-      && allowedKeys()
+      && allowedKeys(request.resource.data)
       && request.resource.data.updatedAt == request.time
       && mirrorsPrivateSourceAfterWrite();
   }
@@ -72,7 +60,7 @@ match /public_social_links/{userId} {
         && isActiveSubscriber(userId)
         && canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)
         && bilateralExposureAllows(userId)
-        && publicLinksExcludeRegisteredEmail(resource.data)
+        && (resource == null || allowedKeys(resource.data))
       )
     );
   allow list: if false;
@@ -80,8 +68,7 @@ match /public_social_links/{userId} {
   allow create: if isSelf(userId)
     && currentActorHasActiveSubscription()
     && currentUserCanUseAdultSocialPlatform()
-    && writeEnvelopeValid()
-    && publicLinksExcludeRegisteredEmail(request.resource.data);
+    && writeEnvelopeValid();
 
   allow update: if isSelf(userId)
     && request.resource.data.uid == resource.data.uid
@@ -91,7 +78,6 @@ match /public_social_links/{userId} {
       || (
         currentActorHasActiveSubscription()
         && currentUserCanUseAdultSocialPlatform()
-        && publicLinksExcludeRegisteredEmail(request.resource.data)
       )
     );
 

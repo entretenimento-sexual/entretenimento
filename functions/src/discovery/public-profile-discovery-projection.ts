@@ -2,7 +2,6 @@
 // Comparações e projeções puras usadas pelo discovery público.
 import { normalizePublicIdentityMediaUrl } from '../identity/public-media-url.normalizer';
 import { normalizePublicProfileId } from '../identity/public-profile-id';
-import { containsRegisteredEmail } from '../shared/registered-email-privacy';
 import type {
   CanonicalProfileDiscoveryFields,
 } from './profile-discovery-normalization';
@@ -39,10 +38,7 @@ export function buildPublicDescriptionProjection(
     : '';
 
   return {
-    publicDescription: user['publicDescriptionVisible'] === true && text &&
-      !containsRegisteredEmail(text, user['email'])
-      ? text
-      : null,
+    publicDescription: user['publicDescriptionVisible'] === true && text ? text : null,
   };
 }
 
@@ -74,7 +70,7 @@ const PUBLIC_LOCATION_POLICIES: Record<string, PublicLocationPolicy> = {
   free: { decimals: 2, geohashLen: 5 },
 };
 
-/** Campos de interesse legados não podem existir em documento legível via Firestore. */
+/** Campos de e-mail privados não fazem parte do documento público de perfil. */
 export const PRIVATE_PUBLIC_PROFILE_EMAIL_FIELDS = [
   'email', 'emailAddress', 'registrationEmail',
   'authEmail', 'accountEmail', 'authorEmail',

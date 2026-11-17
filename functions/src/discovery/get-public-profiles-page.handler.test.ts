@@ -199,9 +199,9 @@ describe('get-public-profiles-page boundary', () => {
     );
   });
 
-  it('descarta cartões de descoberta que repetem o e-mail de cadastro do titular', () => {
+  it('mantém cartões com conteúdo voluntário igual ao e-mail cadastral', () => {
     const cards = [
-      { uid: 'owner-a', publicDescription: 'Contato: TITULAR+QA@example.test' },
+      { uid: 'owner-a', publicDescription: 'Contato: titular+qa@example.test' },
       { uid: 'owner-b', publicDescription: 'Contato pelo perfil' },
     ];
     const owners = new Map([
@@ -209,7 +209,7 @@ describe('get-public-profiles-page boundary', () => {
       ['owner-b', { accountStatus: 'active', email: 'outra@example.test' }],
     ]);
 
-    assert.deepEqual(filterDiscoveryCardsByOwnerLifecycle(cards, owners), [cards[1]]);
+    assert.deepEqual(filterDiscoveryCardsByOwnerLifecycle(cards, owners), cards);
   });
 
   it('repõe perfis válidos e mantém cursor sem perder candidatos pré-carregados', () => {

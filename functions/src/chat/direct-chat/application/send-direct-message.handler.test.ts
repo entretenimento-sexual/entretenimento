@@ -61,24 +61,6 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
       auth: { uid: actorUid, token: { email_verified: true } },
     }, {});
 
-  it('impede o envio do e-mail da conta ao outro participante', async () => {
-    const email = 'titular+qa@example.test';
-    const account = db.doc(`users/${actorUid}`);
-    const chat = db.doc(`chats/${chatId}`);
-    await account.update({ email });
-    const before = await chat.collection('messages').count().get();
-    try {
-      await assert.rejects(send(`Contato ${email.toUpperCase()}`, randomUUID()), {
-        code: 'invalid-argument',
-        details: { reason: 'registration-email-private' },
-      });
-      const after = await chat.collection('messages').count().get();
-      assert.equal(after.data().count, before.data().count);
-    } finally {
-      await account.update({ email: null });
-    }
-  });
-
   it('deduplica duas chamadas simultâneas com o mesmo requestId', async () => {
     const id = randomUUID();
     const results = await Promise.all([
@@ -431,6 +413,23 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     assert.notEqual(after.messageId, before.messageId);
     assert.equal((await db.doc(`chats/${chatId}/messages/${before.messageId}`).get()).exists, true);
     assert.equal((await db.doc(`chats/${chatId}/messages/${after.messageId}`).get()).exists, true);
+  });
+
+  it('preserva endereço digitado na mensagem sem anexar o e-mail da conta', async () => {
+    const email = 'titular+qa@example.test';
+    const chat = db.doc(`chats/${chatId}`);
+    await db.doc(`users/${actorUid}`).update({ email });
+
+    const ordinary = await send('Olá', randomUUID());
+    const ordinaryMessage = await chat.collection('messages').doc(ordinary.messageId).get();
+    assert.ok(!JSON.stringify(ordinaryMessage.data()).includes(email));
+    assert.ok(!JSON.stringify((await chat.get()).data()?.lastMessage).includes(email));
+
+    const content = `Contato ${email}`;
+    const sent = await send(content, randomUUID());
+    const typedMessage = await chat.collection('messages').doc(sent.messageId).get();
+    assert.equal(typedMessage.get('content'), content);
+    assert.equal(typedMessage.get('email'), undefined);
   });
 
   it('nega envio quando a amizade bilateral é removida', async () => {

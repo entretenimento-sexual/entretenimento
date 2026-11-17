@@ -347,11 +347,6 @@ export class DirectThreadService {
     }
 
     if (code.includes('invalid-argument')) {
-      const details = (error as { details?: { reason?: unknown } } | null)?.details;
-      if (details?.reason === 'registration-email-private') {
-        return 'O e-mail de cadastro é privado. Remova o endereço para enviar a mensagem.';
-      }
-
       if (message.includes('máximo') || message.includes('limite')) {
         return 'A mensagem deve ter no máximo 1000 caracteres.';
       }

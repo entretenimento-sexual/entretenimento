@@ -35,7 +35,7 @@ match /public_profiles/{userId} {
     && (isSelf(userId) || (
       lacksPrivateDiscoveryInterestFields()
       && lacksPrivateProfileEmailFields()
-      && publicProfileTextSafe(resource.data, get(privateUserPath()).data.get("email", null))
+      && publicProfileTextFieldsValid(resource.data)
     ));
 
   allow list: if false;
@@ -44,15 +44,19 @@ match /public_profiles/{userId} {
     return /databases/$(database)/documents/users/$(userId);
   }
 
-  function publicProfileTextSafe(data, email) {
-    return publicTextExcludesRegisteredEmail(data.get("nickname", null), email)
-      && publicTextExcludesRegisteredEmail(data.get("nicknameNormalized", null), email)
-      && publicTextExcludesRegisteredEmail(data.get("publicDescription", null), email)
-      && publicTextExcludesRegisteredEmail(data.get("municipio", null), email)
-      && publicTextExcludesRegisteredEmail(data.get("estado", null), email)
-      && publicTextExcludesRegisteredEmail(data.get("orientation", null), email)
-      && publicTextExcludesRegisteredEmail(data.get("avatarUrl", null), email)
-      && publicTextExcludesRegisteredEmail(data.get("photoURL", null), email);
+  function nullableString(value) {
+    return value == null || value is string;
+  }
+
+  function publicProfileTextFieldsValid(data) {
+    return nullableString(data.get("nickname", null))
+      && nullableString(data.get("nicknameNormalized", null))
+      && nullableString(data.get("publicDescription", null))
+      && nullableString(data.get("municipio", null))
+      && nullableString(data.get("estado", null))
+      && nullableString(data.get("orientation", null))
+      && nullableString(data.get("avatarUrl", null))
+      && nullableString(data.get("photoURL", null));
   }
 
   function privateUserEligibleAfter() {
@@ -187,12 +191,12 @@ match /public_profiles/{userId} {
     && request.resource.data.updatedAt == request.time
     && identityMatchesPrivateDeclarationAfter()
     && nicknameMatchesPrivateAfter()
-    && publicProfileTextSafe(request.resource.data, getAfter(privateUserPath()).data.get("email", null))
+    && publicProfileTextFieldsValid(request.resource.data)
     && privateUserEligibleAfter();
 
   allow update: if resource != null
     && isSelf(userId)
-    && publicProfileTextSafe(request.resource.data, get(privateUserPath()).data.get("email", null))
+    && publicProfileTextFieldsValid(request.resource.data)
     && (
       avatarOnlyUpdate()
       || (

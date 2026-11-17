@@ -566,24 +566,26 @@ describe('Firestore Rules / public profile eligibility', () => {
       .not.toContain(ownerEmail);
   });
 
-  it('bloqueia email colado em projeções públicas pelo titular e em registros legados', async () => {
-    await seedUser({ email: 'dono+teste@cadastro.invalid' });
+  it('mantém a descrição voluntária e bloqueia campos privados em alterações de avatar', async () => {
+    const email = 'dono+teste@cadastro.invalid';
+    const publicDescription = `Olá\nUse ${email} para contato`;
+    await seedUser({ email });
     await seedVisitor();
-    await seedPublicProfile();
+    await seedPublicProfile({ publicDescription });
     const ownRef = doc(authenticatedDb(), 'public_profiles', UID);
 
     await assertFails(updateDoc(ownRef, {
       photoURL: 'https://example.invalid/avatar.png',
-      contacto: { endereco: 'dono+teste@cadastro.invalid' },
+      contacto: { endereco: email },
       updatedAt: serverTimestamp(),
     }));
     await assertFails(updateDoc(ownRef, {
-      municipio: 'DONO+TESTE@CADASTRO.INVALID',
+      photoURL: { email },
       updatedAt: serverTimestamp(),
     }));
-    await seedPublicProfile({ publicDescription: 'Olá\nUse DONO+TESTE@CADASTRO.INVALID para contato' });
-    await assertFails(getDoc(doc(visitorDb(), 'public_profiles', UID)));
-    await assertSucceeds(getDoc(ownRef));
+    const visited = await assertSucceeds(getDoc(doc(visitorDb(), 'public_profiles', UID)));
+    expect(visited.data()?.['publicDescription']).toBe(publicDescription);
+    expect(visited.data()).not.toHaveProperty('email');
   });
 
   it('restringe o documento privado ao titular, inclusive diante de uma conta administrativa', async () => {

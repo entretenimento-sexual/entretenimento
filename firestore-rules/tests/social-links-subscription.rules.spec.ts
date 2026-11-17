@@ -182,24 +182,27 @@ describe('Firestore Rules / social links subscription', () => {
     );
   });
 
-  it('impede que os links públicos revelem o e-mail de cadastro', async () => {
+  it('permite o endereço digitado no link e recusa campos de cadastro no espelho público', async () => {
     const email = 'dono+social@example.test';
     const uid = SUBSCRIBER_UID;
     const db = authenticatedDb(uid);
     const publicLinks = doc(db, 'public_social_links', uid);
-    const linktree = `https://linktr.ee/?referencia=${email.toUpperCase()}`;
+    const linktree = `https://linktr.ee/?referencia=${email}`;
 
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await updateDoc(doc(context.firestore(), 'users', uid), { email });
     });
     await assertSucceeds(setDoc(doc(db, 'users', uid, 'profileData', 'socialLinks'), { linktree }));
-    await assertFails(setDoc(publicLinks, { uid, linktree, updatedAt: serverTimestamp() }));
+    await assertSucceeds(setDoc(publicLinks, { uid, linktree, updatedAt: serverTimestamp() }));
 
+    const visitor = doc(authenticatedDb(VISITOR_UID), 'public_social_links', uid);
+    const visited = await assertSucceeds(getDoc(visitor));
+    expect(visited.data()?.['linktree']).toBe(linktree);
+    expect(visited.data()).not.toHaveProperty('email');
     await testEnv.withSecurityRulesDisabled(async (context) => {
-      await setDoc(doc(context.firestore(), 'public_social_links', uid), { uid, linktree });
+      await updateDoc(doc(context.firestore(), 'public_social_links', uid), { email });
     });
-    const visitor = authenticatedDb(VISITOR_UID);
-    await assertFails(getDoc(doc(visitor, 'public_social_links', uid)));
+    await assertFails(getDoc(visitor));
     await assertSucceeds(getDoc(publicLinks));
   });
 

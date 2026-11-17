@@ -48,11 +48,13 @@ describe('public profile description projection', () => {
     );
   });
 
-  it('mantém privada a apresentação com o email cadastral mesmo com autorização', () => {
+  it('projeta somente a descrição autorizada mesmo quando ela repete o endereço da conta', () => {
+    const email = 'dono+teste@cadastro.invalid';
+    const descricao = `Contato: ${email}`;
     assert.deepEqual(buildPublicDescriptionProjection({
-      email: 'dono+teste@cadastro.invalid',
-      descricao: 'Contato: DONO+TESTE@CADASTRO.INVALID',
+      email,
+      descricao,
       publicDescriptionVisible: true,
-    }), { publicDescription: null });
+    }), { publicDescription: descricao });
   });
 });
