@@ -137,12 +137,58 @@ jobs:
           OUT="artifacts/${{ matrix.configuration }}"
           URL="http://127.0.0.1:4200/register"
 
+          CHECK_SIGNUP_PHOTO=$(cat <<'PLAYWRIGHT'
+          async (page) => {
+            const backdrop = page.locator('.signup-backdrop');
+            await backdrop.evaluate(image => image.decode());
+            const viewport = page.viewportSize();
+            const clip = { x: Math.floor(viewport.width * 0.21), y: Math.floor(viewport.height * 0.20), width: 96, height: 64 };
+            const painted = await page.screenshot({ clip, animations: 'disabled' });
+            const hidden = await page.screenshot({
+              clip,
+              animations: 'disabled',
+              style: '.signup-backdrop { visibility: hidden !important; }',
+            });
+
+            const changed = await page.evaluate(async ([painted, hidden]) => {
+              const canvas = document.createElement('canvas');
+              canvas.width = 96;
+              canvas.height = 64;
+              const context = canvas.getContext('2d', { willReadFrequently: true });
+              async function pixels(base64) {
+                const image = new Image();
+                image.src = 'data:image/png;base64,' + base64;
+                await image.decode();
+                context.drawImage(image, 0, 0);
+                return context.getImageData(0, 0, canvas.width, canvas.height).data;
+              }
+              const before = await pixels(painted);
+              const after = await pixels(hidden);
+              let different = 0;
+              for (let i = 0; i < before.length; i += 4) {
+                const delta = Math.abs(before[i] - after[i]) +
+                  Math.abs(before[i + 1] - after[i + 1]) +
+                  Math.abs(before[i + 2] - after[i + 2]);
+                if (delta > 24) different++;
+              }
+              return different / (canvas.width * canvas.height);
+            }, [painted.toString('base64'), hidden.toString('base64')]);
+
+            if (changed < 0.15) {
+              throw new Error('Signup backdrop is loaded but not visible in the screenshot. Changed pixel ratio: ' + changed);
+            }
+            return { changedPixelRatio: changed };
+          }
+          PLAYWRIGHT
+          )
+
           playwright-cli open "$URL"
 
           playwright-cli resize 1440 1000
           playwright-cli reload
           playwright-cli snapshot --filename="$OUT/desktop-initial.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/desktop-initial.png"
+          playwright-cli run-code "$CHECK_SIGNUP_PHOTO" | tee "$OUT/desktop-photo-paint.log"
           playwright-cli run-code "async (page) => {
             await page.locator('.signup-backdrop').evaluate(image => image.decode());
             const metrics = await page.evaluate(() => ({
@@ -261,6 +307,7 @@ jobs:
           playwright-cli reload
           playwright-cli snapshot --filename="$OUT/mobile-initial.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/mobile-initial.png"
+          playwright-cli run-code "$CHECK_SIGNUP_PHOTO" | tee "$OUT/mobile-photo-paint.log"
           playwright-cli run-code "async (page) => {
             await page.locator('.signup-backdrop').evaluate(image => image.decode());
             const metrics = await page.evaluate(() => {

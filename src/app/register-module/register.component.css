@@ -19,6 +19,7 @@
   gap: 1rem clamp(1.5rem, 4vw, 4rem);
   padding: clamp(1rem, 4vw, 3rem);
   padding-block-end: 1rem;
+  background: transparent;
   font-family: var(--font-family-primary);
 }
 
