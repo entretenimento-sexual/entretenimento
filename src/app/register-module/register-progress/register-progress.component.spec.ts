@@ -38,4 +38,19 @@ describe('RegisterProgressComponent', () => {
     expect(view.querySelector('.summary')?.textContent?.trim()).toBe('Cadastro concluído');
     expect(view.querySelectorAll('.stage--done')).toHaveLength(5);
   });
+
+  it('mostra a próxima tela dentro da etapa atual quando o cadastro a informa', () => {
+    const fixture = TestBed.createComponent(RegisterProgressComponent);
+    fixture.componentRef.setInput('step', 'signup');
+    fixture.componentRef.setInput('nextAction', 'Configure seu acesso');
+    fixture.detectChanges();
+
+    const view: HTMLElement = fixture.nativeElement;
+    expect(view.querySelector('.summary')?.textContent?.trim()).toBe('Etapa 1 de 5');
+    expect(view.querySelector('.next strong')?.textContent).toBe('Configure seu acesso');
+
+    fixture.componentRef.setInput('nextAction', null);
+    fixture.detectChanges();
+    expect(view.querySelector('.next strong')?.textContent).toBe('Confirmar seu e-mail');
+  });
 });

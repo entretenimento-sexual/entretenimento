@@ -25,7 +25,7 @@
     }
   </ol>
 
-  @if (nextStage(); as next) {
-    <p class="next">Próxima etapa <strong>{{ next.action }}</strong></p>
+  @if (upcomingAction(); as action) {
+    <p class="next">Próxima etapa <strong>{{ action }}</strong></p>
   }
 </section>

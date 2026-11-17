@@ -1,14 +1,19 @@
 <!-- src/app/register-module/register.component.html -->
 <div class="auth-container">
   <section class="auth-intro" aria-labelledby="register-intro-title">
-    <h1 id="register-intro-title">Criar conta</h1>
-    <p>
-      Comece pelo acesso. Seu perfil pode ser completado depois.
-    </p>
+    <img class="auth-intro-photo" src="assets/registration/signup-evening.webp" alt="" decoding="async" />
+    <div class="auth-intro-copy">
+      <h1 id="register-intro-title">Criar conta</h1>
+      <p>Escolha seu apelido e configure o acesso. Você completa o perfil depois.</p>
+    </div>
   </section>
 
   <div class="form-container">
-    <app-register-progress step="signup" [completed]="accountCreated()" />
+    <app-register-progress
+      step="signup"
+      [completed]="accountCreated()"
+      [nextAction]="nextSectionTitle()"
+    />
 
     <div *ngIf="banner() as b" class="alert" [ngClass]="{
         'alert-secondary': b.variant === 'info',

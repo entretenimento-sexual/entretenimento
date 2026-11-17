@@ -142,6 +142,7 @@ jobs:
           playwright-cli snapshot --filename="$OUT/desktop-initial.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/desktop-initial.png"
           playwright-cli run-code "async (page) => {
+            await page.locator('.auth-intro-photo').evaluate(image => image.decode());
             const metrics = await page.evaluate(() => ({
               viewportWidth: window.innerWidth,
               viewportHeight: window.innerHeight,
@@ -152,6 +153,8 @@ jobs:
               submitVisible: !!document.querySelector('button[type=submit]')?.getClientRects().length,
               nicknameVisible: !!document.querySelector('#apelidoPrincipal')?.getClientRects().length,
               laterFieldsPresent: !!document.querySelector('#email, #password, #maioridade-inicial, #termos'),
+              imageWidth: document.querySelector('.auth-intro-photo')?.naturalWidth ?? 0,
+              nextAction: document.querySelector('app-register-progress .next strong')?.textContent?.trim(),
             }));
             console.log(JSON.stringify(metrics));
             if (metrics.scrollWidth > metrics.viewportWidth + 1) {
@@ -162,6 +165,9 @@ jobs:
             }
             if (!metrics.nicknameVisible || metrics.laterFieldsPresent) {
               throw new Error('Desktop must start with only the nickname fields');
+            }
+            if (!metrics.imageWidth || metrics.nextAction !== 'Configure seu acesso') {
+              throw new Error('Desktop must show the registration photo and the next signup screen');
             }
             return metrics;
           }" | tee "$OUT/desktop-initial.metrics.log"
@@ -229,6 +235,7 @@ jobs:
           playwright-cli snapshot --filename="$OUT/mobile-initial.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/mobile-initial.png"
           playwright-cli run-code "async (page) => {
+            await page.locator('.auth-intro-photo').evaluate(image => image.decode());
             const metrics = await page.evaluate(() => {
               const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
               const inputRect = document.querySelector('.input-field')?.getBoundingClientRect();
@@ -237,7 +244,8 @@ jobs:
                 viewportHeight: window.innerHeight,
                 scrollWidth: document.documentElement.scrollWidth,
                 scrollHeight: document.documentElement.scrollHeight,
-                introVisible: !!document.querySelector('.auth-intro')?.getClientRects().length,
+                introHeight: document.querySelector('.auth-intro')?.getBoundingClientRect().height ?? 0,
+                imageWidth: document.querySelector('.auth-intro-photo')?.naturalWidth ?? 0,
                 formVisible: !!document.querySelector('.form-container')?.getClientRects().length,
                 submitVisible: !!document.querySelector('button[type=submit]')?.getClientRects().length,
                 formWidth: formRect?.width ?? 0,
@@ -248,8 +256,8 @@ jobs:
             if (metrics.scrollWidth > metrics.viewportWidth + 1) {
               throw new Error('Mobile initial state has horizontal overflow');
             }
-            if (metrics.introVisible) {
-              throw new Error('Mobile introductory hero must stay suppressed to protect form hierarchy');
+            if (!metrics.imageWidth || metrics.introHeight < 90 || metrics.introHeight > 145) {
+              throw new Error('Mobile must show the registration photo in a compact banner');
             }
             if (!metrics.formVisible || !metrics.submitVisible) {
               throw new Error('Mobile initial registration form is incomplete');
@@ -291,7 +299,7 @@ jobs:
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
-                introVisible: !!document.querySelector('.auth-intro')?.getClientRects().length,
+                introHeight: document.querySelector('.auth-intro')?.getBoundingClientRect().height ?? 0,
                 formWidth: formRect?.width ?? 0,
                 firstInputWidth: inputRect?.width ?? 0,
                 visibleErrors: errors.length,
@@ -309,8 +317,8 @@ jobs:
             if (metrics.scrollWidth > metrics.viewportWidth + 1) {
               throw new Error('Mobile invalid state has horizontal overflow');
             }
-            if (metrics.introVisible) {
-              throw new Error('Mobile introductory hero reappeared behind the validation state');
+            if (metrics.introHeight < 90 || metrics.introHeight > 145) {
+              throw new Error('Mobile validation state must keep the photo banner compact');
             }
             if (metrics.formWidth < metrics.viewportWidth * 0.85 || metrics.firstInputWidth < metrics.viewportWidth * 0.70) {
               throw new Error('Mobile invalid form lost its useful content width');
@@ -345,6 +353,9 @@ jobs:
             await page.locator('#apelidoPrincipal').fill('visualteste');
             await page.locator('button[type=submit]').click();
             await page.locator('#email').waitFor({ state: 'visible' });
+            if (await page.locator('app-register-progress .next strong').textContent() !== 'Confirme para criar a conta') {
+              throw new Error('Access step must explain that confirmations come next');
+            }
             if (await page.locator('#apelidoPrincipal, #maioridade-inicial, #termos').count()) {
               throw new Error('Access step must show only the credentials');
             }
@@ -357,6 +368,9 @@ jobs:
           playwright-cli run-code "async (page) => {
             await page.locator('button[type=submit]').click();
             await page.locator('#maioridade-inicial').waitFor({ state: 'visible' });
+            if (await page.locator('app-register-progress .next strong').textContent() !== 'Confirmar seu e-mail') {
+              throw new Error('Confirmations must lead to email verification');
+            }
             if (await page.locator('#apelidoPrincipal, #email, #password').count()) {
               throw new Error('Confirmations must be shown separately from credentials');
             }

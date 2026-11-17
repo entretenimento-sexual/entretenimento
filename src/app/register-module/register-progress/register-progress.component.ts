@@ -29,6 +29,7 @@ type ProgressStep = (typeof STAGES)[number]['step'];
 export class RegisterProgressComponent {
   readonly step = input.required<ProgressStep>();
   readonly completed = input(false);
+  readonly nextAction = input<string | null>(null);
 
   protected readonly stages = STAGES;
   protected readonly position = computed(() =>
@@ -37,5 +38,7 @@ export class RegisterProgressComponent {
   protected readonly finishedCount = computed(() =>
     this.position() + (this.completed() ? 1 : 0)
   );
-  protected readonly nextStage = computed(() => STAGES[this.position() + 1]);
+  protected readonly upcomingAction = computed(() =>
+    this.nextAction() ?? STAGES[this.position() + 1]?.action ?? null
+  );
 }

@@ -26,7 +26,39 @@
 }
 
 .auth-intro {
-  max-width: 680px;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  align-content: end;
+  align-self: stretch;
+  min-block-size: 30rem;
+  min-inline-size: 0;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #261317;
+  color: #fff;
+}
+
+.auth-intro-photo {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  object-position: 66% 39%;
+}
+
+.auth-intro::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background: linear-gradient(0deg, #14090e 0%, #14090eaa 27%, transparent 64%);
+}
+
+.auth-intro-copy {
+  position: relative;
+  z-index: 1;
+  padding: clamp(1.25rem, 4vw, 3rem);
 }
 
 .auth-badge,
@@ -47,20 +79,19 @@
 }
 
 .auth-intro h1 {
-  margin: 1rem 0;
+  margin: 0;
   max-width: 11ch;
-  font-size: clamp(2.25rem, 7vw, 5rem);
-  line-height: 0.95;
-  letter-spacing: -0.06em;
-  color: var(--text-color);
+  font-size: clamp(2.25rem, 5.5vw, 4rem);
+  line-height: 1;
+  letter-spacing: -0.045em;
+  color: inherit;
 }
 
-.auth-intro p:not(.auth-badge) {
-  max-width: 58ch;
-  margin: 0;
-  color: var(--text-muted, var(--text-color));
-  font-size: clamp(1rem, 2vw, 1.2rem);
-  line-height: 1.7;
+.auth-intro p {
+  max-width: 38ch;
+  margin: 0.625rem 0 0;
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 .form-container {
@@ -472,21 +503,40 @@
   .auth-intro h1 {
     max-width: 14ch;
   }
+
+  .auth-intro {
+    min-block-size: 16rem;
+  }
 }
 
 @media (max-width: 768px) {
-  /*
-   * SUPRESSÃO RESPONSIVA INTENCIONAL:
-   * no mobile, o card já apresenta o título operacional “Crie seu cadastro”.
-   * Removemos o hero redundante para evitar competição visual e sobreposição,
-   * mantendo o conteúdo completo em tablet amplo/desktop.
-   */
   .auth-intro {
+    min-block-size: clamp(6rem, 27vw, 9rem);
+    border-radius: 16px;
+  }
+
+  .auth-intro-photo {
+    object-position: 50% 32%;
+  }
+
+  .auth-intro::after {
+    background: linear-gradient(90deg, #14090edb 0%, #14090e80 48%, transparent 82%);
+  }
+
+  .auth-intro-copy {
+    padding: 0.85rem 1rem;
+  }
+
+  .auth-intro h1 {
+    font-size: clamp(1.35rem, 5vw, 1.85rem);
+  }
+
+  .auth-intro p {
     display: none;
   }
 
   .auth-container {
-    gap: 0;
+    gap: 0.875rem;
   }
 
   .field-row {

@@ -210,6 +210,10 @@ export class RegisterComponent {
   readonly sectionIndex = signal(0);
   readonly currentSection = computed(() => SIGNUP_SECTIONS[this.sectionIndex()]);
   readonly lastSection = computed(() => this.sectionIndex() === SIGNUP_SECTIONS.length - 1);
+  readonly nextSectionTitle = computed(() => this.accountCreated()
+    ? null
+    : SIGNUP_SECTIONS[this.sectionIndex() + 1]?.title ?? null
+  );
 
   // ---------------- Nickname UX state ----------------
   private readonly nicknameTyping$ = new Subject<void>();
