@@ -12,12 +12,11 @@ import { AuthPostLoginEffectsService } from './auth-post-login-effects.service';
 function buildUser(): User {
   return {
     uid: 'user-a',
-    displayName: 'Pessoa A',
+    displayName: null,
   } as User;
 }
 
 function createHarness() {
-  const ensureUserDoc$ = vi.fn(() => of(void 0));
   const patchLastLogin$ = vi.fn(() => of(void 0));
   const autoStartTracking = vi.fn(() => Promise.resolve());
   const report = vi.fn();
@@ -25,7 +24,6 @@ function createHarness() {
 
   const service = new AuthPostLoginEffectsService(
     {
-      ensureUserDoc$,
       patchLastLogin$,
     } as unknown as FirestoreUserWriteService,
     {
@@ -41,7 +39,6 @@ function createHarness() {
 
   return {
     service,
-    ensureUserDoc$,
     patchLastLogin$,
     autoStartTracking,
     report,
@@ -50,10 +47,9 @@ function createHarness() {
 }
 
 describe('AuthPostLoginEffectsService', () => {
-  it('executa seed, lastLogin e geolocalização na ordem esperada', async () => {
+  it('atualiza lastLogin e inicia geolocalização mesmo com displayName ausente', async () => {
     const {
       service,
-      ensureUserDoc$,
       patchLastLogin$,
       autoStartTracking,
       report,
@@ -62,29 +58,24 @@ describe('AuthPostLoginEffectsService', () => {
 
     await expect(firstValueFrom(service.run$(user))).resolves.toBeUndefined();
 
-    expect(ensureUserDoc$).toHaveBeenCalledWith(user, {
-      nickname: 'Pessoa A',
-    });
     expect(patchLastLogin$).toHaveBeenCalledWith('user-a');
     expect(autoStartTracking).toHaveBeenCalledWith('user-a');
     expect(report).not.toHaveBeenCalled();
 
-    expect(ensureUserDoc$.mock.invocationCallOrder[0])
-      .toBeLessThan(patchLastLogin$.mock.invocationCallOrder[0]);
     expect(patchLastLogin$.mock.invocationCallOrder[0])
       .toBeLessThan(autoStartTracking.mock.invocationCallOrder[0]);
   });
 
   it('absorve falha do pipeline principal com diagnóstico silencioso', async () => {
-    const { service, ensureUserDoc$, patchLastLogin$, report } =
+    const { service, patchLastLogin$, autoStartTracking, report } =
       createHarness();
-    const error = new Error('seed failed');
-    ensureUserDoc$.mockReturnValueOnce(throwError(() => error));
+    const error = new Error('lastLogin failed');
+    patchLastLogin$.mockReturnValueOnce(throwError(() => error));
 
     await expect(firstValueFrom(service.run$(buildUser())))
       .resolves.toBeUndefined();
 
-    expect(patchLastLogin$).not.toHaveBeenCalled();
+    expect(autoStartTracking).not.toHaveBeenCalled();
     expect(report).toHaveBeenCalledTimes(1);
     expect(report).toHaveBeenCalledWith(error, {
       feature: 'auth-post-login-effects',
@@ -124,9 +115,9 @@ describe('AuthPostLoginEffectsService', () => {
   });
 
   it('não quebra o fluxo se a própria camada de diagnóstico falhar', async () => {
-    const { service, ensureUserDoc$, report } = createHarness();
-    ensureUserDoc$.mockReturnValueOnce(
-      throwError(() => new Error('seed failed'))
+    const { service, patchLastLogin$, report } = createHarness();
+    patchLastLogin$.mockReturnValueOnce(
+      throwError(() => new Error('lastLogin failed'))
     );
     report.mockImplementationOnce(() => {
       throw new Error('diagnostic unavailable');

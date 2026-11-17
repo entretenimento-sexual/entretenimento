@@ -1,65 +1,9 @@
-Devo permitir navegação sem e-mail verificado?
+# Verificação de e-mail
 
-Sim, com limites.
-Prós:
+O Firebase Auth confirma o endereço vinculado ao código do link. A página valida o tipo da operação antes de aplicar o código. O e-mail retornado pelo Firebase é usado somente em memória para conferir a sessão que iniciou a consulta.
 
-Reduz atrito no onboarding; o usuário “sente” o produto antes de ir ao e-mail.
+Se o destinatário estiver autenticado na mesma sessão, o app atualiza o token antes de sincronizar o estado no perfil privado. Se a sessão for de outra conta, a confirmação do destinatário permanece válida e a tela oferece a troca de conta. Depois de confirmar sem sessão, o usuário entra com a conta que recebeu o link.
 
-Aumenta taxa de cadastro concluído (especialmente em mobile/isp com filtros agressivos).
+A página distingue link expirado, inválido ou já utilizado, falha de comunicação e atualização de perfil pendente. O reenvio ocorre na etapa autenticada de verificação, em /register/welcome. A próxima etapa do cadastro é definida pelo fluxo de registro.
 
-Contras (mitigáveis com limites):
-
-Risco de spam/bots.
-
-Menor responsabilização (reportes/abusos).
-
-Conteúdo sensível exposto sem identidade confirmada.
-
-Conclusão: permita “modo convidado autenticado” (logado porém não verificado) com acesso somente-leitura e descoberta limitada; exija verificação para qualquer ação que gere risco/contato/armazenamento.
-
-Limitações recomendadas (pré-verificação)
-Conteúdo & privacidade
-
-✅ Ver páginas públicas, explorar perfis com blur em fotos explícitas.
-
-✅ Ver “feed” público e contagem de usuários online, sem detalhes sensíveis (distância exata, geolocalização precisa).
-
-🚫 Ver fotos NSFW em alta resolução.
-
-🚫 Ver distâncias exatas / mapa.
-
-Interações
-
-🚫 DM/Chat privado, criação de sala, convite, reação/like que notifica terceiros.
-
-🚫 Comentários e replies.
-
-✅ “Salvar para depois” local (client-side) e follow desativado (ou quota mínima diária, p.ex. 3 follows).
-
-Publicação & uploads
-
-🚫 Upload de mídia, mudança de foto de perfil/capa.
-
-🚫 Postar em comunidades, nomes de salas, títulos públicos.
-
-Descoberta
-
-✅ Buscar perfis limitado (ex.: 10 resultados/dia) e sem filtros sensíveis (idade exata, raio de proximidade).
-
-🚫 Entrar em comunidades privadas.
-
-Monetização/assinatura
-
-🚫 Qualquer pagamento/checkout/subscription.
-
-Suporte & segurança
-
-✅ Reportar abuso pode ser liberado (incentiva moderação), mas o primeiro reporte exige captcha.
-
-✅ Captcha + rate limit em endpoints de busca/descoberta.
-
-UX
-
-Banner fixo: “Confirme seu e-mail para liberar mensagens, uploads e fotos sem blur”.
-
-Botões com disabled + tooltip: “requer e-mail verificado”.
+[Política de autenticação](../../../../../../docs/dev/auth-session-policy.md) · [Checklist local](../../../../../../docs/dev/auth-validation-checklist.md)

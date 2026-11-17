@@ -17,7 +17,6 @@ import {
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
-import type { User } from 'firebase/auth';
 
 import { Observable, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
@@ -39,45 +38,6 @@ export class FirestoreUserWriteService {
     private readonly globalErrorHandler: GlobalErrorHandlerService
   ) {}
 
-  ensureUserDoc$(authUser: User, base: Partial<IUserDados>): Observable<void> {
-    const ref = this.ctx.run(() => doc(this.db, 'users', authUser.uid));
-
-    return this.ctx.deferPromise$(() => getDoc(ref as any)).pipe(
-      switchMap((snap) => {
-        const payloadBase: Record<string, unknown> = {
-          uid: authUser.uid,
-          email: authUser.email ?? null,
-          nickname: base.nickname ?? null,
-          emailVerified: !!authUser.emailVerified,
-        };
-
-        const payload = snap.exists()
-          ? payloadBase
-          : {
-              ...payloadBase,
-              createdAt: serverTimestamp(),
-              firstLogin: serverTimestamp(),
-              lastLogin: serverTimestamp(),
-              registrationDate: serverTimestamp(),
-            };
-
-        return this.ctx
-          .deferPromise$(() => setDoc(ref as any, payload as any, { merge: true }))
-          .pipe(map(() => void 0));
-      }),
-      catchError((err) => {
-        this.safeHandle(
-          '[FirestoreUserWriteService] ensureUserDoc falhou (ignorado).',
-          err,
-          { uid: authUser.uid },
-          { silent: true }
-        );
-
-        return of(void 0);
-      })
-    );
-  }
-
   patchLastLogin$(uid: string): Observable<void> {
     const safeUid = (uid ?? '').trim();
 
@@ -89,7 +49,7 @@ export class FirestoreUserWriteService {
 
     return this.ctx
       .deferPromise$(() =>
-        setDoc(ref as any, { lastLogin: serverTimestamp() } as any, { merge: true })
+        updateDoc(ref, { lastLogin: serverTimestamp() })
       )
       .pipe(
         map(() => void 0),

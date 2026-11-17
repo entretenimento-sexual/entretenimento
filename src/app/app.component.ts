@@ -6,7 +6,7 @@
 // - reconciliar e acompanhar a assinatura canônica;
 // - manter a casca raiz mínima;
 // - controlar a exibição do footer público por rota.
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { Observable } from 'rxjs';
 import {
@@ -17,6 +17,7 @@ import {
   startWith,
 } from 'rxjs/operators';
 
+import { AuthSessionExitService } from './core/services/autentication/auth/auth-session-exit.service';
 import { AuthOrchestratorService } from './core/services/autentication/auth/auth-orchestrator.service';
 import { AuthDebugService } from './core/services/util-service/auth-debug.service';
 import { environment } from 'src/environments/environment';
@@ -33,6 +34,13 @@ import { PlatformSubscriptionReconciliationService } from './payments-core/appli
 })
 export class AppComponent implements OnInit {
   title = 'entretenimento';
+  private readonly sessionExit = inject(AuthSessionExitService);
+  readonly sessionExitPending$ = this.sessionExit.pending$;
+  readonly sessionExitLoginFailed$ = this.sessionExit.loginFailed$;
+
+  retrySessionExitLogin(): void {
+    this.sessionExit.retryLogin();
+  }
 
   readonly showFooter$: Observable<boolean> = this.router.events.pipe(
     filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -60,6 +68,7 @@ export class AppComponent implements OnInit {
       this.authDebug.start();
     }
 
+    this.sessionExit.start();
     this.orchestrator.start();
     this.presenceOrchestrator.start();
     this.subscriptionReconciliation.start();

@@ -14,6 +14,8 @@ function read(relative) {
   return fs.readFileSync(p, 'utf8');
 }
 const bootstrap = read('src/app/core/services/autentication/register/registration-bootstrap.service.ts');
+const recovery = read('src/app/core/services/autentication/register/registration-recovery.service.ts');
+const social = bootstrap.split('  createSocialSeed$(')[1] ?? '';
 const writeService = read('src/app/register-module/data-access/profile-completion-write.service.ts');
 const facade = read('src/app/register-module/data-access/profile-completion.facade.ts');
 const registration = read('src/app/core/services/autentication/register/register.service.ts');
@@ -31,9 +33,12 @@ const forbidToken = (text, token, scope) => {
   if (text.includes(token)) violations.push(scope + ': forbidden ' + token);
 };
 requireToken(email, "'reserveRegistrationNickname'", 'email bootstrap');
+requireToken(social, 'this.recovery.recoverForUser$(', 'social bootstrap');
+requireToken(recovery, "'recoverRegistrationSeed'", 'seed recovery');
+forbidToken(registration, 'currentUser.delete(', 'registration');
 requireToken(completion, "'completeRegistrationProfile'", 'completion');
 requireToken(facade, 'this.profileCompletionWrite.complete$(', 'facade');
-for (const [text, scope] of [[email, 'email bootstrap'], [completion, 'completion']]) {
+for (const [text, scope] of [[email, 'email bootstrap'], [social, 'social bootstrap'], [completion, 'completion']]) {
   for (const token of ['writeBatch(', 'runTransaction(', 'setDoc(', 'updateDoc(']) {
     forbidToken(text, token, scope);
   }

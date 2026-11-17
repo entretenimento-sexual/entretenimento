@@ -4,7 +4,6 @@
 //
 // Responsabilidade única:
 // - Executar efeitos de "app-mode" logo após login/autenticação válida
-// - Garantir seed do users/{uid}
 // - Atualizar lastLogin
 // - Iniciar geolocalização em modo best-effort
 //
@@ -21,7 +20,7 @@
 // =============================================================================
 
 import { Injectable } from '@angular/core';
-import { from, Observable, of } from 'rxjs';
+import { defer, from, Observable, of } from 'rxjs';
 import { catchError, map, switchMap, tap } from 'rxjs/operators';
 import type { User } from 'firebase/auth';
 
@@ -46,7 +45,7 @@ export class AuthPostLoginEffectsService {
  * Canal:
  * localStorage.setItem('DEBUG_AUTH', '1');
  *
- * Este service revela UID, seed de usuário, lastLogin e tentativa de
+ * Este service registra UID, lastLogin e tentativa de
  * geolocalização. Portanto, não deve usar console.log direto.
  */
 private dbg(message: string, extra?: unknown): void {
@@ -57,17 +56,13 @@ private dbg(message: string, extra?: unknown): void {
    * Executa o pipeline completo de efeitos pós-login.
    *
    * Ordem:
-   * 1) garante seed do doc
-   * 2) atualiza lastLogin
-   * 3) tenta iniciar geolocalização sem quebrar o fluxo
+   * 1) atualiza lastLogin no perfil criado pelo fluxo de cadastro
+   * 2) tenta iniciar geolocalização sem quebrar o fluxo
    */
   run$(authUser: User): Observable<void> {
     this.dbg('run$() start', { uid: authUser.uid });
 
-    return this.userWrite.ensureUserDoc$(authUser, {
-      nickname: authUser.displayName ?? null,
-    }).pipe(
-      switchMap(() => this.userWrite.patchLastLogin$(authUser.uid)),
+    return defer(() => this.userWrite.patchLastLogin$(authUser.uid)).pipe(
       switchMap(() => this.autoStartGeolocationBestEffort$(authUser.uid)),
       tap(() => this.dbg('run$() done', { uid: authUser.uid })),
       map(() => void 0),

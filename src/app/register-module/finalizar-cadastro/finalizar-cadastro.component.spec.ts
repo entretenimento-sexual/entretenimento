@@ -20,6 +20,7 @@ import {
 import { FinalizarCadastroComponent } from './finalizar-cadastro.component';
 
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
+import { LocalDraftService } from '../../core/services/drafts/local-draft.service';
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { PhotoEditorLauncherService } from '../../core/services/image-handling/photo-editor-launcher.service';
@@ -41,6 +42,8 @@ interface ProfileCompletionFacadeMock {
 
 interface CurrentUserStoreMock {
   patch: MockFn;
+  getLoggedUserUIDSnapshot: MockFn;
+  getSnapshot: MockFn;
 }
 
 describe('FinalizarCadastroComponent', () => {
@@ -114,6 +117,8 @@ describe('FinalizarCadastroComponent', () => {
 
     currentUserStoreMock = {
       patch: vi.fn(),
+      getLoggedUserUIDSnapshot: vi.fn(() => 'u1'),
+      getSnapshot: vi.fn(() => ({ uid: 'u1' })),
     };
 
     photoEditorMock = {
@@ -300,6 +305,19 @@ describe('FinalizarCadastroComponent', () => {
       'Ocorreu um erro ao finalizar o cadastro'
     );
     expect(errorNotificationMock.showError).not.toHaveBeenCalled();
+  });
+
+  it('grava imediatamente os campos do rascunho para retomar após perda de sessão', () => {
+    const draft = TestBed.inject(LocalDraftService);
+    const save = vi.spyOn(draft, 'save');
+    component.gender = 'mulher';
+
+    component.persistUnsavedChanges();
+
+    expect(save).toHaveBeenCalledWith(
+      expect.stringMatching(/^profile-completion:/),
+      expect.objectContaining({ gender: 'mulher' })
+    );
   });
 
   it('identifica e descarta alterações do onboarding', () => {

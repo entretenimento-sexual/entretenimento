@@ -1,9 +1,10 @@
 //src\app\account\guards\account-status-page.guard.ts
 import { inject } from '@angular/core';
 import { Router, type UrlTree, type CanActivateFn } from '@angular/router';
-import { combineLatest, type Observable } from 'rxjs';
-import { filter, map, take } from 'rxjs/operators';
+import { combineLatest, of, type Observable } from 'rxjs';
+import { filter, map, take, timeout } from 'rxjs/operators';
 
+import { AUTH_GUARD_WAIT_MS, buildAuthRetryTree } from '@core/guards/_shared-guard/guard-utils';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import {
@@ -19,7 +20,7 @@ import {
  * - conta ativa e coerente com a sessão => manda para /conta;
  * - se não há sessão, o auth guard já redireciona para login.
  */
-export const accountStatusPageGuard: CanActivateFn = (): Observable<boolean | UrlTree> => {
+export const accountStatusPageGuard: CanActivateFn = (_route, state): Observable<boolean | UrlTree> => {
   const router = inject(Router);
   const authSession = inject(AuthSessionService);
   const currentUserStore = inject(CurrentUserStoreService);
@@ -50,6 +51,7 @@ export const accountStatusPageGuard: CanActivateFn = (): Observable<boolean | Ur
       }
 
       return router.createUrlTree(['/conta']);
-    })
+    }),
+    timeout({ first: AUTH_GUARD_WAIT_MS, with: () => of(buildAuthRetryTree(router, state.url)) })
   );
 };

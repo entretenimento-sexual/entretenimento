@@ -1,4 +1,4 @@
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { firstValueFrom, of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EmailVerificationService } from './email-verification.service';
@@ -10,9 +10,8 @@ describe('EmailVerificationService canonical errors', () => {
   };
   let authSession: {
     refreshCurrentUser$: ReturnType<typeof vi.fn>;
-  };
-  let currentUserStore: {
-    patch: ReturnType<typeof vi.fn>;
+    terminationVersionSnapshot: number;
+    isTerminatingSnapshot: boolean;
   };
   let userWrite: {
     patchEmailVerified$: ReturnType<typeof vi.fn>;
@@ -37,9 +36,8 @@ describe('EmailVerificationService canonical errors', () => {
     };
     authSession = {
       refreshCurrentUser$: vi.fn(() => of(null)),
-    };
-    currentUserStore = {
-      patch: vi.fn(),
+      terminationVersionSnapshot: 0,
+      isTerminatingSnapshot: false,
     };
     userWrite = {
       patchEmailVerified$: vi.fn(() => of(void 0)),
@@ -56,7 +54,6 @@ describe('EmailVerificationService canonical errors', () => {
     service = new EmailVerificationService(
       router as any,
       authSession as any,
-      currentUserStore as any,
       userWrite as any,
       applicationError as any,
       auth as any
@@ -151,7 +148,8 @@ describe('EmailVerificationService canonical errors', () => {
     });
   });
 
-  it('centraliza updateEmailVerificationStatus com snackbar e repropaga o erro original', async () => {
+  it('centraliza updateEmailVerificationStatus e repropaga o erro para a interface contextual', async () => {
+    auth.currentUser = { uid: 'user-1', emailVerified: true };
     const original = new Error('firestore write failed');
     userWrite.patchEmailVerified$.mockReturnValue(
       throwError(() => original)
@@ -171,9 +169,8 @@ describe('EmailVerificationService canonical errors', () => {
     expect(applicationError.report).toHaveBeenCalledWith(original, {
       feature: 'email-verification',
       operation: 'updateEmailVerificationStatus',
-      fallbackMessage:
-        'Não foi possível atualizar a verificação agora. Entre novamente e repita a conferência.',
-      presentation: { surface: 'snackbar', severity: 'error' },
+      fallbackMessage: 'Não foi possível concluir uma etapa interna da verificação de e-mail.',
+      presentation: { surface: 'none', severity: 'error' },
       metadata: {
         scope: 'EmailVerificationService',
         operation: 'updateEmailVerificationStatus',
@@ -189,19 +186,98 @@ describe('EmailVerificationService canonical errors', () => {
     expect(applicationError.report).toHaveBeenCalledTimes(1);
   });
 
-  it('preserva patch runtime no sucesso de updateEmailVerificationStatus', async () => {
-    userWrite.patchEmailVerified$.mockReturnValue(of(void 0));
+  it('escreve o perfil privado somente quando a sessão confirma o UID e a verificação', async () => {
+    auth.currentUser = { uid: 'user-1', emailVerified: true };
 
-    await expect(
-      firstValueFrom(
-        service.updateEmailVerificationStatus('user-1', true)
-      )
-    ).resolves.toBeUndefined();
+    await expect(firstValueFrom(service.updateEmailVerificationStatus('user-1', true)))
+      .resolves.toBeUndefined();
+    await expect(firstValueFrom(service.updateEmailVerificationStatus('user-2', true)))
+      .rejects.toThrow('A sessão atual não confirma');
 
-    expect(currentUserStore.patch).toHaveBeenCalledWith({
-      emailVerified: true,
+    expect(userWrite.patchEmailVerified$).toHaveBeenCalledExactlyOnceWith('user-1', true);
+  });
+
+  function prepareLink(operation = 'VERIFY_EMAIL') {
+    router.parseUrl.mockReturnValue({ queryParams: { mode: 'verifyEmail', oobCode: 'synthetic-code' } });
+    const check = vi.fn().mockResolvedValue({ operation, data: { email: 'A@example.test' } });
+    Object.assign(service, { checkVerificationCode: check });
+    const verify = vi.spyOn(service, 'verifyEmail').mockReturnValue(of(void 0));
+    return { check, verify };
+  }
+
+  it('aplica o link de A com B autenticado sem consultar nem gravar B', async () => {
+    auth.currentUser = { uid: 'B', email: 'b@example.test', emailVerified: true };
+    const { verify } = prepareLink();
+
+    await expect(firstValueFrom(service.handleEmailVerification())).resolves.toEqual({
+      ok: true, firestoreUpdated: false, reason: 'different-account',
     });
-    expect(applicationError.report).not.toHaveBeenCalled();
+    expect(verify).toHaveBeenCalledExactlyOnceWith('synthetic-code');
+    expect(authSession.refreshCurrentUser$).not.toHaveBeenCalled();
+    expect(userWrite.patchEmailVerified$).not.toHaveBeenCalled();
+  });
+
+  it('confirma o link fora da sessão e deixa o perfil para o login', async () => {
+    prepareLink();
+    await expect(firstValueFrom(service.handleEmailVerification())).resolves.toEqual({
+      ok: true, firestoreUpdated: false, reason: 'not-logged-in',
+    });
+    expect(authSession.refreshCurrentUser$).not.toHaveBeenCalled();
+    expect(userWrite.patchEmailVerified$).not.toHaveBeenCalled();
+  });
+
+  it('não aplica um código de recuperação de senha como verificação de e-mail', async () => {
+    const { verify } = prepareLink('PASSWORD_RESET');
+    await expect(firstValueFrom(service.handleEmailVerification()))
+      .resolves.toEqual({ ok: false, reason: 'invalid' });
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it('sincroniza a verificação com o destinatário da mesma sessão', async () => {
+    prepareLink();
+    auth.currentUser = { uid: 'A', email: 'a@example.test', emailVerified: true };
+    authSession.refreshCurrentUser$.mockReturnValue(of(auth.currentUser));
+    await expect(firstValueFrom(service.handleEmailVerification())).resolves.toEqual({
+      ok: true, firestoreUpdated: true, verifiedUid: 'A',
+    });
+    expect(userWrite.patchEmailVerified$).toHaveBeenCalledExactlyOnceWith('A', true);
+  });
+
+  it('preserva confirmação quando falha a gravação do perfil', async () => {
+    prepareLink();
+    auth.currentUser = { uid: 'A', email: 'a@example.test', emailVerified: true };
+    authSession.refreshCurrentUser$.mockReturnValue(of(auth.currentUser));
+    userWrite.patchEmailVerified$.mockReturnValue(throwError(() => new Error('offline')));
+
+    await expect(firstValueFrom(service.handleEmailVerification())).resolves.toEqual({
+      ok: true, firestoreUpdated: false, reason: 'sync-pending', verifiedUid: 'A',
+    });
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
+  });
+
+  it('descarta a sincronização após troca de sessão durante a atualização do Auth', async () => {
+    prepareLink();
+    const user = { uid: 'A', email: 'a@example.test', emailVerified: true };
+    auth.currentUser = user;
+    const refresh = new Subject<typeof user>();
+    authSession.refreshCurrentUser$.mockReturnValue(refresh);
+    const result = firstValueFrom(service.handleEmailVerification());
+    await vi.waitFor(() => expect(authSession.refreshCurrentUser$).toHaveBeenCalledOnce());
+    auth.currentUser = { uid: 'B', email: 'b@example.test', emailVerified: true };
+    refresh.next(user);
+
+    expect(await result).toEqual({ ok: true, firestoreUpdated: false, reason: 'different-account' });
+    expect(userWrite.patchEmailVerified$).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['auth/expired-action-code', 'expired'],
+    ['auth/invalid-action-code', 'invalid'],
+    ['auth/network-request-failed', 'unavailable'],
+  ])('classifica a resposta %s para a próxima ação', async (code, reason) => {
+    const { check } = prepareLink();
+    check.mockRejectedValue(Object.assign(new Error('Firebase error'), { code }));
+    await expect(firstValueFrom(service.handleEmailVerification())).resolves.toEqual({ ok: false, reason });
   });
 
   it('impede rediagnóstico verify→handle sem alterar o objeto público mapeado', () => {

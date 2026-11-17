@@ -12,22 +12,16 @@
 // =============================================================================
 import { EnvironmentInjector, Injectable, Optional, runInInjectionContext } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Firestore } from '@angular/fire/firestore';
-import {
-  doc,
-  serverTimestamp,
-  Timestamp,
-  writeBatch,
-} from 'firebase/firestore';
+import { Auth } from '@angular/fire/auth';
 import { Observable, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
+import { RegistrationRecoveryService } from './registration-recovery.service';
+import { IUserDados } from '@core/interfaces/iuser-dados';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { FirestoreContextService } from '../../data-handling/firestore/core/firestore-context.service';
 import { NicknameUtils } from '@core/utils/nickname-utils';
-
-const REGISTRATION_FLOW_VERSION = 'v3-private-by-default';
 
 export interface EmailPasswordRegistrationBootstrapInput {
   uid: string;
@@ -37,12 +31,6 @@ export interface EmailPasswordRegistrationBootstrapInput {
 
 export interface SocialRegistrationBootstrapInput {
   uid: string;
-  email: string;
-  emailVerified: boolean;
-  photoURL?: string | null;
-  providerIds?: string[];
-  providerId?: string;
-  nowMs?: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -51,8 +39,9 @@ export class RegistrationBootstrapService {
   private readonly diagnosedErrors = new WeakSet<object>();
 
   constructor(
-    private readonly db: Firestore,
+    private readonly auth: Auth,
     private readonly ctx: FirestoreContextService,
+    private readonly recovery: RegistrationRecoveryService,
     private readonly applicationError: ApplicationErrorService,
     @Optional() private readonly functions?: Functions,
     @Optional() private readonly injector?: EnvironmentInjector
@@ -76,22 +65,28 @@ export class RegistrationBootstrapService {
       );
     }
 
-    // A reserva é transacional no backend: o cliente envia apenas o display.
+    // A reserva é transacional no backend: o cliente envia o apelido e o UID esperado.
     // Não gravar public_index ou nicknameHistory a partir do SDK do navegador.
     return this.ctx
       .deferPromise$(() => {
+        this.assertActiveUid(uid);
         if (!this.functions || !this.injector) {
           throw new Error('Serviço de reserva de nickname indisponível.');
         }
         const callable = runInInjectionContext(this.injector, () =>
-          httpsCallable<{ nickname: string }, { nickname: string; normalized: string }>(
+          httpsCallable<{ nickname: string; expectedUid: string }, { nickname: string; normalized: string }>(
             this.functions!, 'reserveRegistrationNickname'
           )
         );
-        return callable({ nickname });
+        return callable({ nickname, expectedUid: uid });
       })
       .pipe(
-        map(() => void 0),
+        map(({ data }) => {
+          this.assertActiveUid(uid);
+          if (data?.normalized !== normalized) {
+            throw new Error('A reserva do apelido não foi confirmada.');
+          }
+        }),
         catchError((error) => {
           this.reportOperationalError(error, 'createEmailPasswordSeed', {
             uid, traceId: input.traceId ?? null,
@@ -104,96 +99,26 @@ export class RegistrationBootstrapService {
 
   createSocialSeed$(
     input: SocialRegistrationBootstrapInput
-  ): Observable<void> {
+  ): Observable<{ user: IUserDados; created: boolean }> {
     const uid = this.cleanText(input.uid);
-    const email = this.cleanText(input.email).toLowerCase();
-    const photoURL = this.cleanText(input.photoURL);
-    const providerIds = this.cleanStringList(input.providerIds);
-    const providerId = this.cleanText(input.providerId) || 'google.com';
-    const nowMs = Number.isFinite(input.nowMs)
-      ? Number(input.nowMs)
-      : Date.now();
-
     if (!uid) {
-      return throwError(
-        () => new Error('[RegistrationBootstrapService] UID inválido.')
-      );
+      return throwError(() => new Error('[RegistrationBootstrapService] UID inválido.'));
     }
 
-    const userRef = doc(this.db as any, 'users', uid);
-
-    return this.ctx
-      .deferPromise$(async () => {
-        const batch = writeBatch(this.db as any);
-
-        batch.set(
-          userRef,
-          {
-            uid,
-            email,
-            nickname: '',
-            ...(photoURL ? { photoURL } : {}),
-
-            role: 'free',
-            tier: 'free',
-
-            emailVerified: input.emailVerified === true,
-            isSubscriber: false,
-            subscriptionStatus: 'inactive',
-            accountStatus: 'active',
-            profileCompleted: false,
-            publicVisibility: 'hidden',
-            interactionBlocked: true,
-            loginAllowed: true,
-            registrationFlowVersion: REGISTRATION_FLOW_VERSION,
-            registrationCompletedAt: null,
-
-            // UID provisório, sem admissão social: a versão jurídica só
-            // fica aceita após resposta confirmada de acceptPlatformTerms.
-            // A autodeclaração 18+ ainda exige persistência canônica backend.
-            acceptedTerms: {
-              accepted: false,
-              date: Timestamp.fromMillis(nowMs),
-            },
-
-            roles: ['user'],
-            permissions: [],
-            entitlements: [],
-            suspended: false,
-            accountLocked: false,
-
-            authProviders: Array.from(
-              new Set([...providerIds, providerId])
-            ),
-            lastProvider: providerId,
-
-            firstLogin: Timestamp.fromMillis(nowMs),
-            registrationDate: Timestamp.fromMillis(nowMs),
-            lastLogin: Timestamp.fromMillis(nowMs),
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            updatedAtMs: nowMs,
-          },
-          { merge: true }
-        );
-
-        await batch.commit();
+    return this.recovery.recoverForUser$(uid, { hydrate: false }).pipe(
+      map(({ user, created }) => ({ user, created })),
+      catchError((error) => {
+        // recoverForUser$ já diagnosticou a falha operacional.
+        this.markDiagnosticOwnership(error);
+        return throwError(() => error);
       })
-      .pipe(
-        map(() => void 0),
-        catchError((error) => {
-          this.reportOperationalError(
-            error,
-            'createSocialSeed',
-            {
-              uid,
-              emailPresent: !!email,
-              providerId,
-            }
-          );
-          return throwError(() => error);
-        })
-      );
+    );
+  }
+
+  private assertActiveUid(uid: string): void {
+    if (this.auth.currentUser?.uid !== uid) {
+      throw new Error('A conta ativa mudou durante o cadastro.');
+    }
   }
 
   private normalizeNickname(nickname: string): string {
@@ -202,14 +127,6 @@ export class RegistrationBootstrapService {
 
   private cleanText(value: unknown): string {
     return String(value ?? '').trim();
-  }
-
-  private cleanStringList(value: unknown): string[] {
-    if (!Array.isArray(value)) return [];
-
-    return value
-      .map((item) => this.cleanText(item))
-      .filter(Boolean);
   }
 
   /**

@@ -90,6 +90,7 @@ describe('AuthFacade social auth recovery', () => {
         user: null,
         nextRoute: null,
         code: 'social-auth/bootstrap-failed',
+        authenticatedUid: 'social-uid',
         message: 'Não foi possível preparar sua conta agora.',
       })
     );
@@ -125,6 +126,7 @@ describe('AuthFacade social auth recovery', () => {
         user: null,
         nextRoute: null,
         code: 'social-auth/bootstrap-failed',
+        authenticatedUid: 'social-uid',
         message: 'Não foi possível preparar sua conta agora.',
       })
     );
@@ -162,4 +164,23 @@ describe('AuthFacade social auth recovery', () => {
     expect(result.success).toBe(true);
     expect(result.nextRoute).toBe('/register/finalizar-cadastro');
   });
+  it('não converte falha pós-Google de outro UID em recuperação da conta atual', async () => {
+    socialAuth.googleLogin.mockReturnValue(of({
+      success: false,
+      outcome: 'error',
+      isNewUser: false,
+      emailVerified: false,
+      user: null,
+      nextRoute: null,
+      authenticatedUid: 'previous-account',
+      code: 'social-auth/bootstrap-failed',
+    }));
+
+    await expect(firstValueFrom(facade.googleLogin$())).resolves.toMatchObject({
+      success: false,
+      user: null,
+      nextRoute: null,
+    });
+  });
+
 });

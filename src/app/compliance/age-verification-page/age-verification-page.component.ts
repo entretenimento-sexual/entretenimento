@@ -12,15 +12,19 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { EMPTY, Observable, of } from 'rxjs';
 import {
   catchError,
+  filter,
   finalize,
   map,
   switchMap,
   take,
+  timeout,
 } from 'rxjs/operators';
 
 import {
   IUserAgeEligibility,
 } from 'src/app/core/interfaces/iuser-dados';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { RegisterFlowFacade } from 'src/app/register-module/data-access/register-flow.facade';
 import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
 import {
   AgeEligibilityService,
@@ -58,13 +62,17 @@ interface PageFeedback {
 export class AgeVerificationPageComponent implements OnInit {
   private readonly ageEligibility = inject(AgeEligibilityService);
   private readonly logout = inject(LogoutService);
+  private readonly session = inject(AuthSessionService);
+  private readonly registerFlow = inject(RegisterFlowFacade);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private continued = false;
+  private pageUid: string | undefined;
 
   readonly processing = signal(false);
   readonly reconciling = signal(true);
+  readonly continuing = signal(false);
   readonly feedback = signal<PageFeedback | null>(null);
 
   readonly vm$: Observable<AgeVerificationPageVm> =
@@ -81,6 +89,7 @@ export class AgeVerificationPageComponent implements OnInit {
     );
 
   ngOnInit(): void {
+    this.pageUid = this.session.currentAuthUser?.uid;
     // Não navegar com projeção antiga antes da reconciliação canônica.
     this.ageEligibility.reconcileTrustedStateOncePerSession$()
       .pipe(
@@ -105,6 +114,10 @@ export class AgeVerificationPageComponent implements OnInit {
 
   confirmAdult(): void {
     if (this.processing()) return;
+    if (!this.isCurrentAccount()) {
+      this.reportSessionChange();
+      return;
+    }
     this.processing.set(true);
     this.feedback.set(null);
     this.ageEligibility.acceptSelfDeclaration$().pipe(
@@ -118,8 +131,13 @@ export class AgeVerificationPageComponent implements OnInit {
         });
         return EMPTY;
       }),
-      finalize(() => this.processing.set(false))
+      finalize(() => this.processing.set(false)),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe((state) => {
+      if (!this.isCurrentAccount()) {
+        this.reportSessionChange();
+        return;
+      }
       if (isCurrentAdultAccountAdmissionProjection(state)) {
         this.feedback.set({
           tone: 'success',
@@ -166,20 +184,72 @@ export class AgeVerificationPageComponent implements OnInit {
       .subscribe();
   }
 
-  private continueAfterAgeStep(): void {
+  continueAfterAgeStep(): void {
     if (this.continued) return;
-    this.continued = true;
-    const target = this.safeRedirectTo(
-      this.route.snapshot.queryParamMap.get('redirectTo')
-    ) ?? '/dashboard/principal';
+    if (!this.isCurrentAccount()) {
+      this.reportSessionChange();
+      return;
+    }
 
-    // Retorna à rota protegida. O guard canônico escolhe a etapa
-    // realmente pendente: termos, idade, conclusão de perfil ou acesso final.
-    void this.router.navigateByUrl(target, { replaceUrl: true })
-      .then((navigated) => {
-        if (!navigated) this.reportNavigationFailure();
-      })
-      .catch(() => this.reportNavigationFailure());
+    this.continued = true;
+    this.continuing.set(true);
+    const redirectTo = this.safeRedirectTo(
+      this.route.snapshot.queryParamMap.get('redirectTo')
+    );
+
+    this.registerFlow.vm$.pipe(
+      filter((vm) =>
+        vm.uid === this.pageUid &&
+        vm.authReady &&
+        vm.userResolved &&
+        vm.currentStep !== 'loading' &&
+        vm.currentStep !== 'ageVerification'
+      ),
+      take(1),
+      timeout({ first: 5000 }),
+      switchMap((vm) => {
+        if (!this.isCurrentAccount()) {
+          this.continued = false;
+          this.reportSessionChange();
+          return EMPTY;
+        }
+        const target = vm.currentStep === 'preferences'
+          ? redirectTo ?? '/dashboard/principal'
+          : vm.nextRoute;
+        const destination = this.router.parseUrl(target);
+        if (redirectTo && vm.currentStep !== 'preferences') {
+          destination.queryParams = { ...destination.queryParams, redirectTo };
+        }
+        return this.router.navigateByUrl(this.router.serializeUrl(destination), { replaceUrl: true });
+      }),
+      catchError(() => {
+        if (this.isCurrentAccount()) {
+          this.reportNavigationFailure();
+        } else {
+          this.continued = false;
+          this.reportSessionChange();
+        }
+        return EMPTY;
+      }),
+      finalize(() => this.continuing.set(false)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe((navigated) => {
+      if (!navigated) this.reportNavigationFailure();
+    });
+  }
+
+  private isCurrentAccount(): boolean {
+    return Boolean(this.pageUid) &&
+      !this.session.isTerminatingSnapshot &&
+      this.session.currentAuthUser?.uid === this.pageUid;
+  }
+
+  private reportSessionChange(): void {
+    this.feedback.set({
+      tone: 'warning',
+      title: 'A sessão mudou',
+      message: 'Recarregue a página para retomar o cadastro com a conta ativa.',
+    });
   }
 
   private reportNavigationFailure(): void {
@@ -187,7 +257,7 @@ export class AgeVerificationPageComponent implements OnInit {
     this.feedback.set({
       tone: 'error',
       title: 'Não foi possível continuar',
-      message: 'Sua confirmação permanece registrada. Tente acessar a plataforma novamente.',
+      message: 'Sua confirmação permanece registrada. Use Continuar para tentar abrir a próxima etapa.',
     });
   }
 

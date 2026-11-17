@@ -26,7 +26,28 @@ export const inRegistrationFlow = (url: string): boolean => {
   return (
     /^\/register(\/|$)/.test(path) ||
     /^\/login(\/|$)/.test(path) ||
+    path === '/adulto/verificar-idade' ||
     /^\/__\/auth\/action(\/|$)/.test(path) ||
     /^\/post-verification\/action(\/|$)/.test(path)
   );
 };
+
+export type SessionEndReason = 'session-ended' | 'session-expired' | 'session-disabled';
+
+export function authInvalidationReason(error: unknown): SessionEndReason | null {
+  const code = (error as { code?: unknown } | null)?.code;
+  switch (code) {
+    case 'auth/user-disabled':
+      return 'session-disabled';
+    case 'auth/user-not-found':
+    case 'auth/user-token-expired':
+    case 'auth/invalid-user-token':
+      return 'session-expired';
+    default:
+      return null;
+  }
+}
+
+export function isSessionEndReason(value: unknown): value is SessionEndReason {
+  return value === 'session-ended' || value === 'session-expired' || value === 'session-disabled';
+}

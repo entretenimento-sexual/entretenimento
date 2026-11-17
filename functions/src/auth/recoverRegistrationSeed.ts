@@ -21,10 +21,10 @@ export interface RecoverRegistrationSeedResponse {
  * identidade pública canônica quando uma conta antiga ainda não possui
  * `profileId` válido.
  *
- * A operação é idempotente e não aceita payload do cliente. Todos os dados são
- * derivados do Firebase Auth e de defaults seguros do backend.
+ * A operação é idempotente. O UID esperado só confirma a sessão que iniciou
+ * a chamada. O seed é derivado do Firebase Auth e dos defaults do backend.
  */
-export const recoverRegistrationSeed = onCall(
+export const recoverRegistrationSeed = onCall<{ expectedUid?: unknown } | null>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<RecoverRegistrationSeedResponse> => {
     const uid = String(request.auth?.uid ?? '').trim();
@@ -34,6 +34,10 @@ export const recoverRegistrationSeed = onCall(
         'unauthenticated',
         'Faça login para recuperar os dados da conta.'
       );
+    }
+
+    if (request.data?.expectedUid !== undefined && request.data.expectedUid !== uid) {
+      throw new HttpsError('permission-denied', 'A conta ativa mudou durante o cadastro.');
     }
 
     let authUser: UserRecord;
@@ -46,6 +50,10 @@ export const recoverRegistrationSeed = onCall(
         'Não foi possível localizar a conta autenticada.',
         { cause: String((error as Error)?.message ?? error) }
       );
+    }
+
+    if (authUser.disabled) {
+      throw new HttpsError('failed-precondition', 'Conta indisponível para recuperação.');
     }
 
     const recoveredAtMs = Date.now();

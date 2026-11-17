@@ -23,7 +23,8 @@ import {
   OnDestroy,
   OnInit,
   inject,
-  runInInjectionContext
+  runInInjectionContext,
+  signal
 } from '@angular/core';
 
 import {
@@ -36,6 +37,7 @@ import {
 
 import {
   filter,
+  finalize,
   startWith,
   map,
   distinctUntilChanged,
@@ -70,6 +72,7 @@ import { inRegistrationFlow as isRegistrationFlow } from 'src/app/core/services/
   standalone: false
 })
 export class NavbarComponent implements OnInit, OnDestroy {
+  readonly logoutPending = signal(false);
   public isAuthenticated = false;
   public nickname = '';
   public photoURL = '';
@@ -587,8 +590,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   logout(): void {
+    if (this.logoutPending()) return;
+    this.logoutPending.set(true);
     this.logoutService.logout$().pipe(
       take(1),
+      finalize(() => this.logoutPending.set(false)),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       // A navegação para login confirma o sucesso; não há toast adicional.

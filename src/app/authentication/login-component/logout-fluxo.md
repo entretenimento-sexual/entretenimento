@@ -10,8 +10,8 @@ A plataforma possui uma única fronteira de encerramento de sessão: `LogoutServ
 - `PresenceService`/`PresenceOrchestratorService` são os donos atuais de presença. Não reintroduzir Realtime Database/onDisconnect ou Effects legados como autoridade de logout.
 - `scripts/quality/check-auth-signout-boundary.mjs` protege a fronteira no Quality Gate e deve continuar falhando fechado se surgir `signOut` bruto fora de `logout.service.ts`.
 
-Em falha do `signOut` voluntário, a sessão operacional é restaurada a partir do mesmo Firebase user ainda válido e os orquestradores rearmam seus recursos. Hard signout, ao contrário, permanece fail-closed se o Firebase continuar tecnicamente autenticado após a tentativa de encerramento.
+O serviço consulta alterações pendentes na tela ativa antes de iniciar o logout. A confirmação autoriza descartar o rascunho após o encerramento confirmado pelo Firebase. Se o sign-out falhar com a mesma conta ainda ativa, a edição fica disponível e os orquestradores rearmam seus recursos. A recuperação do Web Push tem prazo de 3 segundos.
 
-> Politica geral de persistencia, identidade e encerramento:
-> [auth-session-policy.md](../../../docs/dev/auth-session-policy.md).
-> A revisao dos encerramentos involuntarios B3.2C.22E ainda esta pendente.
+O shell oculta a tela protegida após o encerramento efetivo. Se a navegação para o login falhar ou for cancelada, o botão “Abrir login” permite tentar novamente. Quando a navegação termina, a tela de login confirma a saída voluntária.
+
+[Política de autenticação](../../../../docs/dev/auth-session-policy.md) · [Checklist local](../../../../docs/dev/auth-validation-checklist.md)

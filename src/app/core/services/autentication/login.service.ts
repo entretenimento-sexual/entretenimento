@@ -42,6 +42,7 @@ import { FirestoreUserQueryService } from '../data-handling/firestore-user-query
 import { environment } from 'src/environments/environment';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 import { AccountReauthenticationService } from 'src/app/account/application/account-reauthentication.service';
+import { AuthAppBlockService } from './auth/auth-app-block.service';
 import { AuthSessionPersistenceService } from './auth-session-persistence.service';
 import { resolveFirebaseAuthEmulatorPersistenceMode } from '@core/firebase/firebase-environment.config';
 
@@ -63,6 +64,7 @@ export class LoginService {
   private readonly NET_TIMEOUT_MS = 12_000;
 
   constructor(
+    private readonly appBlock: AuthAppBlockService,
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly applicationError: ApplicationErrorService,
     private readonly auth: Auth,
@@ -304,7 +306,10 @@ export class LoginService {
           )
           .pipe(timeout({ each: this.NET_TIMEOUT_MS }))
       ),
-      switchMap(({ user }) => this.loadEffectiveUserAfterLogin$(user)),
+      switchMap(({ user }) => {
+        if (this.auth.currentUser?.uid === user.uid) this.appBlock.resolveInvalidation(user.uid);
+        return this.loadEffectiveUserAfterLogin$(user);
+      }),
       catchError((error: unknown) => {
         const mapped = this.mapAuthError(error);
         this.reportSilent(mapped.message, error, {

@@ -5,6 +5,9 @@ import { BehaviorSubject, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserAgeEligibility } from 'src/app/core/interfaces/iuser-dados';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { RegisterFlowFacade } from 'src/app/register-module/data-access/register-flow.facade';
+import type { RegisterFlowVm } from 'src/app/register-module/data-access/register-flow.model';
 import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
 import { AgeEligibilityService } from 'src/app/core/services/compliance/age-eligibility.service';
 import { AgeVerificationPageComponent } from './age-verification-page.component';
@@ -35,6 +38,8 @@ describe('AgeVerificationPageComponent', () => {
   let fixture: ComponentFixture<AgeVerificationPageComponent>;
   let component: AgeVerificationPageComponent;
   let router: Router;
+  type RegistrationStep = Pick<RegisterFlowVm, 'uid' | 'authReady' | 'userResolved' | 'currentStep' | 'nextRoute'>;
+  let registrationStep$: BehaviorSubject<RegistrationStep>;
   let current$: BehaviorSubject<IUserAgeEligibility>;
   let ageEligibilityMock: {
     current$: unknown;
@@ -61,6 +66,10 @@ describe('AgeVerificationPageComponent', () => {
       getCurrentOnce$: vi.fn(() => of(current$.value)),
     };
 
+    registrationStep$ = new BehaviorSubject<RegistrationStep>({
+      uid: 'user-1', authReady: true, userResolved: true,
+      currentStep: 'preferences', nextRoute: '/preferencias/editar/user-1',
+    });
     await TestBed.configureTestingModule({
       imports: [AgeVerificationPageComponent, RouterTestingModule],
       providers: [
@@ -78,6 +87,10 @@ describe('AgeVerificationPageComponent', () => {
           provide: AgeEligibilityService,
           useValue: ageEligibilityMock,
         },
+        { provide: AuthSessionService, useValue: {
+          currentAuthUser: { uid: 'user-1' }, isTerminatingSnapshot: false,
+        } },
+        { provide: RegisterFlowFacade, useValue: { vm$: registrationStep$ } },
         {
           provide: LogoutService,
           useValue: {
@@ -215,4 +228,19 @@ describe('AgeVerificationPageComponent', () => {
       { replaceUrl: true }
     ));
   });
+  it('vai para conclusão de perfil antes da rota originalmente solicitada', async () => {
+    registrationStep$.next({
+      ...registrationStep$.value,
+      currentStep: 'profileCompletion',
+      nextRoute: '/register/finalizar-cadastro',
+    });
+    current$.next(VERIFIED);
+    fixture.detectChanges();
+
+    await vi.waitFor(() => expect(router.navigateByUrl).toHaveBeenCalledWith(
+      '/register/finalizar-cadastro?redirectTo=%2Fdashboard%2Fexplorar',
+      { replaceUrl: true }
+    ));
+  });
+
 });

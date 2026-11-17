@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 import { EmailVerificationService } from '../../core/services/autentication/register/email-verification.service';
 import { PasswordResetCodeValidationService } from '../../core/services/autentication/password-reset-code-validation.service';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { LogoutService } from '@core/services/autentication/auth/logout.service';
 import { LoginService } from '../../core/services/autentication/login.service';
 import {
   EmailInputModalService,
@@ -27,13 +29,14 @@ describe('AuthVerificationHandlerComponent', () => {
 
   let emailVerificationMock: {
     handleEmailVerification: Mock;
-    resendVerificationEmail: Mock;
   };
 
   let passwordResetValidationMock: {
     validate$: Mock;
   };
 
+  let session: { currentAuthUser: { uid: string } | null };
+  let logout: { logout$: Mock };
   let loginServiceMock: {
     confirmPasswordReset$: Mock;
   };
@@ -61,7 +64,6 @@ describe('AuthVerificationHandlerComponent', () => {
 
     emailVerificationMock = {
       handleEmailVerification: vi.fn(),
-      resendVerificationEmail: vi.fn(),
     };
 
     passwordResetValidationMock = {
@@ -74,6 +76,9 @@ describe('AuthVerificationHandlerComponent', () => {
         })
       ),
     };
+
+    session = { currentAuthUser: null };
+    logout = { logout$: vi.fn(() => of(void 0)) };
 
     loginServiceMock = {
       confirmPasswordReset$: vi.fn(),
@@ -117,6 +122,8 @@ describe('AuthVerificationHandlerComponent', () => {
           useValue: new NgZone({ enableLongStackTrace: false }),
         },
         { provide: EmailVerificationService, useValue: emailVerificationMock },
+        { provide: AuthSessionService, useValue: session },
+        { provide: LogoutService, useValue: logout },
         {
           provide: PasswordResetCodeValidationService,
           useValue: passwordResetValidationMock,
@@ -174,7 +181,7 @@ describe('AuthVerificationHandlerComponent', () => {
     emailVerificationMock.handleEmailVerification.mockReturnValue(
       of({
         ok: true,
-        reason: 'verified',
+        verifiedUid: 'user-a',
         firestoreUpdated: true,
       })
     );
@@ -186,10 +193,10 @@ describe('AuthVerificationHandlerComponent', () => {
     expect(component.verifyOk).toBe(true);
     expect(component.actionSucceeded).toBe(true);
     expect(component.message).toBe('E-mail verificado com sucesso.');
-    expect(component.showResendVerifyCTA).toBe(false);
+    expect(routerMock.navigate).not.toHaveBeenCalled();
   });
 
-  it('deve oferecer reenvio quando link de verificação estiver expirado', () => {
+  it('orienta entrar na conta do link antes de solicitar outro quando expirado', () => {
     emailVerificationMock.handleEmailVerification.mockReturnValue(
       of({ ok: false, reason: 'expired' })
     );
@@ -201,10 +208,52 @@ describe('AuthVerificationHandlerComponent', () => {
     fixture.detectChanges();
 
     expect(component.verifyOk).toBe(false);
-    expect(component.showResendVerifyCTA).toBe(true);
-    expect(component.message).toBe(
-      'O link de verificação expirou. Reenvie um novo e-mail.'
+    expect(component.showGoToLoginCTA).toBe(true);
+    expect(component.message).toContain('Entre na conta que recebeu o link');
+  });
+
+  it('oferece trocar de conta sem iniciar logout automaticamente', () => {
+    session.currentAuthUser = { uid: 'B' };
+    emailVerificationMock.handleEmailVerification.mockReturnValue(
+      of({ ok: true, reason: 'different-account', firestoreUpdated: false })
     );
+    queryParamsSubject.next({ mode: 'verifyEmail', oobCode: 'test-code' });
+    fixture.detectChanges();
+
+    expect(component.verifyOk).toBe(true);
+    expect(component.canSwitchAccount).toBe(true);
+    expect(fixture.nativeElement.textContent).not.toContain('Continuar cadastro');
+    expect(logout.logout$).not.toHaveBeenCalled();
+    component.switchVerificationAccount();
+    expect(logout.logout$).toHaveBeenCalledOnce();
+  });
+
+  it('informa atualização pendente e conserva o resultado quando a conta troca antes de continuar', () => {
+    session.currentAuthUser = { uid: 'A' };
+    emailVerificationMock.handleEmailVerification.mockReturnValue(
+      of({ ok: true, reason: 'sync-pending', firestoreUpdated: false, verifiedUid: 'A' })
+    );
+    queryParamsSubject.next({ mode: 'verifyEmail', oobCode: 'test-code' });
+    fixture.detectChanges();
+    expect(component.message).toContain('ainda está pendente');
+    session.currentAuthUser = { uid: 'B' };
+    component.goToWelcome();
+    expect(routerMock.navigate).not.toHaveBeenCalled();
+    expect(component.canSwitchAccount).toBe(true);
+  });
+
+  it('mantém o resultado do link atual quando chega uma resposta anterior', () => {
+    const oldResult = new Subject();
+    emailVerificationMock.handleEmailVerification
+      .mockReturnValueOnce(oldResult)
+      .mockReturnValueOnce(of({ ok: false, reason: 'expired' }));
+    queryParamsSubject.next({ mode: 'verifyEmail', oobCode: 'older' });
+    fixture.detectChanges();
+    queryParamsSubject.next({ mode: 'verifyEmail', oobCode: 'newer' });
+    oldResult.next({ ok: true, firestoreUpdated: true });
+
+    expect(component.verifyOk).toBe(false);
+    expect(component.message).toContain('expirou');
   });
 
   it('valida o link antes de exibir o formulário de nova senha', () => {

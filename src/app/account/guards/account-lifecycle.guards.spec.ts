@@ -1,9 +1,10 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, UrlTree, provideRouter } from '@angular/router';
 import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from '@core/interfaces/iuser-dados';
+import { AUTH_GUARD_WAIT_MS } from '@core/guards/_shared-guard/guard-utils';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { accountLifecycleGuard } from './account-lifecycle.guard';
@@ -54,10 +55,12 @@ describe('account lifecycle guards', () => {
     router = TestBed.inject(Router);
   });
 
-  async function runLifecycleGuard(url = '/dashboard') {
+  afterEach(() => vi.useRealTimers());
+
+  async function runLifecycleGuard(url = '/dashboard', allowPendingAgeRegistration = false) {
     return firstValueFrom(
       TestBed.runInInjectionContext(() =>
-        accountLifecycleGuard({} as never, { url } as never)
+        accountLifecycleGuard({ data: { allowPendingAgeRegistration } } as never, { url } as never)
       ) as Observable<boolean | UrlTree>
     );
   }
@@ -65,13 +68,26 @@ describe('account lifecycle guards', () => {
   async function runStatusGuard() {
     return firstValueFrom(
       TestBed.runInInjectionContext(() =>
-        accountStatusPageGuard({} as never, {} as never)
+        accountStatusPageGuard({} as never, { url: '/conta/status' } as never)
       ) as Observable<boolean | UrlTree>
     );
   }
 
   it('libera conta ativa quando perfil e Auth possuem o mesmo UID', async () => {
     expect(await runLifecycleGuard()).toBe(true);
+  });
+
+  it('oferece nova tentativa sem liberar a rota quando o perfil segue pendente', async () => {
+    vi.useFakeTimers();
+    currentUser$.next(undefined);
+    const pending = runLifecycleGuard('/adulto/verificar-idade?redirectTo=%2Fconta', true);
+    await vi.advanceTimersByTimeAsync(AUTH_GUARD_WAIT_MS);
+    const result = await pending;
+    expect(result).toBeInstanceOf(UrlTree);
+    expect((result as UrlTree).queryParams).toEqual({
+      reason: 'auth_unavailable',
+      redirectTo: '/adulto/verificar-idade?redirectTo=%2Fconta',
+    });
   });
 
   it('bloqueia perfil resolvido como null sem assumir active', async () => {
@@ -100,10 +116,39 @@ describe('account lifecycle guards', () => {
     expect(result).toBeInstanceOf(UrlTree);
   });
 
+  it('libera a etapa etária de um cadastro pendente com interações bloqueadas', async () => {
+    const pending = user({
+      profileCompleted: false,
+      publicVisibility: 'hidden',
+      interactionBlocked: true,
+      loginAllowed: true,
+    });
+    currentUser$.next(pending);
+
+    expect(await runLifecycleGuard('/adulto/verificar-idade', true)).toBe(true);
+    expect(await runLifecycleGuard()).toBeInstanceOf(UrlTree);
+
+    currentUser$.next({ ...pending, ageReverificationRestrictedAt: 1 });
+    const restricted = await runLifecycleGuard('/adulto/verificar-idade', true);
+    expect(router.serializeUrl(restricted as UrlTree)).toContain('/conta/status');
+  });
+
   it('mantém a página de status acessível para estado unknown', async () => {
     currentUser$.next(null);
 
     expect(await runStatusGuard()).toBe(true);
+  });
+
+  it('oferece nova tentativa quando até a página de status espera pelo perfil', async () => {
+    vi.useFakeTimers();
+    currentUser$.next(undefined);
+    const pending = runStatusGuard();
+    await vi.advanceTimersByTimeAsync(AUTH_GUARD_WAIT_MS);
+    const result = await pending;
+    expect((result as UrlTree).queryParams).toEqual({
+      reason: 'auth_unavailable',
+      redirectTo: '/conta/status',
+    });
   });
 
   it('retira conta ativa da página de status', async () => {

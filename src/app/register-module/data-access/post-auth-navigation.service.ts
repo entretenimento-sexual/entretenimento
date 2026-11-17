@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 
-import { Observable, of } from 'rxjs';
+import { Observable, defer, of } from 'rxjs';
 import {
   catchError,
   filter,
@@ -10,6 +10,7 @@ import {
 } from 'rxjs/operators';
 
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import type { AuthFacadeSocialAuthResult } from 'src/app/core/services/autentication/auth/auth.facade';
 import type { LoginResult } from 'src/app/core/services/autentication/login.service';
 import { hasAcceptedCurrentTerms } from 'src/app/core/services/compliance/terms-acceptance.service';
@@ -21,9 +22,21 @@ import type { RegisterFlowVm } from './register-flow.model';
 export class PostAuthNavigationService {
   private readonly flowTimeoutMs = 3500;
 
-  constructor(private readonly registerFlow: RegisterFlowFacade) {}
+  constructor(
+    private readonly registerFlow: RegisterFlowFacade,
+    private readonly authSession: AuthSessionService
+  ) {}
 
   resolveAfterEmailLogin$(
+    result: LoginResult,
+    redirectTo: string
+  ): Observable<string> {
+    return this.resolveForCurrentSession$(result.user?.uid, () =>
+      this.resolveEmailDestination$(result, redirectTo)
+    );
+  }
+
+  private resolveEmailDestination$(
     result: LoginResult,
     redirectTo: string
   ): Observable<string> {
@@ -60,6 +73,15 @@ export class PostAuthNavigationService {
     result: AuthFacadeSocialAuthResult,
     redirectTo: string
   ): Observable<string> {
+    return this.resolveForCurrentSession$(result.user?.uid, () =>
+      this.resolveSocialDestination$(result, redirectTo)
+    );
+  }
+
+  private resolveSocialDestination$(
+    result: AuthFacadeSocialAuthResult,
+    redirectTo: string
+  ): Observable<string> {
     const safeRedirectTo = this.sanitizeRedirectTo(redirectTo);
     const lifecycleRoute = this.resolveAccountLifecycleRoute(result.user);
 
@@ -89,13 +111,37 @@ export class PostAuthNavigationService {
     );
   }
 
+  private resolveForCurrentSession$(
+    expectedUid: string | undefined,
+    destination: () => Observable<string>
+  ): Observable<string> {
+    const assertCurrentSession = () => {
+      if (!expectedUid ||
+        this.authSession.currentAuthUser?.uid !== expectedUid ||
+        this.authSession.isTerminatingSnapshot
+      ) {
+        throw Object.assign(new Error('A sessão mudou durante o login.'), {
+          code: 'auth/session-changed',
+        });
+      }
+    };
+
+    return defer(() => {
+      assertCurrentSession();
+      return destination().pipe(map((target) => {
+        assertCurrentSession();
+        return target;
+      }));
+    });
+  }
+
   private resolveFromRegisterFlow$(
     user: IUserDados | null | undefined,
     redirectTo: string,
     fallback: () => string
   ): Observable<string> {
     return this.registerFlow.vm$.pipe(
-      filter((vm) => vm.authReady === true && !!vm.uid),
+      filter((vm) => vm.authReady === true && !!vm.uid && vm.uid === user?.uid),
       filter(
         (vm) =>
           vm.currentStep === 'emailVerification' ||
@@ -141,6 +187,9 @@ export class PostAuthNavigationService {
           vm.nextRoute || '/register/aceitar-termos',
           redirectTo
         );
+
+      case 'ageVerification':
+        return this.withRedirectTo(vm.nextRoute || '/adulto/verificar-idade', redirectTo);
 
       case 'profileCompletion':
         return this.profileCompletionRoute(vm.uid, redirectTo);
@@ -264,6 +313,7 @@ export class PostAuthNavigationService {
       value.startsWith('/register/recuperar-conta') ||
       value.startsWith('/register/aceitar-termos') ||
       value.startsWith('/register/finalizar-cadastro') ||
+      value.startsWith('/adulto/verificar-idade') ||
       value.startsWith('/adulto/confirmar')
     ) {
       return '/dashboard/principal';

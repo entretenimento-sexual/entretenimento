@@ -5,9 +5,14 @@
       Entrar
     </h1>
 
-    <p>
-      Continue de onde parou com seu perfil, preferências e conversas.
-    </p>
+    @if (sessionNotice; as notice) {
+      <p role="status" aria-live="polite">{{ notice }}</p>
+      @if (sessionRetryHref; as href) {
+        <a class="app-action app-action--secondary" [href]="href">Tentar novamente</a>
+      }
+    } @else {
+      <p>Continue de onde parou com seu perfil, preferências e conversas.</p>
+    }
   </section>
 
   <div class="form-container">
@@ -142,12 +147,6 @@
         </div>
       }
 
-      @if (successMessage) {
-        <p id="form-success" class="alert alert-success" role="status" aria-live="polite">
-          {{ successMessage }}
-        </p>
-      }
-
       @if (errorMessage) {
         <p id="form-error" class="alert alert-error" role="alert" aria-live="assertive">
           {{ errorMessage }}
@@ -160,56 +159,6 @@
       </p>
     </form>
   </div>
-
-  @if (showEmailVerificationModal) {
-    <div
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="verify-title"
-      aria-describedby="verify-desc"
-    >
-      <div class="modal-content">
-        <h2 id="verify-title">Verificação de e-mail</h2>
-        <p id="verify-desc">
-          Seu e-mail ainda não foi verificado. Verifique sua caixa de entrada
-          ou reenvie o link de verificação.
-        </p>
-
-        <div class="modal-actions">
-          <button
-            class="app-action app-action--primary"
-            type="button"
-            (click)="resendVerificationEmail()"
-            [disabled]="isLoading"
-            [attr.aria-busy]="isResendingVerification ? 'true' : 'false'"
-          >
-            {{ isResendingVerification ? 'Reenviando...' : 'Reenviar e-mail' }}
-          </button>
-
-          <button
-            class="app-action app-action--primary"
-            type="button"
-            [routerLink]="['/register/welcome']"
-            [queryParams]="{ autocheck: '1' }"
-            [disabled]="isLoading"
-          >
-            Ir para verificação
-          </button>
-
-          <button
-            class="app-action app-action--danger"
-            type="button"
-            (click)="logout()"
-            [disabled]="isLoading"
-            [attr.aria-busy]="isLoggingOut ? 'true' : 'false'"
-          >
-            {{ isLoggingOut ? 'Saindo...' : 'Sair' }}
-          </button>
-        </div>
-      </div>
-    </div>
-  }
 
   <app-email-input-modal></app-email-input-modal>
 </div>

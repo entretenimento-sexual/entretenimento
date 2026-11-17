@@ -1,7 +1,7 @@
 import { DestroyRef, Injectable, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormGroup } from '@angular/forms';
-import { debounceTime, filter, tap } from 'rxjs/operators';
+import { debounceTime, tap } from 'rxjs/operators';
 
 import { LocalDraftService } from 'src/app/core/services/drafts/local-draft.service';
 
@@ -38,22 +38,7 @@ export class ProfileEditDraftFacade {
     form.valueChanges
       .pipe(
         debounceTime(500),
-        filter(
-          () =>
-            this.draftReady &&
-            form.dirty &&
-            !isSaving()
-        ),
-        tap(() => {
-          const rawValue = form.getRawValue();
-          const draft: ProfileDraft = {};
-
-          PROFILE_DRAFT_FIELDS.forEach((field) => {
-            draft[field] = String(rawValue[field] ?? '');
-          });
-
-          this.localDraft.save(this.draftKey, draft);
-        }),
+        tap(() => this.persist(form, isSaving())),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
@@ -84,6 +69,17 @@ export class ProfileEditDraftFacade {
 
   hasUnsavedChanges(form: FormGroup, isSaving: boolean): boolean {
     return this.draftReady && form.dirty && !isSaving;
+  }
+
+  persist(form: FormGroup, isSaving: boolean): void {
+    if (!this.hasUnsavedChanges(form, isSaving)) return;
+
+    const rawValue = form.getRawValue();
+    const draft: ProfileDraft = {};
+    PROFILE_DRAFT_FIELDS.forEach((field) => {
+      draft[field] = String(rawValue[field] ?? '');
+    });
+    this.localDraft.save(this.draftKey, draft);
   }
 
   discard(form: FormGroup): void {

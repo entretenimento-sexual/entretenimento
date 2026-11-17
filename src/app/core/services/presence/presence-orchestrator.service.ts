@@ -17,18 +17,22 @@
 // - Evita writes de presença prematuros e ruído (permission-denied / logs / custo).
 // =============================================================================
 import { DestroyRef, Injectable, inject } from '@angular/core';
-import { defer, of } from 'rxjs';
+import { combineLatest, defer, of } from 'rxjs';
 import {
   catchError,
+  filter,
   distinctUntilChanged,
   map,
+  pairwise,
   shareReplay,
+  startWith,
   switchMap,
   take,
   tap,
 } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
@@ -47,7 +51,8 @@ export class PresenceOrchestratorService {
     private readonly presence: PresenceService,
     private readonly applicationError: ApplicationErrorService,
     private readonly notify: ErrorNotificationService,
-    private readonly privacyDebug: PrivacyDebugLoggerService
+    private readonly privacyDebug: PrivacyDebugLoggerService,
+    private readonly authSession: AuthSessionService
   ) { }
 
   start(): void {
@@ -87,8 +92,15 @@ export class PresenceOrchestratorService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    desiredUid$
+    combineLatest([desiredUid$, this.authSession.isTerminating$])
       .pipe(
+        startWith([null, false] as [string | null, boolean]),
+        pairwise(),
+        // Durante o logout, a parada e seu prazo pertencem ao LogoutService.
+        filter(([[, wasTerminating], [uid, terminating]]) =>
+          !terminating && !this.authSession.isTerminatingSnapshot && (!!uid || !wasTerminating)
+        ),
+        map(([, [uid]]) => uid),
         tap((uid) => this.dbg('desiredUid(presence) ->', { uid })),
 
         switchMap((uid) => {

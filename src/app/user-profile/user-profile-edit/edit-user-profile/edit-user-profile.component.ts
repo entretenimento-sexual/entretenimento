@@ -149,6 +149,10 @@ export class EditUserProfileComponent
     );
   }
 
+  persistUnsavedChanges(): void {
+    this.draftFacade.persist(this.editForm, this.isSaving);
+  }
+
   discardUnsavedChanges(): void {
     this.draftFacade.discard(this.editForm);
   }

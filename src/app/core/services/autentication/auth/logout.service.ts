@@ -14,13 +14,15 @@ import {
   Injectable,
   runInInjectionContext,
 } from '@angular/core';
-import { Router } from '@angular/router';
+import { ChildrenOutletContexts, NavigationEnd, Router } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
 import { Auth, signOut } from '@angular/fire/auth';
 
-import { Observable, defer, from, of, throwError } from 'rxjs';
+import { EMPTY, Observable, defer, from, merge, of, throwError } from 'rxjs';
 import {
   catchError,
   defaultIfEmpty,
+  filter,
   finalize,
   map,
   shareReplay,
@@ -33,6 +35,8 @@ import { PresenceService } from '@core/services/presence/presence.service';
 import { CurrentUserStoreService } from './current-user-store.service';
 import { AuthAppBlockService } from './auth-app-block.service';
 import { AuthSessionService } from './auth-session.service';
+import { AuthSessionExitService } from './auth-session-exit.service';
+import { confirmLogoutWithDraft$ } from '@core/guards/unsaved-changes/logout-draft-confirmation';
 import { CacheService } from '@core/services/general/cache/cache.service';
 import { GeolocationTrackingService } from '@core/services/geolocation/geolocation-tracking.service';
 import {
@@ -70,6 +74,9 @@ export class LogoutService {
     private readonly envInjector: EnvironmentInjector,
     private readonly privacyDebug: PrivacyDebugLoggerService,
     private readonly cache: CacheService,
+    private readonly outletContexts: ChildrenOutletContexts,
+    private readonly dialog: MatDialog,
+    private readonly sessionExit: AuthSessionExitService,
   ) {}
 
   /**
@@ -85,40 +92,54 @@ export class LogoutService {
 
     let shared$: Observable<void>;
 
-    // Snapshot síncrono antes de mascarar o UID: a própria troca de sessão
-    // pode publicar 'inactive' em Web Push. Nenhum stream prende o logout.
+    let started = false;
     shared$ = defer(() => {
-      const pushState = this.pushNotifications.currentStateSnapshot;
-      this.authSession.beginTermination();
-      return of(pushState);
-    }).pipe(
-      switchMap((pushState) =>
-        this.stopGeolocationBestEffort$().pipe(
-          switchMap(() => this.stopPresenceBestEffort$()),
-          switchMap(() => this.deactivatePushBestEffort$()),
-          switchMap(() =>
-            this.executeSignOut$('strict').pipe(
-              catchError((err) =>
-                this.handleVoluntarySignOutFailure$(err, pushState)
-              )
-            )
-          ),
-          switchMap(() => this.clearLocalSessionDataBestEffort$()),
-          switchMap(() => this.navigateBestEffort$('/login'))
-        )
-      ),
-      finalize(() => {
-        if (this.terminationInFlight$ === shared$) {
-          this.terminationInFlight$ = null;
-        }
+      started = false;
+      const user = this.auth.currentUser;
+      const route = this.router.routerState.snapshot.root;
 
-        /**
-         * Sucesso: Firebase já está nulo e liberamos o estado transitório.
-         * Falha voluntária: o handler já restaurou a sessão antes de propagar erro.
-         */
-        if (!this.auth.currentUser) {
-          this.authSession.endTermination();
-        }
+      const cancelled$ = merge(
+        this.authSession.authUser$.pipe(filter(() => this.auth.currentUser !== user)),
+        this.router.events.pipe(filter((event) => event instanceof NavigationEnd))
+      );
+      return confirmLogoutWithDraft$(this.outletContexts, this.dialog, cancelled$).pipe(
+        switchMap((discard) => {
+          if (!discard || this.auth.currentUser !== user || this.router.routerState.snapshot.root !== route) {
+            return EMPTY;
+          }
+
+          const pushState = this.pushNotifications.currentStateSnapshot;
+          started = true;
+          this.authSession.beginTermination();
+
+          return this.stopGeolocationBestEffort$().pipe(
+            switchMap(() => this.stopPresenceBestEffort$()),
+            switchMap(() => this.auth.currentUser === user ? this.deactivatePushBestEffort$() : of(void 0)),
+            switchMap(() => {
+              if (this.auth.currentUser !== user) return of(void 0);
+              return this.executeSignOut$('strict').pipe(
+                catchError((error) => this.handleVoluntarySignOutFailure$(error, pushState, user))
+              );
+            }),
+            switchMap(() => {
+              // Uma conta que entrou durante a operação segue no contexto dela.
+              if (this.auth.currentUser) return EMPTY;
+              this.sessionExit.markSignedOut();
+              try {
+                discard();
+              } catch (error: unknown) {
+                this.reportSilent(error, { phase: 'discardLogoutDraft' });
+              }
+              return this.clearLocalSessionDataBestEffort$(true);
+            }),
+            switchMap(() => this.auth.currentUser ? EMPTY : this.sessionExit.openAfterLogout$())
+          );
+        })
+      );
+    }).pipe(
+      finalize(() => {
+        if (this.terminationInFlight$ === shared$) this.terminationInFlight$ = null;
+        if (started && this.authSession.isTerminatingSnapshot) this.authSession.endTermination();
       }),
       shareReplay({ bufferSize: 1, refCount: false })
     );
@@ -252,9 +273,10 @@ export class LogoutService {
    */
   private handleVoluntarySignOutFailure$(
     err: unknown,
-    previousPushState: PushNotificationDeviceState
+    previousPushState: PushNotificationDeviceState,
+    user: Auth['currentUser']
   ): Observable<void> {
-    if (!this.auth.currentUser) {
+    if (!this.auth.currentUser || this.auth.currentUser !== user) {
       // O Firebase já ficou nulo apesar da rejeição: prossegue como logout efetivo.
       return of(void 0);
     }
@@ -266,7 +288,7 @@ export class LogoutService {
         this.applicationError.report(err, {
           feature: 'auth',
           operation: 'logout',
-          fallbackMessage: 'Não foi possível sair agora. Tente novamente.',
+          fallbackMessage: 'Não conseguimos encerrar sua sessão. Ela continua ativa. Tente sair novamente.',
           presentation: { surface: 'snackbar', severity: 'error' },
           metadata: {
             scope: 'LogoutService',
@@ -297,6 +319,10 @@ export class LogoutService {
     return defer(() => this.pushNotifications.activate$()).pipe(
       take(1),
       defaultIfEmpty('inactive' as PushNotificationDeviceState),
+      timeout({
+        first: BEST_EFFORT_CLEANUP_TIMEOUT_MS,
+        with: () => this.cleanupTimeoutFallback$('restorePushAfterFailedSignOutBestEffort$'),
+      }),
       map(() => void 0),
       catchError((err) => {
         this.reportSilent(err, {
@@ -383,18 +409,6 @@ export class LogoutService {
     );
   }
 
-  private navigateBestEffort$(path: string): Observable<void> {
-    return from(
-      this.router.navigate([path], { replaceUrl: true })
-    ).pipe(
-      catchError((err) => {
-        this.reportSilent(err, { phase: 'navigateBestEffort$', path });
-        return of(false);
-      }),
-      map(() => void 0)
-    );
-  }
-
   private navigateToWelcomeBestEffort$(reason: TerminateReason): Observable<void> {
     return from(
       this.router.navigate(['/register/welcome'], {
@@ -418,27 +432,27 @@ export class LogoutService {
   }
 
   private reportSilent(err: unknown, context: Record<string, unknown>): void {
-    this.dbg('reportSilent()', {
-      context,
-      error: err,
-    });
-
     const phase =
       typeof context['phase'] === 'string' && context['phase'].trim()
         ? context['phase'].trim()
         : 'internal';
 
-    this.applicationError.report(err, {
-      feature: 'auth',
-      operation: phase,
-      fallbackMessage:
-        'Não foi possível concluir uma etapa interna do encerramento da sessão.',
-      presentation: { surface: 'none', severity: 'error' },
-      metadata: {
-        scope: 'LogoutService',
-        ...context,
-      },
-    });
+    try {
+      this.dbg('reportSilent()', { context, error: err });
+      this.applicationError.report(err, {
+        feature: 'auth',
+        operation: phase,
+        fallbackMessage:
+          'Não foi possível concluir uma etapa interna do encerramento da sessão.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'LogoutService',
+          ...context,
+        },
+      });
+    } catch {
+      // O diagnóstico não interfere no estado da sessão.
+    }
   }
 
   private cleanupTimeoutFallback$(phase: string): Observable<void> {
@@ -458,7 +472,7 @@ export class LogoutService {
    * navegação/signOut. IndexedDB também é limitado para não prender a UI após
    * o Firebase Auth já ter sido encerrado.
    */
-  private clearLocalSessionDataBestEffort$(): Observable<void> {
+  private clearLocalSessionDataBestEffort$(onlyWhenSignedOut = false): Observable<void> {
     return defer(() => this.cache.clearSensitiveSessionCache$()).pipe(
       take(1),
       defaultIfEmpty(void 0),
@@ -473,8 +487,10 @@ export class LogoutService {
         return of(void 0);
       }),
       map(() => {
-        this.appBlock.clear();
-        this.currentUserStore.clear();
+        if (!onlyWhenSignedOut || !this.auth.currentUser) {
+          this.appBlock.clear();
+          this.currentUserStore.clear();
+        }
         return void 0;
       })
     );

@@ -19,6 +19,7 @@ import {
   BehaviorSubject,
   Observable,
   combineLatest,
+  defer,
   from,
   throwError,
 } from 'rxjs';
@@ -61,6 +62,7 @@ export class AgeEligibilityService {
   private readonly trustedSessionProjection =
     new BehaviorSubject<TrustedSessionAgeProjection | null>(null);
   private reconciledUid: string | null = null;
+  private sessionGeneration = 0;
   private reconcileInFlight:
     | { uid: string; stream: Observable<IUserAgeEligibility> }
     | null = null;
@@ -70,42 +72,24 @@ export class AgeEligibilityService {
     private readonly currentUser: CurrentUserStoreService,
     private readonly globalError: GlobalErrorHandlerService,
   ) {
-    this.currentUser.user$.subscribe((user) => {
-      const uid = String(user?.uid ?? '').trim();
-
-      if (!uid) {
-        this.reconciledUid = null;
-        this.reconcileInFlight = null;
-        if (this.trustedSessionProjection.value !== null) {
-          this.trustedSessionProjection.next(null);
-        }
-        return;
-      }
-
-      if (this.reconciledUid && this.reconciledUid !== uid) {
-        this.reconciledUid = null;
-        this.reconcileInFlight = null;
-      }
-
-      if (
-        this.trustedSessionProjection.value &&
-        this.trustedSessionProjection.value.uid !== uid
-      ) {
+    this.currentUser.getLoggedUserUID$().pipe(distinctUntilChanged()).subscribe(() => {
+      this.sessionGeneration++;
+      this.reconciledUid = null;
+      this.reconcileInFlight = null;
+      if (this.trustedSessionProjection.value !== null) {
         this.trustedSessionProjection.next(null);
       }
     });
   }
 
-  private readonly sessionUser$ = this.currentUser.user$;
-
   readonly current$: Observable<IUserAgeEligibility> =
     combineLatest([
-      this.sessionUser$,
+      this.currentUser.getLoggedUserUID$(),
+      this.currentUser.user$,
       this.trustedSessionProjection,
     ]).pipe(
-      map(([user, trusted]) => {
-        const persisted = this.normalize(user?.ageEligibility);
-        const uid = String(user?.uid ?? '').trim();
+      map(([uid, user, trusted]) => {
+        const persisted = this.normalize(uid && user?.uid === uid ? user.ageEligibility : null);
 
         if (
           uid &&
@@ -138,42 +122,42 @@ export class AgeEligibilityService {
   }
 
   refreshTrustedSources$(): Observable<IUserAgeEligibility['status']> {
-    const callable = runInInjectionContext(
-      this.environmentInjector,
-      () => httpsCallable<
-        Record<string, never>,
-        {
-          status: IUserAgeEligibility['status'];
-          migrated: boolean;
-          restoredFromDeclarationEvidence: boolean;
-          ageEligibility: IUserAgeEligibility | null;
-        }
-      >(
-        inject(Functions),
-        'refreshMyAgeEligibility'
-      )
-    );
+    return defer(() => {
+      const uid = this.currentUser.getLoggedUserUIDSnapshot();
+      if (!uid) throw new Error('Entre para consultar sua elegibilidade etária.');
+      const generation = this.sessionGeneration;
 
-    return from(callable({})).pipe(
-      map((response) => {
-        const uid = String(
-          this.currentUser.getLoggedUserUIDSnapshot() ?? ''
-        ).trim();
-        const state = response.data.ageEligibility
-          ? this.normalize(response.data.ageEligibility)
-          : null;
+      const callable = runInInjectionContext(
+        this.environmentInjector,
+        () => httpsCallable<
+          Record<string, never>,
+          {
+            status: IUserAgeEligibility['status'];
+            migrated: boolean;
+            restoredFromDeclarationEvidence: boolean;
+            ageEligibility: IUserAgeEligibility | null;
+          }
+        >(
+          inject(Functions),
+          'refreshMyAgeEligibility'
+        )
+      );
 
-        if (uid && state && state.status !== 'UNVERIFIED') {
-          this.trustedSessionProjection.next({ uid, state });
-        } else if (
-          uid &&
-          this.trustedSessionProjection.value?.uid === uid
-        ) {
-          this.trustedSessionProjection.next(null);
-        }
+      return from(callable({})).pipe(
+        map(({ data }) => {
+          this.assertCurrentSession(uid, generation);
+          const state = this.normalize(data.ageEligibility);
 
-        return response.data.status;
-      }),
+          if (state.status !== 'UNVERIFIED') {
+            this.trustedSessionProjection.next({ uid, state });
+          } else if (this.trustedSessionProjection.value?.uid === uid) {
+            this.trustedSessionProjection.next(null);
+          }
+
+          return data.status;
+        })
+      );
+    }).pipe(
       catchError((error) => {
         try {
           this.globalError.handleError(
@@ -223,13 +207,18 @@ export class AgeEligibilityService {
       return this.reconcileInFlight.stream;
     }
 
-    const stream = this.refreshTrustedSources$().pipe(
+    const generation = this.sessionGeneration;
+    const stream = defer(() => {
+      this.assertCurrentSession(uid, generation);
+      return this.refreshTrustedSources$();
+    }).pipe(
       switchMap(() => this.getCurrentOnce$()),
       tap(() => {
+        this.assertCurrentSession(uid, generation);
         this.reconciledUid = uid;
       }),
       finalize(() => {
-        if (this.reconcileInFlight?.uid === uid) {
+        if (this.reconcileInFlight?.stream === stream) {
           this.reconcileInFlight = null;
         }
       }),
@@ -244,39 +233,41 @@ export class AgeEligibilityService {
   acceptSelfDeclaration$(): Observable<
     'SELF_DECLARED_ADULT' | 'VERIFIED_ADULT'
   > {
-    const callable = runInInjectionContext(
-      this.environmentInjector,
-      () => httpsCallable<
-        { confirmsAdult: true },
-        {
-          uid: string;
-          status: 'SELF_DECLARED_ADULT' | 'VERIFIED_ADULT';
-          declaredAtMs: number | null;
-          ageEligibility: IUserAgeEligibility;
-        }
-      >(
-        inject(Functions),
-        'acceptAdultSelfDeclaration'
-      )
-    );
+    return defer(() => {
+      const uid = this.currentUser.getLoggedUserUIDSnapshot();
+      if (!uid) throw new Error('Entre para confirmar sua maioridade.');
+      const generation = this.sessionGeneration;
 
-    return from(callable({ confirmsAdult: true })).pipe(
-      map((response) => {
-        const uid = String(response.data.uid ?? '').trim();
-        const state = this.normalize(response.data.ageEligibility);
+      const callable = runInInjectionContext(
+        this.environmentInjector,
+        () => httpsCallable<
+          { confirmsAdult: true },
+          {
+            uid: string;
+            status: 'SELF_DECLARED_ADULT' | 'VERIFIED_ADULT';
+            declaredAtMs: number | null;
+            ageEligibility: IUserAgeEligibility;
+          }
+        >(
+          inject(Functions),
+          'acceptAdultSelfDeclaration'
+        )
+      );
 
-        if (
-          uid &&
-          (
-            state.status === 'SELF_DECLARED_ADULT' ||
-            state.status === 'VERIFIED_ADULT'
-          )
-        ) {
-          this.trustedSessionProjection.next({ uid, state });
-        }
+      return from(callable({ confirmsAdult: true })).pipe(
+        map(({ data }) => {
+          this.assertCurrentSession(uid, generation);
+          if (data.uid !== uid) throw new Error('Confirmação vinculada a outra conta.');
+          const state = this.normalize(data.ageEligibility);
 
-        return response.data.status;
-      }),
+          if (state.status === 'SELF_DECLARED_ADULT' || state.status === 'VERIFIED_ADULT') {
+            this.trustedSessionProjection.next({ uid, state });
+          }
+
+          return data.status;
+        })
+      );
+    }).pipe(
       catchError((error) => {
         try {
           this.globalError.handleError(
@@ -353,6 +344,14 @@ export class AgeEligibilityService {
         return throwError(() => error);
       })
     );
+  }
+
+  private assertCurrentSession(uid: string, generation: number): void {
+    if (this.sessionGeneration !== generation || this.currentUser.getLoggedUserUIDSnapshot() !== uid) {
+      throw Object.assign(new Error('A conta ativa mudou durante a verificação de idade.'), {
+        code: 'auth/session-changed',
+      });
+    }
   }
 
   private normalize(

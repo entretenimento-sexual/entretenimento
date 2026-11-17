@@ -5,7 +5,7 @@
 // Responsabilidade única:
 // - Monitorar periodicamente a validade técnica da sessão Firebase Auth
 // - Detectar token inválido, usuário desabilitado, sessão expirada, etc.
-// - Acionar hard sign-out apenas quando o Auth realmente estiver inválido
+// - Registrar invalidação confirmada da sessão para a interface
 //
 // Não faz:
 // - Não decide rota de registro
@@ -20,12 +20,10 @@
 //   iniciar e parar.
 // =============================================================================
 import { Injectable } from '@angular/core';
-import { from, of, Subscription, timer } from 'rxjs';
+import { EMPTY, from, of, Subscription, timer } from 'rxjs';
 import { catchError, exhaustMap, map } from 'rxjs/operators';
 
 import { AuthSessionService } from './auth-session.service';
-import { AuthAppBlockService } from './auth-app-block.service';
-import { markAuthInvalidUid } from '@core/firebase/auth-invalid-session-marker';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
@@ -37,7 +35,6 @@ export class AuthSessionMonitorService {
 
   constructor(
     private readonly authSession: AuthSessionService,
-    private readonly appBlock: AuthAppBlockService,
     private readonly applicationError: ApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService,
   ) {}
@@ -77,69 +74,31 @@ private dbg(message: string, extra?: unknown): void {
           if (this.authSession.isTerminatingSnapshot) return of(null);
           const currentUser = this.authSession.currentAuthUser;
           if (!currentUser) return of(null);
-          const monitoredUid = currentUser.uid;
+          const termination = this.authSession.terminationVersionSnapshot;
 
-          return from(currentUser.reload()).pipe(
-            map(() => null),
-            catchError((err: any) => {
-              // Não encerra B por uma resposta atrasada de A; tampouco disputa
-              // o lifecycle com um logout iniciado durante a verificação.
-              if (
-                this.authSession.isTerminatingSnapshot ||
-                this.authSession.currentAuthUser?.uid !== monitoredUid
-              ) {
-                return of(null);
-              }
-
-              const code = String(err?.code || '');
-
-              if (
-                code === 'auth/user-token-expired' ||
-                code === 'auth/user-disabled' ||
-                code === 'auth/user-not-found' ||
-                code === 'auth/invalid-user-token'
-              ) {
-                this.dbg('invalid auth detected', { code });
-                if (this.appBlock.snapshot !== 'auth-invalid') {
-                  markAuthInvalidUid(monitoredUid);
-                  this.appBlock.set('auth-invalid');
-
-                  try {
-                    this.applicationError.report(err, {
-                      feature: 'auth-session-monitor',
-                      operation: 'session-monitor.invalid',
-                      fallbackMessage:
-                        'Sua autentica??o precisa ser confirmada novamente. O acesso foi bloqueado por seguran?a.',
-                      presentation: {
-                        surface: 'snackbar',
-                        severity: 'error',
-                      },
-                      metadata: {
-                        scope: 'AuthSessionMonitorService',
-                        code,
-                      },
-                    });
-                  } catch (notificationError) {
-                    this.dbg('invalid session notification failed', {
-                      errorType: typeof notificationError,
-                    });
-                  }
-                }
-                return of(null);
-              }
-
-              this.reportSilent(err, {
+          // O SDK pode emitir UID nulo e parar o timer antes de relançar
+          // o erro. Tratamos o resultado na promessa que iniciou o reload.
+          const reload = Promise.resolve().then(() =>
+            this.authSession.currentAuthUser === currentUser &&
+            !this.authSession.isTerminatingSnapshot ? currentUser.reload() : undefined
+          ).catch((error: unknown) => {
+            const code = (error as { code?: unknown } | null)?.code ?? '';
+            if (this.authSession.recordReloadFailure(currentUser, termination, error)) {
+              this.reportSilent(error, { phase: 'session-monitor.invalid', code });
+            } else if (this.authSession.currentAuthUser === currentUser &&
+                !this.authSession.isTerminatingSnapshot &&
+                this.authSession.terminationVersionSnapshot === termination) {
+              this.reportSilent(error, {
                 phase: 'session-monitor.reload',
                 code,
               });
-
-              return of(null);
-            })
-          );
+            }
+          });
+          return from(reload).pipe(map(() => null));
         }),
         catchError((err) => {
           this.reportSilent(err, { phase: 'session-monitor.pipeline' });
-          return of(null);
+          return EMPTY;
         })
       )
       .subscribe();

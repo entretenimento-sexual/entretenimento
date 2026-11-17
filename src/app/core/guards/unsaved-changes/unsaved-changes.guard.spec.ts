@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { AuthSessionService } from '../../services/autentication/auth/auth-session.service';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,6 +18,7 @@ describe('unsavedChangesGuard', () => {
     open.mockClear();
     TestBed.configureTestingModule({
       providers: [
+        { provide: AuthSessionService, useValue: { currentAuthUser: null } },
         {
           provide: MatDialog,
           useValue: { open },
@@ -51,6 +53,19 @@ describe('unsavedChangesGuard', () => {
     );
 
     expect(await firstValueFrom(result as ReturnType<typeof of>)).toBe(false);
+    expect(discard).not.toHaveBeenCalled();
+  });
+
+  it('sai para o login após perda de sessão e conserva o rascunho', () => {
+    const discard = vi.fn();
+    const persist = vi.fn();
+    const result = TestBed.runInInjectionContext(() =>
+      unsavedChangesGuard({ hasUnsavedChanges: () => true, discardUnsavedChanges: discard, persistUnsavedChanges: persist },
+        {} as never, {} as never, { url: '/login?reason=session-ended' } as never)
+    );
+    expect(result).toBe(true);
+    expect(open).not.toHaveBeenCalled();
+    expect(persist).toHaveBeenCalledOnce();
     expect(discard).not.toHaveBeenCalled();
   });
 

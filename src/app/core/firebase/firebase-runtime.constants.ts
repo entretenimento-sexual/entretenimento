@@ -10,3 +10,5 @@ export const FIREBASE_APP_CHECK_PLACEHOLDER_SITE_KEYS = [
   'staging-recaptcha-v3-site-key',
   'dev-recaptcha-v3-site-key',
 ] as const;
+
+export const FIREBASE_AUTH_RESTORE_TIMEOUT_MS = 8_000;

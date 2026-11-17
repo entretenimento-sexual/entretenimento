@@ -36,6 +36,7 @@ export const CURRENT_LEGAL_ACCEPTANCE_ENFORCED =
   environment.features?.enforceCurrentLegalAcceptance !== false;
 
 interface AcceptPlatformTermsPayload {
+  expectedUid: string;
   acceptedTerms: true;
   acknowledgedPrivacyNotice: true;
 }
@@ -178,13 +179,18 @@ export class TermsAcceptanceService {
     }
 
     const payload: AcceptPlatformTermsPayload = {
+      expectedUid: safeUid,
       acceptedTerms: true,
       acknowledgedPrivacyNotice: true,
     };
 
-    return defer(() => from(this.acceptTermsCallable(payload))).pipe(
+    return defer(() => {
+      this.assertActiveSession(safeUid);
+      return from(this.acceptTermsCallable(payload));
+    }).pipe(
       timeout({ first: this.ACTION_TIMEOUT_MS }),
       map((response) => {
+        this.assertActiveSession(safeUid);
         const result = response.data;
 
         if (
@@ -213,7 +219,9 @@ export class TermsAcceptanceService {
           source: 'web',
         };
 
-        this.currentUserStore.patch({ acceptedTerms: record });
+        if (this.currentUserStore.getSnapshot()?.uid === safeUid) {
+          this.currentUserStore.patch({ acceptedTerms: record });
+        }
 
         return {
           uid: safeUid,
@@ -225,6 +233,14 @@ export class TermsAcceptanceService {
         return throwError(() => error);
       })
     );
+  }
+
+  private assertActiveSession(uid: string): void {
+    if (this.session.isTerminatingSnapshot || this.session.currentAuthUser?.uid !== uid) {
+      throw Object.assign(new Error('A conta ativa mudou durante o aceite dos termos.'), {
+        code: 'auth/session-changed',
+      });
+    }
   }
 
   private reportError(

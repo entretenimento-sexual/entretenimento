@@ -31,7 +31,7 @@ import { RegisterFlowVm } from '../data-access/register-flow.model';
 type UiBannerVariant = 'info' | 'warn' | 'error' | 'success';
 type VerificationEmailDeliveryState = 'sent' | 'failed' | 'unknown';
 type VerificationSyncResult =
-  | { status: 'verified' }
+  | { status: 'verified'; profileSyncPending?: boolean }
   | { status: 'pending' }
   | { status: 'error'; error: unknown };
 
@@ -151,11 +151,7 @@ export class WelcomeComponent implements OnInit {
 
     if (this.sessionInvalid) {
       this.stopPolling();
-      this.setBanner(
-        'warn',
-        'Sessão não encontrada',
-        'Não encontramos uma sessão ativa. Recarregue a página ou refaça o cadastro.'
-      );
+      this.banner = null;
       return;
     }
 
@@ -317,7 +313,9 @@ export class WelcomeComponent implements OnInit {
             this.setBanner(
               'success',
               'E-mail verificado com sucesso!',
-              'Sua conta foi validada. Vamos continuar para a próxima etapa.'
+              result.profileSyncPending
+                ? 'O e-mail foi confirmado. A atualização do perfil ainda está pendente.'
+                : 'Sua conta foi validada. Vamos continuar para a próxima etapa.'
             );
             this.tryAutoRedirectToNextStep();
             return;
@@ -455,7 +453,7 @@ export class WelcomeComponent implements OnInit {
   }
 
   private reloadAndSync$(): Observable<VerificationSyncResult> {
-    return this.authSession.refreshCurrentUser$().pipe(
+    return this.authSession.refreshCurrentUser$({ requireFresh: true }).pipe(
       timeout({ first: this.ACTION_TIMEOUT_MS }),
       switchMap((user) => {
         this.lastCheckedAt = new Date();
@@ -470,6 +468,7 @@ export class WelcomeComponent implements OnInit {
           .updateEmailVerificationStatus(user.uid, true)
           .pipe(
             take(1),
+            timeout({ first: this.ACTION_TIMEOUT_MS }),
             map(() => ({ status: 'verified' } as const)),
             catchError((err) => {
               this.reportError(
@@ -478,7 +477,7 @@ export class WelcomeComponent implements OnInit {
                 true
               );
 
-              return of({ status: 'verified' } as const);
+              return of({ status: 'verified', profileSyncPending: true } as const);
             })
           );
       }),
@@ -655,10 +654,6 @@ export class WelcomeComponent implements OnInit {
     }
 
     navigator.clipboard.writeText(det).catch(() => {});
-  }
-
-  restartRegistration(): void {
-    this.router.navigate(['/register'], { replaceUrl: true });
   }
 
   reloadPage(): void {

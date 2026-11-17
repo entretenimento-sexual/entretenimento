@@ -8,7 +8,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { Auth } from '@angular/fire/auth';
-import { EMPTY, Observable, defer, from, of } from 'rxjs';
+import { EMPTY, Observable, of } from 'rxjs';
 import { catchError, finalize, map, shareReplay, switchMap, take, tap } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -94,29 +94,16 @@ export class GuestBannerComponent implements OnInit {
     this.error.set(null);
     this.info.set(null);
 
+    const account = this.auth.currentUser;
     this.email.reloadCurrentUser()
       .pipe(
         take(1),
         switchMap((ok) => {
-          if (!ok) return of(false);
-
-          return this.forceRefreshIdToken$().pipe(
-            switchMap(() => this.email.getCurrentUserUid().pipe(take(1))),
-            switchMap((uid) => {
-              if (!uid) return of(true);
-
-              return this.email.updateEmailVerificationStatus(uid, true).pipe(
-                map(() => true),
-                catchError((err) => {
-                  this.report(err, 'GuestBannerComponent.updateEmailVerificationStatus', true);
-                  return of(true);
-                })
-              );
-            }),
-            map(() => true)
-          );
+          if (!ok || !account || this.auth.currentUser !== account) return of(false);
+          return this.email.updateEmailVerificationStatus(account.uid, true).pipe(map(() => true));
         }),
         tap((ok) => {
+          if (this.auth.currentUser !== account) return;
           if (ok) {
             this.info.set('Obrigado! Atualizamos seu status.');
             this.safeLocalStorageRemove(SNOOZE_KEY);
@@ -140,14 +127,6 @@ export class GuestBannerComponent implements OnInit {
     const until = Date.now() + ONE_DAY_MS;
     this.safeLocalStorageSet(SNOOZE_KEY, String(until));
     this.show.set(false);
-  }
-
-  private forceRefreshIdToken$(): Observable<void> {
-    return defer(() => {
-      const u = this.auth.currentUser;
-      if (!u) return of(void 0);
-      return from(u.getIdToken(true)).pipe(map(() => void 0));
-    });
   }
 
   private hasActiveSnooze(): boolean {

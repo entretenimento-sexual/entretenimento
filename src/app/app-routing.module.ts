@@ -23,6 +23,7 @@ const routes: Routes = [
     data: {
       allowUnverified: true,
       allowedRegisterSteps: ['ageVerification'],
+      allowPendingAgeRegistration: true,
     },
   },
   {

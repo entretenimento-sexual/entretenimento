@@ -28,13 +28,12 @@
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import { CurrentUserStoreService } from './current-user-store.service';
-import { combineLatest, firstValueFrom, of, Subscription } from 'rxjs';
+import { combineLatest, firstValueFrom, Subscription, timer } from 'rxjs';
 import {
-  catchError,
   distinctUntilChanged,
   filter,
   map,
-  switchMap,
+  retry,
   take,
   tap,
 } from 'rxjs/operators';
@@ -91,6 +90,7 @@ export class AuthOrchestratorService {
   private watchersOn = false;
 
   private sessionUid: string | null = null;
+  private sessionGeneration = 0;
   private postLoginUid: string | null = null;
 
   private terminating = false;
@@ -187,76 +187,85 @@ export class AuthOrchestratorService {
         distinctUntilChanged((prev, curr) => this.isSameContext(prev, curr)),
 
         tap((ctx) => {
-          this.dbg('context', {
-            ready: ctx.ready,
-            routerReady: ctx.routerReady,
-            uid: ctx.uid,
-            url: ctx.url,
-            navPath: ctx.navPath,
-            inReg: ctx.inReg,
-            unverified: ctx.unverified,
-            blockedReason: ctx.blockedReason,
-            accountStatus: ctx.accountStatus,
-            lifecycleBlocked: ctx.lifecycleBlocked,
-          });
+          try {
+            this.handleContext(ctx);
+          } catch (error: unknown) {
+            this.reportSilent(error, { phase: 'start.context', uid: ctx.uid });
+          }
         }),
-
-        switchMap((ctx) => {
-          if (this.terminating) return of(null);
-          if (!ctx.ready) return of(null);
-          if (!ctx.routerReady) return of(null);
-
-          if (!ctx.authUser || !ctx.uid) {
-            this.handleNoAuthUser();
-            return of(null);
-          }
-
-          if (this.sessionUid !== ctx.uid) {
-            this.handleUidChange(ctx.uid);
-          }
-
-          this.refreshGraceWindow(ctx.authUser);
-
-          /**
-           * Perfil autenticado ainda não reconciliado não é interpretado como
-           * conta ativa nem como punição. Paramos infraestrutura dependente do
-           * usuário e aguardamos a hidratação canônica Firestore -> Store.
-           */
-          if (!isRuntimeAccountLifecycleResolved(ctx.accountStatus)) {
-            this.stopRuntimeSideEffects();
-            return of(null);
-          }
-
-          if (ctx.lifecycleBlocked) {
-            this.stopRuntimeSideEffects();
-
-            if (!ctx.inReg) {
-              this.navigateToAccountStatus(true);
-            }
-
-            return of(null);
-          }
-
-          if (ctx.blockedReason) {
-            this.stopRuntimeSideEffects();
-
-            if (!ctx.inReg) {
-              this.navigateToWelcome(ctx.blockedReason, true);
-            }
-
-            return of(null);
-          }
-
-          this.syncAppModeInfra(ctx);
-          return of(null);
-        }),
-
-        catchError((err) => {
-          this.reportSilent(err, { phase: 'start.pipeline' });
-          return of(null);
+        retry({
+          delay: (error: unknown) => {
+            this.reportSilent(error, { phase: 'start.pipeline' });
+            return timer(1_000);
+          },
         })
       )
       .subscribe();
+  }
+
+  private handleContext(ctx: OrchestratorContext): void {
+    this.dbg('context', {
+      ready: ctx.ready,
+      routerReady: ctx.routerReady,
+      uid: ctx.uid,
+      url: ctx.url,
+      navPath: ctx.navPath,
+      inReg: ctx.inReg,
+      unverified: ctx.unverified,
+      blockedReason: ctx.blockedReason,
+      accountStatus: ctx.accountStatus,
+      lifecycleBlocked: ctx.lifecycleBlocked,
+    });
+
+    if (this.terminating || !ctx.ready || !ctx.routerReady) return;
+
+    if (!ctx.authUser || !ctx.uid) {
+      this.handleNoAuthUser();
+      return;
+    }
+
+    if (this.sessionUid !== ctx.uid) {
+      this.handleUidChange(ctx.uid);
+    }
+
+    this.refreshGraceWindow(ctx.authUser);
+
+    if (ctx.blockedReason === 'auth-invalid') {
+      this.stopRuntimeSideEffects();
+      return;
+    }
+
+    /**
+     * Perfil autenticado ainda não reconciliado não é interpretado como
+     * conta ativa nem como punição. Paramos infraestrutura dependente do
+     * usuário e aguardamos a hidratação canônica Firestore -> Store.
+     */
+    if (!isRuntimeAccountLifecycleResolved(ctx.accountStatus)) {
+      this.stopRuntimeSideEffects();
+      return;
+    }
+
+    if (ctx.lifecycleBlocked) {
+      this.stopRuntimeSideEffects();
+
+      if (!ctx.inReg) {
+        this.navigateToAccountStatus(true);
+      }
+
+      return;
+    }
+
+    if (ctx.blockedReason) {
+      this.stopRuntimeSideEffects();
+
+      if (!ctx.inReg) {
+        this.navigateToWelcome(ctx.blockedReason, true);
+      }
+
+      return;
+    }
+
+    this.syncAppModeInfra(ctx);
   }
 
   /**
@@ -375,10 +384,13 @@ export class AuthOrchestratorService {
   private handleUidChange(uid: string): void {
     const previousUid = this.sessionUid;
     this.sessionUid = uid;
+    if (this.appBlock.invalidationSnapshot && this.appBlock.invalidationSnapshot.uid !== uid) {
+      this.appBlock.forgetInvalidation();
+    }
 
     // Preserva bloqueio da restauracao inicial.
     // Uma troca real de conta libera o bloqueio anterior.
-    if (previousUid && previousUid !== uid) {
+    if (previousUid && previousUid !== uid && this.appBlock.invalidationSnapshot?.uid !== uid) {
       this.appBlock.clear();
     }
 
@@ -390,6 +402,7 @@ export class AuthOrchestratorService {
   }
 
   private resetTransientSessionState(): void {
+    this.sessionGeneration++;
     this.sawUserDocOnce = false;
     this.freshUntil = 0;
     this.clearMissingDocProbe();
@@ -465,12 +478,14 @@ export class AuthOrchestratorService {
    * Regras:
    * - se ainda estamos na grace window, reprograma
    * - se o doc reapareceu, não faz nada
-   * - se continua ausente, bloqueia ou derruba a sessão conforme feature flag
+   * - se continua ausente, bloqueia a sessão que iniciou a consulta
    */
   private async confirmAndSignOutIfMissing(
     uid: string,
     reason: Extract<TerminateReason, 'deleted' | 'doc-missing-confirmed'>
   ): Promise<void> {
+    if (!this.isCurrentSession(uid)) return;
+    const generation = this.sessionGeneration;
     const allowAct = this.sawUserDocOnce || Date.now() > this.freshUntil;
 
     if (!allowAct) {
@@ -479,9 +494,19 @@ export class AuthOrchestratorService {
     }
 
     const stillMissing = await firstValueFrom(this.userRepo.confirmUserDocMissing$(uid));
-    if (!stillMissing) return;
+    if (
+      !stillMissing ||
+      this.sessionGeneration !== generation ||
+      !this.isCurrentSession(uid)
+    ) return;
 
     this.blockAppSession(reason);
+  }
+
+  private isCurrentSession(uid: string): boolean {
+    return this.sessionUid === uid &&
+      this.authSession.currentAuthUser?.uid === uid &&
+      !this.authSession.isTerminatingSnapshot;
   }
 
   private stopPostLoginEffects(): void {
@@ -535,16 +560,20 @@ export class AuthOrchestratorService {
         ? context['phase'].trim()
         : 'internal';
 
-    this.applicationError.report(err, {
-      feature: 'auth-orchestrator',
-      operation: phase,
-      fallbackMessage: 'Não foi possível concluir uma verificação interna da sessão.',
-      presentation: { surface: 'none', severity: 'error' },
-      metadata: {
-        scope: 'AuthOrchestratorService',
-        ...context,
-      },
-    });
+    try {
+      this.applicationError.report(err, {
+        feature: 'auth-orchestrator',
+        operation: phase,
+        fallbackMessage: 'Não foi possível concluir uma verificação interna da sessão.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'AuthOrchestratorService',
+          ...context,
+        },
+      });
+    } catch {
+      // Uma falha de diagnóstico não encerra a observação da sessão.
+    }
   }
 
   /**
@@ -637,9 +666,11 @@ export class AuthOrchestratorService {
    * Regras gerais:
    * - exists => confirma que o doc já apareceu ao menos uma vez
    * - missing/deleted => reconsulta antes de agir forte
-   * - suspended/forbidden => bloqueio ou hard sign-out conforme feature flag
+   * - deleted/forbidden => bloqueio da sessão atual
    */
   private handleUserDocumentWatchEvent(event: AuthUserDocumentWatchEvent): void {
+    if (!this.isCurrentSession(event.uid)) return;
+
     switch (event.type) {
       case 'exists': {
         this.clearMissingDocProbe();

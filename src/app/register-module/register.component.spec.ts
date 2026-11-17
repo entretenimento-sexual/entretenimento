@@ -13,6 +13,7 @@ import { RegisterComponent } from './register.component';
 import { FirestoreValidationService } from '../core/services/data-handling/firestore/validation/firestore-validation.service';
 import { RegisterService } from '../core/services/autentication/register/register.service';
 import { EmailVerificationService } from '../core/services/autentication/register/email-verification.service';
+import { ApplicationErrorService } from '../core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../core/services/error-handler/error-notification.service';
 import { ActionStateDirective } from '../shared/action-state/action-state.directive';
 import { FormValidationFocusDirective } from '../shared/form-validation-focus/form-validation-focus.directive';
@@ -66,6 +67,9 @@ describe('RegisterComponent', () => {
         { provide: RegisterService, useClass: MockRegisterService },
         { provide: EmailVerificationService, useClass: MockEmailVerificationService },
         { provide: ErrorNotificationService, useClass: MockErrorNotificationService },
+        { provide: ApplicationErrorService, useValue: {
+          report: vi.fn((_error, options) => ({ userMessage: options.fallbackMessage })),
+        } },
         { provide: Auth, useValue: { currentUser: { uid: 'u-test' } } },
       ],
       schemas: [NO_ERRORS_SCHEMA],
@@ -208,7 +212,6 @@ describe('RegisterComponent', () => {
       ['/register/welcome'],
       {
         queryParams: {
-          email: 'jd@example.com',
           autocheck: '1',
           verificationEmail: 'sent',
         },
@@ -239,7 +242,6 @@ describe('RegisterComponent', () => {
       ['/register/welcome'],
       {
         queryParams: {
-          email: 'falha@example.com',
           autocheck: '1',
           verificationEmail: 'failed',
         },
@@ -266,10 +268,11 @@ describe('RegisterComponent', () => {
     expect(payload).not.toHaveProperty('confirmPassword');
   });
 
-  it('exibe um único feedback genérico sem confirmar a existência de conta', () => {
+  it.each(['email-exists-soft', 'registration-creation-unconfirmed'])(
+    'exibe feedback neutro quando recebe %s', (code) => {
     registerService.registerUser.mockReturnValueOnce(
       throwError(() => ({
-        code: 'email-exists-soft',
+        code,
         message: 'Não foi possível criar uma nova conta com este e-mail.',
       }))
     );
@@ -300,8 +303,8 @@ describe('RegisterComponent', () => {
     const feedback = feedbacks[0].nativeElement as HTMLElement;
     const copy = feedback.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
-    expect(copy).toContain('Não foi possível concluir');
-    expect(copy).toContain('Revise os dados informados');
+    expect(copy).toContain('Confira seu acesso');
+    expect(copy).toContain('Tente entrar com os dados informados');
     expect(copy).not.toContain('nova conta com este e-mail');
     expect(copy).not.toContain('e-mail já está');
     expect(feedback.getAttribute('role')).toBe('status');
@@ -319,4 +322,27 @@ describe('RegisterComponent', () => {
     expect(component.showPassword()).toBe(!initialPassword);
     expect(component.showConfirmPassword()).toBe(!initialConfirmation);
   });
+  it('mantém o feedback de conta criada e não abre o cadastro de outro UID', async () => {
+    registerService.registerUser.mockReturnValueOnce(of({
+      ...registrationResult(),
+      user: { uid: 'conta-criada' },
+    }));
+    component.form.patchValue({
+      apelidoPrincipal: 'novaconta',
+      complementoApelido: '',
+      email: 'nova@example.com',
+      password: 'Senha123',
+      confirmPassword: 'Senha123',
+      aceitarTermos: true,
+      confirmarMaioridade: true,
+    });
+
+    component.onSubmit();
+    await fixture.whenStable();
+
+    expect(router.navigate).not.toHaveBeenCalled();
+    expect(component.banner()?.title).toBe('Sua conta foi criada');
+    expect(component.isLoading()).toBe(false);
+  });
+
 });

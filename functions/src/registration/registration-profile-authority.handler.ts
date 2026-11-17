@@ -98,11 +98,14 @@ function reserveInTransaction(
   }
 }
 
-export const reserveRegistrationNickname = onCall<{ nickname?: unknown }>(
+export const reserveRegistrationNickname = onCall<{ nickname?: unknown; expectedUid?: unknown }>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<{ nickname: string; normalized: string }> => {
     assertCallableAppCheck(request.app);
     const uid = signedOwner(request.auth?.uid);
+    if (request.data?.expectedUid !== undefined && request.data.expectedUid !== uid) {
+      throw new HttpsError('permission-denied', 'A conta ativa mudou durante o cadastro.');
+    }
     const nickname = nicknameInput(request.data?.nickname);
     const authUser = await auth.getUser(uid);
     if (authUser.disabled) {

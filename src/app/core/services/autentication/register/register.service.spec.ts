@@ -1,9 +1,10 @@
 // src/app/core/services/autentication/register/register.service.spec.ts
 import { TestBed } from '@angular/core/testing';
 import { Auth } from '@angular/fire/auth';
-import { firstValueFrom, of } from 'rxjs';
+import { firstValueFrom, of, Subject, throwError } from 'rxjs';
 import { FirebaseError } from 'firebase/app';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RegisterService } from './register.service';
 import { EmailVerificationService } from './email-verification.service';
@@ -38,12 +39,17 @@ describe('RegisterService', () => {
     currentUser: null | {
       uid: string;
       delete: ReturnType<typeof vi.fn>;
-      getIdToken?: ReturnType<typeof vi.fn>;
+      email?: string;
     };
   };
   let checkIfNicknameExists: ReturnType<typeof vi.fn>;
   let hasDiagnosticOwnership: ReturnType<typeof vi.fn>;
   let report: ReturnType<typeof vi.fn>;
+  let reserve: ReturnType<typeof vi.fn>;
+  let sendEmail: ReturnType<typeof vi.fn>;
+  let acceptTerms: ReturnType<typeof vi.fn>;
+  let createFirebaseUser: ReturnType<typeof vi.fn>;
+  let updateDisplayName: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     Object.defineProperty(window.navigator, 'onLine', {
@@ -57,6 +63,11 @@ describe('RegisterService', () => {
     checkIfNicknameExists = vi.fn(() => of(false));
     hasDiagnosticOwnership = vi.fn(() => false);
     report = vi.fn();
+    reserve = vi.fn(() => of(void 0));
+    sendEmail = vi.fn(() => of(void 0));
+    acceptTerms = vi.fn(() => of(void 0));
+    createFirebaseUser = vi.fn();
+    updateDisplayName = vi.fn().mockResolvedValue(undefined);
 
     TestBed.configureTestingModule({
       providers: [
@@ -64,29 +75,20 @@ describe('RegisterService', () => {
         {
           provide: EmailVerificationService,
           useValue: {
-            sendEmailVerification: vi.fn(() => of(void 0)),
+            sendEmailVerification: sendEmail,
           },
         },
         {
           provide: RegistrationBootstrapService,
           useValue: {
-            createEmailPasswordSeed$: vi.fn(() => of(void 0)),
+            createEmailPasswordSeed$: reserve,
             hasDiagnosticOwnership,
           },
         },
         {
           provide: TermsAcceptanceService,
           useValue: {
-            acceptForUser$: vi.fn(() =>
-              of({
-                uid: 'uid-test',
-                record: {
-                  accepted: true,
-                  version: 'v1',
-                  date: Date.now(),
-                },
-              })
-            ),
+            acceptForUser$: acceptTerms,
           },
         },
         {
@@ -117,6 +119,7 @@ describe('RegisterService', () => {
     });
 
     service = TestBed.inject(RegisterService);
+    Object.assign(service, { createFirebaseUser, updateDisplayName });
   });
 
   it('should be created', () => {
@@ -249,32 +252,82 @@ describe('RegisterService', () => {
     expect(received.registerApplicationErrorReported).toBe(true);
   });
 
-  it('reporta falha de rollback silenciosamente e preserva o erro público existente', async () => {
-    const original = new Error('delete failed');
-    const deleteUser = vi.fn(() => Promise.reject(original));
-    authMock.currentUser = {
-      uid: 'uid-test',
-      delete: deleteUser,
-    };
+  afterEach(() => vi.useRealTimers());
 
-    await expect(
-      firstValueFrom(service.deleteUserOnFailure('uid-test'))
-    ).rejects.toThrow('Erro ao deletar usuário.');
-
-    expect(deleteUser).toHaveBeenCalledTimes(1);
-    expect(report).toHaveBeenCalledTimes(1);
-    expect(report).toHaveBeenCalledWith(original, {
-      feature: 'register',
-      operation: 'deleteAuthUserOnFailure',
-      fallbackMessage:
-        '[RegisterService] Falha ao deletar usuário no rollback.',
-      presentation: { surface: 'none', severity: 'error' },
-      metadata: {
-        scope: 'RegisterService',
-        operation: 'deleteAuthUserOnFailure',
-        uid: 'uid-test',
-      },
+  function createUser() {
+    const user = { uid: 'uid-test', email: 'pessoa@example.com', delete: vi.fn() };
+    createFirebaseUser.mockImplementation(async () => {
+      authMock.currentUser = user;
+      return { user } as never;
     });
+    return user;
+  }
+
+  it('repete somente a reserva idempotente após perda de resposta', async () => {
+    vi.useFakeTimers();
+    const user = createUser();
+    reserve.mockReturnValueOnce(throwError(() => ({ code: 'functions/unavailable' })));
+    const result = firstValueFrom(service.registerUser(buildRegistrationData(), 'senha-segura'));
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(await result).toMatchObject({ verificationEmailSent: true, registrationWarnings: [] });
+    expect(reserve).toHaveBeenCalledTimes(2);
+    expect(createFirebaseUser).toHaveBeenCalledOnce();
+    expect(sendEmail).toHaveBeenCalledWith(user);
+    expect(user.delete).not.toHaveBeenCalled();
+  });
+
+  it('conserva a credencial e prossegue para o e-mail mesmo quando o apelido é recusado', async () => {
+    const user = createUser();
+    reserve.mockReturnValueOnce(throwError(() => ({ code: 'functions/already-exists' })));
+
+    expect(await firstValueFrom(service.registerUser(buildRegistrationData(), 'senha-segura'))).toMatchObject({
+      user,
+      verificationEmailSent: true,
+      registrationWarnings: ['nickname-reservation-unconfirmed'],
+    });
+    expect(reserve).toHaveBeenCalledOnce();
+    expect(acceptTerms).toHaveBeenCalledWith(user.uid);
+    expect(updateDisplayName).not.toHaveBeenCalled();
+    expect(user.delete).not.toHaveBeenCalled();
+  });
+
+  it('bloqueia nova criação enquanto o SDK ainda pode concluir a primeira tentativa', async () => {
+    vi.useFakeTimers();
+    let finish!: () => void;
+    const user = { uid: 'late', delete: vi.fn() };
+    createFirebaseUser.mockImplementation(() => new Promise((resolve) => {
+      finish = () => {
+        authMock.currentUser = user;
+        resolve({ user } as never);
+      };
+    }));
+    const start = () => firstValueFrom(service.registerUser(buildRegistrationData(), 'senha-segura'));
+    const pending = expect(start()).rejects.toMatchObject({ code: 'registration-creation-unconfirmed' });
+    await vi.advanceTimersByTimeAsync(12_000);
+    await pending;
+
+    await expect(start()).rejects.toMatchObject({ code: 'registration-creation-unconfirmed' });
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(start()).rejects.toMatchObject({ code: 'registration-session-active' });
+    expect(createFirebaseUser).toHaveBeenCalledOnce();
+    expect(user.delete).not.toHaveBeenCalled();
+  });
+
+  it('descarta a resposta da reserva quando a sessão muda antes dos termos e do envio', async () => {
+    createUser();
+    const pending = new Subject<void>();
+    reserve.mockReturnValueOnce(pending);
+    const result = expect(firstValueFrom(service.registerUser(buildRegistrationData(), 'senha-segura')))
+      .rejects.toMatchObject({ code: 'registration-account-created' });
+    await vi.waitFor(() => expect(reserve).toHaveBeenCalledOnce());
+    authMock.currentUser = { uid: 'other', delete: vi.fn() };
+    pending.next();
+
+    await result;
+    expect(acceptTerms).not.toHaveBeenCalled();
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it('não altera o erro público se a própria camada canônica falhar', async () => {

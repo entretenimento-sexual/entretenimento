@@ -54,6 +54,7 @@ describe('AuthRouteContextService canonical errors', () => {
       currentUrl: '/login?from=%2Fdashboard#top',
       navPath: null,
       inRegistrationFlow: true,
+      requiresSession: false,
     });
 
     expect(report).not.toHaveBeenCalled();
@@ -80,6 +81,7 @@ describe('AuthRouteContextService canonical errors', () => {
       currentUrl: '/dashboard/principal?from=login#section',
       navPath: '/dashboard/principal',
       inRegistrationFlow: false,
+      requiresSession: false,
     });
     expect(report).not.toHaveBeenCalled();
 

@@ -5,7 +5,7 @@ import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { BehaviorSubject, of, throwError } from 'rxjs';
+import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
 import { By } from '@angular/platform-browser';
 
 import { describe, beforeEach, it, expect, vi } from 'vitest';
@@ -181,6 +181,20 @@ describe('NavbarComponent', () => {
     expect(logout.logout$).toHaveBeenCalledTimes(1);
     expect(notify.showSuccess).not.toHaveBeenCalled();
     expect(notify.showError).not.toHaveBeenCalled();
+  });
+
+  it('mostra progresso e impede outra solicitação enquanto o logout aguarda', () => {
+    const completion = new Subject<undefined>();
+    logout.logout$.mockReturnValueOnce(completion);
+    component.logout();
+    component.logout();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Encerrando sessão');
+    expect(logout.logout$).toHaveBeenCalledOnce();
+
+    completion.complete();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain('Encerrando sessão');
   });
 
   it('logout: não deve duplicar feedback de erro já centralizado no LogoutService', () => {

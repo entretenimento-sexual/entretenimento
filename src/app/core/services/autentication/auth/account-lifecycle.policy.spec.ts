@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { IUserDados } from '@core/interfaces/iuser-dados';
 import {
+  canContinueAgeRegistration,
   isRuntimeAccountLifecycleBlocked,
   normalizeUserAccountLifecycleStatus,
   resolveRuntimeAccountLifecycleStatus,
@@ -100,4 +101,43 @@ describe('account lifecycle policy', () => {
       )
     ).toBe('active');
   });
+  it('reserva a passagem para a etapa etária sem liberar o lifecycle geral', () => {
+    const pending = user({
+      profileCompleted: false,
+      publicVisibility: 'hidden',
+      interactionBlocked: true,
+      loginAllowed: true,
+      registrationCompletedAt: null,
+    });
+    const context = {
+      authReady: true,
+      authUid: pending.uid,
+      userResolved: true,
+      user: pending,
+    };
+
+    expect(canContinueAgeRegistration(context)).toBe(true);
+    expect(resolveRuntimeAccountLifecycleStatus(context)).toBe('locked');
+    expect(canContinueAgeRegistration({ ...context, authUid: 'other-user' })).toBe(false);
+    expect(canContinueAgeRegistration({ ...context, userResolved: false })).toBe(false);
+    for (const restriction of [
+      { accountStatus: 'pending_deletion' },
+      { accountLocked: true },
+      { suspended: true },
+      { loginAllowed: false },
+      { deletionRequestedAt: 1 },
+      { ageReverificationRestrictedAt: 1 },
+      { moderationAutomationHold: {
+        active: true, source: 'automation', reason: 'review',
+        triggerReportId: 'report-1', appliedAtMs: 1, expiresAtMs: null,
+      } },
+      { profileCompleted: true },
+    ] as const) {
+      expect(canContinueAgeRegistration({
+        ...context,
+        user: { ...pending, ...restriction },
+      })).toBe(false);
+    }
+  });
+
 });

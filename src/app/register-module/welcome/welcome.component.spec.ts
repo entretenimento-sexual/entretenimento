@@ -148,6 +148,7 @@ describe('WelcomeComponent', () => {
 
     component.checkNow();
 
+    expect(authSession.refreshCurrentUser$).toHaveBeenLastCalledWith({ requireFresh: true });
     expect(component.banner?.variant).toBe('error');
     expect(component.banner?.title).toBe('Erro ao verificar e-mail');
     expect(component.banner?.title).not.toBe(

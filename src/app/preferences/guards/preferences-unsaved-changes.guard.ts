@@ -8,6 +8,7 @@
 // -----------------------------------------------------------------------------
 
 import type { CanDeactivateFn } from '@angular/router';
+import { canLeaveAfterSessionEnded } from '@core/services/autentication/auth/auth-session-exit.service';
 
 export interface PreferencesUnsavedChangesAware {
   hasUnsavedChanges(): boolean;
@@ -18,10 +19,12 @@ const CONFIRMATION_MESSAGE =
 
 export const preferencesUnsavedChangesGuard: CanDeactivateFn<
   PreferencesUnsavedChangesAware
-> = (component) => {
+> = (component, _route, _state, nextState) => {
   if (!component?.hasUnsavedChanges()) {
     return true;
   }
+
+  if (canLeaveAfterSessionEnded(nextState?.url)) return true;
 
   if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
     return false;

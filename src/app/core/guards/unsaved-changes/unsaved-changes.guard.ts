@@ -1,6 +1,7 @@
 // src/app/core/guards/unsaved-changes/unsaved-changes.guard.ts
 import { inject } from '@angular/core';
 import { CanDeactivateFn } from '@angular/router';
+import { canLeaveAfterSessionEnded } from '../../services/autentication/auth/auth-session-exit.service';
 import { MatDialog } from '@angular/material/dialog';
 import { map, take } from 'rxjs/operators';
 
@@ -12,12 +13,18 @@ import {
 export interface UnsavedChangesAware {
   hasUnsavedChanges(): boolean;
   discardUnsavedChanges?(): void;
+  persistUnsavedChanges?(): void;
 }
 
 export const unsavedChangesGuard: CanDeactivateFn<UnsavedChangesAware> = (
-  component
+  component, _route, _state, nextState
 ) => {
   if (!component?.hasUnsavedChanges?.()) {
+    return true;
+  }
+
+  if (canLeaveAfterSessionEnded(nextState?.url)) {
+    component.persistUnsavedChanges?.();
     return true;
   }
 

@@ -6,6 +6,7 @@ import {
   Subject,
   combineLatest,
   defer,
+  firstValueFrom,
   from,
   merge,
   of,
@@ -14,11 +15,14 @@ import {
   catchError,
   combineLatestWith,
   distinctUntilChanged,
+  filter,
   map,
+  retry,
   shareReplay,
   startWith,
   switchMap,
   tap,
+  timeout,
 } from 'rxjs/operators';
 import {
   Auth,
@@ -27,7 +31,29 @@ import {
 } from '@angular/fire/auth';
 import { onIdTokenChanged } from 'firebase/auth';
 
+import { readAuthInvalidUid } from '@core/firebase/auth-invalid-session-marker';
+import { FIREBASE_AUTH_RESTORE_TIMEOUT_MS } from '@core/firebase/firebase-runtime.constants';
+import { AuthAppBlockService } from './auth-app-block.service';
+import { authInvalidationReason } from './auth.types';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
+
+interface AuthUserState {
+  readonly user: User | null;
+  readonly uid: string | null;
+  readonly emailVerified: boolean;
+}
+
+function snapshotAuthUser(user: User | null): AuthUserState {
+  return {
+    user,
+    uid: user?.uid ?? null,
+    emailVerified: user?.emailVerified === true,
+  };
+}
+
+function sameAuthUserState(previous: AuthUserState, current: AuthUserState): boolean {
+  return previous.uid === current.uid && previous.emailVerified === current.emailVerified;
+}
 
 @Injectable({ providedIn: 'root' })
 export class AuthSessionService {
@@ -40,13 +66,18 @@ export class AuthSessionService {
   readonly readyUid$: Observable<string | null>;
   readonly isTerminating$: Observable<boolean>;
 
+  private terminationVersion = 0;
+  private lastObservedUser: User | null = null;
+  private lastEmittedUser: User | null = null;
   private readyPromise: Promise<void> | null = null;
+  private readonly sdkReady$: Observable<void>;
   private readonly manualAuthUserRefresh$ = new Subject<User | null>();
   private readonly terminationSubject = new BehaviorSubject<boolean>(false);
 
   constructor(
     private readonly auth: Auth,
-    private readonly privacyDebug: PrivacyDebugLoggerService
+    private readonly privacyDebug: PrivacyDebugLoggerService,
+    private readonly appBlock: AuthAppBlockService
   ) {
     this.isTerminating$ = this.terminationSubject.asObservable().pipe(
       distinctUntilChanged(),
@@ -61,16 +92,8 @@ export class AuthSessionService {
       );
       return () => unsubscribe();
     }).pipe(
-      catchError((error: unknown) => {
-        this.dbg('onIdTokenChanged error', error);
-        /**
-         * Falha fechada:
-         * - não inventa UID;
-         * - emite apenas o snapshot local disponível;
-         * - o canal manual continua apto a publicar refresh posterior.
-         */
-        return of(this.auth.currentUser ?? null);
-      })
+      tap({ error: (error: unknown) => this.dbg('onIdTokenChanged error', error) }),
+      retry({ delay: 1_000, resetOnSuccess: true })
     );
 
     /**
@@ -89,11 +112,17 @@ export class AuthSessionService {
       idTokenUser$,
       this.manualAuthUserRefresh$
     ).pipe(
-      distinctUntilChanged(
-        (previous, current) =>
-          previous?.uid === current?.uid &&
-          previous?.emailVerified === current?.emailVerified
-      ),
+      filter((user) => user === this.auth.currentUser),
+      tap((user) => {
+        const previous = this.lastEmittedUser;
+        this.lastEmittedUser = user;
+        if (!user || user === previous) return;
+        this.lastObservedUser = user;
+        const reason = readAuthInvalidUid(user.uid);
+        if (reason) this.appBlock.applyInvalidation(user.uid, reason, true);
+      }),
+      map(snapshotAuthUser),
+      distinctUntilChanged(sameAuthUserState),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
@@ -101,12 +130,9 @@ export class AuthSessionService {
       firebaseAuthUser$,
       this.isTerminating$,
     ]).pipe(
-      map(([user, terminating]) => terminating ? null : user),
-      distinctUntilChanged(
-        (previous, current) =>
-          previous?.uid === current?.uid &&
-          previous?.emailVerified === current?.emailVerified
-      ),
+      map(([state, terminating]) => terminating ? snapshotAuthUser(null) : state),
+      distinctUntilChanged(sameAuthUserState),
+      map((state) => state.user),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
@@ -116,18 +142,24 @@ export class AuthSessionService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+    const authWithReady = this.auth as Auth & {
+      authStateReady?: () => Promise<void>;
+    };
+    // As tentativas da aplicação compartilham a mesma inicialização pendente do SDK.
+    this.sdkReady$ = defer(() =>
+      authWithReady.authStateReady?.() ?? new Observable<void>((subscriber) =>
+        onAuthStateChanged(this.auth, () => {
+          subscriber.next();
+          subscriber.complete();
+        }, (error) => subscriber.error(error))
+      )
+    ).pipe(shareReplay({ bufferSize: 1, refCount: false }));
+
     this.ready$ = defer(() => from(this.whenReady())).pipe(
       map(() => true),
       startWith(false),
-      catchError((error: unknown) => {
-        this.dbg('ready$ error', error);
-        /**
-         * `ready=true` encerra o estado de espera, mas authUser$ continuará nulo
-         * quando não houver uma sessão confirmada. Guards podem então encaminhar
-         * ao login em vez de permanecerem presos em loading infinito.
-         */
-        return of(true);
-      }),
+      tap({ error: (error: unknown) => this.dbg('ready$ error', error) }),
+      retry({ delay: 1_000 }),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -183,6 +215,7 @@ export class AuthSessionService {
     this.dbg('beginTermination()', {
       hasFirebaseUser: !!this.auth.currentUser?.uid,
     });
+    this.terminationVersion++;
     this.terminationSubject.next(true);
   }
 
@@ -200,6 +233,21 @@ export class AuthSessionService {
     this.terminationSubject.next(false);
   }
 
+  get terminationVersionSnapshot(): number {
+    return this.terminationVersion;
+  }
+
+  recordReloadFailure(user: User, previousTermination: number, error: unknown): boolean {
+    const active = this.auth.currentUser;
+    const reason = authInvalidationReason(error);
+    if (!reason || this.isTerminatingSnapshot || previousTermination !== this.terminationVersion ||
+        (active !== null && active !== user) ||
+        (active === null && this.lastObservedUser !== null && this.lastObservedUser !== user)) return false;
+
+    this.appBlock.recordInvalidation(user.uid, reason, active === user);
+    return true;
+  }
+
   get isTerminatingSnapshot(): boolean {
     return this.terminationSubject.value;
   }
@@ -207,32 +255,9 @@ export class AuthSessionService {
   whenReady(): Promise<void> {
     if (this.readyPromise) return this.readyPromise;
 
-    const authWithReady = this.auth as Auth & {
-      authStateReady?: () => Promise<void>;
-    };
-
-    const basePromise: Promise<void> =
-      typeof authWithReady.authStateReady === 'function'
-        ? Promise.resolve(authWithReady.authStateReady()).then(() => void 0)
-        : new Promise<void>((resolve, reject) => {
-            const unsubscribe = onAuthStateChanged(
-              this.auth,
-              (user) => {
-                this.dbg('whenReady resolved (onAuthStateChanged)', {
-                  uid: user?.uid ?? null,
-                });
-                resolve();
-                unsubscribe();
-              },
-              (error) => {
-                this.dbg('whenReady rejected (onAuthStateChanged)', error);
-                reject(error);
-                unsubscribe();
-              }
-            );
-          });
-
-    this.readyPromise = basePromise
+    this.readyPromise = firstValueFrom(
+      this.sdkReady$.pipe(timeout({ first: FIREBASE_AUTH_RESTORE_TIMEOUT_MS }))
+    )
       .then(() => {
         this.dbg('whenReady resolved', {
           uid: this.auth.currentUser?.uid ?? null,
@@ -250,7 +275,7 @@ export class AuthSessionService {
     return this.readyPromise;
   }
 
-  refreshCurrentUser$(): Observable<User | null> {
+  refreshCurrentUser$({ requireFresh = false } = {}): Observable<User | null> {
     return defer(() => {
       const user = this.auth.currentUser;
 
@@ -259,17 +284,29 @@ export class AuthSessionService {
         return of(null);
       }
 
-      return from(user.reload()).pipe(
-        switchMap(() => from(user.getIdToken(true))),
-        map(() => this.auth.currentUser ?? user),
+      const termination = this.terminationVersion;
+      const isCurrentSession = () => this.auth.currentUser === user &&
+        !this.isTerminatingSnapshot && this.terminationVersion === termination;
+      // O SDK pode cancelar a assinatura ao emitir null antes de rejeitar.
+      const reload = Promise.resolve().then(() =>
+        isCurrentSession() ? user.reload() : undefined
+      ).then(() =>
+        isCurrentSession() ? user.getIdToken(true) : undefined
+      ).catch((error: unknown) => {
+        this.recordReloadFailure(user, termination, error);
+        throw error;
+      });
+      return from(reload).pipe(
+        map(() => isCurrentSession() ? user : null),
         tap((refreshedUser) => {
-          this.manualAuthUserRefresh$.next(refreshedUser);
+          if (refreshedUser) this.manualAuthUserRefresh$.next(refreshedUser);
         }),
         catchError((error: unknown) => {
           this.dbg('refreshCurrentUser$ error', error);
-          const fallback = this.auth.currentUser ?? null;
-          this.manualAuthUserRefresh$.next(fallback);
-          return of(fallback);
+          if (!isCurrentSession()) return of(null);
+          if (requireFresh) throw error;
+          this.manualAuthUserRefresh$.next(user);
+          return of(user);
         })
       );
     });

@@ -7,7 +7,6 @@
 // - autenticação por Google via AuthFacade;
 // - feedback visual local do login;
 // - recuperação de senha;
-// - modal local para conta autenticada ainda sem e-mail verificado.
 //
 // A decisão de onboarding pós-auth pertence ao PostAuthNavigationService,
 // alimentado pelo RegisterFlowFacade. O componente não interpreta etapas.
@@ -18,38 +17,48 @@ import {
   Component,
   DestroyRef,
   OnInit,
+  Input,
   inject,
 } from '@angular/core';
+import { Location } from '@angular/common';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 
-import { Observable, of } from 'rxjs';
+import { Observable, combineLatest, defer, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
+  exhaustMap,
+  filter,
   finalize,
   map,
   shareReplay,
   startWith,
   switchMap,
-  tap,
 } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AuthFacade } from 'src/app/core/services/autentication/auth/auth.facade';
-import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
-import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PostAuthNavigationService } from 'src/app/register-module/data-access/post-auth-navigation.service';
+
+import { VOLUNTARY_LOGOUT_NOTICE } from '@core/services/autentication/auth/auth-session-exit.service';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { AUTH_UNAVAILABLE_REASON } from '@core/guards/_shared-guard/guard-utils';
+import { isSessionEndReason, type SessionEndReason } from '@core/services/autentication/auth/auth.types';
+
+const SESSION_END_MESSAGES: Record<SessionEndReason, string> = {
+  'session-ended': 'Sua sessão foi encerrada. Entre novamente para continuar.',
+  'session-expired': 'Sua sessão expirou. Entre novamente para continuar.',
+  'session-disabled': 'A autenticação desta conta foi desativada. Se você precisar recuperar o acesso, fale com o suporte.',
+};
 
 type LoginAction =
   | 'idle'
   | 'emailLogin'
-  | 'googleLogin'
-  | 'resendVerification'
-  | 'logout';
+  | 'googleLogin';
 
 @Component({
   selector: 'app-login-component',
@@ -60,30 +69,51 @@ type LoginAction =
 })
 export class LoginComponent implements OnInit {
   loginForm!: FormGroup;
+  @Input() reason?: string;
+
+  private readonly location = inject(Location);
+
+  get sessionRetryHref(): string | null {
+    if (this.reason !== AUTH_UNAVAILABLE_REASON) return null;
+    const requested = this.route.snapshot.queryParamMap.get('redirectTo');
+    const fallback = this.router.serializeUrl(this.router.createUrlTree(['/login']));
+    // Mantém URL interna, inclusive a etapa de cadastro que estava aberta.
+    const target = requested && /^\/(?![\/\\])/.test(requested) &&
+      !/[\\\x00-\x1f\x7f]/.test(requested) &&
+      !['/login', '/post-verification/action', '/__/auth/action'].includes(requested.split(/[?#]/)[0])
+      ? requested
+      : fallback;
+    return this.location.prepareExternalUrl(target);
+  }
+
+  get sessionNotice(): string | null {
+    if (this.reason === VOLUNTARY_LOGOUT_NOTICE) return 'Você saiu da sua conta.';
+    if (this.reason === AUTH_UNAVAILABLE_REASON) {
+      return 'Não foi possível confirmar seu acesso agora. Tente novamente em instantes.';
+    }
+    return isSessionEndReason(this.reason) ? SESSION_END_MESSAGES[this.reason] : null;
+  }
 
   errorMessage = '';
-  successMessage = '';
   isLoading = false;
-  showEmailVerificationModal = false;
   currentAction: LoginAction = 'idle';
   isPasswordVisible = false;
 
   hasRequiredFields$!: Observable<boolean>;
 
   private readonly destroyRef = inject(DestroyRef);
+  private readonly authSession = inject(AuthSessionService);
 
   constructor(
     private readonly router: Router,
     private readonly route: ActivatedRoute,
     private readonly applicationError: ApplicationErrorService,
-    private readonly logoutService: LogoutService,
     private readonly authFacade: AuthFacade,
     private readonly loginservice: LoginService,
     private readonly postAuthNavigation: PostAuthNavigationService,
     private readonly formBuilder: FormBuilder,
     private readonly cdr: ChangeDetectorRef,
-    public readonly emailInputModalService: EmailInputModalService,
-    public readonly emailVerificationService: EmailVerificationService
+    public readonly emailInputModalService: EmailInputModalService
   ) {}
 
   ngOnInit(): void {
@@ -95,6 +125,43 @@ export class LoginComponent implements OnInit {
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+
+    this.resumeSharedSession();
+  }
+
+  private resumeSharedSession(): void {
+    const loginRouteActive$ = this.router.events.pipe(
+      filter((event) => event instanceof NavigationEnd),
+      startWith(null),
+      map(() => this.router.url.split(/[?#]/)[0] === '/login'),
+      distinctUntilChanged()
+    );
+
+    combineLatest([
+      this.authSession.ready$,
+      this.authSession.uid$,
+      loginRouteActive$,
+    ]).pipe(
+      filter(([ready, uid, loginRouteActive]) =>
+        ready && !!uid && loginRouteActive && !this.isLoading &&
+        this.route.snapshot.queryParamMap.get('reason') !== AUTH_UNAVAILABLE_REASON),
+      // Reavalia o guard da própria rota, inclusive bloqueio e perfil em cadastro.
+      exhaustMap(() => defer(() => this.router.navigateByUrl(this.router.url, {
+        onSameUrlNavigation: 'reload',
+        replaceUrl: true,
+      })).pipe(
+        catchError((error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'login',
+            operation: 'resumeSharedSession',
+            fallbackMessage: 'Não foi possível continuar com a sessão atual.',
+            presentation: { surface: 'none', severity: 'error' },
+          });
+          return of(false);
+        })
+      )),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
   initializeForm(): void {
@@ -133,14 +200,6 @@ export class LoginComponent implements OnInit {
     return this.currentAction === 'googleLogin';
   }
 
-  get isResendingVerification(): boolean {
-    return this.currentAction === 'resendVerification';
-  }
-
-  get isLoggingOut(): boolean {
-    return this.currentAction === 'logout';
-  }
-
   get primaryButtonLabel(): string {
     return this.isEmailLoginLoading ? 'Conferindo acesso...' : 'Entrar';
   }
@@ -155,10 +214,6 @@ export class LoginComponent implements OnInit {
         return 'Entrando e conferindo seu cadastro...';
       case 'googleLogin':
         return 'Abrindo autenticação com Google...';
-      case 'resendVerification':
-        return 'Reenviando e-mail de verificação...';
-      case 'logout':
-        return 'Encerrando sessão...';
       case 'idle':
       default:
         return 'Processando...';
@@ -174,7 +229,6 @@ export class LoginComponent implements OnInit {
     if (this.isLoading) return;
 
     this.resetFeedback();
-    this.showEmailVerificationModal = false;
 
     if (this.isHoneypotFilled) {
       this.setFormError('Detectado comportamento suspeito. Tente novamente.');
@@ -209,14 +263,10 @@ export class LoginComponent implements OnInit {
             redirectTo
           );
         }),
-        tap((target) => {
-          if (!target) return;
-
-          this.setSuccess('Login realizado com sucesso.');
-          this.router
-            .navigateByUrl(target, { replaceUrl: true })
-            .catch(() => {});
-        }),
+        switchMap((target) => target
+          ? this.navigateAfterLogin$(target)
+          : of(void 0)
+        ),
         catchError((error: unknown) => {
           const descriptor = this.applicationError.report(error, {
             feature: 'login',
@@ -237,7 +287,6 @@ export class LoginComponent implements OnInit {
     if (this.isLoading) return;
 
     this.resetFeedback();
-    this.showEmailVerificationModal = false;
     this.setBusyState(true, 'googleLogin');
 
     const redirectTo = this.getRedirectTo();
@@ -253,23 +302,12 @@ export class LoginComponent implements OnInit {
             return of(null);
           }
 
-          return this.postAuthNavigation
-            .resolveAfterSocialLogin$(result, redirectTo)
-            .pipe(
-              map((target) => ({
-                target,
-                message: result.message || 'Login com Google concluído.',
-              }))
-            );
+          return this.postAuthNavigation.resolveAfterSocialLogin$(result, redirectTo);
         }),
-        tap((navigation) => {
-          if (!navigation) return;
-
-          this.setSuccess(navigation.message);
-          this.router
-            .navigateByUrl(navigation.target, { replaceUrl: true })
-            .catch(() => {});
-        }),
+        switchMap((target) => target
+          ? this.navigateAfterLogin$(target)
+          : of(void 0)
+        ),
         catchError((error: unknown) => {
           const descriptor = this.applicationError.report(error, {
             feature: 'login',
@@ -284,6 +322,18 @@ export class LoginComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
+  }
+
+  private navigateAfterLogin$(target: string): Observable<void> {
+    return defer(() => this.router.navigateByUrl(target, { replaceUrl: true })).pipe(
+      map((navigated) => {
+        if (!navigated) {
+          throw Object.assign(new Error('A navegação foi interrompida.'), {
+            code: 'auth/post-login-navigation',
+          });
+        }
+      })
+    );
   }
 
   clearError(): void {
@@ -305,50 +355,6 @@ export class LoginComponent implements OnInit {
     this.emailInputModalService.openModal();
   }
 
-  resendVerificationEmail(): void {
-    if (this.isLoading) return;
-
-    this.setBusyState(true, 'resendVerification');
-
-    this.emailVerificationService
-      .resendVerificationEmail()
-      .pipe(
-        tap((message) => {
-          this.setSuccess(
-            message ??
-              'E-mail de verificação reenviado. Verifique sua caixa de entrada.'
-          );
-        }),
-        catchError(() => {
-          this.setSystemError('Erro ao reenviar o e-mail de verificação.');
-          return of(void 0);
-        }),
-        finalize(() => this.setBusyState(false)),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-  }
-
-  logout(): void {
-    if (this.isLoading) return;
-
-    this.showEmailVerificationModal = false;
-    this.resetFeedback();
-    this.setBusyState(true, 'logout');
-
-    this.logoutService
-      .logout$()
-      .pipe(
-        finalize(() => this.setBusyState(false)),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe({
-        // LogoutService navega para login e publica a falha na autoridade
-        // canônica. Mensagens locais gerariam duplicidade (snackbar + inline).
-        error: () => {},
-      });
-  }
-
   private setBusyState(
     isBusy: boolean,
     action: LoginAction = 'idle'
@@ -367,25 +373,16 @@ export class LoginComponent implements OnInit {
 
   private resetFeedback(): void {
     this.errorMessage = '';
-    this.successMessage = '';
     this.cdr.markForCheck();
   }
 
   private setFormError(message: string): void {
     this.errorMessage = message;
-    this.successMessage = '';
     this.cdr.markForCheck();
   }
 
   private setSystemError(message: string): void {
     this.errorMessage = message;
-    this.successMessage = '';
-    this.cdr.markForCheck();
-  }
-
-  private setSuccess(message: string): void {
-    this.successMessage = message;
-    this.errorMessage = '';
     this.cdr.markForCheck();
   }
 

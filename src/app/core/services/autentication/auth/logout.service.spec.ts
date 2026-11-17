@@ -44,11 +44,23 @@ function createHarness(options: HarnessOptions = {}) {
 
   const router = {
     url: '/home',
+    routerState: { snapshot: { root: {} } },
+    events: new Subject<unknown>(),
     navigate: vi.fn(() => {
       calls.push('navigate');
       return Promise.resolve(true);
     }),
   };
+
+  const sessionExit = {
+    markSignedOut: vi.fn(() => { calls.push('session:signed-out'); }),
+    openAfterLogout$: vi.fn(() => defer(() => {
+      calls.push('navigate');
+      return of(void 0);
+    })),
+  };
+  const outletContexts = { getContext: vi.fn(() => null as unknown) };
+  const dialog = { open: vi.fn() };
 
   const presence = {
     stop$: vi.fn(() =>
@@ -112,6 +124,7 @@ function createHarness(options: HarnessOptions = {}) {
   };
 
   const authSession = {
+    authUser$: new Subject<unknown>(),
     beginTermination: vi.fn(() => {
       terminating = true;
       calls.push('session:begin');
@@ -159,7 +172,10 @@ function createHarness(options: HarnessOptions = {}) {
     applicationError as any,
     {} as any,
     privacyDebug as any,
-    cache as any
+    cache as any,
+    outletContexts as any,
+    dialog as any,
+    sessionExit as any
   );
 
   const executeSignOut = vi.fn((mode: string) =>
@@ -184,6 +200,9 @@ function createHarness(options: HarnessOptions = {}) {
     presence,
     pushNotifications,
     cache,
+    sessionExit,
+    outletContexts,
+    dialog,
     currentUserStore,
     appBlock,
     authSession,
@@ -221,6 +240,7 @@ describe('LogoutService global session lifecycle', () => {
       'presence',
       'push',
       'signout:strict',
+      'session:signed-out',
       'cache',
       'navigate',
       'session:end',
@@ -233,7 +253,7 @@ describe('LogoutService global session lifecycle', () => {
   });
 
   it('compartilha a mesma operação entre chamadores concorrentes', async () => {
-    const { service, calls } = createHarness();
+    const { service, calls, auth } = createHarness();
     const signOutGate = new Subject<void>();
 
     const executeSignOut = vi.fn((mode: string) =>
@@ -253,6 +273,7 @@ describe('LogoutService global session lifecycle', () => {
 
     expect(executeSignOut).toHaveBeenCalledTimes(1);
 
+    auth.currentUser = null;
     signOutGate.next();
     signOutGate.complete();
 
@@ -316,7 +337,7 @@ describe('LogoutService global session lifecycle', () => {
       {
         feature: 'auth',
         operation: 'logout',
-        fallbackMessage: 'Não foi possível sair agora. Tente novamente.',
+        fallbackMessage: 'Não conseguimos encerrar sua sessão. Ela continua ativa. Tente sair novamente.',
         presentation: { surface: 'snackbar', severity: 'error' },
         metadata: {
           scope: 'LogoutService',
@@ -383,6 +404,7 @@ describe('LogoutService global session lifecycle', () => {
       'presence',
       'push',
       'signout:strict',
+      'session:signed-out',
       'cache',
       'navigate',
       'session:end',
@@ -420,6 +442,107 @@ describe('LogoutService global session lifecycle', () => {
         operation: 'clearLocalSessionDataBestEffort$',
         presentation: { surface: 'none', severity: 'error' },
       })
+    );
+  });
+
+  function openDraft(harness: ReturnType<typeof createHarness>) {
+    const discardUnsavedChanges = vi.fn(() => {
+      harness.calls.push('draft:discard');
+    });
+    const answer = new Subject<boolean>();
+    const leaf = {
+      outlet: { isActivated: true, component: { hasUnsavedChanges: () => true, discardUnsavedChanges } },
+      children: { getContext: () => null },
+    };
+    harness.outletContexts.getContext.mockReturnValue({
+      outlet: { isActivated: true, component: {} },
+      children: { getContext: () => leaf },
+    });
+    const close = vi.fn();
+    harness.dialog.open.mockReturnValue({ afterClosed: () => answer, close });
+    return { discardUnsavedChanges, answer, close };
+  }
+
+  it('aguarda a escolha sobre o formulário antes do logout e preserva tudo ao cancelar', async () => {
+    const t = createHarness();
+    const draft = openDraft(t);
+    const result = firstValueFrom(t.service.logout$(), { defaultValue: 'cancelled' });
+    expect(t.dialog.open).toHaveBeenCalledOnce();
+    expect(t.authSession.beginTermination).not.toHaveBeenCalled();
+    draft.answer.next(false);
+
+    expect(await result).toBe('cancelled');
+    expect(t.auth.currentUser?.uid).toBe('user-a');
+    expect(t.executeSignOut).not.toHaveBeenCalled();
+    expect(t.sessionExit.markSignedOut).not.toHaveBeenCalled();
+    expect(draft.discardUnsavedChanges).not.toHaveBeenCalled();
+  });
+
+  it('descarta o rascunho confirmado somente depois que a credencial saiu', async () => {
+    const t = createHarness();
+    const draft = openDraft(t);
+    const result = firstValueFrom(t.service.logout$());
+    expect(draft.discardUnsavedChanges).not.toHaveBeenCalled();
+    draft.answer.next(true);
+    await result;
+
+    expect(t.calls).toEqual([
+      'session:begin', 'geolocation', 'presence', 'push', 'signout:strict',
+      'session:signed-out', 'draft:discard', 'cache', 'navigate', 'session:end',
+    ]);
+  });
+
+  it('preserva o rascunho confirmado se a credencial continuar ativa', async () => {
+    const t = createHarness({ signOutMode: 'error' });
+    const draft = openDraft(t);
+    const result = expect(firstValueFrom(t.service.logout$())).rejects.toThrow('signout unavailable');
+    draft.answer.next(true);
+    await result;
+    expect(draft.discardUnsavedChanges).not.toHaveBeenCalled();
+    expect(t.sessionExit.markSignedOut).not.toHaveBeenCalled();
+  });
+
+  it('ignora a decisão de descartar rascunho quando o usuário mudou', async () => {
+    const t = createHarness();
+    const draft = openDraft(t);
+    const result = firstValueFrom(t.service.logout$(), { defaultValue: 'cancelled' });
+    t.auth.currentUser = { uid: 'new-user' };
+    draft.answer.next(true);
+
+    expect(await result).toBe('cancelled');
+    expect(t.executeSignOut).not.toHaveBeenCalled();
+    expect(draft.discardUnsavedChanges).not.toHaveBeenCalled();
+  });
+
+  it('fecha a confirmação de saída se a sessão se perder enquanto aguarda', async () => {
+    const t = createHarness();
+    const draft = openDraft(t);
+    const result = firstValueFrom(t.service.logout$(), { defaultValue: 'cancelled' });
+    t.auth.currentUser = null;
+    t.authSession.authUser$.next(null);
+
+    expect(await result).toBe('cancelled');
+    expect(draft.close).toHaveBeenCalledOnce();
+    expect(draft.discardUnsavedChanges).not.toHaveBeenCalled();
+    expect(t.executeSignOut).not.toHaveBeenCalled();
+  });
+
+  it('limita a espera ao restaurar Web Push depois de um signOut rejeitado', async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(globalThis, 'Notification', {
+      configurable: true,
+      value: { permission: 'granted' },
+    });
+    const t = createHarness({ signOutMode: 'error' });
+    t.pushNotifications.activate$.mockReturnValue(NEVER);
+    const result = expect(firstValueFrom(t.service.logout$())).rejects.toThrow('signout unavailable');
+
+    expect(t.authSession.isTerminatingSnapshot).toBe(false);
+    await vi.advanceTimersByTimeAsync(3_000);
+    await result;
+    expect(t.applicationError.report).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ operation: 'restorePushAfterFailedSignOutBestEffort$' })
     );
   });
 

@@ -1,7 +1,7 @@
 // src/app/register-module/data-access/register-flow.facade.ts
 import { Injectable } from '@angular/core';
 
-import { combineLatest, Observable, of } from 'rxjs';
+import { combineLatest, concat, Observable, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -10,7 +10,6 @@ import {
   switchMap,
 } from 'rxjs/operators';
 
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AgeEligibilityService } from 'src/app/core/services/compliance/age-eligibility.service';
@@ -37,10 +36,9 @@ export class RegisterFlowFacade {
       authUser,
       appUser,
     ]) => {
-      const user = this.asResolvedUser(appUser);
-      const uid = authUser?.uid ?? user?.uid ?? null;
-      const emailVerified =
-        authUser?.emailVerified === true || user?.emailVerified === true;
+      const uid = authUser?.uid ?? null;
+      const user = appUser && uid && appUser.uid === uid ? appUser : null;
+      const emailVerified = authUser?.emailVerified === true;
       const termsAccepted =
         isCurrentLegalAcceptanceSatisfied(user?.acceptedTerms);
 
@@ -50,7 +48,7 @@ export class RegisterFlowFacade {
           uid,
           email: authUser?.email ?? user?.email ?? null,
           emailVerified,
-          userResolved: appUser !== undefined,
+          userResolved: !uid || appUser === null || user !== null,
           userExists: user !== null,
           termsAccepted,
           ageEligibilityAllowed,
@@ -81,12 +79,14 @@ export class RegisterFlowFacade {
         return of(resolve(false));
       }
 
-      return this.ageEligibility.reconcileTrustedStateOncePerSession$().pipe(
+      return concat(
+        this.ageEligibility.reconcileTrustedStateOncePerSession$().pipe(
+          catchError(() => of(user.ageEligibility))
+        ),
+        this.ageEligibility.current$
+      ).pipe(
         map((ageState) =>
           resolve(isCurrentAdultAccountAdmissionProjection(ageState))
-        ),
-        catchError(() =>
-          of(resolve(isCurrentAdultAccountAdmissionProjection(user?.ageEligibility)))
         )
       );
     }),
@@ -105,10 +105,6 @@ export class RegisterFlowFacade {
     private readonly ageEligibility: AgeEligibilityService,
     private readonly navigation: RegisterNavigationService
   ) {}
-
-  private asResolvedUser(value: IUserDados | null | undefined): IUserDados | null {
-    return value && value !== null ? value : null;
-  }
 
   private vmEquals(a: RegisterFlowVm, b: RegisterFlowVm): boolean {
     return (

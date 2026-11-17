@@ -4,6 +4,7 @@ import { ApplicationErrorService } from '@core/services/error-handler/applicatio
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 import { AuthSessionMonitorService } from './auth-session-monitor.service';
+import type { Auth } from '@angular/fire/auth';
 import { AuthSessionService } from './auth-session.service';
 import { AuthAppBlockService } from './auth-app-block.service';
 
@@ -12,19 +13,9 @@ function createHarness(reloadImpl?: () => Promise<void>) {
     ? { uid: 'user-a', reload: vi.fn(reloadImpl) }
     : null;
 
-  const authSession = {
-    currentAuthUser,
-    isTerminatingSnapshot: false,
-  };
-
-  const appBlock = {
-    snapshot: null as 'auth-invalid' | null,
-    set: vi.fn(),
-  };
-
-  appBlock.set.mockImplementation((reason: 'auth-invalid') => {
-    appBlock.snapshot = reason;
-  });
+  const auth = { currentUser: currentAuthUser };
+  const appBlock = new AuthAppBlockService();
+  vi.spyOn(appBlock, 'set');
 
   const applicationError = {
     report: vi.fn(),
@@ -34,9 +25,11 @@ function createHarness(reloadImpl?: () => Promise<void>) {
     log: vi.fn(),
   };
 
+  const authSession = new AuthSessionService(
+    auth as unknown as Auth, privacyDebug as unknown as PrivacyDebugLoggerService, appBlock
+  );
   const service = new AuthSessionMonitorService(
-    authSession as unknown as AuthSessionService,
-    appBlock as unknown as AuthAppBlockService,
+    authSession,
     applicationError as unknown as ApplicationErrorService,
     privacyDebug as unknown as PrivacyDebugLoggerService
   );
@@ -44,6 +37,7 @@ function createHarness(reloadImpl?: () => Promise<void>) {
   return {
     service,
     authSession,
+    auth,
     appBlock,
     applicationError,
     privacyDebug,
@@ -52,6 +46,7 @@ function createHarness(reloadImpl?: () => Promise<void>) {
 }
 
 afterEach(() => {
+  localStorage.clear();
   vi.useRealTimers();
 });
 
@@ -122,7 +117,7 @@ describe('AuthSessionMonitorService canonical errors', () => {
         feature: 'auth-session-monitor',
         operation: 'session-monitor.invalid',
         presentation: {
-          surface: 'snackbar',
+          surface: 'none',
           severity: 'error',
         },
       })
@@ -135,7 +130,7 @@ describe('AuthSessionMonitorService canonical errors', () => {
     vi.useFakeTimers();
     const { service, authSession, currentAuthUser, appBlock } =
       createHarness(() => Promise.reject(new Error('stale token')));
-    authSession.isTerminatingSnapshot = true;
+    authSession.beginTermination();
 
     service.start();
     await vi.advanceTimersByTimeAsync(600_000);
@@ -152,12 +147,12 @@ describe('AuthSessionMonitorService canonical errors', () => {
       rejectReload = reject;
     });
 
-    const { service, authSession, appBlock, applicationError } =
+    const { service, auth, appBlock, applicationError } =
       createHarness(() => pending);
     service.start();
     await vi.advanceTimersByTimeAsync(600_000);
 
-    authSession.currentAuthUser = {
+    auth.currentUser = {
       uid: 'user-b',
       reload: vi.fn().mockResolvedValue(undefined),
     };
@@ -171,6 +166,19 @@ describe('AuthSessionMonitorService canonical errors', () => {
     service.stop();
   });
 
+  it('registra causa mesmo se o SDK limpar o usuário e a aplicação parar o monitor', async () => {
+    vi.useFakeTimers();
+    const t = createHarness(async () => {
+      t.auth.currentUser = null;
+      t.service.stop();
+      throw Object.assign(new Error('expired'), { code: 'auth/user-token-expired' });
+    });
+    t.service.start();
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(t.appBlock.invalidationSnapshot).toEqual({ uid: 'user-a', reason: 'session-expired' });
+    expect(t.appBlock.snapshot).toBeNull();
+  });
+
   it('ignora invalidação que chega após o início do logout', async () => {
     vi.useFakeTimers();
     let rejectReload!: (error: Error) => void;
@@ -182,7 +190,7 @@ describe('AuthSessionMonitorService canonical errors', () => {
     service.start();
     await vi.advanceTimersByTimeAsync(600_000);
 
-    authSession.isTerminatingSnapshot = true;
+    authSession.beginTermination();
     rejectReload(Object.assign(new Error('old token expired'), {
       code: 'auth/user-token-expired',
     }));

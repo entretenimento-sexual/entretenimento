@@ -6,7 +6,7 @@
 // - padronizar construção de UrlTree com redirectTo
 // - evitar duplicação de lógica e mensagens espalhadas
 // - centralizar o critério de "estado resolvido" para evitar race conditions
-import { Router, UrlTree } from '@angular/router';
+import { PRIMARY_OUTLET, Router, UrlTree } from '@angular/router';
 
 declare global {
   interface Window {
@@ -95,4 +95,16 @@ export function isResolvedAccessState(
   }
 
   return appUser !== undefined;
+}
+
+export const AUTH_GUARD_WAIT_MS = 8_000;
+export const AUTH_UNAVAILABLE_REASON = 'auth_unavailable';
+
+export function buildAuthRetryTree(router: Router, attemptedUrl: string): UrlTree {
+  const attempted = router.parseUrl(attemptedUrl);
+  const segments = attempted.root.children[PRIMARY_OUTLET]?.segments ?? [];
+  const target = segments.length === 1 && segments[0].path === 'login'
+    ? attempted.queryParamMap.get('redirectTo') ?? undefined
+    : attemptedUrl;
+  return buildRedirectTree(router, '/login', target, { reason: AUTH_UNAVAILABLE_REASON });
 }

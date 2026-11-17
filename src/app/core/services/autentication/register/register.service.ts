@@ -1,7 +1,7 @@
 // src/app/core/services/autentication/register/register.service.ts
 // =============================================================================
 // RegisterService (rules-aware / best-of-both)
-// - Auth propagation: refresh token + onIdTokenChanged
+// - Firebase Auth: criação única por tentativa e retomada após falhas parciais
 // - Firestore bootstrap: RegistrationBootstrapService
 // - Terms acceptance: backend audit through TermsAcceptanceService
 // - public_index.rules: createdAt/lastChangedAt MUST be serverTimestamp() => request.time
@@ -10,17 +10,15 @@
 // - Clean debug (traceId) controlled by environment.enableDebugTools
 // =============================================================================
 import { Injectable } from '@angular/core';
-import { from, Observable, of, throwError } from 'rxjs';
-import { catchError, map, switchMap, tap, timeout, take } from 'rxjs/operators';
+import { defer, from, Observable, of, throwError, timer, TimeoutError } from 'rxjs';
+import { catchError, map, retry, switchMap, tap, timeout } from 'rxjs/operators';
 
 import { Auth } from '@angular/fire/auth';
 
 import {
   createUserWithEmailAndPassword,
   updateProfile,
-  onIdTokenChanged,
   UserCredential,
-  type User,
 } from 'firebase/auth';
 
 import { ApplicationErrorService } from '../../error-handler/application-error.service';
@@ -35,6 +33,7 @@ import { environment } from 'src/environments/environment';
 
 import { CacheService } from '../../general/cache/cache.service';
 import { NicknameUtils } from '@core/utils/nickname-utils';
+import { isTransientNetworkError } from '../../network/network-retry.policy';
 
 export type RegisterUserCredential = UserCredential & {
   verificationEmailSent: boolean;
@@ -51,6 +50,7 @@ type SignupContext = {
 @Injectable({ providedIn: 'root' })
 export class RegisterService {
   private readonly NET_TIMEOUT_MS = 12_000;
+  private pendingCreation: Promise<UserCredential> | null = null;
   private readonly HOT_KEY_CURRENT_USER_UID = 'currentUserUid';
 
   // public_profiles.rules (nicknameNormalized):
@@ -86,56 +86,41 @@ export class RegisterService {
       acceptedTerms: !!userData?.acceptedTerms?.accepted,
     });
 
-    return this.validateUserData(userData, traceId).pipe(
-      /**
-       * A criação no Firebase Auth é a verificação atômica do e-mail.
-       * Não consultamos previamente métodos de login nem enviamos recuperação
-       * automática durante o cadastro.
-       */
-      switchMap(() =>
-        from(createUserWithEmailAndPassword(this.auth, userData.email, password)).pipe(
-          timeout({ each: this.NET_TIMEOUT_MS })
-        )
-      ),
-
-      switchMap((cred) =>
-        this.waitAuthPropagationForFirestore$(cred.user.uid, traceId).pipe(map(() => cred))
-      ),
-
-      switchMap((cred) =>
-        this.registrationBootstrap
-          .createEmailPasswordSeed$({
+    return defer(() => {
+      this.assertCanCreateCredential();
+      return this.validateUserData(userData, traceId);
+    }).pipe(
+      switchMap(() => this.createCredential$(userData.email, password)),
+      switchMap((cred) => {
+        const context: SignupContext = { cred, warns: [], traceId, verificationEmailSent: false };
+        return defer(() => {
+          this.assertActiveCredential(cred);
+          return this.registrationBootstrap.createEmailPasswordSeed$({
             uid: cred.user.uid,
             userData,
             traceId,
-          })
-          .pipe(
-            tap(() => this.devDebug(traceId, 'persist:bootstrap:ok', { uid: cred.user.uid })),
-            map((): SignupContext => ({
-              cred,
-              warns: [],
+          });
+        }).pipe(
+          timeout({ first: this.NET_TIMEOUT_MS }),
+          // A reserva é idempotente para o mesmo UID e o mesmo apelido.
+          retry({
+            count: 1,
+            delay: (error: unknown) => error instanceof TimeoutError || isTransientNetworkError(error)
+              ? timer(500)
+              : throwError(() => error),
+          }),
+          map(() => context),
+          catchError((error: unknown) => {
+            this.assertActiveCredential(cred);
+            this.safeHandle('Não foi possível confirmar a reserva do apelido.', error, {
+              operation: 'reserveRegistrationNickname',
               traceId,
-              verificationEmailSent: false,
-            })),
-            catchError((err) =>
-              this.deleteUserOnFailure(cred.user.uid).pipe(
-                catchError((delErr) => {
-                  this.safeHandle(
-                    '[RegisterService] Falha ao rollback do Auth após erro no Firestore.',
-                    delErr,
-                    {
-                      operation: 'rollbackAuthAfterBootstrapFailure',
-                      traceId,
-                      uid: cred.user.uid,
-                    }
-                  );
-                  return of(void 0);
-                }),
-                switchMap(() => throwError(() => err))
-              )
-            )
-          )
-      ),
+            });
+            context.warns.push('nickname-reservation-unconfirmed');
+            return of(context);
+          })
+        );
+      }),
 
       /**
        * O checkbox de cadastro é validado antes da criação da conta, mas o
@@ -147,7 +132,11 @@ export class RegisterService {
        * /register/aceitar-termos após a verificação de e-mail.
        */
       switchMap((ctx2) =>
-        this.termsAcceptance.acceptForUser$(ctx2.cred.user.uid).pipe(
+        defer(() => {
+          this.assertActiveCredential(ctx2.cred);
+          return this.termsAcceptance.acceptForUser$(ctx2.cred.user.uid);
+        }).pipe(
+          timeout({ first: this.NET_TIMEOUT_MS }),
           tap(() =>
             this.devDebug(ctx2.traceId, 'compliance:terms:ok', {
               uid: ctx2.cred.user.uid,
@@ -171,7 +160,10 @@ export class RegisterService {
       ),
 
       switchMap((ctx2) =>
-        this.emailVerificationService.sendEmailVerification(ctx2.cred.user).pipe(
+        defer(() => {
+          this.assertActiveCredential(ctx2.cred);
+          return this.emailVerificationService.sendEmailVerification(ctx2.cred.user);
+        }).pipe(
           timeout({ each: this.NET_TIMEOUT_MS }),
           tap(() => {
             ctx2.verificationEmailSent = true;
@@ -193,23 +185,26 @@ export class RegisterService {
         )
       ),
 
-      switchMap((ctx2) =>
-        from(updateProfile(ctx2.cred.user, { displayName: (userData.nickname ?? '').trim() })).pipe(
-          timeout({ each: this.NET_TIMEOUT_MS }),
+      switchMap((ctx2) => {
+        this.assertActiveCredential(ctx2.cred);
+        if (ctx2.warns.includes('nickname-reservation-unconfirmed')) return of(ctx2);
+        return defer(() => this.updateDisplayName(ctx2.cred, (userData.nickname ?? '').trim())).pipe(
+          timeout({ first: this.NET_TIMEOUT_MS }),
           catchError((err) => {
             this.safeHandle('[RegisterService] Falha no updateProfile (warn).', err, {
               operation: 'updateAuthProfile',
-              traceId: ctx2.traceId,
+              traceId,
               uid: ctx2.cred.user.uid,
             });
             ctx2.warns.push('update-profile-failed');
             return of(void 0);
           }),
           map(() => ctx2)
-        )
-      ),
+        );
+      }),
 
       tap((ctx2) => {
+        this.assertActiveCredential(ctx2.cred);
         const { user } = ctx2.cred;
 
         this.seedLocalStateAfterSignup(user.uid);
@@ -234,46 +229,58 @@ export class RegisterService {
     );
   }
 
-  private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): Observable<void> {
-    const refresh$ = from(
-      this.auth.currentUser?.getIdToken(true) ?? Promise.resolve('')
-    ).pipe(
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      catchError((err) => {
-        this.safeHandle('[RegisterService] getIdToken(true) falhou (warn).', err, {
-          operation: 'refreshAuthToken',
-          traceId,
-          expectedUid,
-        });
-        return of('');
-      })
-    );
+  private createCredential$(email: string, password: string): Observable<UserCredential> {
+    return defer(() => {
+      this.assertCanCreateCredential();
+      const creation = this.createFirebaseUser(email.trim(), password);
+      this.pendingCreation = creation;
+      const release = () => {
+        if (this.pendingCreation === creation) this.pendingCreation = null;
+      };
+      void creation.then(release, release);
 
-    const tokenChanged$ = new Observable<void>((subscriber) => {
-      const unsub = onIdTokenChanged(
-        this.auth,
-        (user: User | null) => {
-          if (user?.uid === expectedUid) {
-            subscriber.next();
-            subscriber.complete();
+      return from(creation).pipe(
+        timeout({ first: this.NET_TIMEOUT_MS }),
+        catchError((error: unknown) => {
+          if (error instanceof TimeoutError || isTransientNetworkError(error)) {
+            return throwError(() => this.creationUnconfirmedError(error));
           }
-        },
-        (err: unknown) => subscriber.error(err)
+          return throwError(() => error);
+        })
       );
+    });
+  }
 
-      return () => unsub();
-    }).pipe(
-      take(1),
-      timeout({ each: this.NET_TIMEOUT_MS })
-    );
+  private createFirebaseUser(email: string, password: string): Promise<UserCredential> {
+    return createUserWithEmailAndPassword(this.auth, email, password);
+  }
 
-    return refresh$.pipe(
-      switchMap(() => tokenChanged$),
-      map(() => void 0),
-      catchError((err) =>
-        this.handleRegisterError(err, 'Sincronização Auth/Firestore', traceId)
-      )
-    );
+  private updateDisplayName(credential: UserCredential, displayName: string): Promise<void> {
+    return updateProfile(credential.user, { displayName });
+  }
+
+  private assertCanCreateCredential(): void {
+    if (this.pendingCreation) throw this.creationUnconfirmedError();
+    if (this.auth.currentUser) {
+      throw Object.assign(new Error('Já existe uma sessão aberta. Continue pela sua conta.'), {
+        code: 'registration-session-active',
+      });
+    }
+  }
+
+  private creationUnconfirmedError(cause?: unknown): Error {
+    return Object.assign(new Error(
+      'Não conseguimos confirmar a criação da conta. Tente entrar com os dados informados ou recuperar o acesso.',
+      { cause }
+    ), { code: 'registration-creation-unconfirmed' });
+  }
+
+  private assertActiveCredential(credential: UserCredential): void {
+    if (this.auth.currentUser !== credential.user) {
+      throw Object.assign(new Error('A conta foi criada. Entre com o e-mail usado no cadastro para continuar.'), {
+        code: 'registration-account-created',
+      });
+    }
   }
 
   private validateUserData(user: IUserRegistrationData, traceId: string): Observable<void> {
@@ -326,7 +333,11 @@ export class RegisterService {
       );
     }
 
-    return this.firestoreValidation.checkIfNicknameExists(nickname).pipe(
+    return this.firestoreValidation.checkIfNicknameExists(nickname, { mode: 'strict' }).pipe(
+      timeout({ first: this.NET_TIMEOUT_MS }),
+      catchError((cause: unknown) => this.handleRegisterError(Object.assign(
+        new Error('Não foi possível validar o apelido agora.', { cause }), { code: 'nickname-check-failed' }
+      ), 'Validação', traceId)),
       switchMap((exists) => {
         if (exists) {
           return this.handleRegisterError(
@@ -345,25 +356,9 @@ export class RegisterService {
     return ValidatorService.isValidEmail(email);
   }
 
-  deleteUserOnFailure(uid: string): Observable<void> {
-    const currentUser = this.auth.currentUser;
-    if (currentUser?.uid === uid) {
-      return from(currentUser.delete()).pipe(
-        catchError((error) => {
-          this.safeHandle('[RegisterService] Falha ao deletar usuário no rollback.', error, {
-            operation: 'deleteAuthUserOnFailure',
-            uid,
-          });
-          return throwError(() => new Error('Erro ao deletar usuário.'));
-        })
-      );
-    }
-    return of(void 0);
-  }
-
   private seedLocalStateAfterSignup(uid: string): void {
     const safeUid = (uid ?? '').trim();
-    if (!safeUid) return;
+    if (!safeUid || this.auth.currentUser?.uid !== safeUid) return;
 
     this.cache.set(this.HOT_KEY_CURRENT_USER_UID, safeUid, undefined, { persist: false });
   }
@@ -426,7 +421,7 @@ export class RegisterService {
       }
     }
 
-    if (error?.name === 'TimeoutError') return 'Conexão lenta. Tente novamente em instantes.';
+    if (error instanceof TimeoutError) return 'Conexão lenta. Tente novamente em instantes.';
     if (error instanceof Error) return error.message;
     return 'Erro inesperado no processo de registro.';
   }
@@ -437,7 +432,8 @@ export class RegisterService {
     meta?: Record<string, unknown>
   ): void {
     try {
-      if (this.registrationBootstrap.hasDiagnosticOwnership(original)) {
+      if (this.registrationBootstrap.hasDiagnosticOwnership(original) ||
+          this.registrationBootstrap.hasDiagnosticOwnership((original as Error | null)?.cause)) {
         return;
       }
 

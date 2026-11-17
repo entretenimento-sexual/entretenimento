@@ -1,4 +1,4 @@
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RegistrationBootstrapService } from './registration-bootstrap.service';
@@ -27,13 +27,21 @@ describe('RegistrationBootstrapService canonical errors', () => {
       firstValueFrom(
         service.createSocialSeed$({
           uid: '   ',
-          email: 'user@example.com',
-          emailVerified: true,
         })
       )
     ).rejects.toThrow('[RegistrationBootstrapService] UID inválido.');
 
     expect(report).not.toHaveBeenCalled();
+  });
+
+  it('usa a recuperação canônica no login social sem hidratar o perfil por fora do fluxo', async () => {
+    const user = { uid: 'user-1' };
+    const recoverForUser$ = vi.fn(() => of({ user, created: false, recoveredAtMs: 1 }));
+    Object.assign(service, { recovery: { recoverForUser$ } });
+
+    await expect(firstValueFrom(service.createSocialSeed$({ uid: 'user-1' })))
+      .resolves.toEqual({ user, created: false });
+    expect(recoverForUser$).toHaveBeenCalledWith('user-1', { hydrate: false });
   });
 
   it('assume ownership de falha operacional, reporta uma vez e preserva o erro original', () => {

@@ -1,4 +1,4 @@
-import { BehaviorSubject, firstValueFrom } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, map } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -11,6 +11,7 @@ function createService(
     {} as any,
     {
       user$: user$.asObservable(),
+      getLoggedUserUID$: () => user$.pipe(map((user) => user?.uid ?? null)),
       getLoggedUserUIDSnapshot: () =>
         String(user$.value?.uid ?? '').trim() || null,
     } as any,

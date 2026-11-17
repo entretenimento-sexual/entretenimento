@@ -2,7 +2,7 @@
 // Componente de registro por e-mail/senha.
 // - Validação síncrona para apelido, e-mail, senha, confirmação e aceite dos termos.
 // - Checagem reativa de disponibilidade do apelido via Observable.
-// - Submit faz checagem estrita antes de criar a conta.
+// - RegisterService faz a checagem estrita antes de criar a conta.
 // - Feedback visual fica na UI; detalhes técnicos só aparecem em dev autorizado.
 import {
   ChangeDetectionStrategy,
@@ -22,7 +22,7 @@ import { Router } from '@angular/router';
 import { Auth, user } from '@angular/fire/auth';
 import type { User } from 'firebase/auth';
 
-import { firstValueFrom, Observable, Subject, of, throwError } from 'rxjs';
+import { defer, firstValueFrom, Observable, Subject, of } from 'rxjs';
 import {
   catchError,
   debounceTime,
@@ -33,10 +33,12 @@ import {
   take,
   tap,
   startWith,
+  timeout,
 } from 'rxjs/operators';
 import { toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { FirestoreValidationService } from 'src/app/core/services/data-handling/firestore/validation/firestore-validation.service';
 import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
@@ -50,6 +52,7 @@ type UiBanner = {
   title: string;
   message: string;
   details?: string;
+  showAccessLink?: boolean;
 };
 
 type NicknameCheckState =
@@ -72,6 +75,7 @@ export class RegisterComponent {
   private readonly validatorService = inject(FirestoreValidationService);
   private readonly registerService = inject(RegisterService);
   private readonly errorNotification = inject(ErrorNotificationService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -163,7 +167,6 @@ export class RegisterComponent {
   readonly isLoading = signal(false);
   readonly showPassword = signal(false);
   readonly showConfirmPassword = signal(false);
-  readonly infoMessage = signal<string | null>(null);
 
   readonly banner = signal<UiBanner | null>(null);
   readonly showTech = signal(false);
@@ -279,7 +282,7 @@ export class RegisterComponent {
           this.nicknameFeedbackArmed.set(true);
           this.dbg('nickname idle -> check');
         }),
-        switchMap(() => this.runNicknameAvailabilityCheck$('soft')),
+        switchMap(() => this.runNicknameAvailabilityCheck$()),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
@@ -287,15 +290,13 @@ export class RegisterComponent {
     this.nicknameBlur$
       .pipe(
         tap(() => this.dbg('nickname blur -> check')),
-        switchMap(() => this.runNicknameAvailabilityCheck$('soft')),
+        switchMap(() => this.runNicknameAvailabilityCheck$()),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
   }
 
-  private runNicknameAvailabilityCheck$(
-    mode: 'soft' | 'strict'
-  ): Observable<void> {
+  private runNicknameAvailabilityCheck$(): Observable<void> {
     if (
       this.hasBlockingNicknameSyncErrors() ||
       this.hasBlockingComplementSyncErrors()
@@ -321,7 +322,7 @@ export class RegisterComponent {
     this.nicknameCheckState.set('checking');
 
     return this.validatorService
-      .checkIfNicknameExists(fullNick, { mode })
+      .checkIfNicknameExists(fullNick, { mode: 'soft' })
       .pipe(
         tap((exists: boolean) => {
           if (exists) {
@@ -338,40 +339,38 @@ export class RegisterComponent {
           this.nicknameCheckState.set('unverified');
           this.clearApelidoEmUsoError();
 
-          if (mode === 'strict') {
-            return throwError(() => ({
-              code: 'nickname-check-failed',
-              message: 'Não foi possível validar o apelido agora.',
-              original: err,
-            }));
-          }
-
           return of(void 0);
         })
       );
   }
 
-  private waitForAuthUserOnce(timeoutMs = 6000): Promise<User> {
-    const existing = this.auth.currentUser as User | null;
-    if (existing) return Promise.resolve(existing);
-
-    const wait$ = user(this.auth).pipe(
-      filter((u): u is User => !!u),
-      take(1)
+  private waitForAuthUserOnce(
+    timeoutMs = 6000,
+    expectedUid?: string
+  ): Observable<User> {
+    return defer(() => {
+      const existing = this.auth.currentUser;
+      return existing ? of(existing) : user(this.auth).pipe(
+        filter((value): value is User => !!value),
+        take(1),
+        timeout({ first: timeoutMs })
+      );
+    }).pipe(
+      map((activeUser) => {
+        if (expectedUid && activeUser.uid !== expectedUid) {
+          throw new Error('A conta ativa mudou durante o cadastro.');
+        }
+        return activeUser;
+      })
     );
-
-    const timeout = new Promise<never>((_, rej) =>
-      setTimeout(() => rej(new Error('auth-wait-timeout')), timeoutMs)
-    );
-
-    return Promise.race([firstValueFrom(wait$), timeout]);
   }
 
   private setBanner(
     variant: UiBannerVariant,
     title: string,
     message: string,
-    details?: unknown
+    details?: unknown,
+    showAccessLink = false
   ): void {
     let det: string | undefined;
 
@@ -389,7 +388,7 @@ export class RegisterComponent {
       }
     }
 
-    this.banner.set({ variant, title, message, details: det });
+    this.banner.set({ variant, title, message, details: det, ...(showAccessLink ? { showAccessLink } : {}) });
     this.showTech.set(false);
   }
 
@@ -403,10 +402,9 @@ export class RegisterComponent {
     this.syncing.set(true);
 
     try {
-      await this.waitForAuthUserOnce(6000);
-      const email = this.form.get('email')?.value || '';
+      await firstValueFrom(this.waitForAuthUserOnce());
       this.router.navigate(['/register/welcome'], {
-        queryParams: { email, autocheck: '1' },
+        queryParams: { autocheck: '1' },
         replaceUrl: true,
       });
     } catch (e) {
@@ -434,25 +432,6 @@ export class RegisterComponent {
     }
 
     navigator.clipboard.writeText(det).catch(() => { });
-  }
-
-  resetForm(): void {
-    this.form.reset({
-      apelidoPrincipal: '',
-      complementoApelido: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
-      aceitarTermos: false,
-      confirmarMaioridade: false,
-    });
-    this.showPassword.set(false);
-    this.showConfirmPassword.set(false);
-    this.banner.set(null);
-    this.infoMessage.set(null);
-    this.nicknameCheckState.set('idle');
-    this.nicknameFeedbackArmed.set(false);
-    this.submitted.set(false);
   }
 
   reloadPage(): void {
@@ -551,7 +530,6 @@ export class RegisterComponent {
     this.isLoading.set(true);
     this.creating.set(true);
     this.creatingMsg.set('Estamos criando seu usuário, aguarde…');
-    this.infoMessage.set(null);
     this.banner.set(null);
 
     const { email, password, aceitarTermos, confirmarMaioridade } = this.form.getRawValue() as any;
@@ -570,50 +548,45 @@ export class RegisterComponent {
       profileCompleted: false,
     };
 
-    this.runNicknameAvailabilityCheck$('strict')
+    this.registerService.registerUser(payload, password)
       .pipe(
-        switchMap(() => {
-          if (this.apelidoEmUso()) {
-            return throwError(() => ({
-              code: 'nickname-in-use',
-              message: 'Apelido em uso.',
-            }));
-          }
+        switchMap((result) => this.waitForAuthUserOnce(8000, result.user.uid).pipe(
+          switchMap(() => {
+            if (this.auth.currentUser?.uid !== result.user.uid) {
+              throw new Error('A conta ativa mudou durante o cadastro.');
+            }
 
-          return this.registerService.registerUser(payload, password);
-        }),
-        finalize(() => this.isLoading.set(false))
-      )
-      .subscribe({
-        next: async (result) => {
-          try {
-            await this.waitForAuthUserOnce(8000);
-          } catch (e) {
-            this.creating.set(false);
-            this.setBanner(
-              'warn',
-              'Conta criada, mas a sessão ainda não apareceu',
-              'Você pode recarregar a página e entrar novamente.',
-              e
-            );
-            return;
-          }
-
-          this.creatingMsg.set('Tudo pronto! Redirecionando…');
-          this.router
-            .navigate(['/register/welcome'], {
+            this.creatingMsg.set('Conta criada. Abrindo a verificação de e-mail…');
+            return this.router.navigate(['/register/welcome'], {
               queryParams: {
-                email,
                 autocheck: '1',
-                verificationEmail: result.verificationEmailSent
-                  ? 'sent'
-                  : 'failed',
+                verificationEmail: result.verificationEmailSent ? 'sent' : 'failed',
               },
               replaceUrl: true,
-            })
-            .finally(() => this.creating.set(false));
-        },
-
+            });
+          }),
+          map((navigated) => {
+            if (!navigated) throw new Error('A tela de verificação não abriu.');
+          }),
+          catchError((error: unknown) => {
+            const report = this.applicationError.report(error, {
+              feature: 'registration',
+              operation: 'openVerificationAfterSignup',
+              fallbackMessage:
+                'Não conseguimos abrir a próxima etapa. Entre com o e-mail usado no cadastro para continuar.',
+              presentation: { surface: 'inline', severity: 'warning' },
+            });
+            this.setBanner('warn', 'Sua conta foi criada', report.userMessage, error, true);
+            return of(void 0);
+          })
+        )),
+        finalize(() => {
+          this.isLoading.set(false);
+          this.creating.set(false);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe({
         error: (err: any) => {
           this.creating.set(false);
 
@@ -633,11 +606,16 @@ export class RegisterComponent {
             return;
           }
 
-          if (code === 'email-exists-soft') {
-            const msg =
-              'Não foi possível criar uma nova conta com este e-mail. Tente entrar ou use a recuperação de senha.';
-            this.infoMessage.set(msg);
-            this.setBanner('info', 'Confira seu acesso', msg, err);
+          if (code === 'registration-account-created') {
+            this.setBanner('warn', 'Sua conta foi criada',
+              'Entre com o e-mail usado no cadastro para continuar.', err, true);
+            return;
+          }
+
+          if (code === 'registration-creation-unconfirmed' || code === 'email-exists-soft' ||
+              code === 'registration-session-active') {
+            this.setBanner('info', 'Confira seu acesso',
+              'Tente entrar com os dados informados ou recuperar o acesso para continuar.', undefined, true);
             return;
           }
 

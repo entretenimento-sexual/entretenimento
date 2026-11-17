@@ -159,7 +159,9 @@ export class AuthFacade {
     const authUser = this.authSession.currentAuthUser;
     const uid = String(authUser?.uid ?? '').trim();
 
-    if (!authUser || !uid) {
+    if (!authUser || !uid || result.authenticatedUid !== uid ||
+      this.authSession.isTerminatingSnapshot
+    ) {
       return null;
     }
 

@@ -9,6 +9,7 @@ import {
 } from './platform-legal.constants';
 
 interface AcceptPlatformTermsRequest {
+  expectedUid?: unknown;
   acceptedTerms: true;
   acknowledgedPrivacyNotice: true;
 }
@@ -40,6 +41,10 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
         'unauthenticated',
         'Faça login para aceitar os termos da plataforma.'
       );
+    }
+
+    if (request.data?.expectedUid !== undefined && request.data.expectedUid !== uid) {
+      throw new HttpsError('permission-denied', 'A conta ativa mudou durante o aceite dos termos.');
     }
 
     if (

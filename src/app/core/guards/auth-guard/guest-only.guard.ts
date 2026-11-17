@@ -41,14 +41,19 @@ import {
 } from '@angular/router';
 
 import { combineLatest, of } from 'rxjs';
-import { catchError, filter, map, take } from 'rxjs/operators';
+import { catchError, filter, map, take, timeout } from 'rxjs/operators';
 
+import { AuthAppBlockService } from '../../services/autentication/auth/auth-app-block.service';
+import { AuthSessionService } from '../../services/autentication/auth/auth-session.service';
 import { AccessControlService } from '../../services/autentication/auth/access-control.service';
 import { AuthReturnUrlService } from '../../services/autentication/auth/auth-return-url.service';
 import { ApplicationErrorService } from '../../services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../../services/error-handler/error-notification.service';
 
 import {
+  AUTH_GUARD_WAIT_MS,
+  AUTH_UNAVAILABLE_REASON,
+  buildAuthRetryTree,
   buildFinalizeRedirectTree,
   buildRedirectTree,
   buildWelcomeRedirectTree,
@@ -114,9 +119,15 @@ function decideGuestAccess$(
 ) {
   const router = inject(Router);
   const access = inject(AccessControlService);
+  const authSession = inject(AuthSessionService);
+  const appBlock = inject(AuthAppBlockService);
   const returnUrl = inject(AuthReturnUrlService);
   const applicationError = inject(ApplicationErrorService);
   const notify = inject(ErrorNotificationService);
+
+  const tryingLogin = cleanUrl(attemptedUrl) === '/login';
+  const reason = router.parseUrl(attemptedUrl).queryParams['reason'];
+  if (tryingLogin && reason === AUTH_UNAVAILABLE_REASON) return of(true);
 
   const tryingWelcome = isRegisterWelcomePath(attemptedUrl);
   const tryingRecovery = isRegisterRecoveryPath(attemptedUrl);
@@ -125,12 +136,12 @@ function decideGuestAccess$(
 
   return combineLatest([
     access.ready$,
-    access.authUid$,
+    authSession.uid$,
     access.appUser$,
     access.blockedReason$,
     access.emailVerified$,
   ]).pipe(
-    filter(([ready, authUid, appUser]) => {
+    filter(([ready, authUid, appUser, blockedReason, emailVerified]) => {
       if (!ready) {
         return false;
       }
@@ -139,7 +150,11 @@ function decideGuestAccess$(
         return true;
       }
 
-      return appUser !== undefined;
+      return (tryingLogin && blockedReason === 'auth-invalid') ||
+        (tryingWelcome && emailVerified === false &&
+          authSession.currentAuthUser?.uid === authUid &&
+          authSession.currentAuthUser?.emailVerified === false) ||
+        (appUser !== undefined && (!appUser || appUser.uid === authUid));
     }),
 
     take(1),
@@ -172,7 +187,11 @@ function decideGuestAccess$(
       // -----------------------------------------------------------------------
       if (!authUid) {
         if (tryingWelcome || tryingRecovery || tryingTerms || tryingFinalize) {
-          return buildRedirectTree(router, '/register');
+          return buildRedirectTree(router, '/login', redirectToParam ?? undefined, {
+            reason: authSession.currentAuthUser
+              ? 'session-ended'
+              : appBlock.invalidationSnapshot?.reason ?? 'session-ended',
+          });
         }
 
         return true;
@@ -183,6 +202,7 @@ function decideGuestAccess$(
       // -----------------------------------------------------------------------
 
       if (blockedReason) {
+        if (blockedReason === 'auth-invalid' && tryingLogin) return true;
         return tryingWelcome
           ? true
           : buildWelcomeRedirectTree(router, redirectTo, {
@@ -229,6 +249,7 @@ function decideGuestAccess$(
       return router.parseUrl(redirectTo);
     }),
 
+    timeout({ first: AUTH_GUARD_WAIT_MS, with: () => of(buildAuthRetryTree(router, attemptedUrl)) }),
     catchError((err) => {
       try {
         applicationError.report(err, {
@@ -244,11 +265,7 @@ function decideGuestAccess$(
 
       notify.showError('Falha ao validar acesso.');
 
-      return of(
-        buildRedirectTree(router, '/login', attemptedUrl, {
-          reason: 'guest_guard_error',
-        })
-      );
+      return of(buildAuthRetryTree(router, attemptedUrl));
     })
   );
 }
@@ -271,9 +288,13 @@ export const guestOnlyCanMatch: CanMatchFn = (
   const attemptedUrl =
     '/' + (segments ?? []).map((segment) => segment.path).filter(Boolean).join('/');
 
+  const router = inject(Router);
+  const navigation = router.currentNavigation();
+  const initialUrl = navigation && router.serializeUrl(navigation.extractedUrl);
+  const url = initialUrl && cleanUrl(initialUrl) === attemptedUrl ? initialUrl : attemptedUrl;
   return decideGuestAccess$(
-    attemptedUrl,
+    url,
     canMatchAllowsAuthenticated(route, segments),
-    null
+    router.parseUrl(url).queryParamMap.get('redirectTo')
   );
 };

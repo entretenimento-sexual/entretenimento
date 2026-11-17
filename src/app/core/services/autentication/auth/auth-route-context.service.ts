@@ -1,7 +1,7 @@
 // src/app/core/services/autentication/auth/auth-route-context.service.ts
 // Não esquecer dos comentários explicativos e ferramentas de debug
 import { Injectable, inject } from '@angular/core';
-import { NavigationEnd, Router } from '@angular/router';
+import { NavigationEnd, Router, type ActivatedRouteSnapshot } from '@angular/router';
 import { Observable, of } from 'rxjs';
 import {
   catchError,
@@ -13,6 +13,7 @@ import {
   tap,
 } from 'rxjs/operators';
 
+import { authGuard } from '../../../guards/auth-guard/auth.guard';
 import { inRegistrationFlow as isRegistrationFlow } from './auth.types';
 import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
@@ -22,6 +23,7 @@ export type AuthRouteContext = {
   currentUrl: string;
   navPath: string | null;
   inRegistrationFlow: boolean;
+  requiresSession?: boolean;
 };
 
 @Injectable({ providedIn: 'root' })
@@ -51,6 +53,13 @@ private dbg(msg: string, extra?: unknown): void {
     return false;
   }
 
+  private requiresSession(route: ActivatedRouteSnapshot | undefined): boolean {
+    return !!route && (
+      route.routeConfig?.canActivate?.includes(authGuard) === true ||
+      route.children.some((child) => this.requiresSession(child))
+    );
+  }
+
   private buildContext(url: string, routerReady: boolean): AuthRouteContext {
     const currentUrl = (url ?? '/').trim() || '/';
     const navPath = routerReady ? this.stripQueryAndHash(currentUrl) : null;
@@ -59,6 +68,7 @@ private dbg(msg: string, extra?: unknown): void {
       routerReady,
       currentUrl,
       navPath,
+      requiresSession: routerReady && this.requiresSession(this.router.routerState?.snapshot.root),
       inRegistrationFlow: routerReady ? this.isRegistrationPath(navPath) : true,
     };
   }
@@ -103,6 +113,7 @@ private dbg(msg: string, extra?: unknown): void {
       a.routerReady === b.routerReady &&
       a.currentUrl === b.currentUrl &&
       a.navPath === b.navPath &&
+      a.requiresSession === b.requiresSession &&
       a.inRegistrationFlow === b.inRegistrationFlow
     ),
     tap((ctx) => this.dbg('context$', ctx)),

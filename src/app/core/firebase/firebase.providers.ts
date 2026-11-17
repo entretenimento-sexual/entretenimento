@@ -33,6 +33,7 @@ import { getStorage } from 'firebase/storage';
 
 import { environment } from '../../../environments/environment';
 import { AuthAppBlockService } from '../services/autentication/auth/auth-app-block.service';
+import { AuthSessionService } from '../services/autentication/auth/auth-session.service';
 import { GlobalErrorHandlerService } from '../services/error-handler/global-error-handler.service';
 import { authRestoreInitializer } from './firebase-auth-session.initializer';
 import {
@@ -85,8 +86,8 @@ function provideApplicationAuth(): EnvironmentProviders {
         ? [inMemoryPersistence]
         : [browserLocalPersistence, browserSessionPersistence]
       : [
-          indexedDBLocalPersistence,
           browserLocalPersistence,
+          indexedDBLocalPersistence,
           browserSessionPersistence,
         ];
 
@@ -255,7 +256,7 @@ export const FIREBASE_APPLICATION_PROVIDERS: Array<
   {
     provide: APP_INITIALIZER,
     useFactory: authRestoreInitializer,
-    deps: [Auth, GlobalErrorHandlerService, AuthAppBlockService],
+    deps: [Auth, GlobalErrorHandlerService, AuthAppBlockService, AuthSessionService],
     multi: true,
   },
 ];

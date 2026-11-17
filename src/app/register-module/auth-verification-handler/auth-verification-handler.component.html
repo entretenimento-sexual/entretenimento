@@ -20,7 +20,7 @@
 
       @if (mode === 'verifyEmail') {
         <div class="cta-row">
-          @if (verifyOk && !showGoToLoginCTA) {
+          @if (verifyOk && !showGoToLoginCTA && !canSwitchAccount) {
             <button type="button" class="app-action app-action--primary" (click)="goToWelcome()">
               Continuar cadastro
             </button>
@@ -32,13 +32,15 @@
             </button>
           }
 
-          @if (showResendVerifyCTA) {
-            <button
-              type="button"
-              class="app-action"
-              (click)="resendVerificationEmail()"
-            >
-              Reenviar e-mail de verificação
+          @if (canSwitchAccount) {
+            <button type="button" class="app-action app-action--primary" (click)="switchVerificationAccount()">
+              Sair e entrar com a conta do link
+            </button>
+          }
+
+          @if (canRetryVerification) {
+            <button type="button" class="app-action" (click)="retryEmailVerification()">
+              Conferir link novamente
             </button>
           }
         </div>

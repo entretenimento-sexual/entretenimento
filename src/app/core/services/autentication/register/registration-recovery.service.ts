@@ -12,7 +12,7 @@ import {
 } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { FirestoreUserQueryService } from '../../data-handling/firestore-user-query.service';
+import { FirestoreReadService } from '../../data-handling/firestore/core/firestore-read.service';
 import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { AuthSessionService } from '../auth/auth-session.service';
 import { CurrentUserStoreService } from '../auth/current-user-store.service';
@@ -34,14 +34,14 @@ export interface RegistrationRecoveryResult {
 export class RegistrationRecoveryService {
   private readonly functions = inject(Functions);
   private readonly session = inject(AuthSessionService);
-  private readonly users = inject(FirestoreUserQueryService);
+  private readonly users = inject(FirestoreReadService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly applicationError = inject(ApplicationErrorService);
 
   private readonly ACTION_TIMEOUT_MS = 15_000;
 
   private readonly recoverCallable = httpsCallable<
-    Record<string, never>,
+    { expectedUid: string },
     RecoverRegistrationSeedResponse
   >(this.functions, 'recoverRegistrationSeed');
 
@@ -59,47 +59,49 @@ export class RegistrationRecoveryService {
     );
   }
 
-  recoverForUser$(uid: string): Observable<RegistrationRecoveryResult> {
+  recoverForUser$(uid: string, { hydrate = true } = {}): Observable<RegistrationRecoveryResult> {
     const safeUid = String(uid ?? '').trim();
 
     if (!safeUid) {
       return throwError(() => new Error('UID inválido para recuperação.'));
     }
 
-    return defer(() => from(this.recoverCallable({}))).pipe(
-      timeout({ first: this.ACTION_TIMEOUT_MS }),
-      map((response) => response.data),
-      switchMap((result) => {
-        if (
-          result?.ok !== true ||
-          result.uid !== safeUid ||
-          !Number.isFinite(result.recoveredAtMs)
-        ) {
-          return throwError(
-            () => new Error('A recuperação retornou dados inválidos.')
-          );
+    return defer(() => {
+      const currentUser = this.session.currentAuthUser;
+      const assertCurrentSession = () => {
+        if (this.session.currentAuthUser !== currentUser || currentUser?.uid !== safeUid ||
+            this.session.isTerminatingSnapshot) {
+          throw new Error('A conta ativa mudou durante a recuperação.');
         }
+      };
 
-        return this.users.getUserOnceFromFirestore$(safeUid).pipe(
-          take(1),
-          map((user) => {
-            if (!user?.uid || user.uid !== safeUid) {
-              throw new Error(
-                'O documento da conta não ficou disponível após a recuperação.'
-              );
-            }
-
-            return {
-              user,
-              created: result.created === true,
-              recoveredAtMs: result.recoveredAtMs,
-            } satisfies RegistrationRecoveryResult;
-          })
-        );
-      }),
-      tap(({ user }) => {
-        this.currentUserStore.set(user);
-      }),
+      assertCurrentSession();
+      return from(this.recoverCallable({ expectedUid: safeUid })).pipe(
+        map(({ data }) => {
+          assertCurrentSession();
+          return data;
+        }),
+        switchMap((result) => {
+          if (result?.ok !== true || result.uid !== safeUid || !Number.isFinite(result.recoveredAtMs)) {
+            throw new Error('A recuperação retornou dados inválidos.');
+          }
+          return this.users.getDocument<IUserDados>('users', safeUid, { source: 'server' }).pipe(
+            take(1),
+            map((user) => {
+              assertCurrentSession();
+              if (user?.uid !== safeUid) {
+                throw new Error('O documento da conta não ficou disponível após a recuperação.');
+              }
+              return { user, created: result.created === true, recoveredAtMs: result.recoveredAtMs };
+            }),
+            tap(({ user }) => {
+              if (hydrate) this.currentUserStore.set(user);
+            })
+          );
+        })
+      );
+    }).pipe(
+      timeout({ first: this.ACTION_TIMEOUT_MS }),
       catchError((error) => {
         this.reportError(error, safeUid);
         return throwError(() => error);

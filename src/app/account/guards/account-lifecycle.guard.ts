@@ -1,11 +1,14 @@
 //src\app\account\guards\account-lifecycle.guard.ts
 import { inject } from '@angular/core';
 import { Router, type UrlTree, type CanActivateFn } from '@angular/router';
-import { combineLatest, type Observable } from 'rxjs';
-import { filter, map, take } from 'rxjs/operators';
+import { combineLatest, of, type Observable } from 'rxjs';
+import { filter, map, take, timeout } from 'rxjs/operators';
 
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { AuthAppBlockService } from '@core/services/autentication/auth/auth-app-block.service';
+import { canContinueAgeRegistration } from '@core/services/autentication/auth/account-lifecycle.policy';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
+import { AUTH_GUARD_WAIT_MS, buildAuthRetryTree } from '@core/guards/_shared-guard/guard-utils';
 import {
   isRestrictedAccountStatus,
   resolveAccountStatus,
@@ -25,12 +28,14 @@ import {
  * - se não houver sessão, o auth guard existente continua cuidando do redirect.
  */
 export const accountLifecycleGuard: CanActivateFn = (
-  _route,
+  route,
   state
 ): Observable<boolean | UrlTree> => {
   const router = inject(Router);
   const authSession = inject(AuthSessionService);
   const currentUserStore = inject(CurrentUserStoreService);
+  const appBlock = inject(AuthAppBlockService);
+  const ageRegistrationRoute = route.data?.['allowPendingAgeRegistration'] === true;
 
   return combineLatest([
     authSession.ready$,
@@ -39,13 +44,14 @@ export const accountLifecycleGuard: CanActivateFn = (
   ]).pipe(
     /**
      * Auth precisa estar pronto. Para sessão autenticada, esperamos apenas a
-     * saída do tri-state `undefined`; `null` já é uma resolução real e será
-     * tratada como `unknown` pela política canônica, sem fail-open.
+     * saída do tri-state `undefined`. Na etapa de idade, também aguardamos
+     * a troca de perfil quando o anterior pertence a outra sessão.
      */
     filter(([ready, authUser, appUser]) => {
       if (!ready) return false;
       if (!authUser) return true;
-      return appUser !== undefined;
+      return appUser !== undefined &&
+        (!ageRegistrationRoute || appUser === null || appUser.uid === authUser.uid);
     }),
     take(1),
     map(([ready, authUser, appUser]) => {
@@ -53,20 +59,28 @@ export const accountLifecycleGuard: CanActivateFn = (
         return true;
       }
 
-      const status = resolveAccountStatus({
+      const context = {
         authReady: ready,
         authUid: authUser.uid,
         userResolved: appUser !== undefined,
         user: appUser,
-      });
+      };
 
-      if (isRestrictedAccountStatus(status)) {
+      const blockedReason = ageRegistrationRoute && appBlock.snapshot;
+      if (ageRegistrationRoute && !blockedReason && canContinueAgeRegistration(context)) {
+        return true;
+      }
+
+      const status = resolveAccountStatus(context);
+
+      if (blockedReason || isRestrictedAccountStatus(status)) {
         return router.createUrlTree(['/conta/status'], {
-          queryParams: { redirectTo: state.url },
+          queryParams: { redirectTo: state.url, ...(blockedReason ? { reason: blockedReason } : {}) },
         });
       }
 
       return true;
-    })
+    }),
+    timeout({ first: AUTH_GUARD_WAIT_MS, with: () => of(buildAuthRetryTree(router, state.url)) })
   );
 };

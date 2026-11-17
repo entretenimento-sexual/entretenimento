@@ -1,8 +1,12 @@
 import type { Auth } from '@angular/fire/auth';
+import { firstValueFrom, from, timeout } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { AuthAppBlockService } from '../services/autentication/auth/auth-app-block.service';
-import { markAuthInvalidUid, hasAuthInvalidUid, clearAuthInvalidUid } from './auth-invalid-session-marker';
+import { AuthSessionService } from '../services/autentication/auth/auth-session.service';
+import { FIREBASE_AUTH_RESTORE_TIMEOUT_MS } from './firebase-runtime.constants';
+import { readAuthInvalidUid } from './auth-invalid-session-marker';
+import { authInvalidationReason } from '../services/autentication/auth/auth.types';
 import { GlobalErrorHandlerService } from '../services/error-handler/global-error-handler.service';
 import {
   firebaseDebugLog,
@@ -13,21 +17,6 @@ import {
 type AuthWithOptionalStateReady = Auth & {
   authStateReady?: () => Promise<void>;
 };
-
-const INVALID_SESSION_ERROR_CODES = new Set([
-  'auth/user-not-found',
-  'auth/invalid-user-token',
-  'auth/user-token-expired',
-  'auth/user-disabled',
-]);
-
-function extractFirebaseErrorCode(error: unknown): string {
-  if (typeof error !== 'object' || error === null || !('code' in error)) {
-    return '';
-  }
-
-  return String((error as { code?: unknown }).code ?? '');
-}
 
 function normalizeInitializerError(error: unknown): Error {
   if (error instanceof Error) return error;
@@ -42,13 +31,15 @@ function normalizeInitializerError(error: unknown): Error {
 export function authRestoreInitializer(
   auth: Auth,
   globalErrorHandler: GlobalErrorHandlerService,
-  appBlock: AuthAppBlockService
+  appBlock: AuthAppBlockService,
+  session: AuthSessionService
 ): () => Promise<void> {
   return async (): Promise<void> => {
-    try {
-      await ((auth as AuthWithOptionalStateReady).authStateReady?.() ??
-        Promise.resolve());
-
+    // A espera da casca tem limite. Se o SDK hidratar mais tarde, a
+    // identidade que ele restaurar ainda passa pela política de bootstrap.
+    const termination = session.terminationVersionSnapshot;
+    const restore = Promise.resolve().then(async () => {
+      await (auth as AuthWithOptionalStateReady).authStateReady?.();
       const authEmulatorEndpoint = getFirebaseEmulatorEndpoint('auth');
       const usingAuthEmulator = authEmulatorEndpoint !== null;
       const persistenceMode = usingAuthEmulator
@@ -65,20 +56,18 @@ export function authRestoreInitializer(
       // Revalidacao no Cloud e no emulador. Identidade persistente nao
       // equivale a permissao de acesso se a credencial estiver invalida.
       const currentUser = auth.currentUser;
-      if (!currentUser) return;
+      if (!currentUser || session.terminationVersionSnapshot !== termination) return;
       const restoredUid = currentUser.uid;
 
       // O marcador, separado por UID, preserva um bloqueio confirmado mesmo
       // quando a pagina e atualizada antes de haver rede para revalidar.
-      if (hasAuthInvalidUid(restoredUid)) {
-        appBlock.set('auth-invalid');
-      }
+      const savedReason = readAuthInvalidUid(restoredUid);
+      if (savedReason) appBlock.applyInvalidation(restoredUid, savedReason, true);
 
       if (usingAuthEmulator && persistenceMode === 'memory') {
         // Modo excepcional de QA. Nao executa signOut automatico: impede
         // o uso de uma sessao restaurada incompativel com o modo selecionado.
-        markAuthInvalidUid(restoredUid);
-        appBlock.set('auth-invalid');
+        appBlock.recordInvalidation(restoredUid, 'session-expired', true);
         firebaseDebugLog('[AUTH][INIT] memory-mode restored user blocked', {
           uid: restoredUid,
         });
@@ -86,39 +75,47 @@ export function authRestoreInitializer(
       }
 
       try {
-        await currentUser.reload();
-        // Nunca desbloquear a conta B por uma resposta atrasada da conta A.
-        if (auth.currentUser?.uid !== restoredUid) return;
-
-        clearAuthInvalidUid(restoredUid);
-        if (appBlock.snapshot === 'auth-invalid') {
-          appBlock.clear();
-        }
+        const reload = Promise.resolve().then(() => currentUser.reload()).catch((error: unknown) => {
+          session.recordReloadFailure(currentUser, termination, error);
+          throw error;
+        });
+        await reload;
+        if (auth.currentUser !== currentUser || session.terminationVersionSnapshot !== termination ||
+            session.isTerminatingSnapshot) return;
+        appBlock.resolveInvalidation(restoredUid);
 
         firebaseDebugLog('[AUTH][INIT] reload ok', {
           uid: restoredUid,
           emailVerified: currentUser.emailVerified === true,
         });
       } catch (error: unknown) {
-        if (auth.currentUser?.uid !== restoredUid) return;
-        const code = extractFirebaseErrorCode(error);
+        if (session.terminationVersionSnapshot !== termination) return;
+        const active = auth.currentUser;
+        if (active && (active !== currentUser || active.uid !== restoredUid)) return;
+        const reason = authInvalidationReason(error);
 
         firebaseDebugLog('[AUTH][INIT] reload failed', {
           uid: restoredUid,
-          code,
+          reason,
         });
-
-        if (INVALID_SESSION_ERROR_CODES.has(code)) {
-          markAuthInvalidUid(restoredUid);
-          appBlock.set('auth-invalid');
-          return;
-        }
 
         // Oscilacoes de rede nao executam signOut nem apagam bloqueio
         // persistido. A autorizacao no servidor continua obrigatoria.
       }
+    });
+
+    const report = (error: unknown) => {
+      globalErrorHandler.handleError(Object.assign(normalizeInitializerError(error), {
+        silent: true,
+        context: 'authRestoreInitializer',
+      }));
+    };
+    try {
+      await firstValueFrom(from(restore.catch(report)).pipe(
+        timeout({ first: FIREBASE_AUTH_RESTORE_TIMEOUT_MS })
+      ));
     } catch (error: unknown) {
-      globalErrorHandler.handleError(normalizeInitializerError(error));
+      report(error);
     }
   };
 }

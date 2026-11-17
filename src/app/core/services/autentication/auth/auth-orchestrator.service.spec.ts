@@ -1,3 +1,4 @@
+import { BehaviorSubject, NEVER, Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
@@ -33,15 +34,21 @@ describe('AuthOrchestratorService canonical errors', () => {
       set: vi.fn(),
       clear: vi.fn(),
       reason$: { pipe: vi.fn() },
+      invalidationSnapshot: null as { uid: string; reason: string } | null,
     };
 
+    const authSession = {
+      currentAuthUser: { uid: 'user-a' },
+      isTerminatingSnapshot: false,
+    };
+    const userRepo = { confirmUserDocMissing$: vi.fn() };
     const service = new AuthOrchestratorService(
-      {} as AuthSessionService,
+      authSession as unknown as AuthSessionService,
       {} as AuthRouteContextService,
       {} as AuthUserDocumentWatchService,
       sessionMonitor as unknown as AuthSessionMonitorService,
       {} as AuthPostLoginEffectsService,
-      {} as UserRepositoryService,
+      userRepo as unknown as UserRepositoryService,
       router as never,
       applicationError as unknown as ApplicationErrorService,
       appBlock as unknown as AuthAppBlockService,
@@ -54,6 +61,8 @@ describe('AuthOrchestratorService canonical errors', () => {
       router,
       sessionMonitor,
       appBlock,
+      authSession,
+      userRepo,
       service,
     };
   }
@@ -138,6 +147,100 @@ describe('AuthOrchestratorService canonical errors', () => {
 
     target.handleUidChange('user-b');
     expect(appBlock.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserva o bloqueio técnico da conta que está entrando', () => {
+    const { service, appBlock } = createHarness();
+    const target = service as unknown as { handleUidChange(uid: string): void };
+    target.handleUidChange('user-a');
+    appBlock.invalidationSnapshot = { uid: 'user-b', reason: 'session-disabled' };
+
+    target.handleUidChange('user-b');
+
+    expect(appBlock.clear).not.toHaveBeenCalled();
+  });
+
+  it('descarta confirmação obsoleta após troca de conta ou de sessão do mesmo UID', async () => {
+    for (const nextUid of ['user-b', 'user-a']) {
+      const { service, authSession, userRepo, appBlock } = createHarness();
+      const result$ = new Subject<boolean>();
+      userRepo.confirmUserDocMissing$.mockReturnValue(result$);
+      const target = service as unknown as {
+        sawUserDocOnce: boolean;
+        handleUidChange(uid: string): void;
+        handleNoAuthUser(): void;
+        confirmAndSignOutIfMissing(uid: string, reason: 'deleted'): Promise<void>;
+      };
+      target.handleUidChange('user-a');
+      target.sawUserDocOnce = true;
+      const confirmation = target.confirmAndSignOutIfMissing('user-a', 'deleted');
+      expect(userRepo.confirmUserDocMissing$).toHaveBeenCalledWith('user-a');
+
+      if (nextUid === 'user-a') target.handleNoAuthUser();
+      authSession.currentAuthUser = { uid: nextUid };
+      target.handleUidChange(nextUid);
+      result$.next(true);
+      await confirmation;
+
+      expect(appBlock.set).not.toHaveBeenCalled();
+    }
+  });
+
+  it('continua processando trocas de conta após falha em um contexto', () => {
+    const users = new BehaviorSubject({ uid: 'a', emailVerified: true });
+    const routes = new BehaviorSubject({
+      currentUrl: '/dashboard',
+      navPath: '/dashboard',
+      routerReady: true,
+      inRegistrationFlow: false,
+    });
+    const profiles = new BehaviorSubject({ uid: 'a', accountStatus: 'active' });
+    const watch$ = vi.fn(() => NEVER);
+    const error = new Error('Falha na ativação do monitor');
+    const sessionMonitor = {
+      start: vi.fn().mockImplementationOnce(() => { throw error; }),
+      stop: vi.fn(),
+    };
+    const applicationError = { report: vi.fn() };
+    const service = new AuthOrchestratorService(
+      { ready$: of(true), authUser$: users } as unknown as AuthSessionService,
+      { context$: routes } as unknown as AuthRouteContextService,
+      { watch$ } as unknown as AuthUserDocumentWatchService,
+      sessionMonitor as unknown as AuthSessionMonitorService,
+      { run$: () => of(null) } as unknown as AuthPostLoginEffectsService,
+      {} as UserRepositoryService,
+      { url: '/dashboard' } as never,
+      applicationError as unknown as ApplicationErrorService,
+      new AuthAppBlockService(),
+      { user$: profiles } as unknown as CurrentUserStoreService,
+      { log: vi.fn() } as unknown as PrivacyDebugLoggerService
+    );
+
+    service.start();
+    expect(applicationError.report).toHaveBeenCalledWith(error,
+      expect.objectContaining({ operation: 'start.context' }));
+    expect(watch$).not.toHaveBeenCalled();
+
+    users.next({ uid: 'b', emailVerified: true });
+    profiles.next({ uid: 'b', accountStatus: 'active' });
+    expect(watch$).toHaveBeenCalledWith('b');
+  });
+
+  it('bloqueia um documento confirmado como ausente quando a sessão permanece atual', async () => {
+    const { service, userRepo, appBlock } = createHarness();
+    const result$ = new Subject<boolean>();
+    userRepo.confirmUserDocMissing$.mockReturnValue(result$);
+    const target = service as unknown as {
+      sawUserDocOnce: boolean;
+      handleUidChange(uid: string): void;
+      confirmAndSignOutIfMissing(uid: string, reason: 'deleted'): Promise<void>;
+    };
+    target.handleUidChange('user-a');
+    target.sawUserDocOnce = true;
+    const confirmation = target.confirmAndSignOutIfMissing('user-a', 'deleted');
+    result$.next(true);
+    await confirmation;
+    expect(appBlock.set).toHaveBeenCalledWith('deleted');
   });
 
 });

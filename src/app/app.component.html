@@ -6,7 +6,22 @@
 <app-global-network-status />
 
 <div id="route-content" class="route-content" tabindex="-1">
-  <router-outlet></router-outlet>
+  @let sessionExitPending = sessionExitPending$ | async;
+  @if (sessionExitPending) {
+    @if (sessionExitLoginFailed$ | async) {
+      <p role="status" aria-live="polite">
+        Sua sessão foi encerrada. Não foi possível abrir a tela de login.
+      </p>
+      <button class="app-action app-action--primary" type="button" (click)="retrySessionExitLogin()">
+        Abrir login
+      </button>
+    } @else {
+      <p role="status" aria-live="polite">Abrindo a tela de login…</p>
+    }
+  }
+  <div [hidden]="sessionExitPending !== null" [inert]="sessionExitPending !== null">
+    <router-outlet></router-outlet>
+  </div>
 </div>
 
 <app-footer *ngIf="showFooter$ | async"></app-footer>

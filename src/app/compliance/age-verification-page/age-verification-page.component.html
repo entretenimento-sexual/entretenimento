@@ -4,7 +4,7 @@
       <span class="age-verification__mark" aria-hidden="true">18+</span>
       <app-page-header
         title="Verificação de maioridade"
-        subtitle="A plataforma é exclusiva para adultos. A verificação pertence à sua conta e não precisa ser repetida em cada foto, vídeo ou área do app."
+        subtitle="Confirme sua idade para continuar seu cadastro."
       />
     </div>
 
@@ -37,9 +37,18 @@
           <span class="age-verification__status-icon" aria-hidden="true">✓</span>
           <div>
             <strong>Maioridade registrada na conta</strong>
-            <p>Estamos preparando a próxima etapa.</p>
+            <p>{{ continuing() ? 'Estamos preparando a próxima etapa.' : 'Continue para o próximo passo do cadastro.' }}</p>
           </div>
         </section>
+        <button
+          type="button"
+          class="app-action app-action--primary"
+          [disabled]="continuing()"
+          [attr.aria-busy]="continuing()"
+          (click)="continueAfterAgeStep()"
+        >
+          {{ continuing() ? 'Abrindo próxima etapa…' : 'Continuar' }}
+        </button>
       } @else if (vm.deniedUnderage) {
         <section class="age-verification__status age-verification__status--warning" role="alert">
           <span class="age-verification__status-icon" aria-hidden="true">!</span>

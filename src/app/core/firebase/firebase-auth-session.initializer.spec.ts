@@ -2,9 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Auth } from '@angular/fire/auth';
 import { authRestoreInitializer } from './firebase-auth-session.initializer';
 import { environment } from '../../../environments/environment';
-import { FIREBASE_AUTH_EMULATOR_PERSISTENCE_STORAGE_KEY } from './firebase-runtime.constants';
-import { markAuthInvalidUid, hasAuthInvalidUid } from './auth-invalid-session-marker';
-import type { AuthAppBlockService } from '../services/autentication/auth/auth-app-block.service';
+import {
+  FIREBASE_AUTH_EMULATOR_PERSISTENCE_STORAGE_KEY,
+  FIREBASE_AUTH_RESTORE_TIMEOUT_MS,
+} from './firebase-runtime.constants';
+import { markAuthInvalidUid, hasAuthInvalidUid, readAuthInvalidUid } from './auth-invalid-session-marker';
+import { AuthAppBlockService } from '../services/autentication/auth/auth-app-block.service';
+import { AuthSessionService } from '../services/autentication/auth/auth-session.service';
+import type { PrivacyDebugLoggerService } from '../services/privacy/privacy-debug-logger.service';
 import type { GlobalErrorHandlerService } from '../services/error-handler/global-error-handler.service';
 
 function fakeStorage(): Storage {
@@ -21,15 +26,17 @@ function fakeStorage(): Storage {
 
 function harness(reload: () => Promise<void>) {
   const user = { uid: 'user-a', emailVerified: true, reload: vi.fn(reload) };
-  const auth = { currentUser: user, authStateReady: vi.fn().mockResolvedValue(undefined) };
-  const appBlock = { snapshot: null as 'auth-invalid' | null, set: vi.fn(), clear: vi.fn() };
-  appBlock.set.mockImplementation((reason: 'auth-invalid') => { appBlock.snapshot = reason; });
-  appBlock.clear.mockImplementation(() => { appBlock.snapshot = null; });
+  const auth = { currentUser: user as typeof user | null, authStateReady: vi.fn().mockResolvedValue(undefined) };
+  const appBlock = new AuthAppBlockService();
+  vi.spyOn(appBlock, 'set');
+  vi.spyOn(appBlock, 'clear');
   const globalErrorHandler = { handleError: vi.fn() };
+  const session = new AuthSessionService(auth as unknown as Auth,
+    { log: vi.fn() } as unknown as PrivacyDebugLoggerService, appBlock);
   const run = authRestoreInitializer(auth as unknown as Auth,
     globalErrorHandler as unknown as GlobalErrorHandlerService,
-    appBlock as unknown as AuthAppBlockService);
-  return { run, user, auth, appBlock, globalErrorHandler };
+    appBlock, session);
+  return { run, user, auth, appBlock, globalErrorHandler, session };
 }
 
 // Cada teste configura o ambiente real sem mockar imports relativos.
@@ -51,11 +58,59 @@ afterEach(() => {
   environment.production = originalEnvironment.production;
   environment.useEmulators = originalEnvironment.useEmulators;
   environment.emulators = originalEnvironment.emulators;
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
 
 describe('authRestoreInitializer policy', () => {
+  it('libera a abertura no prazo mesmo se o Firebase ainda estiver restaurando', async () => {
+    vi.useFakeTimers();
+    let resolveReady!: () => void;
+    const t = harness(() => Promise.resolve());
+    t.auth.authStateReady.mockReturnValue(new Promise<void>((resolve) => { resolveReady = resolve; }));
+    const boot = t.run();
+
+    await vi.advanceTimersByTimeAsync(FIREBASE_AUTH_RESTORE_TIMEOUT_MS);
+    await boot;
+    expect(t.user.reload).not.toHaveBeenCalled();
+    expect(t.globalErrorHandler.handleError).toHaveBeenCalledWith(expect.objectContaining({ silent: true }));
+    resolveReady();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(t.user.reload).toHaveBeenCalledOnce();
+  });
+
+  it('preserva o marcador durante uma revalidação lenta e resolve ao confirmar a mesma pessoa', async () => {
+    vi.useFakeTimers();
+    markAuthInvalidUid('user-a');
+    let resolveReload!: () => void;
+    const t = harness(() => new Promise<void>((resolve) => { resolveReload = resolve; }));
+    const boot = t.run();
+
+    await vi.advanceTimersByTimeAsync(FIREBASE_AUTH_RESTORE_TIMEOUT_MS);
+    await boot;
+    expect(hasAuthInvalidUid('user-a')).toBe(true);
+    resolveReload();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(hasAuthInvalidUid('user-a')).toBe(false);
+  });
+
+  it('ignora invalidação que chega após o encerramento voluntário da sessão', async () => {
+    vi.useFakeTimers();
+    let rejectReload!: (error: unknown) => void;
+    const t = harness(() => new Promise<void>((_, reject) => { rejectReload = reject; }));
+    const boot = t.run();
+
+    await vi.advanceTimersByTimeAsync(FIREBASE_AUTH_RESTORE_TIMEOUT_MS);
+    await boot;
+    t.session.beginTermination();
+    t.auth.currentUser = null;
+    t.session.endTermination();
+    rejectReload(Object.assign(new Error('expired'), { code: 'auth/user-token-expired' }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(hasAuthInvalidUid('user-a')).toBe(false);
+  });
+
   it('revalida no Cloud sem encerrar a sessao', async () => {
     const t = harness(() => Promise.resolve());
     await t.run();
@@ -104,11 +159,25 @@ describe('authRestoreInitializer policy', () => {
     const t = harness(() => pending);
     const promise = t.run();
     await vi.waitFor(() => expect(t.user.reload).toHaveBeenCalledOnce());
-    t.auth.currentUser.uid = 'user-b';
+    t.auth.currentUser = { ...t.user, uid: 'user-b' };
     rejectReload(Object.assign(new Error('expired'), { code: 'auth/user-token-expired' }));
     await promise;
     expect(t.appBlock.set).not.toHaveBeenCalled();
     expect(hasAuthInvalidUid('user-a')).toBe(false);
+  });
+
+  it.each([
+    ['auth/user-disabled', 'session-disabled'],
+    ['auth/user-token-expired', 'session-expired'],
+  ])('preserva a causa %s quando o SDK já limpou o usuário', async (code, reason) => {
+    const t = harness(async () => {
+      t.auth.currentUser = null;
+      throw Object.assign(new Error('SDK invalidation'), { code });
+    });
+    await t.run();
+    expect(t.appBlock.invalidationSnapshot).toEqual({ uid: 'user-a', reason });
+    expect(readAuthInvalidUid('user-a')).toBe(reason);
+    expect(t.appBlock.snapshot).toBeNull();
   });
 
   it('bloqueia ghost no modo QA memory sem signOut', async () => {

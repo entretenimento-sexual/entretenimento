@@ -245,11 +245,6 @@ export class AccessControlService {
 
   readonly authUser$ = this.session.authUser$.pipe(
     startWith(null),
-    distinctUntilChanged(
-      (a, b) =>
-        (a?.uid ?? null) === (b?.uid ?? null) &&
-        (a?.emailVerified ?? false) === (b?.emailVerified ?? false)
-    ),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('authUser$', null))
   );

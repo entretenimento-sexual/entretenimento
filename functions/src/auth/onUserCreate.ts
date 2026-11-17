@@ -14,8 +14,8 @@ import { buildInitialUserSeed } from './user-registration-seed';
  * Regras de concorrência:
  * - se o fluxo web já criou users/{uid}, a trigger preserva todos os campos e
  *   preenche apenas `profileId` quando ele estiver ausente ou inválido;
- * - se a trigger criar primeiro, o bootstrap de e-mail ou social pode completar
- *   os dados depois com merge;
+ * - se a trigger criar primeiro, a reserva de apelido complementa o documento
+ *   e a recuperação social reutiliza o seed criado;
  * - nunca rebaixa aceite de termos, nickname ou outros dados já persistidos.
  */
 export const onUserCreate = authTrigger.user().onCreate(async (user) => {

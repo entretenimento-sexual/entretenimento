@@ -120,22 +120,19 @@
                   Planos
                 </a>
 
-                <button
-                  type="button"
-                  (click)="accountMenu.open = false; logout()"
-                >
-                  Sair
+                <button type="button" (click)="logout()" [disabled]="logoutPending()">
+                  {{ logoutPending() ? 'Encerrando sessão…' : 'Sair' }}
                 </button>
               </div>
             </details>
           </li>
         } @else if (isAuthenticated && isPublicAuthRoute) {
           <li class="navbar-item">
-            <button type="button" class="navbar-link as-button" (click)="logout()">
-              Sair
+            <button type="button" class="navbar-link as-button" (click)="logout()" [disabled]="logoutPending()">
+              {{ logoutPending() ? 'Encerrando sessão…' : 'Sair' }}
             </button>
           </li>
-        } @else {
+        } @else if (!logoutPending()) {
           @if (!isLoginPage) {
             <li class="navbar-item">
               <a
@@ -190,6 +187,9 @@
             </button>
           </li>
         }
+        @if (logoutPending()) {
+          <li class="navbar-item" role="status" [class.visually-hidden]="isAuthenticated">Encerrando sessão…</li>
+        }
       </ul>
     </div>
   </nav>
@@ -234,18 +234,22 @@
         <button
           type="button"
           class="navbar-mobile-link navbar-mobile-link--button"
-          (click)="logout(); closeMobileMenu()"
+          (click)="logout()"
+          [disabled]="logoutPending()"
         >
-          Sair
+          {{ logoutPending() ? 'Encerrando sessão…' : 'Sair' }}
         </button>
       } @else if (isAuthenticated && isPublicAuthRoute) {
         <button
           type="button"
           class="navbar-mobile-link navbar-mobile-link--button"
-          (click)="logout(); closeMobileMenu()"
+          (click)="logout()"
+          [disabled]="logoutPending()"
         >
-          Sair
+          {{ logoutPending() ? 'Encerrando sessão…' : 'Sair' }}
         </button>
+      } @else if (logoutPending()) {
+        <span class="navbar-mobile-link">Encerrando sessão…</span>
       } @else {
         @if (!isLoginPage) {
           <a

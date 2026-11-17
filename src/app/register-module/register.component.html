@@ -19,16 +19,10 @@
       [attr.aria-live]="b.variant === 'error' ? 'assertive' : 'polite'"
       aria-atomic="true">
 
-      <strong>{{ b.variant === 'info' ? 'Não foi possível concluir' : b.title }}</strong>
-      <span>
-        {{
-          b.variant === 'info'
-            ? 'Revise os dados informados. Caso já tenha iniciado um acesso, verifique sua caixa de entrada ou use a recuperação de senha.'
-            : b.message
-        }}
-      </span>
+      <strong>{{ b.title }}</strong>
+      <span>{{ b.message }}</span>
 
-      <div *ngIf="b.variant === 'info'" class="actions">
+      <div *ngIf="b.showAccessLink" class="actions">
         <a class="app-action app-action--ghost" routerLink="/login">Entrar ou recuperar acesso</a>
       </div>
 
@@ -39,10 +33,6 @@
 
         <button class="app-action app-action--ghost" type="button" (click)="syncSessionNow()" [disabled]="syncing()">
           Sincronizar sessão
-        </button>
-
-        <button class="app-action app-action--ghost" type="button" (click)="resetForm()" [disabled]="isLoading() || creating()">
-          Refazer cadastro
         </button>
 
         <button class="app-action app-action--ghost" type="button" (click)="toggleTech()">

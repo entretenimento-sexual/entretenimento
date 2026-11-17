@@ -45,12 +45,14 @@ import {
   switchMap,
   take,
   tap,
+  timeout,
 } from 'rxjs/operators';
 
 import { FirestoreReadService } from '../data-handling/firestore/core/firestore-read.service';
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
 import { ApplicationErrorService } from '../error-handler/application-error.service';
 import { RegistrationBootstrapService } from './register/registration-bootstrap.service';
+import { AuthAppBlockService } from './auth/auth-app-block.service';
 import { AuthSessionPersistenceService } from './auth-session-persistence.service';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -59,8 +61,6 @@ import { toEpochOrZero } from 'src/app/core/utils/epoch-utils';
 import { environment } from 'src/environments/environment';
 import {
   AccountStatus,
-  DEFAULT_ACCESS_CONTROL,
-  IUserAccessControl,
   Tier,
 } from '../../interfaces/interfaces-user-dados/user-access-control.interface';
 
@@ -96,6 +96,7 @@ export interface SocialAuthResult {
   user: IUserDados | null;
   nextRoute: SocialAuthNextRoute | null;
   blockedReason?: SocialAuthBlockReason;
+  authenticatedUid?: string;
   code?: string;
   message?: string;
 }
@@ -165,6 +166,7 @@ export class SocialAuthService {
   private readonly debug = !environment.production && !!environment.enableDebugTools;
 
   constructor(
+    private readonly appBlock: AuthAppBlockService,
     private readonly auth: Auth,
     private readonly read: FirestoreReadService,
     private readonly write: FirestoreWriteService,
@@ -209,6 +211,9 @@ export class SocialAuthService {
       runInInjectionContext(this.envInjector, () => signInWithPopup(this.auth, provider))
     ).pipe(
       tap((credential) => {
+        if (this.auth.currentUser?.uid === credential.user.uid) {
+          this.appBlock.resolveInvalidation(credential.user.uid);
+        }
         this.dbg('signInWithPopup:ok', {
           uid: credential?.user?.uid ?? null,
           providerId: credential?.providerId ?? 'google.com',
@@ -241,7 +246,11 @@ export class SocialAuthService {
       .getDocument<SocialAuthUserDoc>('users', authUser.uid, { source: 'server' })
       .pipe(
         take(1),
+        timeout({ first: 15_000 }),
         switchMap((doc) => {
+          if (this.auth.currentUser !== authUser) {
+            throw new Error('A conta ativa mudou durante a autenticação.');
+          }
           if (doc) {
             return this.handleExistingUserLogin$(doc, authUser, nowMs);
           }
@@ -257,6 +266,7 @@ export class SocialAuthService {
           return of(
             this.makeErrorResult({
               code: 'social-auth/bootstrap-failed',
+              authenticatedUid: authUser.uid,
               message: 'Não foi possível preparar sua conta agora.',
             })
           );
@@ -272,30 +282,21 @@ export class SocialAuthService {
     authUser: FirebaseUser,
     nowMs: number
   ): Observable<SocialAuthResult> {
-    const seed = this.buildNewUserSeed(authUser, nowMs);
-
     return this.registrationBootstrap
-      .createSocialSeed$({
-        uid: authUser.uid,
-        email: authUser.email ?? '',
-        emailVerified: !!authUser.emailVerified,
-        photoURL: authUser.photoURL,
-        providerIds: seed.authProviders,
-        providerId: 'google.com',
-        nowMs,
-      })
+      .createSocialSeed$({ uid: authUser.uid })
       .pipe(
-        map(() => {
-          const user = this.mapToUserDados(seed, nowMs);
+        switchMap(({ user, created }) => {
+          const recovered = user as unknown as SocialAuthUserDoc;
+          if (!created) return this.handleExistingUserLogin$(recovered, authUser, nowMs);
 
-          return this.makeSuccessResult({
+          return of(this.makeSuccessResult({
             outcome: 'profile-incomplete',
             isNewUser: true,
             emailVerified: !!authUser.emailVerified,
-            user,
+            user: this.mapToUserDados(recovered, nowMs),
             nextRoute: '/register/finalizar-cadastro',
             message: 'Conta criada com Google. Finalize seu cadastro para continuar.',
-          });
+          }));
         }),
         tap((result) => {
           this.dbg('handleNewUserLogin:done', {
@@ -313,67 +314,12 @@ export class SocialAuthService {
           return of(
             this.makeErrorResult({
               code: 'social-auth/new-user-write-failed',
+              authenticatedUid: authUser.uid,
               message: 'Não foi possível concluir a criação da conta com Google.',
             })
           );
         })
       );
-  }
-
-  private buildNewUserSeed(
-    authUser: FirebaseUser,
-    nowMs: number
-  ): SocialAuthUserDoc {
-    const acl: IUserAccessControl = {
-      ...DEFAULT_ACCESS_CONTROL,
-      tier: 'free',
-    };
-
-    const providerIds = this.extractProviderIds(authUser);
-
-    return {
-      uid: authUser.uid,
-      email: authUser.email ?? '',
-      nickname: '',
-      photoURL: this.normalizePhotoUrl(authUser.photoURL),
-
-      emailVerified: !!authUser.emailVerified,
-      isSubscriber: false,
-      profileCompleted: false,
-
-      /**
-       * Novo usuário via Google deve nascer FREE.
-       * Isso evita contaminar a UI de assinatura com "basic" sem pagamento.
-       */
-      role: 'free',
-      tier: acl.tier,
-
-      firstLogin: nowMs,
-      registrationDate: nowMs,
-      lastLogin: nowMs,
-      createdAt: nowMs,
-      updatedAtMs: nowMs,
-
-      acceptedTerms: {
-        accepted: false,
-        date: nowMs,
-      },
-
-      roles: Array.isArray(acl.roles) ? acl.roles : ['user'],
-      permissions: Array.isArray(acl.permissions) ? acl.permissions : [],
-      entitlements: Array.isArray(acl.entitlements) ? acl.entitlements : [],
-      accountStatus: acl.accountStatus ?? 'active',
-
-      suspended: false,
-      accountLocked: false,
-
-      publicVisibility: acl.publicVisibility ?? 'visible',
-      interactionBlocked: acl.interactionBlocked ?? false,
-      loginAllowed: acl.loginAllowed ?? true,
-
-      authProviders: providerIds,
-      lastProvider: 'google.com',
-    };
   }
 
   // ===========================================================================
@@ -461,6 +407,7 @@ export class SocialAuthService {
           return of(
             this.makeErrorResult({
               code: 'social-auth/existing-user-update-failed',
+              authenticatedUid: authUser.uid,
               message: 'Não foi possível atualizar os dados da conta agora.',
             })
           );
@@ -690,6 +637,7 @@ export class SocialAuthService {
   }
 
   private makeErrorResult(params: {
+    authenticatedUid?: string;
     code?: string;
     message: string;
   }): SocialAuthResult {
@@ -700,6 +648,7 @@ export class SocialAuthService {
       emailVerified: false,
       user: null,
       nextRoute: null,
+      ...(params.authenticatedUid ? { authenticatedUid: params.authenticatedUid } : {}),
       code: params.code,
       message: params.message,
     };

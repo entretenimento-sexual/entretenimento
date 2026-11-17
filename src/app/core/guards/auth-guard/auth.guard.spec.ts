@@ -5,9 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApplicationErrorService } from '../../services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../../services/error-handler/error-notification.service';
+import { AuthAppBlockService } from '../../services/autentication/auth/auth-app-block.service';
 import { AuthSessionService } from '../../services/autentication/auth/auth-session.service';
 import { authGuard } from './auth.guard';
 import { authOnlyGuard } from './auth-only.guard';
+import { AUTH_GUARD_WAIT_MS } from '../_shared-guard/guard-utils';
 
 describe('auth guards - single operational session authority', () => {
   let ready$: BehaviorSubject<boolean>;
@@ -99,6 +101,24 @@ describe('auth guards - single operational session authority', () => {
     const pending = run('/conta');
     await vi.advanceTimersByTimeAsync(2000);
     expectLogin(await pending, '/conta');
+  });
+
+  it('encaminha ao login com a causa confirmada da perda', async () => {
+    const appBlock = TestBed.inject(AuthAppBlockService);
+    appBlock.applyInvalidation('user-a', 'session-disabled', true);
+    const result = await run();
+    expectLogin(result, '/conta/seguranca');
+    expect((result as UrlTree).queryParams['reason']).toBe('session-disabled');
+  });
+
+  it('oferece nova tentativa quando o SDK não termina a inicialização', async () => {
+    vi.useFakeTimers();
+    ready$.next(false);
+    const pending = run('/conta/seguranca?aba=sessao');
+    await vi.advanceTimersByTimeAsync(AUTH_GUARD_WAIT_MS);
+    const result = await pending;
+    expectLogin(result, '/conta/seguranca?aba=sessao');
+    expect((result as UrlTree).queryParams['reason']).toBe('auth_unavailable');
   });
 
   it('aguarda ready$ para não redirecionar prematuramente o refresh', async () => {

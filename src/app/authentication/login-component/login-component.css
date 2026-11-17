@@ -415,52 +415,10 @@
   line-height: 1.35;
 }
 
-.modal-content {
-  width: min(100%, 420px);
-  padding: clamp(1.25rem, 4vw, 1.75rem);
-  border: 1px solid var(--surface-border, color-mix(in oklab, var(--text-color) 14%, transparent));
-  border-radius: 20px;
-  background: color-mix(in oklab, var(--background-color) 94%, white 6%);
-  color: var(--text-color);
-  box-shadow: 0 24px 70px color-mix(in oklab, black 22%, transparent);
-}
-
-.modal-content h2 {
-  margin: 0;
-  color: var(--text-color);
-  font-size: clamp(1.35rem, 5vw, 1.75rem);
-  line-height: 1.1;
-}
-
-.modal-content p {
-  margin: 0.75rem 0 0;
-  color: color-mix(in oklab, var(--text-color) 76%, transparent);
-  line-height: 1.55;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-top: 1rem;
-}
-
-.modal-actions .app-action {
-  min-height: 44px;
-  border-radius: 12px;
-}
-
-.modal-actions .app-action:disabled {
-  opacity: 0.62;
-  cursor: not-allowed;
-}
-
 html.high-contrast .form-container,
 html.high-contrast .btn-google,
 html.high-contrast .app-control,
-html.high-contrast .password-toggle,
-html.high-contrast .modal-content {
+html.high-contrast .password-toggle {
   border-color: currentColor !important;
   box-shadow: none !important;
 }
@@ -541,10 +499,6 @@ html.high-contrast .loading-overlay .spinner {
     margin-left: auto;
   }
 
-  .modal-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
 }
 
 @media (max-width: 380px) {

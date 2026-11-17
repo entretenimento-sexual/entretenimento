@@ -3,11 +3,47 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { distinctUntilChanged, shareReplay } from 'rxjs/operators';
-import type { TerminateReason } from './auth.types';
+import type { SessionEndReason, TerminateReason } from './auth.types';
+import { clearAuthInvalidUid, markAuthInvalidUid } from '@core/firebase/auth-invalid-session-marker';
+
+interface AuthInvalidation {
+  uid: string;
+  reason: SessionEndReason;
+}
 
 @Injectable({ providedIn: 'root' })
 export class AuthAppBlockService {
   private readonly _reason$ = new BehaviorSubject<TerminateReason | null>(null);
+
+  private readonly invalidationSubject = new BehaviorSubject<AuthInvalidation | null>(null);
+  readonly invalidation$ = this.invalidationSubject.asObservable();
+
+  get invalidationSnapshot(): AuthInvalidation | null {
+    return this.invalidationSubject.value;
+  }
+
+  recordInvalidation(uid: string, reason: SessionEndReason, block: boolean): void {
+    markAuthInvalidUid(uid, reason);
+    this.applyInvalidation(uid, reason, block);
+  }
+
+  applyInvalidation(uid: string, reason: SessionEndReason, block: boolean): void {
+    const current = this.invalidationSnapshot;
+    if (current?.uid !== uid || current.reason !== reason) {
+      this.invalidationSubject.next({ uid, reason });
+    }
+    if (block && this.snapshot !== 'auth-invalid') this.set('auth-invalid');
+  }
+
+  resolveInvalidation(uid: string): void {
+    clearAuthInvalidUid(uid);
+    if (this.invalidationSnapshot?.uid === uid) this.forgetInvalidation();
+  }
+
+  forgetInvalidation(): void {
+    this.invalidationSubject.next(null);
+    if (this.snapshot === 'auth-invalid') this.clear();
+  }
 
   /** null = não bloqueado; TerminateReason = app bloqueado (sem logout) */
   readonly reason$: Observable<TerminateReason | null> = this._reason$.asObservable().pipe(

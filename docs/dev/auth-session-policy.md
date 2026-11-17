@@ -128,3 +128,46 @@ por refresh.
 - O modo QA memory bloqueia uma identidade restaurada indevidamente, sem signOut.
 - Validar em QA a resposta visual ao bloqueio, reautenticacao e sincronizacao
   entre abas. O backend continua responsavel pela autorizacao efetiva.
+
+## Cadastro pendente e troca de conta
+
+- A rota de idade permite apenas o acesso à etapa do cadastro para um perfil ativo, incompleto, privado e com login permitido. Suspensão, lock, exclusão pendente, restrição por reverificação etária, retenção de moderação e bloqueio técnico continuam impedindo esse caminho. O lifecycle das rotas de produto e a autorização do backend continuam independentes da exceção de navegação.
+- O UID vem de `AuthSessionService`. Perfil, decisão etária, aceite, confirmação de documento ausente e navegação pós-login só afetam a conta que iniciou a operação. O orquestrador também invalida consultas do ciclo anterior quando o mesmo UID volta após sair.
+- Após confirmação etária, `RegisterFlowFacade` define a próxima etapa. A página preserva o destino original para depois do cadastro e apresenta progresso, confirmação ou uma ação para tentar abrir a próxima tela novamente. O login aguarda a navegação antes de encerrar a operação.
+- Quando o cadastro já criou a conta e a tela de verificação não abriu, a interface informa que a conta foi criada e orienta a entrar com o e-mail usado no cadastro.
+
+[Política de lifecycle](../../src/app/core/services/autentication/auth/account-lifecycle.policy.ts) · [Orquestrador](../../src/app/core/services/autentication/auth/auth-orchestrator.service.ts) · [Login](../../src/app/authentication/login-component/login-component.ts) · [Fluxo de logout](../../src/app/authentication/login-component/logout-fluxo.md) · [Cadastro](../../src/app/register-module/register.component.ts) · [Estado do cadastro](../../src/app/register-module/data-access/register-flow.facade.ts) · [Etapa de idade](../../src/app/compliance/age-verification-page/age-verification-page.component.ts)
+
+## Perda de sessão e retorno ao login
+
+- Em uma tela que exige autenticação, a perda do UID Firebase esconde o conteúdo e encaminha à tela de login. O destino interno é preservado. Quando a causa é desconhecida, o login informa “Sua sessão foi encerrada. Entre novamente para continuar.”
+- Uma verificação de credencial pode concluir após o próprio SDK limpar o usuário. O motivo conhecido é registrado para o UID que iniciou a verificação e pode atualizar o login que já abriu. O marcador local contém apenas o motivo associado ao UID. Outras abas só o aplicam à conta ativa ou à conta que acabaram de perder.
+- Login bem-sucedido por senha ou Google limpa o marcador do UID autenticado. Uma falha de rede isolada preserva a sessão. Encerramento voluntário segue o fluxo do `LogoutService`.
+- Se o e-mail inicial falhar após a criação da conta, a tela de verificação oferece “Reenviar e-mail”. Se a sessão acabar durante o cadastro, a ação “Entrar novamente” retoma a conta existente e sua próxima etapa.
+
+## Espera e recuperação da sessão
+
+- A revalidação inicial pode esperar pelo Firebase por até 8 segundos antes de liberar a abertura da aplicação. A restauração tardia continua sendo observada e um resultado que pertence à sessão anterior é descartado. Um marcador de credencial inválida só é limpo por revalidação bem-sucedida da mesma sessão ou pelo login autorizado.
+- Os guards de sessão e carregamento inicial de perfil exibem o login com o aviso de indisponibilidade e a ação “Tentar novamente” após 8 segundos de espera na navegação. A ação abre novamente a URL intermediária ou protegida que estava sendo solicitada e reinicia a conexão. O acesso protegido requer uma sessão confirmada e o perfil exigido pela rota.
+- A conferência no cadastro diferencia falha de comunicação de e-mail efetivamente pendente. “Checar agora” permite repetir a consulta com a mesma conta e “Reenviar e-mail” continua disponível.
+- O orquestrador mantém a observação da sessão ativa após falha em um contexto e processa as mudanças seguintes de conta e rota.
+
+## Saída voluntária e rascunhos
+
+- A saída voluntária confirma o descarte de alterações pendentes antes de iniciar a operação. Cancelar mantém a edição e a sessão. Depois de confirmar, o rascunho só é descartado se a credencial tiver sido encerrada.
+- A tela protegida fica oculta depois de confirmar a saída no Firebase. Se o login não abrir, a interface informa que a sessão foi encerrada e oferece “Abrir login”. O login confirma a saída voluntária com “Você saiu da sua conta.”
+- Se a credencial continuar ativa após uma falha de saída, a plataforma restaura o uso da sessão. A tentativa de recuperar o Web Push é limitada a 3 segundos. O logout coordena a parada de presença durante a saída voluntária.
+- Após perda involuntária, os formulários com rascunho local salvam os campos pendentes antes de sair para o login. O arquivo de imagem selecionado segue em memória até a página fechar.
+
+## Retomada de cadastro interrompido
+
+- Enquanto a criação no Auth estiver em andamento no navegador, o cadastro impede outra tentativa concorrente. Em resposta incerta ou caso o e-mail não permita nova criação, o formulário público orienta entrar ou recuperar o acesso com mensagem neutra.
+- Após criação confirmada, a reserva idempotente de apelido pode ser repetida uma vez em falha temporária. Se a reserva permanecer sem confirmação ou o apelido estiver em uso, a conta permanece disponível, com a etapa de verificação e reenvio. O servidor decide o apelido disponível na conclusão do perfil.
+- O cadastro social recupera o seed privado pela transação já usada na retomada. A trigger e a recuperação preservam os dados do perfil que já existe. O servidor compara o UID da credencial com o UID esperado enviado pelos clientes atualizados nas operações de reserva, recuperação e aceite.
+- O e-mail da conta é obtido da sessão na tela de verificação. O endereço da tela carrega somente o estado de envio.
+
+## Confirmação pelo link de e-mail
+
+- O Firebase confirma o e-mail associado ao código. A sessão só é atualizada se ainda corresponder à conta que iniciou a operação e ao destinatário do link.
+- Um link válido pode ser confirmado sem login ou em um navegador com outra conta aberta. A tela orienta entrar com a conta que recebeu o link. A troca de conta usa a saída voluntária quando acionada.
+- Falhas antes da confirmação permitem conferir o link novamente. Se o Firebase confirmar e a atualização do perfil ficar pendente, a tela informa o estado e oferece continuar na mesma conta. Um link inválido ou já usado encaminha para a conferência na conta correspondente.

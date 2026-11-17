@@ -68,6 +68,28 @@ export function normalizeUserAccountLifecycleStatus(
   return raw ? 'unknown' : 'active';
 }
 
+/** Libera apenas a continuação do cadastro; o lifecycle geral segue restrito. */
+export function canContinueAgeRegistration(
+  context: RuntimeAccountLifecycleContext
+): boolean {
+  const { user } = context;
+  return context.authReady === true &&
+    context.userResolved === true &&
+    !!context.authUid &&
+    user?.uid === context.authUid &&
+    user.accountStatus === 'active' &&
+    user.profileCompleted === false &&
+    user.publicVisibility === 'hidden' &&
+    user.interactionBlocked === true &&
+    user.loginAllowed === true &&
+    user.accountLocked !== true &&
+    user.suspended !== true &&
+    user.deletionRequestedAt == null &&
+    user.registrationCompletedAt == null &&
+    user.ageReverificationRestrictedAt == null &&
+    user.moderationAutomationHold?.active !== true;
+}
+
 /**
  * Resolve lifecycle considerando sessão + hidratação do perfil.
  *

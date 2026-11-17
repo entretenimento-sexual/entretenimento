@@ -79,6 +79,8 @@ async function run() {
       (await Promise.all([privateRef.get(), otherRef.get()])).every(s => s.exists)
     );
     const reserve = httpsCallable(owner.functions, 'reserveRegistrationNickname');
+    const recover = httpsCallable(owner.functions, 'recoverRegistrationSeed');
+    const acceptTerms = httpsCallable(owner.functions, 'acceptPlatformTerms');
     const reserveOther = httpsCallable(other.functions, 'reserveRegistrationNickname');
     const complete = httpsCallable(owner.functions, 'completeRegistrationProfile');
     const completeOther = httpsCallable(other.functions, 'completeRegistrationProfile');
@@ -89,7 +91,14 @@ async function run() {
       (await checkAvailability({ nickname })).data;
     await rejects(guestReserve, { nickname: 'Perfil Original' }, 'unauthenticated');
     assert.deepEqual(await publishedStatus('Perfil Original'), { status: 'unconfirmed' });
-    assert.deepEqual((await reserve({ nickname: 'Perfil Original' })).data,
+    await rejects(reserve, { nickname: 'Perfil Original', expectedUid: otherUid }, 'permission-denied');
+    await rejects(recover, { expectedUid: otherUid }, 'permission-denied');
+    await rejects(acceptTerms, {
+      expectedUid: otherUid, acceptedTerms: true, acknowledgedPrivacyNotice: true,
+    }, 'permission-denied');
+    assert.equal((await privateRef.get()).get('acceptedTerms.accepted'), false);
+    assert.equal((await db.doc('nickname_reservations/perfil_original').get()).exists, false);
+    assert.deepEqual((await reserve({ nickname: 'Perfil Original', expectedUid: uid })).data,
       { nickname: 'Perfil Original', normalized: 'perfil_original' });
     assert.equal((await db.doc('nickname_reservations/perfil_original').get()).get('uid'), uid);
     assert.equal((await db.doc('public_index/nickname:perfil_original').get()).get('uid'), uid);
@@ -106,6 +115,8 @@ async function run() {
     await rejects(reserve, { nickname: 'Outro Apelido' }, 'failed-precondition');
     assert.equal((await db.doc('nickname_reservations/outro_apelido').get()).exists, false);
     assert.equal((await reserve({ nickname: 'Perfil Original' })).data.normalized, 'perfil_original');
+    assert.equal((await recover({ expectedUid: uid })).data.created, false);
+    assert.equal((await privateRef.get()).get('nickname'), 'Perfil Original');
     console.log('[registration:e2e] PASS ownership, collision and idempotence');
 
     const payload = {

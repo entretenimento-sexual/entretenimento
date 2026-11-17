@@ -51,6 +51,13 @@ function user(overrides: Partial<IUserDados> = {}): IUserDados {
   } as IUserDados;
 }
 
+function navigation(
+  flow$: BehaviorSubject<RegisterFlowVm>,
+  session = { currentAuthUser: { uid: 'u1' }, isTerminatingSnapshot: false }
+): PostAuthNavigationService {
+  return new PostAuthNavigationService({ vm$: flow$ } as never, session as never);
+}
+
 describe('PostAuthNavigationService', () => {
   it('deve direcionar login por e-mail para recuperação antes das demais etapas', async () => {
     const flow$ = new BehaviorSubject<RegisterFlowVm>(
@@ -59,7 +66,7 @@ describe('PostAuthNavigationService', () => {
         termsAccepted: false,
       })
     );
-    const service = new PostAuthNavigationService({ vm$: flow$ } as any);
+    const service = navigation(flow$);
     const result: LoginResult = {
       success: true,
       emailVerified: true,
@@ -84,7 +91,7 @@ describe('PostAuthNavigationService', () => {
         userExists: false,
       })
     );
-    const service = new PostAuthNavigationService({ vm$: flow$ } as any);
+    const service = navigation(flow$);
     const result: LoginResult = {
       success: true,
       emailVerified: true,
@@ -106,7 +113,7 @@ describe('PostAuthNavigationService', () => {
         termsAccepted: false,
       })
     );
-    const service = new PostAuthNavigationService({ vm$: flow$ } as any);
+    const service = navigation(flow$);
 
     const result: LoginResult = {
       success: true,
@@ -127,7 +134,7 @@ describe('PostAuthNavigationService', () => {
     const flow$ = new BehaviorSubject<RegisterFlowVm>(
       vm('profileCompletion', '/register/finalizar-cadastro')
     );
-    const service = new PostAuthNavigationService({ vm$: flow$ } as any);
+    const service = navigation(flow$);
 
     const result: LoginResult = {
       success: true,
@@ -150,7 +157,7 @@ describe('PostAuthNavigationService', () => {
         profileCompleted: true,
       })
     );
-    const service = new PostAuthNavigationService({ vm$: flow$ } as any);
+    const service = navigation(flow$);
 
     const result: AuthFacadeSocialAuthResult = {
       success: true,
@@ -172,7 +179,7 @@ describe('PostAuthNavigationService', () => {
         termsAccepted: false,
       })
     );
-    const service = new PostAuthNavigationService({ vm$: flow$ } as any);
+    const service = navigation(flow$);
 
     const result: AuthFacadeSocialAuthResult = {
       success: true,
@@ -199,7 +206,7 @@ describe('PostAuthNavigationService', () => {
         profileCompleted: true,
       })
     );
-    const service = new PostAuthNavigationService({ vm$: flow$ } as any);
+    const service = navigation(flow$);
 
     const result: LoginResult = {
       success: true,
@@ -213,4 +220,36 @@ describe('PostAuthNavigationService', () => {
       firstValueFrom(service.resolveAfterEmailLogin$(result, '/friends'))
     ).resolves.toBe('/friends');
   });
+  it('respeita a etapa de idade e descarta o VM da conta anterior', async () => {
+    const flow$ = new BehaviorSubject(
+      vm('preferences', '/preferencias/editar/outro', { uid: 'outro' })
+    );
+    const service = navigation(flow$);
+    const resolution = firstValueFrom(service.resolveAfterEmailLogin$({
+      success: true,
+      emailVerified: true,
+      profileResolution: 'resolved',
+      user: user(),
+    }, '/friends'));
+
+    flow$.next(vm('ageVerification', '/adulto/verificar-idade'));
+    await expect(resolution).resolves.toBe('/adulto/verificar-idade?redirectTo=%2Ffriends');
+  });
+
+  it('descarta destino resolvido depois que a conta ativa muda', async () => {
+    const flow$ = new BehaviorSubject(vm('loading', '/register', { userResolved: false }));
+    const session = { currentAuthUser: { uid: 'u1' }, isTerminatingSnapshot: false };
+    const service = navigation(flow$, session);
+    const resolution = firstValueFrom(service.resolveAfterEmailLogin$({
+      success: true,
+      emailVerified: true,
+      profileResolution: 'resolved',
+      user: user(),
+    }, '/friends'));
+
+    session.currentAuthUser = { uid: 'u2' };
+    flow$.next(vm('preferences', '/preferencias/editar/u1'));
+    await expect(resolution).rejects.toMatchObject({ code: 'auth/session-changed' });
+  });
+
 });

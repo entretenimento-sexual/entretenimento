@@ -48,7 +48,7 @@ describe('SocialAuthService', () => {
   };
 
   beforeEach(() => {
-    authMock = {} as Partial<Auth>;
+    authMock = { currentUser: null } as Partial<Auth>;
 
     readMock = {
       getDocument: vi.fn(),
@@ -98,6 +98,11 @@ describe('SocialAuthService', () => {
     };
   }
 
+  function signedIn(user: Auth['currentUser']) {
+    Object.assign(authMock, { currentUser: user });
+    return of({ user });
+  }
+
   function makeExistingUserDoc(overrides: Partial<any> = {}): any {
     return {
       uid: 'uid-123',
@@ -144,11 +149,16 @@ describe('SocialAuthService', () => {
     });
 
     vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
-      of({ user: firebaseUser } as any)
+      signedIn(firebaseUser)
     );
 
     readMock.getDocument.mockReturnValue(of(null));
-    registrationBootstrapMock.createSocialSeed$.mockReturnValue(of(void 0));
+    registrationBootstrapMock.createSocialSeed$.mockReturnValue(of({
+      created: true,
+      user: makeExistingUserDoc({
+        uid: firebaseUser.uid, email: firebaseUser.email, nickname: '', profileCompleted: false,
+      }),
+    }));
 
     const result = await firstValueFrom(service.googleLogin());
 
@@ -156,15 +166,7 @@ describe('SocialAuthService', () => {
       source: 'server',
     });
 
-    expect(registrationBootstrapMock.createSocialSeed$).toHaveBeenCalledWith(
-      expect.objectContaining({
-        uid: 'new-user-1',
-        email: 'new-user@test.com',
-        emailVerified: true,
-        photoURL: 'https://cdn.test/new-user.jpg',
-        providerId: 'google.com',
-      })
-    );
+    expect(registrationBootstrapMock.createSocialSeed$).toHaveBeenCalledWith({ uid: 'new-user-1' });
 
     expect(result).toEqual(
       expect.objectContaining({
@@ -176,6 +178,22 @@ describe('SocialAuthService', () => {
         message: 'Conta criada com Google. Finalize seu cadastro para continuar.',
       })
     );
+  });
+
+  it('preserva o lifecycle quando a trigger cria o perfil entre a leitura e a recuperação', async () => {
+    const firebaseUser = makeFirebaseUser({ uid: 'concurrent-account' });
+    vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(signedIn(firebaseUser));
+    readMock.getDocument.mockReturnValue(of(null));
+    registrationBootstrapMock.createSocialSeed$.mockReturnValue(of({
+      created: false,
+      user: makeExistingUserDoc({ uid: firebaseUser.uid, accountStatus: 'moderation_suspended' }),
+    }));
+
+    const result = await firstValueFrom(service.googleLogin());
+
+    expect(result.nextRoute).toBe('/conta/status');
+    expect(result.isNewUser).toBe(false);
+    expect(writeMock.updateDocument).not.toHaveBeenCalled();
   });
 
   it('deve atualizar usuário existente e retornar finalizar cadastro quando perfil estiver incompleto', async () => {
@@ -195,7 +213,7 @@ describe('SocialAuthService', () => {
     });
 
     vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
-      of({ user: firebaseUser } as any)
+      signedIn(firebaseUser)
     );
 
     readMock.getDocument.mockReturnValue(of(existingDoc));
@@ -246,7 +264,7 @@ describe('SocialAuthService', () => {
     });
 
     vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
-      of({ user: firebaseUser } as any)
+      signedIn(firebaseUser)
     );
 
     readMock.getDocument.mockReturnValue(of(existingDoc));
@@ -280,7 +298,7 @@ describe('SocialAuthService', () => {
     });
 
     vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
-      of({ user: firebaseUser } as any)
+      signedIn(firebaseUser)
     );
 
     readMock.getDocument.mockReturnValue(of(existingDoc));
@@ -313,7 +331,7 @@ describe('SocialAuthService', () => {
     });
 
     vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
-      of({ user: firebaseUser } as any)
+      signedIn(firebaseUser)
     );
 
     readMock.getDocument.mockReturnValue(of(existingDoc));
@@ -391,7 +409,7 @@ describe('SocialAuthService', () => {
     const error = new Error('firestore unavailable');
 
     vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
-      of({ user: firebaseUser } as any)
+      signedIn(firebaseUser)
     );
 
     readMock.getDocument.mockReturnValue(
@@ -432,7 +450,7 @@ describe('SocialAuthService', () => {
     const error = new Error('bootstrap write failed');
 
     vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
-      of({ user: firebaseUser } as any)
+      signedIn(firebaseUser)
     );
     readMock.getDocument.mockReturnValue(of(null));
     registrationBootstrapMock.createSocialSeed$.mockReturnValue(
@@ -468,7 +486,7 @@ describe('SocialAuthService', () => {
     const error = new Error('bootstrap diagnostic unavailable');
 
     vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
-      of({ user: firebaseUser } as any)
+      signedIn(firebaseUser)
     );
     readMock.getDocument.mockReturnValue(of(null));
     registrationBootstrapMock.createSocialSeed$.mockReturnValue(

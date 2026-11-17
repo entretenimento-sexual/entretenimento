@@ -4,10 +4,11 @@ import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { By } from '@angular/platform-browser';
-import { firstValueFrom } from 'rxjs';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
 
 import { AppComponent } from './app.component';
+import { AuthSessionExitService } from './core/services/autentication/auth/auth-session-exit.service';
 import { AuthOrchestratorService } from './core/services/autentication/auth/auth-orchestrator.service';
 import { AuthDebugService } from './core/services/util-service/auth-debug.service';
 import { PresenceOrchestratorService } from './core/services/presence/presence-orchestrator.service';
@@ -24,6 +25,12 @@ class DummyComponent {}
 describe('AppComponent', () => {
   let router: Router;
 
+  const exitStub = {
+    start: vi.fn(),
+    pending$: new BehaviorSubject<string | null>(null),
+    loginFailed$: new BehaviorSubject(false),
+    retryLogin: vi.fn(),
+  };
   const orchestratorStub = { start: vi.fn() };
   const presenceOrchestratorStub = { start: vi.fn() };
   const subscriptionReconciliationStub = { start: vi.fn() };
@@ -34,6 +41,8 @@ describe('AppComponent', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
+    exitStub.pending$.next(null);
+    exitStub.loginFailed$.next(false);
     document.documentElement.className = '';
     document.body.className = '';
     localStorage.clear();
@@ -48,6 +57,7 @@ describe('AppComponent', () => {
       ],
       declarations: [AppComponent],
       providers: [
+        { provide: AuthSessionExitService, useValue: exitStub },
         { provide: AuthOrchestratorService, useValue: orchestratorStub },
         {
           provide: PresenceOrchestratorService,
@@ -98,6 +108,30 @@ describe('AppComponent', () => {
     expect(target.getAttribute('tabindex')).toBe('-1');
   });
 
+  it('oculta o outlet quando a tela protegida perde a sessão', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    exitStub.pending$.next('session-ended');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#route-content [hidden]')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Abrindo a tela de login');
+  });
+
+  it('oferece acesso ao login se a navegação falhar depois do logout', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    exitStub.pending$.next('signed-out');
+    exitStub.loginFailed$.next(true);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('Sua sessão foi encerrada.');
+    const retry = root.querySelector<HTMLButtonElement>('#route-content button')!;
+    expect(retry.textContent).toContain('Abrir login');
+    retry.click();
+    expect(exitStub.retryLogin).toHaveBeenCalledOnce();
+  });
+
   it('inicia orquestradores e assinatura canônica', async () => {
     const fixture = TestBed.createComponent(AppComponent);
     const component = fixture.componentInstance;
@@ -105,6 +139,7 @@ describe('AppComponent', () => {
     fixture.detectChanges();
 
     expect(routerDiagnosticsStub.start).toHaveBeenCalledTimes(1);
+    expect(exitStub.start).toHaveBeenCalledTimes(1);
     expect(orchestratorStub.start).toHaveBeenCalledTimes(1);
     expect(presenceOrchestratorStub.start).toHaveBeenCalledTimes(1);
     expect(subscriptionReconciliationStub.start).toHaveBeenCalledTimes(1);

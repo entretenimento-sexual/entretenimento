@@ -14,6 +14,7 @@ import {
   take,
 } from 'rxjs/operators';
 
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { PresenceService } from 'src/app/core/services/presence/presence.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
@@ -26,7 +27,8 @@ export class AuthStatusSyncEffects {
     private readonly actions$: Actions,
     private readonly presence: PresenceService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly privacyDebug: PrivacyDebugLoggerService
+    private readonly privacyDebug: PrivacyDebugLoggerService,
+    private readonly authSession: AuthSessionService
   ) {}
 
   private dbg(message: string, extra?: unknown): void {
@@ -83,7 +85,9 @@ export class AuthStatusSyncEffects {
         map(({ uid }) => uid ?? null),
         startWith(null),
         pairwise(),
-        filter(([previousUid, currentUid]) => !!previousUid && !currentUid),
+        filter(([previousUid, currentUid]) =>
+          !!previousUid && !currentUid && !this.authSession.isTerminatingSnapshot
+        ),
         concatMap(() => this.stopPresenceBestEffort$())
       ),
     { dispatch: false }

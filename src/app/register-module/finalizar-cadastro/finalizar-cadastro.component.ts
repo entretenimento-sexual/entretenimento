@@ -191,6 +191,10 @@ implements OnInit, UnsavedChangesAware
     this.avatarFile = null;
   }
 
+  persistUnsavedChanges(): void {
+    if (this.hasUnsavedChanges()) this.localDraft.save(this.draftKey, this.currentDraftValue());
+  }
+
   onDraftChange(): void {
     if (!this.draftReady || this.isSubmitting) return;
     this.draftChanges$.next();
@@ -253,6 +257,10 @@ implements OnInit, UnsavedChangesAware
     return this.profileCompletion.loadUserForFormByUid$(uid, vm).pipe(
       take(1),
       tap((initialData) => {
+        if (!this.isCurrentAccount(uid)) {
+          this.setErrorMessage('A conta ativa mudou. Recarregue a página para retomar o cadastro.');
+          return;
+        }
         if (!initialData) {
           this.setErrorMessage(
             'Não encontramos os dados da sua conta. Tente entrar novamente.'
@@ -386,6 +394,10 @@ implements OnInit, UnsavedChangesAware
     const uid = this.latestVm?.uid?.trim() || null;
     const vm = this.latestVm;
     if (!uid || !vm) return;
+    if (!this.isCurrentAccount(uid)) {
+      this.setErrorMessage('A conta ativa mudou. Recarregue a página para retomar o cadastro.');
+      return;
+    }
 
     this.checkFieldValidity('nickname', this.nickname, 'Apelido');
     this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
@@ -423,7 +435,10 @@ implements OnInit, UnsavedChangesAware
       })
       .pipe(
         take(1),
-        switchMap(() => this.uploadAvatarAfterProfileSave$(uid)),
+        switchMap(() => this.isCurrentAccount(uid)
+          ? this.uploadAvatarAfterProfileSave$(uid)
+          : of(void 0)
+        ),
         map(() => void 0),
         finalize(() => {
           this.isSubmitting = false;
@@ -450,16 +465,23 @@ implements OnInit, UnsavedChangesAware
       )
       .subscribe({
         next: () => {
+          if (!this.isCurrentAccount(uid)) {
+            this.setErrorMessage('A conta ativa mudou. Confira o cadastro na conta usada para salvar o perfil.');
+            return;
+          }
+
           this.setSuccessMessage('Perfil finalizado com sucesso!');
           const normalizedNickname = NicknameUtils.normalizarApelido(this.nickname);
-          this.currentUserStore.patch({
-            nickname: normalizedNickname,
-            profileCompleted: true,
-            gender: this.gender,
-            orientation: this.orientation,
-            estado: this.selectedEstado,
-            municipio: this.selectedMunicipio,
-          });
+          if (this.currentUserStore.getSnapshot()?.uid === uid) {
+            this.currentUserStore.patch({
+              nickname: normalizedNickname,
+              profileCompleted: true,
+              gender: this.gender,
+              orientation: this.orientation,
+              estado: this.selectedEstado,
+              municipio: this.selectedMunicipio,
+            });
+          }
           this.localDraft.remove(this.draftKey);
           this.initialDraftSnapshot = this.currentDraftSnapshot();
           this.avatarFile = null;
@@ -467,6 +489,10 @@ implements OnInit, UnsavedChangesAware
           this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
         },
       });
+  }
+
+  private isCurrentAccount(uid: string): boolean {
+    return this.currentUserStore.getLoggedUserUIDSnapshot() === uid;
   }
 
   private uploadAvatarAfterProfileSave$(uid: string): Observable<void> {
@@ -601,10 +627,7 @@ implements OnInit, UnsavedChangesAware
     this.draftChanges$
       .pipe(
         debounceTime(500),
-        filter(() => this.hasUnsavedChanges()),
-        tap(() => {
-          this.localDraft.save(this.draftKey, this.currentDraftValue());
-        }),
+        tap(() => this.persistUnsavedChanges()),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();

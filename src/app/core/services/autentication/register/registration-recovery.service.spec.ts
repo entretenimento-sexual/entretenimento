@@ -1,4 +1,4 @@
-import { firstValueFrom, Observable, of } from 'rxjs';
+import { firstValueFrom, Observable, of, Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -8,7 +8,8 @@ describe('RegistrationRecoveryService canonical errors', () => {
   let service: RegistrationRecoveryService;
   let recoverCallable: ReturnType<typeof vi.fn>;
   let uid$: Observable<string | null>;
-  let getUserOnceFromFirestore$: ReturnType<typeof vi.fn>;
+  let session: { uid$: Observable<string | null>; currentAuthUser: { uid: string } };
+  let getDocument: ReturnType<typeof vi.fn>;
   let setCurrentUser: ReturnType<typeof vi.fn>;
   let report: ReturnType<typeof vi.fn>;
 
@@ -22,8 +23,9 @@ describe('RegistrationRecoveryService canonical errors', () => {
 
     recoverCallable = vi.fn();
     uid$ = of('user-1');
-    getUserOnceFromFirestore$ = vi.fn(() => of(user));
+    getDocument = vi.fn(() => of(user));
     setCurrentUser = vi.fn();
+    session = { uid$, currentAuthUser: { uid: 'user-1' } };
     report = vi.fn();
 
     service = Object.create(
@@ -31,13 +33,29 @@ describe('RegistrationRecoveryService canonical errors', () => {
     ) as RegistrationRecoveryService;
 
     Object.assign(service as any, {
-      session: { uid$ },
-      users: { getUserOnceFromFirestore$ },
+      session,
+      users: { getDocument },
       currentUserStore: { set: setCurrentUser },
       applicationError: { report },
       ACTION_TIMEOUT_MS: 15_000,
       recoverCallable,
     });
+  });
+
+  it('descarta a leitura tardia após a troca de conta', async () => {
+    const response = new Subject<IUserDados>();
+    getDocument.mockReturnValue(response);
+    recoverCallable.mockResolvedValue({ data: { ok: true, uid: 'user-1', created: false, recoveredAtMs: 1 } });
+    const result = expect(firstValueFrom(service.recoverForUser$('user-1')))
+      .rejects.toThrow('A conta ativa mudou');
+
+    await vi.waitFor(() => expect(getDocument).toHaveBeenCalledOnce());
+    expect(recoverCallable).toHaveBeenCalledWith({ expectedUid: 'user-1' });
+    session.currentAuthUser = { uid: 'other' };
+    response.next(user);
+
+    await result;
+    expect(setCurrentUser).not.toHaveBeenCalled();
   });
 
   it('mantém sessão ausente como validação local sem diagnóstico técnico', async () => {
@@ -81,7 +99,7 @@ describe('RegistrationRecoveryService canonical errors', () => {
     });
 
     expect(recoverCallable).toHaveBeenCalledTimes(1);
-    expect(getUserOnceFromFirestore$).toHaveBeenCalledWith('user-1');
+    expect(getDocument).toHaveBeenCalledWith('users', 'user-1', { source: 'server' });
     expect(setCurrentUser).toHaveBeenCalledWith(user);
     expect(report).not.toHaveBeenCalled();
   });
@@ -128,7 +146,7 @@ describe('RegistrationRecoveryService canonical errors', () => {
       firstValueFrom(service.recoverForUser$('user-1'))
     ).rejects.toThrow('A recuperação retornou dados inválidos.');
 
-    expect(getUserOnceFromFirestore$).not.toHaveBeenCalled();
+    expect(getDocument).not.toHaveBeenCalled();
     expect(report).toHaveBeenCalledTimes(1);
   });
 
@@ -141,7 +159,7 @@ describe('RegistrationRecoveryService canonical errors', () => {
         recoveredAtMs: 1_790_000_000_000,
       },
     });
-    getUserOnceFromFirestore$.mockReturnValue(of(null));
+    getDocument.mockReturnValue(of(null));
 
     await expect(
       firstValueFrom(service.recoverForUser$('user-1'))

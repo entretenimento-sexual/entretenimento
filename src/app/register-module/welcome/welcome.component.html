@@ -44,7 +44,6 @@
         </button>
 
         <button class="app-action app-action--ghost" (click)="reloadPage()">Recarregar</button>
-        <button class="app-action app-action--ghost" (click)="restartRegistration()">Refazer cadastro</button>
       </div>
     </div>
 
@@ -131,7 +130,7 @@
       aria-atomic="true"
     >      <h2 class="card-title">Sessão encerrada</h2>
       <p>
-        Não conseguimos manter sua sessão ativa durante a verificação. Você pode tentar reconectar ou refazer o cadastro.
+        Sua sessão foi encerrada. Entre novamente para continuar.
       </p>
 
       <div class="actions">
@@ -144,7 +143,7 @@
           {{ checkingVerification ? 'Reconectando…' : 'Tentar reconectar' }}
         </button>
 
-        <button class="app-action app-action--primary" (click)="restartRegistration()">Refazer cadastro</button>
+        <a class="app-action app-action--primary" routerLink="/login" [queryParams]="{ reason: 'session-ended' }">Entrar novamente</a>
       </div>
     </section>
   </main>
