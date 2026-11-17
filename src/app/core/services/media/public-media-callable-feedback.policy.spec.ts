@@ -75,7 +75,7 @@ describe('public-media-callable-feedback.policy', () => {
     ).toBe('Aceite os termos vigentes antes de acessar conteúdo adulto.');
   });
 
-  it('orienta consentimento adulto por reason estruturado', () => {
+  it('orienta consulta ao status da conta para reason legado de consentimento adulto', () => {
     expect(
       resolvePublicMediaCallableUserMessage(
         {
@@ -85,7 +85,7 @@ describe('public-media-callable-feedback.policy', () => {
         'rating',
         'Fallback'
       )
-    ).toBe('Confirme o acesso à experiência adulta antes de continuar.');
+    ).toBe('Consulte o status da conta e atualize sua sessão antes de continuar.');
   });
 
   it('não trata assurance etário como reason conhecido de Media', () => {
