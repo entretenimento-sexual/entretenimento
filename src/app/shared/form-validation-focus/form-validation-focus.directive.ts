@@ -51,6 +51,8 @@ export class FormValidationFocusDirective implements AfterViewInit, OnDestroy {
   private focusTimer: ReturnType<typeof setTimeout> | null = null;
 
   @Input() formInvalidMessage = 'Revise os campos destacados antes de continuar.';
+  // Formulários com etapas podem chamar focusControl para os campos visíveis.
+  @Input() formValidationOnSubmit = true;
 
   ngAfterViewInit(): void {
     this.liveRegion = this.renderer.createElement('div') as HTMLElement;
@@ -84,6 +86,8 @@ export class FormValidationFocusDirective implements AfterViewInit, OnDestroy {
 
   @HostListener('submit')
   onNativeSubmit(): void {
+    if (!this.formValidationOnSubmit) return;
+
     const form = this.getFormControl();
     if (!form) return;
 

@@ -28,7 +28,7 @@
       </div>
 
       <div *ngIf="debugEnabled()" class="actions">
-        <button class="app-action app-action--ghost" type="button" (click)="onSubmit()" [disabled]="isLoading() || creating()">
+        <button class="app-action app-action--ghost" type="button" (click)="submitSection()" [disabled]="isLoading() || creating() || accountCreated()">
           Tentar novamente
         </button>
 
@@ -52,11 +52,18 @@
       <pre *ngIf="debugEnabled() && showTech() && b.details">{{ b.details }}</pre>
     </div>
 
-    <form [formGroup]="form" (ngSubmit)="onSubmit()" aria-label="Dados de acesso" autocomplete="on" novalidate
+    <form [formGroup]="form" (ngSubmit)="submitSection()" aria-labelledby="register-section-title" autocomplete="on" novalidate
       formInvalidMessage="Revise os dados do cadastro antes de continuar."
+      [formValidationOnSubmit]="false"
       [attr.aria-busy]="(isLoading() || creating()) ? 'true' : null">
 
+      <header class="signup-section-intro">
+        <h2 id="register-section-title" #sectionHeading tabindex="-1">{{ currentSection().title }}</h2>
+        <p>{{ currentSection().description }}</p>
+      </header>
 
+      @switch (sectionIndex()) {
+      @case (0) {
       <!-- Apelido principal -->
       <div class="nickname-field app-field">
         <label for="apelidoPrincipal">Apelido *</label>
@@ -172,6 +179,8 @@
         </div>
       </div>
 
+      }
+      @case (1) {
       <!-- Email -->
       <div class="app-field">
         <label for="email">E-mail *</label>
@@ -291,6 +300,8 @@
         </div>
       </div>
 
+      }
+      @case (2) {
       <!--
         Fronteira pré-Auth: sem declaração 18+ não criar identidade.
         Essa confirmação não é prova documental de idade; o backend deve
@@ -339,11 +350,22 @@
         </div>
       </div>
 
-      <button class="app-action app-action--primary" type="submit"
-        [appActionState]="isLoading() || creating()"
-        [actionDisabled]="nicknameChecking()">
-        {{ isLoading() || creating() ? 'Criando conta…' : nicknameChecking() ? 'Validando apelido…' : 'Cadastrar' }}
-      </button>
+      }
+      }
+
+      <div class="signup-actions" [class.signup-actions--with-back]="sectionIndex() > 0">
+        @if (sectionIndex() > 0) {
+          <button type="button" class="app-action app-action--ghost" (click)="previousSection()"
+            [disabled]="isLoading() || creating() || accountCreated()">
+            Voltar
+          </button>
+        }
+        <button class="app-action app-action--primary" type="submit"
+          [appActionState]="isLoading() || creating()"
+          [actionDisabled]="awaitingNickname() || accountCreated()">
+          {{ isLoading() || creating() ? 'Criando conta…' : awaitingNickname() ? 'Validando apelido…' : lastSection() ? 'Criar conta' : 'Continuar' }}
+        </button>
+      </div>
 
       <p class="login-redirect">
         Já tem conta?

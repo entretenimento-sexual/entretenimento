@@ -6,7 +6,7 @@ import { ReactiveFormsModule } from '@angular/forms';
 import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { Auth } from '@angular/fire/auth';
 
 import { RegisterComponent } from './register.component';
@@ -89,6 +89,66 @@ describe('RegisterComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('exibe apenas a tela atual e cria a conta somente após confirmar a última', async () => {
+    const view: HTMLElement = fixture.nativeElement;
+    const submit = () => {
+      view.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+    };
+
+    expect(view.querySelector('#apelidoPrincipal')).not.toBeNull();
+    expect(view.querySelector('#email, #password, #termos, #maioridade-inicial')).toBeNull();
+    submit();
+    expect(view.querySelector('#email')).toBeNull();
+    expect(component.form.get('email')?.untouched).toBe(true);
+
+    component.form.patchValue({ apelidoPrincipal: 'visualteste' });
+    submit();
+    expect(view.querySelector('#email')).not.toBeNull();
+    expect(view.querySelector('#apelidoPrincipal, #termos')).toBeNull();
+    expect(registerService.registerUser).not.toHaveBeenCalled();
+
+    component.form.patchValue({ email: 'a@example.test', password: 'Senha123', confirmPassword: 'Outro123' });
+    submit();
+    expect(view.querySelector('#confirmPasswordTooltip')?.textContent).toContain('As senhas não coincidem');
+    expect(view.querySelector('#termos')).toBeNull();
+    component.form.patchValue({ confirmPassword: 'Senha123' });
+    submit();
+
+    expect(view.querySelector('#maioridade-inicial')).not.toBeNull();
+    expect(view.querySelector('#email, #password, #apelidoPrincipal')).toBeNull();
+    submit();
+    expect(registerService.registerUser).not.toHaveBeenCalled();
+
+    Array.from(view.querySelectorAll('button')).find(button => button.textContent?.trim() === 'Voltar')!.click();
+    fixture.detectChanges();
+    expect(view.querySelector<HTMLInputElement>('#email')?.value).toBe('a@example.test');
+    expect(view.querySelector<HTMLInputElement>('#password')?.value).toBe('Senha123');
+    submit();
+    component.form.patchValue({ confirmarMaioridade: true, aceitarTermos: true });
+    submit();
+    await fixture.whenStable();
+    expect(registerService.registerUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('aguarda a checagem de apelido que já está em andamento ao continuar', async () => {
+    const check$ = new Subject<boolean>();
+    const validation = TestBed.inject(FirestoreValidationService) as unknown as MockFirestoreValidationService;
+    validation.checkIfNicknameExists.mockReturnValue(check$);
+    component.form.patchValue({ apelidoPrincipal: 'visualteste' });
+    component.onNicknameBlur();
+    component.submitSection();
+    fixture.detectChanges();
+    expect(component.sectionIndex()).toBe(0);
+    expect(validation.checkIfNicknameExists).toHaveBeenCalledTimes(1);
+
+    check$.next(false);
+    check$.complete();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(component.sectionIndex()).toBe(1);
   });
 
   it('mantém o botão de cadastro acionável para revelar erros', () => {

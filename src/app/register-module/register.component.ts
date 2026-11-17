@@ -5,12 +5,16 @@
 // - RegisterService faz a checagem estrita antes de criar a conta.
 // - Feedback visual fica na UI; detalhes técnicos só aparecem em dev autorizado.
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
+  Injector,
   computed,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import {
   FormBuilder,
@@ -35,7 +39,7 @@ import {
   startWith,
   timeout,
 } from 'rxjs/operators';
-import { toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { toObservable, toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
@@ -45,6 +49,7 @@ import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
 import { ValidatorService } from 'src/app/core/services/general/validator.service';
 import { IUserRegistrationData } from '../core/interfaces/iuser-registration-data';
 import { environment } from 'src/environments/environment';
+import { FormValidationFocusDirective } from '../shared/form-validation-focus/form-validation-focus.directive';
 
 type UiBannerVariant = 'info' | 'warn' | 'error' | 'success';
 type UiBanner = {
@@ -63,6 +68,27 @@ type NicknameCheckState =
   | 'taken'
   | 'unverified';
 
+const SIGNUP_SECTIONS = [
+  {
+    title: 'Escolha seu apelido',
+    description: 'É assim que outras pessoas vão reconhecer seu perfil.',
+    fields: ['apelidoPrincipal', 'complementoApelido'],
+    groupError: { code: 'invalidFullNickname', field: 'apelidoPrincipal' },
+  },
+  {
+    title: 'Configure seu acesso',
+    description: 'Informe seu e-mail e crie uma senha.',
+    fields: ['email', 'password', 'confirmPassword'],
+    groupError: { code: 'passwordMismatch', field: 'confirmPassword' },
+  },
+  {
+    title: 'Confirme para criar a conta',
+    description: 'Leia os documentos e confirme os requisitos de acesso.',
+    fields: ['confirmarMaioridade', 'aceitarTermos'],
+    groupError: null,
+  },
+] as const;
+
 @Component({
   selector: 'app-register',
   templateUrl: './register.component.html',
@@ -78,6 +104,9 @@ export class RegisterComponent {
   private readonly applicationError = inject(ApplicationErrorService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+  private readonly sectionHeading = viewChild<ElementRef<HTMLElement>>('sectionHeading');
+  private readonly validationFocus = viewChild(FormValidationFocusDirective);
 
   constructor(private readonly auth: Auth) {
     this.setupNicknameAvailabilityPipeline();
@@ -122,7 +151,7 @@ export class RegisterComponent {
 
       email: this.fb.control('', {
         validators: [Validators.required, Validators.email],
-        updateOn: 'blur',
+        updateOn: 'change',
       }),
 
       password: this.fb.control('', {
@@ -176,11 +205,19 @@ export class RegisterComponent {
   readonly creatingMsg = signal('Estamos criando seu usuário, aguarde…');
   readonly syncing = signal(false);
 
+  // As telas compartilham o FormGroup em memória. Conta e senha só são
+  // enviadas ao serviço depois da validação final das três telas.
+  readonly sectionIndex = signal(0);
+  readonly currentSection = computed(() => SIGNUP_SECTIONS[this.sectionIndex()]);
+  readonly lastSection = computed(() => this.sectionIndex() === SIGNUP_SECTIONS.length - 1);
+
   // ---------------- Nickname UX state ----------------
   private readonly nicknameTyping$ = new Subject<void>();
   private readonly nicknameBlur$ = new Subject<void>();
 
   readonly nicknameCheckState = signal<NicknameCheckState>('idle');
+  private readonly nicknameCheckState$ = toObservable(this.nicknameCheckState);
+  readonly awaitingNickname = signal(false);
   readonly nicknameFeedbackArmed = signal(false);
   readonly submitted = signal(false);
 
@@ -325,7 +362,10 @@ export class RegisterComponent {
     return this.validatorService
       .checkIfNicknameExists(fullNick, { mode: 'soft' })
       .pipe(
+        timeout({ first: 8000 }),
         tap((exists: boolean) => {
+          if (this.apelidoCompleto() !== fullNick) return;
+
           if (exists) {
             this.setApelidoEmUsoError();
             this.nicknameCheckState.set('taken');
@@ -336,6 +376,8 @@ export class RegisterComponent {
         }),
         map(() => void 0),
         catchError((err) => {
+          if (this.apelidoCompleto() !== fullNick) return of(void 0);
+
           this.dbg('nickname check error', err);
           this.nicknameCheckState.set('unverified');
           this.clearApelidoEmUsoError();
@@ -503,6 +545,82 @@ export class RegisterComponent {
     return null;
   }
 
+  submitSection(): void {
+    if (this.isLoading() || this.accountCreated() || this.awaitingNickname()) return;
+    if (this.lastSection()) {
+      this.onSubmit();
+      return;
+    }
+
+    const index = this.sectionIndex();
+    this.submitted.set(true);
+    this.currentSection().fields.forEach(field => this.form.get(field)?.markAsTouched());
+    this.form.updateValueAndValidity();
+    const invalidField = this.firstInvalidField(index);
+    if (invalidField) {
+      this.showInvalidSection(index, invalidField);
+      return;
+    }
+
+    const checkState = this.nicknameCheckState();
+    if (index === 0 && (checkState === 'idle' || checkState === 'typing' || checkState === 'checking')) {
+      const nickname = this.apelidoCompleto();
+      this.nicknameFeedbackArmed.set(true);
+      this.awaitingNickname.set(true);
+      const check$: Observable<unknown> = checkState === 'checking'
+        ? this.nicknameCheckState$.pipe(filter(() => !this.nicknameChecking()))
+        : this.runNicknameAvailabilityCheck$();
+      check$.pipe(
+        take(1),
+        finalize(() => this.awaitingNickname.set(false)),
+        takeUntilDestroyed(this.destroyRef)
+      ).subscribe(() => {
+        if (this.sectionIndex() !== index || this.apelidoCompleto() !== nickname) return;
+        const invalid = this.firstInvalidField(index);
+        if (invalid) {
+          this.showInvalidSection(index, invalid);
+          return;
+        }
+        this.openSection(index + 1);
+      });
+      return;
+    }
+
+    this.openSection(index + 1);
+  }
+
+  previousSection(): void {
+    if (this.isLoading() || this.accountCreated() || this.sectionIndex() === 0) return;
+    this.openSection(this.sectionIndex() - 1);
+  }
+
+  private firstInvalidField(index: number): string | undefined {
+    const { fields, groupError } = SIGNUP_SECTIONS[index];
+    return fields.find(field => this.form.get(field)?.invalid) ??
+      (groupError && this.form.hasError(groupError.code) ? groupError.field : undefined);
+  }
+
+  private showInvalidSection(index: number, field?: string): void {
+    if (this.sectionIndex() !== index) this.openSection(index, field);
+    else if (field) this.validationFocus()?.focusControl(field);
+
+    this.submitted.set(true);
+    this.setBanner('error', 'Verifique os campos', 'Revise os campos destacados para continuar.');
+  }
+
+  private openSection(index: number, field?: string): void {
+    this.sectionIndex.set(index);
+    this.submitted.set(false);
+    this.banner.set(null);
+    this.showPassword.set(false);
+    this.showConfirmPassword.set(false);
+
+    afterNextRender(() => {
+      if (field) this.validationFocus()?.focusControl(field);
+      else this.sectionHeading()?.nativeElement.focus();
+    }, { injector: this.injector });
+  }
+
   onSubmit(): void {
     if (this.isLoading()) return;
 
@@ -520,11 +638,9 @@ export class RegisterComponent {
     }
 
     if (this.form.invalid) {
-      this.setBanner(
-        'error',
-        'Verifique os campos',
-        'Há campos obrigatórios ou inválidos. Corrija e tente novamente.'
-      );
+      const invalidIndex = SIGNUP_SECTIONS.findIndex((_, index) => this.firstInvalidField(index));
+      const index = invalidIndex < 0 ? this.sectionIndex() : invalidIndex;
+      this.showInvalidSection(index, this.firstInvalidField(index));
       return;
     }
 
@@ -648,9 +764,7 @@ export class RegisterComponent {
           ) {
             this.setApelidoEmUsoError();
             this.nicknameCheckState.set('taken');
-            setTimeout(() =>
-              document.getElementById('apelidoPrincipal')?.focus()
-            );
+            this.showInvalidSection(0, 'apelidoPrincipal');
             return;
           }
 
@@ -667,7 +781,7 @@ export class RegisterComponent {
 
 /*
 Fluxo de registro:
-1. Usuário preenche apelido principal, complemento, e-mail, senha, confirmação e aceita termos.
+1. Usuário avança por apelido, dados de acesso e confirmações no mesmo FormGroup.
 2. Enquanto digita o apelido, após 3s de inatividade ou no blur, checa disponibilidade em modo soft.
 3. No submit, valida complexidade e igualdade das senhas e faz checagem estrita do apelido.
 4. Apenas a senha principal segue para o Firebase Auth; a confirmação permanece somente no formulário.

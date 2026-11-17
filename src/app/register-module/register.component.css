@@ -79,6 +79,33 @@
   text-align: left;
 }
 
+.signup-section-intro {
+  margin-block-end: 1rem;
+}
+
+.signup-section-intro h2 {
+  margin: 0;
+  font-size: clamp(1.25rem, 3vw, 1.65rem);
+  line-height: 1.2;
+}
+
+.signup-section-intro p {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted, var(--text-color));
+  line-height: 1.45;
+}
+
+.signup-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.signup-actions--with-back {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
 .form-kicker {
   margin: 0 0 1rem;
 }

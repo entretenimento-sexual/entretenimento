@@ -150,6 +150,8 @@ jobs:
               introVisible: !!document.querySelector('.auth-intro')?.getClientRects().length,
               title: document.querySelector('#register-intro-title')?.textContent?.trim() || '',
               submitVisible: !!document.querySelector('button[type=submit]')?.getClientRects().length,
+              nicknameVisible: !!document.querySelector('#apelidoPrincipal')?.getClientRects().length,
+              laterFieldsPresent: !!document.querySelector('#email, #password, #maioridade-inicial, #termos'),
             }));
             console.log(JSON.stringify(metrics));
             if (metrics.scrollWidth > metrics.viewportWidth + 1) {
@@ -157,6 +159,9 @@ jobs:
             }
             if (!metrics.introVisible || !metrics.title || !metrics.submitVisible) {
               throw new Error('Desktop initial registration shell is incomplete');
+            }
+            if (!metrics.nicknameVisible || metrics.laterFieldsPresent) {
+              throw new Error('Desktop must start with only the nickname fields');
             }
             return metrics;
           }" | tee "$OUT/desktop-initial.metrics.log"
@@ -202,8 +207,8 @@ jobs:
             if (metrics.scrollWidth > metrics.viewportWidth + 1) {
               throw new Error('Desktop invalid state has horizontal overflow');
             }
-            if (metrics.visibleErrors < 5) {
-              throw new Error('Desktop invalid state did not render the expected field feedback');
+            if (metrics.visibleErrors !== 1) {
+              throw new Error('Desktop invalid state must show only the nickname error');
             }
             if (metrics.accessibleErrors !== metrics.visibleErrors) {
               throw new Error('Desktop invalid feedback lost alert/live-region semantics');
@@ -310,8 +315,8 @@ jobs:
             if (metrics.formWidth < metrics.viewportWidth * 0.85 || metrics.firstInputWidth < metrics.viewportWidth * 0.70) {
               throw new Error('Mobile invalid form lost its useful content width');
             }
-            if (metrics.visibleErrors < 5) {
-              throw new Error('Mobile invalid state did not render the expected field feedback');
+            if (metrics.visibleErrors !== 1) {
+              throw new Error('Mobile invalid state must show only the nickname error');
             }
             if (metrics.accessibleErrors !== metrics.visibleErrors) {
               throw new Error('Mobile invalid feedback lost alert/live-region semantics');
@@ -326,6 +331,44 @@ jobs:
           }" | tee "$OUT/mobile-invalid.metrics.log"
           playwright-cli snapshot --filename="$OUT/mobile-invalid.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/mobile-invalid.png"
+
+          playwright-cli run-code "async (page) => {
+            await page.route('**/getRegistrationNicknameAvailability', route => route.fulfill({
+              status: 200,
+              headers: {
+                'access-control-allow-origin': '*',
+                'access-control-allow-methods': 'POST, OPTIONS',
+                'access-control-allow-headers': '*',
+              },
+              json: { result: { status: 'unconfirmed' } },
+            }));
+            await page.locator('#apelidoPrincipal').fill('visualteste');
+            await page.locator('button[type=submit]').click();
+            await page.locator('#email').waitFor({ state: 'visible' });
+            if (await page.locator('#apelidoPrincipal, #maioridade-inicial, #termos').count()) {
+              throw new Error('Access step must show only the credentials');
+            }
+            await page.locator('#email').fill('visual@example.test');
+            await page.locator('#password').fill('Teste123');
+            await page.locator('#confirmPassword').fill('Teste123');
+          }"
+          playwright-cli screenshot --full-page --filename="$OUT/mobile-access.png"
+
+          playwright-cli run-code "async (page) => {
+            await page.locator('button[type=submit]').click();
+            await page.locator('#maioridade-inicial').waitFor({ state: 'visible' });
+            if (await page.locator('#apelidoPrincipal, #email, #password').count()) {
+              throw new Error('Confirmations must be shown separately from credentials');
+            }
+          }"
+          playwright-cli screenshot --full-page --filename="$OUT/mobile-confirmations.png"
+
+          playwright-cli run-code "async (page) => {
+            await page.getByRole('button', { name: 'Voltar', exact: true }).click();
+            if (await page.locator('#email').inputValue() !== 'visual@example.test') {
+              throw new Error('Going back must preserve the credentials in the form');
+            }
+          }"
 
           playwright-cli console error > "$OUT/browser-console-errors.log" || true
           playwright-cli close
