@@ -30,6 +30,7 @@ export class RegisterProgressComponent {
   readonly step = input.required<ProgressStep>();
   readonly completed = input(false);
   readonly nextAction = input<string | null>(null);
+  readonly compact = input(false);
 
   protected readonly stages = STAGES;
   protected readonly position = computed(() =>

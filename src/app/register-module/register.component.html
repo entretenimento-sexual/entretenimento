@@ -1,17 +1,16 @@
 <!-- src/app/register-module/register.component.html -->
 <div class="auth-container">
-  <img class="signup-backdrop" src="assets/registration/signup-noir.svg" alt="" decoding="async" />
+  <picture class="signup-image">
+    <source srcset="assets/registration/signup-shadow.webp" type="image/webp" />
+    <img class="signup-backdrop" src="assets/registration/signup-noir.svg" alt="" decoding="async" />
+  </picture>
 
   <div class="form-container">
-    <header class="auth-intro">
-      <h1 id="register-intro-title">Criar conta</h1>
-      <p>Escolha seu apelido e configure o acesso. Você completa o perfil depois.</p>
-    </header>
-
     <app-register-progress
       step="signup"
       [completed]="accountCreated()"
       [nextAction]="nextSectionTitle()"
+      [compact]="true"
     />
 
     <div *ngIf="banner() as b" class="alert" [ngClass]="{
@@ -56,24 +55,30 @@
       <pre *ngIf="debugEnabled() && showTech() && b.details">{{ b.details }}</pre>
     </div>
 
-    <form [formGroup]="form" (ngSubmit)="submitSection()" aria-labelledby="register-section-title" autocomplete="on" novalidate
+    <form [formGroup]="form" (ngSubmit)="submitSection()" aria-labelledby="register-intro-title" autocomplete="on" novalidate
       formInvalidMessage="Revise os dados do cadastro antes de continuar."
       [formValidationOnSubmit]="false"
       [attr.aria-busy]="(isLoading() || creating()) ? 'true' : null">
 
       <header class="signup-section-intro">
-        <h2 id="register-section-title" #sectionHeading tabindex="-1">
+        <h1 id="register-intro-title" #sectionHeading tabindex="-1">
           {{ currentSection().title }}
           <span class="signup-section-count">{{ sectionIndex() + 1 }} de {{ sectionCount }}</span>
-        </h2>
+        </h1>
         <p>{{ currentSection().description }}</p>
       </header>
 
       @switch (sectionIndex()) {
       @case (0) {
+      <div class="signup-pair signup-pair--nickname">
       <!-- Apelido principal -->
       <div class="nickname-field app-field">
-        <label for="apelidoPrincipal">Apelido *</label>
+        <div class="signup-label-row">
+          <label for="apelidoPrincipal">Apelido *</label>
+          <small class="char-counter" [class.warn]="(form.get('apelidoPrincipal')?.value?.length || 0) > 10">
+            {{ (form.get('apelidoPrincipal')?.value?.length || 0) }}/12
+          </small>
+        </div>
 
         <div class="field-row">
           <div class="input-wrapper">
@@ -148,12 +153,6 @@
           </div>
         </div>
 
-        <div class="hint-row hint-row--compact">
-          <small class="char-counter" [class.warn]="(form.get('apelidoPrincipal')?.value?.length || 0) > 10">
-            {{ (form.get('apelidoPrincipal')?.value?.length || 0) }}/12
-          </small>
-        </div>
-
         <div *ngIf="
             getError('apelidoPrincipal')
             && (submitted() || nicknameFeedbackArmed())
@@ -186,6 +185,7 @@
         </div>
       </div>
 
+      </div>
       }
       @case (1) {
       <!-- Email -->
@@ -203,7 +203,7 @@
             'is-invalid': (submitted() || form.get('email')?.touched) && form.get('email')?.invalid,
             'is-valid': (submitted() || form.get('email')?.touched) && form.get('email')?.valid
           }" />
-        <small id="register-email-help" class="field-hint">Usamos seu e-mail para acesso e segurança da conta. Ele fica fora do perfil público.</small>
+        <small id="register-email-help" class="field-hint">Seu e-mail fica fora do perfil público.</small>
 
         <div *ngIf="getError('email') && (submitted() || form.get('email')?.touched)" id="emailTooltip"
           class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
@@ -211,13 +211,14 @@
         </div>
       </div>
 
+      <div class="signup-pair">
       <!-- Senha -->
       <div class="app-field">
         <label for="password">Senha *</label>
 
         <div class="input-wrapper password-field">
           <input id="password" [type]="showPassword() ? 'text' : 'password'" formControlName="password"
-            class="app-control" name="password" autocomplete="new-password" placeholder="Crie uma senha segura"
+            class="app-control" name="password" autocomplete="new-password" placeholder="Crie uma senha"
             spellcheck="false" autocapitalize="none" maxlength="128" aria-label="Senha"
             aria-describedby="passwordHint passwordTooltip" [attr.aria-invalid]="
               (submitted() || form.get('password')?.touched)
@@ -248,10 +249,6 @@
           </button>
         </div>
 
-        <small id="passwordHint" class="field-hint">
-          Use pelo menos 8 caracteres, com letra maiúscula, minúscula e número.
-        </small>
-
         <div *ngIf="getError('password') && (submitted() || form.get('password')?.touched)" id="passwordTooltip"
           class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
           {{ getError('password') }}
@@ -265,7 +262,7 @@
         <div class="input-wrapper password-field">
           <input id="confirmPassword" [type]="showConfirmPassword() ? 'text' : 'password'"
             formControlName="confirmPassword" class="app-control" name="confirmPassword"
-            autocomplete="new-password" placeholder="Digite a mesma senha novamente" spellcheck="false"
+            autocomplete="new-password" placeholder="Repita a senha" spellcheck="false"
             autocapitalize="none" maxlength="128" aria-label="Confirmar senha"
             aria-describedby="confirmPasswordTooltip" [attr.aria-invalid]="
               (submitted() || form.get('confirmPassword')?.touched)
@@ -306,6 +303,10 @@
           {{ getError('confirmPassword') }}
         </div>
       </div>
+      </div>
+      <small id="passwordHint" class="field-hint signup-password-hint">
+        Use ao menos 8 caracteres, com maiúscula, minúscula e número.
+      </small>
 
       }
       @case (2) {

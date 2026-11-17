@@ -1,4 +1,4 @@
-<section class="register-progress" aria-label="Progresso do cadastro">
+<section class="register-progress" [class.register-progress--compact]="compact()" aria-label="Progresso do cadastro">
   <p class="summary" aria-live="polite" aria-atomic="true">
     @if (finishedCount() === stages.length) {
       Cadastro concluído
@@ -26,6 +26,6 @@
   </ol>
 
   @if (upcomingAction(); as action) {
-    <p class="next">Próxima etapa <strong>{{ action }}</strong></p>
+    <p class="next">{{ compact() ? 'A seguir' : 'Próxima etapa' }} <strong>{{ action }}</strong></p>
   }
 </section>

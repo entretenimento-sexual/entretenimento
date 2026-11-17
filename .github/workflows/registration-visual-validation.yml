@@ -148,7 +148,7 @@ jobs:
               viewportHeight: window.innerHeight,
               scrollWidth: document.documentElement.scrollWidth,
               scrollHeight: document.documentElement.scrollHeight,
-              introVisible: !!document.querySelector('.auth-intro')?.getClientRects().length,
+              introVisible: !!document.querySelector('.signup-section-intro')?.getClientRects().length,
               title: document.querySelector('#register-intro-title')?.textContent?.trim() || '',
               submitVisible: !!document.querySelector('button[type=submit]')?.getClientRects().length,
               nicknameVisible: !!document.querySelector('#apelidoPrincipal')?.getClientRects().length,
@@ -156,8 +156,13 @@ jobs:
               viewportImage: document.querySelector('.signup-backdrop')?.getBoundingClientRect().toJSON(),
               bodyWidth: document.documentElement.clientWidth,
               bodyHeight: document.documentElement.clientHeight,
-              svgSource: document.querySelector('.signup-backdrop')?.getAttribute('src')?.endsWith('.svg'),
+              photoSource: document.querySelector('.signup-backdrop')?.currentSrc.endsWith('signup-shadow.webp'),
               formStart: document.querySelector('.form-container')?.getBoundingClientRect().left ?? 0,
+              formHeight: document.querySelector('.form-container')?.getBoundingClientRect().height ?? 0,
+              nicknameRow: Math.abs(
+                (document.querySelector('#apelidoPrincipal')?.getBoundingClientRect().top ?? 0) -
+                (document.querySelector('#complementoApelido')?.getBoundingClientRect().top ?? 0)
+              ) <= 8,
               nextAction: document.querySelector('app-register-progress .next strong')?.textContent?.trim(),
             }));
             console.log(JSON.stringify(metrics));
@@ -170,8 +175,11 @@ jobs:
             if (!metrics.nicknameVisible || metrics.laterFieldsPresent) {
               throw new Error('Desktop must start with only the nickname fields');
             }
-            if (!metrics.svgSource || !metrics.viewportImage || Math.abs(metrics.viewportImage.width - metrics.bodyWidth) > 1 || Math.abs(metrics.viewportImage.height - metrics.bodyHeight) > 1) {
-              throw new Error('Desktop must show the vector artwork across the viewport');
+            if (!metrics.photoSource || !metrics.viewportImage || Math.abs(metrics.viewportImage.width - metrics.bodyWidth) > 1 || Math.abs(metrics.viewportImage.height - metrics.bodyHeight) > 1) {
+              throw new Error('Desktop must show the photographic background across the viewport');
+            }
+            if (!metrics.nicknameRow || !metrics.formHeight || metrics.formHeight > 420) {
+              throw new Error('Desktop signup form must keep the nickname fields in a compact row');
             }
             if (metrics.formStart < metrics.viewportWidth * 0.52 || metrics.nextAction !== 'Configure seu acesso') {
               throw new Error('Desktop must keep the form to the right and show the next signup screen');
@@ -245,7 +253,7 @@ jobs:
             await page.locator('.signup-backdrop').evaluate(image => image.decode());
             const metrics = await page.evaluate(() => {
               const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
-              const inputRect = document.querySelector('.input-field')?.getBoundingClientRect();
+              const inputRect = document.querySelector('.signup-pair--nickname')?.getBoundingClientRect();
               return {
                 viewportWidth: window.innerWidth,
                 viewportHeight: window.innerHeight,
@@ -255,6 +263,7 @@ jobs:
                 bodyWidth: document.documentElement.clientWidth,
                 bodyHeight: document.documentElement.clientHeight,
                 formStart: formRect?.top ?? 0,
+                formHeight: formRect?.height ?? 0,
                 formVisible: !!document.querySelector('.form-container')?.getClientRects().length,
                 submitVisible: !!document.querySelector('button[type=submit]')?.getClientRects().length,
                 formWidth: formRect?.width ?? 0,
@@ -268,7 +277,7 @@ jobs:
             if (!metrics.viewportImage || Math.abs(metrics.viewportImage.width - metrics.bodyWidth) > 1 || Math.abs(metrics.viewportImage.height - metrics.bodyHeight) > 1 || metrics.formStart < 190) {
               throw new Error('Mobile must show the artwork across the viewport and leave it visible above the form');
             }
-            if (!metrics.formVisible || !metrics.submitVisible) {
+            if (!metrics.formVisible || !metrics.submitVisible || !metrics.formHeight || metrics.formHeight > 435) {
               throw new Error('Mobile initial registration form is incomplete');
             }
             if (metrics.formWidth < metrics.viewportWidth * 0.85) {
@@ -288,7 +297,7 @@ jobs:
               const errors = Array.from(document.querySelectorAll('.tooltip-error')).filter(isVisible);
               const overlaps = [];
               const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
-              const inputRect = document.querySelector('.input-field')?.getBoundingClientRect();
+              const inputRect = document.querySelector('.signup-pair--nickname')?.getBoundingClientRect();
 
               for (const error of errors) {
                 const owner = error.closest('.form-field, .form-checkbox');
@@ -367,6 +376,11 @@ jobs:
             }
             if (await page.locator('#apelidoPrincipal, #maioridade-inicial, #termos').count()) {
               throw new Error('Access step must show only the credentials');
+            }
+            const password = await page.locator('#password').boundingBox();
+            const confirmation = await page.locator('#confirmPassword').boundingBox();
+            if (!password || !confirmation || Math.abs(password.y - confirmation.y) > 8 || Math.min(password.width, confirmation.width) < 90) {
+              throw new Error('Access step must fit both password fields on a readable row at 390px');
             }
             await page.locator('#email').fill('visual@example.test');
             await page.locator('#password').fill('Teste123');
