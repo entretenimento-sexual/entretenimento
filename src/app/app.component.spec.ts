@@ -132,6 +132,25 @@ describe('AppComponent', () => {
     expect(exitStub.retryLogin).toHaveBeenCalledOnce();
   });
 
+  it('anuncia a troca de conta e oferece recuperação mantendo o outlet inerte', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    exitStub.pending$.next('account-switch');
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('A conta ativa mudou. Estamos abrindo sua sessão atual');
+    expect(root.querySelector<HTMLElement>('#route-content [hidden]')?.inert).toBe(true);
+
+    exitStub.loginFailed$.next(true);
+    fixture.detectChanges();
+    expect(root.querySelector('#route-content [role=alert]')?.textContent)
+      .toContain('Não conseguimos abrir sua sessão atual.');
+    const retry = root.querySelector<HTMLButtonElement>('#route-content button')!;
+    expect(retry.textContent).toContain('Continuar com a conta atual');
+    retry.click();
+    expect(exitStub.retryLogin).toHaveBeenCalledOnce();
+  });
+
   it('inicia orquestradores e assinatura canônica', async () => {
     const fixture = TestBed.createComponent(AppComponent);
     const component = fixture.componentInstance;

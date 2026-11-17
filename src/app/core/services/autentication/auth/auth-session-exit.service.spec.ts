@@ -1,11 +1,21 @@
+import { Component, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Router, provideRouter, type UrlTree } from '@angular/router';
-import { BehaviorSubject, firstValueFrom } from 'rxjs';
+import { MatDialog } from '@angular/material/dialog';
+import { NavigationEnd, Router, provideRouter, type UrlTree } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+import { BehaviorSubject, filter, firstValueFrom, of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { authInvalidMarkerKey, markAuthInvalidUid } from '@core/firebase/auth-invalid-session-marker';
+import { authGuard } from '@core/guards/auth-guard/auth.guard';
+import { guestOnlyCanMatch } from '@core/guards/auth-guard/guest-only.guard';
+import { unsavedChangesGuard } from '@core/guards/unsaved-changes/unsaved-changes.guard';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
+import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
+import { AccessControlService } from './access-control.service';
 import { AuthAppBlockService } from './auth-app-block.service';
+import { AuthReturnUrlService } from './auth-return-url.service';
 import { AuthRouteContextService, type AuthRouteContext } from './auth-route-context.service';
 import { AuthSessionExitService } from './auth-session-exit.service';
 import { AuthSessionService } from './auth-session.service';
@@ -29,6 +39,7 @@ describe('AuthSessionExitService', () => {
         { provide: AuthSessionService, useValue: session },
         { provide: AuthRouteContextService, useValue: { context$: route } },
         { provide: ApplicationErrorService, useValue: { report: vi.fn() } },
+        { provide: MatDialog, useValue: { closeAll: vi.fn() } },
       ],
     });
     const router = TestBed.inject(Router);
@@ -131,5 +142,131 @@ describe('AuthSessionExitService', () => {
   it('permite que uma sessão ausente em uma rota nova seja decidida pelo guard', () => {
     const t = harness(null);
     expect(t.navigate).not.toHaveBeenCalled();
+  });
+});
+
+@Component({ selector: 'app-session-exit-draft-test', template: '{{ owner }}' })
+class DraftPage {
+  readonly owner = inject(AuthSessionService).currentAuthUser?.uid;
+  hasUnsavedChanges = () => true;
+  persistUnsavedChanges = vi.fn();
+  discardUnsavedChanges = vi.fn();
+  destroyed = false;
+
+  ngOnDestroy(): void {
+    this.destroyed = true;
+  }
+}
+
+@Component({ selector: 'app-session-exit-login-test', template: '' })
+class LoginPage {}
+
+describe('AuthSessionExitService com o Router', () => {
+  const home = '/dashboard/principal';
+
+  async function setup() {
+    const uid$ = new BehaviorSubject<string | null>('a');
+    const appUser$ = new BehaviorSubject({ uid: 'a', profileCompleted: true });
+    const ready$ = of(true);
+    const isTerminating$ = of(false);
+    const mayEnterHome = vi.fn(() => true);
+    const dialog = { closeAll: vi.fn(), open: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          {
+            path: 'dashboard/principal', component: DraftPage,
+            canActivate: [authGuard, mayEnterHome], canDeactivate: [unsavedChangesGuard],
+          },
+          { path: 'login', component: LoginPage, canMatch: [guestOnlyCanMatch] },
+        ]),
+        { provide: AuthSessionService, useValue: {
+          uid$, ready$, isTerminating$, isTerminatingSnapshot: false,
+          get currentAuthUser() { return uid$.value ? { uid: uid$.value, emailVerified: true } : null; },
+        } },
+        { provide: AccessControlService, useValue: {
+          ready$, appUser$, blockedReason$: of(null), emailVerified$: of(true),
+        } },
+        { provide: AuthReturnUrlService, useValue: {
+          resolveAuthedRedirect: (redirect: string | null, fallback: string) => redirect ?? fallback,
+        } },
+        { provide: ApplicationErrorService, useValue: { report: vi.fn() } },
+        { provide: ErrorNotificationService, useValue: { showError: vi.fn() } },
+        { provide: PrivacyDebugLoggerService, useValue: { log: vi.fn() } },
+        { provide: MatDialog, useValue: dialog },
+      ],
+    });
+    const router = TestBed.inject(Router);
+    const exit = TestBed.inject(AuthSessionExitService);
+    const states: unknown[] = [];
+    exit.pending$.subscribe((reason) => states.push(reason));
+    const failed: boolean[] = [];
+    exit.loginFailed$.subscribe((failure) => failed.push(failure));
+    exit.start();
+    const harness = await RouterTestingHarness.create();
+    const first = await harness.navigateByUrl(home, DraftPage);
+    const nextNavigation = (path: string) => firstValueFrom(router.events.pipe(
+      filter((event) => event instanceof NavigationEnd && event.urlAfterRedirects === path)
+    ));
+    return { router, exit, harness, first, dialog, states, failed, uid$, appUser$, mayEnterHome, nextNavigation };
+  }
+
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('conserva o rascunho de A e recria o mesmo destino só depois de resolver B', async () => {
+    const t = await setup();
+    const neutral = t.nextNavigation('/login?reason=auth_unavailable');
+    t.uid$.next('b');
+    expect(t.states.at(-1)).toBe('account-switch');
+    await neutral;
+    expect(t.first.persistUnsavedChanges).toHaveBeenCalledOnce();
+    expect(t.first.discardUnsavedChanges).not.toHaveBeenCalled();
+    expect(t.first.destroyed).toBe(true);
+    expect(t.dialog.closeAll).toHaveBeenCalledOnce();
+    expect(t.dialog.open).not.toHaveBeenCalled();
+    expect(t.states.at(-1)).toBe('account-switch');
+
+    const homeOpen = t.nextNavigation(home);
+    t.appUser$.next({ uid: 'b', profileCompleted: true });
+    await homeOpen;
+    await vi.waitFor(() => expect(t.states.at(-1)).toBeNull());
+    t.harness.detectChanges();
+    const current = t.harness.routeDebugElement!.componentInstance as DraftPage;
+    expect(current).not.toBe(t.first);
+    expect(current.owner).toBe('b');
+  });
+
+  it('mantém a transição protegida se a navegação falhar e recupera no retry', async () => {
+    const t = await setup();
+    t.mayEnterHome.mockReturnValue(false);
+    t.uid$.next('b');
+    t.appUser$.next({ uid: 'b', profileCompleted: true });
+    await vi.waitFor(() => expect(t.failed.at(-1)).toBe(true));
+    expect(t.states.at(-1)).toBe('account-switch');
+    expect(t.first.persistUnsavedChanges).toHaveBeenCalledOnce();
+    t.mayEnterHome.mockReturnValue(true);
+    const homeOpen = t.nextNavigation(home);
+    t.exit.retryLogin();
+    await homeOpen;
+    await vi.waitFor(() => expect(t.states.at(-1)).toBeNull());
+    expect(t.failed.at(-1)).toBe(false);
+    expect(t.first.persistUnsavedChanges).toHaveBeenCalledOnce();
+  });
+
+  it('só retira a proteção para C se B for substituído durante a transição', async () => {
+    const t = await setup();
+    const neutral = t.nextNavigation('/login?reason=auth_unavailable');
+    t.uid$.next('b');
+    await neutral;
+    const homeOpen = t.nextNavigation(home);
+    t.uid$.next('c');
+    t.appUser$.next({ uid: 'b', profileCompleted: true });
+    expect(t.states.at(-1)).toBe('account-switch');
+    t.appUser$.next({ uid: 'c', profileCompleted: true });
+    await homeOpen;
+    await vi.waitFor(() => expect(t.states.at(-1)).toBeNull());
+    t.harness.detectChanges();
+    expect(t.harness.routeDebugElement!.componentInstance.owner).toBe('c');
+    expect(t.first.persistUnsavedChanges).toHaveBeenCalledOnce();
   });
 });

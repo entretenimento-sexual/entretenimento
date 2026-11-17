@@ -8,7 +8,17 @@
 <div id="route-content" class="route-content" tabindex="-1">
   @let sessionExitPending = sessionExitPending$ | async;
   @if (sessionExitPending) {
-    @if (sessionExitLoginFailed$ | async) {
+    @let navigationFailed = sessionExitLoginFailed$ | async;
+    @if (sessionExitPending === 'account-switch') {
+      @if (navigationFailed) {
+        <p role="alert">A conta ativa mudou. Não conseguimos abrir sua sessão atual.</p>
+        <button class="app-action app-action--primary" type="button" (click)="retrySessionExitLogin()">
+          Continuar com a conta atual
+        </button>
+      } @else {
+        <p role="status" aria-live="polite">A conta ativa mudou. Estamos abrindo sua sessão atual…</p>
+      }
+    } @else if (navigationFailed) {
       <p role="status" aria-live="polite">
         Sua sessão foi encerrada. Não foi possível abrir a tela de login.
       </p>
