@@ -12,6 +12,10 @@ A plataforma possui uma única fronteira de encerramento de sessão: `LogoutServ
 
 O serviço consulta alterações pendentes na tela ativa antes de iniciar o logout. A confirmação autoriza descartar o rascunho após o encerramento confirmado pelo Firebase. Se o sign-out falhar com a mesma conta ainda ativa, a edição fica disponível e os orquestradores rearmam seus recursos. A recuperação do Web Push tem prazo de 3 segundos.
 
-O shell oculta a tela protegida após o encerramento efetivo. Se a navegação para o login falhar ou for cancelada, o botão “Abrir login” permite tentar novamente. Quando a navegação termina, a tela de login confirma a saída voluntária.
+O shell oculta a tela protegida assim que a saída é confirmada pelo usuário e exibe “Encerrando sessão…”. Após 10 segundos de espera, informa que a saída ainda não pôde ser confirmada e permite recarregar a página para verificar a sessão. A espera da interface preserva a operação do Firebase. Uma confirmação tardia conclui a saída normalmente.
+
+Uma falha com a mesma sessão ativa reabre a tela e oferece “Tentar sair novamente”. Se o SDK rejeitar a operação após limpar o usuário em memória, o shell mantém a tela protegida e oferece recarga para verificar a sessão persistida.
+
+Depois de confirmado o encerramento pelo Firebase, o shell abre a tela de login. Se a navegação falhar ou for cancelada, o botão “Abrir login” permite tentar novamente. A tela de login confirma a saída voluntária.
 
 [Política de autenticação](../../../../docs/dev/auth-session-policy.md) · [Checklist local](../../../../docs/dev/auth-validation-checklist.md)

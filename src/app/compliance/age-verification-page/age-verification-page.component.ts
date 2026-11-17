@@ -171,14 +171,7 @@ export class AgeVerificationPageComponent implements OnInit {
     this.logout.logout$()
       .pipe(
         take(1),
-        catchError(() => {
-          this.feedback.set({
-            tone: 'error',
-            title: 'Não foi possível sair da conta',
-            message: 'Tente novamente em alguns instantes.',
-          });
-          return EMPTY;
-        }),
+        catchError(() => EMPTY),
         finalize(() => this.processing.set(false))
       )
       .subscribe();

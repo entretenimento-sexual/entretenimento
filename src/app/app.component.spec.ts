@@ -9,6 +9,7 @@ import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
 
 import { AppComponent } from './app.component';
 import { AuthSessionExitService } from './core/services/autentication/auth/auth-session-exit.service';
+import { LogoutService } from './core/services/autentication/auth/logout.service';
 import { AuthOrchestratorService } from './core/services/autentication/auth/auth-orchestrator.service';
 import { AuthDebugService } from './core/services/util-service/auth-debug.service';
 import { PresenceOrchestratorService } from './core/services/presence/presence-orchestrator.service';
@@ -31,6 +32,10 @@ describe('AppComponent', () => {
     loginFailed$: new BehaviorSubject(false),
     retryLogin: vi.fn(),
   };
+  const logoutStub = {
+    voluntaryLogoutStatus$: new BehaviorSubject<string | null>(null),
+    retryVoluntaryLogout: vi.fn(),
+  };
   const orchestratorStub = { start: vi.fn() };
   const presenceOrchestratorStub = { start: vi.fn() };
   const subscriptionReconciliationStub = { start: vi.fn() };
@@ -43,6 +48,7 @@ describe('AppComponent', () => {
 
     exitStub.pending$.next(null);
     exitStub.loginFailed$.next(false);
+    logoutStub.voluntaryLogoutStatus$.next(null);
     document.documentElement.className = '';
     document.body.className = '';
     localStorage.clear();
@@ -58,6 +64,7 @@ describe('AppComponent', () => {
       declarations: [AppComponent],
       providers: [
         { provide: AuthSessionExitService, useValue: exitStub },
+        { provide: LogoutService, useValue: logoutStub },
         { provide: AuthOrchestratorService, useValue: orchestratorStub },
         {
           provide: PresenceOrchestratorService,
@@ -115,6 +122,50 @@ describe('AppComponent', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('#route-content [hidden]')).not.toBeNull();
     expect(fixture.nativeElement.textContent).toContain('Abrindo a tela de login');
+  });
+
+  it('mantém a tela protegida inerte durante o logout e oferece recarga se demorar', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    const reload = vi.spyOn(fixture.componentInstance, 'reloadAfterPendingLogout').mockImplementation(() => {});
+    const root = fixture.nativeElement as HTMLElement;
+    fixture.detectChanges();
+
+    logoutStub.voluntaryLogoutStatus$.next('ending');
+    fixture.detectChanges();
+    const status = root.querySelector('.logout-status [role=status]')!;
+    expect(status.textContent).toContain('Encerrando sessão');
+    expect(root.querySelector<HTMLElement>('#route-content [hidden]')?.inert).toBe(true);
+    expect(root.querySelector('.logout-status button')).toBeNull();
+
+    logoutStub.voluntaryLogoutStatus$.next('delayed');
+    fixture.detectChanges();
+    expect(status.textContent).toContain('Ainda não conseguimos confirmar a saída');
+    expect(root.querySelector<HTMLElement>('#route-content [hidden]')?.inert).toBe(true);
+    const button = root.querySelector<HTMLButtonElement>('.logout-status button')!;
+    expect(button.textContent).toContain('Recarregar página');
+    button.click();
+    expect(reload).toHaveBeenCalledOnce();
+    expect(logoutStub.retryVoluntaryLogout).not.toHaveBeenCalled();
+
+    exitStub.pending$.next('signed-out');
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Abrindo a tela de login');
+    expect(root.querySelector<HTMLElement>('#route-content [hidden]')?.inert).toBe(true);
+  });
+
+  it('reabre a tela e oferece nova tentativa quando a mesma sessão continua ativa', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    const root = fixture.nativeElement as HTMLElement;
+    fixture.detectChanges();
+    logoutStub.voluntaryLogoutStatus$.next('failed');
+    fixture.detectChanges();
+
+    expect(root.querySelector('.logout-status [role=alert]')?.textContent).toContain('Sua sessão continua ativa.');
+    expect(root.querySelector('#route-content [hidden]')).toBeNull();
+    const button = root.querySelector<HTMLButtonElement>('.logout-status button')!;
+    expect(button.textContent).toContain('Tentar sair novamente');
+    button.click();
+    expect(logoutStub.retryVoluntaryLogout).toHaveBeenCalledOnce();
   });
 
   it('oferece acesso ao login se a navegação falhar depois do logout', () => {

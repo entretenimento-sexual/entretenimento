@@ -196,17 +196,7 @@ export class AgeReverificationPageComponent {
     this.logoutService.logout$()
       .pipe(
         take(1),
-        catchError((error: unknown) => {
-          this.applicationError.report(error, {
-            feature: 'age-reverification',
-            operation: 'logout',
-            fallbackMessage: 'Não foi possível encerrar sua sessão.',
-            metadata: {
-              scope: 'AgeReverificationPageComponent',
-            },
-          });
-          return EMPTY;
-        })
+        catchError(() => EMPTY)
       )
       .subscribe();
   }

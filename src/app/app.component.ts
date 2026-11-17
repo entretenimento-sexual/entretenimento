@@ -7,6 +7,7 @@
 // - manter a casca raiz mínima;
 // - controlar a exibição do footer público por rota.
 import { Component, OnInit, inject } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { Router, NavigationEnd } from '@angular/router';
 import { Observable } from 'rxjs';
 import {
@@ -18,6 +19,7 @@ import {
 } from 'rxjs/operators';
 
 import { AuthSessionExitService } from './core/services/autentication/auth/auth-session-exit.service';
+import { LogoutService } from './core/services/autentication/auth/logout.service';
 import { AuthOrchestratorService } from './core/services/autentication/auth/auth-orchestrator.service';
 import { AuthDebugService } from './core/services/util-service/auth-debug.service';
 import { environment } from 'src/environments/environment';
@@ -35,11 +37,22 @@ import { PlatformSubscriptionReconciliationService } from './payments-core/appli
 export class AppComponent implements OnInit {
   title = 'entretenimento';
   private readonly sessionExit = inject(AuthSessionExitService);
+  private readonly logoutService = inject(LogoutService);
+  private readonly document = inject(DOCUMENT);
   readonly sessionExitPending$ = this.sessionExit.pending$;
   readonly sessionExitLoginFailed$ = this.sessionExit.loginFailed$;
+  readonly voluntaryLogoutStatus$ = this.logoutService.voluntaryLogoutStatus$;
 
   retrySessionExitLogin(): void {
     this.sessionExit.retryLogin();
+  }
+
+  retryVoluntaryLogout(): void {
+    this.logoutService.retryVoluntaryLogout();
+  }
+
+  reloadAfterPendingLogout(): void {
+    this.document.defaultView?.location.reload();
   }
 
   readonly showFooter$: Observable<boolean> = this.router.events.pipe(

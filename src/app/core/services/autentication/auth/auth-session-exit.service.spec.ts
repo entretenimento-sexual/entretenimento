@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
-import { NavigationEnd, Router, provideRouter, type UrlTree } from '@angular/router';
+import { NavigationEnd, Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { BehaviorSubject, filter, firstValueFrom, of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -52,7 +52,10 @@ describe('AuthSessionExitService', () => {
     const failures: boolean[] = [];
     exit.loginFailed$.subscribe((failed) => failures.push(failed));
     exit.start();
-    const lastUrl = () => router.serializeUrl(navigate.mock.lastCall![0] as UrlTree);
+    const lastUrl = () => {
+      const url = navigate.mock.lastCall![0];
+      return typeof url === 'string' ? url : router.serializeUrl(url);
+    };
     const change = (next: string | null) => {
       session.currentAuthUser = next ? { uid: next } : null;
       uid$.next(next);
@@ -100,10 +103,26 @@ describe('AuthSessionExitService', () => {
     t.session.isTerminatingSnapshot = true;
     t.change(null);
     t.session.isTerminating$.next(true);
+    expect(t.states).toEqual([null]);
+    t.exit.markSignedOut();
     t.session.isTerminatingSnapshot = false;
     t.session.isTerminating$.next(false);
     expect(t.navigate).not.toHaveBeenCalled();
+    expect(t.states).toEqual([null, 'signed-out']);
+  });
+
+  it('preserva a identidade anterior para isolar a rota se outra conta entrar durante o logout', () => {
+    const t = harness();
+    t.session.isTerminatingSnapshot = true;
+    t.session.isTerminating$.next(true);
+    t.session.uid$.next(null); // UID operacional mascarado
+    t.session.currentAuthUser = { uid: 'b' };
     expect(t.states).toEqual([null]);
+
+    t.session.isTerminatingSnapshot = false;
+    t.session.isTerminating$.next(false);
+    expect(t.states.at(-1)).toBe('account-switch');
+    expect(t.lastUrl()).toBe('/login?reason=auth_unavailable');
   });
 
   it.each(['cancelled', 'rejected', 'pending'] as const)(

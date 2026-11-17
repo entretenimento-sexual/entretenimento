@@ -40,6 +40,11 @@
   outline-offset: -3px;
 }
 
+.logout-status {
+  padding: clamp(1rem, 4vw, 2rem);
+  overflow-wrap: anywhere;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .skip-link {
     transition: none;

@@ -79,28 +79,29 @@ export class AuthSessionExitService {
       ([ready, uid, terminating, route, blocked, invalidation]) => {
         if (!ready) return;
         terminating = terminating || this.session.isTerminatingSnapshot;
+        const currentUid = this.session.currentAuthUser?.uid ?? null;
         const outgoingUid = this.previousUid ?? this.lostUid;
-        const switchOnProtectedRoute = route.requiresSession && !!uid &&
-          ((outgoingUid !== null && outgoingUid !== uid) ||
+        const switchOnProtectedRoute = route.requiresSession && !terminating && !!currentUid &&
+          ((outgoingUid !== null && outgoingUid !== currentUid) ||
             this.pending.value === VOLUNTARY_LOGOUT_NOTICE);
 
-        if (uid && !terminating) {
-          this.previousUid = uid;
-          this.lostUid = null;
-        } else if (this.previousUid && !terminating) {
-          this.lostUid = this.previousUid;
-          this.previousUid = null;
-        } else if (terminating) {
-          this.previousUid = null;
-          this.lostUid = null;
+        // O UID operacional fica mascarado durante o logout. A identidade
+        // anterior ainda é necessária para isolar a tela se outra conta entrar.
+        if (!terminating && uid === currentUid) {
+          if (uid) {
+            this.previousUid = uid;
+            this.lostUid = null;
+          } else if (this.previousUid) {
+            this.lostUid = this.previousUid;
+            this.previousUid = null;
+          }
         }
 
         if (this.pending.value === ACCOUNT_SWITCH_NOTICE || switchOnProtectedRoute) {
           if (terminating) {
             this.accountSwitch = null;
-          } else if ((this.session.currentAuthUser?.uid ?? null) === uid &&
-              this.accountSwitch?.uid !== uid) {
-            this.openCurrentAccount(uid);
+          } else if (this.accountSwitch?.uid !== currentUid) {
+            this.openCurrentAccount(currentUid);
           }
           return;
         }
@@ -141,6 +142,8 @@ export class AuthSessionExitService {
   }
 
   markSignedOut(): void {
+    this.previousUid = null;
+    this.lostUid = null;
     this.showPending(VOLUNTARY_LOGOUT_NOTICE);
   }
 

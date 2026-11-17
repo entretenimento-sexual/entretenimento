@@ -1,9 +1,12 @@
 import {
+  BehaviorSubject,
   EMPTY,
   NEVER,
+  Observable,
   Subject,
   defer,
   firstValueFrom,
+  from,
   of,
   throwError,
 } from 'rxjs';
@@ -28,6 +31,16 @@ const originalNotification = Object.getOwnPropertyDescriptor(
   globalThis,
   'Notification'
 );
+
+function pendingSignOut() {
+  let resolve!: () => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<void>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
+  return { result$: from(promise), resolve, reject };
+}
 
 function createHarness(options: HarnessOptions = {}) {
   const presenceMode = options.presenceMode ?? 'success';
@@ -124,7 +137,7 @@ function createHarness(options: HarnessOptions = {}) {
   };
 
   const authSession = {
-    authUser$: new Subject<unknown>(),
+    authUser$: new BehaviorSubject<{ uid: string } | null>(auth.currentUser),
     beginTermination: vi.fn(() => {
       terminating = true;
       calls.push('session:begin');
@@ -178,7 +191,7 @@ function createHarness(options: HarnessOptions = {}) {
     sessionExit as any
   );
 
-  const executeSignOut = vi.fn((mode: string) =>
+  const executeSignOut = vi.fn((mode: string): Observable<void> =>
     defer(() => {
       calls.push(`signout:${mode}`);
 
@@ -337,14 +350,115 @@ describe('LogoutService global session lifecycle', () => {
       {
         feature: 'auth',
         operation: 'logout',
-        fallbackMessage: 'Não conseguimos encerrar sua sessão. Ela continua ativa. Tente sair novamente.',
-        presentation: { surface: 'snackbar', severity: 'error' },
+        fallbackMessage: 'Não foi possível concluir uma etapa interna do encerramento da sessão.',
+        presentation: { surface: 'none', severity: 'error' },
         metadata: {
           scope: 'LogoutService',
+          phase: 'logout',
           sessionRestored: true,
         },
       }
     );
+  });
+
+  it('mostra a demora sem duplicar signOut e aceita a confirmação tardia do SDK', async () => {
+    vi.useFakeTimers();
+    const t = createHarness();
+    const sdk = pendingSignOut();
+    t.executeSignOut.mockReturnValue(sdk.result$);
+    const feedback: Array<string | null> = [];
+    const listener = t.service.voluntaryLogoutStatus$.subscribe((phase) => feedback.push(phase));
+    const done = firstValueFrom(t.service.logout$());
+
+    expect(feedback.at(-1)).toBe('ending');
+    t.auth.currentUser = null; // snapshot em memória muda antes de concluir a persistência
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(feedback.at(-1)).toBe('delayed');
+    expect(t.authSession.isTerminatingSnapshot).toBe(true);
+    expect(t.sessionExit.markSignedOut).not.toHaveBeenCalled();
+    expect(t.cache.clearSensitiveSessionCache$).not.toHaveBeenCalled();
+
+    t.service.retryVoluntaryLogout();
+    const second = firstValueFrom(t.service.logout$());
+    expect(t.executeSignOut).toHaveBeenCalledOnce();
+    sdk.resolve();
+    await Promise.all([done, second]);
+
+    expect(t.sessionExit.markSignedOut).toHaveBeenCalledOnce();
+    expect(t.sessionExit.openAfterLogout$).toHaveBeenCalledOnce();
+    expect(t.authSession.isTerminatingSnapshot).toBe(false);
+    expect(feedback).toEqual([null, 'ending', 'delayed', null]);
+    listener.unsubscribe();
+  });
+
+  it('oferece nova tentativa após rejeição tardia da mesma sessão e preserva o rascunho', async () => {
+    vi.useFakeTimers();
+    const t = createHarness();
+    const draft = openDraft(t);
+    const sdk = pendingSignOut();
+    t.executeSignOut.mockReturnValueOnce(sdk.result$);
+    const feedback: Array<string | null> = [];
+    const listener = t.service.voluntaryLogoutStatus$.subscribe((phase) => feedback.push(phase));
+    const result = expect(firstValueFrom(t.service.logout$())).rejects.toThrow('persistência indisponível');
+    draft.answer.next(true);
+    await vi.advanceTimersByTimeAsync(10_000);
+    sdk.reject(new Error('persistência indisponível'));
+    await result;
+
+    expect(t.authSession.isTerminatingSnapshot).toBe(false);
+    expect(draft.discardUnsavedChanges).not.toHaveBeenCalled();
+    expect(feedback.at(-1)).toBe('failed');
+
+    t.service.retryVoluntaryLogout();
+    expect(t.executeSignOut).toHaveBeenCalledOnce();
+    draft.answer.next(true);
+    expect(t.executeSignOut).toHaveBeenCalledTimes(2);
+    expect(draft.discardUnsavedChanges).toHaveBeenCalledOnce();
+    expect(feedback.at(-1)).toBeNull();
+    listener.unsubscribe();
+  });
+
+  it('mantém o modo protegido se o SDK rejeita depois de mudar o snapshot para null', async () => {
+    const t = createHarness();
+    const draft = openDraft(t);
+    const feedback: Array<string | null> = [];
+    const listener = t.service.voluntaryLogoutStatus$.subscribe((phase) => feedback.push(phase));
+    t.executeSignOut.mockReturnValueOnce(defer(() => {
+      t.auth.currentUser = null;
+      return throwError(() => new Error('persistência indisponível'));
+    }));
+    const result = expect(firstValueFrom(t.service.logout$())).rejects.toThrow('persistência indisponível');
+    draft.answer.next(true);
+    await result;
+
+    expect(feedback.at(-1)).toBe('unconfirmed');
+    expect(t.authSession.isTerminatingSnapshot).toBe(true);
+    expect(t.sessionExit.markSignedOut).not.toHaveBeenCalled();
+    expect(draft.discardUnsavedChanges).not.toHaveBeenCalled();
+    t.service.retryVoluntaryLogout();
+    t.service.logout();
+    expect(t.executeSignOut).toHaveBeenCalledOnce();
+    listener.unsubscribe();
+  });
+
+  it('ignora a conclusão da operação anterior quando outra conta já está ativa', async () => {
+    const t = createHarness();
+    const draft = openDraft(t);
+    const sdk = pendingSignOut();
+    t.executeSignOut.mockReturnValueOnce(sdk.result$);
+    const done = firstValueFrom(t.service.logout$(), { defaultValue: 'interrompido' });
+    draft.answer.next(true);
+
+    t.auth.currentUser = { uid: 'user-b' };
+    t.authSession.authUser$.next(t.auth.currentUser);
+    sdk.resolve();
+    expect(await done).toBe('interrompido');
+
+    expect(t.auth.currentUser?.uid).toBe('user-b');
+    expect(t.authSession.isTerminatingSnapshot).toBe(false);
+    expect(draft.discardUnsavedChanges).not.toHaveBeenCalled();
+    expect(t.sessionExit.markSignedOut).not.toHaveBeenCalled();
+    expect(t.cache.clearSensitiveSessionCache$).not.toHaveBeenCalled();
   });
 
   it('falha do Web Push é reportada silenciosamente e não bloqueia o logout', async () => {

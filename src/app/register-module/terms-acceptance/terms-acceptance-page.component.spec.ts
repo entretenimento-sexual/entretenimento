@@ -137,17 +137,14 @@ describe('TermsAcceptancePageComponent', () => {
     expect(component.isSaving()).toBe(false);
   });
 
-  it('mantém um único feedback de erro quando o serviço de logout propaga uma falha', () => {
+  it('libera a tela e delega o feedback de logout ao shell global', () => {
     logoutMock.logout$.mockReturnValueOnce(
       throwError(() => new Error('logout-failed'))
     );
 
     component.decline();
 
-    expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
-      'Não foi possível encerrar sua sessão. Tente novamente.'
-    );
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
     expect(globalErrorHandlerMock.handleError).not.toHaveBeenCalled();
     expect(component.isSaving()).toBe(false);
   });

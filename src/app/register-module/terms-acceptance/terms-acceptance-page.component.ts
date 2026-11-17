@@ -158,12 +158,7 @@ export class TermsAcceptancePageComponent {
     this.logout.logout$()
       .pipe(
         take(1),
-        catchError(() => {
-          this.errorNotifier.showError(
-            'Não foi possível encerrar sua sessão. Tente novamente.'
-          );
-          return EMPTY;
-        }),
+        catchError(() => EMPTY),
         finalize(() => {
           this.isSaving.set(false);
         })

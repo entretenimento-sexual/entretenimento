@@ -7,6 +7,8 @@
 
 <div id="route-content" class="route-content" tabindex="-1">
   @let sessionExitPending = sessionExitPending$ | async;
+  @let logoutStatus = voluntaryLogoutStatus$ | async;
+  @let hideRoute = sessionExitPending !== null || (logoutStatus !== null && logoutStatus !== 'failed');
   @if (sessionExitPending) {
     @let navigationFailed = sessionExitLoginFailed$ | async;
     @if (sessionExitPending === 'account-switch') {
@@ -28,8 +30,28 @@
     } @else {
       <p role="status" aria-live="polite">Abrindo a tela de login…</p>
     }
+  } @else if (logoutStatus) {
+    <div class="logout-status">
+      @if (logoutStatus === 'failed') {
+        <p role="alert">Não conseguimos sair. Sua sessão continua ativa.</p>
+        <button class="app-action app-action--primary" type="button" (click)="retryVoluntaryLogout()">
+          Tentar sair novamente
+        </button>
+      } @else {
+        <p role="status" aria-live="polite">
+          {{ logoutStatus === 'ending'
+            ? 'Encerrando sessão…'
+            : 'Ainda não conseguimos confirmar a saída. Recarregue a página para verificar a sessão.' }}
+        </p>
+        @if (logoutStatus !== 'ending') {
+          <button class="app-action app-action--primary" type="button" (click)="reloadAfterPendingLogout()">
+            Recarregar página
+          </button>
+        }
+      }
+    </div>
   }
-  <div [hidden]="sessionExitPending !== null" [inert]="sessionExitPending !== null">
+  <div [hidden]="hideRoute" [inert]="hideRoute">
     <router-outlet></router-outlet>
   </div>
 </div>

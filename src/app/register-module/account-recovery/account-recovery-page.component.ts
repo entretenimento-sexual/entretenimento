@@ -124,12 +124,7 @@ export class AccountRecoveryPageComponent implements OnInit {
     this.logout.logout$()
       .pipe(
         take(1),
-        catchError(() => {
-          this.errorNotifier.showError(
-            'Não foi possível encerrar sua sessão. Tente novamente.'
-          );
-          return EMPTY;
-        }),
+        catchError(() => EMPTY),
         finalize(() => {
           this.isWorking.set(false);
         })

@@ -18,16 +18,19 @@ import { ChildrenOutletContexts, NavigationEnd, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { Auth, signOut } from '@angular/fire/auth';
 
-import { EMPTY, Observable, defer, from, merge, of, throwError } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, combineLatest, defer, from, merge, of, throwError, timer } from 'rxjs';
 import {
   catchError,
   defaultIfEmpty,
+  distinctUntilChanged,
   filter,
   finalize,
   map,
   shareReplay,
+  startWith,
   switchMap,
   take,
+  tap,
   timeout,
 } from 'rxjs/operators';
 
@@ -49,8 +52,13 @@ import { inRegistrationFlow as isRegFlow, type TerminateReason } from './auth.ty
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 type SignOutMode = 'strict' | 'best-effort';
+type LogoutFeedback = {
+  phase: 'ending' | 'delayed' | 'unconfirmed' | 'failed';
+  user: NonNullable<Auth['currentUser']>;
+};
 
 const BEST_EFFORT_CLEANUP_TIMEOUT_MS = 3_000;
+const LOGOUT_FEEDBACK_TIMEOUT_MS = 10_000;
 
 @Injectable({ providedIn: 'root' })
 export class LogoutService {
@@ -60,6 +68,18 @@ export class LogoutService {
    * sucesso/erro; ninguém recebe falso sucesso enquanto outro logout ainda roda.
    */
   private terminationInFlight$: Observable<void> | null = null;
+  private readonly logoutFeedback = new BehaviorSubject<LogoutFeedback | null>(null);
+  readonly voluntaryLogoutStatus$ = combineLatest([
+    this.logoutFeedback,
+    this.authSession.authUser$.pipe(startWith(null)),
+  ]).pipe(
+    map(([feedback, user]) => {
+      if (feedback?.phase === 'failed' &&
+          (feedback.user !== this.auth.currentUser || feedback.user.uid !== user?.uid)) return null;
+      return feedback?.phase ?? null;
+    }),
+    distinctUntilChanged()
+  );
 
   constructor(
     private readonly auth: Auth,
@@ -82,13 +102,13 @@ export class LogoutService {
   /**
    * Logout voluntário global.
    *
-   * Assim que a operação é assinada, AuthSessionService entra em `terminating` e
-   * deixa de expor UID/user operacional para o restante da plataforma. Firebase
-   * Auth continua tecnicamente disponível internamente apenas durante os cleanups
-   * que precisam de credencial antes do signOut.
+   * Após a confirmação de rascunho, quando necessária, AuthSessionService entra
+   * em `terminating` e deixa de expor a sessão operacional. O Firebase Auth
+   * continua disponível para a limpeza autenticada que precede o signOut.
    */
   logout$(): Observable<void> {
     if (this.terminationInFlight$) return this.terminationInFlight$;
+    if (this.logoutFeedback.value?.phase === 'unconfirmed') return EMPTY;
 
     let shared$: Observable<void>;
 
@@ -96,13 +116,14 @@ export class LogoutService {
     shared$ = defer(() => {
       started = false;
       const user = this.auth.currentUser;
+      if (!user) return EMPTY;
       const route = this.router.routerState.snapshot.root;
 
       const cancelled$ = merge(
         this.authSession.authUser$.pipe(filter(() => this.auth.currentUser !== user)),
         this.router.events.pipe(filter((event) => event instanceof NavigationEnd))
       );
-      return confirmLogoutWithDraft$(this.outletContexts, this.dialog, cancelled$).pipe(
+      return defer(() => confirmLogoutWithDraft$(this.outletContexts, this.dialog, cancelled$)).pipe(
         switchMap((discard) => {
           if (!discard || this.auth.currentUser !== user || this.router.routerState.snapshot.root !== route) {
             return EMPTY;
@@ -110,17 +131,25 @@ export class LogoutService {
 
           const pushState = this.pushNotifications.currentStateSnapshot;
           started = true;
+          this.logoutFeedback.next({ phase: 'ending', user });
           this.authSession.beginTermination();
+          const warning = timer(LOGOUT_FEEDBACK_TIMEOUT_MS).subscribe(() => {
+            this.logoutFeedback.next({ phase: 'delayed', user });
+            this.reportSilent(new Error('A confirmação de saída ainda está pendente.'), {
+              phase: 'waitForVoluntarySignOut',
+              timeoutMs: LOGOUT_FEEDBACK_TIMEOUT_MS,
+            });
+          });
 
           return this.stopGeolocationBestEffort$().pipe(
-            switchMap(() => this.stopPresenceBestEffort$()),
-            switchMap(() => this.auth.currentUser === user ? this.deactivatePushBestEffort$() : of(void 0)),
-            switchMap(() => {
-              if (this.auth.currentUser !== user) return of(void 0);
-              return this.executeSignOut$('strict').pipe(
-                catchError((error) => this.handleVoluntarySignOutFailure$(error, pushState, user))
-              );
-            }),
+            switchMap(() => this.auth.currentUser === user ? this.stopPresenceBestEffort$() : EMPTY),
+            switchMap(() => this.auth.currentUser === user ? this.deactivatePushBestEffort$() : EMPTY),
+            switchMap(() => this.auth.currentUser === user ? this.executeSignOut$('strict') : EMPTY),
+            tap({ next: () => warning.unsubscribe(), error: () => warning.unsubscribe() }),
+            switchMap(() => this.auth.currentUser === user
+              ? throwError(() => new Error('Firebase não confirmou o encerramento da sessão.'))
+              : of(void 0)),
+            catchError((error: unknown) => this.handleVoluntarySignOutFailure$(error, pushState, user)),
             switchMap(() => {
               // Uma conta que entrou durante a operação segue no contexto dela.
               if (this.auth.currentUser) return EMPTY;
@@ -132,14 +161,25 @@ export class LogoutService {
               }
               return this.clearLocalSessionDataBestEffort$(true);
             }),
-            switchMap(() => this.auth.currentUser ? EMPTY : this.sessionExit.openAfterLogout$())
+            switchMap(() => this.auth.currentUser ? EMPTY : this.sessionExit.openAfterLogout$()),
+            finalize(() => warning.unsubscribe())
           );
+        }),
+        catchError((error: unknown) => {
+          if (!started && this.auth.currentUser === user) {
+            this.logoutFeedback.next({ phase: 'failed', user });
+            this.reportSilent(error, { phase: 'prepareVoluntaryLogout' });
+          }
+          return throwError(() => error);
         })
       );
     }).pipe(
       finalize(() => {
         if (this.terminationInFlight$ === shared$) this.terminationInFlight$ = null;
-        if (started && this.authSession.isTerminatingSnapshot) this.authSession.endTermination();
+        const phase = this.logoutFeedback.value?.phase;
+        if (!started || phase === 'unconfirmed') return;
+        if (this.authSession.isTerminatingSnapshot) this.authSession.endTermination();
+        if (phase !== 'failed') this.logoutFeedback.next(null);
       }),
       shareReplay({ bufferSize: 1, refCount: false })
     );
@@ -153,6 +193,11 @@ export class LogoutService {
       next: () => {},
       error: () => {},
     });
+  }
+
+  retryVoluntaryLogout(): void {
+    const feedback = this.logoutFeedback.value;
+    if (feedback?.phase === 'failed' && this.auth.currentUser === feedback.user) this.logout();
   }
 
   /**
@@ -196,6 +241,7 @@ export class LogoutService {
     reason: TerminateReason = 'auth-invalid'
   ): Observable<void> {
     if (this.terminationInFlight$) return this.terminationInFlight$;
+    if (this.logoutFeedback.value?.phase === 'unconfirmed') return EMPTY;
 
     const url = this.router.url || '';
 
@@ -262,10 +308,6 @@ export class LogoutService {
   }
 
   /**
-   * Captura somente o estado necessário para rollback do logout voluntário.
-   * Não lê token, UID ou conteúdo de notificação.
-   */
-  /**
    * Falha de signOut voluntário não pode deixar a conta autenticada com Presence,
    * geolocalização/Store já desmontados. Primeiro reexpomos a sessão canônica;
    * os orquestradores rearmam seus próprios recursos. Web Push é o único recurso
@@ -274,28 +316,24 @@ export class LogoutService {
   private handleVoluntarySignOutFailure$(
     err: unknown,
     previousPushState: PushNotificationDeviceState,
-    user: Auth['currentUser']
-  ): Observable<void> {
-    if (!this.auth.currentUser || this.auth.currentUser !== user) {
-      // O Firebase já ficou nulo apesar da rejeição: prossegue como logout efetivo.
-      return of(void 0);
+    user: LogoutFeedback['user']
+  ): Observable<never> {
+    const active = this.auth.currentUser;
+    if (!active) {
+      // O SDK pode limpar o snapshot antes de concluir a escrita na persistência.
+      this.logoutFeedback.next({ phase: 'unconfirmed', user });
+      this.reportSilent(err, { phase: 'confirmVoluntarySignOut' });
+      return throwError(() => err);
     }
+    if (active !== user) return EMPTY;
 
     this.authSession.endTermination();
 
     return this.restorePushAfterFailedSignOutBestEffort$(previousPushState).pipe(
       switchMap(() => {
-        this.applicationError.report(err, {
-          feature: 'auth',
-          operation: 'logout',
-          fallbackMessage: 'Não conseguimos encerrar sua sessão. Ela continua ativa. Tente sair novamente.',
-          presentation: { surface: 'snackbar', severity: 'error' },
-          metadata: {
-            scope: 'LogoutService',
-            sessionRestored: true,
-          },
-        });
-
+        if (this.auth.currentUser !== user) return EMPTY;
+        this.logoutFeedback.next({ phase: 'failed', user });
+        this.reportSilent(err, { phase: 'logout', sessionRestored: true });
         return throwError(() => err);
       })
     );
