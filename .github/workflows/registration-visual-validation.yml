@@ -369,6 +369,14 @@ jobs:
               json: { result: { status: 'unconfirmed' } },
             }));
             await page.locator('#apelidoPrincipal').fill('visualteste');
+            await page.locator('#complementoApelido').focus();
+            const feedback = page.locator('.inline-feedback .badge').filter({ hasText: 'Sujeito à confirmação' });
+            await feedback.waitFor({ state: 'visible' });
+            const feedbackBox = await feedback.boundingBox();
+            const nicknameField = await page.locator('.nickname-field').boundingBox();
+            if (!feedbackBox || !nicknameField || feedbackBox.x + feedbackBox.width > nicknameField.x + nicknameField.width + 1) {
+              throw new Error('Nickname feedback must fit inside its field column');
+            }
             await page.locator('button[type=submit]').click();
             await page.locator('#email').waitFor({ state: 'visible' });
             if (await page.locator('app-register-progress .next strong').textContent() !== 'Confirme para criar a conta') {
