@@ -42,10 +42,13 @@ export class AuthSessionService {
   readonly readyUid$: Observable<string | null> = of(null);
 
   // Espelha a autoridade reativa do AuthSessionService real nos builds visuais.
+  private terminationVersion = 0;
   private readonly terminationSubject = new BehaviorSubject<boolean>(false);
   readonly isTerminating$: Observable<boolean> = this.terminationSubject.asObservable();
 
   beginTermination(): void {
+    if (this.terminationSubject.value) return;
+    this.terminationVersion++;
     this.terminationSubject.next(true);
   }
 
@@ -57,11 +60,19 @@ export class AuthSessionService {
     return this.terminationSubject.value;
   }
 
+  get terminationVersionSnapshot(): number {
+    return this.terminationVersion;
+  }
+
+  recordReloadFailure(_user: User, _previousTermination: number, _error: unknown): boolean {
+    return false;
+  }
+
   whenReady(): Promise<void> {
     return Promise.resolve();
   }
 
-  refreshCurrentUser$(): Observable<User | null> {
+  refreshCurrentUser$(_options?: { requireFresh?: boolean }): Observable<User | null> {
     return of(this.verificationPendingUser);
   }
 
