@@ -24,7 +24,7 @@ import { Location } from '@angular/common';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 
-import { Observable, combineLatest, defer, of } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, Subject, combineLatest, defer, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -35,6 +35,7 @@ import {
   shareReplay,
   startWith,
   switchMap,
+  timeout,
 } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -46,6 +47,7 @@ import { PostAuthNavigationService } from 'src/app/register-module/data-access/p
 import { isRegistrationStepRoute } from 'src/app/register-module/data-access/register-flow.model';
 
 import { VOLUNTARY_LOGOUT_NOTICE } from '@core/services/autentication/auth/auth-session-exit.service';
+import { AuthAppBlockService } from '@core/services/autentication/auth/auth-app-block.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { AUTH_UNAVAILABLE_REASON } from '@core/guards/_shared-guard/guard-utils';
 import { isSessionEndReason, type SessionEndReason } from '@core/services/autentication/auth/auth.types';
@@ -55,6 +57,7 @@ const SESSION_END_MESSAGES: Record<SessionEndReason, string> = {
   'session-expired': 'Sua sessão expirou. Entre novamente para continuar.',
   'session-disabled': 'A autenticação desta conta foi desativada. Se você precisar recuperar o acesso, fale com o suporte.',
 };
+const SHARED_SESSION_NAVIGATION_TIMEOUT_MS = 15_000;
 
 type LoginAction =
   | 'idle'
@@ -105,8 +108,8 @@ export class LoginComponent implements OnInit {
   }
 
   errorMessage = '';
-  isLoading = false;
   currentAction: LoginAction = 'idle';
+  sharedSessionStatus: 'opening' | 'failed' | null = null;
   isRetryingRegistration = false;
   registrationRetryError = '';
   isPasswordVisible = false;
@@ -115,7 +118,14 @@ export class LoginComponent implements OnInit {
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly authSession = inject(AuthSessionService);
+  private readonly appBlock = inject(AuthAppBlockService);
+  private readonly localLoginBusy$ = new BehaviorSubject(false);
+  private readonly retrySharedSession$ = new Subject<void>();
   readonly sessionUid$ = this.authSession.uid$;
+
+  get isLoading(): boolean {
+    return this.localLoginBusy$.value;
+  }
 
   constructor(
     private readonly router: Router,
@@ -178,27 +188,68 @@ export class LoginComponent implements OnInit {
       this.authSession.ready$,
       this.authSession.uid$,
       loginRouteActive$,
+      this.localLoginBusy$,
+      this.appBlock.reason$,
     ]).pipe(
-      filter(([ready, uid, loginRouteActive]) =>
-        ready && !!uid && loginRouteActive && !this.isLoading &&
-        this.route.snapshot.queryParamMap.get('reason') !== AUTH_UNAVAILABLE_REASON),
-      // Reavalia o guard da própria rota, inclusive bloqueio e perfil em cadastro.
-      exhaustMap(() => defer(() => this.router.navigateByUrl(this.router.url, {
+      map(([ready, uid, loginRouteActive, busy, blocked]) =>
+        ready && loginRouteActive && !busy && blocked !== 'auth-invalid' ? uid : null),
+      distinctUntilChanged(),
+      switchMap((uid) => {
+        this.setSharedSessionStatus(null);
+        if (!uid || this.route.snapshot.queryParamMap.get('reason') === AUTH_UNAVAILABLE_REASON) {
+          return EMPTY;
+        }
+
+        // Reutiliza o guard da rota original para decidir destino, bloqueio e cadastro.
+        const loginUrl = this.router.url;
+        return this.retrySharedSession$.pipe(
+          startWith(void 0),
+          exhaustMap(() => this.openSharedSession$(loginUrl))
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
+  }
+
+  continueWithSharedSession(): void {
+    if (this.sharedSessionStatus === 'failed') this.retrySharedSession$.next();
+  }
+
+  private openSharedSession$(loginUrl: string): Observable<void> {
+    return defer(() => {
+      this.resetFeedback();
+      this.setSharedSessionStatus('opening');
+      return this.router.navigateByUrl(loginUrl, {
         onSameUrlNavigation: 'reload',
         replaceUrl: true,
-      })).pipe(
-        catchError((error: unknown) => {
+      });
+    }).pipe(
+      timeout({ first: SHARED_SESSION_NAVIGATION_TIMEOUT_MS }),
+      map((navigated) => {
+        if (!navigated || this.router.url.split(/[?#]/)[0] === '/login') {
+          throw new Error('A navegação com a sessão atual foi interrompida.');
+        }
+      }),
+      catchError((error: unknown) => {
+        this.setSharedSessionStatus('failed');
+        try {
           this.applicationError.report(error, {
             feature: 'login',
             operation: 'resumeSharedSession',
             fallbackMessage: 'Não foi possível continuar com a sessão atual.',
             presentation: { surface: 'none', severity: 'error' },
           });
-          return of(false);
-        })
-      )),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe();
+        } catch {
+          // A ação de recuperação permanece disponível.
+        }
+        return EMPTY;
+      })
+    );
+  }
+
+  private setSharedSessionStatus(status: LoginComponent['sharedSessionStatus']): void {
+    this.sharedSessionStatus = status;
+    this.cdr.markForCheck();
   }
 
   initializeForm(): void {
@@ -263,7 +314,7 @@ export class LoginComponent implements OnInit {
   }
 
   login(): void {
-    if (this.isLoading) return;
+    if (this.isLoading || this.sharedSessionStatus) return;
 
     this.resetFeedback();
 
@@ -321,7 +372,7 @@ export class LoginComponent implements OnInit {
   }
 
   loginWithGoogle(): void {
-    if (this.isLoading) return;
+    if (this.isLoading || this.sharedSessionStatus) return;
 
     this.resetFeedback();
     this.setBusyState(true, 'googleLogin');
@@ -396,7 +447,6 @@ export class LoginComponent implements OnInit {
     isBusy: boolean,
     action: LoginAction = 'idle'
   ): void {
-    this.isLoading = isBusy;
     this.currentAction = isBusy ? action : 'idle';
 
     if (isBusy) {
@@ -405,6 +455,7 @@ export class LoginComponent implements OnInit {
       this.loginForm.enable({ emitEvent: false });
     }
 
+    this.localLoginBusy$.next(isBusy);
     this.cdr.markForCheck();
   }
 

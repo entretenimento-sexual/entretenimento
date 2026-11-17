@@ -28,7 +28,8 @@ import { LoginComponent } from './login-component';
 class DestinationComponent {}
 
 describe('LoginComponent e sessão compartilhada', () => {
-  const attempt = '/login?redirectTo=%2Fconta';
+  const destination = '/conta?aba=seguranca#dados';
+  const attempt = '/login?redirectTo=' + encodeURIComponent(destination);
   const registrationTarget = '/adulto/verificar-idade?redirectTo=%2Fconta%3Faba%3Dseguranca#declaracao';
   let harness: RouterTestingHarness;
   let router: Router;
@@ -36,6 +37,8 @@ describe('LoginComponent e sessão compartilhada', () => {
   let appUser$: BehaviorSubject<{ uid: string; profileCompleted: boolean } | undefined>;
   let blockedReason$: BehaviorSubject<string | null>;
   let login$: ReturnType<typeof vi.fn>;
+  let googleLogin$: ReturnType<typeof vi.fn>;
+  let report: ReturnType<typeof vi.fn>;
   let registrationVm$: Observable<RegisterFlowVm>;
 
   beforeEach(async () => {
@@ -43,6 +46,8 @@ describe('LoginComponent e sessão compartilhada', () => {
     appUser$ = new BehaviorSubject<{ uid: string; profileCompleted: boolean } | undefined>(undefined);
     blockedReason$ = new BehaviorSubject<string | null>(null);
     login$ = vi.fn();
+    googleLogin$ = vi.fn();
+    report = vi.fn().mockReturnValue({ userMessage: 'Falha na tentativa local.' });
     registrationVm$ = NEVER;
     const ready$ = of(true);
     TestBed.configureTestingModule({
@@ -79,13 +84,15 @@ describe('LoginComponent e sessão compartilhada', () => {
         { provide: AccessControlService, useValue: {
           ready$, authUid$: uid$, appUser$, blockedReason$, emailVerified$: of(true),
         } },
-        { provide: AuthAppBlockService, useValue: { invalidationSnapshot: null } },
+        { provide: AuthAppBlockService, useValue: {
+          invalidationSnapshot: null, reason$: blockedReason$,
+        } },
         { provide: AuthReturnUrlService, useValue: {
           resolveAuthedRedirect: (redirect: string | null, fallback: string) => redirect ?? fallback,
         } },
-        { provide: ApplicationErrorService, useValue: { report: vi.fn() } },
+        { provide: ApplicationErrorService, useValue: { report } },
         { provide: ErrorNotificationService, useValue: { showError: vi.fn() } },
-        { provide: AuthFacade, useValue: {} },
+        { provide: AuthFacade, useValue: { googleLogin$ } },
         { provide: EmailInputModalService, useValue: {} },
         { provide: LoginService, useValue: { login$ } },
         { provide: PostAuthNavigationService, useValue: {} },
@@ -97,30 +104,145 @@ describe('LoginComponent e sessão compartilhada', () => {
     harness = await RouterTestingHarness.create(attempt);
   });
 
+  function waitForDestination() {
+    return firstValueFrom(router.events.pipe(
+      filter((event) => event instanceof NavigationEnd && event.urlAfterRedirects === destination)
+    ));
+  }
+
   it('segue para o destino original quando outra aba autentica e o perfil termina de carregar', async () => {
     expect(router.url).toBe(attempt);
-    const navigated = firstValueFrom(router.events.pipe(
-      filter((event) => event instanceof NavigationEnd && event.urlAfterRedirects === '/conta')
-    ));
+    const navigated = waitForDestination();
 
     uid$.next('shared-user');
+    harness.detectChanges();
+    expect(harness.routeNativeElement?.textContent).toContain('Sua sessão foi reconhecida. Abrindo sua conta');
     appUser$.next({ uid: 'shared-user', profileCompleted: true });
 
     await navigated;
-    expect(router.url).toBe('/conta');
+    expect(router.url).toBe(destination);
     expect(login$).not.toHaveBeenCalled();
   });
 
-  it('mantém o login disponível quando a credencial recebida está bloqueada', async () => {
-    const finished = firstValueFrom(router.events.pipe(
-      filter((event) => event instanceof NavigationEnd)
-    ));
+  it.each(['senha', 'Google'] as const)(
+    'retoma a sessão da outra aba ao terminar uma tentativa local por %s',
+    async (provider) => {
+      const page = harness.routeDebugElement!.componentInstance as LoginComponent;
+      const request = new Subject<{ success: boolean; message: string }>();
+      const navigate = vi.spyOn(router, 'navigateByUrl');
+      if (provider === 'senha') {
+        login$.mockReturnValue(request);
+        page.loginForm.patchValue({ email: 'qa@example.test', password: 'qa-password' });
+        page.login();
+      } else {
+        googleLogin$.mockReturnValue(request);
+        page.loginWithGoogle();
+      }
+      expect(page.isLoading).toBe(true);
 
+      uid$.next('shared-user');
+      appUser$.next({ uid: 'shared-user', profileCompleted: true });
+      expect(navigate).not.toHaveBeenCalled();
+
+      const navigated = waitForDestination();
+      if (provider === 'senha') {
+        request.next({ success: false, message: 'Falha na tentativa local.' });
+        request.complete();
+      } else {
+        request.error(new Error('Falha no Google.'));
+      }
+
+      await navigated;
+      expect(router.url).toBe(destination);
+      expect(navigate).toHaveBeenCalledOnce();
+      expect(login$).toHaveBeenCalledTimes(provider === 'senha' ? 1 : 0);
+      expect(googleLogin$).toHaveBeenCalledTimes(provider === 'Google' ? 1 : 0);
+    }
+  );
+
+  it.each(['cancelada', 'rejeitada', 'sem resposta'] as const)(
+    'oferece continuar com a sessão ativa quando a navegação é %s',
+    async (outcome) => {
+      vi.useFakeTimers();
+      try {
+        const navigate = vi.spyOn(router, 'navigateByUrl');
+        if (outcome === 'cancelada') navigate.mockResolvedValueOnce(false);
+        if (outcome === 'rejeitada') navigate.mockRejectedValueOnce(new Error('Rota indisponível'));
+        if (outcome === 'sem resposta') navigate.mockReturnValueOnce(new Promise(() => {}));
+        uid$.next('shared-user');
+        appUser$.next({ uid: 'shared-user', profileCompleted: true });
+        await vi.advanceTimersByTimeAsync(outcome === 'sem resposta' ? 15_000 : 0);
+        harness.detectChanges();
+
+        expect(harness.routeNativeElement?.textContent).toContain(
+          'Sua sessão está ativa. Não conseguimos abrir a próxima tela.'
+        );
+        expect(harness.routeNativeElement?.querySelector('form')).toBeNull();
+        expect(report).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({
+          operation: 'resumeSharedSession',
+        }));
+        const action = harness.routeNativeElement?.querySelector<HTMLButtonElement>('button')!;
+        expect(action.textContent).toContain('Continuar com a sessão atual');
+        const navigated = waitForDestination();
+        action.click();
+        action.click();
+        await navigated;
+        expect(router.url).toBe(destination);
+        expect(navigate).toHaveBeenCalledTimes(2);
+        expect(login$).not.toHaveBeenCalled();
+        expect(googleLogin$).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  );
+
+  it('volta a oferecer o formulário se a sessão terminar durante a navegação', async () => {
+    let finishNavigation!: (result: boolean) => void;
+    vi.spyOn(router, 'navigateByUrl').mockReturnValueOnce(new Promise((resolve) => {
+      finishNavigation = resolve;
+    }));
+    uid$.next('shared-user');
+    harness.detectChanges();
+    expect(harness.routeNativeElement?.querySelector('form')).toBeNull();
+
+    uid$.next(null);
+    finishNavigation(false);
+    await Promise.resolve();
+    harness.detectChanges();
+    expect(harness.routeNativeElement?.querySelector('form')).not.toBeNull();
+    expect(harness.routeNativeElement?.textContent).not.toContain('Continuar com a sessão atual');
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it('reavalia o guard do destino mesmo se o carregamento do perfil já tiver expirado', async () => {
+    vi.useFakeTimers();
+    try {
+      uid$.next('shared-user');
+      await vi.advanceTimersByTimeAsync(8_000);
+      harness.detectChanges();
+      expect(router.parseUrl(router.url).queryParamMap.get('reason')).toBe('auth_unavailable');
+      expect(harness.routeNativeElement?.textContent).toContain('Continuar com a sessão atual');
+
+      appUser$.next({ uid: 'shared-user', profileCompleted: true });
+      const navigated = waitForDestination();
+      harness.routeNativeElement?.querySelector<HTMLButtonElement>('button')?.click();
+      await navigated;
+      expect(router.url).toBe(destination);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('mantém o login disponível quando a credencial recebida está bloqueada', () => {
+    const navigate = vi.spyOn(router, 'navigateByUrl');
     blockedReason$.next('auth-invalid');
     uid$.next('blocked-user');
 
-    await finished;
+    harness.detectChanges();
+    expect(harness.routeNativeElement?.querySelector('form')).not.toBeNull();
     expect(router.url).toBe(attempt);
+    expect(navigate).not.toHaveBeenCalled();
     expect(login$).not.toHaveBeenCalled();
   });
 

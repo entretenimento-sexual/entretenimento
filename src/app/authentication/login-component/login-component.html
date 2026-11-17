@@ -20,6 +20,17 @@
         [disabled]="isRetryingRegistration" (click)="retryRegistration(registrationTarget)">
         Tentar novamente
       </button>
+    } @else if (sharedSessionStatus) {
+      <p role="status" aria-live="polite">
+        {{ sharedSessionStatus === 'opening'
+          ? 'Sua sessão foi reconhecida. Abrindo sua conta…'
+          : 'Sua sessão está ativa. Não conseguimos abrir a próxima tela.' }}
+      </p>
+      @if (sharedSessionStatus === 'failed') {
+        <button class="app-action app-action--secondary" type="button" (click)="continueWithSharedSession()">
+          Continuar com a sessão atual
+        </button>
+      }
     } @else if (sessionNotice; as notice) {
       <p role="status" aria-live="polite">{{ notice }}</p>
       @if (sessionRetryHref; as href) {
@@ -30,7 +41,7 @@
     }
   </section>
 
-  @if (!hasRegistrationSession) {
+  @if (!hasRegistrationSession && !sharedSessionStatus) {
     <div class="form-container">
 
     <form
