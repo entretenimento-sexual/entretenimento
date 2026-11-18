@@ -15,6 +15,8 @@ describe('UserListComponent', () => {
   let component: UserListComponent;
   let fixture: ComponentFixture<UserListComponent>;
   let dialogOpen: ReturnType<typeof vi.fn>;
+  let suspendAccount: ReturnType<typeof vi.fn>;
+  let lockAccount: ReturnType<typeof vi.fn>;
   let scheduleDeletion: ReturnType<typeof vi.fn>;
   let showSuccess: ReturnType<typeof vi.fn>;
   let pageRequest: ReturnType<typeof vi.fn>;
@@ -24,6 +26,8 @@ describe('UserListComponent', () => {
     scheduleDeletion = vi.fn(() =>
       of({ ok: true, accountStatus: 'pending_deletion' })
     );
+    suspendAccount = vi.fn();
+    lockAccount = vi.fn();
     showSuccess = vi.fn();
     pageRequest = vi.fn(() => of({
       items: [],
@@ -43,15 +47,14 @@ describe('UserListComponent', () => {
         {
           provide: UserModerationService,
           useValue: {
-            suspendUser: vi.fn(() => of(void 0)),
-            unsuspendUser: vi.fn(() => of(void 0)),
-            lockAccount: vi.fn(() => of(void 0)),
+            lockAccount,
             unlockAccount: vi.fn(() => of(void 0)),
           },
         },
         {
           provide: AccountLifecycleService,
           useValue: {
+            moderateSuspendAccount$: suspendAccount,
             moderateScheduleDeletion$: scheduleDeletion,
           },
         },
@@ -59,6 +62,7 @@ describe('UserListComponent', () => {
           provide: ErrorNotificationService,
           useValue: {
             showSuccess,
+            showInfo: vi.fn(),
             showError: vi.fn(),
           },
         },
@@ -191,6 +195,65 @@ describe('UserListComponent', () => {
     expect(component.dataSource.filterPredicate(
       mapped, 'private-registration@example.invalid'
     )).toBe(false);
+  });
+
+  function loadActiveAccount() {
+    pageRequest.mockReturnValueOnce(of({
+      items: [{
+        uid: 'u1',
+        nickname: 'usuário',
+        accountStatus: 'active',
+        profileCompleted: true,
+        accountLocked: false,
+        suspended: false,
+        interactionBlocked: false,
+        loginAllowed: true,
+      }],
+      nextCursor: null,
+      hasMore: false,
+    }));
+
+    component.setOperationalFilter('all');
+    component.loadUsers();
+    dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
+    return component.dataSource.data[0];
+  }
+
+  it('aplica a suspensão pelo lifecycle e usa o estado confirmado', () => {
+    const row = loadActiveAccount();
+    suspendAccount.mockReturnValue(of({
+      ok: true,
+      accountStatus: 'moderation_suspended',
+      interactionBlocked: true,
+      message: 'Conta suspensa pela moderação.',
+    }));
+
+    component.toggleSuspend(row);
+
+    expect(suspendAccount).toHaveBeenCalledWith('u1', expect.any(String));
+    expect(component.dataSource.data[0]).toMatchObject({ suspended: true, interactionBlocked: true });
+    expect(showSuccess).toHaveBeenCalledWith('Conta suspensa pela moderação.');
+  });
+
+  it('explica quando cabe ao titular reativar a conta', () => {
+    const row = loadActiveAccount();
+    component.toggleSuspend({ ...row, accountStatus: 'self_suspended', suspended: true });
+
+    expect(dialogOpen).not.toHaveBeenCalled();
+    expect(TestBed.inject(ErrorNotificationService).showInfo).toHaveBeenCalledWith(
+      'Esta conta foi suspensa pelo titular. A reativação deve ser feita por ele.'
+    );
+  });
+
+  it('mantém o estado da linha quando o bloqueio técnico é rejeitado', () => {
+    const row = loadActiveAccount();
+    lockAccount.mockReturnValue(throwError(() => new Error('permission-denied')));
+
+    component.toggleLock(row);
+
+    expect(lockAccount).toHaveBeenCalledWith('u1');
+    expect(component.dataSource.data[0]).toMatchObject({ accountLocked: false, actionPending: false });
+    expect(showSuccess).not.toHaveBeenCalled();
   });
 
   it('deve agendar exclusão pelo lifecycle autorizado', () => {

@@ -23,13 +23,13 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatCardModule } from '@angular/material/card';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Observable } from 'rxjs';
-import { finalize } from 'rxjs/operators';
+import { finalize, map } from 'rxjs/operators';
 
 import { type AdminUserRow } from 'src/app/core/services/account-moderation/admin-users-page.model';
 import { AdminUsersPageService } from 'src/app/core/services/account-moderation/admin-users-page.service';
 import { UserModerationService } from 'src/app/core/services/account-moderation/user-moderation.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { AccountLifecycleService } from 'src/app/account/application/account-lifecycle.service';
+import { AccountLifecycleService, type AccountLifecycleCommandResult } from 'src/app/account/application/account-lifecycle.service';
 import { ConfirmDialogComponent } from '../shared/confirm-dialog/confirm-dialog.component';
 
 type AdminUserFilter = 'pending' | 'restricted' | 'active' | 'all';
@@ -236,6 +236,13 @@ export class UserListComponent implements OnInit {
   }
 
   toggleSuspend(row: IUserDadosExtended): void {
+    if (row.accountStatus === 'self_suspended') {
+      this.notifications.showInfo(
+        'Esta conta foi suspensa pelo titular. A reativação deve ser feita por ele.'
+      );
+      return;
+    }
+
     const willSuspend = !row.suspended;
     const ref = this.dialog.open(ConfirmDialogComponent, {
       data: {
@@ -250,24 +257,22 @@ export class UserListComponent implements OnInit {
       if (!ok) return;
 
       const action$ = willSuspend
-        ? this.userModeration.suspendUser(
+        ? this.accountLifecycle.moderateSuspendAccount$(
             row.uid,
-            'Ação administrativa',
-            ''
+            'Medida de suspensão aplicada após decisão da moderação.'
           )
-        : this.userModeration.unsuspendUser(row.uid, '');
+        : this.accountLifecycle.moderateUnsuspendAccount$(row.uid);
 
       this.runUserAction(
         row,
         action$,
         willSuspend ? 'Usuário suspenso.' : 'Usuário reativado.',
-        willSuspend
-          ? 'Não foi possível suspender o usuário.'
-          : 'Não foi possível reativar o usuário.',
-        () =>
+        (result) =>
           this.updateLocalUser(row.uid, {
             suspended: willSuspend,
             accountStatus: willSuspend ? 'moderation_suspended' : 'active',
+            interactionBlocked: result.interactionBlocked ?? row.interactionBlocked,
+            loginAllowed: result.loginAllowed ?? row.loginAllowed,
           })
       );
     });
@@ -293,11 +298,8 @@ export class UserListComponent implements OnInit {
 
       this.runUserAction(
         row,
-        action$,
+        action$.pipe(map(() => ({ ok: true }))),
         willLock ? 'Conta bloqueada.' : 'Conta desbloqueada.',
-        willLock
-          ? 'Não foi possível bloquear a conta.'
-          : 'Não foi possível desbloquear a conta.',
         () =>
           this.updateLocalUser(row.uid, {
             accountLocked: willLock,
@@ -326,7 +328,6 @@ export class UserListComponent implements OnInit {
           'Exclusão agendada pela lista administrativa de usuários.'
         ),
         'Exclusão do usuário agendada.',
-        'Falha ao agendar exclusão do usuário.',
         () => {
           this.updateLocalUser(row.uid, {
             accountStatus: 'pending_deletion',
@@ -406,10 +407,9 @@ export class UserListComponent implements OnInit {
 
   private runUserAction(
     row: IUserDadosExtended,
-    action$: Observable<unknown>,
+    action$: Observable<AccountLifecycleCommandResult>,
     successMessage: string,
-    errorMessage: string,
-    afterSuccess: () => void
+    afterSuccess: (result: AccountLifecycleCommandResult) => void
   ): void {
     const uid = String(row.uid ?? '').trim();
 
@@ -420,15 +420,13 @@ export class UserListComponent implements OnInit {
     action$
       .pipe(finalize(() => this.setActionPending(uid, false)))
       .subscribe({
-        next: () => {
-          afterSuccess();
-          this.notifications.showSuccess(successMessage);
+        next: (result) => {
+          afterSuccess(result);
+          this.notifications.showSuccess(result.message?.trim() || successMessage);
         },
-        error: (error) =>
-          this.notifications.showError(
-            errorMessage,
-            error instanceof Error ? error.message : undefined
-          ),
+        error: () => {
+          // Os serviços da ação já apresentam o erro pela fronteira central.
+        },
       });
   }
 

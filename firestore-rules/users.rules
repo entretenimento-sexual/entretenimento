@@ -249,16 +249,11 @@ match /users/{userId} {
   }
 
   function adminModerationOnly(changedKeys) {
-    return changedKeys.hasOnly([
-      "accountLocked",
-      "suspended",
-      "suspensionReason",
-      "suspendedAt",
-      "accountStatus",
-      "moderatedBy",
-      "moderatedAt",
-      "lastStatusChangeAt"
-    ]);
+    // Suspensões e reativações são transações do lifecycle no backend.
+    return changedKeys.hasOnly(["accountLocked", "moderatedBy", "moderatedAt"])
+      && request.resource.data.accountLocked is bool
+      && request.resource.data.moderatedBy == uid()
+      && request.resource.data.moderatedAt == request.time;
   }
 
   function initialTermsDefaultsOk(data) {

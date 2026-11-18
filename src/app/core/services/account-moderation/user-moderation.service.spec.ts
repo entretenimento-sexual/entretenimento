@@ -46,24 +46,17 @@ describe('UserModerationService', () => {
   it('centraliza a ausência de admin autenticado sem acesso ao writer', async () => {
     authMock.currentUser = null;
 
-    await firstValueFrom(service.lockAccount('user-1'));
+    await expect(firstValueFrom(service.lockAccount('user-1'))).rejects.toMatchObject({
+      code: 'auth/not-authenticated',
+    });
 
     expect(writeMock.updateDocument).not.toHaveBeenCalled();
     expect(applicationErrorMock.report).toHaveBeenCalledWith(
       expect.objectContaining({
         code: 'auth/not-authenticated',
-        message: 'Ação indisponível: admin não autenticado.',
+        message: 'Sua sessão terminou. Entre novamente para continuar.',
       }),
-      {
-        feature: 'account-moderation',
-        operation: 'resolveActorUid',
-        fallbackMessage: 'Ação indisponível: admin não autenticado.',
-        presentation: undefined,
-        metadata: {
-          scope: 'UserModerationService',
-          uid: 'user-1',
-        },
-      }
+      expect.objectContaining({ feature: 'account-moderation', operation: 'lockAccount' })
     );
   });
 
@@ -71,18 +64,13 @@ describe('UserModerationService', () => {
     const error = new Error('write failed');
     writeMock.updateDocument.mockReturnValue(throwError(() => error));
 
-    await firstValueFrom(service.lockAccount('user-1'));
-
-    expect(applicationErrorMock.report).toHaveBeenCalledWith(error, {
+    await expect(firstValueFrom(service.lockAccount('user-1'))).rejects.toBe(error);
+    expect(adminLogMock.logAdminAction).not.toHaveBeenCalled();
+    expect(applicationErrorMock.report).toHaveBeenCalledWith(error, expect.objectContaining({
       feature: 'account-moderation',
       operation: 'lockAccount',
       fallbackMessage: 'Não foi possível bloquear a conta.',
-      presentation: undefined,
-      metadata: {
-        scope: 'UserModerationService',
-        uid: 'user-1',
-      },
-    });
+    }));
   });
 
   it('não duplica diagnóstico quando a auditoria best-effort falha', async () => {
@@ -94,6 +82,16 @@ describe('UserModerationService', () => {
 
     await firstValueFrom(service.lockAccount('user-1'));
 
+    expect(writeMock.updateDocument).toHaveBeenCalledWith(
+      'users',
+      'user-1',
+      {
+        accountLocked: true,
+        moderatedBy: 'admin-1',
+        moderatedAt: expect.objectContaining({ _methodName: 'serverTimestamp' }),
+      },
+      { context: 'UserModerationService.lockAccount', silent: true }
+    );
     expect(applicationErrorMock.report).not.toHaveBeenCalled();
   });
 });

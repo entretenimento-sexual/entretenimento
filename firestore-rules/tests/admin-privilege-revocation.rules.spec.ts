@@ -6,7 +6,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 
 const PROJECT_ID = 'demo-entretenimento-rules';
@@ -72,6 +72,26 @@ describe('revogação de privilégios administrativos (Firestore Rules)', () => 
     await setLiveAccount({ accountStatus: 'moderation_suspended', role: 'admin', suspended: true });
     const db = env.authenticatedContext(ACTOR, { admin: true }).firestore();
     await assertFails(getDoc(doc(db, 'admin_logs', 'revocation-test')));
+  });
+
+  it('permite bloqueio técnico registrado e reserva suspensão para o backend', async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users', 'target'), {
+        accountStatus: 'active',
+        accountLocked: false,
+      });
+    });
+    const db = env.authenticatedContext(ACTOR, { admin: true }).firestore();
+    const account = doc(db, 'users', 'target');
+    await assertSucceeds(updateDoc(account, {
+      accountLocked: true,
+      moderatedBy: ACTOR,
+      moderatedAt: serverTimestamp(),
+    }));
+    await assertFails(updateDoc(account, {
+      accountStatus: 'moderation_suspended',
+      suspended: true,
+    }));
   });
 
   it('nega usuário sem documento atual mesmo com token admin', async () => {

@@ -267,7 +267,12 @@ export class AccountLifecycleService {
         return callable(payload);
       })
     ).pipe(
-      map((result) => result.data),
+      map(({ data }) => {
+        if (data?.ok !== true) {
+          throw new Error('A operação não foi confirmada pelo servidor.');
+        }
+        return data;
+      }),
       catchError((error: unknown) => {
         this.applicationError.report(error, {
           feature: 'account-lifecycle',
