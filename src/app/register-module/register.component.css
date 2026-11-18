@@ -790,36 +790,38 @@
   }
 }
 
-/* Etapas após o apelido: a cena deixa de ser fundo sobreposto.
-   A fotografia e o formulário ocupam colunas distintas.
-   `object-fit: contain` preserva todos os participantes sem corte. */
+/* Fotografia hero canônica das etapas após o apelido.
+   O conteúdo principal está no lado esquerdo da foto aprovada; à direita,
+   o card ocupa apenas a zona escura. O apelido mantém seu layout original. */
 .auth-container.auth-container--stage-detail {
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
-  column-gap: clamp(1rem, 2.8vw, 3rem);
+  grid-template-columns: minmax(0, 1fr) minmax(310px, 390px);
+  column-gap: clamp(1rem, 2.5vw, 2.5rem);
 }
 
 .auth-container--stage-detail .signup-image {
-  position: relative;
-  inset: auto;
-  z-index: 0;
-  grid-column: 1;
-  grid-row: 1;
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: -1;
+  grid-column: auto;
+  grid-row: auto;
   inline-size: 100%;
-  block-size: clamp(25rem, 64dvh, 43rem);
+  block-size: 100dvh;
   min-block-size: 0;
-  align-self: center;
-  border-radius: 18px;
-  background: radial-gradient(ellipse at 46% 48%, #421c1d, #150b0f 74%);
-  box-shadow: 0 20px 48px #12060928;
-  isolation: isolate;
+  overflow: hidden;
+  border-radius: 0;
+  background: #1c0b0e;
+  box-shadow: none;
+  isolation: auto;
 }
 
 .auth-container--stage-detail .signup-backdrop {
-  inset: 0;
+  position: absolute;
+  inset-block-start: var(--signup-photo-top);
+  inset-inline-start: 0;
   inline-size: 100%;
-  block-size: 100%;
-  object-fit: contain;
-  object-position: center center;
+  block-size: calc(100dvh - var(--signup-photo-top));
+  object-fit: cover;
+  object-position: 48% 46%;
   mask-image: none;
 }
 
@@ -827,38 +829,58 @@
   position: relative;
   z-index: 1;
   grid-column: 2;
-  grid-row: 1;
-  justify-self: center;
+  grid-row: auto;
+  inline-size: min(100%, 390px);
+  max-inline-size: 390px;
+  justify-self: end;
+  align-self: center;
+  background: linear-gradient(145deg, #302025f5, #1a1115f8 75%);
+  backdrop-filter: blur(6px);
 }
 
+/* Em telas estreitas a cena segue no fundo, com os rostos acima do card.
+   A máscara dissolve a imagem no fundo do formulário; não isolar em coluna
+   nem forçar uma rolagem artificial. Em alturas extremas, manter acesso
+   aos controles exige permitir a rolagem natural do documento. */
 @media (max-width: 1000px), (max-aspect-ratio: 5/4) {
   .auth-container.auth-container--stage-detail {
     grid-template-columns: minmax(0, 1fr);
-    padding-block-start: clamp(1rem, 3vw, 1.5rem);
-    row-gap: clamp(1rem, 3vw, 1.75rem);
+    padding-block-start: min(34dvh, 250px);
+    padding-block-end: 0.5rem;
+    row-gap: 0;
   }
 
   .auth-container--stage-detail .signup-image {
-    grid-column: 1;
-    grid-row: 1;
-    justify-self: center;
-    inline-size: min(100%, 920px);
-    block-size: auto;
-    aspect-ratio: 3 / 2;
-    max-block-size: 440px;
-    min-block-size: 0;
+    inline-size: 100%;
+    block-size: 100dvh;
+    border-radius: 0;
+  }
+
+  .auth-container--stage-detail .signup-backdrop {
+    inline-size: 100%;
+    block-size: min(44dvh, 360px);
+    object-fit: cover;
+    object-position: 28% 34%;
+    mask-image: linear-gradient(to bottom, #000 73%, transparent 100%);
   }
 
   .auth-container--stage-detail .form-container {
     grid-column: 1;
-    grid-row: 2;
+    grid-row: auto;
+    inline-size: min(100%, 390px);
     justify-self: center;
   }
 }
 
 @media (max-width: 600px) {
-  .auth-container--stage-detail .signup-image {
-    aspect-ratio: 3 / 2;
-    border-radius: 14px;
+  .auth-container.auth-container--stage-detail {
+    padding-inline: 1rem;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .auth-container--stage-detail .form-container {
+    backdrop-filter: none;
+    background: #24171d;
   }
 }
