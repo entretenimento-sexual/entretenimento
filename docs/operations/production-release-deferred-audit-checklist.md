@@ -59,6 +59,25 @@ Console: repetir o diagnóstico antes de qualquer decisão.
   `REVIEW_READY`, mas não autoriza deploy; a decisão final precisa ser
   humana, documentada e específica para o ambiente.
 
+## App Check e Web Push no ensaio da release
+
+A ativação do Fraud Defense para `entretenimento-staging` fica para o
+planejamento pré-deploy, com tempo para homologar o cadastro antes da
+publicação. Durante o desenvolvimento, seguir com os testes no emulador.
+
+- [ ] Conferir a franquia mensal compartilhada e a estimativa de uso no
+  [painel do Fraud Defense](https://console.cloud.google.com/security/recaptcha?project=entretenimento-staging)
+  antes de decidir sobre a ativação da API em staging.
+- [ ] Registrar o app web de staging no App Check com uma chave Web baseada
+  em pontuação para o domínio de homologação. Configurar a chave pública do
+  site e a chave pública VAPID do projeto de staging no frontend.
+- [ ] Executar `npm run validate:staging` e verificar no domínio de staging a
+  emissão de tokens do App Check e o cadastro com as Functions, incluindo
+  troca de conta, perda de conexão e retomada da etapa pendente.
+- [ ] Conferir o provedor do App Check e a configuração de Web Push do projeto
+  `entretenimento-sexual` antes da liberação pública, seguindo o
+  [runbook de produção](../production-deployment-runbook.md).
+
 ## Ferramentas de consulta (somente leitura)
 
 ```powershell
