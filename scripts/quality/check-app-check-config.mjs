@@ -1,18 +1,25 @@
 import { readFileSync } from 'node:fs';
 
 const TARGETS = Object.freeze({
-  staging: 'src/environments/environment.staging.ts',
-  prod: 'src/environments/environment.prod.ts',
+  staging: {
+    environmentPath: 'src/environments/environment.staging.ts',
+    expectedProvider: 'reCaptchaEnterprise',
+  },
+  prod: {
+    environmentPath: 'src/environments/environment.prod.ts',
+    expectedProvider: 'reCaptchaV3',
+  },
 });
 
 const target = String(process.argv[2] ?? '').trim();
-const environmentPath = TARGETS[target];
+const config = Object.hasOwn(TARGETS, target) ? TARGETS[target] : undefined;
 
-if (!environmentPath) {
+if (!config) {
   console.error('Uso: node scripts/quality/check-app-check-config.mjs <staging|prod>');
   process.exit(1);
 }
 
+const { environmentPath, expectedProvider } = config;
 const source = readFileSync(environmentPath, 'utf8');
 const appCheckBlock = source.match(/appCheck\s*:\s*\{([\s\S]*?)\n\s*\},/m)?.[1] ?? '';
 const siteKey = appCheckBlock.match(/siteKey\s*:\s*['"`]([^'"`]+)['"`]/)?.[1]?.trim() ?? '';
@@ -28,8 +35,8 @@ if (!enabled) {
   process.exit(1);
 }
 
-if (provider !== 'reCaptchaV3') {
-  console.error(`App Check de ${target} precisa usar o provedor reCaptchaV3.`);
+if (provider !== expectedProvider) {
+  console.error(`App Check de ${target} precisa usar o provedor ${expectedProvider}.`);
   process.exit(1);
 }
 

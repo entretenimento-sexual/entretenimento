@@ -100,7 +100,7 @@ export function resolveFirebaseAppCheckSiteKey(): string {
 
   if (!siteKey || placeholderKeys.includes(siteKey)) {
     throw new Error(
-      `[AppCheck] Configure uma siteKey real do reCAPTCHA v3 para o ambiente ${environment.env}.`
+      `[AppCheck] Configure a chave pública do provedor para o ambiente ${environment.env}.`
     );
   }
 

@@ -59,8 +59,8 @@ export const environment: AppEnvironment = {
 
   appCheck: {
     enabled: true,
-    provider: 'reCaptchaV3',
-    siteKey: 'staging-recaptcha-v3-site-key',
+    provider: 'reCaptchaEnterprise',
+    siteKey: undefined,
   },
 
   features: {

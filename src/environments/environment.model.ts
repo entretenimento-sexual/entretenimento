@@ -16,7 +16,7 @@ export type EmulatorsConfig = Partial<{
 // ---------------------------
 export interface AppCheckConfig {
   enabled: boolean;
-  provider?: string;
+  provider?: 'reCaptchaV3' | 'reCaptchaEnterprise';
   siteKey?: string;
 }
 

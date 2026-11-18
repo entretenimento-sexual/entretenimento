@@ -8,6 +8,7 @@ import { provideFirebaseApp } from '@angular/fire/app';
 import {
   initializeAppCheck,
   provideAppCheck,
+  ReCaptchaEnterpriseProvider,
   ReCaptchaV3Provider,
 } from '@angular/fire/app-check';
 import { Auth, provideAuth } from '@angular/fire/auth';
@@ -237,14 +238,17 @@ export const FIREBASE_APPLICATION_PROVIDERS: Array<
 
   ...(isFirebaseAppCheckEnabled()
     ? [
-        provideAppCheck(() =>
-          initializeAppCheck(getApp(), {
-            provider: new ReCaptchaV3Provider(
-              resolveFirebaseAppCheckSiteKey()
-            ),
+        provideAppCheck(() => {
+          const siteKey = resolveFirebaseAppCheckSiteKey();
+          const provider = environment.appCheck?.provider === 'reCaptchaEnterprise'
+            ? new ReCaptchaEnterpriseProvider(siteKey)
+            : new ReCaptchaV3Provider(siteKey);
+
+          return initializeAppCheck(getApp(), {
+            provider,
             isTokenAutoRefreshEnabled: true,
-          })
-        ),
+          });
+        }),
       ]
     : []),
 
