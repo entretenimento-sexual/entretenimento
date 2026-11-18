@@ -70,6 +70,11 @@
 
       @switch (sectionIndex()) {
       @case (0) {
+      @let nicknameNoPublicConflict = nicknameFeedbackArmed()
+        && nicknameCheckState() === 'provisional'
+        && form.get('apelidoPrincipal')?.valid
+        && !form.hasError('invalidFullNickname')
+        && !apelidoEmUso();
       <div class="signup-pair signup-pair--nickname">
       <!-- Apelido principal -->
       <div class="nickname-field app-field">
@@ -85,7 +90,8 @@
             <input id="apelidoPrincipal" formControlName="apelidoPrincipal" type="text" class="app-control"
               name="nickname" autocomplete="nickname" placeholder="Ex: casadinho" spellcheck="false"
               autocapitalize="none" inputmode="text" maxlength="12" aria-label="Apelido"
-              aria-describedby="apelidoTooltip" (input)="onNicknameTyping()" (blur)="onNicknameBlur()"
+              aria-describedby="apelidoTooltip apelidoStatus" (input)="onNicknameTyping()" (blur)="onNicknameBlur()"
+              [attr.title]="nicknameNoPublicConflict ? 'Nenhum perfil público usa este apelido' : null"
               [attr.aria-invalid]="
                 (submitted() || form.get('apelidoPrincipal')?.touched || nicknameFeedbackArmed())
                 && (form.get('apelidoPrincipal')?.invalid || form.hasError('invalidFullNickname'))
@@ -96,38 +102,21 @@
 
                 'is-invalid':
                   (submitted() || form.get('apelidoPrincipal')?.touched || nicknameFeedbackArmed())
-                  && (form.get('apelidoPrincipal')?.invalid || form.hasError('invalidFullNickname')),
-
-                'is-provisional':
-                  nicknameFeedbackArmed()
-                  && !nicknameChecking()
-                  && form.get('apelidoPrincipal')?.valid
-                  && !form.hasError('invalidFullNickname')
-                  && ((apelidoCompleto() || '').length >= 4)
-                  && ((apelidoCompleto() || '').length <= 24)
-                  && !apelidoEmUso()
-                  && nicknameCheckState() === 'provisional'
+                  && (form.get('apelidoPrincipal')?.invalid || form.hasError('invalidFullNickname'))
               }" />
+            @if (nicknameChecking()) {
+              <span class="nickname-indicator nickname-indicator--checking" aria-hidden="true">
+                <span class="inline-spinner"></span>
+              </span>
+            } @else if (nicknameNoPublicConflict) {
+              <span class="nickname-indicator nickname-indicator--checked" aria-hidden="true"></span>
+            }
+            <span id="apelidoStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+              {{ nicknameChecking() ? 'Verificando apelido.' : nicknameNoPublicConflict ? 'Nenhum perfil público usa este apelido.' : '' }}
+            </span>
           </div>
 
           <div class="inline-feedback" aria-live="polite">
-            <div *ngIf="nicknameChecking()" class="badge info">
-              <span class="inline-spinner" aria-hidden="true"></span> Verificando…
-            </div>
-
-            <div *ngIf="
-                !nicknameChecking()
-                && nicknameFeedbackArmed()
-                && form.get('apelidoPrincipal')?.valid
-                && !form.hasError('invalidFullNickname')
-                && ((apelidoCompleto() || '').length >= 4)
-                && ((apelidoCompleto() || '').length <= 24)
-                && !apelidoEmUso()
-                && nicknameCheckState() === 'provisional'
-              " class="badge info">
-              Nenhum perfil público usa este apelido
-            </div>
-
             <div *ngIf="
                 !nicknameChecking()
                 && (submitted() || nicknameFeedbackArmed())

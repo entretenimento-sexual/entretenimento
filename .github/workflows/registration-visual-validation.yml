@@ -477,25 +477,50 @@ jobs:
           playwright-cli screenshot --full-page --filename="$OUT/mobile-invalid.png"
 
           playwright-cli run-code "async (page) => {
-            await page.route('**/getRegistrationNicknameAvailability', route => route.fulfill({
-              status: 200,
-              headers: {
-                'access-control-allow-origin': '*',
-                'access-control-allow-methods': 'POST, OPTIONS',
-                'access-control-allow-headers': '*',
-              },
-              json: { result: { status: 'unconfirmed' } },
-            }));
-            await page.locator('#apelidoPrincipal').fill('visualteste');
+            let releaseLookup;
+            const lookupReady = new Promise(resolve => { releaseLookup = resolve; });
+            await page.route('**/getRegistrationNicknameAvailability', async route => {
+              if (route.request().method() === 'POST') await lookupReady;
+              await route.fulfill({
+                status: 200,
+                headers: {
+                  'access-control-allow-origin': '*',
+                  'access-control-allow-methods': 'POST, OPTIONS',
+                  'access-control-allow-headers': '*',
+                },
+                json: { result: { status: 'unconfirmed' } },
+              });
+            });
+            const nickname = page.locator('#apelidoPrincipal');
+            const submit = page.locator('button[type=submit]');
+            await nickname.fill('visualteste');
             await page.locator('#complementoApelido').focus();
-            const feedback = page.locator('.inline-feedback .badge').filter({ hasText: 'Nenhum perfil público usa este apelido' });
-            await feedback.waitFor({ state: 'visible' });
-            const feedbackBox = await feedback.boundingBox();
-            const nicknameField = await page.locator('.nickname-field').boundingBox();
-            if (!feedbackBox || !nicknameField || feedbackBox.x + feedbackBox.width > nicknameField.x + nicknameField.width + 1) {
-              throw new Error('Nickname feedback must fit inside its field column');
+            await page.locator('.nickname-indicator--checking').waitFor({ state: 'visible' });
+            const pendingSubmit = await submit.boundingBox();
+            releaseLookup();
+            const indicator = page.locator('.nickname-indicator--checked');
+            await indicator.waitFor({ state: 'visible' });
+            const checkedSubmit = await submit.boundingBox();
+            if (!pendingSubmit || !checkedSubmit || Math.abs(checkedSubmit.y - pendingSubmit.y) > 1) {
+              throw new Error('Nickname confirmation must not move the submit button');
             }
-            await page.locator('button[type=submit]').click();
+            if (await page.locator('#apelidoStatus').textContent().then(text => text.trim()) !== 'Nenhum perfil público usa este apelido.') {
+              throw new Error('Nickname confirmation needs an accessible description');
+            }
+            for (const width of [390, 1077]) {
+              await page.setViewportSize({ width, height: 950 });
+              const iconBox = await indicator.boundingBox();
+              const inputBox = await nickname.boundingBox();
+              if (!iconBox || !inputBox || iconBox.x <= inputBox.x || iconBox.y < inputBox.y ||
+                  iconBox.x + iconBox.width >= inputBox.x + inputBox.width ||
+                  iconBox.y + iconBox.height > inputBox.y + inputBox.height) {
+                throw new Error('Nickname confirmation must fit inside the input');
+              }
+              const screenshot = width === 390 ? 'mobile-nickname-checked.png' : 'desktop-nickname-checked.png';
+              await page.screenshot({ path: '$OUT/' + screenshot, fullPage: true });
+            }
+            await page.setViewportSize({ width: 390, height: 844 });
+            await submit.click();
             await page.locator('#email').waitFor({ state: 'visible' });
             if (await page.locator('app-register-progress .next strong').textContent() !== 'Confirme para criar a conta') {
               throw new Error('Access step must explain that confirmations come next');
