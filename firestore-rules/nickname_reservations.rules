@@ -1,5 +1,0 @@
-// Dados legados de snapshots anteriores. A coleção só é consultada pelo Admin
-// SDK durante a transição. Novas reservas usam public_index.
-match /nickname_reservations/{nicknameKey} {
-  allow read, write: if false;
-}

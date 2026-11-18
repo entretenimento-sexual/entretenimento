@@ -1,6 +1,6 @@
-// Read-only classification of the current index and optional legacy data.
-export function classifyNicknameBackfill(input) {
-  const { indexId, indexData, userData, reservationData, normalizeNickname } = input;
+// Read-only classification of the current index and its owner.
+export function classifyNicknameIndex(input) {
+  const { indexId, indexData, userData, normalizeNickname } = input;
   const key = typeof indexId === 'string' && indexId.startsWith('nickname:')
     ? indexId.slice('nickname:'.length)
     : '';
@@ -14,11 +14,5 @@ export function classifyNicknameBackfill(input) {
   }
   const normalized = normalizeNickname(userData.nickname, userData.nicknameNormalized);
   if (!normalized || normalized.key !== key) return 'invalid';
-  if (reservationData) {
-    return reservationData.uid === uid && reservationData.key === key &&
-      reservationData.state === 'RESERVED'
-      ? 'already'
-      : 'conflict';
-  }
   return 'already';
 }

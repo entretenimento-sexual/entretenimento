@@ -141,8 +141,7 @@ Os serviços reativos Angular **mantêm os mesmos métodos** de cadastro, mas
 passam a chamar essas Functions; as falhas continuam encaminhadas aos serviços
 centralizados de erro, sem liberar o cadastro em caso de ausência do backend.
 A chave gravada em `users/{uid}.nicknameNormalized` protege o titular
-quando o índice público é retirado. `nickname_reservations` contém somente
-registros legados já existentes, consultados pelo backend por compatibilidade.
+quando o índice público é retirado.
 
 **Implantação coordenada obrigatória:** publicar as duas Functions e testar
 cadastro por e-mail e social antes de bloquear os caminhos legados de escrita
@@ -202,15 +201,12 @@ de consentimento nem exposição implícita de textos privados.
 `public_index/nickname:{key}` aceita escrita de nickname apenas pelo
 backend. A leitura direta só é autorizada para índice com projeção publicada
 e titular elegível. A consulta do cadastro devolve somente disponibilidade
-provisória. A coleção `nickname_reservations` é legada, com acesso do cliente
-negado e sem novas gravações no fluxo de cadastro.
+provisória.
 
 ### Inventário de índices anteriores
 
-`scripts/maintenance/backfill-nickname-reservations-admin.mjs` mantém o nome
-operacional anterior. Agora é somente leitura e compara o índice existente,
-o titular privado e, quando presente, o registro legado. O relatório é
-agregado e aponta conflitos e registros inválidos para revisão.
+`scripts/maintenance/audit-nickname-index-readonly.mjs` compara o índice
+público com o titular. O relatório agregado aponta registros inválidos.
 
 ### Referência comparativa e aceite jurídico vigente
 
@@ -271,9 +267,8 @@ A assinatura não substitui qualquer dessas autoridades.
 
 Nova ferramenta: `scripts/maintenance/audit-nickname-cutover-readonly.mjs`.
 Ela percorre documentos `users` e compara as contas concluídas com
-`public_profiles`, `public_index/nickname:*` e, quando existentes, registros
-legados de `nickname_reservations`, identificando também índices AUSENTES que
-o backfill anterior (iniciado apenas por índices existentes) não vê.
+`public_profiles` e `public_index/nickname:*`, identificando também índices
+ausentes que a varredura do índice existente não vê.
 
 O resultado apresenta **apenas contadores agregados**, nunca UID,
 nickname, email ou informações privadas. A varredura tem limite padrão

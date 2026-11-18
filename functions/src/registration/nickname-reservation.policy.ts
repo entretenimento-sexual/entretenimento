@@ -46,15 +46,13 @@ export function canClaimRegistrationNickname(input: {
   currentDisplay?: unknown;
   completed?: boolean;
   indexOwnerUid?: unknown;
-  reservationOwnerUid?: unknown;
 }): 'allowed' | 'account-completed' | 'name-changed' | 'in-use' {
   if (input.completed === true) return 'account-completed';
   const current = String(input.currentDisplay ?? '').trim().replace(/\s+/g, ' ');
   if (current && current !== input.requested.display) return 'name-changed';
-  for (const owner of [input.indexOwnerUid, input.reservationOwnerUid]) {
-    if (owner !== undefined && owner !== null && String(owner).trim() !== input.uid) {
-      return 'in-use';
-    }
+  const owner = input.indexOwnerUid;
+  if (owner !== undefined && owner !== null && String(owner).trim() !== input.uid) {
+    return 'in-use';
   }
   return 'allowed';
 }

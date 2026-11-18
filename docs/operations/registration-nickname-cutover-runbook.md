@@ -28,14 +28,25 @@ projeção pública for retirada, a chave da conta em `users` continua
 protegendo o titular.
 
 Contas já gravadas preservam o apelido e a chave legada ao retomar a conclusão.
-O backend consulta aliases e registros legados para evitar disputas pelo
-mesmo principal. O cadastro só grava a reserva em `public_index`. A pré-consulta usa a chave exata e pode devolver
+O backend verifica as chaves existentes no próprio índice para evitar
+disputas pelo mesmo principal. A pré-consulta usa a chave exata e pode devolver
 `unconfirmed` para uma conta que só tenha o alias legado.
 
 Antes do deploy coordenado, o inventário somente leitura deve apurar
 `duplicatePrincipals` e identificar contas sem proteção de titularidade. Resolver
 conflitos de titularidade preservando os nomes exibidos antes de conciliar as
 chaves históricas. O ensaio em desenvolvimento usa os emuladores.
+
+### Limpeza no ambiente de desenvolvimento
+
+Se um snapshot de desenvolvimento contiver `nickname_reservations`, execute
+no PowerShell com o emulador local aberto. O comando limpa somente essa
+coleção, e o segundo salva o snapshot atualizado.
+
+```powershell
+node scripts/dev/clear-obsolete-nickname-reservations.mjs
+if ($LASTEXITCODE -eq 0) { npm.cmd run emu:save }
+```
 
 ## Portões necessários
 
@@ -44,9 +55,8 @@ chaves históricas. O ensaio em desenvolvimento usa os emuladores.
 2. Inventariar todos os usuários de modo integral e sem dados pessoais
    nos logs. Usar audit-nickname-cutover-readonly.mjs. Somente
    um scan com truncated=false pode servir de evidência.
-3. Executar backfill-nickname-reservations-admin.mjs, agora somente
-   leitura, para localizar índices inválidos e conflitos com registros
-   legados. Conciliar conflitos preservando a titularidade.
+3. Executar audit-nickname-index-readonly.mjs para localizar índices
+   inválidos. Conciliar inconsistências preservando a titularidade.
 4. Monitorar e impedir clientes com versão antiga que fazem writes
    diretos. Registrar evidência de zero tentativas de bypass por
    janela mínima inicial de 30 dias, sem coletar dados íntimos.
@@ -131,10 +141,9 @@ $env:NICKNAME_AUDIT_MAX_USERS = '1000'
 $env:NICKNAME_AUDIT_REPORT_PATH = './nickname-users-readonly.json'
 node scripts/maintenance/audit-nickname-cutover-readonly.mjs
 
-$env:NICKNAME_RESERVATION_DRY_RUN = 'true'
-$env:NICKNAME_RESERVATION_MAX_RECORDS = '1000'
-$env:NICKNAME_RESERVATION_REPORT_PATH = './nickname-indices-dryrun.json'
-node scripts/maintenance/backfill-nickname-reservations-admin.mjs
+$env:NICKNAME_INDEX_MAX_RECORDS = '1000'
+$env:NICKNAME_INDEX_REPORT_PATH = './nickname-indices-readonly.json'
+node scripts/maintenance/audit-nickname-index-readonly.mjs
 ```
 
 As saídas são arquivos locais exclusivos, com permissão restrita,
@@ -146,7 +155,7 @@ não foram executados em ambiente real por esta revisão.
 Avaliador offline (ainda requer comprovação de rollout em JSON separado):
 
 ```powershell
-npm run nickname:cutover-readiness -- --inventory ./nickname-users-readonly.json --index-scan ./nickname-indices-dryrun.json --rollout ./evidencias-rollout.json
+npm run nickname:cutover-readiness -- --inventory ./nickname-users-readonly.json --index-scan ./nickname-indices-readonly.json --rollout ./evidencias-rollout.json
 ```
 
 Quando `truncated=true`, aumentar a capacidade da auditoria e
@@ -248,7 +257,7 @@ Para facilitar a gestão do arquivo horário, o avaliador aceita
 a série em um JSON local separado, sem dados pessoais:
 
 ```powershell
-npm run nickname:cutover-readiness -- --inventory ./nickname-users-readonly.json --index-scan ./nickname-indices-dryrun.json --rollout ./evidencias-rollout.json --legacy-observation ./nickname-legacy-hours.json
+npm run nickname:cutover-readiness -- --inventory ./nickname-users-readonly.json --index-scan ./nickname-indices-readonly.json --rollout ./evidencias-rollout.json --legacy-observation ./nickname-legacy-hours.json
 ```
 
 Quando `--legacy-observation` for usado, omitir a chave

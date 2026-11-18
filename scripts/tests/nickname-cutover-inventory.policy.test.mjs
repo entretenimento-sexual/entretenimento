@@ -17,14 +17,12 @@ const valid = {
   },
   publicProfile: { uid: 'owner', nickname: 'Perfil Teste', nicknameNormalized: 'perfil_teste' },
   index: { uid: 'owner', type: 'nickname', value: 'perfil_teste' },
-  reservation: { uid: 'owner', key: 'perfil_teste', state: 'RESERVED' },
   normalizeNickname,
 };
 const classify = overrides => classifyNicknameCutoverRecord({ ...valid, ...overrides });
 
 test('canonical complete owner is ready', () => {
   assert.deepEqual(classify({}), { category: 'READY', flags: [] });
-  assert.deepEqual(classify({ reservation: null }), { category: 'READY', flags: [] });
 });
 test('not completed account is separate from anomalies', () => {
   assert.equal(classify({ user: { ...valid.user, profileCompleted: false } }).category,
@@ -32,39 +30,37 @@ test('not completed account is separate from anomalies', () => {
   assert.deepEqual(classify({ user: { ...valid.user, uid: 'other' } }).flags,
     ['INVALID_OWNER']);
 });
-test('missing public index is flagged even without a legacy record', () => {
-  assert.deepEqual(classify({ index: null, reservation: null }).flags,
+test('missing public index is flagged for a visible profile', () => {
+  assert.deepEqual(classify({ index: null }).flags,
     ['INDEX_MISSING']);
 });
-test('foreign index owner and reservation cannot pass validation', () => {
+test('foreign index owner cannot pass validation', () => {
   assert.deepEqual(classify({
     index: { ...valid.index, uid: 'other' },
-    reservation: { ...valid.reservation, uid: 'other' },
-  }).flags, ['RESERVATION_CONFLICT', 'INDEX_CONFLICT']);
+  }).flags, ['INDEX_CONFLICT']);
 });
-test('public projection mismatch and reservation corruption are flagged', () => {
+test('public projection mismatch and malformed index are flagged', () => {
   assert.deepEqual(classify({
     publicProfile: { ...valid.publicProfile, nicknameNormalized: 'alias' },
-    reservation: { ...valid.reservation, state: 'RELEASED' },
-  }).flags, ['RESERVATION_INVALID', 'PUBLIC_PROFILE_MISMATCH']);
+    index: { ...valid.index, value: 'alias' },
+  }).flags, ['PUBLIC_PROFILE_MISMATCH', 'INDEX_INVALID']);
 });
 test('hidden owners must not have a public nickname index', () => {
   const user = { ...valid.user, publicVisibility: 'hidden' };
-  assert.equal(classify({ user, index: null }).category, 'NOT_PUBLIC');
   assert.equal(classify({
-    user: { ...user, nicknameNormalized: 'perfil_teste' }, index: null, reservation: null,
+    user: { ...user, nicknameNormalized: 'perfil_teste' }, index: null,
   }).category, 'NOT_PUBLIC');
-  assert.deepEqual(classify({ user, index: null, reservation: null }).flags,
+  assert.deepEqual(classify({ user, index: null }).flags,
     ['OWNERSHIP_NOT_INDEXED']);
   assert.deepEqual(classify({ user }).flags, ['HIDDEN_INDEX_STILL_PRESENT']);
   assert.equal(classify({
-    user: { ...valid.user, suspended: true }, index: null,
+    user: { ...valid.user, suspended: true, nicknameNormalized: 'perfil_teste' }, index: null,
   }).category, 'NOT_PUBLIC');
 });
 test('aggregate output contains no owner names or UIDs', () => {
   const s = createNicknameCutoverSummary();
   accumulateNicknameCutover(s, classify({}));
-  accumulateNicknameCutover(s, classify({ index: null, reservation: null }));
+  accumulateNicknameCutover(s, classify({ index: null }));
   accumulateNicknameCutover(s, classify({
     user: { ...valid.user, profileCompleted: false },
   }));

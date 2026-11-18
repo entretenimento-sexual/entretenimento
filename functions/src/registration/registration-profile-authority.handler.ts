@@ -91,18 +91,11 @@ function ownerOf(data: FirebaseFirestore.DocumentData | undefined): string | und
 async function assertNoLegacyNicknameOwner(
   tx: FirebaseFirestore.Transaction, uid: string, nickname: RegistrationNickname,
 ): Promise<void> {
-  const prefix = `${nickname.key}_`;
-  const legacyRange = (collection: string, documentPrefix: string) => {
-    const start = documentPrefix + prefix;
-    return db.collection(collection).orderBy(FieldPath.documentId())
-      .startAt(start).endAt(start + '\uf8ff').select('uid');
-  };
-  const [indexes, reservations] = await Promise.all([
-    tx.get(legacyRange('public_index', 'nickname:')),
-    tx.get(legacyRange('nickname_reservations', '')),
-  ]);
+  const prefix = `nickname:${nickname.key}_`;
+  const indexes = await tx.get(db.collection('public_index').orderBy(FieldPath.documentId())
+    .startAt(prefix).endAt(prefix + '\uf8ff').select('uid'));
   const owners = new Set<string>();
-  for (const document of [...indexes.docs, ...reservations.docs]) {
+  for (const document of indexes.docs) {
     const otherUid = document.get('uid');
     if (typeof otherUid === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(otherUid) &&
         otherUid !== uid) {
@@ -132,17 +125,14 @@ async function getNicknameOwnership(
     indexOwnerUid: ownerOf(indexSnap.data()),
   }));
   if (!indexSnap.exists) {
-    const [owners, oldReservation] = await Promise.all([
-      // Suspensão, ocultação e reverificação podem retirar a projeção pública.
-      // A chave salva na própria conta continua protegendo o titular.
-      tx.get(db.collection('users').where('nicknameNormalized', '==', nickname.key).select().limit(2)),
-      // Compatibilidade somente de leitura com snapshots de emulador anteriores.
-      tx.get(db.collection('nickname_reservations').doc(nickname.key)),
-    ]);
+    // Suspensão, ocultação e reverificação podem retirar a projeção pública.
+    // A chave salva na própria conta continua protegendo o titular.
+    const owners = await tx.get(
+      db.collection('users').where('nicknameNormalized', '==', nickname.key).select().limit(2)
+    );
     assertClaimAllowed(canClaimRegistrationNickname({
       uid, requested: nickname,
       indexOwnerUid: owners.docs.find(owner => owner.id !== uid)?.id,
-      reservationOwnerUid: ownerOf(oldReservation.data()),
     }));
     if (normalizeRegistrationNicknameClaim(nickname.display)?.key === nickname.key) {
       await assertNoLegacyNicknameOwner(tx, uid, nickname);

@@ -39,13 +39,13 @@ test('stored legacy aliases and principal-based registrations resume with their 
   assert.equal(resolveStoredRegistrationNickname('Rafa Oficial', 'rafa_oficial')?.key, 'rafa_oficial');
   assert.equal(resolveStoredRegistrationNickname('Rafa Oficial', 'rafa')?.key, 'rafa');
 });
-test('existing index and server-only reservation both block cross-user occupation', () => {
+test('the index owner blocks cross-user occupation', () => {
   const requested = normalizeRegistrationNickname('Perfil Oficial')!;
-  for (const owners of [{ indexOwnerUid: 'other' }, { reservationOwnerUid: 'other' }]) {
-    assert.equal(canClaimRegistrationNickname({ uid: 'owner', requested, ...owners }), 'in-use');
-  }
   assert.equal(canClaimRegistrationNickname({
-    uid: 'owner', requested, indexOwnerUid: 'owner', reservationOwnerUid: 'owner',
+    uid: 'owner', requested, indexOwnerUid: 'other',
+  }), 'in-use');
+  assert.equal(canClaimRegistrationNickname({
+    uid: 'owner', requested, indexOwnerUid: 'owner',
   }), 'allowed');
 });
 test('idempotence cannot rename existing nickname or completed profile', () => {

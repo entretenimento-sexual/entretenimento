@@ -123,8 +123,8 @@ async function run() {
     const legacyRef = db.doc('users/' + legacyUser.uid);
     await waitFor('legacy account seed', async () => (await legacyRef.get()).exists);
     await legacyRef.update({ nickname: 'Legado Antigo' });
-    await db.doc('nickname_reservations/legado_antigo').set({
-      uid: legacyUser.uid, key: 'legado_antigo', state: 'RESERVED', policyVersion: 1,
+    await db.doc('public_index/nickname:legado_antigo').set({
+      uid: legacyUser.uid, type: 'nickname', value: 'legado_antigo',
     });
     await rejects(reserveOther, { nickname: 'Legado Novo' }, 'already-exists');
     assert.equal((await db.doc('nickname_reservations/legado').get()).exists, false);
@@ -308,7 +308,7 @@ async function run() {
       nickname: 'Disputa_RJ', expectedUid: independentUid,
     })).data.normalized, 'disputa_rj');
     const legacyReservations = await db.collection('nickname_reservations').get();
-    assert.deepEqual(legacyReservations.docs.map(ref => ref.id), ['legado_antigo']);
+    assert.equal(legacyReservations.empty, true);
     console.log('[registration:e2e] PASS one transaction owns a principal under concurrent signup');
   } finally {
     await Promise.allSettled(apps.map(deleteApp));

@@ -23,8 +23,6 @@ function runScan(scriptName, count, reportEnv, limitEnv) {
     env: {
       ...process.env, FIREBASE_PROJECT_ID: PROJECT,
       NICKNAME_CUTOVER_APPLY: 'false',
-      NICKNAME_RESERVATION_APPLY: 'false',
-      NICKNAME_RESERVATION_DRY_RUN: 'true',
       [reportEnv]: dest, [limitEnv]: String(count),
     },
     encoding: 'utf8', timeout: 60_000, stdio: ['ignore', 'pipe', 'pipe'],
@@ -36,11 +34,11 @@ const users = cap => runScan(
   cap, 'NICKNAME_AUDIT_REPORT_PATH', 'NICKNAME_AUDIT_MAX_USERS'
 );
 const indexes = cap => runScan(
-  'scripts/maintenance/backfill-nickname-reservations-admin.mjs',
-  cap, 'NICKNAME_RESERVATION_REPORT_PATH', 'NICKNAME_RESERVATION_MAX_RECORDS'
+  'scripts/maintenance/audit-nickname-index-readonly.mjs',
+  cap, 'NICKNAME_INDEX_REPORT_PATH', 'NICKNAME_INDEX_MAX_RECORDS'
 );
 
-async function seed(uid, display, key, legacy = false) {
+async function seed(uid, display, key) {
   await Promise.all([
     db.doc('users/' + uid).set({
       uid, nickname: display, profileCompleted: true,
@@ -53,13 +51,10 @@ async function seed(uid, display, key, legacy = false) {
     db.doc('public_index/nickname:' + key).set({
       uid, type: 'nickname', value: key,
     }),
-    ...(legacy ? [db.doc('nickname_reservations/' + key).set({
-      uid, key, state: 'RESERVED',
-    })] : []),
   ]);
 }
 try {
-  await seed('audit-alpha', 'Perfil Alfa', 'perfil_alfa', true);
+  await seed('audit-alpha', 'Perfil Alfa', 'perfil_alfa');
   const oneUser = users(1);
   const oneIndex = indexes(1);
   assert.equal(oneUser.truncated, false);
@@ -82,8 +77,25 @@ try {
   assert.equal(fullIndexes.truncated, false);
   assert.equal(fullIndexes.already, 2);
   assert.equal(fullIndexes.applied, 0);
-  assert.equal((await db.collection('nickname_reservations').get()).size, 1);
   console.log('[nickname-audit:e2e] PASS overflow, complete scan, no writes');
+
+  const obsolete = db.doc('nickname_reservations/old');
+  const child = db.doc('nickname_reservations/orphan/children/example');
+  await Promise.all([obsolete.set({ key: 'old' }), child.set({ key: 'example' })]);
+  const cleanup = () => execFileSync(
+    process.execPath, ['scripts/dev/clear-obsolete-nickname-reservations.mjs'], {
+      env: { ...process.env, FIREBASE_PROJECT_ID: PROJECT },
+      timeout: 60_000,
+    }
+  );
+  cleanup();
+  cleanup();
+  assert.equal((await obsolete.get()).exists, false);
+  assert.equal((await child.get()).exists, false);
+  assert.equal((await db.collection('public_index').get()).size, 2);
+  assert.equal((await db.collection('users').get()).size, 2);
+  assert.equal((await db.collection('public_profiles').get()).size, 2);
+  console.log('[nickname-audit:e2e] PASS cleanup deletes only obsolete emulator records and can be rerun');
 } finally {
   await Promise.allSettled([
     db.recursiveDelete(db.collection('users')),

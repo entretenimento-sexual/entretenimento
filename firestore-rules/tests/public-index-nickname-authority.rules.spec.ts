@@ -166,7 +166,7 @@ describe('Firestore Rules / autoridade da reserva de nickname', () => {
     ));
   });
 
-  it('nega ler, consultar ou modificar reserva exclusiva do backend', async () => {
+  it('nega acesso do cliente à coleção de reservas removida', async () => {
     await seed();
     await environment.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), 'nickname_reservations', 'perfil_estavel'), {

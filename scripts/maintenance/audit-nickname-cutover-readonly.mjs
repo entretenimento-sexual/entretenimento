@@ -1,5 +1,5 @@
 // COMPLETELY READ-ONLY. No Firestore writes and no raw PII in output.
-// Complements index-first backfill to detect owners whose indexes are absent.
+// Complements the index inventory to detect owners whose indexes are absent.
 import { createRequire } from 'node:module';
 import { applicationDefault, initializeApp } from 'firebase-admin/app';
 import { FieldPath, getFirestore } from 'firebase-admin/firestore';
@@ -15,8 +15,7 @@ const projectId = String(process.env.FIREBASE_PROJECT_ID ?? '').trim();
 if (!/^[a-z0-9][a-z0-9-]{3,62}$/.test(projectId)) {
   throw new Error('Informe FIREBASE_PROJECT_ID explicitamente.');
 }
-if (process.env.NICKNAME_CUTOVER_APPLY === 'true' ||
-    process.env.NICKNAME_RESERVATION_APPLY === 'true') {
+if (process.env.NICKNAME_CUTOVER_APPLY === 'true') {
   throw new Error('Esta ferramenta é exclusivamente de leitura.');
 }
 const maximum = Number.parseInt(process.env.NICKNAME_AUDIT_MAX_USERS ?? '1000', 10);
@@ -64,21 +63,19 @@ while (summary.scannedUsers < maximum) {
     if (!normalized) {
       accumulateNicknameCutover(summary, classifyNicknameCutoverRecord({
         uid: record.id, user, publicProfile: null, index: null,
-        reservation: null, normalizeNickname: resolveStoredRegistrationNickname,
+        normalizeNickname: resolveStoredRegistrationNickname,
       }));
       continue;
     }
     const refs = [
       db.collection('public_profiles').doc(record.id),
       db.collection('public_index').doc('nickname:' + normalized.key),
-      db.collection('nickname_reservations').doc(normalized.key),
     ];
     const snapshots = await db.getAll(...refs);
     const decision = classifyNicknameCutoverRecord({
       uid: record.id, user,
       publicProfile: snapshots[0].exists ? snapshots[0].data() : null,
       index: snapshots[1].exists ? snapshots[1].data() : null,
-      reservation: snapshots[2].exists ? snapshots[2].data() : null,
       normalizeNickname: resolveStoredRegistrationNickname,
     });
     accumulateNicknameCutover(summary, decision);

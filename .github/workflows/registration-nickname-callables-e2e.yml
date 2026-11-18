@@ -14,7 +14,7 @@ on:
       - 'scripts/tests/registration-lockdown-candidate.e2e.mjs'
       - 'scripts/maintenance/build-registration-lockdown-candidate.mjs'
       - 'scripts/tests/nickname-reservation-backfill.policy.test.mjs'
-      - 'scripts/maintenance/nickname-reservation-backfill.policy.mjs'
+      - 'scripts/maintenance/nickname-index-inventory.policy.mjs'
       - 'firebase.media-e2e.json'
       - 'package.json'
       - 'package-lock.json'
@@ -55,7 +55,7 @@ jobs:
           npm run functions:build
           npm run functions:exports:check
       - name: Verify pure backfill policy
-        run: npm run nickname:reservation-backfill:policy:test
+        run: npm run nickname:index-inventory:policy:test
       # A guarda de runtime exige Auth, Firestore E Storage, mesmo sem upload.
       - name: Verify callables with demo emulators
         run: |
