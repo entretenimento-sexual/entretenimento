@@ -9,7 +9,7 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { EMPTY, Observable, Subject, defer, of } from 'rxjs';
+import { EMPTY, Observable, Subject, TimeoutError, defer, of } from 'rxjs';
 import {
   catchError,
   debounceTime,
@@ -47,6 +47,11 @@ import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { RegisterFlowVm } from '../data-access/register-flow.model';
 import { ProfileCompletionFacade } from '../data-access/profile-completion.facade';
+import {
+  isRegistrationConfirmationUncertain,
+  isRegistrationSessionChange,
+  REGISTRATION_ACTION_TIMEOUT_MS,
+} from '../data-access/register-action.policy';
 
 type ProfileCompletionField = 'nickname' | 'gender' | 'estado' | 'municipio';
 type ProfileCompletionMessageKind =
@@ -76,9 +81,15 @@ implements OnInit, UnsavedChangesAware
 {
   private readonly destroyRef = inject(DestroyRef);
   private readonly draftChanges$ = new Subject<void>();
+  private readonly municipiosRequests$ = new Subject<string>();
   private savedProfileDestination: { uid: string; target: string } | null = null;
   public openingSavedProfile = false;
   public savedProfileNavigationFailed = false;
+  public profileDataUnavailable = false;
+  public loadingEstados = false;
+  public loadingMunicipios = false;
+  public estadosUnavailable = false;
+  public municipiosUnavailable = false;
 
   get profileSaved(): boolean {
     return this.savedProfileDestination !== null;
@@ -136,33 +147,41 @@ implements OnInit, UnsavedChangesAware
 
   ngOnInit(): void {
     this.resolveEntryContext();
+    this.observeMunicipiosRequests();
     this.loadEstados();
     this.observeDraftChanges();
+    this.loadProfile();
+  }
 
+  loadProfile(): void {
+    this.isLoading = true;
+    this.profileDataUnavailable = false;
+    this.clearSubmitMessages();
     this.registerFlow.vm$
       .pipe(
         tap((vm) => {
           this.latestVm = vm;
         }),
-        filter((vm) => vm.authReady),
+        filter((vm) => vm.authReady && vm.currentStep !== 'loading'),
         take(1),
         switchMap((vm) => {
           if (!vm.uid) {
-            this.router.navigate(['/login'], { replaceUrl: true }).catch(() => {});
-            return of(void 0);
+            return this.router.navigate(['/login'], { replaceUrl: true }).then((opened) => {
+              if (!opened) throw new Error('A tela de login não abriu.');
+            });
           }
 
           if (vm.currentStep !== 'profileCompletion') {
-            this.router
-              .navigateByUrl(vm.nextRoute || '/register/welcome', {
-                replaceUrl: true,
-              })
-              .catch(() => {});
-            return of(void 0);
+            return this.router.navigateByUrl(vm.nextRoute || '/register/welcome', {
+              replaceUrl: true,
+            }).then((opened) => {
+              if (!opened) throw new Error('A próxima etapa do cadastro não abriu.');
+            });
           }
 
           return this.loadUserForFormByUid$(vm.uid, vm);
         }),
+        timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
         finalize(() => {
           this.isLoading = false;
         }),
@@ -170,9 +189,10 @@ implements OnInit, UnsavedChangesAware
       )
       .subscribe({
         error: (error) => {
+          this.profileDataUnavailable = true;
           this.reportError(
             error,
-            'Erro ao carregar seus dados. Tente novamente.'
+            'Não foi possível carregar os dados do perfil. Verifique a conexão e tente carregar novamente.'
           );
         },
       });
@@ -266,14 +286,15 @@ implements OnInit, UnsavedChangesAware
       take(1),
       tap((initialData) => {
         if (!this.isCurrentAccount(uid)) {
+          this.profileDataUnavailable = true;
           this.setErrorMessage('A conta ativa mudou. Recarregue a página para retomar o cadastro.');
           return;
         }
         if (!initialData) {
+          this.profileDataUnavailable = true;
           this.setErrorMessage(
-            'Não encontramos os dados da sua conta. Tente entrar novamente.'
+            'Os dados da sua conta ainda não apareceram. Tente carregar novamente ou entre com a mesma conta.'
           );
-          this.router.navigate(['/login'], { replaceUrl: true }).catch(() => {});
           return;
         }
 
@@ -295,36 +316,59 @@ implements OnInit, UnsavedChangesAware
   }
 
   loadEstados(): void {
+    if (this.loadingEstados) return;
+    this.loadingEstados = true;
+    this.estadosUnavailable = false;
     this.profileCompletion
       .getEstados$()
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        take(1),
+        timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
+        catchError(() => of([])),
+        finalize(() => { this.loadingEstados = false; }),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: (estados) => {
           this.estados = estados;
-        },
-        error: (error) => {
-          this.reportError(error, 'Erro ao carregar estados.');
+          this.estadosUnavailable = !estados.length;
         },
       });
   }
 
   private loadMunicipiosForEstado(estado: string): void {
-    this.profileCompletion
-      .getMunicipios$(estado)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (municipios) => {
-          this.municipios = municipios;
-        },
-        error: (error) => {
-          this.reportError(error, 'Erro ao carregar municípios.');
-        },
-      });
+    this.municipiosRequests$.next(estado);
+  }
+
+  private observeMunicipiosRequests(): void {
+    this.municipiosRequests$.pipe(
+      switchMap((estado) => {
+        this.municipios = [];
+        this.loadingMunicipios = !!estado;
+        this.municipiosUnavailable = false;
+        if (!estado) return EMPTY;
+
+        return this.profileCompletion.getMunicipios$(estado).pipe(
+          take(1),
+          timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
+          catchError(() => of([])),
+          finalize(() => { this.loadingMunicipios = false; })
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe((municipios) => {
+      this.municipios = municipios;
+      this.municipiosUnavailable = !municipios.length;
+    });
+  }
+
+  retryMunicipios(): void {
+    this.loadMunicipiosForEstado(this.selectedEstado);
   }
 
   onEstadoChange(): void {
     if (!this.selectedEstado) {
-      this.municipios = [];
+      this.loadMunicipiosForEstado('');
       this.selectedMunicipio = '';
       this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
       this.onDraftChange();
@@ -396,7 +440,8 @@ implements OnInit, UnsavedChangesAware
   }
 
   onSubmit(): void {
-    if (this.profileSaved || this.isSubmitting || this.isEditingAvatar) return;
+    if (this.profileSaved || this.isLoading || this.profileDataUnavailable ||
+        this.isSubmitting || this.isEditingAvatar) return;
     if (!this.canSubmitProfileCompletion()) return;
 
     const uid = this.latestVm?.uid?.trim() || null;
@@ -428,6 +473,15 @@ implements OnInit, UnsavedChangesAware
       return;
     }
 
+    if (!this.municipios.some(({ nome }) => nome === this.selectedMunicipio)) {
+      this.formErrors['municipio'] = 'Selecione um município da lista do estado escolhido.';
+      this.setErrorMessage(this.loadingMunicipios
+        ? 'Aguarde a lista de municípios carregar para salvar.'
+        : 'Confira o estado e selecione um município da lista para continuar.');
+      return;
+    }
+
+    this.persistUnsavedChanges();
     this.isSubmitting = true;
     this.clearSubmitMessages();
 
@@ -443,11 +497,15 @@ implements OnInit, UnsavedChangesAware
       })
       .pipe(
         take(1),
+        timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
         switchMap(() => this.isCurrentAccount(uid)
           ? defer(() => this.uploadAvatarAfterProfileSave$(uid)).pipe(
+            timeout({ first: 60_000 }),
             catchError((error: unknown) => {
               if (this.isCurrentAccount(uid)) {
-                this.setUploadWarning('Não foi possível enviar a foto. Você pode adicioná-la ao editar o perfil.');
+                this.setUploadWarning(error instanceof TimeoutError
+                  ? 'Seu perfil foi salvo. O envio da foto ainda não foi confirmado. Você pode conferir ou adicionar a foto ao editar o perfil.'
+                  : 'Não foi possível enviar a foto. Você pode adicioná-la ao editar o perfil.');
               }
               this.globalErrorHandler.handleError(Object.assign(
                 new Error('Falha no envio da foto após salvar o perfil.', { cause: error }),
@@ -464,9 +522,8 @@ implements OnInit, UnsavedChangesAware
         }),
         takeUntilDestroyed(this.destroyRef),
         catchError((error) => {
-          const failure = error as { code?: unknown; details?: { reason?: unknown } } | null;
-          const code = String(failure?.code ?? '');
-          if (code === 'functions/permission-denied' && failure?.details?.reason === 'auth/session-changed') {
+          const code = String((error as { code?: unknown } | null)?.code ?? '');
+          if (isRegistrationSessionChange(error) || !this.isCurrentAccount(uid)) {
             this.setErrorMessage('A conta ativa mudou. Recarregue a página para retomar o cadastro.');
             return EMPTY;
           }
@@ -482,7 +539,9 @@ implements OnInit, UnsavedChangesAware
           }
           this.reportError(
             error,
-            'Ocorreu um erro ao finalizar o cadastro. Tente novamente.'
+            isRegistrationConfirmationUncertain(error)
+              ? 'Ainda não foi possível confirmar se o perfil foi salvo. Verifique a conexão e tente novamente ou entre com a mesma conta para conferir.'
+              : 'Não foi possível finalizar o cadastro. Revise os dados e tente novamente.'
           );
           return EMPTY;
         })
@@ -495,16 +554,8 @@ implements OnInit, UnsavedChangesAware
           }
 
           if (!this.uploadMessage) this.setSuccessMessage('Perfil finalizado com sucesso!');
-          const normalizedNickname = NicknameUtils.normalizarApelido(this.nickname);
           if (this.currentUserStore.getSnapshot()?.uid === uid) {
-            this.currentUserStore.patch({
-              nickname: normalizedNickname,
-              profileCompleted: true,
-              gender: this.gender,
-              orientation: this.orientation,
-              estado: this.selectedEstado,
-              municipio: this.selectedMunicipio,
-            });
+            this.currentUserStore.patch({ profileCompleted: true });
           }
           this.localDraft.remove(this.draftKey);
           this.initialDraftSnapshot = this.currentDraftSnapshot();
@@ -526,7 +577,7 @@ implements OnInit, UnsavedChangesAware
     this.openingSavedProfile = true;
     this.savedProfileNavigationFailed = false;
     defer(() => this.router.navigateByUrl(saved.target, { replaceUrl: true })).pipe(
-      timeout({ first: 15_000 }),
+      timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
       tap((navigated) => {
         if (!navigated || this.router.url.split(/[?#]/)[0] === '/register/finalizar-cadastro') {
           throw new Error('A próxima tela não abriu após salvar o perfil.');

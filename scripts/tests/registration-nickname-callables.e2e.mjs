@@ -154,7 +154,26 @@ async function run() {
     assert.equal((await db.doc('public_index/nickname:perfil_original').get()).get('uid'), uid);
     console.log('[registration:e2e] PASS eligibility, completion, repeat and immutable nickname');
 
-    await grantEligibility(db, adminAuth, otherUid);
+    await adminAuth.updateUser(otherUid, { emailVerified: true });
+    await b.user.reload();
+    await b.user.getIdToken(true);
+    await otherRef.set({
+      acceptedTerms: { accepted: true, version: 'v3', acknowledgedPrivacyNotice: true },
+    }, { merge: true });
+    const declareAge = httpsCallable(other.functions, 'acceptAdultSelfDeclaration');
+    const declarationRef = db.doc('adult_self_declarations/' + otherUid);
+    await rejects(declareAge, { confirmsAdult: true }, 'invalid-argument');
+    const ageSessionError = await rejects(
+      declareAge, { confirmsAdult: true, expectedUid: uid }, 'permission-denied'
+    );
+    assert.equal(ageSessionError.details?.reason, 'auth/session-changed');
+    assert.equal((await declarationRef.get()).exists, false);
+    assert.equal((await db.doc('age_eligibility_records/' + otherUid).get()).exists, false);
+    const declaration = await declareAge({ confirmsAdult: true, expectedUid: otherUid });
+    assert.equal(declaration.data.status, 'SELF_DECLARED_ADULT');
+    assert.equal((await declarationRef.get()).get('uid'), otherUid);
+    console.log('[registration:e2e] PASS 18+ declaration requires the initiating account');
+
     const otherProfile = { ...profileFields, nickname: 'Perfil da Outra Conta' };
     const otherPublicRef = db.doc('public_profiles/' + otherUid);
     const otherReservationRef = db.doc('nickname_reservations/perfil_da_outra_conta');

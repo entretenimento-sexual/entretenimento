@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
-import { BehaviorSubject, of, throwError } from 'rxjs';
+import { BehaviorSubject, NEVER, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserAgeEligibility } from 'src/app/core/interfaces/iuser-dados';
@@ -227,6 +227,26 @@ describe('AgeVerificationPageComponent', () => {
       '/dashboard/explorar',
       { replaceUrl: true }
     ));
+  });
+
+  it('após demora na confirmação, consulta o estado do backend antes de repetir a declaração', () => {
+    vi.useFakeTimers();
+    try {
+      fixture.detectChanges();
+      ageEligibilityMock.acceptSelfDeclaration$.mockReturnValueOnce(NEVER);
+      component.confirmAdult();
+      vi.advanceTimersByTime(15_000);
+      expect(component.ageRecheckRequired()).toBe(true);
+      expect(component.feedback()?.title).toBe('Confirmação ainda pendente');
+      component.confirmAdult();
+      expect(ageEligibilityMock.acceptSelfDeclaration$).toHaveBeenCalledTimes(1);
+
+      component.recheckAge(true);
+      expect(ageEligibilityMock.refreshTrustedSources$).toHaveBeenCalledTimes(1);
+      expect(component.ageRecheckRequired()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
   it('vai para conclusão de perfil antes da rota originalmente solicitada', async () => {
     registrationStep$.next({

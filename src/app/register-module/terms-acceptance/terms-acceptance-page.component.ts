@@ -1,12 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { Component, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   FormControl,
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { EMPTY, Observable, combineLatest, from, of } from 'rxjs';
+import { EMPTY, Observable, combineLatest, defer, of, throwError } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -16,6 +17,7 @@ import {
   shareReplay,
   switchMap,
   take,
+  tap,
   timeout,
 } from 'rxjs/operators';
 
@@ -30,6 +32,11 @@ import {
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
+import {
+  isRegistrationConfirmationUncertain,
+  isRegistrationSessionChange,
+  REGISTRATION_ACTION_TIMEOUT_MS,
+} from '../data-access/register-action.policy';
 import { RegisterFlowVm } from '../data-access/register-flow.model';
 import { RegisterProgressComponent } from '../register-progress/register-progress.component';
 
@@ -42,6 +49,8 @@ import { RegisterProgressComponent } from '../register-progress/register-progres
 })
 export class TermsAcceptancePageComponent {
   private readonly FLOW_RESOLUTION_TIMEOUT_MS = 5000;
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly pageUid: string | null;
 
   readonly legalManifest = PLATFORM_LEGAL_MANIFEST;
 
@@ -58,6 +67,8 @@ export class TermsAcceptancePageComponent {
   readonly isMaterialUpdate$: Observable<boolean>;
   readonly currentTermsAccepted$: Observable<boolean>;
   readonly isSaving = signal(false);
+  readonly acceptanceConfirmed = signal(false);
+  readonly operationMessage = signal('');
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -69,8 +80,9 @@ export class TermsAcceptancePageComponent {
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService,
   ) {
+    this.pageUid = this.currentUser.getLoggedUserUIDSnapshot();
     this.currentTermsAccepted$ = this.currentUser.user$.pipe(
-      map(user => hasAcceptedCurrentTerms(user?.acceptedTerms)),
+      map(user => !!user && user.uid === this.pageUid && hasAcceptedCurrentTerms(user.acceptedTerms)),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -110,7 +122,13 @@ export class TermsAcceptancePageComponent {
       return;
     }
 
-    if (!this.acknowledgementsValid()) {
+    const uid = this.pageUid;
+    if (!uid || this.currentUser.getLoggedUserUIDSnapshot() !== uid) {
+      this.operationMessage.set('A sessão mudou. Entre na conta que deseja usar para retomar o cadastro.');
+      return;
+    }
+
+    if (!this.acceptanceConfirmed() && !this.acknowledgementsValid()) {
       this.markAcknowledgementsTouched();
       this.errorNotifier.showWarning(
         'Confirme o aceite dos Termos de Uso e a ciência da Política de Privacidade.'
@@ -119,35 +137,38 @@ export class TermsAcceptancePageComponent {
     }
 
     this.isSaving.set(true);
+    this.operationMessage.set('');
+    const accepted$ = this.acceptanceConfirmed()
+      ? of({ uid })
+      : this.termsAcceptance.acceptCurrentTerms$(uid);
 
-    this.termsAcceptance.acceptCurrentTerms$()
+    accepted$
       .pipe(
-        switchMap(({ uid }) =>
-          this.registerFlow.vm$.pipe(
-            filter(
-              (vm) =>
-                vm.uid === uid &&
-                vm.termsAccepted === true &&
-                vm.currentStep !== 'termsAcceptance'
-            ),
-            take(1),
-            timeout({
-              first: this.FLOW_RESOLUTION_TIMEOUT_MS,
-              with: () => of(null as RegisterFlowVm | null),
-            }),
-            map((vm) => this.resolveNextRoute(vm, uid))
-          )
-        ),
-        catchError(() => {
-          this.errorNotifier.showError(
-            'Não foi possível registrar seu aceite agora. Verifique a conexão e tente novamente.'
-          );
+        switchMap((result) => {
+          if (uid !== result.uid || this.currentUser.getLoggedUserUIDSnapshot() !== uid) {
+            return throwError(() => Object.assign(new Error('A sessão mudou.'), {
+              code: 'auth/session-changed',
+            }));
+          }
+          this.acceptanceConfirmed.set(true);
+          return this.navigateAfterAcceptance(uid);
+        }),
+        catchError((error: unknown) => {
+          if (this.currentUser.getLoggedUserUIDSnapshot() !== uid || isRegistrationSessionChange(error)) {
+            this.operationMessage.set('A sessão mudou. Entre na conta que deseja usar para retomar o cadastro.');
+          } else if (this.acceptanceConfirmed()) {
+            this.reportNavigationFailure(error);
+          } else {
+            this.operationMessage.set(isRegistrationConfirmationUncertain(error)
+              ? 'Seu aceite pode já estar registrado. Verifique a conexão e tente novamente para confirmar.'
+              : 'Não foi possível registrar seu aceite agora. Verifique a conexão e tente novamente.');
+          }
           return EMPTY;
         }),
-        switchMap((target) => from(this.navigateAfterAcceptance(target))),
         finalize(() => {
           this.isSaving.set(false);
-        })
+        }),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
   }
@@ -158,10 +179,12 @@ export class TermsAcceptancePageComponent {
     }
 
     this.isSaving.set(true);
-    this.errorNotifier.showWarning(
-      'Sem aceitar os Termos de Uso vigentes, a conta não pode continuar usando os recursos da plataforma.',
-      4200
-    );
+    if (!this.acceptanceConfirmed()) {
+      this.errorNotifier.showWarning(
+        'Sem aceitar os Termos de Uso vigentes, a conta não pode continuar usando os recursos da plataforma.',
+        4200
+      );
+    }
 
     this.logout.logout$()
       .pipe(
@@ -169,7 +192,8 @@ export class TermsAcceptancePageComponent {
         catchError(() => EMPTY),
         finalize(() => {
           this.isSaving.set(false);
-        })
+        }),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
   }
@@ -186,149 +210,50 @@ export class TermsAcceptancePageComponent {
     this.termsConfirmation.markAsTouched();
   }
 
-  private async navigateAfterAcceptance(target: string): Promise<void> {
-    let primaryError: unknown = null;
-
-    try {
-      const navigated = await this.router.navigateByUrl(target, {
-        replaceUrl: true,
-      });
-
-      if (navigated) {
-        return;
-      }
-
-      primaryError = new Error(
-        `[TermsAcceptancePageComponent] Router recusou a navegação para ${target}.`
-      );
-    } catch (error) {
-      primaryError = error;
-    }
-
-    try {
-      const fallbackNavigated = await this.navigateToProfileCompletionFallback();
-
-      if (fallbackNavigated) {
-        return;
-      }
-
-      this.reportNavigationFailure(
-        primaryError,
-        new Error(
-          '[TermsAcceptancePageComponent] Router recusou a navegação de fallback.'
-        ),
-        target
-      );
-    } catch (fallbackError) {
-      this.reportNavigationFailure(primaryError, fallbackError, target);
-    }
+  private navigateAfterAcceptance(uid: string): Observable<boolean> {
+    return this.registerFlow.vm$.pipe(
+      filter((vm) => vm.uid === uid && vm.termsAccepted &&
+        vm.currentStep !== 'loading' && vm.currentStep !== 'termsAcceptance'),
+      take(1),
+      timeout({ first: this.FLOW_RESOLUTION_TIMEOUT_MS }),
+      switchMap((vm) => defer(() => {
+        if (this.currentUser.getLoggedUserUIDSnapshot() !== uid) {
+          throw Object.assign(new Error('A sessão mudou.'), { code: 'auth/session-changed' });
+        }
+        return this.router.navigateByUrl(this.resolveNextRoute(vm, uid), { replaceUrl: true });
+      }).pipe(timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }))),
+      tap((navigated) => {
+        if (!navigated || this.router.url.split(/[?#]/)[0] === '/register/aceitar-termos') {
+          throw new Error('A próxima etapa do cadastro não abriu.');
+        }
+      })
+    );
   }
 
-  private navigateToProfileCompletionFallback(): Promise<boolean> {
-    return this.router.navigate(['/register/finalizar-cadastro'], {
-      replaceUrl: true,
-      queryParams: {
-        reason: 'profile_incomplete',
-      },
+  private reportNavigationFailure(error: unknown): void {
+    this.operationMessage.set(
+      'Seu aceite foi registrado. Use Continuar cadastro para tentar abrir a próxima etapa.'
+    );
+    this.globalErrorHandler.handleError(Object.assign(
+      new Error('Falha ao avançar após registrar o aceite.', { cause: error }),
+      { context: 'TermsAcceptancePageComponent.navigateAfterAcceptance', skipUserNotification: true }
+    ));
+  }
+
+  private redirectRecognizedAcceptance(): void {
+    this.currentTermsAccepted$.pipe(
+      filter((accepted) => accepted),
+      take(1),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(() => {
+      this.acceptanceConfirmed.set(true);
+      if (!this.isSaving()) this.accept();
     });
   }
 
-  private reportNavigationFailure(
-    primaryError: unknown,
-    fallbackError: unknown,
-    target: string
-  ): void {
-    try {
-      const reportable = new Error(
-        '[TermsAcceptancePageComponent] Falha ao avançar após registrar o aceite.'
-      );
-
-      (reportable as any).context = 'TermsAcceptancePageComponent.navigateAfterAcceptance';
-      (reportable as any).target = target;
-      (reportable as any).primaryError = primaryError;
-      (reportable as any).fallbackError = fallbackError;
-      (reportable as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(reportable);
-    } catch {
-      // O diagnóstico não pode bloquear a recuperação do fluxo jurídico.
-    }
-
-    this.errorNotifier.showError(
-      'Seu aceite foi registrado, mas não foi possível avançar. Recarregue a página e tente novamente.'
-    );
-  }
-
-  /**
-   * Se o usuário chegou aqui por um redirecionamento de reaceite que já não é
-   * necessário, sai da rota imediatamente. Isso também corrige sessões que
-   * ficaram presas em /register/aceitar-termos antes da compatibilidade v2 ser
-   * restaurada.
-   */
-  private redirectRecognizedAcceptance(): void {
-    this.currentTermsAccepted$
-      .pipe(
-        filter(accepted => accepted),
-        take(1)
-      )
-      .subscribe(() => {
-        const target = this.resolveSafeRedirectTo() ?? '/';
-
-        this.router.navigateByUrl(target, { replaceUrl: true })
-          .then((navigated) => {
-            if (!navigated) {
-              this.reportRecognizedAcceptanceNavigationFailure(
-                new Error(
-                  `[TermsAcceptancePageComponent] Router recusou a saída para ${target}.`
-                ),
-                target
-              );
-            }
-          })
-          .catch((error) => {
-            this.reportRecognizedAcceptanceNavigationFailure(error, target);
-          });
-      });
-  }
-
-  private reportRecognizedAcceptanceNavigationFailure(
-    error: unknown,
-    target: string
-  ): void {
-    try {
-      const reportable = error instanceof Error
-        ? error
-        : new Error(
-            '[TermsAcceptancePageComponent] Falha ao sair da rota de termos já aceitos.'
-          );
-
-      (reportable as any).context = 'TermsAcceptancePageComponent.redirectRecognizedAcceptance';
-      (reportable as any).target = target;
-      (reportable as any).original = error;
-      (reportable as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(reportable);
-    } catch {
-      // O diagnóstico não deve quebrar uma sessão cujo aceite já é válido.
-    }
-
-    this.errorNotifier.showError(
-      'Seu aceite já está válido, mas não foi possível continuar. Recarregue a página e tente novamente.'
-    );
-  }
-
-  private resolveNextRoute(
-    vm: RegisterFlowVm | null,
-    uid: string
-  ): string {
+  private resolveNextRoute(vm: RegisterFlowVm, uid: string): string {
     const redirectTo = this.resolveSafeRedirectTo();
     const preferencesRoute = `/preferencias/editar/${encodeURIComponent(uid)}`;
-
-    if (!vm) {
-      return this.buildProfileCompletionRoute(
-        redirectTo ?? preferencesRoute
-      );
-    }
 
     switch (vm.currentStep) {
       case 'emailVerification':

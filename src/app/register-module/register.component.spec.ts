@@ -366,8 +366,13 @@ describe('RegisterComponent', () => {
     const feedback = feedbacks[0].nativeElement as HTMLElement;
     const copy = feedback.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
-    expect(copy).toContain('Confira seu acesso');
-    expect(copy).toContain('Tente entrar com os dados informados');
+    if (code === 'registration-creation-unconfirmed') {
+      expect(copy).toContain('Criação da conta ainda não confirmada');
+      expect(copy).toContain('tente entrar com o e-mail e a senha que informou');
+    } else {
+      expect(copy).toContain('Confira seu acesso');
+      expect(copy).toContain('Tente entrar com os dados informados');
+    }
     expect(copy).not.toContain('nova conta com este e-mail');
     expect(copy).not.toContain('e-mail já está');
     expect(feedback.getAttribute('role')).toBe('status');

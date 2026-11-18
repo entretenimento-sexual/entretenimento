@@ -116,7 +116,7 @@ export class TermsAcceptanceService {
     AcceptPlatformTermsResponse
   >(this.functions, 'acceptPlatformTerms');
 
-  acceptCurrentTerms$(): Observable<AcceptedPlatformTermsResult> {
+  acceptCurrentTerms$(expectedUid = this.session.currentAuthUser?.uid): Observable<AcceptedPlatformTermsResult> {
     /**
      * Aceite persistente é uma operação autenticada e não pode confiar apenas
      * no snapshot local de UID. Aguardamos o restore canônico do Firebase Auth
@@ -130,6 +130,7 @@ export class TermsAcceptanceService {
         if (!user || !uid) {
           return throwError(() => new Error('Usuário não autenticado.'));
         }
+        if (expectedUid) this.assertActiveSession(expectedUid);
 
         return defer(() => from(user.getIdToken())).pipe(
           map(() => uid),
@@ -139,7 +140,8 @@ export class TermsAcceptanceService {
           })
         );
       }),
-      switchMap((uid) => this.acceptForUser$(uid))
+      switchMap((uid) => this.acceptForUser$(uid)),
+      timeout({ first: this.ACTION_TIMEOUT_MS })
     );
   }
 

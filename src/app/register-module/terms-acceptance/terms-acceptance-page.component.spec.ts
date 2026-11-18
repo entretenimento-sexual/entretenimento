@@ -85,6 +85,7 @@ describe('TermsAcceptancePageComponent', () => {
           provide: CurrentUserStoreService,
           useValue: {
             user$: of(null),
+            getLoggedUserUIDSnapshot: () => 'u1',
           },
         },
         {
@@ -129,8 +130,8 @@ describe('TermsAcceptancePageComponent', () => {
 
     component.accept();
 
-    expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
+    expect(component.operationMessage()).toBe(
       'Não foi possível registrar seu aceite agora. Verifique a conexão e tente novamente.'
     );
     expect(globalErrorHandlerMock.handleError).not.toHaveBeenCalled();
@@ -149,31 +150,26 @@ describe('TermsAcceptancePageComponent', () => {
     expect(component.isSaving()).toBe(false);
   });
 
-  it('usa o fallback sem alarmar o usuário quando só a navegação principal falha', async () => {
+  it('permite retomar a etapa canônica sem gravar o aceite outra vez', async () => {
     (router.navigateByUrl as unknown as MockFn).mockResolvedValueOnce(false);
     component.termsConfirmation.setValue(true);
 
     component.accept();
 
     await vi.waitFor(() => {
-      expect(router.navigate).toHaveBeenCalledWith(
-        ['/register/finalizar-cadastro'],
-        {
-          replaceUrl: true,
-          queryParams: {
-            reason: 'profile_incomplete',
-          },
-        }
-      );
+      expect(component.operationMessage()).toContain('Seu aceite foi registrado');
     });
 
-    expect(globalErrorHandlerMock.handleError).not.toHaveBeenCalled();
+    component.accept();
+    await vi.waitFor(() => expect(component.isSaving()).toBe(false));
+
+    expect(router.navigateByUrl).toHaveBeenCalledTimes(2);
+    expect(termsAcceptanceMock.acceptCurrentTerms$).toHaveBeenCalledExactlyOnceWith('u1');
     expect(errorNotifierMock.showError).not.toHaveBeenCalled();
   });
 
-  it('reporta uma vez quando a navegação principal e o fallback falham após o aceite', async () => {
+  it('reporta uma vez quando a navegação falha após o aceite', async () => {
     (router.navigateByUrl as unknown as MockFn).mockResolvedValueOnce(false);
-    (router.navigate as unknown as MockFn).mockResolvedValueOnce(false);
     component.termsConfirmation.setValue(true);
 
     component.accept();
@@ -187,9 +183,9 @@ describe('TermsAcceptancePageComponent', () => {
       'TermsAcceptancePageComponent.navigateAfterAcceptance'
     );
     expect(reportedError.skipUserNotification).toBe(true);
-    expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
-      'Seu aceite foi registrado, mas não foi possível avançar. Recarregue a página e tente novamente.'
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
+    expect(component.operationMessage()).toBe(
+      'Seu aceite foi registrado. Use Continuar cadastro para tentar abrir a próxima etapa.'
     );
   });
 

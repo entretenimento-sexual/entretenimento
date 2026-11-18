@@ -57,6 +57,16 @@
   <main class="welcome-content" [attr.aria-describedby]="'welcome-subtitle'">
     <section *ngIf="!sessionInvalid" class="welcome-card status-card">
       @if (!emailVerified) {
+        @if (nicknamePending || termsPending) {
+          <ul class="welcome-alert" aria-label="Etapas com confirmação pendente">
+            @if (nicknamePending) {
+              <li>A reserva do apelido ainda não foi confirmada. Você poderá revisar seu apelido ao completar o perfil.</li>
+            }
+            @if (termsPending) {
+              <li>O aceite dos termos ainda não foi confirmado. Depois de verificar o e-mail, o cadastro pedirá o aceite se ele continuar pendente.</li>
+            }
+          </ul>
+        }
         <ol class="steps">
           @if (verificationEmailDelivery === 'failed') {
             <li>

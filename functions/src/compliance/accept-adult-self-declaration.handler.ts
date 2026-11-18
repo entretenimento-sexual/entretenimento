@@ -49,6 +49,7 @@ const AGE_ADMISSION_MODE =
 
 interface AcceptAdultSelfDeclarationRequest {
   confirmsAdult?: boolean;
+  expectedUid: unknown;
 }
 
 function hasAcceptedCurrentTerms(value: unknown): boolean {
@@ -141,6 +142,15 @@ export const acceptAdultSelfDeclaration =
           'unauthenticated',
           'Faça login para confirmar sua maioridade.'
         );
+      }
+
+      if (typeof request.data?.expectedUid !== 'string' || !request.data.expectedUid) {
+        throw new HttpsError('invalid-argument', 'Identifique a conta que fez a declaração.');
+      }
+      if (request.data.expectedUid !== uid) {
+        throw new HttpsError('permission-denied', 'A conta ativa mudou durante a confirmação de maioridade.', {
+          reason: 'auth/session-changed',
+        });
       }
 
       if (request.auth?.token?.email_verified !== true) {

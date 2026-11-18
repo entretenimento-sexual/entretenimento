@@ -34,6 +34,13 @@
           </p>
         </div>
       </section>
+    } @else if (ageRecheckRequired()) {
+      <button type="button" class="app-action app-action--primary" (click)="recheckAge(true)">
+        Consultar situação novamente
+      </button>
+      <button type="button" class="app-action app-action--ghost" (click)="logoutCurrentSession()">
+        Sair da conta
+      </button>
     } @else if (ageVm; as vm) {
       @if (vm.accessAllowed) {
         <section class="age-verification__status age-verification__status--success" role="status">

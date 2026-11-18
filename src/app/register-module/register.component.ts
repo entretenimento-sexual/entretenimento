@@ -40,6 +40,7 @@ import {
   timeout,
 } from 'rxjs/operators';
 import { toObservable, toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { REGISTRATION_ACTION_TIMEOUT_MS } from './data-access/register-action.policy';
 
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
@@ -684,10 +685,15 @@ export class RegisterComponent {
               queryParams: {
                 autocheck: '1',
                 verificationEmail: result.verificationEmailSent ? 'sent' : 'failed',
+                ...(result.registrationWarnings.includes('nickname-reservation-unconfirmed')
+                  ? { nicknamePending: '1' } : {}),
+                ...(result.registrationWarnings.includes('terms-acceptance-audit-failed')
+                  ? { termsPending: '1' } : {}),
               },
               replaceUrl: true,
             });
           }),
+          timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
           map((navigated) => {
             if (!navigated) throw new Error('A tela de verificação não abriu.');
           }),
@@ -736,7 +742,13 @@ export class RegisterComponent {
             return;
           }
 
-          if (code === 'registration-creation-unconfirmed' || code === 'email-exists-soft' ||
+          if (code === 'registration-creation-unconfirmed') {
+            this.setBanner('info', 'Criação da conta ainda não confirmada',
+              'Quando a conexão estiver estável, tente entrar com o e-mail e a senha que informou. Se a conta foi criada, você poderá continuar de onde parou.', undefined, true);
+            return;
+          }
+
+          if (code === 'email-exists-soft' ||
               code === 'registration-session-active') {
             this.setBanner('info', 'Confira seu acesso',
               'Tente entrar com os dados informados ou recuperar o acesso para continuar.', undefined, true);

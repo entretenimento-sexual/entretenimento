@@ -27,7 +27,7 @@
 
     @if (isSubmitting) {
       <div class="alert alert-secondary" role="status" aria-live="polite" aria-atomic="true">
-        Salvando seus dados...
+        {{ isUploading ? 'Seu perfil foi salvo. Enviando a foto opcional…' : 'Salvando seus dados…' }}
       </div>
     }
 
@@ -48,6 +48,13 @@
       </p>
     }
 
+    @if (isLoading) {
+      <p role="status">Carregando os dados do seu perfil…</p>
+    } @else if (profileDataUnavailable) {
+      <button type="button" class="app-action app-action--primary" (click)="loadProfile()">
+        Carregar dados novamente
+      </button>
+    } @else {
     <form
       ngForm
       #form="ngForm"
@@ -157,11 +164,11 @@
           class="app-control"
           (change)="selectedMunicipio = ''; municipios = []; onEstadoChange(); checkFieldValidity('estado', selectedEstado, 'Estado'); checkFieldValidity('municipio', selectedMunicipio, 'Município')"
           (blur)="checkFieldValidity('estado', selectedEstado, 'Estado')"
-          [disabled]="isSubmitting"
+          [disabled]="isSubmitting || loadingEstados"
           [attr.aria-invalid]="isFieldInvalid('estado') ? 'true' : 'false'"
           [attr.aria-describedby]="isFieldInvalid('estado') ? 'estado-err' : null"
         >
-          <option value="" disabled>Selecione...</option>
+          <option value="" disabled>{{ loadingEstados ? 'Carregando estados…' : 'Selecione…' }}</option>
           @for (estado of estados; track estado.id) {
             <option [value]="estado.sigla">{{ estado.nome }}</option>
           }
@@ -171,6 +178,10 @@
           <div class="tooltip-error" id="estado-err" role="alert" aria-live="polite" aria-atomic="true">
             {{ formErrors['estado'] }}
           </div>
+        }
+        @if (estadosUnavailable) {
+          <p class="field-hint" role="alert">Não foi possível carregar os estados.</p>
+          <button class="app-action app-action--ghost" type="button" (click)="loadEstados()">Recarregar estados</button>
         }
       </div>
 
@@ -192,7 +203,7 @@
           [attr.aria-invalid]="isFieldInvalid('municipio') ? 'true' : 'false'"
           [attr.aria-describedby]="isFieldInvalid('municipio') ? 'municipio-err' : null"
         >
-          <option value="" disabled>Selecione...</option>
+          <option value="" disabled>{{ loadingMunicipios ? 'Carregando municípios…' : 'Selecione…' }}</option>
           @for (municipio of municipios; track municipio.id) {
             <option [value]="municipio.nome">{{ municipio.nome }}</option>
           }
@@ -202,6 +213,10 @@
           <div class="tooltip-error" id="municipio-err" role="alert" aria-live="polite" aria-atomic="true">
             {{ formErrors['municipio'] }}
           </div>
+        }
+        @if (municipiosUnavailable) {
+          <p class="field-hint" role="alert">Não foi possível carregar os municípios deste estado.</p>
+          <button class="app-action app-action--ghost" type="button" (click)="retryMunicipios()">Recarregar municípios</button>
         }
       </div>
 
@@ -254,6 +269,7 @@
         {{ isSubmitting ? 'Concluindo…' : 'Concluir cadastro' }}
       </button>
     </form>
+    }
     }
 
     @if (uploadMessage) {

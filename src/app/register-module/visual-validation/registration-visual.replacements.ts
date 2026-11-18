@@ -27,10 +27,15 @@ export const accountLifecycleGuard: CanActivateFn = () => true;
 
 @Injectable({ providedIn: 'root' })
 export class AuthSessionService {
+  private readonly router = inject(Router);
   private readonly verificationPendingUser = {
     uid: 'visual-user',
     email: 'visual@example.com',
     emailVerified: false,
+  } as User;
+  private readonly verifiedUser = {
+    ...this.verificationPendingUser,
+    emailVerified: true,
   } as User;
 
   readonly authUser$: Observable<User | null> = of(null);
@@ -81,6 +86,11 @@ export class AuthSessionService {
   }
 
   get currentAuthUser(): User | null {
+    const url = this.router.currentNavigation()?.finalUrl?.toString() ?? this.router.url;
+    const path = url.split(/[?#]/)[0];
+    if (path === '/register/aceitar-termos' || path === '/register/finalizar-cadastro') {
+      return this.verifiedUser;
+    }
     return null;
   }
 }

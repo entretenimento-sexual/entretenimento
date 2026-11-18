@@ -25,6 +25,11 @@ import {
 } from 'src/app/core/interfaces/iuser-dados';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { RegisterFlowFacade } from 'src/app/register-module/data-access/register-flow.facade';
+import {
+  isRegistrationConfirmationUncertain,
+  isRegistrationSessionChange,
+  REGISTRATION_ACTION_TIMEOUT_MS,
+} from 'src/app/register-module/data-access/register-action.policy';
 import { RegisterProgressComponent } from 'src/app/register-module/register-progress/register-progress.component';
 import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
 import {
@@ -75,6 +80,7 @@ export class AgeVerificationPageComponent implements OnInit {
   readonly reconciling = signal(true);
   readonly continuing = signal(false);
   readonly feedback = signal<PageFeedback | null>(null);
+  readonly ageRecheckRequired = signal(false);
 
   readonly vm$: Observable<AgeVerificationPageVm> =
     this.ageEligibility.current$.pipe(
@@ -91,11 +97,34 @@ export class AgeVerificationPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.pageUid = this.session.currentAuthUser?.uid;
+    this.recheckAge();
+  }
+
+  recheckAge(forceRefresh = false): void {
+    if (this.processing() || this.continuing()) return;
+    if (!this.isCurrentAccount()) {
+      this.reconciling.set(false);
+      this.reportSessionChange();
+      return;
+    }
+    this.reconciling.set(true);
+    this.feedback.set(null);
     // Não navegar com projeção antiga antes da reconciliação canônica.
-    this.ageEligibility.reconcileTrustedStateOncePerSession$()
+    const state$ = forceRefresh
+      ? this.ageEligibility.refreshTrustedSources$().pipe(
+        switchMap(() => this.ageEligibility.getCurrentOnce$())
+      )
+      : this.ageEligibility.reconcileTrustedStateOncePerSession$();
+    state$
       .pipe(
         take(1),
-        catchError(() => {
+        timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
+        catchError((error: unknown) => {
+          if (!this.isCurrentAccount() || isRegistrationSessionChange(error)) {
+            this.reportSessionChange();
+            return of(null);
+          }
+          this.ageRecheckRequired.set(true);
           this.feedback.set({
             tone: 'error',
             title: 'Não foi possível consultar sua elegibilidade etária',
@@ -107,6 +136,7 @@ export class AgeVerificationPageComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((state) => {
+        if (state) this.ageRecheckRequired.set(false);
         if (state && isCurrentAdultAccountAdmissionProjection(state)) {
           this.continueAfterAgeStep();
         }
@@ -114,7 +144,7 @@ export class AgeVerificationPageComponent implements OnInit {
   }
 
   confirmAdult(): void {
-    if (this.processing()) return;
+    if (this.processing() || this.reconciling() || this.ageRecheckRequired()) return;
     if (!this.isCurrentAccount()) {
       this.reportSessionChange();
       return;
@@ -124,7 +154,21 @@ export class AgeVerificationPageComponent implements OnInit {
     this.ageEligibility.acceptSelfDeclaration$().pipe(
       take(1),
       switchMap(() => this.ageEligibility.getCurrentOnce$()),
-      catchError(() => {
+      timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
+      catchError((error: unknown) => {
+        if (!this.isCurrentAccount() || isRegistrationSessionChange(error)) {
+          this.reportSessionChange();
+          return EMPTY;
+        }
+        if (isRegistrationConfirmationUncertain(error)) {
+          this.ageRecheckRequired.set(true);
+          this.feedback.set({
+            tone: 'warning',
+            title: 'Confirmação ainda pendente',
+            message: 'Assim que a conexão estiver estável, consulte a situação da conta antes de confirmar novamente.',
+          });
+          return EMPTY;
+        }
         this.feedback.set({
           tone: 'error',
           title: 'Não foi possível registrar a confirmação 18+',
@@ -216,6 +260,7 @@ export class AgeVerificationPageComponent implements OnInit {
         }
         return this.router.navigateByUrl(this.router.serializeUrl(destination), { replaceUrl: true });
       }),
+      timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
       catchError(() => {
         if (this.isCurrentAccount()) {
           this.reportNavigationFailure();

@@ -606,7 +606,7 @@ jobs:
             await page.goto('$BASE/register/finalizar-cadastro?reason=profile_incomplete');
             await page.waitForSelector('.form-container', { state: 'visible' });
             await page.waitForFunction(() => {
-              const button = document.querySelector('.btn-submit');
+              const button = document.querySelector('.completion-submit');
               return button && !button.disabled;
             });
           }"
@@ -614,14 +614,14 @@ jobs:
           playwright-cli run-code "async (page) => {
             const metrics = await page.evaluate(() => {
               const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
-              const inputRect = document.querySelector('.input-field')?.getBoundingClientRect();
+              const inputRect = document.querySelector('#nickname')?.getBoundingClientRect();
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
                 formWidth: formRect?.width ?? 0,
                 firstInputWidth: inputRect?.width ?? 0,
                 heroVisible: !!document.querySelector('.completion-hero')?.getClientRects().length,
-                submitVisible: !!document.querySelector('.btn-submit')?.getClientRects().length,
+                submitVisible: !!document.querySelector('.completion-submit')?.getClientRects().length,
               };
             });
             console.log(JSON.stringify(metrics));
@@ -631,7 +631,7 @@ jobs:
           }" | tee "$OUT/profile/desktop-initial.metrics.log"
           playwright-cli snapshot --filename="$OUT/profile/desktop-initial.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/profile/desktop-initial.png"
-          playwright-cli click ".btn-submit"
+          playwright-cli click ".completion-submit"
           playwright-cli run-code "async (page) => {
             await page.waitForSelector('.tooltip-error', { state: 'visible' });
             const metrics = await page.evaluate(() => {
@@ -665,12 +665,12 @@ jobs:
           playwright-cli run-code "async (page) => {
             await page.goto('$BASE/register/finalizar-cadastro?reason=profile_incomplete');
             await page.waitForFunction(() => {
-              const button = document.querySelector('.btn-submit');
+              const button = document.querySelector('.completion-submit');
               return button && !button.disabled;
             });
             const metrics = await page.evaluate(() => {
               const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
-              const inputRect = document.querySelector('.input-field')?.getBoundingClientRect();
+              const inputRect = document.querySelector('#nickname')?.getBoundingClientRect();
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
@@ -686,7 +686,7 @@ jobs:
           }" | tee "$OUT/profile/mobile-initial.metrics.log"
           playwright-cli snapshot --filename="$OUT/profile/mobile-initial.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/profile/mobile-initial.png"
-          playwright-cli click ".btn-submit"
+          playwright-cli click ".completion-submit"
           playwright-cli run-code "async (page) => {
             await page.waitForSelector('.tooltip-error', { state: 'visible' });
             const metrics = await page.evaluate(() => {

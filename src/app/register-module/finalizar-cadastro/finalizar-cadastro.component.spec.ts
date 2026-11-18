@@ -7,7 +7,7 @@ import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { By } from '@angular/platform-browser';
 
-import { Observable, of, throwError } from 'rxjs';
+import { NEVER, Observable, Subject, of, throwError } from 'rxjs';
 import {
   afterEach,
   beforeEach,
@@ -218,12 +218,7 @@ describe('FinalizarCadastroComponent', () => {
     });
 
     expect(currentUserStoreMock.patch).toHaveBeenCalledWith({
-      nickname: 'tester',
       profileCompleted: true,
-      gender: 'homem',
-      orientation: 'homossexual',
-      estado: 'RJ',
-      municipio: 'Rio de Janeiro',
     });
 
     expect(errorNotificationMock.showSuccess).toHaveBeenCalledWith(
@@ -335,9 +330,42 @@ describe('FinalizarCadastroComponent', () => {
     expect(reportedError.skipUserNotification).toBe(true);
     expect(component.messageKind).toBe('error');
     expect(component.message).toContain(
-      'Ocorreu um erro ao finalizar o cadastro'
+      'Não foi possível finalizar o cadastro'
     );
     expect(errorNotificationMock.showError).not.toHaveBeenCalled();
+  });
+
+  it('distingue confirmação pendente de falha definitiva no salvamento', () => {
+    vi.useFakeTimers();
+    try {
+      profileCompletionFacadeMock.saveProfileCompletion$.mockReturnValueOnce(NEVER);
+      component.onSubmit();
+      expect(component.isSubmitting).toBe(true);
+      vi.advanceTimersByTime(15_000);
+      fixture.detectChanges();
+
+      expect(component.isSubmitting).toBe(false);
+      expect(component.message).toContain('Ainda não foi possível confirmar se o perfil foi salvo');
+      expect(currentUserStoreMock.patch).not.toHaveBeenCalled();
+      expect(router.navigateByUrl).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('descarta municípios atrasados de um estado que deixou de estar selecionado', () => {
+    const oldList = new Subject<unknown[]>();
+    profileCompletionFacadeMock.getMunicipios$
+      .mockReturnValueOnce(oldList)
+      .mockReturnValueOnce(of([{ id: 3550308, nome: 'São Paulo' }]));
+
+    component.selectedEstado = 'RJ';
+    component.onEstadoChange();
+    component.selectedEstado = 'SP';
+    component.onEstadoChange();
+    oldList.next([{ id: 3304557, nome: 'Rio de Janeiro' }]);
+
+    expect(component.municipios.map((city) => city.nome)).toEqual(['São Paulo']);
   });
 
   it('orienta a retomar o cadastro se o backend detectar troca de conta', () => {

@@ -23,8 +23,7 @@
 
     <p
       class="status-message"
-      role="status"
-      aria-live="polite"
+      [attr.role]="status() === 'error' ? 'alert' : 'status'"
       aria-atomic="true"
     >
       {{ message() }}
@@ -46,7 +45,7 @@
         (click)="recover()"
         [disabled]="isWorking()"
       >
-        {{ isWorking() ? 'Tentando novamente…' : 'Tentar novamente' }}
+        {{ hasConfirmedAccount ? 'Continuar cadastro' : 'Tentar novamente' }}
       </button>
 
       <button

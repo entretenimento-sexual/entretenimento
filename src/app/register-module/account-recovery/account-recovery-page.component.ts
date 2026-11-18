@@ -1,8 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 
-import { EMPTY, of } from 'rxjs';
+import { EMPTY, defer, of } from 'rxjs';
 import {
   catchError,
   filter,
@@ -10,15 +11,22 @@ import {
   map,
   switchMap,
   take,
+  tap,
   timeout,
 } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
 import { RegistrationRecoveryService } from 'src/app/core/services/autentication/register/registration-recovery.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { RegisterFlowVm } from '../data-access/register-flow.model';
+import {
+  isRegistrationConfirmationUncertain,
+  isRegistrationSessionChange,
+  REGISTRATION_ACTION_TIMEOUT_MS,
+} from '../data-access/register-action.policy';
 
 type RecoveryStatus = 'working' | 'success' | 'error';
 
@@ -31,6 +39,15 @@ type RecoveryStatus = 'working' | 'success' | 'error';
 })
 export class AccountRecoveryPageComponent implements OnInit {
   private readonly FLOW_RESOLUTION_TIMEOUT_MS = 8_000;
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly session = inject(AuthSessionService);
+  private readonly errors = inject(ApplicationErrorService);
+  private pageUid: string | undefined;
+  private confirmedUser: IUserDados | null = null;
+
+  get hasConfirmedAccount(): boolean {
+    return this.confirmedUser !== null;
+  }
 
   readonly status = signal<RecoveryStatus>('working');
   readonly isWorking = signal(false);
@@ -44,10 +61,10 @@ export class AccountRecoveryPageComponent implements OnInit {
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly logout: LogoutService,
-    private readonly errorNotifier: ErrorNotificationService
   ) {}
 
   ngOnInit(): void {
+    this.pageUid = this.session.currentAuthUser?.uid;
     this.recover();
   }
 
@@ -56,15 +73,31 @@ export class AccountRecoveryPageComponent implements OnInit {
       return;
     }
 
+    const uid = this.pageUid;
+    if (!uid || !this.isCurrentAccount(uid)) {
+      this.status.set('error');
+      this.message.set('A sessão mudou. Entre na conta que deseja usar para retomar o cadastro.');
+      return;
+    }
+
     this.isWorking.set(true);
     this.status.set('working');
     this.message.set(
-      'Estamos confirmando os dados básicos da sua conta com segurança.'
+      this.confirmedUser
+        ? 'Dados da conta confirmados. Procurando a próxima etapa…'
+        : 'Estamos confirmando os dados básicos da sua conta com segurança.'
     );
 
-    this.recovery.recoverCurrentRegistration$()
+    const confirmedUser$ = this.confirmedUser
+      ? of(this.confirmedUser)
+      : this.recovery.recoverForUser$(uid).pipe(map(({ user }) => user));
+
+    confirmedUser$
       .pipe(
-        switchMap(({ user }) => {
+        switchMap((user) => {
+          if (!this.isCurrentAccount(uid)) throw new Error('A sessão mudou.');
+          this.confirmedUser = user;
+          this.message.set('Dados da conta confirmados. Procurando a próxima etapa…');
           const lifecycleRoute = this.resolveAccountLifecycleRoute(user);
 
           if (lifecycleRoute) {
@@ -77,41 +110,52 @@ export class AccountRecoveryPageComponent implements OnInit {
                 vm.uid === user.uid &&
                 vm.userResolved === true &&
                 vm.userExists === true &&
+                vm.currentStep !== 'loading' &&
                 vm.currentStep !== 'accountRecovery'
             ),
             take(1),
-            timeout({
-              first: this.FLOW_RESOLUTION_TIMEOUT_MS,
-              with: () => of(null as RegisterFlowVm | null),
-            }),
+            timeout({ first: this.FLOW_RESOLUTION_TIMEOUT_MS }),
             map((vm) => this.resolveNextRoute(vm, user.uid))
           );
         }),
-        catchError(() => {
+        switchMap((target) => {
+          if (!this.isCurrentAccount(uid)) throw new Error('A sessão mudou.');
+          return defer(() => this.router.navigateByUrl(target, { replaceUrl: true })).pipe(
+            timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
+            tap((navigated) => {
+              if (!this.isCurrentAccount(uid)) throw new Error('A sessão mudou.');
+              if (!navigated || this.router.url.split(/[?#]/)[0] === '/register/recuperar-conta') {
+                throw new Error('A próxima etapa do cadastro não abriu.');
+              }
+              this.status.set('success');
+            })
+          );
+        }),
+        catchError((error: unknown) => {
           this.status.set('error');
-          this.message.set(
-            'Não foi possível confirmar os dados da conta agora. Verifique a conexão e tente novamente.'
-          );
-          this.errorNotifier.showError(
-            'Falha ao confirmar os dados da conta. Tente novamente.'
-          );
+          if (!this.isCurrentAccount(uid) || isRegistrationSessionChange(error)) {
+            this.message.set('A sessão mudou. Entre na conta que deseja usar para retomar o cadastro.');
+          } else if (this.confirmedUser) {
+            this.message.set('Os dados da conta foram confirmados. Use Continuar cadastro para tentar abrir a próxima etapa.');
+            this.errors.report(error, {
+              feature: 'registration',
+              operation: 'openAfterRecovery',
+              fallbackMessage: 'Não foi possível abrir a próxima etapa do cadastro.',
+              presentation: { surface: 'none', severity: 'warning' },
+            });
+          } else {
+            this.message.set(isRegistrationConfirmationUncertain(error)
+              ? 'Ainda não conseguimos confirmar os dados da conta. Verifique a conexão e tente novamente. Você pode usar a mesma conta.'
+              : 'Não foi possível confirmar os dados da conta. Tente novamente ou saia e entre com a mesma conta.');
+          }
           return EMPTY;
         }),
         finalize(() => {
           this.isWorking.set(false);
-        })
+        }),
+        takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe((target) => {
-        this.status.set('success');
-        this.message.set('Dados da conta confirmados. Continuando…');
-
-        this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {
-          this.status.set('error');
-          this.message.set(
-            'Os dados foram confirmados, mas não foi possível abrir a próxima etapa.'
-          );
-        });
-      });
+      .subscribe();
   }
 
   leaveAccount(): void {
@@ -127,18 +171,19 @@ export class AccountRecoveryPageComponent implements OnInit {
         catchError(() => EMPTY),
         finalize(() => {
           this.isWorking.set(false);
-        })
+        }),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
   }
 
-  private resolveNextRoute(vm: RegisterFlowVm | null, uid: string): string {
+  private isCurrentAccount(uid: string): boolean {
+    return this.session.currentAuthUser?.uid === uid && !this.session.isTerminatingSnapshot;
+  }
+
+  private resolveNextRoute(vm: RegisterFlowVm, uid: string): string {
     const redirectTo = this.resolveSafeRedirectTo();
     const preferencesRoute = `/preferencias/editar/${encodeURIComponent(uid)}`;
-
-    if (!vm) {
-      return this.buildTermsRoute(redirectTo ?? preferencesRoute);
-    }
 
     switch (vm.currentStep) {
       case 'emailVerification':
@@ -146,6 +191,11 @@ export class AccountRecoveryPageComponent implements OnInit {
 
       case 'termsAcceptance':
         return this.buildTermsRoute(redirectTo ?? preferencesRoute);
+
+      case 'ageVerification':
+        return redirectTo
+          ? `${vm.nextRoute}?redirectTo=${encodeURIComponent(redirectTo)}`
+          : vm.nextRoute;
 
       case 'profileCompletion':
         return this.buildProfileCompletionRoute(

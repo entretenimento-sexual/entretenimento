@@ -43,6 +43,7 @@
         </a>
       </div>
 
+      @if (!acceptanceConfirmed()) {
       <div class="terms-acceptance__confirmations">
         <label class="terms-acceptance__confirmation">
           <input
@@ -71,6 +72,11 @@
       <p id="terms-confirmation-help" class="terms-acceptance__help">
         O registro guarda a conta, a data e as versões aceitas. A Política de Privacidade não autoriza tratamentos genéricos de dados.
       </p>
+      }
+
+      @if (operationMessage()) {
+        <p class="terms-acceptance__error" role="alert">{{ operationMessage() }}</p>
+      }
 
       <div class="terms-acceptance__actions">
         <button
@@ -80,7 +86,9 @@
           [attr.aria-busy]="isSaving()"
           (click)="accept()"
         >
-          {{ isSaving() ? 'Registrando aceite...' : 'Aceitar e continuar' }}
+          {{ acceptanceConfirmed()
+            ? (isSaving() ? 'Abrindo a próxima etapa…' : 'Continuar cadastro')
+            : (isSaving() ? 'Registrando aceite…' : 'Aceitar e continuar') }}
         </button>
 
         <button
@@ -89,7 +97,7 @@
           [disabled]="isSaving()"
           (click)="decline()"
         >
-          Não aceitar e sair
+          {{ acceptanceConfirmed() ? 'Sair da conta' : 'Não aceitar e sair' }}
         </button>
       </div>
     </article>

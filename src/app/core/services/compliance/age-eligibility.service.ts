@@ -243,7 +243,7 @@ export class AgeEligibilityService {
       const callable = runInInjectionContext(
         this.environmentInjector,
         () => httpsCallable<
-          { confirmsAdult: true },
+          { confirmsAdult: true; expectedUid: string },
           {
             uid: string;
             status: 'SELF_DECLARED_ADULT' | 'VERIFIED_ADULT';
@@ -256,7 +256,7 @@ export class AgeEligibilityService {
         )
       );
 
-      return from(callable({ confirmsAdult: true })).pipe(
+      return from(callable({ confirmsAdult: true, expectedUid: uid })).pipe(
         map(({ data }) => {
           this.assertCurrentSession(uid, generation);
           if (data.uid !== uid) throw new Error('Confirmação vinculada a outra conta.');
@@ -285,6 +285,7 @@ export class AgeEligibilityService {
                   scope: 'AgeEligibilityService',
                 },
                 original: error,
+                skipUserNotification: true,
               }
             )
           );
