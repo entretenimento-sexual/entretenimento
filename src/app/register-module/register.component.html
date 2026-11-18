@@ -1,5 +1,5 @@
 <!-- src/app/register-module/register.component.html -->
-<div class="auth-container">
+<div class="auth-container" [class.auth-container--stage-detail]="sectionIndex() > 0">
   <div class="signup-image" aria-hidden="true">
     <picture class="signup-scene signup-scene--original" [class.signup-scene--inactive]="sectionIndex() !== 0">
       <source srcset="assets/registration/signup-shadow.webp" type="image/webp" />

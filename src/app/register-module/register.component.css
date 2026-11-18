@@ -789,3 +789,76 @@
     transition: none;
   }
 }
+
+/* Etapas após o apelido: a cena deixa de ser fundo sobreposto.
+   A fotografia e o formulário ocupam colunas distintas.
+   `object-fit: contain` preserva todos os participantes sem corte. */
+.auth-container.auth-container--stage-detail {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+  column-gap: clamp(1rem, 2.8vw, 3rem);
+}
+
+.auth-container--stage-detail .signup-image {
+  position: relative;
+  inset: auto;
+  z-index: 0;
+  grid-column: 1;
+  grid-row: 1;
+  inline-size: 100%;
+  block-size: clamp(25rem, 64dvh, 43rem);
+  min-block-size: 0;
+  align-self: center;
+  border-radius: 18px;
+  background: radial-gradient(ellipse at 46% 48%, #421c1d, #150b0f 74%);
+  box-shadow: 0 20px 48px #12060928;
+  isolation: isolate;
+}
+
+.auth-container--stage-detail .signup-backdrop {
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+  object-position: center center;
+  mask-image: none;
+}
+
+.auth-container--stage-detail .form-container {
+  position: relative;
+  z-index: 1;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: center;
+}
+
+@media (max-width: 1000px), (max-aspect-ratio: 5/4) {
+  .auth-container.auth-container--stage-detail {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block-start: clamp(1rem, 3vw, 1.5rem);
+    row-gap: clamp(1rem, 3vw, 1.75rem);
+  }
+
+  .auth-container--stage-detail .signup-image {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: center;
+    inline-size: min(100%, 920px);
+    block-size: auto;
+    aspect-ratio: 3 / 2;
+    max-block-size: 440px;
+    min-block-size: 0;
+  }
+
+  .auth-container--stage-detail .form-container {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .auth-container--stage-detail .signup-image {
+    aspect-ratio: 3 / 2;
+    border-radius: 14px;
+  }
+}

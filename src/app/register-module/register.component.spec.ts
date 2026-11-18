@@ -156,6 +156,8 @@ describe('RegisterComponent', () => {
 
   it('troca as cenas fotográficas sem deslocar o formulário', () => {
     const view = fixture.nativeElement as HTMLElement;
+    const shell = view.querySelector('.auth-container') as HTMLElement;
+    expect(shell.classList.contains('auth-container--stage-detail')).toBe(false);
     const original = () => view.querySelector('.signup-scene--original') as HTMLElement;
     const email = () => view.querySelector('.signup-scene--email') as HTMLElement;
     const confirm = () => view.querySelector('.signup-scene--confirm') as HTMLElement;
@@ -171,6 +173,7 @@ describe('RegisterComponent', () => {
     fixture.detectChanges();
 
     expect(component.sectionIndex()).toBe(1);
+    expect(shell.classList.contains('auth-container--stage-detail')).toBe(true);
     expect(original().classList.contains('signup-scene--inactive')).toBe(true);
     expect(email().classList.contains('signup-scene--inactive')).toBe(false);
     expect(confirm().classList.contains('signup-scene--inactive')).toBe(true);
@@ -181,6 +184,9 @@ describe('RegisterComponent', () => {
     component.previousSection();
     fixture.detectChanges();
     expect(email().classList.contains('signup-scene--inactive')).toBe(false);
+    component.previousSection();
+    fixture.detectChanges();
+    expect(shell.classList.contains('auth-container--stage-detail')).toBe(false);
   });
 
   it('mostra os detalhes da consulta no botão do visto sem enviar o formulário', () => {
