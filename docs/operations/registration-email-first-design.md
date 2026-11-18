@@ -15,7 +15,7 @@ O Firebase Auth informa que a autenticação por link pode **invalidar sessões 
 
 A ativação do novo provedor dependerá de um teste reproduzível em Auth Emulator com contas antigas (e-mail verificado/não verificado), link usado em outra sessão, criação de senha após o link, e um bloqueio inequívoco contra entrada em perfil de outra conta. Não usar `sendEmailVerification` como substituto de `sendSignInLinkToEmail`. Enquanto o teste não passar, manter **desativada** a nova jornada de autenticação.
 
-A sequência fotográfica será preparada em um pacote local com imagens WebP; não apontar a `main` para imagens ausentes ou dependentes de hospedagem pública externa.
+As duas cenas fotográficas WebP foram integradas à `main` no commit `4f3922c7`. Não depender de imagens externas, instaladores locais ou artefatos não versionados.
 
 ## Dependências de segurança obrigatórias antes da virada
 - **Autoridade etária:** o fluxo atual exige declaração 18+ antes de criar o UID. Como `signInWithEmailLink` cria/autentica a conta no primeiro clique, preservar a declaração pré-Auth na própria confirmação do link, imediatamente antes de consumi-lo; não presumir maioridade com base em e-mail confirmado. A declaração autenticada e os termos continuam na fase canônica; sem duplicar consentimentos.
@@ -41,7 +41,7 @@ A sequência fotográfica será preparada em um pacote local com imagens WebP; n
 | Cadastro concluído | Seu perfil está pronto. | Entrar na plataforma |
 
 ## Layout e cenas
-- Etapa do apelido permanece visualmente inalterada. A partir da segunda subetapa, trocar a foto inicial por uma composição vetorial de lounge com mais pessoas e rostos sem detalhes, preservando a área visual e sem mover o card.
+- A primeira etapa preserva a fotografia original. A partir da segunda subetapa, usar as cenas fotográficas adultas com enquadramento sugestivo e rostos em sombra, preservando a área visual e a posição do card.
 - Fade de ~380 ms; respeitar `prefers-reduced-motion`, sem vídeos, animações contínuas ou nova biblioteca. Imagem decorativa com `alt=""` e `aria-hidden`.
 - Padronizar a largura do card e manter as instruções curtas, com erros não modais, visíveis quando for necessária ação e anunciados por leitores de tela.
 
