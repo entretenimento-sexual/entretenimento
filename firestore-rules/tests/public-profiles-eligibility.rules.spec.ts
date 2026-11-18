@@ -416,6 +416,29 @@ describe('Firestore Rules / public profile eligibility', () => {
     expect(cleanRead.data()).not.toHaveProperty('interestedInGenders');
   });
 
+  it('limita a leitura direta de terceiros a localizações públicas aproximadas', async () => {
+    await seedUser();
+    await seedVisitor();
+
+    await seedPublicProfile({ latitude: -22.93, longitude: -43.35, geohash: '75cjt' });
+    await assertSucceeds(getDoc(doc(visitorDb(), 'public_profiles', UID)));
+
+    await seedPublicProfile({ latitude: -22.93091, longitude: -43.35, geohash: '75cjt' });
+    await assertFails(getDoc(doc(visitorDb(), 'public_profiles', UID)));
+    await assertSucceeds(getDoc(doc(authenticatedDb(), 'public_profiles', UID)));
+  });
+
+  it('reserva a escrita das coordenadas públicas para a projeção do servidor', async () => {
+    await seedUser();
+    await seedPublicProfile();
+    await assertFails(updateDoc(doc(authenticatedDb(), 'public_profiles', UID), {
+      latitude: -22.93,
+      longitude: -43.35,
+      geohash: '75cjt',
+      updatedAt: serverTimestamp(),
+    }));
+  });
+
   it('nega a visita após bloqueio bilateral, nos dois sentidos', async () => {
     await seedUser();
     await seedVisitor();

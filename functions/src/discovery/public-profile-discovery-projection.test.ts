@@ -153,7 +153,7 @@ test('projeta localização free com precisão pública reduzida', () => {
   });
 });
 
-test('mantém política mais precisa para premium verificado', () => {
+test('aplica o mesmo limite público a planos pagos com e-mail verificado', () => {
   const projection = buildPublicLocationProjection({
     latitude: -22.93091,
     longitude: -43.35364,
@@ -161,9 +161,9 @@ test('mantém política mais precisa para premium verificado', () => {
     emailVerified: true,
   });
 
-  assert.equal(projection.latitude, -22.9309);
-  assert.equal(projection.longitude, -43.3536);
-  assert.equal(projection.geohash?.length, 8);
+  assert.equal(projection.latitude, -22.93);
+  assert.equal(projection.longitude, -43.35);
+  assert.equal(projection.geohash?.length, 5);
 });
 
 test('reduz localização de conta não verificada ao limite conservador', () => {

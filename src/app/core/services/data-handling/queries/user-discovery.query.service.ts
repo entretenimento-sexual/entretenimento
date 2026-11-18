@@ -44,7 +44,7 @@ export class UserDiscoveryQueryService {
   private static readonly FILTERED_RESULT_LIMIT = 120;
   private static readonly DEFAULT_CACHE_TTL_MS = 30_000;
   private static readonly SENSITIVE_CACHE_PREFIX =
-    'discovery:public_profiles:uids:v4:';
+    'discovery:public_profiles:uids:v5:';
 
   private readonly uid$ = this.authSession.uid$.pipe(
     distinctUntilChanged(),

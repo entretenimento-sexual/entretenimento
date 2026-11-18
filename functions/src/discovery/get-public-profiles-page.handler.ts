@@ -17,7 +17,12 @@ import { evaluateCanonicalOwnerLifecycle } from '../account_lifecycle/public-own
 import { evaluateProfileCompatibility } from './profile-compatibility.server';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
-import { publicProfileHasPrivateEmailFields, resolvePublicProfileAge } from './public-profile-discovery-projection';
+import {
+  buildPublicLocationProjection,
+  PUBLIC_LOCATION_GEOHASH_LENGTH,
+  publicProfileHasPrivateEmailFields,
+  resolvePublicProfileAge,
+} from './public-profile-discovery-projection';
 import { hasLegacyPrivateDiscoveryFields } from './legacy-public-profile-preservation.policy';
 import {
   REQUIRE_CALLABLE_APP_CHECK,
@@ -218,9 +223,16 @@ function normalizeNearby(value: unknown): DiscoveryNearby | null {
       const start = String(bound['start'] ?? '').trim();
       const end = String(bound['end'] ?? '').trim();
 
-      return start && end && start <= end
-        ? { start, end }
-        : null;
+      if (!start || !end || start > end) return null;
+
+      // A consulta por raio pode gerar intervalos mais precisos que o índice
+      // público. Inclui a célula inteira no índice e refina por distância abaixo.
+      return {
+        start: start.slice(0, PUBLIC_LOCATION_GEOHASH_LENGTH),
+        end: end.length > PUBLIC_LOCATION_GEOHASH_LENGTH
+          ? end.slice(0, PUBLIC_LOCATION_GEOHASH_LENGTH) + '~'
+          : end,
+      };
     })
     .filter((bound): bound is DiscoveryNearbyBound => bound !== null);
 
@@ -337,12 +349,8 @@ export function serializePublicProfileForDiscovery(
   if (!uid || !nickname || hasLegacyPrivateDiscoveryFields(data) || publicProfileHasPrivateEmailFields(data)) {
     return null;
   }
-  const latitude = finiteNumber(data['latitude']);
-  const longitude = finiteNumber(data['longitude']);
-  const coordinatesValid =
-    latitude !== null
-    && longitude !== null
-    && !(latitude === 0 && longitude === 0);
+  // Perfis antigos também passam pela limitação de precisão na saída.
+  const location = buildPublicLocationProjection(data);
 
   return {
     uid,
@@ -385,9 +393,7 @@ export function serializePublicProfileForDiscovery(
     municipio: cleanText(data['municipio']),
     estado: cleanText(data['estado']),
     role: cleanText(data['role']) ?? 'free',
-    latitude: coordinatesValid ? latitude : null,
-    longitude: coordinatesValid ? longitude : null,
-    geohash: coordinatesValid ? cleanText(data['geohash']) : null,
+    ...location,
     hideFromDiscovery: data['hideFromDiscovery'] === true,
     hideFromOnline: data['hideFromOnline'] === true,
     isOnline: data['isOnline'] === true,
@@ -618,9 +624,9 @@ async function getNearbyProfiles(
         continue;
       }
 
-      const latitude = finiteNumber(card['latitude']);
-      const longitude = finiteNumber(card['longitude']);
-      if (latitude === null || longitude === null) {
+      const latitude = card['latitude'];
+      const longitude = card['longitude'];
+      if (typeof latitude !== 'number' || typeof longitude !== 'number') {
         continue;
       }
 

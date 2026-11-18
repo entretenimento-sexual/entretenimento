@@ -41,6 +41,20 @@ describe('get-public-profiles-page boundary', () => {
     assert.equal('ageEligibilityValidUntil' in serialized, false);
   });
 
+  it('reduz a precisão da localização em perfis legados antes da resposta pública', () => {
+    const card = serializePublicProfileForDiscovery('legacy-location', profile({
+      latitude: -22.93091,
+      longitude: -43.35364,
+      geohash: '75cjtabcd',
+      role: 'vip',
+    }), NOW);
+
+    assert.ok(card);
+    assert.equal(card['latitude'], -22.93);
+    assert.equal(card['longitude'], -43.35);
+    assert.equal(card['geohash'], '75cjt');
+  });
+
   it('entrega somente a apresentação pública e ignora descrição privada residual', () => {
     const serialized = serializePublicProfileForDiscovery(
       'profile-about',

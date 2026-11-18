@@ -43,7 +43,7 @@ Exibir distância e ordenar por proximidade.
 
 Watchers contínuos só se necessário (e com unsubscribe limpo).
 
-Paywall de precisão por “role”
+Precisão da posição do próprio usuário por “role”
 
 (alinhar com o GeolocationService.getPolicyFor)
 
@@ -54,6 +54,12 @@ basic	7	20	3
 free	5	10	2
 
 Se e-mail não verificado, aplique limites máximos: geohashLen ≤ 5, maxDistanceKm ≤ 20, decimals ≤ 2.
+
+Na projeção de terceiros, todos os planos compartilham o mesmo limite de duas
+casas decimais e geohash de cinco caracteres. O backend aplica esse limite tanto
+ao sincronizar o perfil quanto ao responder por documentos antigos. As regras
+reservam a escrita da localização pública ao backend e bloqueiam a leitura
+direta por terceiros enquanto a projeção antiga ainda contiver maior precisão.
 
 Fluxo recomendado (simples)
 

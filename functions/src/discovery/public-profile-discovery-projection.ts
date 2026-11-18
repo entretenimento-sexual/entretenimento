@@ -56,19 +56,12 @@ export interface PublicAvatarProjection {
   photoURL: string | null;
 }
 
-interface PublicLocationPolicy {
-  decimals: number;
-  geohashLen: number;
-}
-
 const GEOHASH_BASE32 = '0123456789bcdefghjkmnpqrstuvwxyz';
-
-const PUBLIC_LOCATION_POLICIES: Record<string, PublicLocationPolicy> = {
-  vip: { decimals: 5, geohashLen: 9 },
-  premium: { decimals: 4, geohashLen: 8 },
-  basic: { decimals: 3, geohashLen: 7 },
-  free: { decimals: 2, geohashLen: 5 },
-};
+const PUBLIC_LOCATION_DECIMALS = 2;
+export const PUBLIC_LOCATION_GEOHASH_LENGTH = 5;
+export const LEGACY_PUBLIC_LOCATION_FIELDS = [
+  'lat', 'lng', 'lon', 'locationAccuracy', 'lastLocationAt',
+] as const;
 
 /** Campos de e-mail privados não fazem parte do documento público de perfil. */
 export const PRIVATE_PUBLIC_PROFILE_EMAIL_FIELDS = [
@@ -172,12 +165,8 @@ export function buildPublicLocationProjection(
     return emptyPublicLocationProjection();
   }
 
-  const policy = resolvePublicLocationPolicy(
-    user['role'],
-    user['emailVerified'] === true
-  );
-  const coarseLatitude = roundCoordinate(latitude, policy.decimals);
-  const coarseLongitude = roundCoordinate(longitude, policy.decimals);
+  const coarseLatitude = roundCoordinate(latitude, PUBLIC_LOCATION_DECIMALS);
+  const coarseLongitude = roundCoordinate(longitude, PUBLIC_LOCATION_DECIMALS);
 
   return {
     latitude: coarseLatitude,
@@ -185,7 +174,7 @@ export function buildPublicLocationProjection(
     geohash: encodeGeohash(
       coarseLatitude,
       coarseLongitude,
-      policy.geohashLen
+      PUBLIC_LOCATION_GEOHASH_LENGTH
     ),
   };
 }
@@ -195,6 +184,7 @@ export function publicLocationProjectionMatches(
   expected: PublicLocationProjection
 ): boolean {
   return (
+    !LEGACY_PUBLIC_LOCATION_FIELDS.some((field) => Object.hasOwn(current, field)) &&
     (current['latitude'] ?? null) === expected.latitude &&
     (current['longitude'] ?? null) === expected.longitude &&
     (current['geohash'] ?? null) === expected.geohash
@@ -206,24 +196,6 @@ function emptyPublicLocationProjection(): PublicLocationProjection {
     latitude: null,
     longitude: null,
     geohash: null,
-  };
-}
-
-function resolvePublicLocationPolicy(
-  role: unknown,
-  emailVerified: boolean
-): PublicLocationPolicy {
-  const normalizedRole = String(role ?? 'free').trim().toLowerCase();
-  const base = PUBLIC_LOCATION_POLICIES[normalizedRole]
-    ?? PUBLIC_LOCATION_POLICIES['free'];
-
-  if (emailVerified) {
-    return base;
-  }
-
-  return {
-    decimals: Math.min(2, base.decimals),
-    geohashLen: Math.min(5, base.geohashLen),
   };
 }
 

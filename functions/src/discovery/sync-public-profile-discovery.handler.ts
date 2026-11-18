@@ -22,6 +22,7 @@ import {
   buildPublicAvatarProjection,
   buildPublicDescriptionProjection,
   buildPublicLocationProjection,
+  LEGACY_PUBLIC_LOCATION_FIELDS,
   publicAvatarProjectionMatches,
   publicDescriptionProjectionMatches,
   publicLocationProjectionMatches,
@@ -164,6 +165,9 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
           ageEligibilityValidUntil: FieldValue.delete(),
           ...publicPreferences,
           ...publicLocation,
+          ...Object.fromEntries(LEGACY_PUBLIC_LOCATION_FIELDS.map(
+            (field) => [field, FieldValue.delete()]
+          )),
           discoveryNormalizedAt: FieldValue.serverTimestamp(),
           publicPreferencesUpdatedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),

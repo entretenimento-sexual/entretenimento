@@ -232,7 +232,7 @@ describe('UserDiscoveryQueryService', () => {
     await firstValueFrom(service.getUsersByGender$('Man'));
 
     expect(cacheMock.get).toHaveBeenCalledWith(
-      'discovery:public_profiles:uids:v4:query:gender:man:viewer=viewer-1'
+      'discovery:public_profiles:uids:v5:query:gender:man:viewer=viewer-1'
     );
   });
 
@@ -270,7 +270,7 @@ describe('UserDiscoveryQueryService', () => {
 
     await firstValueFrom(service.getProfilesByUids$(['owner-valid']));
     expect(cacheMock.set).toHaveBeenCalledWith(
-      'discovery:public_profiles:uids:v4:owner-valid:viewer=viewer-1',
+      'discovery:public_profiles:uids:v5:owner-valid:viewer=viewer-1',
       expect.any(Array),
       30_000,
       { persist: true }
@@ -333,7 +333,7 @@ describe('UserDiscoveryQueryService', () => {
     );
 
     const expectedCacheKey =
-      'discovery:public_profiles:uids:v4:profile-a,profile-b:viewer=viewer-1';
+      'discovery:public_profiles:uids:v5:profile-a,profile-b:viewer=viewer-1';
 
     expect(profiles.map((profile) => profile.uid)).toEqual([
       'profile-a',
