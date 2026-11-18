@@ -65,7 +65,7 @@ describe('RegisterService', () => {
     report = vi.fn();
     reserve = vi.fn(() => of(void 0));
     sendEmail = vi.fn(() => of(void 0));
-    acceptTerms = vi.fn(() => of(void 0));
+    acceptTerms = vi.fn(() => of({ signupAdultDeclarationRecorded: true }));
     createFirebaseUser = vi.fn();
     updateDisplayName = vi.fn().mockResolvedValue(undefined);
 
@@ -287,9 +287,37 @@ describe('RegisterService', () => {
       registrationWarnings: ['nickname-reservation-unconfirmed'],
     });
     expect(reserve).toHaveBeenCalledOnce();
-    expect(acceptTerms).toHaveBeenCalledWith(user.uid);
+    expect(acceptTerms).toHaveBeenCalledWith(user.uid, { signupAdultDeclaration: true });
     expect(updateDisplayName).not.toHaveBeenCalled();
     expect(user.delete).not.toHaveBeenCalled();
+  });
+
+  it('confirma termos e declaração numa única tentativa adicional sem recriar a conta', async () => {
+    vi.useFakeTimers();
+    const user = createUser();
+    acceptTerms.mockReturnValueOnce(throwError(() => ({ code: 'functions/unavailable' })));
+    const result = firstValueFrom(service.registerUser(buildRegistrationData(), 'senha-segura'));
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(await result).toMatchObject({ verificationEmailSent: true, registrationWarnings: [] });
+    expect(acceptTerms.mock.calls).toEqual([
+      [user.uid, { signupAdultDeclaration: true }],
+      [user.uid, { signupAdultDeclaration: true }],
+    ]);
+    expect(createFirebaseUser).toHaveBeenCalledOnce();
+    expect(sendEmail).toHaveBeenCalledOnce();
+  });
+
+  it('prossegue para o e-mail e sinaliza só a declaração quando o servidor confirma apenas os termos', async () => {
+    createUser();
+    acceptTerms.mockReturnValueOnce(of({}));
+
+    expect(await firstValueFrom(service.registerUser(buildRegistrationData(), 'senha-segura')))
+      .toMatchObject({
+        verificationEmailSent: true,
+        registrationWarnings: ['adult-declaration-unconfirmed'],
+      });
+    expect(sendEmail).toHaveBeenCalledOnce();
   });
 
   it('bloqueia nova criação enquanto o SDK ainda pode concluir a primeira tentativa', async () => {

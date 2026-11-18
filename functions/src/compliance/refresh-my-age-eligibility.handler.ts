@@ -17,6 +17,11 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  requiresTrustedAdultVerification,
+  SIGNUP_ADULT_DECLARATION_SCHEMA_VERSION,
+} from './adult-self-declaration-evidence';
+import { TERMS_ACCEPTANCE_VERSION } from './platform-legal.constants';
+import {
   evaluateCanonicalAgeEligibility,
 } from './age-eligibility.policy';
 import {
@@ -71,10 +76,14 @@ function trustedSelfDeclarationAtMs(
   }
 
   const declaration = value as Record<string, unknown>;
+  const schemaVersion = Number(declaration['schemaVersion']);
+  const supportedSchema = schemaVersion === 1 ||
+    (schemaVersion === SIGNUP_ADULT_DECLARATION_SCHEMA_VERSION &&
+      declaration['evidenceOrigin'] === 'SIGNUP_FORM');
 
   if (
     String(declaration['uid'] ?? '').trim() !== expectedUid ||
-    Number(declaration['schemaVersion']) !== 1 ||
+    !supportedSchema ||
     declaration['type'] !== 'adult_self_declaration' ||
     declaration['declaration'] !== '18_PLUS' ||
     declaration['voluntary'] !== true ||
@@ -263,11 +272,22 @@ export const refreshMyAgeEligibility = onCall(
        * Se o usuário já declarou 18+ em uma evidência backend-only válida,
        * restauramos o estado provisório sem pedir a mesma declaração novamente.
        */
-      const declaredAtMs = declarationSnapshot.exists
-        ? trustedSelfDeclarationAtMs(
-          declarationSnapshot.data(),
-          uid
-        )
+      const declaration = declarationSnapshot.data();
+      const isSignupEvidence =
+        Number(declaration?.['schemaVersion']) === SIGNUP_ADULT_DECLARATION_SCHEMA_VERSION;
+      const terms = user['acceptedTerms'];
+      const canUseSignupEvidence = request.auth?.token?.email_verified === true &&
+        !requiresTrustedAdultVerification &&
+        user['accountStatus'] === 'active' &&
+        user['accountLocked'] !== true &&
+        user['suspended'] !== true &&
+        user['loginAllowed'] !== false &&
+        user['deletionRequestedAt'] == null &&
+        terms?.['accepted'] === true &&
+        terms?.['version'] === TERMS_ACCEPTANCE_VERSION &&
+        terms?.['acknowledgedPrivacyNotice'] === true;
+      const declaredAtMs = !isSignupEvidence || canUseSignupEvidence
+        ? trustedSelfDeclarationAtMs(declaration, uid)
         : null;
 
       if (declaredAtMs !== null) {

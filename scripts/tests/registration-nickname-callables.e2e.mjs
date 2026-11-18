@@ -2,7 +2,9 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { initializeApp, deleteApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator, createUserWithEmailAndPassword } from 'firebase/auth';
+import {
+  getAuth, connectAuthEmulator, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+} from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
 import {
   initializeApp as initializeAdminApp, deleteApp as deleteAdminApp,
@@ -197,6 +199,58 @@ async function run() {
 
     assert.equal((await completeOther({ ...otherProfile, uid: otherUid })).data.status, 'COMPLETED');
     assert.equal((await otherRef.get()).get('profileCompleted'), true);
+
+    const signup = makeClient('signup');
+    const secondDevice = makeClient('signup-second-device');
+    const signupEmail = 'signup-' + token + '@example.test';
+    const signupPassword = 'Signup-2026-Aa1!';
+    const credential = await createUserWithEmailAndPassword(signup.auth, signupEmail, signupPassword);
+    const signupUid = credential.user.uid;
+    const signupUserRef = db.doc('users/' + signupUid);
+    const signupEvidenceRef = db.doc('adult_self_declarations/' + signupUid);
+    const signupEligibilityRef = db.doc('age_eligibility_records/' + signupUid);
+    const acceptOnSignup = httpsCallable(signup.functions, 'acceptPlatformTerms');
+    const signupConfirmations = {
+      expectedUid: signupUid,
+      acceptedTerms: true,
+      acknowledgedPrivacyNotice: true,
+      signupAdultDeclarationVersion: 'v1',
+    };
+
+    await waitFor('New signup seed', async () => (await signupUserRef.get()).exists);
+    await rejects(
+      acceptOnSignup, { ...signupConfirmations, expectedUid: uid }, 'permission-denied'
+    );
+    assert.equal((await signupEvidenceRef.get()).exists, false);
+    const acceptFirst = (await acceptOnSignup(signupConfirmations)).data;
+    const firstEvidence = (await signupEvidenceRef.get()).data();
+    assert.equal(acceptFirst.signupAdultDeclarationRecorded, true);
+    assert.equal(firstEvidence.evidenceOrigin, 'SIGNUP_FORM');
+    assert.equal(firstEvidence.declarationText, 'Declaro voluntariamente que tenho 18 anos ou mais.');
+    assert.equal(firstEvidence.termsAcceptedAtMs, acceptFirst.acceptedAtMs);
+    assert.deepEqual((await acceptOnSignup(signupConfirmations)).data, acceptFirst);
+    assert.deepEqual((await signupEvidenceRef.get()).data(), firstEvidence);
+
+    const refreshOnSignup = httpsCallable(signup.functions, 'refreshMyAgeEligibility');
+    assert.equal((await refreshOnSignup({})).data.status, 'UNVERIFIED');
+    assert.equal((await signupEligibilityRef.get()).exists, false);
+
+    await adminAuth.updateUser(signupUid, { emailVerified: true });
+    await signInWithEmailAndPassword(secondDevice.auth, signupEmail, signupPassword);
+    const refreshOnSecondDevice = httpsCallable(secondDevice.functions, 'refreshMyAgeEligibility');
+    await signupUserRef.update({ accountLocked: true });
+    assert.equal((await refreshOnSecondDevice({})).data.status, 'UNVERIFIED');
+    assert.equal((await signupEligibilityRef.get()).exists, false);
+    await signupUserRef.update({ accountLocked: false });
+
+    assert.equal((await refreshOnSecondDevice({})).data.status, 'SELF_DECLARED_ADULT');
+    assert.equal((await signupEligibilityRef.get()).get('uid'), signupUid);
+    assert.deepEqual((await signupEvidenceRef.get()).data(), firstEvidence);
+    const completeOnSecondDevice = httpsCallable(secondDevice.functions, 'completeRegistrationProfile');
+    assert.equal((await completeOnSecondDevice({
+      ...profileFields, uid: signupUid, nickname: 'Cadastro Outra Aba',
+    })).data.status, 'COMPLETED');
+    console.log('[registration:e2e] PASS signup declaration is saved once and used after verification on another device');
   } finally {
     await Promise.allSettled(apps.map(deleteApp));
     await deleteAdminApp(admin);

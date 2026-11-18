@@ -12,7 +12,7 @@
 //   changing the canonical age domain.
 // -----------------------------------------------------------------------------
 
-import { FieldPath, Timestamp } from 'firebase-admin/firestore';
+import { FieldPath } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
@@ -29,23 +29,16 @@ import {
   isAgeReverificationAssuranceUnresolved,
 } from './profile-age-reverification.policy';
 import {
-  ADULT_SELF_DECLARATION_TEXT_PT_BR,
-  ADULT_SELF_DECLARATION_VERSION,
   PRIVACY_NOTICE_VERSION,
   TERMS_ACCEPTANCE_VERSION,
   TERMS_DOCUMENT_VERSION,
 } from './platform-legal.constants';
+import {
+  requiresTrustedAdultVerification,
+  writeAdultSelfDeclarationEvidence,
+} from './adult-self-declaration-evidence';
 
 const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== 'true';
-
-// Self declaration is the account-level admission basis in the default mode.
-// A compliance operator may explicitly require trusted verification instead.
-const AGE_ADMISSION_MODE =
-  String(process.env.AGE_ADMISSION_MODE ?? 'SELF_DECLARATION')
-    .trim()
-    .toUpperCase() === 'VERIFIED_REQUIRED'
-    ? 'VERIFIED_REQUIRED'
-    : 'SELF_DECLARATION';
 
 interface AcceptAdultSelfDeclarationRequest {
   confirmsAdult?: boolean;
@@ -160,7 +153,7 @@ export const acceptAdultSelfDeclaration =
         );
       }
 
-      if (AGE_ADMISSION_MODE === 'VERIFIED_REQUIRED') {
+      if (requiresTrustedAdultVerification) {
         throw new HttpsError(
           'failed-precondition',
           'A política atual exige verificação de maioridade por uma fonte confiável.'
@@ -180,9 +173,6 @@ export const acceptAdultSelfDeclaration =
       const declarationRef = db
         .collection('adult_self_declarations')
         .doc(uid);
-      const auditRef = db
-        .collection('compliance_audit')
-        .doc(`age_self_declaration_${uid}`);
       const legacyDeclaredAtMs =
         await findFirstLegacySelfDeclarationAtMs(uid);
 
@@ -262,54 +252,12 @@ export const acceptAdultSelfDeclaration =
           existingDeclaredAtMs
           ?? legacyDeclaredAtMs
           ?? nowMs;
-        const migratedFromLegacyAudit =
-          !existingDeclaration && legacyDeclaredAtMs !== null;
-        const legal = legalSnapshot(user['acceptedTerms']);
-
         if (!existingDeclaration) {
-          const declarationEvidence = {
-            schemaVersion: 1,
+          writeAdultSelfDeclarationEvidence(transaction, {
             uid,
-            type: 'adult_self_declaration',
-            declaration: '18_PLUS',
-            voluntary: true,
-            explicitConfirmation: true,
-            immutable: true,
             declaredAtMs,
-            declaredAt: Timestamp.fromMillis(declaredAtMs),
-            recordedAt: FieldValue.serverTimestamp(),
-            source: 'web',
-            evidenceOrigin: migratedFromLegacyAudit
-              ? 'MIGRATED_EXISTING_AUDIT'
-              : 'LIVE_DECLARATION',
-            declarationTextVersion: migratedFromLegacyAudit
-              ? 'legacy-audit'
-              : ADULT_SELF_DECLARATION_VERSION,
-            declarationText: migratedFromLegacyAudit
-              ? null
-              : ADULT_SELF_DECLARATION_TEXT_PT_BR,
-            exactDeclarationTextCaptured: !migratedFromLegacyAudit,
-            legalSnapshotCapturedAtDeclaration: !migratedFromLegacyAudit,
-            ...legal,
-          };
-
-          transaction.create(declarationRef, declarationEvidence);
-          transaction.create(auditRef, {
-            uid,
-            type: 'age_eligibility.self_declared_adult_evidence_created',
-            declaration: '18_PLUS',
-            voluntary: true,
-            explicitConfirmation: true,
-            eventAtMs: declaredAtMs,
-            declarationEvidencePath: declarationRef.path,
-            declarationEvidenceSchemaVersion: 1,
-            evidenceOrigin: declarationEvidence.evidenceOrigin,
-            declarationTextVersion:
-              declarationEvidence.declarationTextVersion,
-            termsAcceptanceVersion: legal.termsAcceptanceVersion,
-            termsDocumentVersion: legal.termsDocumentVersion,
-            privacyNoticeVersion: legal.privacyNoticeVersion,
-            recordedAt: FieldValue.serverTimestamp(),
+            origin: legacyDeclaredAtMs === null ? 'LIVE_DECLARATION' : 'MIGRATED_EXISTING_AUDIT',
+            legal: legalSnapshot(user['acceptedTerms']),
           });
         }
 

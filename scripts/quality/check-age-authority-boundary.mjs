@@ -533,9 +533,21 @@ forbidAll(
 // -----------------------------------------------------------------------------
 
 requireAll(
-  'functions/src/compliance/accept-adult-self-declaration.handler.ts',
+  'functions/src/compliance/adult-self-declaration-evidence.ts',
   ["AGE_ADMISSION_MODE ?? 'SELF_DECLARATION'"],
   'admissão 18+ autodeclarada deve ser o padrão'
+);
+
+requireAll(
+  'functions/src/compliance/accept-adult-self-declaration.handler.ts',
+  ['requiresTrustedAdultVerification'],
+  'declaração direta deve respeitar a política de admissão'
+);
+
+requireAll(
+  'functions/src/compliance/refresh-my-age-eligibility.handler.ts',
+  ['!requiresTrustedAdultVerification', 'request.auth?.token?.email_verified === true'],
+  'declaração do cadastro só pode ser usada após confirmação do e-mail e da política de admissão'
 );
 
 

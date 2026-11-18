@@ -66,6 +66,7 @@ export class WelcomeComponent implements OnInit {
   verificationEmailDelivery: VerificationEmailDeliveryState = 'unknown';
   nicknamePending = false;
   termsPending = false;
+  declarationPending = false;
 
   private latestVm: RegisterFlowVm | null = null;
   redirecting = false;
@@ -117,6 +118,7 @@ export class WelcomeComponent implements OnInit {
     const registrationParams = this.router.parseUrl(this.router.url).queryParams;
     this.nicknamePending = registrationParams['nicknamePending'] === '1';
     this.termsPending = registrationParams['termsPending'] === '1';
+    this.declarationPending = registrationParams['declarationPending'] === '1';
 
     this.registerFlow.vm$
       .pipe(takeUntilDestroyed(this.destroyRef))

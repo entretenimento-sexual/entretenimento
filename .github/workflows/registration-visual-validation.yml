@@ -533,6 +533,26 @@ jobs:
             }
           }"
 
+          playwright-cli run-code "async (page) => {
+            const context = page.context();
+            const cdp = await context.newCDPSession(page);
+            const email = page.locator('#email');
+            try {
+              await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+              await context.setOffline(true);
+              await page.getByText('Sem conexão detectada', { exact: true }).waitFor({ state: 'visible' });
+              await context.setOffline(false);
+              await page.getByText('Conexão restabelecida', { exact: true }).waitFor({ state: 'visible' });
+              if (await email.inputValue() !== 'visual@example.test') {
+                throw new Error('Reconnecting must preserve the credentials in the signup form');
+              }
+            } finally {
+              await context.setOffline(false);
+              await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+              await cdp.detach();
+            }
+          }"
+
           playwright-cli console error > "$OUT/browser-console-errors.log" || true
           playwright-cli close
 

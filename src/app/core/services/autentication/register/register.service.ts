@@ -123,25 +123,37 @@ export class RegisterService {
       }),
 
       /**
-       * O checkbox de cadastro é validado antes da criação da conta, mas o
-       * registro definitivo dos termos pertence ao backend. A Cloud Function
-       * grava versão, horário do servidor e compliance_audit.
-       *
-       * Se a auditoria estiver temporariamente indisponível, o cadastro segue
-       * com acceptedTerms=false. O RegisterFlowFacade encaminhará o usuário para
-       * /register/aceitar-termos após a verificação de e-mail.
+       * O backend registra termos e evidência da declaração explícita no
+       * mesmo passo. A autorização etária só é avaliada após verificar o e-mail.
+       * Em caso de falha, o cadastro retoma a partir do que foi confirmado.
        */
       switchMap((ctx2) =>
         defer(() => {
           this.assertActiveCredential(ctx2.cred);
-          return this.termsAcceptance.acceptForUser$(ctx2.cred.user.uid);
+          return this.termsAcceptance.acceptForUser$(ctx2.cred.user.uid, {
+            signupAdultDeclaration: userData.confirmsAdult === true,
+          });
         }).pipe(
           timeout({ first: this.NET_TIMEOUT_MS }),
-          tap(() =>
+          retry({
+            count: 1,
+            delay: (error: unknown) => {
+              const failure = error as { details?: { reason?: unknown } } | null;
+              return failure?.details?.reason === 'registration/seed-pending' ||
+                ((typeof navigator === 'undefined' || navigator.onLine) &&
+                  (error instanceof TimeoutError || isTransientNetworkError(error)))
+                ? timer(500)
+                : throwError(() => error);
+            },
+          }),
+          tap((result) => {
+            if (result.signupAdultDeclarationRecorded !== true) {
+              ctx2.warns.push('adult-declaration-unconfirmed');
+            }
             this.devDebug(ctx2.traceId, 'compliance:terms:ok', {
               uid: ctx2.cred.user.uid,
-            })
-          ),
+            });
+          }),
           map(() => ctx2),
           catchError((err) => {
             this.safeHandle(
@@ -154,6 +166,7 @@ export class RegisterService {
               }
             );
             ctx2.warns.push('terms-acceptance-audit-failed');
+            ctx2.warns.push('adult-declaration-unconfirmed');
             return of(ctx2);
           })
         )

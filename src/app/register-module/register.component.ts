@@ -43,6 +43,7 @@ import { toObservable, toSignal, takeUntilDestroyed } from '@angular/core/rxjs-i
 import { REGISTRATION_ACTION_TIMEOUT_MS } from './data-access/register-action.policy';
 
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
+import { ADULT_SELF_DECLARATION_TEXT_PT_BR } from 'src/app/core/services/compliance/platform-legal.constants';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { FirestoreValidationService } from 'src/app/core/services/data-handling/firestore/validation/firestore-validation.service';
@@ -203,6 +204,7 @@ export class RegisterComponent {
 
   readonly creating = signal(false);
   readonly accountCreated = signal(false);
+  readonly adultDeclarationText = ADULT_SELF_DECLARATION_TEXT_PT_BR;
   readonly creatingMsg = signal('Estamos criando seu usuário, aguarde…');
   readonly syncing = signal(false);
 
@@ -689,6 +691,8 @@ export class RegisterComponent {
                   ? { nicknamePending: '1' } : {}),
                 ...(result.registrationWarnings.includes('terms-acceptance-audit-failed')
                   ? { termsPending: '1' } : {}),
+                ...(result.registrationWarnings.includes('adult-declaration-unconfirmed')
+                  ? { declarationPending: '1' } : {}),
               },
               replaceUrl: true,
             });

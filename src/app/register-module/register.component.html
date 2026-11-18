@@ -311,9 +311,7 @@
       }
       @case (2) {
       <!--
-        Fronteira pré-Auth: sem declaração 18+ não criar identidade.
-        Essa confirmação não é prova documental de idade; o backend deve
-        produzir/manter o registro canônico antes de liberar recursos adultos.
+        Declaração explícita vinculada à conta durante o cadastro.
       -->
       <div class="form-checkbox">
         <input type="checkbox" id="maioridade-inicial" formControlName="confirmarMaioridade"
@@ -321,12 +319,12 @@
           [attr.aria-invalid]="(submitted() || form.get('confirmarMaioridade')?.touched)
             && form.get('confirmarMaioridade')?.invalid ? true : null" />
         <label for="maioridade-inicial">
-          Declaro que tenho 18 anos ou mais e estou ciente de que menores de idade
-          não podem criar conta nem utilizar esta plataforma.
+          {{ adultDeclarationText }}
         </label>
         <small id="maioridade-inicial-ajuda" class="field-hint">
-          A plataforma é exclusiva para maiores de 18 anos. Sua declaração
-          poderá ser submetida a verificação adicional de segurança.
+          Sua declaração será registrada na conta. Após confirmar seu e-mail,
+          você poderá continuar. A plataforma poderá pedir uma verificação
+          adicional por motivo de segurança.
         </small>
         <p *ngIf="getError('confirmarMaioridade') && (submitted() || form.get('confirmarMaioridade')?.touched)"
           id="maioridade-inicial-erro" class="tooltip-error" role="alert"

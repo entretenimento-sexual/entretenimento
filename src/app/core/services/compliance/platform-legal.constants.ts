@@ -7,6 +7,9 @@ export const COOKIE_NOTICE_EFFECTIVE_DATE_LABEL = '29 de setembro de 2026';
 export const PLATFORM_LEGAL_EFFECTIVE_DATE_ISO = '2026-09-29';
 export const PLATFORM_LEGAL_EFFECTIVE_DATE_LABEL = '29 de setembro de 2026';
 export const PLATFORM_LEGAL_REACCEPT_REQUIRED = true;
+export const ADULT_SELF_DECLARATION_VERSION = 'v1';
+export const ADULT_SELF_DECLARATION_TEXT_PT_BR =
+  'Declaro voluntariamente que tenho 18 anos ou mais.';
 
 export const PLATFORM_LEGAL_CHANGE_SUMMARY = Object.freeze([
   'proteção etária e verificação de maioridade para acesso a conteúdo adulto',

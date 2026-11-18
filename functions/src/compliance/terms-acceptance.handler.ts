@@ -1,8 +1,12 @@
+import { Timestamp } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import { assertCallableAppCheck } from '../shared/security/callable-app-check';
+import { writeAdultSelfDeclarationEvidence } from './adult-self-declaration-evidence';
 import {
+  ADULT_SELF_DECLARATION_VERSION,
   PRIVACY_NOTICE_VERSION,
   TERMS_ACCEPTANCE_VERSION,
   TERMS_DOCUMENT_VERSION,
@@ -12,11 +16,7 @@ interface AcceptPlatformTermsRequest {
   expectedUid?: unknown;
   acceptedTerms: true;
   acknowledgedPrivacyNotice: true;
-}
-
-interface ExistingTermsAcceptance {
-  accepted?: unknown;
-  version?: unknown;
+  signupAdultDeclarationVersion?: unknown;
 }
 
 export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
@@ -33,6 +33,7 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
     acceptanceContext: 'initial' | 'material_update';
     previousVersion: string | null;
     acceptedAtMs: number;
+    signupAdultDeclarationRecorded?: true;
   }> => {
     const uid = request.auth?.uid?.trim();
 
@@ -57,38 +58,88 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
       );
     }
 
-    const acceptedAtMs = Date.now();
+    const signupVersion = request.data?.signupAdultDeclarationVersion;
+    const recordSignupDeclaration = signupVersion !== undefined;
+    if (recordSignupDeclaration) {
+      assertCallableAppCheck(request.app);
+      if (request.data?.expectedUid !== uid) {
+        throw new HttpsError('permission-denied', 'A conta ativa mudou durante o cadastro.');
+      }
+      if (signupVersion !== ADULT_SELF_DECLARATION_VERSION) {
+        throw new HttpsError('invalid-argument', 'Revise a declaração de maioridade vigente.');
+      }
+    }
+
+    const nowMs = Date.now();
     const userRef = db.collection('users').doc(uid);
     const auditRef = db
       .collection('compliance_audit')
-      .doc(`terms_acceptance_${uid}_${acceptedAtMs}`);
+      .doc(`terms_acceptance_${uid}_${nowMs}`);
     const pendingNotificationRef = db
       .collection('notifications')
       .doc(`terms_update_required_${uid}_${TERMS_ACCEPTANCE_VERSION}`);
 
-    let previousVersion: string | null = null;
-    let acceptanceContext: 'initial' | 'material_update' = 'initial';
-
-    await db.runTransaction(async (tx) => {
+    const acceptance = await db.runTransaction(async (tx) => {
       const userSnap = await tx.get(userRef);
 
       if (!userSnap.exists) {
         throw new HttpsError(
           'failed-precondition',
-          'Conclua a criação da conta antes de aceitar os termos.'
+          'Conclua a criação da conta antes de aceitar os termos.',
+          { reason: 'registration/seed-pending' },
         );
       }
 
       const userData = userSnap.data() ?? {};
-      const previous = (userData.acceptedTerms ?? {}) as ExistingTermsAcceptance;
+      const previous = (userData.acceptedTerms ?? {}) as Record<string, unknown>;
       const normalizedPreviousVersion = String(previous.version ?? '').trim();
+      const priorDate = previous.acceptedAt ?? previous.date;
+      const previouslyAcceptedAtMs = recordSignupDeclaration &&
+        previous.accepted === true &&
+        normalizedPreviousVersion === TERMS_ACCEPTANCE_VERSION &&
+        previous.acknowledgedPrivacyNotice === true &&
+        previous.termsDocumentVersion === TERMS_DOCUMENT_VERSION &&
+        previous.privacyNoticeVersion === PRIVACY_NOTICE_VERSION &&
+        priorDate instanceof Timestamp
+        ? priorDate.toMillis()
+        : null;
+      const previousVersion = previouslyAcceptedAtMs !== null
+        ? (typeof previous.previousVersion === 'string' ? previous.previousVersion : null)
+        : normalizedPreviousVersion || null;
+      const acceptanceContext: 'initial' | 'material_update' = previouslyAcceptedAtMs !== null
+        ? (previous.acceptanceContext === 'material_update' ? 'material_update' : 'initial')
+        : previous.accepted === true && previousVersion
+          ? 'material_update'
+          : 'initial';
 
-      previousVersion = normalizedPreviousVersion || null;
-      acceptanceContext = previous.accepted === true && previousVersion
-        ? 'material_update'
-        : 'initial';
+      if (recordSignupDeclaration) {
+        if (userData.profileCompleted === true || userData.accountStatus !== 'active' ||
+            userData.accountLocked === true || userData.suspended === true ||
+            userData.loginAllowed === false || userData.deletionRequestedAt != null) {
+          throw new HttpsError('failed-precondition', 'A conta não está disponível para concluir o cadastro.');
+        }
+        const evidence = await tx.get(db.collection('adult_self_declarations').doc(uid));
+        if (!evidence.exists) {
+          writeAdultSelfDeclarationEvidence(tx, {
+            uid,
+            declaredAtMs: nowMs,
+            origin: 'SIGNUP_FORM',
+            legal: {
+              termsAcceptanceVersion: TERMS_ACCEPTANCE_VERSION,
+              termsDocumentVersion: TERMS_DOCUMENT_VERSION,
+              privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+              termsAcceptedAtMs: previouslyAcceptedAtMs ?? nowMs,
+              termsAcceptanceContext: acceptanceContext,
+            },
+          });
+        }
+        if (previouslyAcceptedAtMs !== null) {
+          return { acceptedAtMs: previouslyAcceptedAtMs, previousVersion, acceptanceContext };
+        }
+      }
 
       const now = FieldValue.serverTimestamp();
+      const acceptedAt = recordSignupDeclaration ? Timestamp.fromMillis(nowMs) : now;
 
       tx.set(
         userRef,
@@ -102,8 +153,8 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
             acknowledgedPrivacyNotice: true,
             acceptanceContext,
             previousVersion,
-            date: now,
-            acceptedAt: now,
+            date: acceptedAt,
+            acceptedAt,
             updatedAt: now,
             source: 'web',
           },
@@ -130,10 +181,11 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
        *   acabou de executar a ação e o registro auditável já existe;
        * - removemos o aviso pendente da versão aceita para não manter uma ação
        *   obsoleta na central de notificações;
-       * - a confirmação de maioridade permanece no fluxo separado de acesso
-       *   adulto e não é duplicada neste contrato.
+       * A autodeclaração coletada no cadastro é evidência privada. A decisão
+       * 18+ é reconciliada em outra etapa, após a verificação do e-mail.
        */
       tx.delete(pendingNotificationRef);
+      return { acceptedAtMs: nowMs, previousVersion, acceptanceContext };
     });
 
     return {
@@ -141,9 +193,8 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
       version: TERMS_ACCEPTANCE_VERSION,
       termsDocumentVersion: TERMS_DOCUMENT_VERSION,
       privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
-      acceptanceContext,
-      previousVersion,
-      acceptedAtMs,
+      ...acceptance,
+      ...(recordSignupDeclaration ? { signupAdultDeclarationRecorded: true as const } : {}),
     };
   }
 );

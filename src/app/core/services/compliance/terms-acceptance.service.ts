@@ -11,6 +11,7 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { environment } from 'src/environments/environment';
 import {
+  ADULT_SELF_DECLARATION_VERSION,
   PRIVACY_NOTICE_VERSION,
   TERMS_ACCEPTANCE_VERSION,
   TERMS_DOCUMENT_VERSION,
@@ -39,6 +40,7 @@ interface AcceptPlatformTermsPayload {
   expectedUid: string;
   acceptedTerms: true;
   acknowledgedPrivacyNotice: true;
+  signupAdultDeclarationVersion?: string;
 }
 
 interface AcceptPlatformTermsResponse {
@@ -49,11 +51,13 @@ interface AcceptPlatformTermsResponse {
   acceptanceContext: 'initial' | 'material_update';
   previousVersion: string | null;
   acceptedAtMs: number;
+  signupAdultDeclarationRecorded?: true;
 }
 
 export interface AcceptedPlatformTermsResult {
   uid: string;
   record: IUserTermsAcceptance;
+  signupAdultDeclarationRecorded?: true;
 }
 
 /**
@@ -145,7 +149,10 @@ export class TermsAcceptanceService {
     );
   }
 
-  acceptForUser$(uid: string): Observable<AcceptedPlatformTermsResult> {
+  acceptForUser$(
+    uid: string,
+    { signupAdultDeclaration = false } = {}
+  ): Observable<AcceptedPlatformTermsResult> {
     const safeUid = String(uid ?? '').trim();
 
     if (!safeUid) {
@@ -184,6 +191,9 @@ export class TermsAcceptanceService {
       expectedUid: safeUid,
       acceptedTerms: true,
       acknowledgedPrivacyNotice: true,
+      ...(signupAdultDeclaration
+        ? { signupAdultDeclarationVersion: ADULT_SELF_DECLARATION_VERSION }
+        : {}),
     };
 
     return defer(() => {
@@ -228,6 +238,9 @@ export class TermsAcceptanceService {
         return {
           uid: safeUid,
           record,
+          ...(result.signupAdultDeclarationRecorded === true
+            ? { signupAdultDeclarationRecorded: true as const }
+            : {}),
         };
       }),
       catchError((error) => {
