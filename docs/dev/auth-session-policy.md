@@ -118,6 +118,8 @@ por refresh.
 
 ## B3.2C.22F - Restauracao Firebase e bloqueio persistente
 
+- O Angular inicia a restauração com `provideAppInitializer` e aguarda a
+  promessa de bootstrap pelo prazo definido em `FIREBASE_AUTH_RESTORE_TIMEOUT_MS`.
 - A restauracao revalida currentUser.reload() tanto no Cloud quanto no emulador.
 - Uma credencial confirmadamente invalida bloqueia o app via AuthAppBlockService,
   sem executar signOut automatico.

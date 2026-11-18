@@ -1,5 +1,6 @@
 import {
-  APP_INITIALIZER,
+  inject,
+  provideAppInitializer,
   type EnvironmentProviders,
   type Provider,
 } from '@angular/core';
@@ -253,10 +254,12 @@ export const FIREBASE_APPLICATION_PROVIDERS: Array<
   provideApplicationDatabase(),
   provideApplicationStorage(),
 
-  {
-    provide: APP_INITIALIZER,
-    useFactory: authRestoreInitializer,
-    deps: [Auth, GlobalErrorHandlerService, AuthAppBlockService, AuthSessionService],
-    multi: true,
-  },
+  provideAppInitializer(() =>
+    authRestoreInitializer(
+      inject(Auth),
+      inject(GlobalErrorHandlerService),
+      inject(AuthAppBlockService),
+      inject(AuthSessionService)
+    )()
+  ),
 ];
