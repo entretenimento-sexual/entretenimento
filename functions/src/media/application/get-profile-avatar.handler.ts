@@ -14,7 +14,8 @@ import {
 import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
 import { resolvePublicMediaOwnerExposure } from './public-media-owner-exposure.service';
 
-const PUBLISHED_AVATAR_PATH = /^users\/([A-Za-z0-9_-]{1,128})\/published\/avatar\/(avatar-[A-Za-z0-9-]{1,128}\.(?:jpe?g|png|webp))$/;
+const PUBLISHED_AVATAR_PATH =
+  /^users\/([A-Za-z0-9_-]{1,128})\/published\/avatar\/(avatar-[A-Za-z0-9-]{1,128}\.(?:jpe?g|png|webp))$/;
 const NEW_AVATAR_NAME = /^avatar-media-[0-9]+-[A-Za-z0-9-]+\.webp$/;
 
 function unavailable(): HttpsError {

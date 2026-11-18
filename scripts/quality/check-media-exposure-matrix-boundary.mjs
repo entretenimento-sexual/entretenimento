@@ -43,16 +43,32 @@ function requireTransactionIncludes(source, fragments, label) {
 }
 
 const storageRules = read('storage.rules');
-requireIncludes(storageRules, [
-  'function mayReadPublishedAvatar(uid)',
-  'allow read: if mayReadPublishedAvatar(uid);',
-  'activeAccountForAvatar(request.auth.uid)',
-  'avatarOwnerExposable(uid)',
-  '!activeBlock(uid, request.auth.uid)',
-  '!activeBlock(request.auth.uid, uid)',
-], 'avatar publicado deve respeitar lifecycle e bloqueio bilateral');
-if (storageRules.includes('allow read: if signedIn();')) {
-  throw new Error('[media-exposure-matrix] Avatar não pode ter leitura irrestrita por sessão.');
+const publishedAvatarRule = /match \/users\/\{uid\}\/published\/avatar\/\{fileName\} \{\s*allow read, write: if false;\s*\}/;
+if (!publishedAvatarRule.test(storageRules) || storageRules.includes('allow read: if signedIn();')) {
+  throw new Error('[media-exposure-matrix] Avatar publicado deve bloquear acesso direto pelo Storage.');
+}
+
+const avatarAccess = read('functions/src/media/application/get-profile-avatar.handler.ts');
+const avatarAuthorization = [
+  'assertPublicMediaConsumptionAccess(viewerUid)',
+  'resolveBlockedTargetUids(viewerUid, [ownerUid])',
+  'resolvePublicMediaOwnerExposure([ownerUid], blocked,',
+  'if (!exposure.get(ownerUid)?.allowed) throw unavailable();',
+];
+const downloadIndex = avatarAccess.indexOf('await file.download(');
+if (downloadIndex < 0) {
+  throw new Error('[media-exposure-matrix] Leitura do avatar publicado ausente.');
+}
+requireIncludes(
+  avatarAccess.slice(0, downloadIndex),
+  avatarAuthorization,
+  'avatar deve verificar visitante, bloqueio bilateral e lifecycle antes de servir a imagem'
+);
+
+const avatarClient = read('src/app/core/services/image-handling/profile-avatar-read.service.ts');
+requireIncludes(avatarClient, ["'getProfileAvatar'"], 'avatar deve usar a leitura autenticada');
+if (avatarClient.includes('getDownloadURL')) {
+  throw new Error('[media-exposure-matrix] Cliente do avatar não pode solicitar token de download.');
 }
 
 const helpers = read('firestore-rules/_helpers.rules');

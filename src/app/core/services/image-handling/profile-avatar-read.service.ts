@@ -7,8 +7,8 @@ import {
 } from 'rxjs';
 
 import { AuthSessionService } from '../autentication/auth/auth-session.service';
-import { ApplicationErrorService } from '../error-handler/application-error.service';
 import { FirestoreContextService } from '../data-handling/firestore/core/firestore-context.service';
+import { MediaApplicationErrorService } from '../media/media-application-error.service';
 
 interface ProfileAvatarReference {
   readonly bucket: string;
@@ -45,7 +45,7 @@ export class ProfileAvatarReadService {
   private readonly functions = inject(Functions);
   private readonly firebaseContext = inject(FirestoreContextService);
   private readonly session = inject(AuthSessionService);
-  private readonly applicationError = inject(ApplicationErrorService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
   private readonly pending = new Map<string, Observable<Blob | null>>();
 
   read$(reference: ProfileAvatarReference): Observable<Blob | null> {
@@ -77,12 +77,11 @@ export class ProfileAvatarReadService {
         const code = (error as { code?: unknown } | null)?.code;
         if (code !== 'functions/not-found' && code !== 'functions/permission-denied' &&
             code !== 'functions/failed-precondition' && code !== 'functions/unauthenticated') {
-          this.applicationError.report(error, {
-            feature: 'profile-avatar',
-            operation: 'readAvatar',
-            fallbackMessage: 'Não foi possível exibir a foto de perfil.',
-            notification: 'none',
-          });
+          this.mediaError.reportSilently(
+            error,
+            'readAvatar',
+            'Não foi possível exibir a foto de perfil.'
+          );
         }
         return of(null);
       }),

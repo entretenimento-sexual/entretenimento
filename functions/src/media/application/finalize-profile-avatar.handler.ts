@@ -30,7 +30,7 @@ export function resolveAvatarPublicationPath(
   uid: string,
   storagePath: unknown
 ): string | null {
-  if (!uid || uid.length > 128 || !/^[^/\x00-\x1f\x7f]+$/.test(uid)) return null;
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid)) return null;
   const prefix = `users/${uid}/uploads/avatar/`;
   if (typeof storagePath !== 'string' || !storagePath.startsWith(prefix)) return null;
 
