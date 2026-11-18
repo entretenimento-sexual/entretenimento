@@ -464,7 +464,12 @@ implements OnInit, UnsavedChangesAware
         }),
         takeUntilDestroyed(this.destroyRef),
         catchError((error) => {
-          const code = String((error as { code?: unknown })?.code ?? '');
+          const failure = error as { code?: unknown; details?: { reason?: unknown } } | null;
+          const code = String(failure?.code ?? '');
+          if (code === 'functions/permission-denied' && failure?.details?.reason === 'auth/session-changed') {
+            this.setErrorMessage('A conta ativa mudou. Recarregue a página para retomar o cadastro.');
+            return EMPTY;
+          }
           if (code === 'nickname/in-use' || code === 'functions/already-exists') {
             this.formErrors['nickname'] = 'Este apelido já está em uso.';
             this.setErrorMessage('Escolha outro apelido para continuar.');

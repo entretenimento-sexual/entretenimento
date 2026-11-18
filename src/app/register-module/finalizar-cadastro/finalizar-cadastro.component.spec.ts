@@ -340,6 +340,25 @@ describe('FinalizarCadastroComponent', () => {
     expect(errorNotificationMock.showError).not.toHaveBeenCalled();
   });
 
+  it('orienta a retomar o cadastro se o backend detectar troca de conta', () => {
+    profileCompletionFacadeMock.saveProfileCompletion$.mockReturnValueOnce(
+      throwError(() => ({
+        code: 'functions/permission-denied',
+        details: { reason: 'auth/session-changed' },
+      }))
+    );
+
+    component.onSubmit();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('p[role="alert"]')?.textContent)
+      .toContain('A conta ativa mudou. Recarregue a página para retomar o cadastro.');
+    expect(component.isSubmitting).toBe(false);
+    expect(currentUserStoreMock.patch).not.toHaveBeenCalled();
+    expect(profileCompletionFacadeMock.uploadProfileAvatarAfterSave$).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
   it('grava imediatamente os campos do rascunho para retomar após perda de sessão', () => {
     const draft = TestBed.inject(LocalDraftService);
     const save = vi.spyOn(draft, 'save');

@@ -45,6 +45,7 @@ async function rejects(callable, payload, code) {
   try { await callable(payload); } catch (failure) { error = failure; }
   assert.ok(error, 'Callable should reject ' + code);
   assert.equal(error.code, 'functions/' + code, String(error.message));
+  return error;
 }
 async function grantEligibility(db, adminAuth, uid) {
   const now = Date.now();
@@ -119,10 +120,11 @@ async function run() {
     assert.equal((await privateRef.get()).get('nickname'), 'Perfil Original');
     console.log('[registration:e2e] PASS ownership, collision and idempotence');
 
-    const payload = {
+    const profileFields = {
       nickname: 'Perfil Original', gender: 'homem',
       orientation: 'heterossexual', estado: 'RJ', municipio: 'Rio de Janeiro',
     };
+    const payload = { ...profileFields, uid };
     await rejects(complete, payload, 'failed-precondition');
     assert.equal((await db.doc('public_profiles/' + uid).get()).exists, false);
     await adminAuth.updateUser(uid, { emailVerified: true });
@@ -153,10 +155,29 @@ async function run() {
     console.log('[registration:e2e] PASS eligibility, completion, repeat and immutable nickname');
 
     await grantEligibility(db, adminAuth, otherUid);
-    await rejects(completeOther, payload, 'already-exists');
+    const otherProfile = { ...profileFields, nickname: 'Perfil da Outra Conta' };
+    const otherPublicRef = db.doc('public_profiles/' + otherUid);
+    const otherReservationRef = db.doc('nickname_reservations/perfil_da_outra_conta');
+    const otherIndexRef = db.doc('public_index/nickname:perfil_da_outra_conta');
+    const otherBefore = (await otherRef.get()).data();
+    await rejects(completeOther, otherProfile, 'invalid-argument');
+    const sessionError = await rejects(
+      completeOther, { ...otherProfile, uid }, 'permission-denied'
+    );
+    assert.equal(sessionError.details?.reason, 'auth/session-changed');
+    assert.deepEqual((await otherRef.get()).data(), otherBefore);
+    assert.equal((await otherPublicRef.get()).exists, false);
+    assert.equal((await otherReservationRef.get()).exists, false);
+    assert.equal((await otherIndexRef.get()).exists, false);
+    console.log('[registration:e2e] PASS completion requires the UID of the initiating account');
+
+    await rejects(completeOther, { ...profileFields, uid: otherUid }, 'already-exists');
     assert.equal((await otherRef.get()).get('profileCompleted'), false);
-    assert.equal((await db.doc('public_profiles/' + otherUid).get()).exists, false);
+    assert.equal((await otherPublicRef.get()).exists, false);
     console.log('[registration:e2e] PASS second owner cannot claim completed nickname');
+
+    assert.equal((await completeOther({ ...otherProfile, uid: otherUid })).data.status, 'COMPLETED');
+    assert.equal((await otherRef.get()).get('profileCompleted'), true);
   } finally {
     await Promise.allSettled(apps.map(deleteApp));
     await deleteAdminApp(admin);

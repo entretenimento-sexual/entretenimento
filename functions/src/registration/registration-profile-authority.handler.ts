@@ -19,6 +19,7 @@ import {
 } from './nickname-reservation.policy';
 
 interface CompleteRegistrationInput {
+  uid: unknown;
   nickname?: unknown;
   gender?: unknown;
   orientation?: unknown;
@@ -164,6 +165,17 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
   async (request): Promise<{ status: 'COMPLETED'; nickname: string }> => {
     assertCallableAppCheck(request.app);
     const uid = signedOwner(request.auth?.uid);
+    // O UID do formulário vincula a operação à conta que iniciou o cadastro.
+    const expectedUid = request.data?.uid;
+    if (typeof expectedUid !== 'string' || !expectedUid) {
+      throw new HttpsError('invalid-argument', 'Não foi possível identificar a conta que iniciou o cadastro.');
+    }
+    if (expectedUid !== uid) {
+      throw new HttpsError('permission-denied', 'A conta ativa mudou durante o cadastro.', {
+        reason: 'auth/session-changed',
+      });
+    }
+
     const nickname = nicknameInput(request.data?.nickname);
     const gender = String(request.data?.gender ?? '').trim().toLowerCase();
     const orientation = String(request.data?.orientation ?? '').trim().toLowerCase();
