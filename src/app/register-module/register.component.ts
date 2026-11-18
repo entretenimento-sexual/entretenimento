@@ -213,6 +213,8 @@ export class RegisterComponent {
   // enviadas ao serviço depois da validação final das três telas.
   readonly sectionIndex = signal(0);
   private recheckingRestoredNickname = false;
+  // O snapshot não pode substituir a consulta ao índice na mesma visita.
+  private restoredNicknameCheckRequired = false;
   readonly currentSection = computed(() => SIGNUP_SECTIONS[this.sectionIndex()]);
   readonly sectionCount = SIGNUP_SECTIONS.length;
   readonly lastSection = computed(() => this.sectionIndex() === this.sectionCount - 1);
@@ -235,6 +237,7 @@ export class RegisterComponent {
     const target = valid ? Math.min(draft.sectionIndex, 1) : 0;
     this.sectionIndex.set(target);
     if (target > 0) {
+      this.restoredNicknameCheckRequired = true;
       this.recheckingRestoredNickname = true;
       this.nicknameFeedbackArmed.set(true);
       this.nicknameCheckRequests$.next(true);
@@ -302,8 +305,13 @@ export class RegisterComponent {
   });
 
   readonly apelidoEmUso = computed(() => {
+    // statusChanges só carrega 'VALID'/'INVALID'; um setErrors entre estados
+    // idênticos não invalida o signal. O estado canônico é reativo.
     this.apelidoStatusSig();
-    return this.form.get('apelidoPrincipal')?.hasError('apelidoEmUso') === true;
+    const key = this.nicknameKey();
+    return (this.nicknameCheckState() === 'taken' &&
+      this.lastNicknameCheck?.key === key) ||
+      this.form.get('apelidoPrincipal')?.hasError('apelidoEmUso') === true;
   });
 
   readonly nicknameChecking = computed(
@@ -699,16 +707,25 @@ export class RegisterComponent {
       return;
     }
 
-    if (this.nicknameCheckState() !== 'provisional') {
-      this.showInvalidSection(0, 'apelidoPrincipal');
-      this.nicknameCheckRequests$.next(true);
-      return;
-    }
-
     if (this.form.invalid) {
       const invalidIndex = SIGNUP_SECTIONS.findIndex((_, index) => this.firstInvalidField(index));
       const index = invalidIndex < 0 ? this.sectionIndex() : invalidIndex;
       this.showInvalidSection(index, this.firstInvalidField(index));
+      return;
+    }
+
+    // Só exigimos revalidação extra quando a etapa foi restaurada por F5.
+    // Nos cadastros normais, o backend já faz a reserva autoritativa;
+    // bloquear aqui todos os submits também quebrou os feedbacks de Auth.
+    if (this.restoredNicknameCheckRequired &&
+        (this.nicknameCheckState() !== 'provisional' ||
+          this.lastNicknameCheck?.key !== this.nicknameKey())) {
+      this.openSection(0, 'apelidoPrincipal');
+      this.nicknameFeedbackArmed.set(true);
+      if (!this.nicknameChecking()) this.nicknameCheckRequests$.next(true);
+      this.errorNotification.showInfo(
+        'Confira a disponibilidade do apelido antes de continuar.'
+      );
       return;
     }
 
