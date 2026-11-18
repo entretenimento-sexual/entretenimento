@@ -14,11 +14,12 @@ import {
 } from 'src/app/core/domain/public-user-identity/public-user-identity.model';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { SuggestionService } from 'src/app/core/services/user-profile/recommendations/suggestion.service';
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-suggested-profiles',
   standalone: true,
-  imports: [CommonModule, RouterModule, PublicUserIdentityComponent],
+  imports: [ProfileAvatarDirective,CommonModule, RouterModule, PublicUserIdentityComponent],
   templateUrl: './suggested-profiles.component.html',
   styleUrls: ['./suggested-profiles.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

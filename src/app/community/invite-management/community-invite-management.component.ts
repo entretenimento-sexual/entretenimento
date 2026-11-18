@@ -58,11 +58,13 @@ type InviteActionState =
   | { status: 'idle'; action: null; targetId: null }
   | { status: 'loading'; action: 'send' | 'revoke'; targetId: string }
   | { status: 'error'; action: 'send' | 'revoke'; targetId: string };
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-community-invite-management',
   standalone: true,
   imports: [
+    ProfileAvatarDirective,
     AsyncPipe,
     DatePipe,
     ReactiveFormsModule,

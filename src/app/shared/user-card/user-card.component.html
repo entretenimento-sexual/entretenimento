@@ -18,7 +18,7 @@
     >
       <img
         class="user-card__photo"
-        [src]="profile.photoURL || 'assets/imagem-padrao.webp'"
+        [appProfileAvatar]="profile.photoURL || 'assets/imagem-padrao.webp'"
         appImageFallback
         [alt]="profile.nickname ? 'Foto de ' + profile.nickname : 'Foto do usuário'"
         loading="lazy"

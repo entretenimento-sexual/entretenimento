@@ -24,11 +24,13 @@ export type TPublicPhotoCardVariant =
   | 'latest'
   | 'top'
   | 'sponsored';
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-public-photo-card',
   standalone: true,
   imports: [
+    ProfileAvatarDirective,
     CommonModule,
     RouterModule,
     ImageFallbackDirective,

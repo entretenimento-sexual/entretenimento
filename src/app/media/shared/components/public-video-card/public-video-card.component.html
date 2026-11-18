@@ -18,7 +18,7 @@
         @if (item.owner?.photoURL) {
           <img
             class="public-video-card__avatar"
-            [src]="item.owner?.photoURL || ''"
+            [appProfileAvatar]="item.owner?.photoURL || ''"
             alt=""
             width="36"
             height="36"

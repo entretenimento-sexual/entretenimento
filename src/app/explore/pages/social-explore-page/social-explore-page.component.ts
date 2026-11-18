@@ -39,11 +39,13 @@ import { SocialExploreMediaViewerFacade } from '../../facades/social-explore-med
 import { SocialExploreCommunityDistributionFacade } from '../../facades/social-explore-community-distribution.facade';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { ExploreSocialFeedItem } from '../../models/explore-social-feed';
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-social-explore-page',
   standalone: true,
   imports: [
+    ProfileAvatarDirective,
     CommonModule,
     RouterModule,
     PublicPhotoCardComponent,

@@ -18,11 +18,13 @@ import type { PublicMediaRecommendationSource } from '../../presentation/public-
 import type { IPublicMediaContinuationContext } from 'src/app/core/interfaces/media/i-public-media-continuation-context';
 
 export type TPublicVideoCardVariant = 'feed' | 'highlight' | 'profile';
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-public-video-card',
   standalone: true,
   imports: [
+    ProfileAvatarDirective,
     CommonModule,
     RouterModule,
     PublicVideoMetadataPreloadDirective,

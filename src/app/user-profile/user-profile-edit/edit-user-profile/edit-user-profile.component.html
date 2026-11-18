@@ -10,7 +10,7 @@
     <div class="profile-picture-container">
       <img
         class="profile-picture"
-        [src]="userData.photoURL || 'assets/imagem-padrao.webp'"
+        [appProfileAvatar]="userData.photoURL || 'assets/imagem-padrao.webp'"
         alt="Foto de perfil"
         loading="lazy"
         decoding="async"

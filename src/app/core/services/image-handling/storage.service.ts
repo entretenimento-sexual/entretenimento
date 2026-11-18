@@ -293,10 +293,10 @@ export class StorageService {
     if (!this.isValidUid(safeUid)) {
       throw new Error('UID inválido para path de avatar.');
     }
-    return `users/${safeUid}/published/avatar/avatar-${Date.now()}.${this.guessExtension(
+    return `users/${safeUid}/uploads/avatar/${this.createObjectName(this.guessExtension(
       file,
       'image'
-    )}`;
+    ))}`;
   }
 
   private isHttpUrl(value: string): boolean {
@@ -680,14 +680,18 @@ export class StorageService {
             progressCallback,
             this.buildUploadMetadata(file, 'avatar', null)
           ).pipe(
-            switchMap((uploadedPath) => this.resolveReadableLocation$(uploadedPath)),
-            map((location) => {
-              this.dbg('uploadProfileAvatar completed', {
-                hasUserId: !!safeUid,
-                hasLocation: !!location,
-                readableLocation: this.isHttpUrl(location),
-              });
-              return location;
+            switchMap((storagePath) => this.firebaseContext.deferPromise$(() => {
+              const finalize = httpsCallable<
+                { storagePath: string },
+                { avatarReference: string }
+              >(this.functions, 'finalizeProfileAvatar');
+              return finalize({ storagePath });
+            })),
+            map(({ data }) => {
+              if (!data?.avatarReference) {
+                throw new Error('O servidor não confirmou a publicação do avatar.');
+              }
+              return data.avatarReference;
             })
           );
         })

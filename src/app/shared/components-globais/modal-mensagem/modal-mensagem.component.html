@@ -26,7 +26,7 @@
 
   <div class="direct-message-recipient app-card app-card--flat app-card--compact">
     <img
-      [src]="data.profile.photoURL || 'assets/imagem-padrao.webp'"
+      [appProfileAvatar]="data.profile.photoURL || 'assets/imagem-padrao.webp'"
       class="profile-photo-modal"
       [alt]="'Foto de perfil de ' + data.profile.nickname"
     />

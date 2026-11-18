@@ -25,6 +25,7 @@ import { EditUserProfileComponent } from './user-profile-edit/edit-user-profile/
 
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @NgModule({
   declarations: [
@@ -32,6 +33,7 @@ import { MatCardModule } from '@angular/material/card';
     EditUserProfileComponent,
   ],
   imports: [
+    ProfileAvatarDirective,
     CommonModule,
     FormsModule,
     SharedModule,

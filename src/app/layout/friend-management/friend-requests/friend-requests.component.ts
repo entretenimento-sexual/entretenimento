@@ -34,11 +34,12 @@ import {
   selectOutboundRequestsCount,
   selectOutboundRequestsRichVM,
 } from 'src/app/store/selectors/selectors.interactions/friends';
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-friend-requests',
   standalone: true,
-  imports: [CommonModule, SharedMaterialModule, DateFormatPipe, PageHeaderComponent, ContentStateComponent],
+  imports: [ProfileAvatarDirective,CommonModule, SharedMaterialModule, DateFormatPipe, PageHeaderComponent, ContentStateComponent],
   templateUrl: './friend-requests.component.html',
   styleUrls: ['./friend-requests.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

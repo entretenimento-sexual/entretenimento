@@ -129,11 +129,12 @@ export function reduceExclusiveConnectionsFeedState(
     loadingMore: false,
   };
 }
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-exclusive-connections-feed',
   standalone: true,
-  imports: [AsyncPipe, RouterLink, ImageFallbackDirective],
+  imports: [ProfileAvatarDirective,AsyncPipe, RouterLink, ImageFallbackDirective],
   templateUrl: './exclusive-connections-feed.component.html',
   styleUrl: './exclusive-connections-feed.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

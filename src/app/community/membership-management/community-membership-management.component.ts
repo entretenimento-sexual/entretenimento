@@ -87,11 +87,13 @@ const MEMBERSHIP_REVIEW_REASON_MESSAGES = Object.freeze({
   ...COMMUNITY_RATE_LIMIT_REASON_MESSAGES,
   ...COMMUNITY_MEMBERSHIP_REVIEW_REASON_MESSAGES,
 });
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-community-membership-management',
   standalone: true,
   imports: [
+    ProfileAvatarDirective,
     AsyncPipe,
     DatePipe,
     RouterLink,

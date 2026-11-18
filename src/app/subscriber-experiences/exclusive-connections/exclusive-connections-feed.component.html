@@ -43,7 +43,7 @@
               >
                 @if (item.photoURL) {
                   <img
-                    [src]="item.photoURL"
+                    [appProfileAvatar]="item.photoURL"
                     appImageFallback
                     [alt]="'Foto de ' + item.nickname"
                     loading="lazy"

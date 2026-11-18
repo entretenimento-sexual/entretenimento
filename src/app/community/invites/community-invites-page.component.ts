@@ -40,11 +40,13 @@ interface CommunityInvitesState {
   status: CommunityInvitesStatus;
   items: readonly CommunityInviteInboxItem[];
 }
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-community-invites-page',
   standalone: true,
   imports: [
+    ProfileAvatarDirective,
     AsyncPipe,
     DatePipe,
     RouterLink,

@@ -32,6 +32,7 @@ import {
   OwnProfileContextFacade,
 } from './application/own-profile-context.facade';
 import { SocialLinksAccordionComponent } from './user-social-links-accordion/user-social-links-accordion.component';
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-user-profile-view',
@@ -40,6 +41,7 @@ import { SocialLinksAccordionComponent } from './user-social-links-accordion/use
   standalone: true,
   providers: [OwnProfileContextFacade],
   imports: [
+    ProfileAvatarDirective,
     CommonModule,
     RouterModule,
     ContentStateComponent,

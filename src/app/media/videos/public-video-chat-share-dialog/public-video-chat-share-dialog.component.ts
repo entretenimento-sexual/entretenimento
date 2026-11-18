@@ -21,11 +21,12 @@ import { DirectChatListItem } from 'src/app/messaging/direct-chat/models/direct-
 export interface PublicVideoChatShareDialogData {
   video: Pick<IPublicVideoItem, 'id' | 'ownerUid' | 'title'>;
 }
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-public-video-chat-share-dialog',
   standalone: true,
-  imports: [CommonModule, MatDialogModule],
+  imports: [ProfileAvatarDirective,CommonModule, MatDialogModule],
   templateUrl: './public-video-chat-share-dialog.component.html',
   styleUrls: ['./public-video-chat-share-dialog.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

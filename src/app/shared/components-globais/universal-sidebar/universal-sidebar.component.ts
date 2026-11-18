@@ -56,11 +56,12 @@ export interface UniversalSidebarQuickAction {
   badgeCount?: number | null;
   badgeLabel?: string | null;
 }
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-universal-sidebar',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [ProfileAvatarDirective,CommonModule, RouterModule],
   templateUrl: './universal-sidebar.component.html',
   styleUrls: [
     './universal-sidebar.component.css',

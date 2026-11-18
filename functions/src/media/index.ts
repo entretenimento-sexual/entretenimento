@@ -218,3 +218,6 @@ export {
   syncOfficialMediaContextFromEventAuthority,
   backfillExistingOfficialMediaContexts,
 } from './application/sync-official-media-context.trigger';
+
+export { finalizeProfileAvatar } from './application/finalize-profile-avatar.handler';
+export { getProfileAvatar } from './application/get-profile-avatar.handler';

@@ -22,11 +22,13 @@ export interface SendRequestDialogResult {
   ok: boolean;
   error?: string;
 }
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-send-request-dialog',
   standalone: true,
   imports: [
+    ProfileAvatarDirective,
     CommonModule,
     // Material (via shared) + tokens de dialog + forms + autosize
     SharedMaterialModule,

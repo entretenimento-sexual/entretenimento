@@ -1,7 +1,7 @@
 <!-- src/app/shared/components-globais/user-card/send-request-dialog/send-request-dialog.component.html -->
 <div class="header">
   <div class="avatar" *ngIf="data.avatarUrl; else fallbackAvatar" aria-hidden="true">
-    <img [src]="data.avatarUrl!" alt="" />
+    <img [appProfileAvatar]="data.avatarUrl!" alt="" />
   </div>
 
   <ng-template #fallbackAvatar>

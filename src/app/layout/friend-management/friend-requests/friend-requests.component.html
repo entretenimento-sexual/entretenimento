@@ -51,7 +51,7 @@
                   <div class="request-card__avatar">
                     @if (req.avatarUrl) {
                       <img
-                        [src]="req.avatarUrl"
+                        [appProfileAvatar]="req.avatarUrl"
                         alt="Avatar de {{ req.nickname || 'usuário' }}"
                         loading="lazy"
                         decoding="async"
@@ -261,7 +261,7 @@
                   <div class="request-card__avatar">
                     @if (req.avatarUrl) {
                       <img
-                        [src]="req.avatarUrl"
+                        [appProfileAvatar]="req.avatarUrl"
                         alt="Avatar de {{ req.nickname || 'usuário' }}"
                         loading="lazy"
                         decoding="async"

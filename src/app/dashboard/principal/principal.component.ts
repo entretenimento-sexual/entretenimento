@@ -74,6 +74,7 @@ interface IPrincipalChecklistVm extends IProfileChecklistVm {
   readonly pendingItems: IProfileChecklistItemVm[];
   readonly firstPending: IProfileChecklistItemVm | null;
 }
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-principal',
@@ -81,6 +82,7 @@ interface IPrincipalChecklistVm extends IProfileChecklistVm {
   styleUrls: ['./principal.component.css', './principal.layout.css'],
   standalone: true,
   imports: [
+    ProfileAvatarDirective,
     CommonModule,
     RouterModule,
     ImageFallbackDirective,

@@ -29,7 +29,7 @@
                 <div class="profile-identity">
                   <img
                     class="profile-avatar"
-                    [src]="usuario.photoURL || 'assets/imagem-padrao.webp'"
+                    [appProfileAvatar]="usuario.photoURL || 'assets/imagem-padrao.webp'"
                     [alt]="usuario.nickname ? ('Foto de perfil de ' + usuario.nickname) : 'Foto de perfil'"
                     width="84"
                     height="84"

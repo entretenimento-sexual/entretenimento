@@ -382,7 +382,7 @@
                 <li class="app-card app-card--flat app-card--compact">
                   <span class="community-membership-management__avatar" aria-hidden="true">
                     @if (request.avatarUrl) {
-                      <img [src]="request.avatarUrl" alt="" />
+                      <img [appProfileAvatar]="request.avatarUrl" alt="" />
                     } @else {
                       <i class="fas fa-user" aria-hidden="true"></i>
                     }

@@ -88,11 +88,12 @@ function normalizeSearchTerm(value: unknown): string {
 
   return normalized.length >= 2 ? normalized : '';
 }
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-community-ownership-management',
   standalone: true,
-  imports: [AsyncPipe, ActionStateDirective],
+  imports: [ProfileAvatarDirective,AsyncPipe, ActionStateDirective],
   templateUrl: './community-ownership-management.component.html',
   styleUrl: './community-ownership-management.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

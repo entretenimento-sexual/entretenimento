@@ -39,7 +39,7 @@
               @if (profile.photoURL) {
                 <img
                   class="profile-card__photo"
-                  [src]="profile.photoURL"
+                  [appProfileAvatar]="profile.photoURL"
                   [alt]="'Foto de perfil de ' + (profile.nickname || profile.nome || 'usuário')"
                   loading="lazy"
                   referrerpolicy="no-referrer"

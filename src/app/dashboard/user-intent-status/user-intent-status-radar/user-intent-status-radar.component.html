@@ -30,7 +30,7 @@
             <header class="intent-status-card__header">
               @if (status.profile.photoURL) {
                 <img
-                  [src]="status.profile.photoURL"
+                  [appProfileAvatar]="status.profile.photoURL"
                   [alt]="'Foto de ' + status.profile.nickname"
                   loading="lazy"
                   decoding="async"

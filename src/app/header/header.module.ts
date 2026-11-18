@@ -12,6 +12,7 @@ import {
 
 import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @NgModule({
   declarations: [
@@ -20,6 +21,7 @@ import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback
     GuestBannerComponent,
   ],
   imports: [
+    ProfileAvatarDirective,
     CommonModule,
     RouterModule,
     SharedMaterialModule,

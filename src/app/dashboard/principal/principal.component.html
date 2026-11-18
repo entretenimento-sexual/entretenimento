@@ -14,7 +14,7 @@
         >
           @if (currentUser.photoURL) {
             <img
-              [src]="currentUser.photoURL"
+              [appProfileAvatar]="currentUser.photoURL"
               alt=""
               width="48"
               height="48"
@@ -92,7 +92,7 @@
                   >
                     @if (friendPhoto(friend); as photo) {
                       <img
-                        [src]="photo"
+                        [appProfileAvatar]="photo"
                         alt=""
                         width="66"
                         height="66"

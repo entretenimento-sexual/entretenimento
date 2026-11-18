@@ -180,7 +180,7 @@
             <li class="community-member-roster__item app-card app-card--flat app-card--compact">
               <span class="community-member-roster__avatar" aria-hidden="true">
                 @if (item.avatarUrl) {
-                  <img [src]="item.avatarUrl" alt="" loading="lazy" appImageFallback />
+                  <img [appProfileAvatar]="item.avatarUrl" alt="" loading="lazy" appImageFallback />
                 } @else {
                   <i class="fas fa-user" aria-hidden="true"></i>
                 }

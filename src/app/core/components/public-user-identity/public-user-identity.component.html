@@ -3,7 +3,7 @@
   <span class="public-user-identity__avatar" aria-hidden="true">
     @if (avatarUrl(); as avatar) {
       <img
-        [src]="avatar"
+        [appProfileAvatar]="avatar"
         alt=""
         loading="lazy"
         (error)="onAvatarError()"

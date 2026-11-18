@@ -16,6 +16,7 @@ import { SharedModule } from '../shared/shared.module';
 import { HeaderModule } from '../header/header.module';
 import { LAYOUT_FEATURE_EFFECTS } from './layout-feature.effects';
 import { ContentStateComponent } from '../shared/content-state/content-state.component';
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @NgModule({
   declarations: [
@@ -23,6 +24,7 @@ import { ContentStateComponent } from '../shared/content-state/content-state.com
   ],
 
   imports: [
+    ProfileAvatarDirective,
     CommonModule,
     RouterModule,
     LayoutRoutingModule,

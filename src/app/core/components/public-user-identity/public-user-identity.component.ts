@@ -28,8 +28,10 @@ export type PublicUserIdentityInput =
   | Partial<PublicUserIdentity>
   | null
   | undefined;
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
+  imports: [ProfileAvatarDirective],
   selector: 'app-public-user-identity',
   standalone: true,
   templateUrl: './public-user-identity.component.html',

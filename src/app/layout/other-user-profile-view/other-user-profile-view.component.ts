@@ -84,6 +84,7 @@ interface FriendshipInteractionState {
 }
 
 const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-other-user-profile-view',
@@ -93,6 +94,7 @@ const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [VisitedProfileFriendshipFacade, VisitedProfileInteractionOrchestrator, VisitedProfileIntentContextFacade, VisitedProfileBootstrapOrchestrator, VisitedProfileAffinityPresenter],
   imports: [
+    ProfileAvatarDirective,
     CommonModule,
     RouterModule,
     MatMenuModule,

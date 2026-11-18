@@ -338,3 +338,21 @@ mas não comprova imutabilidade de dados durante a leitura. Ambos são
 somente diagnósticos quando chamados com `DRY_RUN`/`READ_ONLY`;
 `docs/operations/registration-nickname-cutover-runbook.md` apresenta os
 comandos e a disciplina de confidencialidade dos artefatos locais.
+
+## Foto de perfil protegida
+
+O navegador envia a foto para `users/{uid}/uploads/avatar`. A Function
+`finalizeProfileAvatar` confirma a autoria, normaliza a imagem para WebP e grava
+uma versão publicada sem token Firebase. Os campos `photoURL` e `avatarUrl`
+guardam a referência ao objeto. O componente de avatar usa `getProfileAvatar` com
+a sessão ativa. A Function reavalia a visibilidade da conta e o bloqueio nos dois
+sentidos antes de servir a imagem a terceiros. O Storage recusa leitura direta
+desse diretório pelas APIs do cliente.
+
+No desenvolvimento, mantenha o Storage Emulator aberto e execute
+`node scripts/dev/revoke-legacy-avatar-tokens.mjs` para contar as fotos antigas
+com token. Depois de atualizar as Functions, as regras e o Angular do emulador,
+execute `node scripts/dev/revoke-legacy-avatar-tokens.mjs --apply` para revogar
+esses tokens. A operação preserva o arquivo e os campos do perfil. Salve o estado
+local com `npm run emu:save` para persistir a revogação. O programa consulta o
+Hub local e envia todas as operações ao Storage Emulator.

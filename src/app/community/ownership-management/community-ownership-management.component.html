@@ -120,7 +120,7 @@
                   <li class="app-card app-card--flat app-card--compact">
                     <span class="community-ownership-management__avatar" aria-hidden="true">
                       @if (candidate.avatarUrl) {
-                        <img [src]="candidate.avatarUrl" alt="" />
+                        <img [appProfileAvatar]="candidate.avatarUrl" alt="" />
                       } @else {
                         <i class="fas fa-user" aria-hidden="true"></i>
                       }

@@ -18,6 +18,7 @@ import { UniversalSidebarComponent } from './components-globais/universal-sideba
 import { ReportContentButtonComponent } from './components-globais/moderation-report/report-content-button/report-content-button.component';
 import { ActionStateDirective } from './action-state/action-state.directive';
 import { FormValidationFocusDirective } from './form-validation-focus/form-validation-focus.directive';
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @NgModule({
   declarations: [
@@ -26,6 +27,7 @@ import { FormValidationFocusDirective } from './form-validation-focus/form-valid
     UploadPhotoComponent,
   ],
   imports: [
+    ProfileAvatarDirective,
     CommonModule,
     FormsModule,
     RouterModule,

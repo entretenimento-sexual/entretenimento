@@ -28,11 +28,12 @@ interface UserIntentStatusRadarVm {
   loading: boolean;
   items: IUserIntentStatusCardVm[];
 }
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-user-intent-status-radar',
   standalone: true,
-  imports: [CommonModule, RouterModule, ImageFallbackDirective],
+  imports: [ProfileAvatarDirective,CommonModule, RouterModule, ImageFallbackDirective],
   templateUrl: './user-intent-status-radar.component.html',
   styleUrls: [
     './user-intent-status-radar.component.css',

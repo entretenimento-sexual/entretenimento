@@ -71,6 +71,7 @@ interface UserCardRelationshipVm {
   isBlocked: boolean;
   label: string;
 }
+import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar.directive';
 
 @Component({
   selector: 'app-user-card',
@@ -78,6 +79,7 @@ interface UserCardRelationshipVm {
   styleUrls: ['./user-card.component.css'],
   standalone: true,
   imports: [
+    ProfileAvatarDirective,
     CommonModule,
     RouterModule,
     ImageFallbackDirective,
