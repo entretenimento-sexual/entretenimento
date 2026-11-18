@@ -230,6 +230,10 @@ export class ProfileCompletionFacade {
     return of(void 0);
   }
 
+  confirmProfileCompletion$(_uid: string): Observable<boolean> {
+    return of(false);
+  }
+
   uploadProfileAvatarAfterSave$(
     _input: ProfileCompletionAvatarUploadInput
   ): Observable<ProfileCompletionAvatarUploadResult> {

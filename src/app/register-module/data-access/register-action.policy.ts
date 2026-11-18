@@ -11,5 +11,7 @@ export function isRegistrationSessionChange(error: unknown): boolean {
 }
 
 export function isRegistrationConfirmationUncertain(error: unknown): boolean {
-  return error instanceof TimeoutError || isTransientNetworkError(error);
+  const code = (error as { code?: unknown } | null)?.code;
+  // O SDK de Functions também usa internal quando o fetch perde a resposta.
+  return code === 'functions/internal' || error instanceof TimeoutError || isTransientNetworkError(error);
 }

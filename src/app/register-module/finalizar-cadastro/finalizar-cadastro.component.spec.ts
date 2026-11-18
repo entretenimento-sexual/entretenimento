@@ -7,7 +7,7 @@ import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { By } from '@angular/platform-browser';
 
-import { NEVER, Observable, Subject, of, throwError } from 'rxjs';
+import { BehaviorSubject, NEVER, Observable, Subject, of, throwError } from 'rxjs';
 import {
   afterEach,
   beforeEach,
@@ -24,6 +24,7 @@ import { LocalDraftService } from '../../core/services/drafts/local-draft.servic
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { PhotoEditorLauncherService } from '../../core/services/image-handling/photo-editor-launcher.service';
+import { NetworkStatusService } from '../../core/services/network/network-status.service';
 import { FormValidationFocusDirective } from '../../shared/form-validation-focus/form-validation-focus.directive';
 
 import { ProfileCompletionFacade } from '../data-access/profile-completion.facade';
@@ -37,12 +38,14 @@ interface ProfileCompletionFacadeMock {
   getEstados$: MockFn;
   getMunicipios$: MockFn;
   saveProfileCompletion$: MockFn;
+  confirmProfileCompletion$: MockFn;
   uploadProfileAvatarAfterSave$: MockFn;
 }
 
 interface CurrentUserStoreMock {
   patch: MockFn;
   getLoggedUserUIDSnapshot: MockFn;
+  getLoggedUserUID$: MockFn;
   getSnapshot: MockFn;
 }
 
@@ -54,6 +57,8 @@ describe('FinalizarCadastroComponent', () => {
   let registerFlowFacadeMock: { vm$: Observable<RegisterFlowVm> };
   let profileCompletionFacadeMock: ProfileCompletionFacadeMock;
   let currentUserStoreMock: CurrentUserStoreMock;
+  let online$: BehaviorSubject<boolean>;
+  let accountUid$: BehaviorSubject<string | null>;
   let photoEditorMock: { editFile$: MockFn };
   let globalErrorHandlerMock: { handleError: MockFn };
   let errorNotificationMock: {
@@ -82,6 +87,8 @@ describe('FinalizarCadastroComponent', () => {
 
   beforeEach(async () => {
     localStorage.clear();
+    online$ = new BehaviorSubject(true);
+    accountUid$ = new BehaviorSubject<string | null>('u1');
 
     registerFlowFacadeMock = {
       vm$: of(vm),
@@ -110,6 +117,7 @@ describe('FinalizarCadastroComponent', () => {
         municipio: 'Rio de Janeiro',
       })),
       saveProfileCompletion$: vi.fn(() => of(void 0)),
+      confirmProfileCompletion$: vi.fn(() => of(false)),
       uploadProfileAvatarAfterSave$: vi.fn(() => of({
         status: 'skipped',
       })),
@@ -117,7 +125,8 @@ describe('FinalizarCadastroComponent', () => {
 
     currentUserStoreMock = {
       patch: vi.fn(),
-      getLoggedUserUIDSnapshot: vi.fn(() => 'u1'),
+      getLoggedUserUIDSnapshot: vi.fn(() => accountUid$.value),
+      getLoggedUserUID$: vi.fn(() => accountUid$.asObservable()),
       getSnapshot: vi.fn(() => ({ uid: 'u1' })),
     };
 
@@ -169,6 +178,7 @@ describe('FinalizarCadastroComponent', () => {
           provide: ErrorNotificationService,
           useValue: errorNotificationMock,
         },
+        { provide: NetworkStatusService, useValue: { isOnline$: online$ } },
       ],
       schemas: [NO_ERRORS_SCHEMA],
     }).compileComponents();
@@ -346,11 +356,95 @@ describe('FinalizarCadastroComponent', () => {
 
       expect(component.isSubmitting).toBe(false);
       expect(component.message).toContain('Ainda não foi possível confirmar se o perfil foi salvo');
+      expect(profileCompletionFacadeMock.confirmProfileCompletion$).toHaveBeenCalledWith('u1');
       expect(currentUserStoreMock.patch).not.toHaveBeenCalled();
       expect(router.navigateByUrl).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('confere com o servidor na reconexão quando a resposta do salvamento se perde', () => {
+    const response = new Subject<void>();
+    profileCompletionFacadeMock.saveProfileCompletion$.mockReturnValueOnce(response);
+    profileCompletionFacadeMock.confirmProfileCompletion$.mockReturnValueOnce(of(true));
+
+    component.onSubmit();
+    online$.next(false);
+    response.error(Object.assign(new Error('internal'), { code: 'functions/internal' }));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.alert-secondary[role="status"]')?.textContent)
+      .toContain('Conferindo se seu perfil foi salvo');
+    expect(profileCompletionFacadeMock.confirmProfileCompletion$).not.toHaveBeenCalled();
+    expect(errorNotificationMock.showSuccess).not.toHaveBeenCalled();
+
+    online$.next(true);
+
+    expect(profileCompletionFacadeMock.confirmProfileCompletion$).toHaveBeenCalledWith('u1');
+    expect(profileCompletionFacadeMock.saveProfileCompletion$).toHaveBeenCalledTimes(1);
+    expect(currentUserStoreMock.patch).toHaveBeenCalledWith({ profileCompleted: true });
+    expect(component.profileSaved).toBe(true);
+    expect(component.isSubmitting).toBe(false);
+    expect(errorNotificationMock.showSuccess).toHaveBeenCalledOnce();
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/perfil/u1', { replaceUrl: true });
+  });
+
+  it('mantém o rascunho se a leitura de confirmação falhar', () => {
+    profileCompletionFacadeMock.saveProfileCompletion$.mockReturnValueOnce(
+      throwError(() => ({ code: 'functions/unavailable' }))
+    );
+    profileCompletionFacadeMock.confirmProfileCompletion$.mockReturnValueOnce(
+      throwError(() => ({ code: 'unavailable' }))
+    );
+    component.orientation = 'bissexual';
+
+    component.onSubmit();
+
+    expect(component.message).toContain('Ainda não foi possível confirmar se o perfil foi salvo');
+    expect(TestBed.inject(LocalDraftService).load('profile-completion:u1')).toMatchObject({
+      orientation: 'bissexual',
+    });
+    expect(component.isSubmitting).toBe(false);
+    expect(currentUserStoreMock.patch).not.toHaveBeenCalled();
+  });
+
+  it('libera o formulário se a conexão não voltar durante a conferência', () => {
+    vi.useFakeTimers();
+    try {
+      online$.next(false);
+      profileCompletionFacadeMock.saveProfileCompletion$.mockReturnValueOnce(
+        throwError(() => ({ code: 'functions/internal' }))
+      );
+      component.onSubmit();
+      expect(component.confirmingProfile).toBe(true);
+
+      vi.advanceTimersByTime(15_000);
+
+      expect(component.isSubmitting).toBe(false);
+      expect(component.confirmingProfile).toBe(false);
+      expect(component.message).toContain('Ainda não foi possível confirmar se o perfil foi salvo');
+      expect(profileCompletionFacadeMock.confirmProfileCompletion$).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancela a leitura pendente quando a conta muda e descarta a resposta antiga', () => {
+    const confirmation = new Subject<boolean>();
+    profileCompletionFacadeMock.saveProfileCompletion$.mockReturnValueOnce(
+      throwError(() => ({ code: 'functions/unavailable' }))
+    );
+    profileCompletionFacadeMock.confirmProfileCompletion$.mockReturnValueOnce(confirmation);
+    component.onSubmit();
+
+    accountUid$.next('u2');
+    confirmation.next(true);
+
+    expect(component.message).toContain('A conta ativa mudou');
+    expect(currentUserStoreMock.patch).not.toHaveBeenCalled();
+    expect(errorNotificationMock.showSuccess).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+    expect(component.isSubmitting).toBe(false);
   });
 
   it('descarta municípios atrasados de um estado que deixou de estar selecionado', () => {
@@ -384,6 +478,7 @@ describe('FinalizarCadastroComponent', () => {
     expect(component.isSubmitting).toBe(false);
     expect(currentUserStoreMock.patch).not.toHaveBeenCalled();
     expect(profileCompletionFacadeMock.uploadProfileAvatarAfterSave$).not.toHaveBeenCalled();
+    expect(profileCompletionFacadeMock.confirmProfileCompletion$).not.toHaveBeenCalled();
     expect(router.navigateByUrl).not.toHaveBeenCalled();
   });
 

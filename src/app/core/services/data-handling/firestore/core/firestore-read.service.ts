@@ -64,6 +64,9 @@ type CompatReadOptions = {
 export interface GetDocumentOptions {
   source?: DocSource;
 
+  /** Ignora snapshots de cache e alterações locais ainda não confirmadas. */
+  requireCommitted?: boolean;
+
   /**
    * Quando true, o serviço NÃO dispara o handler central (evita toast/logs globais).
    * Ainda assim o erro é propagado no Observable (para o caller decidir).
@@ -110,10 +113,11 @@ export class FirestoreReadService {
     if (!arg) return { source: 'server', silent: false };
     if (typeof arg === 'string') return { source: arg, silent: false };
     return {
-      source: arg.source ?? 'server',
+      source: arg.requireCommitted ? 'server' : arg.source ?? 'server',
       silent: !!arg.silent,
       context: arg.context,
       requireAuth: arg.requireAuth,
+      requireCommitted: arg.requireCommitted,
     };
   }
 
@@ -190,7 +194,12 @@ export class FirestoreReadService {
           if (opts.source === 'cache') return getDocFromCache(ref);
           return getDocFromServer(ref);
         }).pipe(
-          map((snap) => (snap.exists() ? (snap.data() as T) : null)),
+          map((snap) => {
+            if (opts.requireCommitted && (snap.metadata.fromCache || snap.metadata.hasPendingWrites)) {
+              return null;
+            }
+            return snap.exists() ? (snap.data() as T) : null;
+          }),
           catchError((err) =>
             this.handleError(
               err,

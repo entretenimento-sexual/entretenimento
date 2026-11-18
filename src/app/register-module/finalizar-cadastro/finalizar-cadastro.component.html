@@ -27,7 +27,13 @@
 
     @if (isSubmitting) {
       <div class="alert alert-secondary" role="status" aria-live="polite" aria-atomic="true">
-        {{ isUploading ? 'Seu perfil foi salvo. Enviando a foto opcional…' : 'Salvando seus dados…' }}
+        @if (confirmingProfile) {
+          Conferindo se seu perfil foi salvo. Se a conexão caiu, aguarde a reconexão.
+        } @else if (isUploading) {
+          Seu perfil foi salvo. Enviando a foto opcional…
+        } @else {
+          Salvando seus dados…
+        }
       </div>
     }
 

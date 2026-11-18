@@ -9,7 +9,7 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { EMPTY, Observable, Subject, TimeoutError, defer, of } from 'rxjs';
+import { EMPTY, Observable, Subject, TimeoutError, defer, merge, of, throwError } from 'rxjs';
 import {
   catchError,
   debounceTime,
@@ -44,6 +44,7 @@ import {
   validateImageMediaFile,
 } from 'src/app/core/services/media/media-format.policy';
 import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
+import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { RegisterFlowVm } from '../data-access/register-flow.model';
 import { ProfileCompletionFacade } from '../data-access/profile-completion.facade';
@@ -80,6 +81,7 @@ export class FinalizarCadastroComponent
 implements OnInit, UnsavedChangesAware
 {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly networkStatus = inject(NetworkStatusService);
   private readonly draftChanges$ = new Subject<void>();
   private readonly municipiosRequests$ = new Subject<string>();
   private savedProfileDestination: { uid: string; target: string } | null = null;
@@ -120,6 +122,7 @@ implements OnInit, UnsavedChangesAware
   public messageKind: ProfileCompletionMessageKind = null;
   public isLoading = true;
   public isSubmitting = false;
+  public confirmingProfile = false;
   public isUploading = false;
   public isEditingAvatar = false;
   public progressValue = 0;
@@ -498,6 +501,15 @@ implements OnInit, UnsavedChangesAware
       .pipe(
         take(1),
         timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
+        catchError((error) => {
+          if (!isRegistrationConfirmationUncertain(error) || !this.isCurrentAccount(uid)) {
+            return throwError(() => error);
+          }
+
+          return this.confirmProfileAfterUncertainSave$(uid).pipe(
+            switchMap((confirmed) => confirmed ? of(void 0) : throwError(() => error))
+          );
+        }),
         switchMap(() => this.isCurrentAccount(uid)
           ? defer(() => this.uploadAvatarAfterProfileSave$(uid)).pipe(
             timeout({ first: 60_000 }),
@@ -568,6 +580,30 @@ implements OnInit, UnsavedChangesAware
 
   private isCurrentAccount(uid: string): boolean {
     return this.currentUserStore.getLoggedUserUIDSnapshot() === uid;
+  }
+
+  private confirmProfileAfterUncertainSave$(uid: string): Observable<boolean> {
+    this.confirmingProfile = true;
+
+    const accountChanged$ = this.currentUserStore.getLoggedUserUID$().pipe(
+      filter((currentUid) => currentUid !== uid),
+      map(() => false)
+    );
+    const confirmation$ = this.networkStatus.isOnline$.pipe(
+      filter((online) => online),
+      take(1),
+      switchMap(() => this.isCurrentAccount(uid)
+        ? this.profileCompletion.confirmProfileCompletion$(uid)
+        : of(false)
+      )
+    );
+
+    return merge(accountChanged$, confirmation$).pipe(
+      take(1),
+      timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
+      catchError(() => of(false)),
+      finalize(() => { this.confirmingProfile = false; })
+    );
   }
 
   continueAfterProfileSave(): void {

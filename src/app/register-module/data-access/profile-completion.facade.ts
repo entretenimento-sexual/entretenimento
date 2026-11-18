@@ -28,6 +28,8 @@ import { RegisterFlowVm } from './register-flow.model';
 import { ProfileAvatarWriteService } from './profile-avatar-write.service';
 import { ProfileCompletionWriteService } from './profile-completion-write.service';
 
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { FirestoreReadService } from 'src/app/core/services/data-handling/firestore/core/firestore-read.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 import { validateImageMediaFile } from 'src/app/core/services/media/media-format.policy';
@@ -77,6 +79,7 @@ export interface ProfileCompletionAvatarUploadResult {
 export class ProfileCompletionFacade {
   constructor(
     private readonly firestoreUserQuery: FirestoreUserQueryService,
+    private readonly firestoreRead: FirestoreReadService,
     private readonly profileAvatarWrite: ProfileAvatarWriteService,
     private readonly profileCompletionWrite: ProfileCompletionWriteService,
     private readonly storageService: StorageService,
@@ -133,6 +136,15 @@ export class ProfileCompletionFacade {
         });
       })
     );
+  }
+
+  confirmProfileCompletion$(uid: string): Observable<boolean> {
+    return this.firestoreRead.getDocument<Pick<IUserDados, 'uid' | 'profileCompleted'>>('users', uid, {
+      source: 'server',
+      requireCommitted: true,
+      silent: true,
+      context: 'registration-profile-completion',
+    }).pipe(map((user) => user?.uid === uid && user.profileCompleted === true));
   }
 
   uploadProfileAvatarAfterSave$(
