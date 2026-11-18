@@ -154,13 +154,16 @@ describe('RegisterComponent', () => {
     reopened.destroy();
   });
 
-  it('troca a cena ao avançar, sem alterar a identidade visual do apelido ao voltar', () => {
+  it('troca as cenas fotográficas sem deslocar o formulário', () => {
     const view = fixture.nativeElement as HTMLElement;
     const original = () => view.querySelector('.signup-scene--original') as HTMLElement;
-    const secondary = () => view.querySelector('.signup-alternate') as HTMLImageElement;
-    expect(secondary()?.getAttribute('src')).toBe('assets/registration/signup-lounge-ensemble.svg');
-    expect(original()?.classList.contains('signup-scene--inactive')).toBe(false);
-    expect(secondary()?.classList.contains('signup-alternate--visible')).toBe(false);
+    const email = () => view.querySelector('.signup-scene--email') as HTMLElement;
+    const confirm = () => view.querySelector('.signup-scene--confirm') as HTMLElement;
+    expect(email().querySelector('img')?.getAttribute('src')).toBe('assets/registration/signup-stage-email.webp');
+    expect(confirm().querySelector('img')?.getAttribute('src')).toBe('assets/registration/signup-stage-confirm.webp');
+    expect(original().classList.contains('signup-scene--inactive')).toBe(false);
+    expect(email().classList.contains('signup-scene--inactive')).toBe(true);
+    expect(confirm().classList.contains('signup-scene--inactive')).toBe(true);
 
     component.form.patchValue({ apelidoPrincipal: 'visualteste' });
     component.onNicknameBlur();
@@ -169,11 +172,15 @@ describe('RegisterComponent', () => {
 
     expect(component.sectionIndex()).toBe(1);
     expect(original().classList.contains('signup-scene--inactive')).toBe(true);
-    expect(secondary().classList.contains('signup-alternate--visible')).toBe(true);
+    expect(email().classList.contains('signup-scene--inactive')).toBe(false);
+    expect(confirm().classList.contains('signup-scene--inactive')).toBe(true);
 
+    component.sectionIndex.set(2);
+    fixture.detectChanges();
+    expect(confirm().classList.contains('signup-scene--inactive')).toBe(false);
     component.previousSection();
     fixture.detectChanges();
-    expect(secondary().classList.contains('signup-alternate--visible')).toBe(false);
+    expect(email().classList.contains('signup-scene--inactive')).toBe(false);
   });
 
   it('mostra os detalhes da consulta no botão do visto sem enviar o formulário', () => {

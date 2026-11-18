@@ -46,17 +46,7 @@
   opacity: 0;
 }
 
-.signup-alternate {
-  opacity: 0;
-  transition: opacity 380ms ease;
-}
-
-.signup-alternate--visible {
-  opacity: 1;
-}
-
-.signup-backdrop,
-.signup-alternate {
+.signup-backdrop {
   position: absolute;
   inset-block-start: var(--signup-photo-top);
   inset-inline-start: 0;
@@ -498,8 +488,7 @@
     grid-column: 1;
   }
 
-  .signup-backdrop,
-  .signup-alternate {
+  .signup-backdrop {
     mask-image: linear-gradient(to bottom, #000 58%, transparent);
   }
 }
@@ -796,8 +785,7 @@
 
 /* As duas cenas preservam o enquadramento, inclusive com movimento reduzido. */
 @media (prefers-reduced-motion: reduce) {
-  .signup-scene,
-  .signup-alternate {
+  .signup-scene {
     transition: none;
   }
 }

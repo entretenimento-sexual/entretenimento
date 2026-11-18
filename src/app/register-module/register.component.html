@@ -1,14 +1,16 @@
 <!-- src/app/register-module/register.component.html -->
 <div class="auth-container">
   <div class="signup-image" aria-hidden="true">
-    <picture class="signup-scene signup-scene--original"
-      [class.signup-scene--inactive]="sectionIndex() > 0">
+    <picture class="signup-scene signup-scene--original" [class.signup-scene--inactive]="sectionIndex() !== 0">
       <source srcset="assets/registration/signup-shadow.webp" type="image/webp" />
       <img class="signup-backdrop" src="assets/registration/signup-noir.svg" alt="" decoding="async" />
     </picture>
-    <img class="signup-alternate" src="assets/registration/signup-lounge-ensemble.svg"
-      [class.signup-alternate--visible]="sectionIndex() > 0"
-      alt="" decoding="async" fetchpriority="low" />
+    <picture class="signup-scene signup-scene--email" [class.signup-scene--inactive]="sectionIndex() !== 1">
+      <img class="signup-backdrop" src="assets/registration/signup-stage-email.webp" alt="" decoding="async" fetchpriority="low" />
+    </picture>
+    <picture class="signup-scene signup-scene--confirm" [class.signup-scene--inactive]="sectionIndex() < 2">
+      <img class="signup-backdrop" src="assets/registration/signup-stage-confirm.webp" alt="" decoding="async" fetchpriority="low" />
+    </picture>
   </div>
 
   <div class="form-container">
