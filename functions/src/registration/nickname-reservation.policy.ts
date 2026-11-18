@@ -1,6 +1,7 @@
 // Canonical nickname normalization for authoritative backend registration.
 // Do not trust display/key pairs sent by a browser; only raw display arrives.
-const DISPLAY_PATTERN = /^[A-Za-z0-9._\- ]{4,24}$/;
+// Mantém os apelidos existentes e admite 12 + espaço + 12 no cadastro.
+const DISPLAY_PATTERN = /^(?:[A-Za-z0-9._\- ]{4,24}|[A-Za-z0-9._-]{12} [A-Za-z0-9._-]{12})$/;
 const KEY_PATTERN = /^[a-z0-9._-]{3,40}$/;
 
 export interface RegistrationNickname {

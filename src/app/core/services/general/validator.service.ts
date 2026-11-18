@@ -24,23 +24,13 @@ const PASSWORD_BLACKLIST = ['password', '123456', 'qwerty', '111111', '000000'];
 
 // -----------------------------------------------------------------------------
 // Nickname (DISPLAY vs KEY/índice)
-// - DISPLAY: pode conter caracteres humanos (inclui letras com acento) e, no FULL,
-//   pode ter 1 espaço separando principal e complemento.
+// - DISPLAY: permite letras sem acento e um espaço separando principal e complemento.
 // - KEY/índice: precisa ser compatível com Firestore docId e rules (sem espaço).
 //   Por isso validamos também a normalização via NicknameUtils.
 // -----------------------------------------------------------------------------
 
 // Blocos (principal e complemento): sem espaços.
-// Permitimos letras (Unicode), números e separadores simples (. _ -).
-const NICK_BLOCK_RE = /^[\p{L}\p{N}._-]+$/u;
-
-// FULL DISPLAY: um ou dois blocos, separados por 1 espaço, sem espaço no começo/fim.
-// Ex.: "Joao" ou "Joao Oficial"
-const NICK_FULL_DISPLAY_RE = /^[\p{L}\p{N}._-]+(?: [\p{L}\p{N}._-]+)?$/u;
-
-// KEY/índice: compatível com sua regra de public_profiles.rules (nicknameNormalized)
-// (aqui validamos a string já normalizada para índice)
-const NICK_KEY_RE = /^[a-z0-9._-]{3,40}$/;
+const NICK_BLOCK_RE = /^[A-Za-z0-9._-]+$/;
 
 @Injectable({ providedIn: 'root' })
 export class ValidatorService {
@@ -71,15 +61,18 @@ export class ValidatorService {
   /**
    * Valida o apelido PRINCIPAL (campo isolado).
    * - Não permite espaços.
-   * - Permite letras (com acento), números e separadores (. _ -).
+   * - Permite letras sem acento, números e separadores (. _ -).
    * - Range de tamanho: 4..12 (mantendo sua regra atual).
    */
-  public static nicknameValidator(): ValidatorFn {
+  public static nicknameValidator(minLength = NicknameUtils.DISPLAY_MIN_LEN): ValidatorFn {
     return (control: AbstractControl): { [key: string]: any } | null => {
       const value = (control.value ?? '').toString().trim();
-      if (!value) return null;
+      if (!value) return minLength > 1 ? { required: true } : null;
 
-      if (value.length < 4 || value.length > 12) return { invalidNickname: true };
+      if (value.length < minLength) {
+        return { minlength: { requiredLength: minLength, actualLength: value.length } };
+      }
+      if (value.length > NicknameUtils.DISPLAY_PART_MAX_LEN) return { invalidNickname: true };
       if (!NICK_BLOCK_RE.test(value)) return { invalidNickname: true };
 
       return null;
@@ -89,19 +82,11 @@ export class ValidatorService {
   /**
    * Valida o COMPLEMENTO do apelido (campo isolado).
    * - Não permite espaços.
-   * - Permite letras (com acento), números e separadores (. _ -).
+   * - Permite letras sem acento, números e separadores (. _ -).
    * - Range de tamanho: 0..12 (mantendo sua regra atual).
    */
   public static complementoNicknameValidator(): ValidatorFn {
-    return (control: AbstractControl): { [key: string]: any } | null => {
-      const value = (control.value ?? '').toString().trim();
-      if (!value) return null;
-
-      if (value.length > 12) return { invalidNickname: true };
-      if (!NICK_BLOCK_RE.test(value)) return { invalidNickname: true };
-
-      return null;
-    };
+    return ValidatorService.nicknameValidator(1);
   }
 
   /**
@@ -116,25 +101,16 @@ export class ValidatorService {
    */
   public static fullNicknameValidator(): ValidatorFn {
     return (group: AbstractControl): { [key: string]: any } | null => {
-      const apelido = (group.get('apelidoPrincipal')?.value ?? '').toString().trim();
-      const complemento = (group.get('complementoApelido')?.value ?? '').toString().trim();
+      const apelido = group.get('apelidoPrincipal');
+      const complemento = group.get('complementoApelido');
 
-      // Se não tem principal, não é função deste validator (required lida com isso).
-      if (!apelido) return null;
+      // Erros de cada campo têm precedência sobre a validação da composição.
+      if (!apelido?.value || apelido.invalid || complemento?.invalid) return null;
 
-      // Monta DISPLAY com 1 espaço apenas quando existir complemento.
-      const fullDisplay = complemento ? `${apelido} ${complemento}` : apelido;
-
-      // 1) Validação do DISPLAY (user-facing)
-      if (fullDisplay.length < 4 || fullDisplay.length > 24) return { invalidFullNickname: true };
-      if (!NICK_FULL_DISPLAY_RE.test(fullDisplay)) return { invalidFullNickname: true };
-
-      // 2) Validação da KEY/índice (backend-facing)
-      // Espaços do DISPLAY são convertidos internamente (ex.: "joao oficial" -> "joao_oficial").
-      const key = NicknameUtils.normalizarApelidoParaIndice(fullDisplay);
-      if (!key || !NICK_KEY_RE.test(key)) return { invalidFullNickname: true };
-
-      return null;
+      const fullDisplay = NicknameUtils.montarApelidoCompleto(apelido.value, complemento?.value ?? '');
+      return NicknameUtils.isApelidoValido(fullDisplay) && NicknameUtils.isApelidoIndiceValido(fullDisplay)
+        ? null
+        : { invalidFullNickname: true };
     };
   }
 

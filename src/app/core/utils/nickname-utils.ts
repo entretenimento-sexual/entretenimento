@@ -35,7 +35,9 @@ export namespace NicknameUtils {
 
   /** Limites do nickname DISPLAY (ex.: regra do seu register) */
   export const DISPLAY_MIN_LEN = 4;
-  export const DISPLAY_MAX_LEN = 24;
+  export const DISPLAY_PART_MAX_LEN = 12;
+  const DISPLAY_LEGACY_MAX_LEN = 2 * DISPLAY_PART_MAX_LEN;
+  export const DISPLAY_MAX_LEN = DISPLAY_LEGACY_MAX_LEN + 1;
 
   /** Limites do nickname KEY (ex.: regra de índice / nicknameNormalized nas rules) */
   export const KEY_MIN_LEN = 3;
@@ -51,9 +53,7 @@ export namespace NicknameUtils {
    * Observação: se você quiser permitir outros símbolos no display, faça com cuidado,
    * porque a KEY (índice) precisará mapear/limpar isso, afetando unicidade.
    */
-  const DISPLAY_RE = new RegExp(
-    `^[A-Za-z0-9._\\- ]{${DISPLAY_MIN_LEN},${DISPLAY_MAX_LEN}}$`
-  );
+  const DISPLAY_RE = /^[A-Za-z0-9._\- ]+$/;
 
   /**
    * KEY/ÍNDICE:
@@ -183,9 +183,12 @@ export namespace NicknameUtils {
    */
   export function isApelidoValido(apelido: string): boolean {
     const display = normalizarApelido(apelido);
-    if (!display) return false;
-    if (display.length < DISPLAY_MIN_LEN || display.length > DISPLAY_MAX_LEN) return false;
-    return DISPLAY_RE.test(display);
+    if (!DISPLAY_RE.test(display)) return false;
+    if (display.length >= DISPLAY_MIN_LEN && display.length <= DISPLAY_LEGACY_MAX_LEN) return true;
+
+    // O espaço acrescentado na composição pode ser o 25º caractere.
+    const parts = display.split(' ');
+    return parts.length === 2 && parts.every(part => part.length === DISPLAY_PART_MAX_LEN);
   }
 
   /**

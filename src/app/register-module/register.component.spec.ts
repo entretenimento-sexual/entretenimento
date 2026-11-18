@@ -11,6 +11,7 @@ import { of, Subject, throwError } from 'rxjs';
 import { Auth } from '@angular/fire/auth';
 
 import { RegisterComponent } from './register.component';
+import { RegistrationFeedbackTooltipDirective } from './registration-feedback-tooltip.directive';
 import { FirestoreValidationService } from '../core/services/data-handling/firestore/validation/firestore-validation.service';
 import { RegisterService } from '../core/services/autentication/register/register.service';
 import { EmailVerificationService } from '../core/services/autentication/register/email-verification.service';
@@ -60,6 +61,7 @@ describe('RegisterComponent', () => {
       imports: [
         ReactiveFormsModule,
         MatTooltipModule,
+        RegistrationFeedbackTooltipDirective,
         RouterTestingModule,
         ActionStateDirective,
         FormValidationFocusDirective,
@@ -124,9 +126,37 @@ describe('RegisterComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('#apelidoTooltip')?.textContent)
-      .toContain('Use letras, números, ponto, hífen ou sublinhado.');
+      .toContain('Use letras sem acento, números, ponto, hífen ou sublinhado.');
     expect(fixture.debugElement.query(By.css('.nickname-indicator--rejected')).injector.get(MatTooltip).message)
-      .toContain('Use letras, números, ponto, hífen ou sublinhado.');
+      .toContain('Use letras sem acento, números, ponto, hífen ou sublinhado.');
+  });
+
+  it('aceita dois campos de 12 caracteres e explica a regra no campo inválido', () => {
+    const validation = TestBed.inject(FirestoreValidationService) as unknown as MockFirestoreValidationService;
+    component.form.patchValue({ apelidoPrincipal: 'dd', complementoApelido: 'Complemento1' });
+    component.onNicknameBlur();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('#apelidoTooltip.sr-only')?.textContent)
+      .toContain('Use de 4 a 12 caracteres no apelido.');
+    expect(validation.checkIfNicknameExists).not.toHaveBeenCalled();
+
+    component.form.patchValue({ apelidoPrincipal: 'ApelidoTeste', complementoApelido: 'Complemento12' });
+    component.onComplementoBlur();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('#complementoTooltip.sr-only')?.textContent)
+      .toContain('Use até 12 caracteres no complemento.');
+    expect(validation.checkIfNicknameExists).not.toHaveBeenCalled();
+
+    component.form.patchValue({ complementoApelido: 'Complemento1' });
+    component.onComplementoBlur();
+    fixture.detectChanges();
+
+    expect(validation.checkIfNicknameExists).toHaveBeenCalledWith('ApelidoTeste Complemento1', { mode: 'soft' });
+    expect(component.form.hasError('invalidFullNickname')).toBe(false);
+    expect(fixture.nativeElement.querySelector('#apelidoPrincipal').maxLength).toBe(12);
+    expect(fixture.nativeElement.querySelector('#complementoApelido').maxLength).toBe(12);
   });
 
   it('avisa quando a consulta falha sem marcar o apelido como recusado', () => {
@@ -139,6 +169,34 @@ describe('RegisterComponent', () => {
     expect(fixture.nativeElement.querySelector('#apelidoConsultaErro')?.textContent)
       .toContain('Consulta indisponível.');
     expect(fixture.nativeElement.querySelector('.nickname-indicator--rejected')).toBeNull();
+  });
+
+  it('fecha o balão após três segundos e permite reabri-lo no X', () => {
+    vi.useFakeTimers();
+    const show = vi.spyOn(MatTooltip.prototype, 'show').mockImplementation(() => {});
+    const hide = vi.spyOn(MatTooltip.prototype, 'hide').mockImplementation(() => {});
+    try {
+      component.form.patchValue({ apelidoPrincipal: 'dd' });
+      component.onNicknameBlur();
+      fixture.detectChanges();
+      vi.advanceTimersByTime(0);
+      expect(show).toHaveBeenCalledOnce();
+      hide.mockClear();
+
+      vi.advanceTimersByTime(2999);
+      expect(hide).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(hide).toHaveBeenCalledWith(0);
+
+      fixture.nativeElement.querySelector('.nickname-indicator--rejected').click();
+      vi.advanceTimersByTime(0);
+      expect(show).toHaveBeenCalledTimes(2);
+    } finally {
+      fixture.destroy();
+      show.mockRestore();
+      hide.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it('exibe apenas a tela atual e cria a conta somente após confirmar a última', async () => {
@@ -216,11 +274,13 @@ describe('RegisterComponent', () => {
     ).toBeTruthy();
   });
 
-  it('usa o banner da página sem snackbar duplicado quando o form está inválido', () => {
+  it('mantém o feedback de apelido no indicador sem banner ou snackbar duplicado', () => {
     component.onSubmit();
+    fixture.detectChanges();
 
-    expect(component.banner()?.variant).toBe('error');
-    expect(component.banner()?.title).toBe('Verifique os campos');
+    expect(fixture.debugElement.query(By.css('.nickname-indicator--rejected')).injector.get(MatTooltip).message)
+      .toBe('Informe seu apelido.');
+    expect(component.banner()).toBeNull();
     expect(errorNotification.showError).not.toHaveBeenCalled();
     expect(registerService.registerUser).not.toHaveBeenCalled();
   });
@@ -229,7 +289,7 @@ describe('RegisterComponent', () => {
     component.onSubmit();
     fixture.detectChanges();
 
-    const errors = fixture.debugElement.queryAll(By.css('.tooltip-error'));
+    const errors = fixture.debugElement.queryAll(By.css('.nickname-field [role="alert"].sr-only'));
 
     expect(errors.length).toBeGreaterThan(0);
     for (const error of errors) {

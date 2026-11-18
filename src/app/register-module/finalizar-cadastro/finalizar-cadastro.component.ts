@@ -104,6 +104,7 @@ implements OnInit, UnsavedChangesAware
 
   public email = '';
   public nickname = '';
+  readonly nicknameMaxLength = NicknameUtils.DISPLAY_MAX_LEN;
   public needsNickname = false;
 
   public readonly identityOptions = SELECTABLE_PROFILE_IDENTITY_OPTIONS;
@@ -825,7 +826,7 @@ implements OnInit, UnsavedChangesAware
         NicknameUtils.isApelidoIndiceValido(display);
       this.formErrors[field] = valid
         ? ''
-        : 'Use de 4 a 24 caracteres: letras, números, espaço, ponto, hífen ou sublinhado.';
+        : 'Use pelo menos 4 caracteres: letras sem acento, números, espaço, ponto, hífen ou sublinhado. Para juntar dois nomes longos, use até 12 caracteres em cada parte.';
       this.onDraftChange();
       return;
     }

@@ -20,6 +20,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { RegisterRoutingModule } from './register-routing.module';
 import { RegisterComponent } from './register.component';
+import { RegistrationFeedbackTooltipDirective } from './registration-feedback-tooltip.directive';
 import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';
 import { WelcomeComponent } from './welcome/welcome.component';
 import { RegisterProgressComponent } from './register-progress/register-progress.component';
@@ -41,6 +42,7 @@ import { FormValidationFocusDirective } from '../shared/form-validation-focus/fo
     ReactiveFormsModule,
     FormsModule,
     MatTooltipModule,
+    RegistrationFeedbackTooltipDirective,
     SharedModule,
     RegisterRoutingModule,
     RegisterProgressComponent,

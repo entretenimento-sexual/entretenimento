@@ -267,12 +267,18 @@ describe('RegisterService', () => {
   it('repete somente a reserva idempotente após perda de resposta', async () => {
     vi.useFakeTimers();
     const user = createUser();
+    const nickname = 'ApelidoTeste Complemento1';
     reserve.mockReturnValueOnce(throwError(() => ({ code: 'functions/unavailable' })));
-    const result = firstValueFrom(service.registerUser(buildRegistrationData(), 'senha-segura'));
+    const result = firstValueFrom(service.registerUser(buildRegistrationData({ nickname }), 'senha-segura'));
     await vi.advanceTimersByTimeAsync(500);
 
     expect(await result).toMatchObject({ verificationEmailSent: true, registrationWarnings: [] });
+    expect(checkIfNicknameExists).toHaveBeenCalledWith(nickname, { mode: 'strict' });
     expect(reserve).toHaveBeenCalledTimes(2);
+    expect(reserve).toHaveBeenLastCalledWith(expect.objectContaining({
+      uid: user.uid,
+      userData: expect.objectContaining({ nickname }),
+    }));
     expect(createFirebaseUser).toHaveBeenCalledOnce();
     expect(sendEmail).toHaveBeenCalledWith(user);
     expect(user.delete).not.toHaveBeenCalled();
@@ -370,7 +376,7 @@ describe('RegisterService', () => {
 
     await expect(
       firstValueFrom(service.registerUser(data, 'senha-segura'))
-    ).rejects.toThrow('Apelido deve ter entre 4 e 24 caracteres.');
+    ).rejects.toThrow('Informe um apelido válido com pelo menos 4 caracteres.');
 
     expect(report).toHaveBeenCalledTimes(1);
   });

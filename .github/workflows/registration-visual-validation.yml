@@ -207,6 +207,42 @@ jobs:
           PLAYWRIGHT
           )
 
+          CHECK_NICKNAME_ERROR=$(cat <<'PLAYWRIGHT'
+          async (page) => {
+            const submit = page.locator('button[type=submit]');
+            const submitTop = () => submit.evaluate(button => button.getBoundingClientRect().top + scrollY);
+            const before = await submitTop();
+            await submit.click();
+
+            const tooltip = page.locator('.mat-mdc-tooltip-surface').filter({
+              hasText: /^Informe seu apelido\.$/,
+            });
+            await tooltip.waitFor({ state: 'visible' });
+            const description = page.locator('#apelidoTooltip.sr-only[role=alert][aria-live=polite]');
+            if (await description.textContent() !== 'Informe seu apelido.') {
+              throw new Error('Nickname feedback needs an accessible description');
+            }
+            if (Math.abs(await submitTop() - before) > 1) {
+              throw new Error('Nickname error must not move the submit button');
+            }
+
+            const viewport = page.viewportSize();
+            const box = await tooltip.boundingBox();
+            const nickname = await page.locator('#apelidoPrincipal').boundingBox();
+            const complement = await page.locator('#complementoApelido').boundingBox();
+            const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+            if (!box || box.x < -1 || box.x + box.width > viewport.width + 1 || scrollWidth > viewport.width + 1) {
+              throw new Error('Nickname tooltip escaped the viewport');
+            }
+            if (!nickname || !complement || Math.abs(nickname.width - complement.width) > 1 ||
+                Math.abs(nickname.height - complement.height) > 1) {
+              throw new Error('Nickname and complement inputs must match in size');
+            }
+            return { tooltip: box, nicknameWidth: nickname.width, complementWidth: complement.width };
+          }
+          PLAYWRIGHT
+          )
+
           playwright-cli open "$URL"
 
           playwright-cli resize 1920 520
@@ -277,61 +313,7 @@ jobs:
             return metrics;
           }" | tee "$OUT/desktop-initial.metrics.log"
 
-          playwright-cli click "button[type='submit']"
-          playwright-cli run-code "async (page) => {
-            await page.waitForTimeout(250);
-            const metrics = await page.evaluate(() => {
-              const isVisible = (el) => !!el.getClientRects().length;
-              const errors = Array.from(document.querySelectorAll('.tooltip-error')).filter(isVisible);
-              const overlaps = [];
-
-              for (const error of errors) {
-                const owner = error.closest('.form-field, .form-checkbox');
-                if (!owner) continue;
-                let next = owner.nextElementSibling;
-                while (next && !next.matches('.form-field, .form-checkbox, button[type=submit]')) {
-                  next = next.nextElementSibling;
-                }
-                if (!next) continue;
-                const errorRect = error.getBoundingClientRect();
-                const nextRect = next.getBoundingClientRect();
-                if (errorRect.bottom > nextRect.top + 1) {
-                  overlaps.push({ id: error.id, bottom: errorRect.bottom, nextTop: nextRect.top });
-                }
-              }
-
-              return {
-                viewportWidth: window.innerWidth,
-                scrollWidth: document.documentElement.scrollWidth,
-                visibleErrors: errors.length,
-                accessibleErrors: errors.filter((el) =>
-                  el.getAttribute('role') === 'alert' &&
-                  el.getAttribute('aria-live') === 'polite'
-                ).length,
-                outOfViewportErrors: errors
-                  .map((el) => ({ id: el.id, ...el.getBoundingClientRect().toJSON() }))
-                  .filter((rect) => rect.left < -1 || rect.right > window.innerWidth + 1),
-                overlaps,
-              };
-            });
-            console.log(JSON.stringify(metrics));
-            if (metrics.scrollWidth > metrics.viewportWidth + 1) {
-              throw new Error('Desktop invalid state has horizontal overflow');
-            }
-            if (metrics.visibleErrors !== 1) {
-              throw new Error('Desktop invalid state must show only the nickname error');
-            }
-            if (metrics.accessibleErrors !== metrics.visibleErrors) {
-              throw new Error('Desktop invalid feedback lost alert/live-region semantics');
-            }
-            if (metrics.outOfViewportErrors.length) {
-              throw new Error('Desktop invalid feedback escaped the viewport');
-            }
-            if (metrics.overlaps.length) {
-              throw new Error('Desktop invalid feedback overlaps the following field');
-            }
-            return metrics;
-          }" | tee "$OUT/desktop-invalid.metrics.log"
+          playwright-cli run-code "$CHECK_NICKNAME_ERROR" | tee "$OUT/desktop-invalid.metrics.log"
           playwright-cli snapshot --filename="$OUT/desktop-invalid.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/desktop-invalid.png"
 
@@ -406,73 +388,7 @@ jobs:
             return metrics;
           }" | tee "$OUT/mobile-initial.metrics.log"
 
-          playwright-cli click "button[type='submit']"
-          playwright-cli run-code "async (page) => {
-            await page.waitForTimeout(250);
-            const metrics = await page.evaluate(() => {
-              const isVisible = (el) => !!el.getClientRects().length;
-              const errors = Array.from(document.querySelectorAll('.tooltip-error')).filter(isVisible);
-              const overlaps = [];
-              const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
-              const inputRect = document.querySelector('.signup-pair--nickname')?.getBoundingClientRect();
-
-              for (const error of errors) {
-                const owner = error.closest('.form-field, .form-checkbox');
-                if (!owner) continue;
-                let next = owner.nextElementSibling;
-                while (next && !next.matches('.form-field, .form-checkbox, button[type=submit]')) {
-                  next = next.nextElementSibling;
-                }
-                if (!next) continue;
-                const errorRect = error.getBoundingClientRect();
-                const nextRect = next.getBoundingClientRect();
-                if (errorRect.bottom > nextRect.top + 1) {
-                  overlaps.push({ id: error.id, bottom: errorRect.bottom, nextTop: nextRect.top });
-                }
-              }
-
-              return {
-                viewportWidth: window.innerWidth,
-                scrollWidth: document.documentElement.scrollWidth,
-                backdropDocumentBottom: document.querySelector('.signup-image')?.getBoundingClientRect().bottom + scrollY,
-                viewportHeight: innerHeight,
-                formWidth: formRect?.width ?? 0,
-                firstInputWidth: inputRect?.width ?? 0,
-                visibleErrors: errors.length,
-                accessibleErrors: errors.filter((el) =>
-                  el.getAttribute('role') === 'alert' &&
-                  el.getAttribute('aria-live') === 'polite'
-                ).length,
-                outOfViewportErrors: errors
-                  .map((el) => ({ id: el.id, ...el.getBoundingClientRect().toJSON() }))
-                  .filter((rect) => rect.left < -1 || rect.right > window.innerWidth + 1),
-                overlaps,
-              };
-            });
-            console.log(JSON.stringify(metrics));
-            if (metrics.scrollWidth > metrics.viewportWidth + 1) {
-              throw new Error('Mobile invalid state has horizontal overflow');
-            }
-            if (Math.abs(metrics.backdropDocumentBottom - metrics.viewportHeight) > 2) {
-              throw new Error('Validation feedback must keep the photo limited to the first viewport');
-            }
-            if (metrics.formWidth < metrics.viewportWidth * 0.85 || metrics.firstInputWidth < metrics.viewportWidth * 0.70) {
-              throw new Error('Mobile invalid form lost its useful content width');
-            }
-            if (metrics.visibleErrors !== 1) {
-              throw new Error('Mobile invalid state must show only the nickname error');
-            }
-            if (metrics.accessibleErrors !== metrics.visibleErrors) {
-              throw new Error('Mobile invalid feedback lost alert/live-region semantics');
-            }
-            if (metrics.outOfViewportErrors.length) {
-              throw new Error('Mobile invalid feedback escaped the viewport');
-            }
-            if (metrics.overlaps.length) {
-              throw new Error('Mobile invalid feedback overlaps the following field');
-            }
-            return metrics;
-          }" | tee "$OUT/mobile-invalid.metrics.log"
+          playwright-cli run-code "$CHECK_NICKNAME_ERROR" | tee "$OUT/mobile-invalid.metrics.log"
           playwright-cli snapshot --filename="$OUT/mobile-invalid.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/mobile-invalid.png"
 
@@ -495,9 +411,10 @@ jobs:
               });
             });
             const nickname = page.locator('#apelidoPrincipal');
+            const complement = page.locator('#complementoApelido');
             const submit = page.locator('button[type=submit]');
             await nickname.fill('visualteste');
-            await page.locator('#complementoApelido').focus();
+            await complement.focus();
             await page.locator('.nickname-indicator--checking').waitFor({ state: 'visible' });
             const pendingSubmit = await submit.boundingBox();
             releaseLookup();
@@ -529,15 +446,37 @@ jobs:
             }).waitFor({ state: 'visible' });
             await page.keyboard.press('Escape');
             await nickname.fill('ocupadoteste');
-            await page.locator('#complementoApelido').focus();
+            await complement.focus();
             const rejected = page.locator('.nickname-indicator--rejected');
-            await rejected.click();
-            await page.locator('.mat-mdc-tooltip-surface').filter({
+            const occupiedTooltip = page.locator('.mat-mdc-tooltip-surface').filter({
               hasText: 'Este apelido já está em uso.',
-            }).waitFor({ state: 'visible' });
+            });
+            await occupiedTooltip.waitFor({ state: 'visible' });
+            const shownAt = Date.now();
+            await occupiedTooltip.waitFor({ state: 'hidden', timeout: 4500 });
+            if (Date.now() - shownAt < 2200) {
+              throw new Error('Nickname error disappeared before it could be read');
+            }
+            await rejected.click();
+            await occupiedTooltip.waitFor({ state: 'visible' });
             await page.keyboard.press('Escape');
-            await nickname.fill('visualteste');
-            await page.locator('#complementoApelido').focus();
+            await nickname.fill('dd');
+            await page.locator('.mat-mdc-tooltip-surface').filter({
+              hasText: 'Use de 4 a 12 caracteres no apelido.',
+            }).waitFor({ state: 'visible' });
+            await nickname.fill('ApelidoTeste');
+            await complement.fill('Inv@lido');
+            await page.locator('.mat-mdc-tooltip-surface').filter({
+              hasText: 'Use letras sem acento, números, ponto, hífen ou sublinhado.',
+            }).waitFor({ state: 'visible' });
+            const fullNicknameLookup = page.waitForRequest(request =>
+              request.method() === 'POST' &&
+              request.url().endsWith('/getRegistrationNicknameAvailability') &&
+              request.postDataJSON()?.data?.nickname === 'ApelidoTeste Complemento1'
+            );
+            await complement.fill('Complemento1');
+            await nickname.focus();
+            await fullNicknameLookup;
             await indicator.waitFor({ state: 'visible' });
             await submit.click();
             await page.locator('#email').waitFor({ state: 'visible' });

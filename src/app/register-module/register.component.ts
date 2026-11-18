@@ -134,9 +134,7 @@ export class RegisterComponent {
     {
       apelidoPrincipal: this.fb.control('', {
         validators: [
-          Validators.required,
-          Validators.minLength(4),
-          Validators.maxLength(12),
+          Validators.maxLength(NicknameUtils.DISPLAY_PART_MAX_LEN),
           ValidatorService.nicknameValidator(),
         ],
         updateOn: 'change',
@@ -144,7 +142,7 @@ export class RegisterComponent {
 
       complementoApelido: this.fb.control('', {
         validators: [
-          Validators.maxLength(12),
+          Validators.maxLength(NicknameUtils.DISPLAY_PART_MAX_LEN),
           ValidatorService.complementoNicknameValidator(),
         ],
         updateOn: 'change',
@@ -227,6 +225,8 @@ export class RegisterComponent {
   private readonly nicknameCheckState$ = toObservable(this.nicknameCheckState);
   readonly awaitingNickname = signal(false);
   readonly nicknameFeedbackArmed = signal(false);
+  readonly nicknameFeedbackAttempt = signal(0);
+  readonly nicknamePartMaxLength = NicknameUtils.DISPLAY_PART_MAX_LEN;
   readonly submitted = signal(false);
 
   private readonly apelidoPrincipalSig = toSignal(
@@ -310,14 +310,16 @@ export class RegisterComponent {
     this.nicknameTyping$.next();
   }
 
-  onNicknameBlur(): void {
+  onNicknameBlur(event?: FocusEvent): void {
+    if (event?.relatedTarget instanceof HTMLElement &&
+        event.relatedTarget.closest('.nickname-indicator--details')) return;
+
     this.nicknameFeedbackArmed.set(true);
     this.nicknameBlur$.next();
   }
 
-  onComplementoBlur(): void {
-    this.nicknameFeedbackArmed.set(true);
-    this.nicknameBlur$.next();
+  onComplementoBlur(event?: FocusEvent): void {
+    this.onNicknameBlur(event);
   }
 
   private setupNicknameAvailabilityPipeline(): void {
@@ -500,18 +502,10 @@ export class RegisterComponent {
 
     const errs = ctrl.errors || {};
 
-    if (
-      controlName === 'apelidoPrincipal' &&
-      this.form.hasError('invalidFullNickname')
-    ) {
-      const length = this.apelidoCompleto().length;
-      if (length < NicknameUtils.DISPLAY_MIN_LEN || length > NicknameUtils.DISPLAY_MAX_LEN) {
-        return `O apelido completo deve ter entre ${NicknameUtils.DISPLAY_MIN_LEN} e ${NicknameUtils.DISPLAY_MAX_LEN} caracteres.`;
-      }
-      return 'Use letras, números, ponto, hífen ou sublinhado. O espaço separa o apelido do complemento.';
-    }
-
     if (errs['required']) {
+      if (controlName === 'apelidoPrincipal') {
+        return 'Informe seu apelido.';
+      }
       if (controlName === 'confirmarMaioridade') {
         return 'É necessário declarar que você tem 18 anos ou mais para criar uma conta.';
       }
@@ -541,12 +535,22 @@ export class RegisterComponent {
     }
 
     if (errs['minlength']) {
+      if (controlName === 'apelidoPrincipal') {
+        return `Use de ${NicknameUtils.DISPLAY_MIN_LEN} a ${this.nicknamePartMaxLength} caracteres no apelido.`;
+      }
       return `Mínimo de ${errs['minlength'].requiredLength} caracteres.`;
     }
     if (errs['maxlength']) {
+      if (controlName === 'apelidoPrincipal' || controlName === 'complementoApelido') {
+        const field = controlName === 'apelidoPrincipal' ? 'apelido' : 'complemento';
+        return `Use até ${this.nicknamePartMaxLength} caracteres no ${field}.`;
+      }
       return `Máximo de ${errs['maxlength'].requiredLength} caracteres.`;
     }
-    if (errs['invalidNickname']) return 'Use letras, números, ponto, hífen ou sublinhado.';
+    if (errs['invalidNickname'] ||
+        (controlName === 'apelidoPrincipal' && this.form.hasError('invalidFullNickname'))) {
+      return 'Use letras sem acento, números, ponto, hífen ou sublinhado.';
+    }
     if (errs['apelidoEmUso']) return 'Este apelido já está em uso.';
 
     return null;
@@ -612,6 +616,11 @@ export class RegisterComponent {
     else if (field) this.validationFocus()?.focusControl(field);
 
     this.submitted.set(true);
+    if (index === 0) {
+      this.banner.set(null);
+      this.nicknameFeedbackAttempt.update(attempt => attempt + 1);
+      return;
+    }
     this.setBanner('error', 'Verifique os campos', 'Revise os campos destacados para continuar.');
   }
 

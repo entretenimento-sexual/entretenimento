@@ -53,7 +53,6 @@ export class RegisterService {
   private readonly HOT_KEY_CURRENT_USER_UID = 'currentUserUid';
 
   // public_profiles.rules (nicknameNormalized):
-  private readonly NICKNAME_NORM_RE = /^[a-z0-9._-]{3,40}$/;
 
   constructor(
     private readonly emailVerificationService: EmailVerificationService,
@@ -297,9 +296,9 @@ export class RegisterService {
       );
     }
 
-    if (nickname.length < 4 || nickname.length > 24) {
+    if (!NicknameUtils.isApelidoValido(nickname) || !NicknameUtils.isApelidoIndiceValido(nickname)) {
       return this.handleRegisterError(
-        new Error('Apelido deve ter entre 4 e 24 caracteres.'),
+        new Error('Informe um apelido válido com pelo menos 4 caracteres. Cada campo aceita até 12.'),
         'Validação',
         traceId
       );
@@ -308,18 +307,6 @@ export class RegisterService {
     if (!this.isValidEmailFormat(email)) {
       return this.handleRegisterError(
         new Error('Formato de e-mail inválido.'),
-        'Validação',
-        traceId
-      );
-    }
-
-    const normalized = this.normalizeNickname(nickname);
-    if (!this.NICKNAME_NORM_RE.test(normalized)) {
-      return this.handleRegisterError(
-        new Error(
-          'Apelido inválido. Use letras/números e separadores (. _ -). ' +
-          'Espaços são permitidos no apelido, e serão convertidos internamente para "_" no índice.'
-        ),
         'Validação',
         traceId
       );
@@ -452,11 +439,6 @@ export class RegisterService {
       // Diagnóstico secundário não interfere no cadastro.
     }
   }
-
-  private normalizeNickname(nickname: string): string {
-    return NicknameUtils.normalizarApelidoParaIndice(nickname);
-  }
-
   private makeTraceId(): string {
     const r = Math.random().toString(16).slice(2, 8);
     return `rg_${Date.now().toString(16)}_${r}`;

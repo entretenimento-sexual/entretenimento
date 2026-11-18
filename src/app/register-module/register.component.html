@@ -72,53 +72,49 @@
       @case (0) {
       @let nicknameError = !nicknameChecking() && (submitted() || nicknameFeedbackArmed())
         ? getError('apelidoPrincipal') : null;
+      @let complementError = (submitted() || nicknameFeedbackArmed())
+        ? getError('complementoApelido') : null;
       @let nicknameNoPublicConflict = nicknameFeedbackArmed()
         && nicknameCheckState() === 'provisional'
         && form.get('apelidoPrincipal')?.valid
         && !form.hasError('invalidFullNickname')
         && !apelidoEmUso();
+      @let nicknameWarning = nicknameCheckState() === 'unverified' ? nicknameCheckError() : null;
       <div class="signup-pair signup-pair--nickname">
-      <!-- Apelido principal -->
-      <div class="nickname-field app-field">
-        <div class="signup-label-row">
-          <label for="apelidoPrincipal">Apelido *</label>
-          <small class="char-counter" [class.warn]="(form.get('apelidoPrincipal')?.value?.length || 0) > 10">
-            {{ (form.get('apelidoPrincipal')?.value?.length || 0) }}/12
-          </small>
-        </div>
-
-        <div class="field-row">
+        <div class="nickname-field app-field">
+          @let nicknameLength = form.get('apelidoPrincipal')?.value?.length || 0;
+          <div class="signup-label-row">
+            <label for="apelidoPrincipal">Apelido *</label>
+            <small class="char-counter" [class.warn]="nicknameLength >= nicknamePartMaxLength - 1">
+              {{ nicknameLength }}/{{ nicknamePartMaxLength }}
+            </small>
+          </div>
           <div class="input-wrapper">
             <input id="apelidoPrincipal" formControlName="apelidoPrincipal" type="text" class="app-control"
               name="nickname" autocomplete="nickname" placeholder="Ex: casadinho" spellcheck="false"
-              autocapitalize="none" inputmode="text" maxlength="12" aria-label="Apelido"
-              aria-describedby="apelidoTooltip apelidoStatus apelidoConsultaErro" (input)="onNicknameTyping()" (blur)="onNicknameBlur()"
-              [attr.aria-invalid]="
-                (submitted() || form.get('apelidoPrincipal')?.touched || nicknameFeedbackArmed())
-                && (form.get('apelidoPrincipal')?.invalid || form.hasError('invalidFullNickname'))
-                  ? true
-                  : null
-              " [ngClass]="{
-                'is-pending': nicknameChecking(),
-
-                'is-invalid':
-                  (submitted() || form.get('apelidoPrincipal')?.touched || nicknameFeedbackArmed())
-                  && (form.get('apelidoPrincipal')?.invalid || form.hasError('invalidFullNickname'))
-              }" />
+              autocapitalize="none" inputmode="text" [maxlength]="nicknamePartMaxLength" aria-label="Apelido"
+              aria-required="true"
+              aria-describedby="apelidoTooltip apelidoStatus apelidoConsultaErro" (input)="onNicknameTyping()" (blur)="onNicknameBlur($event)"
+              [attr.aria-invalid]="nicknameError ? true : null"
+              [class.is-pending]="nicknameChecking()" />
             @if (nicknameChecking()) {
               <span class="nickname-indicator nickname-indicator--checking" aria-hidden="true">
                 <span class="inline-spinner"></span>
               </span>
-            } @else if (nicknameError || nicknameNoPublicConflict) {
+            } @else if (nicknameError || nicknameWarning || nicknameNoPublicConflict) {
               <button type="button" class="nickname-indicator nickname-indicator--details"
-                [class.nickname-indicator--checked]="!nicknameError"
+                [class.nickname-indicator--checked]="nicknameNoPublicConflict"
                 [class.nickname-indicator--rejected]="!!nicknameError"
+                [class.nickname-indicator--warning]="!!nicknameWarning"
                 [attr.aria-label]="nicknameError ? 'Motivo da recusa do apelido' : 'Detalhes da disponibilidade do apelido'"
-                [matTooltip]="nicknameError || 'Apelido disponível'"
+                [matTooltip]="nicknameError || nicknameWarning || 'Apelido disponível'"
                 matTooltipPosition="above" matTooltipTouchGestures="off"
-                #nicknameTooltip="matTooltip" (click)="nicknameTooltip.show(0)">
+                [registrationFeedbackTooltip]="nicknameError || nicknameWarning"
+                [registrationFeedbackAttempt]="nicknameFeedbackAttempt()">
                 @if (nicknameError) {
-                  <span class="nickname-indicator__cross" aria-hidden="true">×</span>
+                  <span class="nickname-indicator__symbol" aria-hidden="true">×</span>
+                } @else if (nicknameWarning) {
+                  <span class="nickname-indicator__symbol" aria-hidden="true">!</span>
                 }
               </button>
             }
@@ -126,50 +122,37 @@
               {{ nicknameChecking() ? 'Verificando apelido.' : nicknameNoPublicConflict ? 'Apelido disponível' : '' }}
             </span>
           </div>
+          <span id="apelidoTooltip" class="sr-only" role="alert" aria-live="polite" aria-atomic="true">{{ nicknameError }}</span>
+          <span id="apelidoConsultaErro" class="sr-only" role="status">{{ nicknameWarning }}</span>
+        </div>
 
-          <div class="inline-feedback" aria-live="polite">
-            <div *ngIf="
-                !nicknameChecking()
-                && nicknameFeedbackArmed()
-                && !form.hasError('invalidFullNickname')
-                && ((apelidoCompleto() || '').length >= 4)
-                && ((apelidoCompleto() || '').length <= 24)
-                && nicknameCheckState() === 'unverified'
-                && !apelidoEmUso()
-              " id="apelidoConsultaErro" class="badge warn">
-              {{ nicknameCheckError() }}
-            </div>
+        <div class="nickname-field app-field">
+          @let complementLength = form.get('complementoApelido')?.value?.length || 0;
+          <div class="signup-label-row">
+            <label for="complementoApelido">Complemento</label>
+            <small class="char-counter" [class.warn]="complementLength >= nicknamePartMaxLength - 1">
+              {{ complementLength }}/{{ nicknamePartMaxLength }}
+            </small>
           </div>
+          <div class="input-wrapper">
+            <input id="complementoApelido" formControlName="complementoApelido" type="text" class="app-control"
+              name="nicknameSuffix" autocomplete="off" placeholder="Opcional" spellcheck="false"
+              autocapitalize="none" inputmode="text" [maxlength]="nicknamePartMaxLength"
+              aria-label="Complemento do apelido" aria-describedby="complementoTooltip"
+              (input)="onNicknameTyping()" (blur)="onComplementoBlur($event)"
+              [attr.aria-invalid]="complementError ? true : null" />
+            @if (complementError) {
+              <button type="button" class="nickname-indicator nickname-indicator--details nickname-indicator--rejected"
+                aria-label="Motivo da recusa do complemento" [matTooltip]="complementError"
+                matTooltipPosition="above" matTooltipTouchGestures="off"
+                [registrationFeedbackTooltip]="nicknameError ? null : complementError"
+                [registrationFeedbackAttempt]="nicknameFeedbackAttempt()">
+                <span class="nickname-indicator__symbol" aria-hidden="true">×</span>
+              </button>
+            }
+          </div>
+          <span id="complementoTooltip" class="sr-only" role="alert" aria-live="polite" aria-atomic="true">{{ complementError }}</span>
         </div>
-
-        <div *ngIf="nicknameError" id="apelidoTooltip" class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
-          {{ nicknameError }}
-        </div>
-      </div>
-
-      <!-- Complemento do apelido -->
-      <div class="app-field">
-        <label for="complementoApelido">Complemento</label>
-
-        <input id="complementoApelido" formControlName="complementoApelido" type="text" class="app-control"
-          name="nicknameSuffix" autocomplete="off" placeholder="Opcional" autocapitalize="none" inputmode="text"
-          maxlength="12" aria-label="Complemento do apelido" aria-describedby="complementoTooltip"
-          (input)="onNicknameTyping()" (blur)="onComplementoBlur()" [attr.aria-invalid]="
-            (submitted() || form.get('complementoApelido')?.touched)
-            && form.get('complementoApelido')?.invalid
-              ? true
-              : null
-          " [ngClass]="{
-            'is-invalid': (submitted() || form.get('complementoApelido')?.touched) && form.get('complementoApelido')?.invalid,
-            'is-valid': (submitted() || form.get('complementoApelido')?.touched) && form.get('complementoApelido')?.valid
-          }" />
-
-        <div *ngIf="getError('complementoApelido') && (submitted() || form.get('complementoApelido')?.touched)"
-          id="complementoTooltip" class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
-          {{ getError('complementoApelido') }}
-        </div>
-      </div>
-
       </div>
       }
       @case (1) {

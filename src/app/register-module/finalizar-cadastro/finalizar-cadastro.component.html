@@ -83,7 +83,7 @@
             name="nickname"
             required
             minlength="4"
-            maxlength="24"
+            [maxlength]="nicknameMaxLength"
             autocomplete="nickname"
             class="app-control"
             placeholder="Como você quer aparecer?"
@@ -95,7 +95,7 @@
           />
 
           <p class="field-hint" id="nickname-hint">
-            Use de 4 a 24 caracteres. O apelido será reservado ao concluir o cadastro.
+            Use pelo menos 4 caracteres. O apelido será reservado ao concluir o cadastro.
           </p>
 
           @if (isFieldInvalid('nickname')) {
