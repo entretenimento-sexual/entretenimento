@@ -64,6 +64,17 @@ describe('EmailVerificationService canonical errors', () => {
     expect(auth.languageCode).toBe('pt-BR');
   });
 
+  it.each([true, false])('configura o retorno para o cadastro (emulador: %s)', (isEmulator) => {
+    Object.assign(service, { isEmulator: () => isEmulator });
+
+    const settings = service['buildActionCodeSettings']('http://localhost:4200');
+
+    expect(settings).toEqual({
+      url: 'http://localhost:4200/register/welcome?autocheck=1',
+      handleCodeInApp: !isEmulator,
+    });
+  });
+
   it('preserva erro público de sessão ausente no resend sem diagnóstico técnico', async () => {
     await expect(
       firstValueFrom(service.resendVerificationEmail())

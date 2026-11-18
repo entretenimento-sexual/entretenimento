@@ -126,14 +126,14 @@ export class EmailVerificationService {
   }
 
   private buildContinueUrl(base: string): string {
-    return `${base}/post-verification/action`;
+    return `${base}/register/welcome?autocheck=1`;
   }
 
   private buildActionCodeSettings(base?: string): ActionCodeSettings {
     const continueBase = base ?? this.preferredBaseUrl();
     const settings: ActionCodeSettings = {
       url: this.buildContinueUrl(continueBase),
-      handleCodeInApp: true,
+      handleCodeInApp: !this.isEmulator(),
     };
 
     const config = environment as typeof environment & {
@@ -162,7 +162,7 @@ export class EmailVerificationService {
     redirectUrl?: string
   ): Observable<void> {
     const primarySettings = redirectUrl
-      ? ({ url: redirectUrl, handleCodeInApp: true } as ActionCodeSettings)
+      ? { url: redirectUrl, handleCodeInApp: !this.isEmulator() }
       : this.buildActionCodeSettings();
     const fallbackSettings = this.buildActionCodeSettings(
       this.safeBaseUrl()

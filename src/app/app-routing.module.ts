@@ -13,6 +13,7 @@ import { LayoutShellComponent } from './layout/layout-shell/layout-shell.compone
 import { FooterRoutingModule } from './footer/footer-routing.module';
 import { accountLifecycleGuard } from './account/guards/account-lifecycle.guard';
 import { registrationStepGuard } from './register-module/data-access/registration-step.guard';
+import { legacyEmailVerificationReturnGuard } from './register-module/data-access/legacy-email-verification-return.guard';
 
 const routes: Routes = [
   {
@@ -147,6 +148,7 @@ const routes: Routes = [
 
       {
         path: 'post-verification/action',
+        canActivate: [legacyEmailVerificationReturnGuard],
         loadComponent: () =>
           import('./register-module/auth-verification-handler/auth-verification-handler.component')
             .then(m => m.AuthVerificationHandlerComponent),
