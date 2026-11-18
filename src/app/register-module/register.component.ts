@@ -40,6 +40,7 @@ import {
 } from 'rxjs/operators';
 import { toObservable, toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { REGISTRATION_ACTION_TIMEOUT_MS } from './data-access/register-action.policy';
+import { clearSignupDraft, readSignupDraft, writeSignupDraft } from './data-access/signup-draft.storage';
 
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
 import { ADULT_SELF_DECLARATION_TEXT_PT_BR } from 'src/app/core/services/compliance/platform-legal.constants';
@@ -111,6 +112,9 @@ export class RegisterComponent {
 
   constructor(private readonly auth: Auth) {
     this.setupNicknameAvailabilityPipeline();
+    this.restoreSignupDraft();
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.saveSignupDraft());
   }
 
   // ---------------- Debug opt-in ----------------
@@ -208,6 +212,7 @@ export class RegisterComponent {
   // As telas compartilham o FormGroup em memória. Conta e senha só são
   // enviadas ao serviço depois da validação final das três telas.
   readonly sectionIndex = signal(0);
+  private recheckingRestoredNickname = false;
   readonly currentSection = computed(() => SIGNUP_SECTIONS[this.sectionIndex()]);
   readonly sectionCount = SIGNUP_SECTIONS.length;
   readonly lastSection = computed(() => this.sectionIndex() === this.sectionCount - 1);
@@ -215,6 +220,40 @@ export class RegisterComponent {
     ? null
     : SIGNUP_SECTIONS[this.sectionIndex() + 1]?.title ?? null
   );
+
+  private restoreSignupDraft(): void {
+    const draft = readSignupDraft();
+    if (!draft) return;
+    this.form.patchValue({
+      apelidoPrincipal: draft.apelidoPrincipal,
+      complementoApelido: draft.complementoApelido,
+      email: draft.email,
+    });
+    const valid = this.form.get('apelidoPrincipal')?.valid === true &&
+      !this.form.hasError('invalidFullNickname');
+    // A última etapa requer senha. Retomar no acesso evita um avanço enganoso.
+    const target = valid ? Math.min(draft.sectionIndex, 1) : 0;
+    this.sectionIndex.set(target);
+    if (target > 0) {
+      this.recheckingRestoredNickname = true;
+      this.nicknameFeedbackArmed.set(true);
+      this.nicknameCheckRequests$.next(true);
+      this.errorNotification.showInfo(
+        'Cadastro retomado. Informe a senha novamente para continuar.'
+      );
+    }
+  }
+
+  private saveSignupDraft(): void {
+    if (this.accountCreated()) return;
+    const { apelidoPrincipal, complementoApelido, email } = this.form.getRawValue();
+    writeSignupDraft({
+      sectionIndex: this.sectionIndex() as 0 | 1 | 2,
+      apelidoPrincipal: String(apelidoPrincipal ?? ''),
+      complementoApelido: String(complementoApelido ?? ''),
+      email: String(email ?? ''),
+    });
+  }
 
   // ---------------- Nickname UX state ----------------
   private readonly nicknameCheckRequests$ = new Subject<boolean>();
@@ -343,6 +382,14 @@ export class RegisterComponent {
     } else {
       this.clearApelidoEmUsoError();
       this.nicknameCheckState.set('provisional');
+    }
+    if (this.recheckingRestoredNickname) {
+      this.recheckingRestoredNickname = false;
+      if (taken) {
+        this.openSection(0, 'apelidoPrincipal');
+        this.nicknameFeedbackArmed.set(true);
+        this.nicknameFeedbackAttempt.update(value => value + 1);
+      }
     }
   }
 
@@ -624,6 +671,7 @@ export class RegisterComponent {
 
   private openSection(index: number, field?: string): void {
     this.sectionIndex.set(index);
+    this.saveSignupDraft();
     this.submitted.set(false);
     this.banner.set(null);
     this.showPassword.set(false);
@@ -648,6 +696,12 @@ export class RegisterComponent {
       this.errorNotification.showInfo(
         'Aguarde a validação do apelido terminar.'
       );
+      return;
+    }
+
+    if (this.nicknameCheckState() !== 'provisional') {
+      this.showInvalidSection(0, 'apelidoPrincipal');
+      this.nicknameCheckRequests$.next(true);
       return;
     }
 
@@ -681,7 +735,10 @@ export class RegisterComponent {
 
     this.registerService.registerUser(payload, password)
       .pipe(
-        tap(() => this.accountCreated.set(true)),
+        tap(() => {
+          this.accountCreated.set(true);
+          clearSignupDraft();
+        }),
         switchMap((result) => this.waitForAuthUserOnce(8000, result.user.uid).pipe(
           switchMap(() => {
             if (this.auth.currentUser?.uid !== result.user.uid) {
@@ -747,6 +804,7 @@ export class RegisterComponent {
 
           if (code === 'registration-account-created') {
             this.accountCreated.set(true);
+            clearSignupDraft();
             this.setBanner('warn', 'Sua conta foi criada',
               'Entre com o e-mail usado no cadastro para continuar.', err, true);
             return;

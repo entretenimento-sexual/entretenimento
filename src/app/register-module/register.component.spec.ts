@@ -11,6 +11,7 @@ import { of, Subject, throwError } from 'rxjs';
 import { Auth } from '@angular/fire/auth';
 
 import { RegisterComponent } from './register.component';
+import { SIGNUP_DRAFT_KEY } from './data-access/signup-draft.storage';
 import { RegistrationFeedbackTooltipDirective } from './registration-feedback-tooltip.directive';
 import { FirestoreValidationService } from '../core/services/data-handling/firestore/validation/firestore-validation.service';
 import { RegisterService } from '../core/services/autentication/register/register.service';
@@ -56,6 +57,7 @@ describe('RegisterComponent', () => {
   let router: Router;
 
   beforeEach(async () => {
+    window.sessionStorage.removeItem(SIGNUP_DRAFT_KEY);
     await TestBed.configureTestingModule({
       declarations: [RegisterComponent],
       imports: [
@@ -93,6 +95,63 @@ describe('RegisterComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('retoma a segunda etapa após refresh sem guardar senha nem aceites', () => {
+    component.form.patchValue({ apelidoPrincipal: 'visualteste', complementoApelido: 'RJ' });
+    component.onNicknameBlur();
+    component.submitSection();
+    expect(component.sectionIndex()).toBe(1);
+    component.form.patchValue({
+      email: 'teste@example.com', password: 'SenhaSegura123',
+      confirmPassword: 'SenhaSegura123', confirmarMaioridade: true, aceitarTermos: true,
+    });
+    const snapshot = window.sessionStorage.getItem(SIGNUP_DRAFT_KEY) ?? '';
+    expect(snapshot).toContain('visualteste');
+    expect(snapshot).toContain('teste@example.com');
+    expect(snapshot).not.toContain('SenhaSegura123');
+    expect(snapshot).not.toContain('confirmarMaioridade');
+    expect(snapshot).not.toContain('aceitarTermos');
+    fixture.destroy();
+
+    const reopened = TestBed.createComponent(RegisterComponent);
+    reopened.detectChanges();
+    expect(reopened.componentInstance.sectionIndex()).toBe(1);
+    expect(reopened.componentInstance.form.get('apelidoPrincipal')?.value).toBe('visualteste');
+    expect(reopened.componentInstance.form.get('complementoApelido')?.value).toBe('RJ');
+    expect(reopened.componentInstance.form.get('email')?.value).toBe('teste@example.com');
+    expect(reopened.componentInstance.form.get('password')?.value).toBe('');
+    expect(reopened.componentInstance.form.get('aceitarTermos')?.value).toBe(false);
+    expect(reopened.componentInstance.form.get('confirmarMaioridade')?.value).toBe(false);
+    reopened.destroy();
+  });
+
+  it('reabre apelido recusado se foi reservado antes da recarga', () => {
+    window.sessionStorage.setItem(SIGNUP_DRAFT_KEY, JSON.stringify({
+      version: 1, updatedAt: Date.now(), sectionIndex: 1,
+      apelidoPrincipal: 'ocupado', complementoApelido: '', email: 'teste@example.com',
+    }));
+    const validation = TestBed.inject(FirestoreValidationService) as unknown as MockFirestoreValidationService;
+    validation.checkIfNicknameExists.mockReturnValueOnce(of(true));
+    fixture.destroy();
+    const reopened = TestBed.createComponent(RegisterComponent);
+    reopened.detectChanges();
+    expect(reopened.componentInstance.sectionIndex()).toBe(0);
+    expect(reopened.componentInstance.apelidoEmUso()).toBe(true);
+    reopened.destroy();
+  });
+
+  it('descarta rascunho vencido sem interromper o cadastro', () => {
+    window.sessionStorage.setItem(SIGNUP_DRAFT_KEY, JSON.stringify({
+      version: 1, updatedAt: Date.now() - 31 * 60_000, sectionIndex: 1,
+      apelidoPrincipal: 'antigo', complementoApelido: '', email: 'teste@example.com',
+    }));
+    fixture.destroy();
+    const reopened = TestBed.createComponent(RegisterComponent);
+    reopened.detectChanges();
+    expect(reopened.componentInstance.sectionIndex()).toBe(0);
+    expect(reopened.componentInstance.form.get('apelidoPrincipal')?.value).toBe('');
+    reopened.destroy();
   });
 
   it('troca a cena ao avançar, sem alterar a identidade visual do apelido ao voltar', () => {
