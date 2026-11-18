@@ -115,6 +115,8 @@ describe('RegisterComponent', () => {
     expect(fixture.nativeElement.querySelector('#apelidoTooltip')?.textContent)
       .toContain('Este apelido já está em uso.');
     expect(fixture.nativeElement.querySelector('.nickname-indicator--checked')).toBeNull();
+    expect(fixture.debugElement.query(By.css('.nickname-indicator--rejected')).injector.get(MatTooltip).message)
+      .toBe('Este apelido já está em uso.');
 
     component.form.patchValue({ apelidoPrincipal: 'visual@teste' });
     component.onNicknameTyping();
@@ -123,6 +125,20 @@ describe('RegisterComponent', () => {
 
     expect(fixture.nativeElement.querySelector('#apelidoTooltip')?.textContent)
       .toContain('Use letras, números, ponto, hífen ou sublinhado.');
+    expect(fixture.debugElement.query(By.css('.nickname-indicator--rejected')).injector.get(MatTooltip).message)
+      .toContain('Use letras, números, ponto, hífen ou sublinhado.');
+  });
+
+  it('avisa quando a consulta falha sem marcar o apelido como recusado', () => {
+    const validation = TestBed.inject(FirestoreValidationService) as unknown as MockFirestoreValidationService;
+    validation.checkIfNicknameExists.mockReturnValueOnce(throwError(() => new Error('offline')));
+    component.form.patchValue({ apelidoPrincipal: 'visualteste' });
+    component.onNicknameBlur();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('#apelidoConsultaErro')?.textContent)
+      .toContain('Consulta indisponível.');
+    expect(fixture.nativeElement.querySelector('.nickname-indicator--rejected')).toBeNull();
   });
 
   it('exibe apenas a tela atual e cria a conta somente após confirmar a última', async () => {

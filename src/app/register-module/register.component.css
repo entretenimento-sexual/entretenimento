@@ -653,19 +653,26 @@
   pointer-events: none;
 }
 
-.nickname-indicator--checked {
+.nickname-indicator--details {
   inset-inline-end: 2px;
   inline-size: 44px;
   block-size: 44px;
   border: 0;
   padding: 0;
   background: transparent;
-  color: var(--success-color);
   cursor: help;
   pointer-events: auto;
 }
 
-.nickname-indicator--checked::after {
+.nickname-indicator--checked {
+  color: var(--success-color);
+}
+
+.nickname-indicator--rejected {
+  color: var(--danger-color);
+}
+
+.nickname-indicator--details::after {
   content: '';
   grid-area: 1 / 1;
   inline-size: 22px;
@@ -686,11 +693,19 @@
   transform: translateY(-1px) rotate(45deg);
 }
 
-.nickname-indicator--checked:focus-visible {
+.nickname-indicator__cross {
+  grid-area: 1 / 1;
+  z-index: 1;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.nickname-indicator--details:focus-visible {
   outline: none;
 }
 
-.nickname-indicator--checked:focus-visible::after {
+.nickname-indicator--details:focus-visible::after {
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }

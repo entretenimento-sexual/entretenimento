@@ -70,6 +70,8 @@
 
       @switch (sectionIndex()) {
       @case (0) {
+      @let nicknameError = !nicknameChecking() && (submitted() || nicknameFeedbackArmed())
+        ? getError('apelidoPrincipal') : null;
       @let nicknameNoPublicConflict = nicknameFeedbackArmed()
         && nicknameCheckState() === 'provisional'
         && form.get('apelidoPrincipal')?.valid
@@ -107,12 +109,17 @@
               <span class="nickname-indicator nickname-indicator--checking" aria-hidden="true">
                 <span class="inline-spinner"></span>
               </span>
-            } @else if (nicknameNoPublicConflict) {
-              <button type="button" class="nickname-indicator nickname-indicator--checked"
-                aria-label="Detalhes da disponibilidade do apelido"
-                matTooltip="Apelido disponível"
+            } @else if (nicknameError || nicknameNoPublicConflict) {
+              <button type="button" class="nickname-indicator nickname-indicator--details"
+                [class.nickname-indicator--checked]="!nicknameError"
+                [class.nickname-indicator--rejected]="!!nicknameError"
+                [attr.aria-label]="nicknameError ? 'Motivo da recusa do apelido' : 'Detalhes da disponibilidade do apelido'"
+                [matTooltip]="nicknameError || 'Apelido disponível'"
                 matTooltipPosition="above" matTooltipTouchGestures="off"
                 #nicknameTooltip="matTooltip" (click)="nicknameTooltip.show(0)">
+                @if (nicknameError) {
+                  <span class="nickname-indicator__cross" aria-hidden="true">×</span>
+                }
               </button>
             }
             <span id="apelidoStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true">
@@ -135,12 +142,8 @@
           </div>
         </div>
 
-        <div *ngIf="
-            getError('apelidoPrincipal')
-            && (submitted() || nicknameFeedbackArmed())
-            && !nicknameChecking()
-          " id="apelidoTooltip" class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
-          {{ getError('apelidoPrincipal') }}
+        <div *ngIf="nicknameError" id="apelidoTooltip" class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
+          {{ nicknameError }}
         </div>
       </div>
 
