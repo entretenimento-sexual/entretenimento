@@ -49,7 +49,7 @@ describe('RegisterService', () => {
   let sendEmail: ReturnType<typeof vi.fn>;
   let acceptTerms: ReturnType<typeof vi.fn>;
   let createFirebaseUser: ReturnType<typeof vi.fn>;
-  let updateDisplayName: ReturnType<typeof vi.fn>;
+  let rememberPendingSignupAcceptance: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     Object.defineProperty(window.navigator, 'onLine', {
@@ -67,7 +67,7 @@ describe('RegisterService', () => {
     sendEmail = vi.fn(() => of(void 0));
     acceptTerms = vi.fn(() => of({ signupAdultDeclarationRecorded: true }));
     createFirebaseUser = vi.fn();
-    updateDisplayName = vi.fn().mockResolvedValue(undefined);
+    rememberPendingSignupAcceptance = vi.fn();
 
     TestBed.configureTestingModule({
       providers: [
@@ -89,6 +89,7 @@ describe('RegisterService', () => {
           provide: TermsAcceptanceService,
           useValue: {
             acceptForUser$: acceptTerms,
+            rememberPendingSignupAcceptance,
           },
         },
         {
@@ -119,7 +120,7 @@ describe('RegisterService', () => {
     });
 
     service = TestBed.inject(RegisterService);
-    Object.assign(service, { createFirebaseUser, updateDisplayName });
+    Object.assign(service, { createFirebaseUser });
   });
 
   it('should be created', () => {
@@ -288,7 +289,7 @@ describe('RegisterService', () => {
     });
     expect(reserve).toHaveBeenCalledOnce();
     expect(acceptTerms).toHaveBeenCalledWith(user.uid, { signupAdultDeclaration: true });
-    expect(updateDisplayName).not.toHaveBeenCalled();
+    expect(rememberPendingSignupAcceptance).toHaveBeenCalledWith(user.uid);
     expect(user.delete).not.toHaveBeenCalled();
   });
 

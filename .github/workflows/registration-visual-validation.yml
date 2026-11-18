@@ -488,7 +488,7 @@ jobs:
             }));
             await page.locator('#apelidoPrincipal').fill('visualteste');
             await page.locator('#complementoApelido').focus();
-            const feedback = page.locator('.inline-feedback .badge').filter({ hasText: 'Sujeito à confirmação' });
+            const feedback = page.locator('.inline-feedback .badge').filter({ hasText: 'Nenhum perfil público usa este apelido' });
             await feedback.waitFor({ state: 'visible' });
             const feedbackBox = await feedback.boundingBox();
             const nicknameField = await page.locator('.nickname-field').boundingBox();

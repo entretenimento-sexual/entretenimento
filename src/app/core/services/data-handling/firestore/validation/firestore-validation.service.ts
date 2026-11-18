@@ -1,7 +1,7 @@
 // Nickname pre-auth lookup does not expose documents from public_index.
 import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, from, of } from 'rxjs';
+import { Observable, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, tap, take } from 'rxjs/operators';
 
 import { CacheService } from '../../../general/cache/cache.service';
@@ -63,7 +63,7 @@ export class FirestoreValidationService {
           }),
           catchError((error) => {
             // Falha na pré-consulta não permite afirmar "disponível".
-            if (mode === 'soft') return of(false);
+            if (mode === 'soft') return throwError(() => error);
             return this.firestoreError.handleFirestoreError(error);
           })
         );

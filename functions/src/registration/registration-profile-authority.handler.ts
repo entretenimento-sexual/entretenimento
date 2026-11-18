@@ -2,6 +2,8 @@
 // nickname_reservations: clients cannot create aliases or bypass key normalization.
 // Separate operations preserve existing callable names and reactive Angular facade.
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { warn } from 'firebase-functions/logger';
+import type { UserRecord } from 'firebase-admin/auth';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue, Timestamp, auth } from '../firebaseApp';
@@ -99,6 +101,18 @@ function reserveInTransaction(
   }
 }
 
+async function syncRegistrationDisplayName(user: UserRecord, nickname: string): Promise<void> {
+  if (user.displayName === nickname) return;
+
+  try {
+    await auth.updateUser(user.uid, { displayName: nickname });
+  } catch (error) {
+    warn('Falha ao sincronizar o apelido do cadastro no Authentication.', {
+      code: (error as { code?: unknown } | null)?.code,
+    });
+  }
+}
+
 export const reserveRegistrationNickname = onCall<{ nickname?: unknown; expectedUid?: unknown }>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<{ nickname: string; normalized: string }> => {
@@ -116,7 +130,7 @@ export const reserveRegistrationNickname = onCall<{ nickname?: unknown; expected
     const indexRef = db.collection('public_index').doc(`nickname:${nickname.key}`);
     const reservationRef = db.collection('nickname_reservations').doc(nickname.key);
 
-    return db.runTransaction(async (tx) => {
+    const result = await db.runTransaction(async (tx) => {
       const [userSnap, indexSnap, reservationSnap] = await Promise.all([
         tx.get(userRef), tx.get(indexRef), tx.get(reservationRef),
       ]);
@@ -157,6 +171,8 @@ export const reserveRegistrationNickname = onCall<{ nickname?: unknown; expected
         indexSnap.exists, reservationSnap.exists);
       return { nickname: nickname.display, normalized: nickname.key };
     });
+    await syncRegistrationDisplayName(authUser, result.nickname);
+    return result;
   }
 );
 
@@ -197,7 +213,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
     const indexRef = db.collection('public_index').doc(`nickname:${nickname.key}`);
     const reservationRef = db.collection('nickname_reservations').doc(nickname.key);
     const ageRef = db.collection('age_eligibility_records').doc(uid);
-    return db.runTransaction(async (tx) => {
+    const result = await db.runTransaction(async (tx) => {
       const [userSnap, publicSnap, indexSnap, reservationSnap, ageSnap] =
         await Promise.all([
           tx.get(userRef), tx.get(publicRef), tx.get(indexRef),
@@ -283,5 +299,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
         indexSnap.exists, reservationSnap.exists);
       return { status: 'COMPLETED' as const, nickname: nickname.display };
     });
+    await syncRegistrationDisplayName(authUser, result.nickname);
+    return result;
   }
 );

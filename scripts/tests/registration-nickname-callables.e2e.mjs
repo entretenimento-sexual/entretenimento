@@ -103,6 +103,7 @@ async function run() {
     assert.equal((await db.doc('nickname_reservations/perfil_original').get()).exists, false);
     assert.deepEqual((await reserve({ nickname: 'Perfil Original', expectedUid: uid })).data,
       { nickname: 'Perfil Original', normalized: 'perfil_original' });
+    assert.equal((await adminAuth.getUser(uid)).displayName, 'Perfil Original');
     assert.equal((await db.doc('nickname_reservations/perfil_original').get()).get('uid'), uid);
     assert.equal((await db.doc('public_index/nickname:perfil_original').get()).get('uid'), uid);
     assert.equal((await db.doc('public_profiles/' + uid).get()).exists, false);
@@ -199,6 +200,7 @@ async function run() {
 
     assert.equal((await completeOther({ ...otherProfile, uid: otherUid })).data.status, 'COMPLETED');
     assert.equal((await otherRef.get()).get('profileCompleted'), true);
+    assert.equal((await adminAuth.getUser(otherUid)).displayName, otherProfile.nickname);
 
     const signup = makeClient('signup');
     const secondDevice = makeClient('signup-second-device');

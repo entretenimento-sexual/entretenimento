@@ -19,7 +19,12 @@ describe('TermsAcceptancePageComponent', () => {
   let component: TermsAcceptancePageComponent;
   let router: Router;
 
-  let termsAcceptanceMock: { acceptCurrentTerms$: MockFn };
+  let termsAcceptanceMock: {
+    acceptCurrentTerms$: MockFn;
+    acceptForUser$: MockFn;
+    clearPendingSignupAcceptance: MockFn;
+    hasPendingSignupAcceptance: MockFn;
+  };
   let logoutMock: { logout$: MockFn };
   let globalErrorHandlerMock: { handleError: MockFn };
   let errorNotifierMock: {
@@ -32,6 +37,9 @@ describe('TermsAcceptancePageComponent', () => {
   beforeEach(async () => {
     termsAcceptanceMock = {
       acceptCurrentTerms$: vi.fn(() => of({ uid: 'u1' })),
+      acceptForUser$: vi.fn(() => of({ uid: 'u1' })),
+      clearPendingSignupAcceptance: vi.fn(),
+      hasPendingSignupAcceptance: vi.fn(() => false),
     };
 
     logoutMock = {
@@ -120,6 +128,18 @@ describe('TermsAcceptancePageComponent', () => {
     expect(errorNotifierMock.showWarning).toHaveBeenCalledWith(
       'Confirme o aceite dos Termos de Uso e a ciência da Política de Privacidade.'
     );
+  });
+
+  it('retoma o aceite explícito pendente da conta atual sem exigir outro clique', () => {
+    termsAcceptanceMock.hasPendingSignupAcceptance.mockReturnValue(true);
+    fixture.destroy();
+    fixture = TestBed.createComponent(TermsAcceptancePageComponent);
+    component = fixture.componentInstance;
+
+    expect(termsAcceptanceMock.acceptForUser$).toHaveBeenCalledWith('u1', { signupAdultDeclaration: true });
+    expect(termsAcceptanceMock.acceptCurrentTerms$).not.toHaveBeenCalled();
+    expect(component.acceptanceConfirmed()).toBe(true);
+    expect(router.navigateByUrl).toHaveBeenCalled();
   });
 
   it('mantém um único feedback de UI quando o serviço de aceite propaga uma falha', () => {

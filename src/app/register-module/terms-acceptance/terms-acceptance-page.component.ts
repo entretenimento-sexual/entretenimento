@@ -67,6 +67,7 @@ export class TermsAcceptancePageComponent {
   readonly isMaterialUpdate$: Observable<boolean>;
   readonly currentTermsAccepted$: Observable<boolean>;
   readonly isSaving = signal(false);
+  readonly resumingSignupAcceptance = signal(false);
   readonly acceptanceConfirmed = signal(false);
   readonly operationMessage = signal('');
 
@@ -115,6 +116,13 @@ export class TermsAcceptancePageComponent {
     );
 
     this.redirectRecognizedAcceptance();
+    if (this.pageUid && !this.acceptanceConfirmed() &&
+        this.termsAcceptance.hasPendingSignupAcceptance(this.pageUid)) {
+      this.resumingSignupAcceptance.set(true);
+      this.submitAcceptance(this.pageUid, this.termsAcceptance.acceptForUser$(this.pageUid, {
+        signupAdultDeclaration: true,
+      }));
+    }
   }
 
   accept(): void {
@@ -136,11 +144,15 @@ export class TermsAcceptancePageComponent {
       return;
     }
 
-    this.isSaving.set(true);
-    this.operationMessage.set('');
     const accepted$ = this.acceptanceConfirmed()
       ? of({ uid })
       : this.termsAcceptance.acceptCurrentTerms$(uid);
+    this.submitAcceptance(uid, accepted$);
+  }
+
+  private submitAcceptance(uid: string, accepted$: Observable<{ uid: string }>): void {
+    this.isSaving.set(true);
+    this.operationMessage.set('');
 
     accepted$
       .pipe(
@@ -166,6 +178,7 @@ export class TermsAcceptancePageComponent {
           return EMPTY;
         }),
         finalize(() => {
+          this.resumingSignupAcceptance.set(false);
           this.isSaving.set(false);
         }),
         takeUntilDestroyed(this.destroyRef)
@@ -180,6 +193,9 @@ export class TermsAcceptancePageComponent {
 
     this.isSaving.set(true);
     if (!this.acceptanceConfirmed()) {
+      if (this.pageUid && this.currentUser.getLoggedUserUIDSnapshot() === this.pageUid) {
+        this.termsAcceptance.clearPendingSignupAcceptance(this.pageUid);
+      }
       this.errorNotifier.showWarning(
         'Sem aceitar os Termos de Uso vigentes, a conta não pode continuar usando os recursos da plataforma.',
         4200

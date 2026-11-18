@@ -17,7 +17,6 @@ import { Auth } from '@angular/fire/auth';
 
 import {
   createUserWithEmailAndPassword,
-  updateProfile,
   UserCredential,
 } from 'firebase/auth';
 
@@ -92,6 +91,8 @@ export class RegisterService {
     }).pipe(
       switchMap(() => this.createCredential$(userData.email, password)),
       switchMap((cred) => {
+        this.assertActiveCredential(cred);
+        this.termsAcceptance.rememberPendingSignupAcceptance(cred.user.uid);
         const context: SignupContext = { cred, warns: [], traceId, verificationEmailSent: false };
         return defer(() => {
           this.assertActiveCredential(cred);
@@ -198,24 +199,6 @@ export class RegisterService {
         )
       ),
 
-      switchMap((ctx2) => {
-        this.assertActiveCredential(ctx2.cred);
-        if (ctx2.warns.includes('nickname-reservation-unconfirmed')) return of(ctx2);
-        return defer(() => this.updateDisplayName(ctx2.cred, (userData.nickname ?? '').trim())).pipe(
-          timeout({ first: this.NET_TIMEOUT_MS }),
-          catchError((err) => {
-            this.safeHandle('[RegisterService] Falha no updateProfile (warn).', err, {
-              operation: 'updateAuthProfile',
-              traceId,
-              uid: ctx2.cred.user.uid,
-            });
-            ctx2.warns.push('update-profile-failed');
-            return of(void 0);
-          }),
-          map(() => ctx2)
-        );
-      }),
-
       tap((ctx2) => {
         this.assertActiveCredential(ctx2.cred);
         const { user } = ctx2.cred;
@@ -266,10 +249,6 @@ export class RegisterService {
 
   private createFirebaseUser(email: string, password: string): Promise<UserCredential> {
     return createUserWithEmailAndPassword(this.auth, email, password);
-  }
-
-  private updateDisplayName(credential: UserCredential, displayName: string): Promise<void> {
-    return updateProfile(credential.user, { displayName });
   }
 
   private assertCanCreateCredential(): void {

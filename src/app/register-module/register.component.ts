@@ -26,10 +26,9 @@ import { Router } from '@angular/router';
 import { Auth, user } from '@angular/fire/auth';
 import type { User } from 'firebase/auth';
 
-import { defer, firstValueFrom, Observable, Subject, of } from 'rxjs';
+import { defer, firstValueFrom, merge, Observable, Subject, of, timer } from 'rxjs';
 import {
   catchError,
-  debounceTime,
   filter,
   finalize,
   map,
@@ -224,6 +223,7 @@ export class RegisterComponent {
   private readonly nicknameBlur$ = new Subject<void>();
 
   readonly nicknameCheckState = signal<NicknameCheckState>('idle');
+  readonly nicknameCheckError = signal('');
   private readonly nicknameCheckState$ = toObservable(this.nicknameCheckState);
   readonly awaitingNickname = signal(false);
   readonly nicknameFeedbackArmed = signal(false);
@@ -321,28 +321,20 @@ export class RegisterComponent {
   }
 
   private setupNicknameAvailabilityPipeline(): void {
-    this.nicknameTyping$
-      .pipe(
-        debounceTime(3000),
-        tap(() => {
-          this.nicknameFeedbackArmed.set(true);
-          this.dbg('nickname idle -> check');
-        }),
-        switchMap(() => this.runNicknameAvailabilityCheck$()),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-
-    this.nicknameBlur$
-      .pipe(
-        tap(() => this.dbg('nickname blur -> check')),
-        switchMap(() => this.runNicknameAvailabilityCheck$()),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
+    merge(
+      this.nicknameTyping$.pipe(map(() => false)),
+      this.nicknameBlur$.pipe(filter(() => !this.nicknameChecking()), map(() => true))
+    ).pipe(
+      switchMap((onBlur) => (onBlur ? of(0) : timer(600)).pipe(
+        tap(() => this.nicknameFeedbackArmed.set(true)),
+        switchMap(() => this.runNicknameAvailabilityCheck$())
+      )),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
   private runNicknameAvailabilityCheck$(): Observable<void> {
+    this.nicknameCheckError.set('');
     if (
       this.hasBlockingNicknameSyncErrors() ||
       this.hasBlockingComplementSyncErrors()
@@ -387,6 +379,9 @@ export class RegisterComponent {
           if (this.apelidoCompleto() !== fullNick) return of(void 0);
 
           this.dbg('nickname check error', err);
+          this.nicknameCheckError.set(err?.code === 'functions/resource-exhausted'
+            ? 'Muitas consultas de apelido. Aguarde um pouco e tente novamente.'
+            : 'Consulta indisponível. Confira a conexão e tente novamente.');
           this.nicknameCheckState.set('unverified');
           this.clearApelidoEmUsoError();
 

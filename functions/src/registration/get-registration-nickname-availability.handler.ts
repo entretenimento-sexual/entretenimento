@@ -55,10 +55,21 @@ export const getRegistrationNicknameAvailability = onCall<{ nickname?: unknown }
     if (typeof uid !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(uid)) {
       return { status: 'unconfirmed' };
     }
-    const [owner, profile] = await db.getAll(
-      db.collection('users').doc(uid),
-      db.collection('public_profiles').doc(uid)
-    );
+    const [profile] = await db.getAll(db.collection('public_profiles').doc(uid), {
+      fieldMask: ['uid', 'nicknameNormalized'],
+    });
+    if (profile.get('uid') !== uid || profile.get('nicknameNormalized') !== nickname.key) {
+      return { status: 'unconfirmed' };
+    }
+
+    // A projeção pode estar atrasada. Confere somente o estado de visibilidade,
+    // sem carregar os demais dados privados do usuário.
+    const [owner] = await db.getAll(db.collection('users').doc(uid), {
+      fieldMask: [
+        'uid', 'profileCompleted', 'accountStatus', 'publicVisibility', 'interactionBlocked',
+        'accountLocked', 'suspended', 'loginAllowed', 'deletionRequestedAt',
+      ],
+    });
     return {
       status: resolvePublicNicknameAvailability({
         key: nickname.key,

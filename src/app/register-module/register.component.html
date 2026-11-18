@@ -125,7 +125,7 @@
                 && !apelidoEmUso()
                 && nicknameCheckState() === 'provisional'
               " class="badge info">
-              Sujeito à confirmação no cadastro
+              Nenhum perfil público usa este apelido
             </div>
 
             <div *ngIf="
@@ -148,7 +148,7 @@
                 && nicknameCheckState() === 'unverified'
                 && !apelidoEmUso()
               " class="badge warn">
-              Não verificado
+              {{ nicknameCheckError() }}
             </div>
           </div>
         </div>

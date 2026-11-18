@@ -9,6 +9,7 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { LocalDraftService } from 'src/app/core/services/drafts/local-draft.service';
 import { environment } from 'src/environments/environment';
 import {
   ADULT_SELF_DECLARATION_VERSION,
@@ -108,6 +109,7 @@ export function isCurrentLegalAcceptanceSatisfied(
 
 @Injectable({ providedIn: 'root' })
 export class TermsAcceptanceService {
+  private readonly localDraft = inject(LocalDraftService);
   private readonly functions = inject(Functions);
   private readonly session = inject(AuthSessionService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
@@ -119,6 +121,33 @@ export class TermsAcceptanceService {
     AcceptPlatformTermsPayload,
     AcceptPlatformTermsResponse
   >(this.functions, 'acceptPlatformTerms');
+
+  rememberPendingSignupAcceptance(uid: string): void {
+    if (!CURRENT_LEGAL_ACCEPTANCE_ENFORCED) return;
+    this.assertActiveSession(uid);
+    this.localDraft.save(`registration-acceptance:${uid}`, {
+      uid,
+      version: TERMS_ACCEPTANCE_VERSION,
+      terms: TERMS_DOCUMENT_VERSION,
+      privacy: PRIVACY_NOTICE_VERSION,
+      declaration: ADULT_SELF_DECLARATION_VERSION,
+    });
+  }
+
+  hasPendingSignupAcceptance(uid: string): boolean {
+    const user = this.session.currentAuthUser;
+    if (!CURRENT_LEGAL_ACCEPTANCE_ENFORCED || this.session.isTerminatingSnapshot ||
+        user?.uid !== uid || !user.emailVerified) return false;
+    const draft = this.localDraft.load(`registration-acceptance:${uid}`);
+    return draft?.['uid'] === uid && draft['version'] === TERMS_ACCEPTANCE_VERSION &&
+      draft['terms'] === TERMS_DOCUMENT_VERSION &&
+      draft['privacy'] === PRIVACY_NOTICE_VERSION &&
+      draft['declaration'] === ADULT_SELF_DECLARATION_VERSION;
+  }
+
+  clearPendingSignupAcceptance(uid: string): void {
+    this.localDraft.remove(`registration-acceptance:${uid}`);
+  }
 
   acceptCurrentTerms$(expectedUid = this.session.currentAuthUser?.uid): Observable<AcceptedPlatformTermsResult> {
     /**
@@ -233,6 +262,9 @@ export class TermsAcceptanceService {
 
         if (this.currentUserStore.getSnapshot()?.uid === safeUid) {
           this.currentUserStore.patch({ acceptedTerms: record });
+        }
+        if (signupAdultDeclaration && result.signupAdultDeclarationRecorded === true) {
+          this.clearPendingSignupAcceptance(safeUid);
         }
 
         return {
