@@ -9,6 +9,14 @@
 5. Termos vigentes, declaração 18+ e avaliação etária canônica, com aceites explícitos e versionados.
 6. Conclusão de perfil, manutenção do UID esperado, transação protegida e liberação somente depois da decisão backend.
 
+## Risco documentado pelo Firebase — contas já existentes
+
+O Firebase Auth informa que a autenticação por link pode **invalidar sessões anteriores e remover a senha de uma conta criada com e-mail/senha ainda não verificada**, no momento em que o link é consumido. Isso não pode ser introduzido silenciosamente em um cadastro existente. Fonte: https://firebase.google.com/docs/auth/web/email-link-auth
+
+A ativação do novo provedor dependerá de um teste reproduzível em Auth Emulator com contas antigas (e-mail verificado/não verificado), link usado em outra sessão, criação de senha após o link, e um bloqueio inequívoco contra entrada em perfil de outra conta. Não usar `sendEmailVerification` como substituto de `sendSignInLinkToEmail`. Enquanto o teste não passar, manter **desativada** a nova jornada de autenticação.
+
+A sequência fotográfica será preparada em um pacote local com imagens WebP; não apontar a `main` para imagens ausentes ou dependentes de hospedagem pública externa.
+
 ## Dependências de segurança obrigatórias antes da virada
 - **Autoridade etária:** o fluxo atual exige declaração 18+ antes de criar o UID. Como `signInWithEmailLink` cria/autentica a conta no primeiro clique, preservar a declaração pré-Auth na própria confirmação do link, imediatamente antes de consumi-lo; não presumir maioridade com base em e-mail confirmado. A declaração autenticada e os termos continuam na fase canônica; sem duplicar consentimentos.
 - **Estado canônico:** introduzir `passwordSetup` como etapa do `RegisterFlowFacade` / `RegisterNavigationService` somente com evidência de criação de credencial; conta recém-autenticada por link sem senha não pode pular para Termos, Perfil ou Preferências. Estado protegido pelo backend, vinculado ao UID e resistente a troca de sessão.
