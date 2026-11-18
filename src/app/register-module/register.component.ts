@@ -504,7 +504,11 @@ export class RegisterComponent {
       controlName === 'apelidoPrincipal' &&
       this.form.hasError('invalidFullNickname')
     ) {
-      return 'Apelido completo inválido.';
+      const length = this.apelidoCompleto().length;
+      if (length < NicknameUtils.DISPLAY_MIN_LEN || length > NicknameUtils.DISPLAY_MAX_LEN) {
+        return `O apelido completo deve ter entre ${NicknameUtils.DISPLAY_MIN_LEN} e ${NicknameUtils.DISPLAY_MAX_LEN} caracteres.`;
+      }
+      return 'Use letras, números, ponto, hífen ou sublinhado. O espaço separa o apelido do complemento.';
     }
 
     if (errs['required']) {
@@ -542,7 +546,7 @@ export class RegisterComponent {
     if (errs['maxlength']) {
       return `Máximo de ${errs['maxlength'].requiredLength} caracteres.`;
     }
-    if (errs['invalidNickname']) return 'Contém caracteres inválidos.';
+    if (errs['invalidNickname']) return 'Use letras, números, ponto, hífen ou sublinhado.';
     if (errs['apelidoEmUso']) return 'Este apelido já está em uso.';
 
     return null;

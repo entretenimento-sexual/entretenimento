@@ -16,6 +16,7 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { RegisterRoutingModule } from './register-routing.module';
 import { RegisterComponent } from './register.component';
@@ -39,6 +40,7 @@ import { FormValidationFocusDirective } from '../shared/form-validation-focus/fo
     CommonModule,
     ReactiveFormsModule,
     FormsModule,
+    MatTooltipModule,
     SharedModule,
     RegisterRoutingModule,
     RegisterProgressComponent,

@@ -325,12 +325,6 @@
   white-space: normal;
 }
 
-.badge.error {
-  background: color-mix(in oklab, var(--danger-color) 14%, transparent);
-  color: color-mix(in oklab, var(--text-color) 92%, transparent);
-  border-color: color-mix(in oklab, var(--danger-color) 28%, transparent);
-}
-
 .badge.warn {
   background: color-mix(in oklab, var(--snackbar-warning) 16%, transparent);
   color: color-mix(in oklab, var(--text-color) 92%, transparent);
@@ -643,7 +637,7 @@
 }
 
 .nickname-field .input-wrapper .app-control {
-  padding-inline-end: 2.6rem;
+  padding-inline-end: 3rem;
 }
 
 .nickname-indicator {
@@ -660,18 +654,45 @@
 }
 
 .nickname-indicator--checked {
+  inset-inline-end: 2px;
+  inline-size: 44px;
+  block-size: 44px;
+  border: 0;
+  padding: 0;
+  background: transparent;
   color: var(--success-color);
+  cursor: help;
+  pointer-events: auto;
+}
+
+.nickname-indicator--checked::after {
+  content: '';
+  grid-area: 1 / 1;
+  inline-size: 22px;
+  block-size: 22px;
+  border-radius: 50%;
   background: color-mix(in oklab, currentColor 14%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in oklab, currentColor 32%, transparent);
 }
 
 .nickname-indicator--checked::before {
   content: '';
+  grid-area: 1 / 1;
+  z-index: 1;
   inline-size: 5px;
   block-size: 9px;
   border: solid currentColor;
   border-width: 0 2px 2px 0;
   transform: translateY(-1px) rotate(45deg);
+}
+
+.nickname-indicator--checked:focus-visible {
+  outline: none;
+}
+
+.nickname-indicator--checked:focus-visible::after {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
 .password-field {

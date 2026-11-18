@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { ReactiveFormsModule } from '@angular/forms';
+import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
@@ -58,6 +59,7 @@ describe('RegisterComponent', () => {
       declarations: [RegisterComponent],
       imports: [
         ReactiveFormsModule,
+        MatTooltipModule,
         RouterTestingModule,
         ActionStateDirective,
         FormValidationFocusDirective,
@@ -89,6 +91,38 @@ describe('RegisterComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('mostra os detalhes da consulta no botão do visto sem enviar o formulário', () => {
+    component.form.patchValue({ apelidoPrincipal: 'visualteste' });
+    component.onNicknameBlur();
+    fixture.detectChanges();
+
+    const indicator = fixture.debugElement.query(By.css('.nickname-indicator--checked'));
+    expect(indicator.nativeElement.type).toBe('button');
+    expect(indicator.injector.get(MatTooltip).message)
+      .toBe('Apelido disponível na consulta pública. A reserva é confirmada ao criar a conta.');
+    expect(registerService.registerUser).not.toHaveBeenCalled();
+  });
+
+  it('explica quando o apelido está em uso ou quando o formato é inválido', () => {
+    const validation = TestBed.inject(FirestoreValidationService) as unknown as MockFirestoreValidationService;
+    validation.checkIfNicknameExists.mockReturnValueOnce(of(true));
+    component.form.patchValue({ apelidoPrincipal: 'visualteste' });
+    component.onNicknameBlur();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('#apelidoTooltip')?.textContent)
+      .toContain('Este apelido já está em uso.');
+    expect(fixture.nativeElement.querySelector('.nickname-indicator--checked')).toBeNull();
+
+    component.form.patchValue({ apelidoPrincipal: 'visual@teste' });
+    component.onNicknameTyping();
+    component.onNicknameBlur();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('#apelidoTooltip')?.textContent)
+      .toContain('Use letras, números, ponto, hífen ou sublinhado.');
   });
 
   it('exibe apenas a tela atual e cria a conta somente após confirmar a última', async () => {

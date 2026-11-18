@@ -90,8 +90,7 @@
             <input id="apelidoPrincipal" formControlName="apelidoPrincipal" type="text" class="app-control"
               name="nickname" autocomplete="nickname" placeholder="Ex: casadinho" spellcheck="false"
               autocapitalize="none" inputmode="text" maxlength="12" aria-label="Apelido"
-              aria-describedby="apelidoTooltip apelidoStatus" (input)="onNicknameTyping()" (blur)="onNicknameBlur()"
-              [attr.title]="nicknameNoPublicConflict ? 'Nenhum perfil público usa este apelido' : null"
+              aria-describedby="apelidoTooltip apelidoStatus apelidoConsultaErro" (input)="onNicknameTyping()" (blur)="onNicknameBlur()"
               [attr.aria-invalid]="
                 (submitted() || form.get('apelidoPrincipal')?.touched || nicknameFeedbackArmed())
                 && (form.get('apelidoPrincipal')?.invalid || form.hasError('invalidFullNickname'))
@@ -109,7 +108,12 @@
                 <span class="inline-spinner"></span>
               </span>
             } @else if (nicknameNoPublicConflict) {
-              <span class="nickname-indicator nickname-indicator--checked" aria-hidden="true"></span>
+              <button type="button" class="nickname-indicator nickname-indicator--checked"
+                aria-label="Detalhes da disponibilidade do apelido"
+                matTooltip="Apelido disponível na consulta pública. A reserva é confirmada ao criar a conta."
+                matTooltipPosition="above" matTooltipTouchGestures="off"
+                #nicknameTooltip="matTooltip" (click)="nicknameTooltip.show(0)">
+              </button>
             }
             <span id="apelidoStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true">
               {{ nicknameChecking() ? 'Verificando apelido.' : nicknameNoPublicConflict ? 'Nenhum perfil público usa este apelido.' : '' }}
@@ -119,24 +123,13 @@
           <div class="inline-feedback" aria-live="polite">
             <div *ngIf="
                 !nicknameChecking()
-                && (submitted() || nicknameFeedbackArmed())
-                && !form.hasError('invalidFullNickname')
-                && ((apelidoCompleto() || '').length >= 4)
-                && ((apelidoCompleto() || '').length <= 24)
-                && (apelidoEmUso() || nicknameCheckState() === 'taken')
-              " class="badge error">
-              Em uso
-            </div>
-
-            <div *ngIf="
-                !nicknameChecking()
                 && nicknameFeedbackArmed()
                 && !form.hasError('invalidFullNickname')
                 && ((apelidoCompleto() || '').length >= 4)
                 && ((apelidoCompleto() || '').length <= 24)
                 && nicknameCheckState() === 'unverified'
                 && !apelidoEmUso()
-              " class="badge warn">
+              " id="apelidoConsultaErro" class="badge warn">
               {{ nicknameCheckError() }}
             </div>
           </div>

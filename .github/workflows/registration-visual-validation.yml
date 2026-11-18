@@ -520,6 +520,11 @@ jobs:
               await page.screenshot({ path: '$OUT/' + screenshot, fullPage: true });
             }
             await page.setViewportSize({ width: 390, height: 844 });
+            await indicator.click();
+            await page.locator('.mat-mdc-tooltip-surface').filter({
+              hasText: 'Apelido disponível na consulta pública. A reserva é confirmada ao criar a conta.',
+            }).waitFor({ state: 'visible' });
+            await page.keyboard.press('Escape');
             await submit.click();
             await page.locator('#email').waitFor({ state: 'visible' });
             if (await page.locator('app-register-progress .next strong').textContent() !== 'Confirme para criar a conta') {
