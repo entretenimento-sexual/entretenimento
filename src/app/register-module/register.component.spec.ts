@@ -101,7 +101,7 @@ describe('RegisterComponent', () => {
     const indicator = fixture.debugElement.query(By.css('.nickname-indicator--checked'));
     expect(indicator.nativeElement.type).toBe('button');
     expect(indicator.injector.get(MatTooltip).message)
-      .toBe('Apelido disponível na consulta pública. A reserva é confirmada ao criar a conta.');
+      .toBe('Apelido disponível');
     expect(registerService.registerUser).not.toHaveBeenCalled();
   });
 

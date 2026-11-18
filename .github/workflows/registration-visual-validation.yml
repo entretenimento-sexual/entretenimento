@@ -504,7 +504,7 @@ jobs:
             if (!pendingSubmit || !checkedSubmit || Math.abs(checkedSubmit.y - pendingSubmit.y) > 1) {
               throw new Error('Nickname confirmation must not move the submit button');
             }
-            if (await page.locator('#apelidoStatus').textContent().then(text => text.trim()) !== 'Nenhum perfil público usa este apelido.') {
+            if (await page.locator('#apelidoStatus').textContent().then(text => text.trim()) !== 'Apelido disponível') {
               throw new Error('Nickname confirmation needs an accessible description');
             }
             for (const width of [390, 1077]) {
@@ -522,7 +522,7 @@ jobs:
             await page.setViewportSize({ width: 390, height: 844 });
             await indicator.click();
             await page.locator('.mat-mdc-tooltip-surface').filter({
-              hasText: 'Apelido disponível na consulta pública. A reserva é confirmada ao criar a conta.',
+              hasText: /^Apelido disponível$/,
             }).waitFor({ state: 'visible' });
             await page.keyboard.press('Escape');
             await submit.click();

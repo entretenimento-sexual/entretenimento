@@ -110,13 +110,13 @@
             } @else if (nicknameNoPublicConflict) {
               <button type="button" class="nickname-indicator nickname-indicator--checked"
                 aria-label="Detalhes da disponibilidade do apelido"
-                matTooltip="Apelido disponível na consulta pública. A reserva é confirmada ao criar a conta."
+                matTooltip="Apelido disponível"
                 matTooltipPosition="above" matTooltipTouchGestures="off"
                 #nicknameTooltip="matTooltip" (click)="nicknameTooltip.show(0)">
               </button>
             }
             <span id="apelidoStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true">
-              {{ nicknameChecking() ? 'Verificando apelido.' : nicknameNoPublicConflict ? 'Nenhum perfil público usa este apelido.' : '' }}
+              {{ nicknameChecking() ? 'Verificando apelido.' : nicknameNoPublicConflict ? 'Apelido disponível' : '' }}
             </span>
           </div>
 
