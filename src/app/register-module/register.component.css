@@ -30,8 +30,10 @@
   position: absolute;
   inset: 0 0 auto;
   z-index: -1;
+  inline-size: 100%;
   block-size: 100dvh;
   overflow: hidden;
+  background: linear-gradient(100deg, #351711 0%, #240e11 64%, #16090e 100%);
   pointer-events: none;
 }
 
@@ -46,16 +48,17 @@
   opacity: 0;
 }
 
+/* Manter a fotografia original inteira, sem ampliar o casal em monitores largos.
+   A continuidade escura ocupa o restante do viewport sob o formulário. */
 .signup-backdrop {
   position: absolute;
   inset-block-start: var(--signup-photo-top);
   inset-inline-start: 0;
-  /* Os limites preservam o casal quando a janela fica muito alta ou muito baixa. */
-  inline-size: min(100%, var(--signup-photo-height) * 2.7);
-  block-size: var(--signup-photo-height);
-  object-fit: cover;
-  object-position: 10% top;
-  mask-image: linear-gradient(to right, #000 80%, transparent);
+  inline-size: 100%;
+  block-size: max(0px, calc(100dvh - var(--signup-photo-top)));
+  object-fit: contain;
+  object-position: left center;
+  mask-image: linear-gradient(to right, #000 0%, #000 64%, transparent 86%);
 }
 
 .auth-badge,
@@ -480,16 +483,23 @@
 @media (max-width: 1000px), (max-aspect-ratio: 5/4) {
   .auth-container {
     grid-template-columns: minmax(0, 1fr);
-    /* Reserva altura para os rostos antes do cartão, inclusive em janelas baixas. */
-    padding-block-start: max(8rem, max(30vw, var(--signup-photo-height) * 0.46) + 0.75rem);
+  }
+
+  /* Em telas estreitas, reservar uma faixa de imagem sem deslocar o
+     formulário pelo dobro da altura disponível. */
+  .auth-container:not(.auth-container--stage-detail) {
+    padding-block-start: clamp(10rem, 35dvh, 22rem);
   }
 
   .form-container {
     grid-column: 1;
   }
 
-  .signup-backdrop {
-    mask-image: linear-gradient(to bottom, #000 58%, transparent);
+  .auth-container:not(.auth-container--stage-detail) .signup-backdrop {
+    block-size: min(43dvh, 360px);
+    object-fit: contain;
+    object-position: left top;
+    mask-image: linear-gradient(to bottom, #000 0%, #000 88%, transparent 100%);
   }
 }
 
@@ -787,6 +797,19 @@
 @media (prefers-reduced-motion: reduce) {
   .signup-scene {
     transition: none;
+  }
+}
+
+/* Harmonizar proporções no desktop ultrawide: card não pode parecer
+   miniatura, e a área da foto não deve crescer indefinidamente. */
+@media (min-width: 1600px) and (min-height: 640px) {
+  .auth-container:not(.auth-container--stage-detail) {
+    grid-template-columns: minmax(0, 1fr) minmax(440px, 510px);
+  }
+
+  .auth-container:not(.auth-container--stage-detail) .form-container {
+    inline-size: min(100%, clamp(440px, 26vw, 510px));
+    max-inline-size: 510px;
   }
 }
 

@@ -41,7 +41,7 @@ As duas cenas fotográficas WebP foram integradas à `main` no commit `4f3922c7`
 | Cadastro concluído | Seu perfil está pronto. | Entrar na plataforma |
 
 ## Layout e cenas
-- A primeira etapa mantém o layout fotográfico original. Nas etapas seguintes a imagem WebP é renderizada inteira com `object-fit: contain` (`object-position: left center` no desktop), sem recortar os personagens em monitores largos. O fundo escuro preenche o restante do viewport atrás do formulário à direita. Em telas estreitas, a cena completa fica acima do formulário, com altura responsiva à largura; a rolagem natural só ocorre quando necessária para manter todos os controles acessíveis.
+- Na primeira etapa, preservar a imagem original inteira com `object-fit: contain` e fundo escuro de continuidade; o card cresce proporcionalmente no ultrawide e a cena ganha faixa própria acima do formulário em telas estreitas. Nas etapas seguintes a imagem WebP é renderizada inteira com `object-fit: contain` (`object-position: left center` no desktop), sem recortar os personagens em monitores largos. O fundo escuro preenche o restante do viewport atrás do formulário à direita. Em telas estreitas, a cena completa fica acima do formulário, com altura responsiva à largura; a rolagem natural só ocorre quando necessária para manter todos os controles acessíveis.
 - Fade de ~380 ms; respeitar `prefers-reduced-motion`, sem vídeos, animações contínuas ou nova biblioteca. Imagem decorativa com `alt=""` e `aria-hidden`.
 - Padronizar a largura do card e manter as instruções curtas, com erros não modais, visíveis quando for necessária ação e anunciados por leitores de tela.
 
