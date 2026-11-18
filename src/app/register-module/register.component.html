@@ -72,7 +72,7 @@
       @case (0) {
       @let nicknameError = !nicknameChecking() && (submitted() || nicknameFeedbackArmed())
         ? getError('apelidoPrincipal') : null;
-      @let complementError = (submitted() || nicknameFeedbackArmed())
+      @let complementError = (submitted() || complementFeedbackArmed())
         ? getError('complementoApelido') : null;
       @let nicknameNoPublicConflict = nicknameFeedbackArmed()
         && nicknameCheckState() === 'provisional'
@@ -139,7 +139,7 @@
               name="nicknameSuffix" autocomplete="off" placeholder="Opcional" spellcheck="false"
               autocapitalize="none" inputmode="text" [maxlength]="nicknamePartMaxLength"
               aria-label="Complemento do apelido" aria-describedby="complementoTooltip"
-              (input)="onNicknameTyping()" (blur)="onComplementoBlur($event)"
+              (input)="onComplementoTyping()" (blur)="onComplementoBlur()"
               [attr.aria-invalid]="complementError ? true : null" />
             @if (complementError) {
               <button type="button" class="nickname-indicator nickname-indicator--details nickname-indicator--rejected"

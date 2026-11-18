@@ -394,11 +394,15 @@ jobs:
 
           playwright-cli run-code "async (page) => {
             let releaseLookup;
+            const lookups = [];
             const lookupReady = new Promise(resolve => { releaseLookup = resolve; });
             await page.route('**/getRegistrationNicknameAvailability', async route => {
               const request = route.request();
               const isPost = request.method() === 'POST';
-              if (isPost) await lookupReady;
+              if (isPost) {
+                lookups.push(request.postDataJSON()?.data?.nickname);
+                await lookupReady;
+              }
               const occupied = isPost && request.postDataJSON()?.data?.nickname === 'ocupadoteste';
               await route.fulfill({
                 status: 200,
@@ -466,17 +470,16 @@ jobs:
             }).waitFor({ state: 'visible' });
             await nickname.fill('ApelidoTeste');
             await complement.fill('Inv@lido');
+            await indicator.waitFor({ state: 'visible' });
             await page.locator('.mat-mdc-tooltip-surface').filter({
               hasText: 'Use letras sem acento, números, ponto, hífen ou sublinhado.',
             }).waitFor({ state: 'visible' });
-            const fullNicknameLookup = page.waitForRequest(request =>
-              request.method() === 'POST' &&
-              request.url().endsWith('/getRegistrationNicknameAvailability') &&
-              request.postDataJSON()?.data?.nickname === 'ApelidoTeste Complemento1'
-            );
             await complement.fill('Complemento1');
+            await page.waitForTimeout(800);
             await nickname.focus();
-            await fullNicknameLookup;
+            if (lookups.join(',') !== 'visualteste,ocupadoteste,ApelidoTeste') {
+              throw new Error('Availability must be queried only for the principal, once per change: ' + lookups.join(','));
+            }
             await indicator.waitFor({ state: 'visible' });
             await submit.click();
             await page.locator('#email').waitFor({ state: 'visible' });

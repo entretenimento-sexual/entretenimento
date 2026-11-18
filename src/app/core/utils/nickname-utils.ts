@@ -126,6 +126,18 @@ export namespace NicknameUtils {
     return collapseWhitespace(apelido || '');
   }
 
+  export function extrairApelidoPrincipal(apelido: string): string {
+    return normalizarApelido(apelido).split(' ', 1)[0];
+  }
+
+  export function isApelidoDeCadastroValido(apelido: string): boolean {
+    const display = normalizarApelido(apelido);
+    const parts = display.split(' ');
+    return isApelidoValido(display) &&
+      parts.length <= 2 && parts[0].length >= DISPLAY_MIN_LEN &&
+      parts.every(part => part.length <= DISPLAY_PART_MAX_LEN);
+  }
+
   /**
    * Normaliza o apelido DISPLAY para comparações case-insensitive (UX).
    * - trim + colapsa espaços + lower

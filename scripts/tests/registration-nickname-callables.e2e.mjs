@@ -100,12 +100,12 @@ async function run() {
       expectedUid: otherUid, acceptedTerms: true, acknowledgedPrivacyNotice: true,
     }, 'permission-denied');
     assert.equal((await privateRef.get()).get('acceptedTerms.accepted'), false);
-    assert.equal((await db.doc('nickname_reservations/perfil_original').get()).exists, false);
+    assert.equal((await db.doc('nickname_reservations/perfil').get()).exists, false);
     assert.deepEqual((await reserve({ nickname: 'Perfil Original', expectedUid: uid })).data,
-      { nickname: 'Perfil Original', normalized: 'perfil_original' });
+      { nickname: 'Perfil Original', normalized: 'perfil' });
     assert.equal((await adminAuth.getUser(uid)).displayName, 'Perfil Original');
-    assert.equal((await db.doc('nickname_reservations/perfil_original').get()).get('uid'), uid);
-    assert.equal((await db.doc('public_index/nickname:perfil_original').get()).get('uid'), uid);
+    assert.equal((await db.doc('nickname_reservations/perfil').get()).get('uid'), uid);
+    assert.equal((await db.doc('public_index/nickname:perfil').get()).get('uid'), uid);
     assert.equal((await db.doc('public_profiles/' + uid).get()).exists, false);
     assert.deepEqual(await publishedStatus('Perfil Original'), { status: 'unconfirmed' });
     console.log('[registration:e2e] PASS pending reservation is not exposed');
@@ -114,11 +114,24 @@ async function run() {
     await privateRef.update({ suspended: true });
     await rejects(reserve, { nickname: 'Perfil Original' }, 'failed-precondition');
     await privateRef.update({ suspended: false });
-    await rejects(reserveOther, { nickname: 'perfil_original' }, 'already-exists');
+    await rejects(reserveOther, { nickname: 'PERFIL Alternativo' }, 'already-exists');
     assert.equal((await otherRef.get()).get('nickname'), '');
+    const legacy = makeClient('legacy');
+    const { user: legacyUser } = await createUserWithEmailAndPassword(
+      legacy.auth, 'legacy-' + token + '@example.test', 'Legacy-2026-Aa1!',
+    );
+    const legacyRef = db.doc('users/' + legacyUser.uid);
+    await waitFor('legacy account seed', async () => (await legacyRef.get()).exists);
+    await legacyRef.update({ nickname: 'Legado Antigo' });
+    await db.doc('nickname_reservations/legado_antigo').set({
+      uid: legacyUser.uid, key: 'legado_antigo', state: 'RESERVED', policyVersion: 1,
+    });
+    await rejects(reserveOther, { nickname: 'Legado Novo' }, 'already-exists');
+    assert.equal((await db.doc('nickname_reservations/legado').get()).exists, false);
+
     await rejects(reserve, { nickname: 'Outro Apelido' }, 'failed-precondition');
-    assert.equal((await db.doc('nickname_reservations/outro_apelido').get()).exists, false);
-    assert.equal((await reserve({ nickname: 'Perfil Original' })).data.normalized, 'perfil_original');
+    assert.equal((await db.doc('nickname_reservations/outro').get()).exists, false);
+    assert.equal((await reserve({ nickname: 'Perfil Original' })).data.normalized, 'perfil');
     assert.equal((await recover({ expectedUid: uid })).data.created, false);
     assert.equal((await privateRef.get()).get('nickname'), 'Perfil Original');
     console.log('[registration:e2e] PASS ownership, collision and idempotence');
@@ -127,6 +140,14 @@ async function run() {
       nickname: 'Perfil Original', gender: 'homem',
       orientation: 'heterossexual', estado: 'RJ', municipio: 'Rio de Janeiro',
     };
+    await grantEligibility(db, adminAuth, legacyUser.uid);
+    const completeLegacy = httpsCallable(legacy.functions, 'completeRegistrationProfile');
+    assert.equal((await completeLegacy({
+      ...profileFields, uid: legacyUser.uid, nickname: 'Legado Antigo',
+    })).data.status, 'COMPLETED');
+    assert.equal((await db.doc('public_profiles/' + legacyUser.uid).get())
+      .get('nicknameNormalized'), 'legado_antigo');
+    assert.equal((await db.doc('nickname_reservations/legado').get()).exists, false);
     const payload = { ...profileFields, uid };
     await rejects(complete, payload, 'failed-precondition');
     assert.equal((await db.doc('public_profiles/' + uid).get()).exists, false);
@@ -150,11 +171,12 @@ async function run() {
     assert.equal((await complete(payload)).data.status, 'COMPLETED');
     const publicRef = db.doc('public_profiles/' + uid);
     assert.equal((await privateRef.get()).get('profileCompleted'), true);
-    assert.equal((await publicRef.get()).get('nicknameNormalized'), 'perfil_original');
-    assert.deepEqual(await publishedStatus('Perfil Original'), { status: 'taken' });
+    assert.equal((await publicRef.get()).get('nicknameNormalized'), 'perfil');
+    assert.deepEqual(await publishedStatus('Perfil'), { status: 'taken' });
+    assert.deepEqual(await publishedStatus('Perfil Outro'), { status: 'taken' });
     assert.equal((await complete(payload)).data.status, 'COMPLETED');
     await rejects(complete, { ...payload, nickname: 'Perfil Alterado' }, 'failed-precondition');
-    assert.equal((await db.doc('public_index/nickname:perfil_original').get()).get('uid'), uid);
+    assert.equal((await db.doc('public_index/nickname:perfil').get()).get('uid'), uid);
     console.log('[registration:e2e] PASS eligibility, completion, repeat and immutable nickname');
 
     await adminAuth.updateUser(otherUid, { emailVerified: true });
@@ -177,10 +199,10 @@ async function run() {
     assert.equal((await declarationRef.get()).get('uid'), otherUid);
     console.log('[registration:e2e] PASS 18+ declaration requires the initiating account');
 
-    const otherProfile = { ...profileFields, nickname: 'Perfil da Outra Conta' };
+    const otherProfile = { ...profileFields, nickname: 'Outra Conta' };
     const otherPublicRef = db.doc('public_profiles/' + otherUid);
-    const otherReservationRef = db.doc('nickname_reservations/perfil_da_outra_conta');
-    const otherIndexRef = db.doc('public_index/nickname:perfil_da_outra_conta');
+    const otherReservationRef = db.doc('nickname_reservations/outra');
+    const otherIndexRef = db.doc('public_index/nickname:outra');
     const otherBefore = (await otherRef.get()).data();
     await rejects(completeOther, otherProfile, 'invalid-argument');
     const sessionError = await rejects(
@@ -250,9 +272,31 @@ async function run() {
     assert.deepEqual((await signupEvidenceRef.get()).data(), firstEvidence);
     const completeOnSecondDevice = httpsCallable(secondDevice.functions, 'completeRegistrationProfile');
     assert.equal((await completeOnSecondDevice({
-      ...profileFields, uid: signupUid, nickname: 'Cadastro Outra Aba',
+      ...profileFields, uid: signupUid, nickname: 'Cadastro OutraAba',
     })).data.status, 'COMPLETED');
     console.log('[registration:e2e] PASS signup declaration is saved once and used after verification on another device');
+
+    const contenderClients = ['first', 'second'].map(makeClient);
+    const contenders = await Promise.all(contenderClients.map(async (client, index) => {
+      const credential = await createUserWithEmailAndPassword(
+        client.auth, 'race-' + index + '-' + token + '@example.test', 'Contender-2026-Aa1!',
+      );
+      return {
+        uid: credential.user.uid,
+        reserve: httpsCallable(client.functions, 'reserveRegistrationNickname'),
+      };
+    }));
+    const outcomes = await Promise.allSettled(contenders.map(({ uid, reserve }, index) =>
+      reserve({ nickname: index === 0 ? 'Disputa RJ' : 'DISPUTA SP', expectedUid: uid })
+    ));
+    assert.equal(outcomes.filter(outcome => outcome.status === 'fulfilled').length, 1);
+    const rejectedIndex = outcomes.findIndex(outcome => outcome.status === 'rejected');
+    assert.equal(outcomes[rejectedIndex].reason.code, 'functions/already-exists');
+    const { uid: independentUid, reserve: reserveIndependent } = contenders[rejectedIndex];
+    assert.equal((await reserveIndependent({
+      nickname: 'Disputa_RJ', expectedUid: independentUid,
+    })).data.normalized, 'disputa_rj');
+    console.log('[registration:e2e] PASS one transaction owns a principal under concurrent signup');
   } finally {
     await Promise.allSettled(apps.map(deleteApp));
     await deleteAdminApp(admin);

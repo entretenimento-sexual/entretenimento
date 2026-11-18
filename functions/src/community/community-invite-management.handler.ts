@@ -8,8 +8,10 @@
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import { normalizeNicknameForIndex } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import { normalizeRegistrationNicknameClaim } from '../registration/nickname-reservation.policy';
 import { resolveBlockedTargetUids } from '../friendship/application/bilateral-block-access.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import { getCommunityCapacityForOwner } from './community-capacity.service';
@@ -168,28 +170,42 @@ export const findCommunityInviteCandidate =
         actorUid,
         command.communityId
       );
-      const indexSnapshotPromise = db
-        .collection('public_index')
-        .doc(`nickname:${command.nicknameNormalized}`)
-        .get();
-      const [actorContext, indexSnapshot] = await Promise.all([
+      const display = normalizeCommunityInviteText(request.data?.nickname, 80);
+      const normalizeDisplay = (value: unknown) => normalizeCommunityInviteText(value, 80)
+        .normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ');
+      const exactDisplay = /\s/.test(display) ? normalizeDisplay(display) : null;
+      const principal = normalizeRegistrationNicknameClaim(display)?.key;
+      const keys = [...new Set([command.nicknameNormalized, principal ?? command.nicknameNormalized])];
+      const [actorContext, indexes] = await Promise.all([
         actorContextPromise,
-        indexSnapshotPromise,
+        db.getAll(...keys.map(key => db.collection('public_index').doc(`nickname:${key}`))),
       ]);
       const generatedAt = Date.now();
-      const index = indexSnapshot.exists ? indexSnapshot.data() ?? {} : {};
-      const candidateUid = normalizeCommunityInviteText(index['uid'], 160);
+      const candidates = new Map<string, string>();
+      indexes.forEach((snapshot, position) => {
+        const index = snapshot.data();
+        const candidateUid = normalizeCommunityInviteText(index?.['uid'], 160);
+        if (index?.['type'] === 'nickname' && index['value'] === keys[position] &&
+            candidateUid && candidateUid !== actorUid &&
+            !candidateUid.includes(':') && !candidateUid.includes('/')) {
+          candidates.set(keys[position], candidateUid);
+        }
+      });
+      const candidateUids = [...new Set(candidates.values())];
+      if (!candidateUids.length) return { candidate: null, generatedAt };
 
-      if (
-        index['type'] !== 'nickname'
-        || index['value'] !== command.nicknameNormalized
-        || !candidateUid
-        || candidateUid === actorUid
-        || candidateUid.includes(':')
-        || candidateUid.includes('/')
-      ) {
-        return { candidate: null, generatedAt };
-      }
+      const profiles = await db.getAll(
+        ...candidateUids.map(uid => db.collection('public_profiles').doc(uid)),
+      );
+      const profileSnapshot = profiles.find(snapshot => {
+        if (!snapshot.exists) return false;
+        const nickname = snapshot.get('nickname');
+        const key = snapshot.get('nicknameNormalized') || normalizeNicknameForIndex(nickname);
+        return candidates.get(key) === snapshot.id &&
+          (!exactDisplay || normalizeDisplay(nickname) === exactDisplay);
+      });
+      if (!profileSnapshot) return { candidate: null, generatedAt };
+      const candidateUid = profileSnapshot.id;
 
       const candidateMembershipRef = db
         .collection('communities')
@@ -197,13 +213,11 @@ export const findCommunityInviteCandidate =
         .collection('members')
         .doc(candidateUid);
       const [
-        profileSnapshot,
         userSnapshot,
         membershipSnapshot,
         inviteSnapshot,
         blockedUids,
       ] = await Promise.all([
-        db.collection('public_profiles').doc(candidateUid).get(),
         db.collection('users').doc(candidateUid).get(),
         candidateMembershipRef.get(),
         db.collection('invites')
@@ -213,8 +227,7 @@ export const findCommunityInviteCandidate =
       ]);
 
       if (
-        !profileSnapshot.exists
-        || blockedUids.has(candidateUid)
+        blockedUids.has(candidateUid)
         || !isEligibleUser(
           userSnapshot.exists ? userSnapshot.data() : null,
           candidateUid

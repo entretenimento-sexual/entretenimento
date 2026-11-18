@@ -6,7 +6,7 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { assertCallableAppCheck } from '../shared/security/callable-app-check';
 import { consumeBackendRateLimitQuota } from '../shared/security/backend-rate-limit.service';
-import { normalizeRegistrationNickname } from './nickname-reservation.policy';
+import { normalizeRegistrationNicknameClaim } from './nickname-reservation.policy';
 import {
   resolvePublicNicknameAvailability,
   type PublicNicknameAvailability,
@@ -23,7 +23,7 @@ export const getRegistrationNicknameAvailability = onCall<{ nickname?: unknown }
   { region: FUNCTIONS_REGION },
   async (request): Promise<{ status: PublicNicknameAvailability }> => {
     assertCallableAppCheck(request.app);
-    const nickname = normalizeRegistrationNickname(request.data?.nickname);
+    const nickname = normalizeRegistrationNicknameClaim(request.data?.nickname);
     if (!nickname) {
       throw new HttpsError('invalid-argument', 'Informe um apelido válido.');
     }

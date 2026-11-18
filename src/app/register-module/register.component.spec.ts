@@ -142,21 +142,43 @@ describe('RegisterComponent', () => {
     expect(validation.checkIfNicknameExists).not.toHaveBeenCalled();
 
     component.form.patchValue({ apelidoPrincipal: 'ApelidoTeste', complementoApelido: 'Complemento12' });
+    component.onNicknameBlur();
     component.onComplementoBlur();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('#complementoTooltip.sr-only')?.textContent)
       .toContain('Use até 12 caracteres no complemento.');
-    expect(validation.checkIfNicknameExists).not.toHaveBeenCalled();
+    expect(validation.checkIfNicknameExists).toHaveBeenCalledWith('ApelidoTeste', { mode: 'soft' });
 
     component.form.patchValue({ complementoApelido: 'Complemento1' });
     component.onComplementoBlur();
     fixture.detectChanges();
 
-    expect(validation.checkIfNicknameExists).toHaveBeenCalledWith('ApelidoTeste Complemento1', { mode: 'soft' });
+    expect(validation.checkIfNicknameExists).toHaveBeenCalledTimes(1);
+    expect(component.nicknameCheckState()).toBe('provisional');
     expect(component.form.hasError('invalidFullNickname')).toBe(false);
     expect(fixture.nativeElement.querySelector('#apelidoPrincipal').maxLength).toBe(12);
     expect(fixture.nativeElement.querySelector('#complementoApelido').maxLength).toBe(12);
+  });
+
+  it('preserva o resultado durante a edição do complemento e reconsulta ao trocar o principal', () => {
+    const validation = TestBed.inject(FirestoreValidationService) as unknown as MockFirestoreValidationService;
+    component.form.patchValue({ apelidoPrincipal: 'Ocupado' });
+    validation.checkIfNicknameExists.mockReturnValueOnce(of(true));
+    component.onNicknameBlur();
+    for (const value of ['RJ', 'Inválido!', 'Oficial', '']) {
+      component.form.patchValue({ complementoApelido: value });
+      component.onComplementoTyping();
+      component.onComplementoBlur();
+      component.onNicknameBlur();
+      expect(component.form.get('apelidoPrincipal')?.hasError('apelidoEmUso')).toBe(true);
+    }
+    expect(validation.checkIfNicknameExists).toHaveBeenCalledTimes(1);
+    component.form.patchValue({ apelidoPrincipal: 'Outro' });
+    component.onNicknameTyping();
+    component.onNicknameBlur();
+    expect(validation.checkIfNicknameExists).toHaveBeenCalledTimes(2);
+    expect(validation.checkIfNicknameExists).toHaveBeenLastCalledWith('Outro', { mode: 'soft' });
   });
 
   it('avisa quando a consulta falha sem marcar o apelido como recusado', () => {

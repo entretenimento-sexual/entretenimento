@@ -334,7 +334,8 @@ function matchesDiscoveryFilters(
     && (!filters.nicknamePrefix
       || String(card['nicknameNormalized'] ?? '')
         .toLocaleLowerCase('pt-BR')
-        .startsWith(filters.nicknamePrefix))
+        .startsWith(filters.nicknamePrefix)
+      || normalizedComparableText(card['nickname'])?.startsWith(filters.nicknamePrefix) === true)
   );
 }
 
@@ -770,7 +771,7 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
     const batchSize = Math.min(120, Math.max(24, pageSize * 2));
 
     if (filters.nicknamePrefix) {
-      const prefix = filters.nicknamePrefix;
+      const prefix = filters.nicknamePrefix.split(/\s+/, 1)[0];
       const searchSnapshot = await db
         .collection('public_profiles')
         .where('nicknameNormalized', '>=', prefix)

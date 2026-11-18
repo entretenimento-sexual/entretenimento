@@ -31,14 +31,13 @@ export class FirestoreValidationService {
     opts?: { mode?: Mode }
   ): Observable<boolean> {
     const mode: Mode = opts?.mode ?? 'soft';
-    const display = NicknameUtils.normalizarApelido(fullNick);
-    if (!NicknameUtils.isApelidoValido(display) ||
-      !NicknameUtils.isApelidoIndiceValido(display)) {
+    const display = NicknameUtils.extrairApelidoPrincipal(fullNick);
+    if (!NicknameUtils.isApelidoDeCadastroValido(display)) {
       return of(false);
     }
 
     const key = NicknameUtils.normalizarApelidoParaIndice(display);
-    const cacheKey = `validation:v3:published-nickname:${key}`;
+    const cacheKey = `validation:v4:published-nickname:${key}`;
     const cached$ = mode === 'soft'
       ? this.cache.get<boolean>(cacheKey)
       : of(null);

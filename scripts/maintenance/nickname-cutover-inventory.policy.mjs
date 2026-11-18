@@ -16,7 +16,7 @@ export function classifyNicknameCutoverRecord({
   if (typeof uid !== 'string' || user.uid !== uid) {
     return { category: 'REVIEW', flags: ['INVALID_OWNER'] };
   }
-  const canonical = normalizeNickname(user.nickname);
+  const canonical = normalizeNickname(user.nickname, user.nicknameNormalized);
   if (!canonical || !/^[a-z0-9._-]{3,40}$/.test(canonical.key)) {
     return { category: 'REVIEW', flags: ['INVALID_NICKNAME'] };
   }
@@ -78,5 +78,6 @@ export function evaluateNicknameCutoverGate(summary, { truncated = true } = {}) 
   if (truncated) reasons.push('INCOMPLETE_SCAN');
   if (!summary.completedUsers) reasons.push('NO_COMPLETED_ACCOUNTS_CHECKED');
   if (summary.review) reasons.push('REQUIRES_RECONCILIATION');
+  if (summary.duplicatePrincipals) reasons.push('DUPLICATE_NICKNAME_PRINCIPALS');
   return { inventoryClean: reasons.length === 0, reasons };
 }

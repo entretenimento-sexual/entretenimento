@@ -296,7 +296,7 @@ export class RegisterService {
       );
     }
 
-    if (!NicknameUtils.isApelidoValido(nickname) || !NicknameUtils.isApelidoIndiceValido(nickname)) {
+    if (!NicknameUtils.isApelidoDeCadastroValido(nickname)) {
       return this.handleRegisterError(
         new Error('Informe um apelido válido com pelo menos 4 caracteres. Cada campo aceita até 12.'),
         'Validação',
@@ -312,7 +312,9 @@ export class RegisterService {
       );
     }
 
-    return this.firestoreValidation.checkIfNicknameExists(nickname, { mode: 'strict' }).pipe(
+    return this.firestoreValidation.checkIfNicknameExists(
+      NicknameUtils.extrairApelidoPrincipal(nickname), { mode: 'strict' }
+    ).pipe(
       timeout({ first: this.NET_TIMEOUT_MS }),
       catchError((cause: unknown) => this.handleRegisterError(Object.assign(
         new Error('Não foi possível validar o apelido agora.', { cause }), { code: 'nickname-check-failed' }

@@ -23,19 +23,22 @@ const maximum = Number.parseInt(process.env.NICKNAME_AUDIT_MAX_USERS ?? '1000', 
 if (!Number.isSafeInteger(maximum) || maximum < 1 || maximum > 50000) {
   throw new Error('NICKNAME_AUDIT_MAX_USERS deve estar entre 1 e 50000.');
 }
-let normalizeRegistrationNickname;
+let resolveStoredRegistrationNickname;
+let registrationNicknamePrincipal;
 try {
-  ({ normalizeRegistrationNickname } = require(
+  ({ resolveStoredRegistrationNickname, registrationNicknamePrincipal } = require(
     '../../functions/lib/registration/nickname-reservation.policy.js'
   ));
 } catch {
   throw new Error('Compile Functions antes de auditar: npm run functions:build.');
 }
-if (typeof normalizeRegistrationNickname !== 'function') {
+if (typeof resolveStoredRegistrationNickname !== 'function' ||
+    typeof registrationNicknamePrincipal !== 'function') {
   throw new Error('Normalizador canônico indisponível.');
 }
 const db = getFirestore(initializeApp({ credential: applicationDefault(), projectId }));
 const summary = createNicknameCutoverSummary();
+const principalCounts = new Map();
 const auditStartedAt = new Date().toISOString();
 let cursor = null;
 
@@ -49,15 +52,19 @@ while (summary.scannedUsers < maximum) {
 
   for (const record of page.docs) {
     const user = record.data();
+    const normalized = resolveStoredRegistrationNickname(user.nickname, user.nicknameNormalized);
+    if (normalized) {
+      const principal = registrationNicknamePrincipal(normalized.display);
+      principalCounts.set(principal, (principalCounts.get(principal) ?? 0) + 1);
+    }
     if (user.profileCompleted !== true) {
       accumulateNicknameCutover(summary, { category: 'INCOMPLETE', flags: [] });
       continue;
     }
-    const normalized = normalizeRegistrationNickname(user.nickname);
     if (!normalized) {
       accumulateNicknameCutover(summary, classifyNicknameCutoverRecord({
         uid: record.id, user, publicProfile: null, index: null,
-        reservation: null, normalizeNickname: normalizeRegistrationNickname,
+        reservation: null, normalizeNickname: resolveStoredRegistrationNickname,
       }));
       continue;
     }
@@ -72,7 +79,7 @@ while (summary.scannedUsers < maximum) {
       publicProfile: snapshots[0].exists ? snapshots[0].data() : null,
       index: snapshots[1].exists ? snapshots[1].data() : null,
       reservation: snapshots[2].exists ? snapshots[2].data() : null,
-      normalizeNickname: normalizeRegistrationNickname,
+      normalizeNickname: resolveStoredRegistrationNickname,
     });
     accumulateNicknameCutover(summary, decision);
   }
@@ -85,6 +92,7 @@ const nextDocumentExists = shouldInspectNextDocument({
 }) ? !(await db.collection('users').orderBy(FieldPath.documentId())
   .startAfter(cursor).limit(1).get()).empty : false;
 const truncated = boundaryReached && nextDocumentExists;
+summary.duplicatePrincipals = [...principalCounts.values()].filter(count => count > 1).length;
 const gate = evaluateNicknameCutoverGate(summary, { truncated });
 const report = buildNicknameScanReport({
   projectId, mode: 'READ_ONLY',

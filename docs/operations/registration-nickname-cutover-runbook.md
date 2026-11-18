@@ -19,6 +19,23 @@ pré-flight, não autorização nem comando de deploy.
   leitura e substituir a checagem pré-auth do registro por alternativa
   que não exponha documentos. Não promover lockdown sem resolução.
 
+## Unicidade pelo apelido principal em desenvolvimento
+
+Cadastros novos reservam a chave normalizada do principal. O nome exibido
+continua podendo trazer o complemento opcional. O formulário consulta
+disponibilidade ao editar o principal e valida o complemento localmente.
+A confirmação pública segue provisória até a reserva transacional.
+
+Contas já gravadas preservam o apelido e a chave legada ao retomar a conclusão.
+A reserva verifica aliases legados indexados para bloquear novas disputas pelo
+mesmo principal. A pré-consulta usa a chave exata e pode devolver
+`unconfirmed` para uma conta que só tenha o alias legado.
+
+Antes do deploy coordenado, o inventário somente leitura deve apurar
+`duplicatePrincipals` e identificar registros sem índice ou reserva. Resolver
+conflitos de titularidade preservando os nomes exibidos antes de conciliar as
+chaves históricas. O ensaio em desenvolvimento usa os emuladores.
+
 ## Portões necessários
 
 1. Implantar callables compatíveis primeiro, verificar App Check,

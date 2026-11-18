@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   canClaimRegistrationNickname, normalizeRegistrationNickname,
+  normalizeRegistrationNicknameClaim, resolveStoredRegistrationNickname,
 } from './nickname-reservation.policy';
 
 test('backend canonicalizes case and spaces to the same exclusive key', () => {
@@ -21,6 +22,22 @@ test('server accepts two 12-character parts and keeps the separator in the displ
   assert.deepEqual(normalizeRegistrationNickname('ApelidoTeste Complemento1'), {
     display: 'ApelidoTeste Complemento1', key: 'apelidoteste_complemento1',
   });
+});
+test('registration reserves the principal independent of case and complement', () => {
+  assert.deepEqual(normalizeRegistrationNicknameClaim('ApelidoTeste Complemento1'), {
+    display: 'ApelidoTeste Complemento1', key: 'apelidoteste',
+  });
+  assert.equal(normalizeRegistrationNicknameClaim('RAFA RJ')?.key, 'rafa');
+  assert.equal(normalizeRegistrationNicknameClaim('Rafa Oficial')?.key, 'rafa');
+  assert.equal(normalizeRegistrationNicknameClaim('Rafa_RJ')?.key, 'rafa_rj');
+  for (const invalid of ['Raf Oficial', 'NomeMuitolongo', 'Rafa Com Dois', 'Rafa ' + 'A'.repeat(13)]) {
+    assert.equal(normalizeRegistrationNicknameClaim(invalid), null);
+  }
+});
+test('stored legacy aliases and principal-based registrations resume with their persisted key', () => {
+  assert.equal(resolveStoredRegistrationNickname('Rafa Oficial', undefined)?.key, 'rafa_oficial');
+  assert.equal(resolveStoredRegistrationNickname('Rafa Oficial', 'rafa_oficial')?.key, 'rafa_oficial');
+  assert.equal(resolveStoredRegistrationNickname('Rafa Oficial', 'rafa')?.key, 'rafa');
 });
 test('existing index and server-only reservation both block cross-user occupation', () => {
   const requested = normalizeRegistrationNickname('Perfil Oficial')!;

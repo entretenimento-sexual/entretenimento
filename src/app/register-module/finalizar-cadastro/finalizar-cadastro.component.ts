@@ -821,12 +821,12 @@ implements OnInit, UnsavedChangesAware
 
     if (field === 'nickname') {
       const display = NicknameUtils.normalizarApelido(clean);
-      const valid =
-        NicknameUtils.isApelidoValido(display) &&
-        NicknameUtils.isApelidoIndiceValido(display);
+      const valid = this.needsNickname
+        ? NicknameUtils.isApelidoDeCadastroValido(display)
+        : NicknameUtils.isApelidoValido(display) && NicknameUtils.isApelidoIndiceValido(display);
       this.formErrors[field] = valid
         ? ''
-        : 'Use pelo menos 4 caracteres: letras sem acento, números, espaço, ponto, hífen ou sublinhado. Para juntar dois nomes longos, use até 12 caracteres em cada parte.';
+        : 'Use de 4 a 12 caracteres no apelido. Se quiser, acrescente um complemento de até 12 caracteres após um espaço. Use letras sem acento, números, ponto, hífen ou sublinhado.';
       this.onDraftChange();
       return;
     }

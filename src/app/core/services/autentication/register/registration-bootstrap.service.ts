@@ -122,7 +122,7 @@ export class RegistrationBootstrapService {
   }
 
   private normalizeNickname(nickname: string): string {
-    return NicknameUtils.normalizarApelidoParaIndice(nickname);
+    return NicknameUtils.normalizarApelidoParaIndice(NicknameUtils.extrairApelidoPrincipal(nickname));
   }
 
   private cleanText(value: unknown): string {

@@ -3,6 +3,7 @@
 // Mantém os apelidos existentes e admite 12 + espaço + 12 no cadastro.
 const DISPLAY_PATTERN = /^(?:[A-Za-z0-9._\- ]{4,24}|[A-Za-z0-9._-]{12} [A-Za-z0-9._-]{12})$/;
 const KEY_PATTERN = /^[a-z0-9._-]{3,40}$/;
+const SIGNUP_DISPLAY_PATTERN = /^[A-Za-z0-9._-]{4,12}(?: [A-Za-z0-9._-]{1,12})?$/;
 
 export interface RegistrationNickname {
   readonly display: string;
@@ -19,6 +20,24 @@ export function normalizeRegistrationNickname(value: unknown): RegistrationNickn
     .replace(/\s+/g, '_')
     .replace(/[^a-z0-9._-]/g, '');
   return KEY_PATTERN.test(key) ? { display, key } : null;
+}
+
+export function registrationNicknamePrincipal(display: string): string {
+  return display.trim().split(/\s+/, 1)[0].toLowerCase();
+}
+
+export function normalizeRegistrationNicknameClaim(value: unknown): RegistrationNickname | null {
+  const nickname = normalizeRegistrationNickname(value);
+  if (!nickname || !SIGNUP_DISPLAY_PATTERN.test(nickname.display)) return null;
+  return { display: nickname.display, key: registrationNicknamePrincipal(nickname.display) };
+}
+
+/** Preserva o índice da conta que já tinha apelido quando usa a conclusão novamente. */
+export function resolveStoredRegistrationNickname(
+  value: unknown, storedKey: unknown
+): RegistrationNickname | null {
+  const claim = normalizeRegistrationNicknameClaim(value);
+  return claim && claim.key === storedKey ? claim : normalizeRegistrationNickname(value);
 }
 
 export function canClaimRegistrationNickname(input: {

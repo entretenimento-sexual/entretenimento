@@ -273,7 +273,7 @@ describe('RegisterService', () => {
     await vi.advanceTimersByTimeAsync(500);
 
     expect(await result).toMatchObject({ verificationEmailSent: true, registrationWarnings: [] });
-    expect(checkIfNicknameExists).toHaveBeenCalledWith(nickname, { mode: 'strict' });
+    expect(checkIfNicknameExists).toHaveBeenCalledWith('ApelidoTeste', { mode: 'strict' });
     expect(reserve).toHaveBeenCalledTimes(2);
     expect(reserve).toHaveBeenLastCalledWith(expect.objectContaining({
       uid: user.uid,

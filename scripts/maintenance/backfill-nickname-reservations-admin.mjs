@@ -26,15 +26,15 @@ if (!dryRun && (!applyApproved || confirmedProject !== projectId)) {
 }
 
 // Usa a normalização já implantada no backend; nunca duplicar algoritmo.
-let normalizeRegistrationNickname;
+let resolveStoredRegistrationNickname;
 try {
-  ({ normalizeRegistrationNickname } = require(
+  ({ resolveStoredRegistrationNickname } = require(
     '../../functions/lib/registration/nickname-reservation.policy.js'
   ));
 } catch {
   throw new Error('Execute npm --prefix functions run build antes do backfill.');
 }
-if (typeof normalizeRegistrationNickname !== 'function') {
+if (typeof resolveStoredRegistrationNickname !== 'function') {
   throw new Error('Normalização canônica do backend indisponível.');
 }
 
@@ -81,7 +81,7 @@ while (stats.scanned < maxRecords) {
       indexData: raw,
       userData: userSnap.exists ? userSnap.data() : null,
       reservationData: reservationSnap.exists ? reservationSnap.data() : null,
-      normalizeNickname: normalizeRegistrationNickname,
+      normalizeNickname: resolveStoredRegistrationNickname,
     });
     stats[decision] += 1;
     if (decision !== 'candidate' || dryRun) continue;
@@ -99,7 +99,7 @@ while (stats.scanned < maxRecords) {
         indexData: currentIndex.exists ? currentIndex.data() : null,
         userData: currentUser.exists ? currentUser.data() : null,
         reservationData: currentReservation.exists ? currentReservation.data() : null,
-        normalizeNickname: normalizeRegistrationNickname,
+        normalizeNickname: resolveStoredRegistrationNickname,
       });
       if (current !== 'candidate') return current;
       tx.create(reservationRef, {

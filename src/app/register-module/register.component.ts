@@ -26,7 +26,7 @@ import { Router } from '@angular/router';
 import { Auth, user } from '@angular/fire/auth';
 import type { User } from 'firebase/auth';
 
-import { defer, firstValueFrom, merge, Observable, Subject, of, timer } from 'rxjs';
+import { defer, firstValueFrom, Observable, Subject, of, timer } from 'rxjs';
 import {
   catchError,
   filter,
@@ -72,7 +72,7 @@ type NicknameCheckState =
 const SIGNUP_SECTIONS = [
   {
     title: 'Escolha seu apelido',
-    description: 'É assim que outras pessoas vão reconhecer seu perfil.',
+    description: 'Seu apelido identifica o perfil. O complemento é opcional.',
     fields: ['apelidoPrincipal', 'complementoApelido'],
     groupError: { code: 'invalidFullNickname', field: 'apelidoPrincipal' },
   },
@@ -217,14 +217,16 @@ export class RegisterComponent {
   );
 
   // ---------------- Nickname UX state ----------------
-  private readonly nicknameTyping$ = new Subject<void>();
-  private readonly nicknameBlur$ = new Subject<void>();
+  private readonly nicknameCheckRequests$ = new Subject<boolean>();
+  private checkingNicknameKey: string | null = null;
+  private lastNicknameCheck: { key: string; taken: boolean } | null = null;
 
   readonly nicknameCheckState = signal<NicknameCheckState>('idle');
   readonly nicknameCheckError = signal('');
   private readonly nicknameCheckState$ = toObservable(this.nicknameCheckState);
   readonly awaitingNickname = signal(false);
   readonly nicknameFeedbackArmed = signal(false);
+  readonly complementFeedbackArmed = signal(false);
   readonly nicknameFeedbackAttempt = signal(0);
   readonly nicknamePartMaxLength = NicknameUtils.DISPLAY_PART_MAX_LEN;
   readonly submitted = signal(false);
@@ -241,6 +243,10 @@ export class RegisterComponent {
       startWith(this.form.get('complementoApelido')!.value)
     ),
     { initialValue: this.form.get('complementoApelido')!.value }
+  );
+  private readonly apelidoPrincipal = computed(() => String(this.apelidoPrincipalSig() ?? '').trim());
+  private readonly nicknameKey = computed(() =>
+    NicknameUtils.normalizarApelidoParaIndice(this.apelidoPrincipal())
   );
 
   private readonly apelidoStatusSig = toSignal(
@@ -278,14 +284,6 @@ export class RegisterComponent {
     );
   }
 
-  private hasBlockingComplementSyncErrors(): boolean {
-    const ctrl = this.form.get('complementoApelido');
-    if (!ctrl) return false;
-
-    const e = ctrl.errors ?? {};
-    return !!(e['maxlength'] || e['invalidNickname']);
-  }
-
   private clearApelidoEmUsoError(): void {
     const ctrl = this.form.get('apelidoPrincipal');
     if (!ctrl) return;
@@ -304,10 +302,11 @@ export class RegisterComponent {
   }
 
   onNicknameTyping(): void {
+    if (this.checkingNicknameKey === this.nicknameKey() && !this.hasBlockingNicknameSyncErrors()) return;
     this.nicknameFeedbackArmed.set(false);
     this.clearApelidoEmUsoError();
     this.nicknameCheckState.set('typing');
-    this.nicknameTyping$.next();
+    this.nicknameCheckRequests$.next(false);
   }
 
   onNicknameBlur(event?: FocusEvent): void {
@@ -315,19 +314,20 @@ export class RegisterComponent {
         event.relatedTarget.closest('.nickname-indicator--details')) return;
 
     this.nicknameFeedbackArmed.set(true);
-    this.nicknameBlur$.next();
+    if (!this.nicknameChecking()) this.nicknameCheckRequests$.next(true);
   }
 
-  onComplementoBlur(event?: FocusEvent): void {
-    this.onNicknameBlur(event);
+  onComplementoTyping(): void {
+    this.complementFeedbackArmed.set(true);
+  }
+
+  onComplementoBlur(): void {
+    this.complementFeedbackArmed.set(true);
   }
 
   private setupNicknameAvailabilityPipeline(): void {
-    merge(
-      this.nicknameTyping$.pipe(map(() => false)),
-      this.nicknameBlur$.pipe(filter(() => !this.nicknameChecking()), map(() => true))
-    ).pipe(
-      switchMap((onBlur) => (onBlur ? of(0) : timer(600)).pipe(
+    this.nicknameCheckRequests$.pipe(
+      switchMap(immediate => (immediate ? of(0) : timer(600)).pipe(
         tap(() => this.nicknameFeedbackArmed.set(true)),
         switchMap(() => this.runNicknameAvailabilityCheck$())
       )),
@@ -335,50 +335,44 @@ export class RegisterComponent {
     ).subscribe();
   }
 
+  private applyNicknameAvailability(key: string, taken: boolean): void {
+    this.lastNicknameCheck = { key, taken };
+    if (taken) {
+      this.setApelidoEmUsoError();
+      this.nicknameCheckState.set('taken');
+    } else {
+      this.clearApelidoEmUsoError();
+      this.nicknameCheckState.set('provisional');
+    }
+  }
+
   private runNicknameAvailabilityCheck$(): Observable<void> {
     this.nicknameCheckError.set('');
-    if (
-      this.hasBlockingNicknameSyncErrors() ||
-      this.hasBlockingComplementSyncErrors()
-    ) {
+    if (this.hasBlockingNicknameSyncErrors()) {
       this.nicknameCheckState.set('idle');
       this.clearApelidoEmUsoError();
       return of(void 0);
     }
 
-    if (this.form.hasError('invalidFullNickname')) {
-      this.nicknameCheckState.set('idle');
-      this.clearApelidoEmUsoError();
+    const key = this.nicknameKey();
+    if (this.lastNicknameCheck?.key === key) {
+      this.applyNicknameAvailability(key, this.lastNicknameCheck.taken);
       return of(void 0);
     }
 
-    const fullNick = (this.apelidoCompleto() || '').trim();
-    if (!fullNick) {
-      this.nicknameCheckState.set('idle');
-      this.clearApelidoEmUsoError();
-      return of(void 0);
-    }
-
+    this.checkingNicknameKey = key;
     this.nicknameCheckState.set('checking');
 
     return this.validatorService
-      .checkIfNicknameExists(fullNick, { mode: 'soft' })
+      .checkIfNicknameExists(this.apelidoPrincipal(), { mode: 'soft' })
       .pipe(
         timeout({ first: 8000 }),
         tap((exists: boolean) => {
-          if (this.apelidoCompleto() !== fullNick) return;
-
-          if (exists) {
-            this.setApelidoEmUsoError();
-            this.nicknameCheckState.set('taken');
-          } else {
-            this.clearApelidoEmUsoError();
-            this.nicknameCheckState.set('provisional');
-          }
+          if (this.nicknameKey() === key) this.applyNicknameAvailability(key, exists);
         }),
         map(() => void 0),
         catchError((err) => {
-          if (this.apelidoCompleto() !== fullNick) return of(void 0);
+          if (this.nicknameKey() !== key) return of(void 0);
 
           this.dbg('nickname check error', err);
           this.nicknameCheckError.set(err?.code === 'functions/resource-exhausted'
@@ -388,7 +382,8 @@ export class RegisterComponent {
           this.clearApelidoEmUsoError();
 
           return of(void 0);
-        })
+        }),
+        finalize(() => { this.checkingNicknameKey = null; }),
       );
   }
 
@@ -575,18 +570,19 @@ export class RegisterComponent {
 
     const checkState = this.nicknameCheckState();
     if (index === 0 && (checkState === 'idle' || checkState === 'typing' || checkState === 'checking')) {
-      const nickname = this.apelidoCompleto();
+      const key = this.nicknameKey();
       this.nicknameFeedbackArmed.set(true);
       this.awaitingNickname.set(true);
-      const check$: Observable<unknown> = checkState === 'checking'
+      if (checkState !== 'checking') this.nicknameCheckRequests$.next(true);
+      const check$: Observable<unknown> = this.nicknameChecking()
         ? this.nicknameCheckState$.pipe(filter(() => !this.nicknameChecking()))
-        : this.runNicknameAvailabilityCheck$();
+        : of(void 0);
       check$.pipe(
         take(1),
         finalize(() => this.awaitingNickname.set(false)),
         takeUntilDestroyed(this.destroyRef)
       ).subscribe(() => {
-        if (this.sectionIndex() !== index || this.apelidoCompleto() !== nickname) return;
+        if (this.sectionIndex() !== index || this.nicknameKey() !== key) return;
         const invalid = this.firstInvalidField(index);
         if (invalid) {
           this.showInvalidSection(index, invalid);
@@ -791,8 +787,7 @@ export class RegisterComponent {
             code === 'nickname-in-use' ||
             /apelido.*em uso/.test(rawMsg)
           ) {
-            this.setApelidoEmUsoError();
-            this.nicknameCheckState.set('taken');
+            this.applyNicknameAvailability(this.nicknameKey(), true);
             this.showInvalidSection(0, 'apelidoPrincipal');
             return;
           }

@@ -13,7 +13,7 @@ export function classifyNicknameBackfill(input) {
       !userData || userData.uid !== uid) {
     return 'invalid';
   }
-  const normalized = normalizeNickname(userData.nickname);
+  const normalized = normalizeNickname(userData.nickname, userData.nicknameNormalized);
   if (!normalized || normalized.key !== key) return 'invalid';
   if (reservationData) {
     return reservationData.uid === uid && reservationData.key === key &&

@@ -4,6 +4,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { warn } from 'firebase-functions/logger';
 import type { UserRecord } from 'firebase-admin/auth';
+import { FieldPath } from 'firebase-admin/firestore';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue, Timestamp, auth } from '../firebaseApp';
@@ -17,7 +18,8 @@ import {
   evaluateCanonicalAgeEligibility, isAdultAccountAdmissionDecision,
 } from '../compliance/age-eligibility.policy';
 import {
-  canClaimRegistrationNickname, normalizeRegistrationNickname,
+  canClaimRegistrationNickname, normalizeRegistrationNickname, normalizeRegistrationNicknameClaim,
+  registrationNicknamePrincipal, resolveStoredRegistrationNickname, type RegistrationNickname,
 } from './nickname-reservation.policy';
 
 interface CompleteRegistrationInput {
@@ -48,14 +50,21 @@ function signedOwner(uid: unknown): string {
   return uid;
 }
 
-function nicknameInput(value: unknown) {
-  const nickname = normalizeRegistrationNickname(value);
+function nicknameInput(nickname: RegistrationNickname | null): RegistrationNickname {
   if (!nickname) {
     throw new HttpsError('invalid-argument', 'Informe um nickname válido.', {
       reason: 'nickname/invalid',
     });
   }
   return nickname;
+}
+
+function nicknameForAccount(
+  display: string, user: FirebaseFirestore.DocumentData
+): RegistrationNickname {
+  const stored = resolveStoredRegistrationNickname(user['nickname'], user['nicknameNormalized']);
+  if (stored?.display === display) return stored;
+  return nicknameInput(normalizeRegistrationNicknameClaim(display));
 }
 
 function assertClaimAllowed(
@@ -77,14 +86,66 @@ function ownerOf(data: FirebaseFirestore.DocumentData | undefined): string | und
   return data ? String(data['uid'] ?? '') : undefined;
 }
 
+// Aliases antigos usavam o nome completo (rafa_oficial). Na reserva, verifica
+// a origem do alias para distinguir "Rafa Oficial" do principal "Rafa_Oficial".
+async function assertNoLegacyNicknameOwner(
+  tx: FirebaseFirestore.Transaction, uid: string, nickname: RegistrationNickname,
+): Promise<void> {
+  const prefix = `${nickname.key}_`;
+  const legacyRange = (collection: string, documentPrefix: string) => {
+    const start = documentPrefix + prefix;
+    return db.collection(collection).orderBy(FieldPath.documentId())
+      .startAt(start).endAt(start + '\uf8ff').select('uid', 'policyVersion');
+  };
+  const [indexes, reservations] = await Promise.all([
+    tx.get(legacyRange('public_index', 'nickname:')),
+    tx.get(legacyRange('nickname_reservations', '')),
+  ]);
+  const owners = new Set<string>();
+  for (const document of [...indexes.docs, ...reservations.docs]) {
+    const otherUid = document.get('uid');
+    if (typeof otherUid === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(otherUid) &&
+        otherUid !== uid && document.get('policyVersion') !== 2) {
+      owners.add(otherUid);
+    }
+  }
+  if (!owners.size) return;
+
+  const profiles = await tx.getAll(
+    ...Array.from(owners, owner => db.collection('users').doc(owner)),
+    { fieldMask: ['nickname'] },
+  );
+  if (profiles.some(profile => {
+    const display = normalizeRegistrationNickname(profile.get('nickname'))?.display;
+    return display && registrationNicknamePrincipal(display) === nickname.key;
+  })) assertClaimAllowed('in-use');
+}
+
+async function getNicknameOwnership(
+  tx: FirebaseFirestore.Transaction, uid: string, nickname: RegistrationNickname,
+  currentDisplay?: unknown,
+) {
+  const indexRef = db.collection('public_index').doc(`nickname:${nickname.key}`);
+  const reservationRef = db.collection('nickname_reservations').doc(nickname.key);
+  const [indexSnap, reservationSnap] = await Promise.all([tx.get(indexRef), tx.get(reservationRef)]);
+  assertClaimAllowed(canClaimRegistrationNickname({
+    uid, requested: nickname, currentDisplay,
+    indexOwnerUid: ownerOf(indexSnap.data()),
+    reservationOwnerUid: ownerOf(reservationSnap.data()),
+  }));
+  if (!indexSnap.exists && !reservationSnap.exists &&
+      normalizeRegistrationNicknameClaim(nickname.display)?.key === nickname.key) {
+    await assertNoLegacyNicknameOwner(tx, uid, nickname);
+  }
+  return { indexRef, reservationRef, indexExists: indexSnap.exists, reservationExists: reservationSnap.exists };
+}
+
 function reserveInTransaction(
   tx: FirebaseFirestore.Transaction,
   uid: string,
-  nickname: { display: string; key: string },
-  indexRef: FirebaseFirestore.DocumentReference,
-  reservationRef: FirebaseFirestore.DocumentReference,
-  indexExists: boolean,
-  reservationExists: boolean
+  nickname: RegistrationNickname,
+  { indexRef, reservationRef, indexExists, reservationExists }:
+    Awaited<ReturnType<typeof getNicknameOwnership>>,
 ): void {
   const now = FieldValue.serverTimestamp();
   if (!indexExists) {
@@ -96,7 +157,7 @@ function reserveInTransaction(
   if (!reservationExists) {
     tx.create(reservationRef, {
       uid, key: nickname.key, state: 'RESERVED', reservedAt: now,
-      policyVersion: 1,
+      policyVersion: normalizeRegistrationNicknameClaim(nickname.display)?.key === nickname.key ? 2 : 1,
     });
   }
 }
@@ -121,19 +182,14 @@ export const reserveRegistrationNickname = onCall<{ nickname?: unknown; expected
     if (request.data?.expectedUid !== undefined && request.data.expectedUid !== uid) {
       throw new HttpsError('permission-denied', 'A conta ativa mudou durante o cadastro.');
     }
-    const nickname = nicknameInput(request.data?.nickname);
+    const { display } = nicknameInput(normalizeRegistrationNickname(request.data?.nickname));
     const authUser = await auth.getUser(uid);
     if (authUser.disabled) {
       throw new HttpsError('failed-precondition', 'Conta indisponível para registro.');
     }
     const userRef = db.collection('users').doc(uid);
-    const indexRef = db.collection('public_index').doc(`nickname:${nickname.key}`);
-    const reservationRef = db.collection('nickname_reservations').doc(nickname.key);
-
     const result = await db.runTransaction(async (tx) => {
-      const [userSnap, indexSnap, reservationSnap] = await Promise.all([
-        tx.get(userRef), tx.get(indexRef), tx.get(reservationRef),
-      ]);
+      const userSnap = await tx.get(userRef);
       const user = userSnap.data() ?? {};
       if (userSnap.exists && (
         user['accountStatus'] !== 'active' ||
@@ -144,17 +200,15 @@ export const reserveRegistrationNickname = onCall<{ nickname?: unknown; expected
       )) {
         throw new HttpsError('failed-precondition', 'Conta indisponível para registro.');
       }
-      assertClaimAllowed(canClaimRegistrationNickname({
-        uid, requested: nickname, currentDisplay: user['nickname'],
-        completed: user['profileCompleted'] === true,
-        indexOwnerUid: ownerOf(indexSnap.data()),
-        reservationOwnerUid: ownerOf(reservationSnap.data()),
-      }));
+      if (user['profileCompleted'] === true) assertClaimAllowed('account-completed');
+      const nickname = nicknameForAccount(display, user);
+      const ownership = await getNicknameOwnership(tx, uid, nickname, user['nickname']);
 
       // Idempotent under Auth onCreate races. Never reset consent, billing or age.
       if (userSnap.exists) {
         tx.update(userRef, {
           nickname: nickname.display,
+          nicknameNormalized: nickname.key,
           ...(!Array.isArray(user['nicknameHistory']) || user['nicknameHistory'].length === 0
             ? { nicknameHistory: [{ nickname: nickname.key, date: Timestamp.now() }] }
             : {}),
@@ -164,11 +218,11 @@ export const reserveRegistrationNickname = onCall<{ nickname?: unknown; expected
         tx.create(userRef, {
           ...buildInitialUserSeed(authUser, { source: 'registration-recovery' }),
           nickname: nickname.display,
+          nicknameNormalized: nickname.key,
           nicknameHistory: [{ nickname: nickname.key, date: Timestamp.now() }],
         });
       }
-      reserveInTransaction(tx, uid, nickname, indexRef, reservationRef,
-        indexSnap.exists, reservationSnap.exists);
+      reserveInTransaction(tx, uid, nickname, ownership);
       return { nickname: nickname.display, normalized: nickname.key };
     });
     await syncRegistrationDisplayName(authUser, result.nickname);
@@ -192,7 +246,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
       });
     }
 
-    const nickname = nicknameInput(request.data?.nickname);
+    const { display } = nicknameInput(normalizeRegistrationNickname(request.data?.nickname));
     const gender = String(request.data?.gender ?? '').trim().toLowerCase();
     const orientation = String(request.data?.orientation ?? '').trim().toLowerCase();
     const estado = String(request.data?.estado ?? '').trim().toUpperCase();
@@ -210,19 +264,18 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
 
     const userRef = db.collection('users').doc(uid);
     const publicRef = db.collection('public_profiles').doc(uid);
-    const indexRef = db.collection('public_index').doc(`nickname:${nickname.key}`);
-    const reservationRef = db.collection('nickname_reservations').doc(nickname.key);
     const ageRef = db.collection('age_eligibility_records').doc(uid);
     const result = await db.runTransaction(async (tx) => {
-      const [userSnap, publicSnap, indexSnap, reservationSnap, ageSnap] =
+      const [userSnap, publicSnap, ageSnap] =
         await Promise.all([
-          tx.get(userRef), tx.get(publicRef), tx.get(indexRef),
-          tx.get(reservationRef), tx.get(ageRef),
+          tx.get(userRef), tx.get(publicRef),
+          tx.get(ageRef),
         ]);
       if (!userSnap.exists) {
         throw new HttpsError('failed-precondition', 'Dados da conta não encontrados.');
       }
       const user = userSnap.data()!;
+      const nickname = nicknameForAccount(display, user);
       if (user['accountStatus'] !== 'active' || user['accountLocked'] === true ||
         user['suspended'] === true || user['loginAllowed'] === false ||
         user['deletionRequestedAt'] != null) {
@@ -254,11 +307,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
         }
         throw new HttpsError('failed-precondition', 'Perfil já foi concluído.');
       }
-      assertClaimAllowed(canClaimRegistrationNickname({
-        uid, requested: nickname, currentDisplay: user['nickname'],
-        indexOwnerUid: ownerOf(indexSnap.data()),
-        reservationOwnerUid: ownerOf(reservationSnap.data()),
-      }));
+      const ownership = await getNicknameOwnership(tx, uid, nickname, user['nickname']);
 
       if (publicSnap.exists && (
         publicSnap.get('uid') !== uid ||
@@ -271,6 +320,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
       const nowMs = Date.now();
       tx.update(userRef, {
         nickname: nickname.display,
+        nicknameNormalized: nickname.key,
         ...(!Array.isArray(user['nicknameHistory']) || user['nicknameHistory'].length === 0
           ? { nicknameHistory: [{ nickname: nickname.key, date: Timestamp.fromMillis(nowMs) }] }
           : {}),
@@ -295,8 +345,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
         publicFields['role'] = 'free';
       }
       tx.set(publicRef, publicFields, { merge: true });
-      reserveInTransaction(tx, uid, nickname, indexRef, reservationRef,
-        indexSnap.exists, reservationSnap.exists);
+      reserveInTransaction(tx, uid, nickname, ownership);
       return { status: 'COMPLETED' as const, nickname: nickname.display };
     });
     await syncRegistrationDisplayName(authUser, result.nickname);
