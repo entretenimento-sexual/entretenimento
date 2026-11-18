@@ -24,6 +24,7 @@ const classify = overrides => classifyNicknameCutoverRecord({ ...valid, ...overr
 
 test('canonical complete owner is ready', () => {
   assert.deepEqual(classify({}), { category: 'READY', flags: [] });
+  assert.deepEqual(classify({ reservation: null }), { category: 'READY', flags: [] });
 });
 test('not completed account is separate from anomalies', () => {
   assert.equal(classify({ user: { ...valid.user, profileCompleted: false } }).category,
@@ -31,9 +32,9 @@ test('not completed account is separate from anomalies', () => {
   assert.deepEqual(classify({ user: { ...valid.user, uid: 'other' } }).flags,
     ['INVALID_OWNER']);
 });
-test('missing index and reservation produce two independent signals', () => {
+test('missing public index is flagged even without a legacy record', () => {
   assert.deepEqual(classify({ index: null, reservation: null }).flags,
-    ['MISSING_RESERVATION', 'INDEX_MISSING']);
+    ['INDEX_MISSING']);
 });
 test('foreign index owner and reservation cannot pass validation', () => {
   assert.deepEqual(classify({
@@ -50,6 +51,11 @@ test('public projection mismatch and reservation corruption are flagged', () => 
 test('hidden owners must not have a public nickname index', () => {
   const user = { ...valid.user, publicVisibility: 'hidden' };
   assert.equal(classify({ user, index: null }).category, 'NOT_PUBLIC');
+  assert.equal(classify({
+    user: { ...user, nicknameNormalized: 'perfil_teste' }, index: null, reservation: null,
+  }).category, 'NOT_PUBLIC');
+  assert.deepEqual(classify({ user, index: null, reservation: null }).flags,
+    ['OWNERSHIP_NOT_INDEXED']);
   assert.deepEqual(classify({ user }).flags, ['HIDDEN_INDEX_STILL_PRESENT']);
   assert.equal(classify({
     user: { ...valid.user, suspended: true }, index: null,
@@ -58,14 +64,14 @@ test('hidden owners must not have a public nickname index', () => {
 test('aggregate output contains no owner names or UIDs', () => {
   const s = createNicknameCutoverSummary();
   accumulateNicknameCutover(s, classify({}));
-  accumulateNicknameCutover(s, classify({ reservation: null }));
+  accumulateNicknameCutover(s, classify({ index: null, reservation: null }));
   accumulateNicknameCutover(s, classify({
     user: { ...valid.user, profileCompleted: false },
   }));
   assert.equal(s.scannedUsers, 3);
   assert.equal(s.completedUsers, 2);
   assert.equal(s.review, 1);
-  assert.equal(s.flags.MISSING_RESERVATION, 1);
+  assert.equal(s.flags.INDEX_MISSING, 1);
   assert.equal(JSON.stringify(s).includes('owner'), false);
   assert.deepEqual(evaluateNicknameCutoverGate(s, { truncated: false }).reasons,
     ['REQUIRES_RECONCILIATION']);

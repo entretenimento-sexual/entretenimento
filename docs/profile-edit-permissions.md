@@ -129,9 +129,8 @@ homologação sem CI verde. Nenhum deploy está autorizado por este documento.
 
 Os novos callable names `reserveRegistrationNickname` e
 `completeRegistrationProfile` são backend-only, com App Check, autenticação,
-normalização canônica no servidor e transação que compara:
-`users/{uid}`, `public_index/nickname:{key}` e a nova reserva privada
-`nickname_reservations/{key}`. O backend aceita somente a chave normalizada
+normalização canônica no servidor e reserva em transação no documento
+`public_index/nickname:{key}`. O backend aceita somente a chave normalizada
 que ele próprio calculou; o navegador não pode informar uma segunda key.
 Ambas as operações impedem ocupação por outro UID e troca do nickname
 estabelecido. A conclusão também verifica e-mail no Firebase Auth, termos,
@@ -141,9 +140,9 @@ um campo de idade de apresentação como autoridade.
 Os serviços reativos Angular **mantêm os mesmos métodos** de cadastro, mas
 passam a chamar essas Functions; as falhas continuam encaminhadas aos serviços
 centralizados de erro, sem liberar o cadastro em caso de ausência do backend.
-`nickname_reservations` é coleção privada e bloqueada para cliente pelas
-Rules padrão. As reservas históricas existentes permanecem consultadas via
-`public_index`, para evitar tomar apelidos já usados.
+A chave gravada em `users/{uid}.nicknameNormalized` protege o titular
+quando o índice público é retirado. `nickname_reservations` contém somente
+registros legados já existentes, consultados pelo backend por compatibilidade.
 
 **Implantação coordenada obrigatória:** publicar as duas Functions e testar
 cadastro por e-mail e social antes de bloquear os caminhos legados de escrita
@@ -152,9 +151,8 @@ continuam aceitando o batch de cadastro, que é uma lacuna residual conhecida.
 Não alegar exclusividade absoluta do servidor até fechar essa permissão,
 migrar históricos de nicknames e comprovar CI e E2E.
 
-Os registros privados de reserva exigem política de retenção para contas
-excluídas e atendimento a solicitações de privacidade. Não usar o índice
-para identificar pessoas fora da plataforma nem reter PII desnecessária.
+A etapa de conciliação deve revisar a retenção dos registros antigos para
+contas excluídas e preservar o titular das contas que ainda existem.
 
 ## Produção / rollout seguro da autoridade de nickname
 
@@ -171,8 +169,7 @@ por atualização indiscriminada das Rules. Ordem operacional exigida:
    nickname ocupado a UID novo; apontar conflitos para auditoria;
 4. **Só depois** bloquear por Firestore Rules a conclusão do perfil e criação
    do índice por cliente, fechando o bypass legado. Confirmar testes de
-   rollback, reconciliação e índices de busca. Não ampliar leitura da coleção
-   privada `nickname_reservations`.
+   rollback, reconciliação e índices de busca. Registros legados seguem privados.
 
 A ordem de publicação é uma dependência de segurança e disponibilidade:
 o Angular novo depende de Functions novas, mas o frontend antigo deve
@@ -202,39 +199,18 @@ de consentimento nem exposição implícita de textos privados.
 
 ### Reserva backend-only: fronteira explícita
 
-`firestore-rules/nickname_reservations.rules` nega todas as leituras e
-escritas de cliente em `nickname_reservations/{key}`, independentemente de
-assinatura, cargo, titularidade ou conclusão do cadastro. Somente operações
-Admin SDK com autorização backend podem criar/reconciliar a reserva. Os testes
-cobrem GET, SET e DELETE negados para o titular. Não expor a existência da
-reserva em páginas públicas nem no mecanismo de descoberta.
+`public_index/nickname:{key}` aceita escrita de nickname apenas pelo
+backend. A leitura direta só é autorizada para índice com projeção publicada
+e titular elegível. A consulta do cadastro devolve somente disponibilidade
+provisória. A coleção `nickname_reservations` é legada, com acesso do cliente
+negado e sem novas gravações no fluxo de cadastro.
 
-### Reconciliação de índices anteriores — ferramenta segura
+### Inventário de índices anteriores
 
-`scripts/maintenance/backfill-nickname-reservations-admin.mjs` faz um
-levantamento paginado de `public_index/nickname:*` e compara:
-índice público existente, titular privado, normalização canônica compilada
-e reserva backend-only. O padrão é **dry-run**, sem alterações. Não recupera
-apelidos por e-mail e não cria qualquer perfil ou publicação.
-
-Preparação local:
-```powershell
-npm.cmd --prefix functions run build
-$env:FIREBASE_PROJECT_ID = 'ID_DO_PROJETO'
-$env:NICKNAME_RESERVATION_DRY_RUN = 'true'
-node scripts/maintenance/backfill-nickname-reservations-admin.mjs
-```
-
-Uma eventual execução real exige planejamento operacional, credenciais
-Admin, `NICKNAME_RESERVATION_DRY_RUN=false`,
-`NICKNAME_RESERVATION_APPLY=true` e
-`NICKNAME_RESERVATION_CONFIRM_PROJECT=ID_DO_PROJETO`.
-**Não executar a aplicação sem revisar o relatório, garantir acesso ao
-backup e validar a sequência de deploy.** O script é idempotente,
-não reassocia, remove ou libera nicknames; conflitos e ausências exigem
-revisão manual. Limite padrão: 1.000 registros; paginação e teto configuráveis.
-A ferramenta não executa automaticamente em CI nem foi rodada em produção.
-
+`scripts/maintenance/backfill-nickname-reservations-admin.mjs` mantém o nome
+operacional anterior. Agora é somente leitura e compara o índice existente,
+o titular privado e, quando presente, o registro legado. O relatório é
+agregado e aponta conflitos e registros inválidos para revisão.
 
 ### Referência comparativa e aceite jurídico vigente
 
@@ -258,7 +234,7 @@ Ferramenta: scripts/maintenance/build-registration-lockdown-candidate.mjs.
 Lê os fragmentos do manifesto canônico e produz **somente em memória**
 uma versão estrita, sem alterar firestore.rules, deploy ou banco de dados.
 
-Esta versão desativa exatamente três caminhos de escrita via SDK:
+A versão estrita desativa os caminhos abaixo. A escrita no índice já é restrita ao backend nos fragmentos de desenvolvimento.
 - users/{uid}: auto-conclusão do perfil; continua permitida a edição ordinária.
 - public_profiles/{uid}: criação client-side; backend Admin SDK faz a projeção.
 - public_index/nickname:*: criação client-side; email:* mantém seu contrato.
@@ -295,8 +271,8 @@ A assinatura não substitui qualquer dessas autoridades.
 
 Nova ferramenta: `scripts/maintenance/audit-nickname-cutover-readonly.mjs`.
 Ela percorre documentos `users` e compara as contas concluídas com
-`public_profiles`, `public_index/nickname:*` e
-`nickname_reservations`, identificando também índices AUSENTES que
+`public_profiles`, `public_index/nickname:*` e, quando existentes, registros
+legados de `nickname_reservations`, identificando também índices AUSENTES que
 o backfill anterior (iniciado apenas por índices existentes) não vê.
 
 O resultado apresenta **apenas contadores agregados**, nunca UID,

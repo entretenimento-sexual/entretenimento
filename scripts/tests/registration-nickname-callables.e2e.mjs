@@ -104,7 +104,7 @@ async function run() {
     assert.deepEqual((await reserve({ nickname: 'Perfil Original', expectedUid: uid })).data,
       { nickname: 'Perfil Original', normalized: 'perfil' });
     assert.equal((await adminAuth.getUser(uid)).displayName, 'Perfil Original');
-    assert.equal((await db.doc('nickname_reservations/perfil').get()).get('uid'), uid);
+    assert.equal((await db.doc('nickname_reservations/perfil').get()).exists, false);
     assert.equal((await db.doc('public_index/nickname:perfil').get()).get('uid'), uid);
     assert.equal((await db.doc('public_profiles/' + uid).get()).exists, false);
     assert.deepEqual(await publishedStatus('Perfil Original'), { status: 'unconfirmed' });
@@ -178,6 +178,17 @@ async function run() {
     await rejects(complete, { ...payload, nickname: 'Perfil Alterado' }, 'failed-precondition');
     assert.equal((await db.doc('public_index/nickname:perfil').get()).get('uid'), uid);
     console.log('[registration:e2e] PASS eligibility, completion, repeat and immutable nickname');
+
+    const publishedIndex = db.doc('public_index/nickname:perfil');
+    const publishedIndexData = (await publishedIndex.get()).data();
+    await privateRef.update({ publicVisibility: 'hidden' });
+    await publishedIndex.delete();
+    assert.deepEqual(await publishedStatus('Perfil'), { status: 'unconfirmed' });
+    await rejects(reserveOther, { nickname: 'Perfil Alternativo' }, 'already-exists');
+    assert.equal((await publishedIndex.get()).exists, false);
+    await privateRef.update({ publicVisibility: 'visible' });
+    await publishedIndex.set(publishedIndexData);
+    console.log('[registration:e2e] PASS hidden owner keeps principal after public index removal');
 
     await adminAuth.updateUser(otherUid, { emailVerified: true });
     await b.user.reload();
@@ -296,6 +307,8 @@ async function run() {
     assert.equal((await reserveIndependent({
       nickname: 'Disputa_RJ', expectedUid: independentUid,
     })).data.normalized, 'disputa_rj');
+    const legacyReservations = await db.collection('nickname_reservations').get();
+    assert.deepEqual(legacyReservations.docs.map(ref => ref.id), ['legado_antigo']);
     console.log('[registration:e2e] PASS one transaction owns a principal under concurrent signup');
   } finally {
     await Promise.allSettled(apps.map(deleteApp));

@@ -40,7 +40,7 @@ const indexes = cap => runScan(
   cap, 'NICKNAME_RESERVATION_REPORT_PATH', 'NICKNAME_RESERVATION_MAX_RECORDS'
 );
 
-async function seed(uid, display, key) {
+async function seed(uid, display, key, legacy = false) {
   await Promise.all([
     db.doc('users/' + uid).set({
       uid, nickname: display, profileCompleted: true,
@@ -53,13 +53,13 @@ async function seed(uid, display, key) {
     db.doc('public_index/nickname:' + key).set({
       uid, type: 'nickname', value: key,
     }),
-    db.doc('nickname_reservations/' + key).set({
+    ...(legacy ? [db.doc('nickname_reservations/' + key).set({
       uid, key, state: 'RESERVED',
-    }),
+    })] : []),
   ]);
 }
 try {
-  await seed('audit-alpha', 'Perfil Alfa', 'perfil_alfa');
+  await seed('audit-alpha', 'Perfil Alfa', 'perfil_alfa', true);
   const oneUser = users(1);
   const oneIndex = indexes(1);
   assert.equal(oneUser.truncated, false);
@@ -82,7 +82,7 @@ try {
   assert.equal(fullIndexes.truncated, false);
   assert.equal(fullIndexes.already, 2);
   assert.equal(fullIndexes.applied, 0);
-  assert.equal((await db.collection('nickname_reservations').get()).size, 2);
+  assert.equal((await db.collection('nickname_reservations').get()).size, 1);
   console.log('[nickname-audit:e2e] PASS overflow, complete scan, no writes');
 } finally {
   await Promise.allSettled([

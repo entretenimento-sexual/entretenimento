@@ -1,6 +1,6 @@
 // Pure read-only inventory classification. No UID or nickname in output.
 export const CUTOVER_FLAGS = Object.freeze([
-  'INVALID_OWNER', 'INVALID_NICKNAME', 'MISSING_RESERVATION',
+  'INVALID_OWNER', 'INVALID_NICKNAME', 'OWNERSHIP_NOT_INDEXED',
   'RESERVATION_CONFLICT', 'RESERVATION_INVALID',
   'PUBLIC_PROFILE_MISSING', 'PUBLIC_PROFILE_MISMATCH',
   'INDEX_MISSING', 'INDEX_CONFLICT', 'INDEX_INVALID',
@@ -22,15 +22,17 @@ export function classifyNicknameCutoverRecord({
   }
   const flags = [];
   const key = canonical.key;
-  if (!reservation) flags.push('MISSING_RESERVATION');
-  else if (reservation.uid !== uid) flags.push('RESERVATION_CONFLICT');
-  else if (reservation.key !== key || reservation.state !== 'RESERVED') {
+  if (reservation && reservation.uid !== uid) flags.push('RESERVATION_CONFLICT');
+  else if (reservation && (reservation.key !== key || reservation.state !== 'RESERVED')) {
     flags.push('RESERVATION_INVALID');
   }
   const visible = user.accountStatus === 'active' &&
     user.publicVisibility === 'visible' && user.interactionBlocked === false &&
     user.suspended !== true && user.accountLocked !== true;
   if (!visible) {
+    if (!index && !reservation && user.nicknameNormalized !== key) {
+      flags.push('OWNERSHIP_NOT_INDEXED');
+    }
     if (index) flags.push('HIDDEN_INDEX_STILL_PRESENT');
     return { category: flags.length ? 'REVIEW' : 'NOT_PUBLIC', flags };
   }

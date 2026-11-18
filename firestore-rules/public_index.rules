@@ -23,7 +23,7 @@ match /public_index/{docId} {
       "uid", "type", "value", "createdAt", "lastChangedAt", "updatedAt"
     ])
       && data.get("uid", "") is string
-      && data.get("uid", "").matches("^[^@ ]{1,128}$")
+      && data.get("uid", "").matches("^[A-Za-z0-9_-]{1,128}$")
       && data.get("type", "") == "nickname"
       && data.get("value", "") is string
       && data.get("value", "").matches("^[a-z0-9._-]{3,40}$")
@@ -33,8 +33,28 @@ match /public_index/{docId} {
       && (!data.keys().hasAny(["updatedAt"]) || data.updatedAt is timestamp);
   }
 
+  function publishedNicknameIndex(data) {
+    let owner = get(/databases/$(database)/documents/users/$(data.uid)).data;
+    let profile = get(/databases/$(database)/documents/public_profiles/$(data.uid)).data;
+    return owner is map
+      && owner.get("uid", "") == data.uid
+      && owner.get("profileCompleted", false) == true
+      && owner.get("accountStatus", "") == "active"
+      && owner.get("publicVisibility", "") == "visible"
+      && owner.get("interactionBlocked", true) == false
+      && owner.get("accountLocked", false) != true
+      && owner.get("suspended", false) != true
+      && owner.get("loginAllowed", true) != false
+      && owner.get("deletionRequestedAt", null) == null
+      && profile is map
+      && profile.get("uid", "") == data.uid
+      && profile.get("nicknameNormalized", "") == data.value;
+  }
+
   allow get: if (isNicknameDoc()
-      && (resource == null || publicNicknameIndexData(resource.data)))
+      && resource != null
+      && publicNicknameIndexData(resource.data)
+      && publishedNicknameIndex(resource.data))
     || (
       signedIn()
       && isEmailDoc()
@@ -45,36 +65,6 @@ match /public_index/{docId} {
   allow list: if false;
 
   function validDocId() { return isNicknameDoc() || isEmailDoc(); }
-
-  function currentNicknameOwnerEligibleAfter() {
-    let userPath = /databases/$(database)/documents/users/$(uid());
-    let user = signedIn() && existsAfter(userPath)
-      ? getAfter(userPath).data
-      : null;
-
-    return user is map
-      && user.accountStatus == "active"
-      && user.profileCompleted == true
-      && user.publicVisibility == "visible"
-      && user.interactionBlocked == false
-      && adultMediaHasCurrentTerms(user);
-  }
-
-  // Bloqueia aliases arbitrários: a chave precisa representar o titular.
-  // A normalização/ocupação histórica ainda será migrada para backend.
-  function canonicalNicknameReservationAfter() {
-    let profilePath = /databases/$(database)/documents/public_profiles/$(uid());
-    let profile = signedIn() && existsAfter(profilePath)
-      ? getAfter(profilePath).data
-      : null;
-    return profile is map
-      && profile.get("uid", "") == uid()
-      && profile.get("nicknameNormalized", "") is string
-      && profile.nicknameNormalized.matches('^[a-z0-9._-]{3,40}$')
-      && request.resource.data.type == "nickname"
-      && docId == "nickname:" + profile.nicknameNormalized
-      && request.resource.data.value == profile.nicknameNormalized;
-  }
 
   function common() {
     return signedIn()
@@ -89,10 +79,7 @@ match /public_index/{docId} {
       && request.resource.data.lastChangedAt == request.time;
   }
 
-  allow create: if common()
-    && (!isNicknameDoc() || (publicNicknameIndexData(request.resource.data)
-      && currentNicknameOwnerEligibleAfter()
-      && canonicalNicknameReservationAfter()))
+  allow create: if isEmailDoc() && common()
     && !exists(/databases/$(database)/documents/public_index/$(docId));
 
   allow update: if signedIn()

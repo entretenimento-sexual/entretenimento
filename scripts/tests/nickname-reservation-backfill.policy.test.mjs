@@ -13,8 +13,8 @@ const base = {
   normalizeNickname: normalize,
 };
 
-test('legacy nickname matches account and is safe to reserve', () => {
-  assert.equal(classifyNicknameBackfill(base), 'candidate');
+test('the current index is sufficient without a separate reservation', () => {
+  assert.equal(classifyNicknameBackfill(base), 'already');
 });
 test('reservation is idempotent for same UID, never overwritten for another UID', () => {
   assert.equal(classifyNicknameBackfill({

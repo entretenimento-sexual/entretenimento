@@ -1,5 +1,5 @@
-// Registration nickname ownership. Firebase Admin SDK is the only writer of
-// nickname_reservations: clients cannot create aliases or bypass key normalization.
+// Registration nickname ownership uses the existing public_index document.
+// Only the backend creates nickname index entries.
 // Separate operations preserve existing callable names and reactive Angular facade.
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { warn } from 'firebase-functions/logger';
@@ -95,7 +95,7 @@ async function assertNoLegacyNicknameOwner(
   const legacyRange = (collection: string, documentPrefix: string) => {
     const start = documentPrefix + prefix;
     return db.collection(collection).orderBy(FieldPath.documentId())
-      .startAt(start).endAt(start + '\uf8ff').select('uid', 'policyVersion');
+      .startAt(start).endAt(start + '\uf8ff').select('uid');
   };
   const [indexes, reservations] = await Promise.all([
     tx.get(legacyRange('public_index', 'nickname:')),
@@ -105,7 +105,7 @@ async function assertNoLegacyNicknameOwner(
   for (const document of [...indexes.docs, ...reservations.docs]) {
     const otherUid = document.get('uid');
     if (typeof otherUid === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(otherUid) &&
-        otherUid !== uid && document.get('policyVersion') !== 2) {
+        otherUid !== uid) {
       owners.add(otherUid);
     }
   }
@@ -126,25 +126,36 @@ async function getNicknameOwnership(
   currentDisplay?: unknown,
 ) {
   const indexRef = db.collection('public_index').doc(`nickname:${nickname.key}`);
-  const reservationRef = db.collection('nickname_reservations').doc(nickname.key);
-  const [indexSnap, reservationSnap] = await Promise.all([tx.get(indexRef), tx.get(reservationRef)]);
+  const indexSnap = await tx.get(indexRef);
   assertClaimAllowed(canClaimRegistrationNickname({
     uid, requested: nickname, currentDisplay,
     indexOwnerUid: ownerOf(indexSnap.data()),
-    reservationOwnerUid: ownerOf(reservationSnap.data()),
   }));
-  if (!indexSnap.exists && !reservationSnap.exists &&
-      normalizeRegistrationNicknameClaim(nickname.display)?.key === nickname.key) {
-    await assertNoLegacyNicknameOwner(tx, uid, nickname);
+  if (!indexSnap.exists) {
+    const [owners, oldReservation] = await Promise.all([
+      // Suspensão, ocultação e reverificação podem retirar a projeção pública.
+      // A chave salva na própria conta continua protegendo o titular.
+      tx.get(db.collection('users').where('nicknameNormalized', '==', nickname.key).select().limit(2)),
+      // Compatibilidade somente de leitura com snapshots de emulador anteriores.
+      tx.get(db.collection('nickname_reservations').doc(nickname.key)),
+    ]);
+    assertClaimAllowed(canClaimRegistrationNickname({
+      uid, requested: nickname,
+      indexOwnerUid: owners.docs.find(owner => owner.id !== uid)?.id,
+      reservationOwnerUid: ownerOf(oldReservation.data()),
+    }));
+    if (normalizeRegistrationNicknameClaim(nickname.display)?.key === nickname.key) {
+      await assertNoLegacyNicknameOwner(tx, uid, nickname);
+    }
   }
-  return { indexRef, reservationRef, indexExists: indexSnap.exists, reservationExists: reservationSnap.exists };
+  return { indexRef, indexExists: indexSnap.exists };
 }
 
 function reserveInTransaction(
   tx: FirebaseFirestore.Transaction,
   uid: string,
   nickname: RegistrationNickname,
-  { indexRef, reservationRef, indexExists, reservationExists }:
+  { indexRef, indexExists }:
     Awaited<ReturnType<typeof getNicknameOwnership>>,
 ): void {
   const now = FieldValue.serverTimestamp();
@@ -152,12 +163,6 @@ function reserveInTransaction(
     tx.create(indexRef, {
       uid, type: 'nickname', value: nickname.key,
       createdAt: now, lastChangedAt: now,
-    });
-  }
-  if (!reservationExists) {
-    tx.create(reservationRef, {
-      uid, key: nickname.key, state: 'RESERVED', reservedAt: now,
-      policyVersion: normalizeRegistrationNicknameClaim(nickname.display)?.key === nickname.key ? 2 : 1,
     });
   }
 }

@@ -13,26 +13,27 @@ pré-flight, não autorização nem comando de deploy.
   no ambiente real.
 - Clientes antigos ainda podem tentar concluir por operações diretas
   no Firestore. O CI testa só o código atual, não sessões antigas.
-- O índice público de nickname hoje permite GET mesmo para contas em
-  cadastro, e a reserva server-side nasce antes da projeção pública.
-  **Risco de exposição de UID/nickname**: revisar a autorização de
-  leitura e substituir a checagem pré-auth do registro por alternativa
-  que não exponha documentos. Não promover lockdown sem resolução.
+- As Rules de desenvolvimento limitam a leitura direta do índice de
+  nickname a perfis publicados e elegíveis. A disponibilidade do cadastro
+  é informada pela callable sem retornar documentos do índice.
 
 ## Unicidade pelo apelido principal em desenvolvimento
 
-Cadastros novos reservam a chave normalizada do principal. O nome exibido
+Cadastros novos reservam a chave normalizada do principal no
+`public_index`. O nome exibido
 continua podendo trazer o complemento opcional. O formulário consulta
 disponibilidade ao editar o principal e valida o complemento localmente.
-A confirmação pública segue provisória até a reserva transacional.
+A confirmação pública segue provisória até a reserva transacional. Se a
+projeção pública for retirada, a chave da conta em `users` continua
+protegendo o titular.
 
 Contas já gravadas preservam o apelido e a chave legada ao retomar a conclusão.
-A reserva verifica aliases legados indexados para bloquear novas disputas pelo
-mesmo principal. A pré-consulta usa a chave exata e pode devolver
+O backend consulta aliases e registros legados para evitar disputas pelo
+mesmo principal. O cadastro só grava a reserva em `public_index`. A pré-consulta usa a chave exata e pode devolver
 `unconfirmed` para uma conta que só tenha o alias legado.
 
 Antes do deploy coordenado, o inventário somente leitura deve apurar
-`duplicatePrincipals` e identificar registros sem índice ou reserva. Resolver
+`duplicatePrincipals` e identificar contas sem proteção de titularidade. Resolver
 conflitos de titularidade preservando os nomes exibidos antes de conciliar as
 chaves históricas. O ensaio em desenvolvimento usa os emuladores.
 
@@ -43,10 +44,9 @@ chaves históricas. O ensaio em desenvolvimento usa os emuladores.
 2. Inventariar todos os usuários de modo integral e sem dados pessoais
    nos logs. Usar audit-nickname-cutover-readonly.mjs. Somente
    um scan com truncated=false pode servir de evidência.
-3. Executar backfill-nickname-reservations-admin.mjs em dry-run para
-   achar índices órfãos/duplicados. candidate>0 significa que a
-   migração ainda não foi executada; conflito não pode ser reparado
-   por heurística nem liberado para outro UID.
+3. Executar backfill-nickname-reservations-admin.mjs, agora somente
+   leitura, para localizar índices inválidos e conflitos com registros
+   legados. Conciliar conflitos preservando a titularidade.
 4. Monitorar e impedir clientes com versão antiga que fazem writes
    diretos. Registrar evidência de zero tentativas de bypass por
    janela mínima inicial de 30 dias, sem coletar dados íntimos.

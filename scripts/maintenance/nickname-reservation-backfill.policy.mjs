@@ -1,5 +1,4 @@
-// Pure classification for a legacy nickname-index backfill.
-// Do not attempt to repair conflicting records or infer identity from email.
+// Read-only classification of the current index and optional legacy data.
 export function classifyNicknameBackfill(input) {
   const { indexId, indexData, userData, reservationData, normalizeNickname } = input;
   const key = typeof indexId === 'string' && indexId.startsWith('nickname:')
@@ -21,5 +20,5 @@ export function classifyNicknameBackfill(input) {
       ? 'already'
       : 'conflict';
   }
-  return 'candidate';
+  return 'already';
 }

@@ -1,18 +1,13 @@
-// Reconciliação de reservas existentes: SOMENTE Admin SDK.
-// Dry-run é o padrão. Nunca escreve em users, public_profiles ou public_index.
-// Aplicação requer projeto explícito e dupla confirmação; nenhum deploy.
+// Inventário de índices e registros antigos. Exclusivamente somente leitura.
 import { createRequire } from 'node:module';
 import { applicationDefault, getApps, initializeApp } from 'firebase-admin/app';
-import { FieldPath, FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { FieldPath, getFirestore } from 'firebase-admin/firestore';
 import { writeFileSync } from 'node:fs';
 import { buildNicknameScanReport, shouldInspectNextDocument } from './nickname-scan-report.policy.mjs';
 import { classifyNicknameBackfill } from './nickname-reservation-backfill.policy.mjs';
 
 const require = createRequire(import.meta.url);
 const projectId = String(process.env.FIREBASE_PROJECT_ID ?? '').trim();
-const dryRun = process.env.NICKNAME_RESERVATION_DRY_RUN !== 'false';
-const applyApproved = process.env.NICKNAME_RESERVATION_APPLY === 'true';
-const confirmedProject = String(process.env.NICKNAME_RESERVATION_CONFIRM_PROJECT ?? '').trim();
 const pageSize = Math.min(200, Math.max(1,
   Number.parseInt(process.env.NICKNAME_RESERVATION_PAGE_SIZE ?? '100', 10) || 100));
 const maxRecords = Math.min(100_000, Math.max(1,
@@ -21,8 +16,9 @@ const maxRecords = Math.min(100_000, Math.max(1,
 if (!/^[a-z0-9][a-z0-9-]{3,62}$/.test(projectId)) {
   throw new Error('FIREBASE_PROJECT_ID explícito é obrigatório.');
 }
-if (!dryRun && (!applyApproved || confirmedProject !== projectId)) {
-  throw new Error('Aplicação negada: confirme APPLY=true e o ID exato do projeto.');
+if (process.env.NICKNAME_RESERVATION_DRY_RUN === 'false' ||
+    process.env.NICKNAME_RESERVATION_APPLY === 'true') {
+  throw new Error('Este inventário é somente leitura. Novas reservas usam public_index.');
 }
 
 // Usa a normalização já implantada no backend; nunca duplicar algoritmo.
@@ -42,6 +38,7 @@ if (!getApps().length) {
   initializeApp({ credential: applicationDefault(), projectId });
 }
 const db = getFirestore();
+// Campos históricos do relatório consumidos por nickname:cutover-readiness.
 const stats = {
   scanned: 0, candidate: 0, already: 0, invalid: 0, conflict: 0,
   applied: 0, changedDuringTransaction: 0,
@@ -84,33 +81,6 @@ while (stats.scanned < maxRecords) {
       normalizeNickname: resolveStoredRegistrationNickname,
     });
     stats[decision] += 1;
-    if (decision !== 'candidate' || dryRun) continue;
-
-    // Revalidar index, titular e reserva sob a mesma transação: nunca
-    // converter uma chave que mudou de dono enquanto o script a lia.
-    const outcome = await db.runTransaction(async (tx) => {
-      const [currentIndex, currentUser, currentReservation] = await Promise.all([
-        tx.get(indexDoc.ref),
-        tx.get(userRef),
-        tx.get(reservationRef),
-      ]);
-      const current = classifyNicknameBackfill({
-        indexId: indexDoc.id,
-        indexData: currentIndex.exists ? currentIndex.data() : null,
-        userData: currentUser.exists ? currentUser.data() : null,
-        reservationData: currentReservation.exists ? currentReservation.data() : null,
-        normalizeNickname: resolveStoredRegistrationNickname,
-      });
-      if (current !== 'candidate') return current;
-      tx.create(reservationRef, {
-        uid, key, state: 'RESERVED', policyVersion: 1,
-        reservedAt: FieldValue.serverTimestamp(),
-        migrationSource: 'legacy-public-index',
-      });
-      return 'applied';
-    });
-    if (outcome === 'applied') stats.applied += 1;
-    else stats.changedDuringTransaction += 1;
   }
 }
 // Check one more document within the nickname prefix before reporting a
@@ -121,7 +91,7 @@ const nextDocumentExists = shouldInspectNextDocument({
 }) ? !(await db.collection('public_index').orderBy(FieldPath.documentId())
   .startAfter(cursor).endAt('nickname:\uf8ff').limit(1).get()).empty : false;
 const report = buildNicknameScanReport({
-  projectId, mode: dryRun ? 'DRY_RUN' : 'APPLY',
+  projectId, mode: 'DRY_RUN',
   environment: process.env.FIRESTORE_EMULATOR_HOST ? 'EMULATOR' : 'LIVE',
   limit: maxRecords,
   truncated: boundaryReached && nextDocumentExists,
@@ -134,7 +104,7 @@ if (reportPath) {
   writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n',
     { flag: 'wx', mode: 0o600 });
 }
-if (stats.conflict || stats.invalid || stats.changedDuringTransaction) {
+if (stats.conflict || stats.invalid) {
   console.warn(
     '[nickname-reservation-backfill] Inconsistências requerem auditoria manual. ' +
     'Nenhuma chave conflitante foi reassociada ou apagada.'

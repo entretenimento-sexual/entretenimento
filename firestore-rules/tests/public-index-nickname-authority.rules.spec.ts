@@ -67,6 +67,12 @@ async function seed(ownerVisibility = 'visible'): Promise<void> {
   });
 }
 
+async function seedIndex(): Promise<void> {
+  await environment.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'public_index', 'nickname:perfil_estavel'), indexPayload());
+  });
+}
+
 describe('Firestore Rules / autoridade da reserva de nickname', () => {
   beforeAll(async () => {
     environment = await initializeTestEnvironment({
@@ -82,12 +88,30 @@ describe('Firestore Rules / autoridade da reserva de nickname', () => {
   beforeEach(async () => environment.clearFirestore());
   afterAll(async () => environment.cleanup());
 
-  it('permite criar somente a chave que corresponde à projeção do titular', async () => {
+  it('nega criar a reserva pelo cliente mesmo para o próprio perfil publicado', async () => {
     await seed();
-    await assertSucceeds(setDoc(
+    await assertFails(setDoc(
       doc(ownerDb(), 'public_index', 'nickname:perfil_estavel'),
       indexPayload()
     ));
+  });
+
+  it('permite consultar o índice publicado e protege nomes ocultos ou ausentes', async () => {
+    await seed();
+    await seedIndex();
+    const guest = environment.unauthenticatedContext().firestore();
+    const index = doc(guest, 'public_index', 'nickname:perfil_estavel');
+    await assertSucceeds(getDoc(index));
+    await seed('hidden');
+    await assertFails(getDoc(index));
+    await assertFails(getDoc(doc(guest, 'public_index', 'nickname:apelido_ausente')));
+  });
+
+  it('protege o índice reservado enquanto a projeção ainda não existe', async () => {
+    await seedIndex();
+    await assertFails(getDoc(doc(
+      environment.unauthenticatedContext().firestore(), 'public_index', 'nickname:perfil_estavel'
+    )));
   });
 
   it('nega campos extras no índice público e impede ler um índice legado contaminado', async () => {
@@ -136,10 +160,7 @@ describe('Firestore Rules / autoridade da reserva de nickname', () => {
 
   it('nega remoção client-side de nickname já reservado', async () => {
     await seed();
-    await assertSucceeds(setDoc(
-      doc(ownerDb(), 'public_index', 'nickname:perfil_estavel'),
-      indexPayload()
-    ));
+    await seedIndex();
     await assertFails(deleteDoc(
       doc(ownerDb(), 'public_index', 'nickname:perfil_estavel')
     ));

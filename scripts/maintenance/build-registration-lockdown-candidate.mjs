@@ -43,12 +43,6 @@ export function buildRegistrationLockdownCandidate() {
         'allow get: if (false && isNicknameDoc()',
         fragment
       );
-      src = replaceExactlyOnce(
-        src,
-        'allow create: if common()\n    && (!isNicknameDoc()',
-        'allow create: if isEmailDoc() && common()\n    && (!isNicknameDoc()',
-        fragment
-      );
     }
     return '// ===== ' + fragment + ' =====\n' + src + '\n';
   }).join('\n');
