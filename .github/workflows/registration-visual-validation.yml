@@ -533,18 +533,30 @@ jobs:
             }
           }"
 
+          playwright-cli console error > "$OUT/browser-console-errors.log" || true
+          playwright-cli close
+
+      - name: Verify signup during offline and reconnect
+        shell: bash
+        env:
+          PLAYWRIGHT_CLI_SESSION: registration-network-${{ matrix.configuration }}
+        run: |
+          set -euo pipefail
+          playwright-cli open "http://127.0.0.1:4200/register"
+          playwright-cli resize 390 844
           playwright-cli run-code "async (page) => {
             const context = page.context();
             const cdp = await context.newCDPSession(page);
-            const email = page.locator('#email');
+            const nickname = page.locator('#apelidoPrincipal');
             try {
               await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+              await nickname.fill('PerfilTeste');
               await context.setOffline(true);
               await page.getByText('Sem conexão detectada', { exact: true }).waitFor({ state: 'visible' });
               await context.setOffline(false);
               await page.getByText('Conexão restabelecida', { exact: true }).waitFor({ state: 'visible' });
-              if (await email.inputValue() !== 'visual@example.test') {
-                throw new Error('Reconnecting must preserve the credentials in the signup form');
+              if (await nickname.inputValue() !== 'PerfilTeste') {
+                throw new Error('Reconnecting must preserve the signup form input');
               }
             } finally {
               await context.setOffline(false);
@@ -553,7 +565,6 @@ jobs:
             }
           }"
 
-          playwright-cli console error > "$OUT/browser-console-errors.log" || true
           playwright-cli close
 
       - name: Capture onboarding flow surfaces
