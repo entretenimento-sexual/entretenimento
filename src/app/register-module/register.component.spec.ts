@@ -95,6 +95,28 @@ describe('RegisterComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  it('troca a cena ao avançar, sem alterar a identidade visual do apelido ao voltar', () => {
+    const view = fixture.nativeElement as HTMLElement;
+    const original = () => view.querySelector('.signup-scene--original') as HTMLElement;
+    const secondary = () => view.querySelector('.signup-alternate') as HTMLImageElement;
+    expect(secondary()?.getAttribute('src')).toBe('assets/registration/signup-lounge-ensemble.svg');
+    expect(original()?.classList.contains('signup-scene--inactive')).toBe(false);
+    expect(secondary()?.classList.contains('signup-alternate--visible')).toBe(false);
+
+    component.form.patchValue({ apelidoPrincipal: 'visualteste' });
+    component.onNicknameBlur();
+    component.submitSection();
+    fixture.detectChanges();
+
+    expect(component.sectionIndex()).toBe(1);
+    expect(original().classList.contains('signup-scene--inactive')).toBe(true);
+    expect(secondary().classList.contains('signup-alternate--visible')).toBe(true);
+
+    component.previousSection();
+    fixture.detectChanges();
+    expect(secondary().classList.contains('signup-alternate--visible')).toBe(false);
+  });
+
   it('mostra os detalhes da consulta no botão do visto sem enviar o formulário', () => {
     component.form.patchValue({ apelidoPrincipal: 'visualteste' });
     component.onNicknameBlur();

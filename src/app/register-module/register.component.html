@@ -1,9 +1,15 @@
 <!-- src/app/register-module/register.component.html -->
 <div class="auth-container">
-  <picture class="signup-image">
-    <source srcset="assets/registration/signup-shadow.webp" type="image/webp" />
-    <img class="signup-backdrop" src="assets/registration/signup-noir.svg" alt="" decoding="async" />
-  </picture>
+  <div class="signup-image" aria-hidden="true">
+    <picture class="signup-scene signup-scene--original"
+      [class.signup-scene--inactive]="sectionIndex() > 0">
+      <source srcset="assets/registration/signup-shadow.webp" type="image/webp" />
+      <img class="signup-backdrop" src="assets/registration/signup-noir.svg" alt="" decoding="async" />
+    </picture>
+    <img class="signup-alternate" src="assets/registration/signup-lounge-ensemble.svg"
+      [class.signup-alternate--visible]="sectionIndex() > 0"
+      alt="" decoding="async" fetchpriority="low" />
+  </div>
 
   <div class="form-container">
     <app-register-progress
