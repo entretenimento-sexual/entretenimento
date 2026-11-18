@@ -92,11 +92,11 @@
   text-align: left;
 }
 
-.signup-section-intro {
+.form-container form > header {
   margin-block-end: 0.15rem;
 }
 
-.signup-section-intro h1 {
+.form-container form > header h1 {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -120,7 +120,7 @@
   white-space: nowrap;
 }
 
-.signup-section-intro p {
+.form-container form > header p {
   margin: 0.4rem 0 0;
   color: var(--text-muted, var(--text-color));
   line-height: 1.45;

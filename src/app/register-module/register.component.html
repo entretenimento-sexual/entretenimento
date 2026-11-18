@@ -55,13 +55,13 @@
       <pre *ngIf="debugEnabled() && showTech() && b.details">{{ b.details }}</pre>
     </div>
 
-    <form [formGroup]="form" (ngSubmit)="submitSection()" aria-labelledby="register-intro-title" autocomplete="on" novalidate
+    <form [formGroup]="form" (ngSubmit)="submitSection()" aria-labelledby="register-section-title" autocomplete="on" novalidate
       formInvalidMessage="Revise os dados do cadastro antes de continuar."
       [formValidationOnSubmit]="false"
       [attr.aria-busy]="(isLoading() || creating()) ? 'true' : null">
 
-      <header class="signup-section-intro">
-        <h1 id="register-intro-title" #sectionHeading tabindex="-1">
+      <header>
+        <h1 id="register-section-title" #sectionHeading tabindex="-1">
           {{ currentSection().title }}
           <span class="signup-section-count">{{ sectionIndex() + 1 }} de {{ sectionCount }}</span>
         </h1>
