@@ -403,7 +403,9 @@ jobs:
                 lookups.push(request.postDataJSON()?.data?.nickname);
                 await lookupReady;
               }
-              const occupied = isPost && request.postDataJSON()?.data?.nickname === 'ocupadoteste';
+              const key = isPost ? request.postDataJSON()?.data?.nickname : null;
+              const status = key === 'ocupadoteste' ? 'taken'
+                : key === 'semresposta' ? 'unconfirmed' : 'available';
               await route.fulfill({
                 status: 200,
                 headers: {
@@ -411,7 +413,7 @@ jobs:
                   'access-control-allow-methods': 'POST, OPTIONS',
                   'access-control-allow-headers': '*',
                 },
-                json: { result: { status: occupied ? 'taken' : 'unconfirmed' } },
+                json: { result: { status } },
               });
             });
             const nickname = page.locator('#apelidoPrincipal');
@@ -480,6 +482,18 @@ jobs:
             if (lookups.join(',') !== 'visualteste,ocupadoteste,ApelidoTeste') {
               throw new Error('Availability must be queried only for the principal, once per change: ' + lookups.join(','));
             }
+            await indicator.waitFor({ state: 'visible' });
+            await nickname.fill('semresposta');
+            await complement.focus();
+            const uncertain = page.locator('.nickname-indicator--warning');
+            await uncertain.waitFor({ state: 'visible' });
+            await submit.click();
+            await uncertain.waitFor({ state: 'visible' });
+            if (await indicator.count() || await page.locator('#email').count()) {
+              throw new Error('Unconfirmed availability must not approve the nickname or advance the form');
+            }
+            await nickname.fill('ApelidoTeste');
+            await complement.focus();
             await indicator.waitFor({ state: 'visible' });
             await submit.click();
             await page.locator('#email').waitFor({ state: 'visible' });

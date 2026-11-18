@@ -90,10 +90,16 @@ async function run() {
     const guestReserve = httpsCallable(guest.functions, 'reserveRegistrationNickname');
     const checkAvailability = httpsCallable(guest.functions,
       'getRegistrationNicknameAvailability');
-    const publishedStatus = async nickname =>
+    const nicknameStatus = async nickname =>
       (await checkAvailability({ nickname })).data;
     await rejects(guestReserve, { nickname: 'Perfil Original' }, 'unauthenticated');
-    assert.deepEqual(await publishedStatus('Perfil Original'), { status: 'unconfirmed' });
+    assert.deepEqual(await nicknameStatus('Perfil Original'), { status: 'available' });
+    const indexedWithoutProfile = db.doc('public_index/nickname:zapzap');
+    await indexedWithoutProfile.set({
+      uid: 'fixture-not-published', type: 'nickname', value: 'zapzap',
+    });
+    assert.deepEqual(await nicknameStatus('zapzap'), { status: 'taken' });
+    await indexedWithoutProfile.delete();
     await rejects(reserve, { nickname: 'Perfil Original', expectedUid: otherUid }, 'permission-denied');
     await rejects(recover, { expectedUid: otherUid }, 'permission-denied');
     await rejects(acceptTerms, {
@@ -107,8 +113,8 @@ async function run() {
     assert.equal((await db.doc('nickname_reservations/perfil').get()).exists, false);
     assert.equal((await db.doc('public_index/nickname:perfil').get()).get('uid'), uid);
     assert.equal((await db.doc('public_profiles/' + uid).get()).exists, false);
-    assert.deepEqual(await publishedStatus('Perfil Original'), { status: 'unconfirmed' });
-    console.log('[registration:e2e] PASS pending reservation is not exposed');
+    assert.deepEqual(await nicknameStatus('Perfil Original'), { status: 'taken' });
+    console.log('[registration:e2e] PASS pending reservation returns only nickname availability');
 
     // A propriedade do apelido não autoriza contas suspensas a reservá-lo.
     await privateRef.update({ suspended: true });
@@ -126,6 +132,7 @@ async function run() {
     await db.doc('public_index/nickname:legado_antigo').set({
       uid: legacyUser.uid, type: 'nickname', value: 'legado_antigo',
     });
+    assert.deepEqual(await nicknameStatus('Legado'), { status: 'taken' });
     await rejects(reserveOther, { nickname: 'Legado Novo' }, 'already-exists');
     assert.equal((await db.doc('nickname_reservations/legado').get()).exists, false);
 
@@ -172,8 +179,8 @@ async function run() {
     const publicRef = db.doc('public_profiles/' + uid);
     assert.equal((await privateRef.get()).get('profileCompleted'), true);
     assert.equal((await publicRef.get()).get('nicknameNormalized'), 'perfil');
-    assert.deepEqual(await publishedStatus('Perfil'), { status: 'taken' });
-    assert.deepEqual(await publishedStatus('Perfil Outro'), { status: 'taken' });
+    assert.deepEqual(await nicknameStatus('Perfil'), { status: 'taken' });
+    assert.deepEqual(await nicknameStatus('Perfil Outro'), { status: 'taken' });
     assert.equal((await complete(payload)).data.status, 'COMPLETED');
     await rejects(complete, { ...payload, nickname: 'Perfil Alterado' }, 'failed-precondition');
     assert.equal((await db.doc('public_index/nickname:perfil').get()).get('uid'), uid);
@@ -183,7 +190,7 @@ async function run() {
     const publishedIndexData = (await publishedIndex.get()).data();
     await privateRef.update({ publicVisibility: 'hidden' });
     await publishedIndex.delete();
-    assert.deepEqual(await publishedStatus('Perfil'), { status: 'unconfirmed' });
+    assert.deepEqual(await nicknameStatus('Perfil'), { status: 'taken' });
     await rejects(reserveOther, { nickname: 'Perfil Alternativo' }, 'already-exists');
     assert.equal((await publishedIndex.get()).exists, false);
     await privateRef.update({ publicVisibility: 'visible' });

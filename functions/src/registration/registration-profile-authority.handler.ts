@@ -4,7 +4,6 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { warn } from 'firebase-functions/logger';
 import type { UserRecord } from 'firebase-admin/auth';
-import { FieldPath } from 'firebase-admin/firestore';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue, Timestamp, auth } from '../firebaseApp';
@@ -19,8 +18,9 @@ import {
 } from '../compliance/age-eligibility.policy';
 import {
   canClaimRegistrationNickname, normalizeRegistrationNickname, normalizeRegistrationNicknameClaim,
-  registrationNicknamePrincipal, resolveStoredRegistrationNickname, type RegistrationNickname,
+  resolveStoredRegistrationNickname, type RegistrationNickname,
 } from './nickname-reservation.policy';
+import { hasNicknameOwnerWithoutIndex } from './registration-nickname-availability.policy';
 
 interface CompleteRegistrationInput {
   uid: unknown;
@@ -86,34 +86,6 @@ function ownerOf(data: FirebaseFirestore.DocumentData | undefined): string | und
   return data ? String(data['uid'] ?? '') : undefined;
 }
 
-// Aliases antigos usavam o nome completo (rafa_oficial). Na reserva, verifica
-// a origem do alias para distinguir "Rafa Oficial" do principal "Rafa_Oficial".
-async function assertNoLegacyNicknameOwner(
-  tx: FirebaseFirestore.Transaction, uid: string, nickname: RegistrationNickname,
-): Promise<void> {
-  const prefix = `nickname:${nickname.key}_`;
-  const indexes = await tx.get(db.collection('public_index').orderBy(FieldPath.documentId())
-    .startAt(prefix).endAt(prefix + '\uf8ff').select('uid'));
-  const owners = new Set<string>();
-  for (const document of indexes.docs) {
-    const otherUid = document.get('uid');
-    if (typeof otherUid === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(otherUid) &&
-        otherUid !== uid) {
-      owners.add(otherUid);
-    }
-  }
-  if (!owners.size) return;
-
-  const profiles = await tx.getAll(
-    ...Array.from(owners, owner => db.collection('users').doc(owner)),
-    { fieldMask: ['nickname'] },
-  );
-  if (profiles.some(profile => {
-    const display = normalizeRegistrationNickname(profile.get('nickname'))?.display;
-    return display && registrationNicknamePrincipal(display) === nickname.key;
-  })) assertClaimAllowed('in-use');
-}
-
 async function getNicknameOwnership(
   tx: FirebaseFirestore.Transaction, uid: string, nickname: RegistrationNickname,
   currentDisplay?: unknown,
@@ -124,19 +96,8 @@ async function getNicknameOwnership(
     uid, requested: nickname, currentDisplay,
     indexOwnerUid: ownerOf(indexSnap.data()),
   }));
-  if (!indexSnap.exists) {
-    // Suspensão, ocultação e reverificação podem retirar a projeção pública.
-    // A chave salva na própria conta continua protegendo o titular.
-    const owners = await tx.get(
-      db.collection('users').where('nicknameNormalized', '==', nickname.key).select().limit(2)
-    );
-    assertClaimAllowed(canClaimRegistrationNickname({
-      uid, requested: nickname,
-      indexOwnerUid: owners.docs.find(owner => owner.id !== uid)?.id,
-    }));
-    if (normalizeRegistrationNicknameClaim(nickname.display)?.key === nickname.key) {
-      await assertNoLegacyNicknameOwner(tx, uid, nickname);
-    }
+  if (!indexSnap.exists && await hasNicknameOwnerWithoutIndex(db, nickname, { tx, uid })) {
+    assertClaimAllowed('in-use');
   }
   return { indexRef, indexExists: indexSnap.exists };
 }

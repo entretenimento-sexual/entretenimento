@@ -181,16 +181,23 @@ describe('RegisterComponent', () => {
     expect(validation.checkIfNicknameExists).toHaveBeenLastCalledWith('Outro', { mode: 'soft' });
   });
 
-  it('avisa quando a consulta falha sem marcar o apelido como recusado', () => {
+  it('avisa quando a consulta falha e só avança após confirmar a disponibilidade', () => {
     const validation = TestBed.inject(FirestoreValidationService) as unknown as MockFirestoreValidationService;
-    validation.checkIfNicknameExists.mockReturnValueOnce(throwError(() => new Error('offline')));
+    validation.checkIfNicknameExists
+      .mockReturnValueOnce(throwError(() => new Error('offline')))
+      .mockReturnValueOnce(throwError(() => new Error('offline')));
     component.form.patchValue({ apelidoPrincipal: 'visualteste' });
     component.onNicknameBlur();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('#apelidoConsultaErro')?.textContent)
-      .toContain('Consulta indisponível.');
+      .toContain('Não foi possível confirmar a disponibilidade.');
     expect(fixture.nativeElement.querySelector('.nickname-indicator--rejected')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.nickname-indicator--checked')).toBeNull();
+    component.submitSection();
+    expect(component.sectionIndex()).toBe(0);
+    component.submitSection();
+    expect(component.sectionIndex()).toBe(1);
   });
 
   it('fecha o balão após três segundos e permite reabri-lo no X', () => {

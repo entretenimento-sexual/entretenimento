@@ -377,7 +377,7 @@ export class RegisterComponent {
           this.dbg('nickname check error', err);
           this.nicknameCheckError.set(err?.code === 'functions/resource-exhausted'
             ? 'Muitas consultas de apelido. Aguarde um pouco e tente novamente.'
-            : 'Consulta indisponível. Confira a conexão e tente novamente.');
+            : 'Não foi possível confirmar a disponibilidade. Tente novamente.');
           this.nicknameCheckState.set('unverified');
           this.clearApelidoEmUsoError();
 
@@ -569,7 +569,7 @@ export class RegisterComponent {
     }
 
     const checkState = this.nicknameCheckState();
-    if (index === 0 && (checkState === 'idle' || checkState === 'typing' || checkState === 'checking')) {
+    if (index === 0 && checkState !== 'provisional') {
       const key = this.nicknameKey();
       this.nicknameFeedbackArmed.set(true);
       this.awaitingNickname.set(true);
@@ -588,7 +588,9 @@ export class RegisterComponent {
           this.showInvalidSection(index, invalid);
           return;
         }
-        this.openSection(index + 1);
+        if (this.nicknameCheckState() === 'provisional') {
+          this.openSection(index + 1);
+        }
       });
       return;
     }

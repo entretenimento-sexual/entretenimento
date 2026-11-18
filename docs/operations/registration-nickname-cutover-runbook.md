@@ -29,8 +29,8 @@ protegendo o titular.
 
 Contas já gravadas preservam o apelido e a chave legada ao retomar a conclusão.
 O backend verifica as chaves existentes no próprio índice para evitar
-disputas pelo mesmo principal. A pré-consulta usa a chave exata e pode devolver
-`unconfirmed` para uma conta que só tenha o alias legado.
+disputas pelo mesmo principal. A pré-consulta usa a mesma verificação de
+titularidade quando a chave exata está ausente.
 
 Antes do deploy coordenado, o inventário somente leitura deve apurar
 `duplicatePrincipals` e identificar contas sem proteção de titularidade. Resolver
@@ -99,22 +99,21 @@ SexoComCafé. São inspiração de políticas de consentimento,
 suporte e verificação de casal; não equivalem a autoridade
 técnica ou jurídica sobre o Entretenimento.
 
-## Pré-consulta anônima sem exposição de reserva
+## Pré-consulta anônima de disponibilidade
 
 `getRegistrationNicknameAvailability` recebe apenas o nome de exibição,
 aplica App Check e rate limit backend (10/minuto, 80/hora por origem de
-rede) e devolve somente `{status: 'taken' | 'unconfirmed'}`.
-`taken` significa que a conta e a projeção pública estão ativas;
-a ausência de nome, reserva de cadastro pendente, perfil oculto ou
-suspenso recebem sempre `unconfirmed`. Não retornar documentos do índice,
-UID, e-mail, nem motivo do estado. A resposta `unconfirmed` nunca
-é garantia de disponibilidade; somente a reserva autenticada transacional
-autoriza a escolha. Na interface Angular, o feedback é provisório.
+rede) e devolve somente `{status: 'taken' | 'available'}`. Uma chave
+ocupada no índice é indisponível. Se a chave exata estiver ausente, o
+backend verifica titulares protegidos e aliases conforme a mesma lógica
+da reserva. A resposta contém apenas o estado do apelido. A interface
+exige `available` para exibir o visto verde. A reserva autenticada
+transacional é a confirmação definitiva.
+
 
 A candidata de Rules também bloqueia `get` client-side em
 `public_index/nickname:*` para anônimos e autenticados. O E2E
-verifica ausência de leitura direta e ausência de diferenciação de
-reservas pendentes. A Rule ativa permanece com acesso legado até
+verifica ausência de leitura direta e resposta sem dados do titular. A Rule ativa permanece com acesso legado até
 que o endpoint e o cliente estejam implantados, e a telemetria
 comprove compatibilidade; **não promover isoladamente**.
 

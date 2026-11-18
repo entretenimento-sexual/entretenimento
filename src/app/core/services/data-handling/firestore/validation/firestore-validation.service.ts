@@ -9,7 +9,7 @@ import { FirestoreErrorHandlerService } from '../../../error-handler/firestore-e
 import { NicknameUtils } from '@core/utils/nickname-utils';
 
 type Mode = 'soft' | 'strict';
-type AvailabilityResponse = { status: 'taken' | 'unconfirmed' };
+type AvailabilityResponse = { status: 'taken' | 'available' };
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreValidationService {
@@ -22,9 +22,8 @@ export class FirestoreValidationService {
   ) {}
 
   /**
-   * Mantém nomenclatura e Observable<boolean> existentes. true significa
-   * nickname PUBLICADO em uso. false é somente provisório: inclui nomes
-   * livres, reservados e ocultos. A transação autenticada decide a reserva.
+   * true indica indisponibilidade. false exige confirmação explícita de
+   * disponibilidade. A transação autenticada decide a reserva.
    */
   checkIfNicknameExists(
     fullNick: string,
@@ -33,11 +32,11 @@ export class FirestoreValidationService {
     const mode: Mode = opts?.mode ?? 'soft';
     const display = NicknameUtils.extrairApelidoPrincipal(fullNick);
     if (!NicknameUtils.isApelidoDeCadastroValido(display)) {
-      return of(false);
+      return throwError(() => new Error('Informe um apelido válido.'));
     }
 
     const key = NicknameUtils.normalizarApelidoParaIndice(display);
-    const cacheKey = `validation:v4:published-nickname:${key}`;
+    const cacheKey = `validation:v5:nickname-availability:${key}`;
     const cached$ = mode === 'soft'
       ? this.cache.get<boolean>(cacheKey)
       : of(null);
@@ -52,8 +51,8 @@ export class FirestoreValidationService {
         );
         return from(callable({ nickname: display })).pipe(
           map(({ data }) => {
-            if (data?.status !== 'taken' && data?.status !== 'unconfirmed') {
-              throw new Error('Resposta de disponibilidade inválida.');
+            if (data?.status !== 'taken' && data?.status !== 'available') {
+              throw new Error('O servidor não confirmou a disponibilidade do apelido.');
             }
             return data.status === 'taken';
           }),

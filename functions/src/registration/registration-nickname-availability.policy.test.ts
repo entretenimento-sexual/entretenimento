@@ -2,42 +2,73 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { resolvePublicNicknameAvailability as availability } from './registration-nickname-availability.policy';
 
-const valid = {
-  key: 'nome_exemplo',
-  index: { uid: 'user1', type: 'nickname', value: 'nome_exemplo' },
-  owner: {
-    uid: 'user1', profileCompleted: true, accountStatus: 'active',
-    publicVisibility: 'visible', interactionBlocked: false,
-  },
-  publicProfile: { uid: 'user1', nicknameNormalized: 'nome_exemplo' },
-};
-test('only completed public owner is observable as taken', () => {
-  assert.equal(availability(valid), 'taken');
+const nickname = { key: 'zapzap', display: 'Zapzap' };
+
+function firestore({
+  indexed = false, storedOwners = [], aliases = [], displays = [],
+}: {
+  indexed?: boolean;
+  storedOwners?: string[];
+  aliases?: string[];
+  displays?: string[];
+} = {}) {
+  const reads: string[] = [];
+  const db = {
+    collection(name: string) {
+      return {
+        doc(id: string) {
+          return { get: async () => {
+            reads.push(`${name}/${id}`);
+            return { exists: indexed };
+          } };
+        },
+        where() { return this; },
+        select() { return this; },
+        limit() { return this; },
+        orderBy() { return this; },
+        startAt() { return this; },
+        endAt() { return this; },
+        async get() {
+          reads.push(name);
+          return {
+            docs: name === 'users'
+              ? storedOwners.map(id => ({ id }))
+              : aliases.map(uid => ({ get: () => uid })),
+          };
+        },
+      };
+    },
+    async getAll() {
+      reads.push('alias-owner-display');
+      return displays.map(display => ({ get: () => display }));
+    },
+  } as unknown as FirebaseFirestore.Firestore;
+  return { db, reads };
+}
+
+test('an occupied index is unavailable even without a public profile', async () => {
+  const { db, reads } = firestore({ indexed: true });
+  assert.equal(await availability(db, nickname), 'taken');
+  assert.deepEqual(reads, ['public_index/nickname:zapzap']);
 });
-test('unused and unpublished reservations are indistinguishable', () => {
-  assert.equal(availability({ key: 'nome_exemplo' }), 'unconfirmed');
-  assert.equal(availability({ ...valid, publicProfile: null }), 'unconfirmed');
-  assert.equal(availability({ ...valid, owner: {
-    ...valid.owner, profileCompleted: false,
-  } }), 'unconfirmed');
+
+test('an owner without a public index keeps the principal', async () => {
+  const { db, reads } = firestore({ storedOwners: ['owner'] });
+  assert.equal(await availability(db, nickname), 'taken');
+  assert.deepEqual(reads, ['public_index/nickname:zapzap', 'users']);
 });
-test('hidden or blocked owner cannot be revealed', () => {
-  for (const patch of [
-    { publicVisibility: 'hidden' }, { suspended: true },
-    { accountLocked: true }, { interactionBlocked: true },
-    { loginAllowed: false }, { deletionRequestedAt: 123 },
-  ]) assert.equal(availability({
-    ...valid, owner: { ...valid.owner, ...patch },
-  }), 'unconfirmed');
+
+test('a legacy alias blocks signup only if it represents the same principal', async () => {
+  assert.equal(await availability(
+    firestore({ aliases: ['owner'], displays: ['Zapzap Oficial'] }).db, nickname,
+  ), 'taken');
+  assert.equal(await availability(
+    firestore({ aliases: ['owner'], displays: ['Zapzap_Oficial'] }).db, nickname,
+  ), 'available');
 });
-test('forged index, alias and projection mismatch are hidden', () => {
-  assert.equal(availability({ ...valid, index: {
-    ...valid.index, type: 'email',
-  } }), 'unconfirmed');
-  assert.equal(availability({ ...valid, index: {
-    ...valid.index, uid: '../../bad',
-  } }), 'unconfirmed');
-  assert.equal(availability({ ...valid, publicProfile: {
-    uid: 'another', nicknameNormalized: 'nome_exemplo',
-  } }), 'unconfirmed');
+
+test('a free principal is confirmed explicitly', async () => {
+  const { db, reads } = firestore();
+  assert.equal(await availability(db, nickname), 'available');
+  assert.deepEqual(reads, ['public_index/nickname:zapzap', 'users', 'public_index']);
 });
