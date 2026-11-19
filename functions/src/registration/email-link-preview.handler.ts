@@ -146,9 +146,9 @@ async function lookupSignupLink(code: string, emulatorCodesUrl: URL): Promise<Li
     const receipt = receipts.docs[0];
     const account = receipt
       ? await auth.getUser(receipt.id).catch(error => {
-          if ((error as { code?: string }).code === 'auth/user-not-found') return undefined;
-          throw error;
-        })
+        if ((error as { code?: string }).code === 'auth/user-not-found') return undefined;
+        throw error;
+      })
       : undefined;
     return { state: isPreviewAccount(account) && account.emailVerified && account.passwordHash
       ? 'sign-in' : 'unavailable' };

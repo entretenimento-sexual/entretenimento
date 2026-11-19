@@ -3,6 +3,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import {
+  assertRegistrationPasswordDefined,
+  emailLinkSignupEvidenceRef,
+} from '../registration/email-link-preview.handler';
 import { assertCallableAppCheck } from '../shared/security/callable-app-check';
 import { writeAdultSelfDeclarationEvidence } from './adult-self-declaration-evidence';
 import {
@@ -209,4 +213,3 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
     };
   }
 );
-import { assertRegistrationPasswordDefined, emailLinkSignupEvidenceRef } from '../registration/email-link-preview.handler';
