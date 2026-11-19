@@ -911,7 +911,7 @@
 }
 
 /* Reserva a mesma faixa ao trocar de etapa. O mínimo escala com a largura
-   para manter os rostos no quadro, e a altura útil rege as telas baixas. */
+   para manter os rostos no quadro. O <picture> de apelido usa a mesma condição. */
 @media (width < 52rem), (aspect-ratio <= 7/5) {
   .auth-container.signup-layout {
     --signup-portrait-band: clamp(36vw, 34svh, min(78vw, max(19rem, 45vw)));
@@ -926,16 +926,20 @@
     inline-size: 100%;
     block-size: var(--signup-portrait-band);
     object-fit: cover;
-    object-position: var(--signup-portrait-focus, 12%) top;
+    object-position: var(--signup-portrait-focus);
     mask-image: linear-gradient(to bottom, #000 0%, #000 88%, transparent 100%);
   }
 
+  .signup-scene--original {
+    --signup-portrait-focus: center 30%;
+  }
+
   .signup-scene--email {
-    --signup-portrait-focus: 28%;
+    --signup-portrait-focus: 28% top;
   }
 
   .signup-scene--confirm {
-    --signup-portrait-focus: 24%;
+    --signup-portrait-focus: 24% top;
   }
 
   .signup-layout .form-container {

@@ -140,6 +140,12 @@ jobs:
           CHECK_SIGNUP_PHOTO=$(cat <<'PLAYWRIGHT'
           async (page, layout) => {
             const backdrop = page.locator('.signup-scene:not(.signup-scene--inactive) .signup-backdrop');
+            await page.waitForFunction(() => {
+              const image = document.querySelector('.signup-scene--original .signup-backdrop');
+              const portraitMedia = image?.parentElement.querySelector('source[media]')?.media;
+              return image?.complete && image.currentSrc && portraitMedia &&
+                matchMedia(portraitMedia).matches === image.currentSrc.includes('signup-shadow-portrait');
+            });
             await backdrop.evaluate(image => image.decode());
             const framing = await backdrop.evaluate(image => {
               const box = image.getBoundingClientRect();
@@ -149,8 +155,11 @@ jobs:
               const height = image.naturalHeight * scale;
               const x = box.left + (box.width - width) * parseFloat(position[0]) / 100;
               const y = box.top + (box.height - height) * parseFloat(position[1]) / 100;
-              // Bounds of the two heads in the source image.
-              const faces = { left: x + width * 0.07, right: x + width * 0.535, top: y + height * 0.026, bottom: y + height * 0.46 };
+              const source = new URL(image.currentSrc).pathname.split('/').pop();
+              const portrait = /^signup-shadow-portrait(?:-640)?\.webp$/.test(source);
+              // Bounds of the two heads in each composition.
+              const [left, right, top, bottom] = portrait ? [0.285, 0.74, 0.236, 0.397] : [0.07, 0.535, 0.026, 0.46];
+              const faces = { left: x + width * left, right: x + width * right, top: y + height * top, bottom: y + height * bottom };
               const header = document.querySelector('app-navbar').getBoundingClientRect();
               const form = document.querySelector('.form-container').getBoundingClientRect();
               const insidePhoto = faces.left >= box.left && faces.right <= box.right &&
@@ -162,6 +171,8 @@ jobs:
                 Math.abs(form.left + form.width / 2 - viewportWidth / 2) <= 2;
               return {
                 faces,
+                source,
+                portrait,
                 insidePhoto,
                 clearOfForm,
                 stacked,
@@ -173,8 +184,8 @@ jobs:
               throw new Error('Signup portrait is cropped or covered by the form: ' + JSON.stringify(framing));
             }
             if (framing.hasOverflow ||
-                (layout === 'stacked' && (!framing.stacked || framing.photoCoverage < 0.99)) ||
-                (layout === 'side-by-side' && (framing.stacked || framing.photoCoverage < 0.60))) {
+                (layout === 'stacked' && (!framing.portrait || !framing.stacked || framing.photoCoverage < 0.99)) ||
+                (layout === 'side-by-side' && (framing.source !== 'signup-shadow.webp' || framing.stacked || framing.photoCoverage < 0.60))) {
               throw new Error('Signup photo or form lost space at this viewport: ' + JSON.stringify(framing));
             }
             const clip = {
@@ -217,7 +228,7 @@ jobs:
             if (changed < 0.15) {
               throw new Error('Signup backdrop is loaded but not visible in the screenshot. Changed pixel ratio: ' + changed);
             }
-            return { changedPixelRatio: changed, faces: framing.faces };
+            return { changedPixelRatio: changed, faces: framing.faces, source: framing.source };
           }
           PLAYWRIGHT
           )
@@ -448,6 +459,8 @@ jobs:
 
       - name: Verify nickname feedback and progression
         shell: bash
+        env:
+          PLAYWRIGHT_CLI_SESSION: registration-${{ matrix.configuration }}
         run: |
           set -euo pipefail
           OUT="artifacts/${{ matrix.configuration }}"

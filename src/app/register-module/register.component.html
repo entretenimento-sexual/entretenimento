@@ -4,6 +4,12 @@
   [class.auth-container--stage-detail]="!emailLinkPreview && sectionIndex() > 0">
   <div class="signup-image" aria-hidden="true">
     <picture class="signup-scene signup-scene--original" [class.signup-scene--inactive]="sectionIndex() !== 0">
+      <source
+        media="(width < 52rem), (aspect-ratio <= 7/5)"
+        srcset="assets/registration/signup-shadow-portrait-640.webp 640w,
+                assets/registration/signup-shadow-portrait.webp 1024w"
+        sizes="100vw"
+        type="image/webp" />
       <source srcset="assets/registration/signup-shadow.webp" type="image/webp" />
       <img class="signup-backdrop" src="assets/registration/signup-noir.svg" alt="" decoding="async" />
     </picture>
