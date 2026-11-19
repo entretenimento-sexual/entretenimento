@@ -28,6 +28,18 @@ Se a senha ficou pronta antes da reserva do apelido, a conclusão de Perfil pree
 
 Ao abrir diretamente uma rota como Explorar enquanto `interactionBlocked` está ativo, o guard pode encaminhar para o status da conta. Para retomar a primeira etapa pendente, use a página de entrada ou **Continuar cadastro** na aba que solicitou o link.
 
+## Simulação de limpeza de rascunhos
+
+Com o Firestore Emulator ativo, execute na raiz do repositório.
+
+```sh
+node scripts/maintenance/audit-registration-draft-cleanup-emulator.mjs --dry-run
+```
+
+O relatório reúne contagens de rascunhos temporários vencidos (`expiredDrafts`), válidos (`validDrafts`), recibos de contas (`accountReceipts`) e registros que ficaram fora da classificação (`unclassified`). Ele usa `expiresAtMs` com uma referência de horário fixa. A consulta é somente leitura e o resultado contém só contagens e metadados da execução. Recibos por UID preservam os dados já vinculados ao cadastro.
+
+Por padrão, o comando usa o projeto local `entretenimento-sexual` no endereço `127.0.0.1:8080`. Para um emulador isolado, informe `FIRESTORE_EMULATOR_HOST` e `FIREBASE_PROJECT_ID` antes de executar. O prazo de retenção de contas incompletas segue como uma decisão separada.
+
 ## Risco documentado pelo Firebase — contas já existentes
 
 O Firebase Auth informa que a autenticação por link pode **invalidar sessões anteriores e remover a senha de uma conta criada com e-mail/senha ainda não verificada**, no momento em que o link é consumido. Isso não pode ser introduzido silenciosamente em um cadastro existente. Fonte: https://firebase.google.com/docs/auth/web/email-link-auth

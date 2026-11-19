@@ -14,6 +14,7 @@ on:
       - 'scripts/tests/registration-email-link.e2e.mjs'
       - 'scripts/tests/registration-lockdown-candidate.e2e.mjs'
       - 'scripts/maintenance/build-registration-lockdown-candidate.mjs'
+      - 'scripts/maintenance/audit-registration-draft-cleanup-emulator.mjs'
       - 'scripts/tests/nickname-reservation-backfill.policy.test.mjs'
       - 'scripts/maintenance/nickname-index-inventory.policy.mjs'
       - 'firebase.media-e2e.json'

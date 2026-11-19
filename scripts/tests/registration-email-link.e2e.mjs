@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { promisify } from 'node:util';
 import { initializeApp, deleteApp } from 'firebase/app';
 import {
   connectAuthEmulator, EmailAuthProvider, getAuth, reauthenticateWithCredential, sendSignInLinkToEmail,
@@ -21,6 +23,7 @@ const password = 'SenhaValidacao123!';
 const adminApp = initializeAdminApp({ projectId }, 'email-link-check-' + run);
 const adminAuth = getAdminAuth(adminApp);
 const db = getFirestore(adminApp);
+const runNode = promisify(execFile);
 
 function client(name) {
   const app = initializeApp({ projectId, apiKey: 'fake-api-key' }, name + '-' + run);
@@ -50,6 +53,37 @@ async function issueLink(auth, email, draftId) {
 async function rejects(action, code, reason) {
   await assert.rejects(action, error => error.code === 'functions/' + code &&
     (!reason || error.details?.reason === reason));
+}
+
+async function verifyDraftCleanupDryRun() {
+  const collection = db.collection('registration_email_link_drafts');
+  const validDraft = collection.doc(randomUUID());
+  const malformedDraft = collection.doc(randomUUID());
+  const receiptWithExpiry = collection.doc('email-link-preview-' + randomUUID());
+  const receiptWithDraftId = collection.doc(randomUUID());
+  await Promise.all([
+    validDraft.create({ email: 'rascunho-valido@example.test', nickname: 'Vigente', expiresAtMs: Date.now() + 30 * 60_000 }),
+    malformedDraft.create({ expiresAtMs: '1' }),
+    receiptWithExpiry.create({ expiresAtMs: 1 }),
+    receiptWithDraftId.create({ expiresAtMs: 1, adultDeclaredAtMs: 1 }),
+  ]);
+
+  const readDocuments = async () => (await collection.get()).docs.map(doc => [doc.id, doc.data()]);
+  const before = await readDocuments();
+  const script = 'scripts/maintenance/audit-registration-draft-cleanup-emulator.mjs';
+  const env = { ...process.env, FIREBASE_PROJECT_ID: projectId };
+  const { stdout } = await runNode(process.execPath, [script, '--dry-run'], { env });
+  const { asOf, ...report } = JSON.parse(stdout);
+  assert.ok(Number.isFinite(Date.parse(asOf)));
+  assert.deepEqual(report, {
+    mode: 'dry-run', projectId, expiredDrafts: 1, validDrafts: 1, accountReceipts: 3, unclassified: 1,
+  });
+  await assert.rejects(runNode(process.execPath, [script, '--apply'], { env }), { code: 1 });
+  await assert.rejects(runNode(process.execPath, [script], {
+    env: { ...env, FIRESTORE_EMULATOR_HOST: '192.0.2.10:8080' },
+  }), { code: 1 });
+  assert.deepEqual(await readDocuments(), before);
+  console.log('[email-link:e2e] PASS draft cleanup dry-run counts candidates and preserves receipts and drafts');
 }
 
 try {
@@ -86,6 +120,7 @@ try {
   assert.equal(first.data.email, email, 'The emulator must resolve the recipient from the link');
   const credential = await signInWithEmailLink(consumer.auth, first.data.email, oobLink);
   assert.equal(credential.user.uid, uid);
+  await verifyDraftCleanupDryRun();
   const expectedUid = { expectedUid: uid };
   const state = (expectedUid) => consumer.call('getEmailLinkRegistrationState', { expectedUid });
   assert.equal((await state(uid)).data.passwordRequired, true);
