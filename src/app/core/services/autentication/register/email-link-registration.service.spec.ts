@@ -8,19 +8,14 @@ const firebase = vi.hoisted(() => ({
   extra: vi.fn(),
   update: vi.fn(),
 }));
-vi.mock('firebase/auth', () => ({
+// Preserva os demais exports reais usados por AngularFire e pelo AuthSessionService.
+vi.mock('firebase/auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('firebase/auth')>()),
   sendSignInLinkToEmail: firebase.send,
   isSignInWithEmailLink: firebase.isLink,
   signInWithEmailLink: firebase.consume,
   getAdditionalUserInfo: firebase.extra,
   updatePassword: firebase.update,
-}));
-vi.mock('src/environments/environment', () => ({
-  environment: {
-    production: false,
-    useEmulators: true,
-    features: { emailFirstSignupPreview: true },
-  },
 }));
 import {
   emailLinkSignupPreviewAllowed,
@@ -41,6 +36,8 @@ describe('EmailLinkRegistrationService (emulador, sem alterar fluxo antigo)', ()
     session = { isTerminatingSnapshot: false, terminationVersionSnapshot: 0 };
     errors = { report: vi.fn() };
     service = new EmailLinkRegistrationService(auth, session, errors);
+    // O teste exercita a lógica de sessão; a flag de ambiente tem teste puro.
+    vi.spyOn(service as any, 'assertPreview').mockImplementation(() => {});
     firebase.send.mockResolvedValue(undefined);
     firebase.isLink.mockReturnValue(true);
     firebase.extra.mockReturnValue({ isNewUser: true });
