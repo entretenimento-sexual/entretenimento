@@ -253,6 +253,28 @@ jobs:
           playwright-cli run-code "$CHECK_SIGNUP_PHOTO" | tee "$OUT/narrow-mobile-framing.log"
           playwright-cli screenshot --full-page --filename="$OUT/narrow-mobile-framing.png"
 
+          playwright-cli resize 1072 1744
+          playwright-cli run-code "$CHECK_SIGNUP_PHOTO" | tee "$OUT/tall-window-photo-paint.log"
+          playwright-cli run-code "async (page) => {
+            const metrics = await page.evaluate(() => {
+              const photo = document.querySelector('.signup-scene--original .signup-backdrop').getBoundingClientRect();
+              const form = document.querySelector('.form-container').getBoundingClientRect();
+              return {
+                width: document.documentElement.clientWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                photoWidth: photo.width,
+                formCenter: form.left + form.width / 2,
+                gap: form.top - photo.bottom,
+              };
+            });
+            if (metrics.photoWidth < metrics.width - 1 || metrics.scrollWidth > metrics.width + 1 ||
+                Math.abs(metrics.formCenter - metrics.width / 2) > 2 || metrics.gap < 0 || metrics.gap > 32) {
+              throw new Error('Tall signup layout must keep the photo at full width and the centered form close below it');
+            }
+            return metrics;
+          }" | tee "$OUT/tall-window-layout.log"
+          playwright-cli screenshot --full-page --filename="$OUT/tall-window-framing.png"
+
           playwright-cli resize 1440 1000
           playwright-cli reload
           playwright-cli snapshot --filename="$OUT/desktop-initial.accessibility.yml"

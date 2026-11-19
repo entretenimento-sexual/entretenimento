@@ -9,7 +9,6 @@
 
 :host {
   --signup-photo-top: calc(var(--header-height, 64px) + 1rem + 1px);
-  --signup-photo-height: min(110vw, 100dvh - var(--signup-photo-top));
 
   display: grid;
   flex: 1;
@@ -515,20 +514,29 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* Em telas estreitas, reservar uma faixa de imagem sem deslocar o
-     formulário pelo dobro da altura disponível. */
-  .auth-container:not(.auth-container--stage-detail) {
-    padding-block-start: clamp(10rem, 35dvh, 22rem);
+  /* Em janelas altas, a faixa segue a largura e a linha do formulário
+     mantém a altura do próprio cartão. */
+  .auth-container:has(> .signup-image) {
+    --signup-portrait-band: min(66.667vw, max(22.5rem, 32vw));
+
+    align-content: start;
+    padding-block-start: calc(var(--signup-portrait-band) + 0.75rem);
+    row-gap: 0;
   }
 
   .form-container {
     grid-column: 1;
   }
 
-  .auth-container:not(.auth-container--stage-detail) .signup-backdrop {
-    block-size: min(43dvh, 360px);
-    object-fit: contain;
-    object-position: left top;
+  .auth-container:has(> .signup-image) .form-container {
+    justify-self: center;
+  }
+
+  .signup-scene--original .signup-backdrop {
+    inline-size: 100%;
+    block-size: var(--signup-portrait-band);
+    object-fit: cover;
+    object-position: center top;
     mask-image: linear-gradient(to bottom, #000 0%, #000 88%, transparent 100%);
   }
 }
@@ -832,7 +840,7 @@
 
 /* Harmonizar proporções no desktop ultrawide: card não pode parecer
    miniatura, e a área da foto não deve crescer indefinidamente. */
-@media (min-width: 1600px) and (min-height: 640px) {
+@media (min-width: 1600px) and (min-height: 640px) and (aspect-ratio > 5/4) {
   .auth-container:not(.auth-container--stage-detail) {
     grid-template-columns: minmax(0, 1fr) minmax(440px, 510px);
   }

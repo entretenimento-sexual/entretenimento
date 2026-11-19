@@ -177,6 +177,7 @@ export class RegisterFlowFacade {
 export interface ProfileCompletionInitialData {
   email: string;
   nickname: string;
+  savedNicknameSuggestion?: string;
   gender: string;
   orientation: string;
   estado: string;
