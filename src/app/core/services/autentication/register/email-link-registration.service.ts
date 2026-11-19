@@ -58,6 +58,9 @@ export interface EmailLinkRegistrationIdentity {
 
 @Injectable({ providedIn: 'root' })
 export class EmailLinkRegistrationService {
+  /** Prova efêmera da criação desta conta pelo link; nunca persistida. */
+  private newlyCreatedLinkIdentity: { uid: string; email: string } | null = null;
+
   constructor(
     private readonly auth: Auth,
     private readonly session: AuthSessionService,
@@ -123,10 +126,15 @@ export class EmailLinkRegistrationService {
             throw localError('registration/session-changed',
               'A sessão mudou durante a confirmação. Confira a conta antes de continuar.');
           }
+          const newUser = getAdditionalUserInfo(credential)?.isNewUser === true;
+          // Nunca oferecer redefinição silenciosa da senha de uma conta preexistente.
+          this.newlyCreatedLinkIdentity = newUser
+            ? { uid: credential.user.uid, email }
+            : null;
           return {
             uid: credential.user.uid,
             email,
-            newUser: getAdditionalUserInfo(credential)?.isNewUser === true,
+            newUser,
           };
         })
       );
@@ -152,7 +160,9 @@ export class EmailLinkRegistrationService {
         !uid || user?.uid !== uid ||
         user.email?.toLowerCase() !== email.toLowerCase() ||
         user.emailVerified !== true ||
-        this.session.isTerminatingSnapshot
+        this.session.isTerminatingSnapshot ||
+        this.newlyCreatedLinkIdentity?.uid !== uid ||
+        this.newlyCreatedLinkIdentity?.email.toLowerCase() !== email.toLowerCase()
       ) {
         throw localError('registration/session-changed',
           'A conta ativa mudou. Confirme sua identidade novamente para criar a senha.');
@@ -174,9 +184,11 @@ export class EmailLinkRegistrationService {
             this.session.terminationVersionSnapshot !== sessionVersion ||
             this.auth.currentUser?.uid !== uid
           ) {
+            this.newlyCreatedLinkIdentity = null;
             throw localError('registration/session-changed',
               'A sessão mudou ao definir a senha. Verifique sua conta antes de continuar.');
           }
+          this.newlyCreatedLinkIdentity = null;
         }),
         map(() => void 0)
       );

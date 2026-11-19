@@ -112,6 +112,16 @@ describe('EmailLinkRegistrationService (emulador, sem alterar fluxo antigo)', ()
     expect(errors.report).not.toHaveBeenCalled();
   });
 
+  it('não pode redefinir senha de conta preexistente via laboratório', async () => {
+    firebase.extra.mockReturnValue({ isNewUser: false });
+    const result = await firstValueFrom(service.completeLink$(email, link, true));
+    expect(result.newUser).toBe(false);
+    await expect(
+      firstValueFrom(service.setPassword$('uid-novo', email, 'SenhaTeste123', 'SenhaTeste123'))
+    ).rejects.toMatchObject({ code: 'registration/session-changed' });
+    expect(firebase.update).not.toHaveBeenCalled();
+  });
+
   it('recusa definir senha depois de troca de UID', async () => {
     await firstValueFrom(service.completeLink$(email, link, true));
     auth.currentUser = { uid: 'outro', email, emailVerified: true };
