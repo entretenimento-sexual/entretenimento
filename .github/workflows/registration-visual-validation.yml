@@ -446,6 +446,12 @@ jobs:
           playwright-cli snapshot --filename="$OUT/mobile-invalid.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/mobile-invalid.png"
 
+      - name: Verify nickname feedback and progression
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="artifacts/${{ matrix.configuration }}"
+
           playwright-cli run-code "async (page) => {
             let releaseLookup;
             const lookups = [];
