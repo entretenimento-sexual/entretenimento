@@ -126,12 +126,6 @@ const routes: Routes = [
       },
 
       {
-        path: 'register/enviar-link',
-        canMatch: [emailLinkPreviewCanMatch],
-        loadComponent: loadEmailLinkPage,
-        data: { emailLinkMode: 'request', allowUnverified: true },
-      },
-      {
         path: 'register/continuar-por-email',
         canMatch: [emailLinkPreviewCanMatch],
         loadComponent: loadEmailLinkPage,

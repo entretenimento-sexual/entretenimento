@@ -17,7 +17,7 @@
         [attr.aria-current]="index === position() && !completed() ? 'step' : null"
       >
         <span class="marker" aria-hidden="true">{{ index < finishedCount() ? '✓' : index + 1 }}</span>
-        <span>{{ stage.label }}</span>
+        <span>{{ stage.step === 'signup' ? signupLabel() : stage.label }}</span>
         @if (index < finishedCount()) {
           <span class="sr-only">concluída</span>
         }

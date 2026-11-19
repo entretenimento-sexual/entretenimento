@@ -28,6 +28,7 @@ type ProgressStep = (typeof STAGES)[number]['step'];
 })
 export class RegisterProgressComponent {
   readonly step = input.required<ProgressStep>();
+  readonly signupLabel = input('Conta');
   readonly completed = input(false);
   readonly nextAction = input<string | null>(null);
   readonly compact = input(false);

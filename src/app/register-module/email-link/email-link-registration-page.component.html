@@ -2,7 +2,6 @@
   <section class="email-link-card" aria-labelledby="email-link-heading" [attr.aria-busy]="busy()">
     <h1 id="email-link-heading" #heading tabindex="-1">
       @switch (mode) {
-        @case ('request') { Confirme seu e-mail }
         @case ('confirm') { Continue seu cadastro }
         @case ('password') { Defina sua senha }
       }
@@ -10,31 +9,22 @@
     @if (error()) { <p class="email-link-message email-link-message--error" role="alert">{{ error() }}</p> }
     @if (status()) { <p class="email-link-message" role="status">{{ status() }}</p> }
 
-    @if (mode !== 'password') {
-      <p>{{ mode === 'request'
-        ? 'Receba um link para continuar. Seu e-mail fica fora do perfil público.'
-        : 'Informe o mesmo e-mail usado para solicitar o link.' }}</p>
-      <form [formGroup]="emailForm" (ngSubmit)="mode === 'request' ? send() : confirm()" novalidate>
+    @if (mode === 'confirm') {
+      <p>Informe o mesmo e-mail usado para solicitar o link.</p>
+      <form [formGroup]="emailForm" (ngSubmit)="confirm()" novalidate>
         <label for="link-email">E-mail</label>
         <input class="app-control" id="link-email" type="email" formControlName="email" autocomplete="email"
           maxlength="254" [attr.aria-invalid]="emailForm.controls.email.touched && emailForm.controls.email.invalid" />
-        @if (mode === 'confirm') {
-          <label class="email-link-declaration">
-            <input type="checkbox" formControlName="adult" />
-            {{ declaration }}
-          </label>
-        }
-        <button class="app-action app-action--primary" type="submit" [disabled]="busy() || cooldown()">
-          @if (busy()) { {{ mode === 'request' ? 'Solicitando link…' : 'Confirmando e-mail…' }} }
-          @else if (mode === 'confirm') { Confirmar e continuar }
-          @else if (sent()) { Reenviar link }
-          @else { Enviar link }
+        <label class="email-link-declaration">
+          <input type="checkbox" formControlName="adult" />
+          {{ declaration }}
+        </label>
+        <button class="app-action app-action--primary" type="submit" [disabled]="busy()">
+          {{ busy() ? 'Confirmando e-mail…' : 'Confirmar e continuar' }}
         </button>
-        @if (cooldown()) { <small>Aguarde 30 segundos entre solicitações.</small> }
       </form>
       <nav class="email-link-actions" aria-label="Alternativas de cadastro">
-        @if (mode === 'confirm') { <a routerLink="/register/enviar-link">Solicitar novo link</a> }
-        @else { <a routerLink="/register">Voltar ao cadastro</a> }
+        <a routerLink="/register/enviar-link">Solicitar novo link</a>
         <a routerLink="/login">Entrar na minha conta</a>
       </nav>
     } @else if (passwordReady()) {

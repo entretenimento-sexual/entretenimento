@@ -4,7 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
-import { Observable, catchError, defer, filter, finalize, from, map, of, switchMap, take, timeout, timer } from 'rxjs';
+import { Observable, catchError, defer, filter, finalize, from, map, of, switchMap, take, timeout } from 'rxjs';
 
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import {
@@ -14,9 +14,9 @@ import { RegistrationBootstrapService } from '@core/services/autentication/regis
 import { ADULT_SELF_DECLARATION_TEXT_PT_BR } from '@core/services/compliance/platform-legal.constants';
 import { NicknameUtils } from '@core/utils/nickname-utils';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
-import { clearSignupDraft, readSignupDraft, writeSignupDraft } from '../data-access/signup-draft.storage';
+import { clearSignupDraft, readSignupDraft } from '../data-access/signup-draft.storage';
 
-type LinkMode = 'request' | 'confirm' | 'password';
+type LinkMode = 'confirm' | 'password';
 
 @Component({
   selector: 'app-email-link-registration-page',
@@ -46,8 +46,6 @@ export class EmailLinkRegistrationPageComponent {
   });
   readonly passwordForm = this.fb.group({ password: '', confirmation: '' });
   readonly busy = signal(false);
-  readonly cooldown = signal(false);
-  readonly sent = signal(false);
   readonly error = signal('');
   readonly status = signal('');
   readonly passwordReady = signal(false);
@@ -61,21 +59,6 @@ export class EmailLinkRegistrationPageComponent {
       inject(Location).replaceState(EMAIL_LINK_REGISTRATION_ROUTE);
     }
     if (this.mode === 'password') this.checkPasswordState();
-  }
-
-  send(): void {
-    if (this.cooldown() || this.busy() || !this.checkEmail()) return;
-    const email = this.emailForm.controls.email.value.trim();
-    const draft = readSignupDraft();
-    if (draft) writeSignupDraft({ ...draft, email });
-
-    this.run(() => this.emailLink.requestLink$(email).pipe(map(() => {
-      this.sent.set(true);
-      this.status.set('Se o endereço puder receber a mensagem, abra o link mais recente. No emulador, o link aparece nos logs do Authentication.');
-    })), () => {
-      this.cooldown.set(true);
-      timer(30_000).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cooldown.set(false));
-    });
   }
 
   confirm(): void {
@@ -186,7 +169,7 @@ export class EmailLinkRegistrationPageComponent {
     );
   }
 
-  private run(action: () => Observable<void>, onStart?: () => void): void {
+  private run(action: () => Observable<void>): void {
     if (this.busy()) return;
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       this.error.set('Você está sem conexão. Aguarde a internet voltar e tente novamente.');
@@ -195,7 +178,6 @@ export class EmailLinkRegistrationPageComponent {
     this.error.set('');
     this.status.set('');
     this.busy.set(true);
-    onStart?.();
     defer(action).pipe(
       takeUntilDestroyed(this.destroyRef),
       finalize(() => this.busy.set(false)),
@@ -214,9 +196,6 @@ export class EmailLinkRegistrationPageComponent {
     if (this.mode === 'password' &&
         (error?.code === 'auth/invalid-credential' || error?.code === 'auth/wrong-password')) {
       return 'Confira a senha usada no cadastro. Se você já definiu uma senha e esqueceu, use a recuperação de acesso.';
-    }
-    if (this.mode === 'request') {
-      return 'Não foi possível confirmar o envio. A solicitação pode ter sido recebida. Confira antes de pedir outro link.';
     }
     if (this.mode === 'password') {
       return 'Não foi possível confirmar a senha agora. Tente novamente. Vamos verificar o que ficou salvo antes de repetir a gravação.';

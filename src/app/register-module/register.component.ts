@@ -21,7 +21,7 @@ import {
   FormGroup,
   Validators,
 } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { Auth, user } from '@angular/fire/auth';
 import type { User } from 'firebase/auth';
@@ -43,7 +43,9 @@ import { REGISTRATION_ACTION_TIMEOUT_MS } from './data-access/register-action.po
 import { clearSignupDraft, readSignupDraft, writeSignupDraft } from './data-access/signup-draft.storage';
 
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
-import { emailLinkSignupPreviewAllowed } from 'src/app/core/services/autentication/register/email-link-registration.service';
+import {
+  EmailLinkRegistrationService, emailLinkSignupPreviewAllowed,
+} from 'src/app/core/services/autentication/register/email-link-registration.service';
 import { ADULT_SELF_DECLARATION_TEXT_PT_BR } from 'src/app/core/services/compliance/platform-legal.constants';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -92,6 +94,13 @@ const SIGNUP_SECTIONS = [
   },
 ] as const;
 
+const EMAIL_LINK_SECTION = {
+  title: 'Confirme seu e-mail',
+  description: 'Confirme seu endereço pelo link. Você vai definir a senha depois.',
+  fields: ['email'],
+  groupError: null,
+} as const;
+
 @Component({
   selector: 'app-register',
   templateUrl: './register.component.html',
@@ -106,6 +115,12 @@ export class RegisterComponent {
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly applicationError = inject(ApplicationErrorService);
   private readonly router = inject(Router);
+  protected readonly emailLinkPreview = emailLinkSignupPreviewAllowed(environment);
+  private readonly signupSections = this.emailLinkPreview
+    ? [SIGNUP_SECTIONS[0], EMAIL_LINK_SECTION] as const : SIGNUP_SECTIONS;
+  private readonly emailLink = this.emailLinkPreview ? inject(EmailLinkRegistrationService) : null;
+  private readonly opensEmailStep = this.emailLinkPreview &&
+    inject(ActivatedRoute).snapshot.data['requestRegistrationLink'] === true;
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
   private readonly sectionHeading = viewChild<ElementRef<HTMLElement>>('sectionHeading');
@@ -154,7 +169,7 @@ export class RegisterComponent {
       }),
 
       email: this.fb.control('', {
-        validators: [Validators.required, Validators.email],
+        validators: [Validators.required, Validators.email, Validators.maxLength(254)],
         updateOn: 'change',
       }),
 
@@ -207,27 +222,46 @@ export class RegisterComponent {
   readonly creating = signal(false);
   readonly accountCreated = signal(false);
   readonly adultDeclarationText = ADULT_SELF_DECLARATION_TEXT_PT_BR;
-  readonly emailLinkPreview = emailLinkSignupPreviewAllowed(environment);
+  protected readonly sendingLink = signal(false);
+  protected readonly resendCooldown = signal(false);
+  private readonly lastRequestedEmail = signal<string | null>(null);
+  private readonly emailValue = toSignal(this.form.get('email')!.valueChanges);
+  protected readonly linkRequested = computed(() => {
+    const email = this.lastRequestedEmail();
+    return email !== null && email === String(this.emailValue() ?? '').trim().toLowerCase();
+  });
   readonly creatingMsg = signal('Estamos criando seu usuário, aguarde…');
   readonly syncing = signal(false);
 
-  // As telas compartilham o FormGroup em memória. Conta e senha só são
-  // enviadas ao serviço depois da validação final das três telas.
+  // As etapas compartilham o FormGroup em memória.
   readonly sectionIndex = signal(0);
   private recheckingRestoredNickname = false;
   // O snapshot não pode substituir a consulta ao índice na mesma visita.
   private restoredNicknameCheckRequired = false;
-  readonly currentSection = computed(() => SIGNUP_SECTIONS[this.sectionIndex()]);
-  readonly sectionCount = SIGNUP_SECTIONS.length;
+  readonly currentSection = computed(() => this.signupSections[this.sectionIndex()]);
+  readonly sectionCount = this.signupSections.length;
   readonly lastSection = computed(() => this.sectionIndex() === this.sectionCount - 1);
+  protected readonly submitLabel = computed(() => {
+    if (this.sendingLink()) return 'Enviando link…';
+    if (this.isLoading() || this.creating()) return 'Criando conta…';
+    if (this.awaitingNickname()) return 'Validando apelido…';
+    if (this.emailLinkPreview && this.sectionIndex() === 1) {
+      return this.linkRequested() ? 'Reenviar link' : 'Enviar link';
+    }
+    return this.lastSection() ? 'Criar conta' : 'Continuar';
+  });
   readonly nextSectionTitle = computed(() => this.accountCreated()
     ? null
-    : SIGNUP_SECTIONS[this.sectionIndex() + 1]?.title ?? null
+    : this.signupSections[this.sectionIndex() + 1]?.title ??
+      (this.emailLinkPreview ? 'Abrir o link de confirmação' : null)
   );
 
   private restoreSignupDraft(): void {
     const draft = readSignupDraft();
-    if (!draft) return;
+    if (!draft) {
+      if (this.opensEmailStep) this.sectionIndex.set(1);
+      return;
+    }
     this.form.patchValue({
       apelidoPrincipal: draft.apelidoPrincipal,
       complementoApelido: draft.complementoApelido,
@@ -235,17 +269,17 @@ export class RegisterComponent {
     });
     const valid = this.form.get('apelidoPrincipal')?.valid === true &&
       !this.form.hasError('invalidFullNickname');
-    // A última etapa requer senha. Retomar no acesso evita um avanço enganoso.
-    const target = valid ? Math.min(draft.sectionIndex, 1) : 0;
+    // O rascunho só restaura as etapas de apelido e e-mail.
+    const target = this.opensEmailStep ? 1 : valid ? Math.min(draft.sectionIndex, 1) : 0;
     this.sectionIndex.set(target);
-    if (target > 0) {
+    if (target > 0 && valid) {
       this.restoredNicknameCheckRequired = true;
       this.recheckingRestoredNickname = true;
       this.nicknameFeedbackArmed.set(true);
       this.nicknameCheckRequests$.next(true);
-      this.errorNotification.showInfo(
-        'Cadastro retomado. Informe a senha novamente para continuar.'
-      );
+      if (!this.emailLinkPreview) {
+        this.errorNotification.showInfo('Cadastro retomado. Informe a senha novamente para continuar.');
+      }
     }
   }
 
@@ -609,8 +643,8 @@ export class RegisterComponent {
   }
 
   submitSection(): void {
-    if (this.isLoading() || this.accountCreated() || this.awaitingNickname()) return;
-    if (this.lastSection()) {
+    if (this.isLoading() || this.sendingLink() || this.accountCreated() || this.awaitingNickname()) return;
+    if (!this.emailLinkPreview && this.lastSection()) {
       this.onSubmit();
       return;
     }
@@ -625,8 +659,13 @@ export class RegisterComponent {
       return;
     }
 
+    if (this.emailLinkPreview && index === 1) {
+      this.requestEmailLink();
+      return;
+    }
+
     const checkState = this.nicknameCheckState();
-    if (index === 0 && checkState !== 'provisional') {
+    if (index === 0 && !this.hasAvailableNickname()) {
       const key = this.nicknameKey();
       this.nicknameFeedbackArmed.set(true);
       this.awaitingNickname.set(true);
@@ -645,7 +684,7 @@ export class RegisterComponent {
           this.showInvalidSection(index, invalid);
           return;
         }
-        if (this.nicknameCheckState() === 'provisional') {
+        if (this.hasAvailableNickname()) {
           this.openSection(index + 1);
         }
       });
@@ -656,14 +695,54 @@ export class RegisterComponent {
   }
 
   previousSection(): void {
-    if (this.isLoading() || this.accountCreated() || this.sectionIndex() === 0) return;
+    if (this.isLoading() || this.sendingLink() || this.accountCreated() || this.sectionIndex() === 0) return;
     this.openSection(this.sectionIndex() - 1);
   }
 
   private firstInvalidField(index: number): string | undefined {
-    const { fields, groupError } = SIGNUP_SECTIONS[index];
+    const { fields, groupError } = this.signupSections[index];
     return fields.find(field => this.form.get(field)?.invalid) ??
       (groupError && this.form.hasError(groupError.code) ? groupError.field : undefined);
+  }
+
+  private hasAvailableNickname(): boolean {
+    return this.nicknameCheckState() === 'provisional' && this.lastNicknameCheck?.key === this.nicknameKey();
+  }
+
+  private requestEmailLink(): void {
+    if (!this.emailLink || this.resendCooldown()) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      this.setBanner('warn', 'Sem conexão', 'Aguarde a conexão voltar e tente enviar o link novamente.');
+      return;
+    }
+    if (this.restoredNicknameCheckRequired && !this.hasAvailableNickname()) {
+      if (this.nicknameChecking()) {
+        this.setBanner('info', 'Verificando apelido', 'Aguarde a consulta ao índice e tente novamente.');
+      } else {
+        this.openSection(0, 'apelidoPrincipal');
+        this.nicknameCheckRequests$.next(true);
+      }
+      return;
+    }
+
+    const email = String(this.form.get('email')?.value ?? '').trim();
+    this.sendingLink.set(true);
+    this.resendCooldown.set(true);
+    this.banner.set(null);
+    timer(30_000).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.resendCooldown.set(false));
+    this.emailLink.requestLink$(email).pipe(
+      finalize(() => this.sendingLink.set(false)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: () => this.lastRequestedEmail.set(email.toLowerCase()),
+      error: (error: { localValidation?: boolean; message?: string } | null) => this.setBanner(
+        'warn',
+        'Envio do link pendente',
+        error?.localValidation && error.message
+          ? error.message
+          : 'Não foi possível confirmar o envio. Confira se recebeu o link antes de solicitar outro.'
+      ),
+    });
   }
 
   private showInvalidSection(index: number, field?: string): void {
@@ -694,7 +773,7 @@ export class RegisterComponent {
   }
 
   onSubmit(): void {
-    if (this.isLoading()) return;
+    if (this.isLoading() || this.emailLinkPreview) return;
 
     this.submitted.set(true);
     this.nicknameFeedbackArmed.set(true);

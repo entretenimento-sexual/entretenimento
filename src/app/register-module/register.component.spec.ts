@@ -16,10 +16,13 @@ import { RegistrationFeedbackTooltipDirective } from './registration-feedback-to
 import { FirestoreValidationService } from '../core/services/data-handling/firestore/validation/firestore-validation.service';
 import { RegisterService } from '../core/services/autentication/register/register.service';
 import { EmailVerificationService } from '../core/services/autentication/register/email-verification.service';
+import { EmailLinkRegistrationService } from '../core/services/autentication/register/email-link-registration.service';
 import { ApplicationErrorService } from '../core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../core/services/error-handler/error-notification.service';
 import { ActionStateDirective } from '../shared/action-state/action-state.directive';
 import { FormValidationFocusDirective } from '../shared/form-validation-focus/form-validation-focus.directive';
+import { RegisterProgressComponent } from './register-progress/register-progress.component';
+import { environment } from 'src/environments/environment';
 
 class MockFirestoreValidationService {
   checkIfNicknameExists = vi.fn().mockReturnValue(of(false));
@@ -67,11 +70,13 @@ describe('RegisterComponent', () => {
         RouterTestingModule,
         ActionStateDirective,
         FormValidationFocusDirective,
+        RegisterProgressComponent,
       ],
       providers: [
         { provide: FirestoreValidationService, useClass: MockFirestoreValidationService },
         { provide: RegisterService, useClass: MockRegisterService },
         { provide: EmailVerificationService, useClass: MockEmailVerificationService },
+        { provide: EmailLinkRegistrationService, useValue: { requestLink$: vi.fn(() => of(void 0)) } },
         { provide: ErrorNotificationService, useClass: MockErrorNotificationService },
         { provide: ApplicationErrorService, useValue: {
           report: vi.fn((_error, options) => ({ userMessage: options.fallbackMessage })),
@@ -95,6 +100,51 @@ describe('RegisterComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('avança do apelido para a confirmação de e-mail e envia o link no próprio formulário em dev-emu', async () => {
+    const original = { ...environment };
+    Object.assign(environment, {
+      production: false,
+      useEmulators: true,
+      features: { ...environment.features, emailFirstSignupPreview: true },
+    });
+    const preview = TestBed.createComponent(RegisterComponent);
+    try {
+      const registration = preview.componentInstance;
+      const view = preview.nativeElement as HTMLElement;
+      const lookup = new Subject<boolean>();
+      const validation = TestBed.inject(FirestoreValidationService);
+      vi.mocked(validation.checkIfNicknameExists).mockReturnValueOnce(lookup);
+      preview.detectChanges();
+
+      registration.form.patchValue({ apelidoPrincipal: 'visualteste' });
+      view.querySelector<HTMLButtonElement>('button[type=submit]')!.click();
+      expect(registration.sectionIndex()).toBe(0);
+      lookup.next(false);
+      preview.detectChanges();
+      await preview.whenStable();
+      preview.detectChanges();
+
+      expect(registration.sectionIndex()).toBe(1);
+      expect(view.querySelector('[aria-current="step"]')?.textContent).toContain('E-mail');
+      expect(view.querySelector('#register-section-title')?.textContent).toContain('Confirme seu e-mail');
+      expect(view.querySelector('.signup-scene--email')?.classList.contains('signup-scene--inactive')).toBe(false);
+      expect(view.querySelector('.auth-container--stage-detail')).toBeNull();
+      expect(view.querySelector('#email')).not.toBeNull();
+      expect(view.querySelector('#password, #confirmPassword, .signup-section-count')).toBeNull();
+      expect(view.querySelector('button[type=submit]')?.textContent).toContain('Enviar link');
+
+      registration.form.patchValue({ email: 'teste@example.com' });
+      view.querySelector<HTMLButtonElement>('button[type=submit]')!.click();
+      preview.detectChanges();
+      expect(TestBed.inject(EmailLinkRegistrationService).requestLink$).toHaveBeenCalledWith('teste@example.com');
+      expect(registerService.registerUser).not.toHaveBeenCalled();
+      expect(view.querySelector('.signup-link-feedback')?.textContent).toContain('logs do Authentication');
+    } finally {
+      preview.destroy();
+      Object.assign(environment, original);
+    }
   });
 
   it('retoma a segunda etapa após refresh sem guardar senha nem aceites', () => {

@@ -12,8 +12,16 @@ import { authGuard } from '../core/guards/auth-guard/auth.guard';
 import { emailVerifiedGuard } from '../core/guards/profile-guard/email-verified.guard';
 import { unsavedChangesGuard } from '../core/guards/unsaved-changes/unsaved-changes.guard';
 import { registrationStepGuard } from './data-access/registration-step.guard';
+import { emailLinkSignupPreviewAllowed } from '../core/services/autentication/register/email-link-registration.service';
+import { environment } from 'src/environments/environment';
 
 const routes: Routes = [
+  {
+    path: 'enviar-link',
+    canMatch: [() => emailLinkSignupPreviewAllowed(environment)],
+    component: RegisterComponent,
+    data: { allowUnverified: true, requestRegistrationLink: true },
+  },
   {
     path: '',
     component: RegisterComponent,

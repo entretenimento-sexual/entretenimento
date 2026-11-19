@@ -180,6 +180,16 @@
   margin-block-start: -0.35rem;
 }
 
+.signup-link-feedback {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-inline-start: 2px solid var(--success-color);
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--success-color) 8%, transparent);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
 .signup-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -876,6 +886,12 @@
     rgba(0, 0, 0, 0.15) 99%,
     transparent 100%
   );
+}
+
+@media (min-width: 1001px) and (min-aspect-ratio: 5/4) {
+  .auth-container--email-link .signup-scene--email .signup-backdrop {
+    mask-image: linear-gradient(to right, #000 79%, #000d 89%, #0007 95%, transparent);
+  }
 }
 
 .auth-container--stage-detail .form-container {

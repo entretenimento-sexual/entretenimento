@@ -307,7 +307,8 @@ jobs:
             if (!metrics.nicknameRow || !metrics.formHeight || metrics.formHeight > 420) {
               throw new Error('Desktop signup form must keep the nickname fields in a compact row');
             }
-            if (metrics.formStart < metrics.viewportWidth * 0.52 || metrics.nextAction !== 'Configure seu acesso') {
+            const expectedAction = '${{ matrix.configuration }}' === 'dev-emu' ? 'Confirme seu e-mail' : 'Configure seu acesso';
+            if (metrics.formStart < metrics.viewportWidth * 0.52 || metrics.nextAction !== expectedAction) {
               throw new Error('Desktop must keep the form to the right and show the next signup screen');
             }
             return metrics;
@@ -497,6 +498,41 @@ jobs:
             await indicator.waitFor({ state: 'visible' });
             await submit.click();
             await page.locator('#email').waitFor({ state: 'visible' });
+          }"
+
+      - name: Verify the next registration step
+        shell: bash
+        env:
+          PLAYWRIGHT_CLI_SESSION: registration-${{ matrix.configuration }}
+          SIGNUP_CONFIGURATION: ${{ matrix.configuration }}
+        run: |
+          set -euo pipefail
+          OUT="artifacts/$SIGNUP_CONFIGURATION"
+
+          if [ "$SIGNUP_CONFIGURATION" = "dev-emu" ]; then
+            playwright-cli run-code "async (page) => {
+              const heading = page.getByRole('heading', { name: 'Confirme seu e-mail', exact: true });
+              await heading.waitFor({ state: 'visible' });
+              await page.getByRole('button', { name: 'Enviar link', exact: true }).waitFor({ state: 'visible' });
+              const step = await page.locator('app-register-progress [aria-current=step]').textContent();
+              if (!step.includes('E-mail') || await page.locator('#password, #confirmPassword, #termos').count()) {
+                throw new Error('Email-link signup must advance directly to email confirmation');
+              }
+              await page.locator('#email').fill('visual@example.test');
+              await page.getByRole('button', { name: 'Voltar', exact: true }).click();
+              await page.locator('#apelidoPrincipal').waitFor({ state: 'visible' });
+              await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+              if (await page.locator('#email').inputValue() !== 'visual@example.test') {
+                throw new Error('Returning to the nickname step must preserve the email');
+              }
+            }"
+            playwright-cli screenshot --full-page --filename="$OUT/mobile-email-confirmation.png"
+            playwright-cli console error > "$OUT/browser-console-errors.log" || true
+            playwright-cli close
+            exit 0
+          fi
+
+          playwright-cli run-code "async (page) => {
             if (await page.locator('app-register-progress .next strong').textContent() !== 'Confirme para criar a conta') {
               throw new Error('Access step must explain that confirmations come next');
             }

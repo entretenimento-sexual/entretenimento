@@ -1,5 +1,6 @@
 <!-- src/app/register-module/register.component.html -->
-<div class="auth-container" [class.auth-container--stage-detail]="sectionIndex() > 0">
+<div class="auth-container" [class.auth-container--email-link]="emailLinkPreview"
+  [class.auth-container--stage-detail]="!emailLinkPreview && sectionIndex() > 0">
   <div class="signup-image" aria-hidden="true">
     <picture class="signup-scene signup-scene--original" [class.signup-scene--inactive]="sectionIndex() !== 0">
       <source srcset="assets/registration/signup-shadow.webp" type="image/webp" />
@@ -15,7 +16,8 @@
 
   <div class="form-container">
     <app-register-progress
-      step="signup"
+      [step]="emailLinkPreview && sectionIndex() === 1 ? 'emailVerification' : 'signup'"
+      [signupLabel]="emailLinkPreview ? 'Apelido' : 'Conta'"
       [completed]="accountCreated()"
       [nextAction]="nextSectionTitle()"
       [compact]="true"
@@ -66,12 +68,14 @@
     <form [formGroup]="form" (ngSubmit)="submitSection()" aria-labelledby="register-section-title" autocomplete="on" novalidate
       formInvalidMessage="Revise os dados do cadastro antes de continuar."
       [formValidationOnSubmit]="false"
-      [attr.aria-busy]="(isLoading() || creating()) ? 'true' : null">
+      [attr.aria-busy]="(isLoading() || creating() || sendingLink()) ? 'true' : null">
 
       <header>
         <h1 id="register-section-title" #sectionHeading tabindex="-1">
           {{ currentSection().title }}
-          <span class="signup-section-count">{{ sectionIndex() + 1 }} de {{ sectionCount }}</span>
+          @if (!emailLinkPreview) {
+            <span class="signup-section-count">{{ sectionIndex() + 1 }} de {{ sectionCount }}</span>
+          }
         </h1>
         <p>{{ currentSection().description }}</p>
       </header>
@@ -170,6 +174,7 @@
 
         <input id="email" formControlName="email" type="email" class="app-control" name="email" autocomplete="email"
           placeholder="email@exemplo.com" autocapitalize="none" inputmode="email" aria-label="E-mail"
+          maxlength="254" [readonly]="sendingLink()"
           aria-describedby="register-email-help emailTooltip" [attr.aria-invalid]="
             (submitted() || form.get('email')?.touched)
             && form.get('email')?.invalid
@@ -180,9 +185,6 @@
             'is-valid': (submitted() || form.get('email')?.touched) && form.get('email')?.valid
           }" />
         <small id="register-email-help" class="field-hint">Seu e-mail fica fora do perfil público.</small>
-        @if (emailLinkPreview) {
-          <a class="app-action app-action--ghost" routerLink="/register/enviar-link">Testar cadastro por link</a>
-        }
 
         <div *ngIf="getError('email') && (submitted() || form.get('email')?.touched)" id="emailTooltip"
           class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
@@ -190,6 +192,16 @@
         </div>
       </div>
 
+      @if (emailLinkPreview) {
+        @if (linkRequested()) {
+          <p class="signup-link-feedback" role="status">
+            Se o endereço puder receber a mensagem, abra o link mais recente. No emulador, ele aparece nos logs do Authentication.
+          </p>
+        }
+        @if (resendCooldown() && !sendingLink()) {
+          <small class="field-hint">Aguarde até 30 segundos para fazer um novo envio.</small>
+        }
+      } @else {
       <div class="signup-pair">
       <!-- Senha -->
       <div class="app-field">
@@ -286,6 +298,7 @@
       <small id="passwordHint" class="field-hint signup-password-hint">
         Use ao menos 8 caracteres, com maiúscula, minúscula e número.
       </small>
+      }
 
       }
       @case (2) {
@@ -341,14 +354,14 @@
       <div class="signup-actions" [class.signup-actions--with-back]="sectionIndex() > 0">
         @if (sectionIndex() > 0) {
           <button type="button" class="app-action app-action--ghost" (click)="previousSection()"
-            [disabled]="isLoading() || creating() || accountCreated()">
+            [disabled]="isLoading() || creating() || sendingLink() || accountCreated()">
             Voltar
           </button>
         }
         <button class="app-action app-action--primary" type="submit"
-          [appActionState]="isLoading() || creating()"
-          [actionDisabled]="awaitingNickname() || accountCreated()">
-          {{ isLoading() || creating() ? 'Criando conta…' : awaitingNickname() ? 'Validando apelido…' : lastSection() ? 'Criar conta' : 'Continuar' }}
+          [appActionState]="isLoading() || creating() || sendingLink()"
+          [actionDisabled]="awaitingNickname() || accountCreated() || (emailLinkPreview && sectionIndex() === 1 && resendCooldown())">
+          {{ submitLabel() }}
         </button>
       </div>
 
