@@ -1,27 +1,54 @@
-:host { display: block; }
-
-.email-link-page {
-  display: grid;
-  place-items: center;
-  min-block-size: 70vh;
-  padding: clamp(1rem, 5vw, 3rem);
-  background: radial-gradient(ellipse at top, rgba(255, 75, 81, .09), transparent 70%);
+.email-link-header {
+  margin-block-end: 0.75rem;
 }
 
-.email-link-card {
-  inline-size: min(100%, 32rem);
-  padding: clamp(1.25rem, 5vw, 2.5rem);
-  border: 1px solid var(--app-border, #d9d4d4);
-  border-radius: 1.25rem;
-  background: var(--app-surface, Canvas);
-  color: var(--app-text, CanvasText);
+.email-link-header h1:focus {
+  outline: none;
 }
 
-h1 { margin: 0 0 .75rem; }
-form { display: grid; gap: .65rem; }
-form > .app-action { margin-block-start: .5rem; min-block-size: 44px; }
-.email-link-declaration { display: flex; align-items: center; gap: .65rem; min-block-size: 44px; }
-.email-link-actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-block-start: 1rem; }
-.email-link-actions a { display: inline-flex; align-items: center; min-block-size: 44px; }
-.email-link-message { border-inline-start: .2rem solid currentColor; padding-inline-start: .75rem; }
-.email-link-message--error { color: var(--app-danger, #b12640); }
+.email-link-declaration {
+  align-items: center;
+  min-block-size: 44px;
+  cursor: pointer;
+}
+
+.email-link-declaration input {
+  margin: 0;
+  accent-color: var(--primary-color);
+}
+
+.email-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1rem;
+  margin-block-start: 0.4rem;
+}
+
+.email-link-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  color: var(--primary-color);
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.email-link-message {
+  margin-block: 0 0.75rem;
+  border-inline-start: 0.2rem solid currentColor;
+  padding-inline-start: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.email-link-message--error {
+  color: var(--danger-color);
+}
+
+.email-link-continue {
+  inline-size: 100%;
+  margin-block-start: 0.5rem;
+  border-color: var(--primary-color);
+  background: var(--primary-color);
+  color: var(--button-text-color);
+}

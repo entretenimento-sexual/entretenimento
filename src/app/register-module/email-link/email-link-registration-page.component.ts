@@ -15,14 +15,15 @@ import { ADULT_SELF_DECLARATION_TEXT_PT_BR } from '@core/services/compliance/pla
 import { NicknameUtils } from '@core/utils/nickname-utils';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { clearSignupDraft, readSignupDraft } from '../data-access/signup-draft.storage';
+import { RegisterProgressComponent } from '../register-progress/register-progress.component';
 
 type LinkMode = 'confirm' | 'password';
 
 @Component({
   selector: 'app-email-link-registration-page',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, RegisterProgressComponent],
   templateUrl: './email-link-registration-page.component.html',
-  styleUrl: './email-link-registration-page.component.css',
+  styleUrls: ['../register.component.css', './email-link-registration-page.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EmailLinkRegistrationPageComponent {
@@ -39,6 +40,7 @@ export class EmailLinkRegistrationPageComponent {
     typeof window !== 'undefined' ? window.location.href : '';
 
   readonly mode = this.route.snapshot.data['emailLinkMode'] as LinkMode;
+  readonly hasLink = Boolean(this.authLink);
   readonly declaration = ADULT_SELF_DECLARATION_TEXT_PT_BR;
   readonly emailForm = this.fb.group({
     email: [readSignupDraft()?.email ?? '', [Validators.required, Validators.email, Validators.maxLength(254)]],
@@ -54,7 +56,7 @@ export class EmailLinkRegistrationPageComponent {
   private skipNickname = false;
 
   constructor() {
-    afterNextRender(() => this.heading()?.nativeElement.focus());
+    afterNextRender(() => this.heading()?.nativeElement.focus({ preventScroll: true }));
     if (this.authLink && this.mode === 'confirm') {
       inject(Location).replaceState(EMAIL_LINK_REGISTRATION_ROUTE);
     }
@@ -62,11 +64,7 @@ export class EmailLinkRegistrationPageComponent {
   }
 
   confirm(): void {
-    if (this.busy() || !this.checkEmail()) return;
-    if (!this.authLink) {
-      this.error.set('Abra o link recebido no e-mail ou solicite um novo link.');
-      return;
-    }
+    if (this.busy() || !this.hasLink || !this.checkEmail()) return;
     if (!this.emailForm.controls.adult.value) {
       this.error.set('Confirme a declaração de maioridade para continuar.');
       return;

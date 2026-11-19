@@ -527,6 +527,50 @@ jobs:
               }
             }"
             playwright-cli screenshot --full-page --filename="$OUT/mobile-email-confirmation.png"
+
+            playwright-cli run-code "async (page) => {
+              await page.setViewportSize({ width: 1440, height: 1000 });
+              const email = 'visual@example.test';
+              await page.getByRole('button', { name: 'Enviar link', exact: true }).click();
+              await page.getByRole('heading', { name: 'Confira seu e-mail', exact: true }).waitFor();
+              const before = await page.locator('.form-container').boundingBox();
+              const codes = await page.request.get('http://127.0.0.1:9099/emulator/v1/projects/demo-registration-visual/oobCodes');
+              if (!codes.ok()) throw new Error('Auth Emulator did not return the link list');
+              const { oobCodes } = await codes.json();
+              const link = oobCodes.findLast(entry => entry.email === email && entry.requestType === 'EMAIL_SIGNIN');
+              if (!link) throw new Error('Auth Emulator did not issue the confirmation link');
+
+              await page.goto(link.oobLink);
+              const address = page.getByRole('textbox', { name: 'E-mail', exact: true });
+              await address.waitFor({ state: 'visible' });
+              if (await address.inputValue() !== email) throw new Error('Same-tab return lost the draft email');
+              const after = await page.locator('.form-container').boundingBox();
+              if (!before || !after || Math.abs(before.x - after.x) > 2 || Math.abs(before.width - after.width) > 2) {
+                throw new Error('Opening the confirmation link changed the desktop card layout');
+              }
+              if (await page.locator('.public-footer--compact').count() !== 1 ||
+                  await page.locator('.public-footer').count() !== 1 ||
+                  !(await page.locator('app-register-progress [aria-current=step]').textContent()).includes('E-mail')) {
+                throw new Error('Link return must retain the compact legal footer and the email step');
+              }
+              await page.screenshot({ path: '$OUT/desktop-email-link-return.png', fullPage: true });
+              await page.setViewportSize({ width: 390, height: 844 });
+              const photo = page.locator('.signup-backdrop');
+              await photo.evaluate(image => image.decode());
+              const photoBox = await photo.boundingBox();
+              const cardBox = await page.locator('.form-container').boundingBox();
+              if (!photoBox || !cardBox || photoBox.y + photoBox.height > cardBox.y + 2 ||
+                  await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)) {
+                throw new Error('Link return must show the photo above the form without horizontal overflow on mobile');
+              }
+              await page.screenshot({ path: '$OUT/mobile-email-link-return.png', fullPage: true });
+
+              await page.reload();
+              await page.getByText('Abra o link recebido no e-mail ou solicite um novo link.').waitFor();
+              if (await address.count() || await page.getByRole('link', { name: 'Solicitar novo link' }).count() !== 1) {
+                throw new Error('Direct return without a link must offer recovery instead of the form');
+              }
+            }"
             playwright-cli console error > "$OUT/browser-console-errors.log" || true
             playwright-cli close
             exit 0

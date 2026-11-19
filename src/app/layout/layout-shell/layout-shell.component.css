@@ -99,17 +99,17 @@ app-navbar {
 }
 
 /* O cadastro ancora a fotografia no topo do shell, incluindo a área da navbar. */
-.auth-shell[data-shell-mode='guest']:has(app-register) {
+.auth-shell[data-shell-mode='guest']:has(:is(app-register, app-email-link-registration-page)) {
   position: relative;
   isolation: isolate;
   background: #170910;
 }
 
-.auth-shell[data-shell-mode='guest']:has(app-register) .auth-shell__body {
+.auth-shell[data-shell-mode='guest']:has(:is(app-register, app-email-link-registration-page)) .auth-shell__body {
   position: static;
 }
 
-.auth-shell[data-shell-mode='guest'] .auth-shell__content:has(> app-register) {
+.auth-shell[data-shell-mode='guest'] .auth-shell__content:has(> :is(app-register, app-email-link-registration-page)) {
   display: flex;
   flex-direction: column;
   padding: 0;

@@ -11,9 +11,12 @@ export type RegisterFlowStep =
   | 'profileCompletion'
   | 'preferences';
 
-export function isRegistrationStartRoute(url: string): boolean {
-  const path = url.trim().split(/[?#]/)[0];
-  return path === '/register' || path === '/register/';
+export function usesRegistrationPresentation(url: string): boolean {
+  const path = url.trim().split(/[?#]/)[0].replace(/\/$/, '');
+  return path === '/register' ||
+    path === '/register/enviar-link' ||
+    path === '/register/continuar-por-email' ||
+    path === '/register/definir-senha';
 }
 
 export function isRegistrationStepRoute(url: string): boolean {

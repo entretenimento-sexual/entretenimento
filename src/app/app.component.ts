@@ -23,7 +23,7 @@ import { LogoutService } from './core/services/autentication/auth/logout.service
 import { AuthOrchestratorService } from './core/services/autentication/auth/auth-orchestrator.service';
 import { AuthDebugService } from './core/services/util-service/auth-debug.service';
 import { environment } from 'src/environments/environment';
-import { isRegistrationStartRoute } from './register-module/data-access/register-flow.model';
+import { usesRegistrationPresentation } from './register-module/data-access/register-flow.model';
 import { PresenceOrchestratorService } from './core/services/presence/presence-orchestrator.service';
 import { PlatformSubscriptionAccessService } from './core/services/subscriptions/platform-subscription-access.service';
 import { RouterDiagnosticsService } from './core/services/util-service/router-diagnostics.service';
@@ -92,7 +92,7 @@ export class AppComponent implements OnInit {
   private shouldHideFooter(url: string): boolean {
     const clean = this.normalizeUrl(url);
 
-    if (isRegistrationStartRoute(clean)) return true;
+    if (usesRegistrationPresentation(clean)) return true;
 
     // O footer público/marketing não pertence às áreas de produto autenticadas.
     // O LayoutShell fornece um footer compacto para essas telas.

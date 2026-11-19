@@ -124,11 +124,11 @@
   text-align: left;
 }
 
-.form-container form > header {
+.form-container :is(form > header, .email-link-header) {
   margin-block-end: 0.15rem;
 }
 
-.form-container form > header h1 {
+.form-container :is(form > header, .email-link-header) h1 {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -152,7 +152,7 @@
   white-space: nowrap;
 }
 
-.form-container form > header p {
+.form-container :is(form > header, .email-link-header) p {
   margin: 0.4rem 0 0;
   color: var(--text-muted, var(--text-color));
   line-height: 1.45;
@@ -911,7 +911,7 @@
    não há divisão em colunas e o espaço não depende da altura da tela.
    O documento pode rolar naturalmente quando for fisicamente necessário. */
 @media (max-width: 1000px), (max-aspect-ratio: 5/4) {
-  .auth-container.auth-container--stage-detail {
+  .auth-container:is(.auth-container--stage-detail, .auth-container--email-link-step) {
     --signup-mobile-scene-height: clamp(9rem, 52vw, 20rem);
 
     grid-template-columns: minmax(0, 1fr);
@@ -920,7 +920,7 @@
     row-gap: 0;
   }
 
-  .auth-container--stage-detail .signup-backdrop {
+  .auth-container:is(.auth-container--stage-detail, .auth-container--email-link-step) .signup-backdrop {
     inline-size: 100%;
     block-size: var(--signup-mobile-scene-height);
     object-fit: contain;
@@ -928,7 +928,7 @@
     mask-image: linear-gradient(to bottom, #000 0%, #000 94%, transparent 100%);
   }
 
-  .auth-container--stage-detail .form-container {
+  :is(.auth-container--stage-detail, .auth-container--email-link-step) .form-container {
     grid-column: 1;
     grid-row: auto;
     inline-size: min(100%, 390px);
