@@ -138,7 +138,7 @@ jobs:
           URL="http://127.0.0.1:4200/register"
 
           CHECK_SIGNUP_PHOTO=$(cat <<'PLAYWRIGHT'
-          async (page) => {
+          async (page, layout) => {
             const backdrop = page.locator('.signup-scene:not(.signup-scene--inactive) .signup-backdrop');
             await backdrop.evaluate(image => image.decode());
             const framing = await backdrop.evaluate(image => {
@@ -157,10 +157,25 @@ jobs:
                 faces.top >= Math.max(box.top, header.bottom) && faces.bottom <= box.bottom;
               const clearOfForm = faces.right <= form.left || faces.left >= form.right ||
                 faces.bottom <= form.top || faces.top >= form.bottom;
-              return { faces, insidePhoto, clearOfForm };
+              const viewportWidth = document.documentElement.clientWidth;
+              const stacked = form.top >= box.bottom && form.top - box.bottom <= 32 &&
+                Math.abs(form.left + form.width / 2 - viewportWidth / 2) <= 2;
+              return {
+                faces,
+                insidePhoto,
+                clearOfForm,
+                stacked,
+                photoCoverage: box.width / viewportWidth,
+                hasOverflow: document.documentElement.scrollWidth > viewportWidth + 1,
+              };
             });
             if (!framing.insidePhoto || !framing.clearOfForm) {
               throw new Error('Signup portrait is cropped or covered by the form: ' + JSON.stringify(framing));
+            }
+            if (framing.hasOverflow ||
+                (layout === 'stacked' && (!framing.stacked || framing.photoCoverage < 0.99)) ||
+                (layout === 'side-by-side' && (framing.stacked || framing.photoCoverage < 0.60))) {
+              throw new Error('Signup photo or form lost space at this viewport: ' + JSON.stringify(framing));
             }
             const clip = {
               x: Math.floor((framing.faces.left + framing.faces.right) / 2) - 48,
@@ -244,6 +259,22 @@ jobs:
           )
 
           playwright-cli open "$URL"
+
+          playwright-cli run-code "async (page) => {
+            const checkPhoto = $CHECK_SIGNUP_PHOTO;
+            const results = [];
+            for (const [width, height, layout] of [
+              [320, 480, 'stacked'],
+              [844, 390, 'side-by-side'],
+              [768, 1024, 'stacked'],
+              [1920, 520, 'side-by-side'],
+              [3440, 1440, 'side-by-side'],
+            ]) {
+              await page.setViewportSize({ width, height });
+              results.push({ width, height, layout, ...(await checkPhoto(page, layout)) });
+            }
+            return results;
+          }" | tee "$OUT/responsive-photo-framing.log"
 
           playwright-cli resize 1920 520
           playwright-cli run-code "$CHECK_SIGNUP_PHOTO" | tee "$OUT/short-desktop-framing.log"

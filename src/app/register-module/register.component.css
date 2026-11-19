@@ -9,6 +9,8 @@
 
 :host {
   --signup-photo-top: calc(var(--header-height, 64px) + 1rem + 1px);
+  --signup-photo-height: max(0px, calc(100dvh - var(--signup-photo-top)));
+  --signup-panorama-width: min(78vw, calc(3.1 * var(--signup-photo-height)));
 
   display: grid;
   flex: 1;
@@ -23,6 +25,10 @@
   padding-block-end: 1rem;
   background: transparent;
   font-family: var(--font-family-primary);
+}
+
+.signup-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(0, min(44vw, 440px));
 }
 
 .signup-image {
@@ -44,6 +50,17 @@
 }
 
 .signup-scene {
+  --signup-edge-mask: linear-gradient(
+    to right,
+    #000 0%,
+    #000 58%,
+    #000f 65%,
+    #000d 73%,
+    #0008 83%,
+    #0003 93%,
+    transparent 100%
+  );
+
   position: absolute;
   inset: 0;
   opacity: 1;
@@ -54,28 +71,16 @@
   opacity: 0;
 }
 
-/* O tamanho do elemento acompanha a proporção intrínseca do WebP.
-   O fade acontece no limite REAL da fotografia, não no fim do viewport:
-   assim não sobra um retângulo visível com recorte seco. */
 .signup-backdrop {
   position: absolute;
   inset-block-start: var(--signup-photo-top);
   inset-inline-start: 0;
   inline-size: auto;
   max-inline-size: 100%;
-  block-size: max(0px, calc(100dvh - var(--signup-photo-top)));
+  block-size: var(--signup-photo-height);
   object-fit: contain;
   object-position: left center;
-  mask-image: linear-gradient(
-    to right,
-    #000 0%,
-    #000 58%,
-    rgba(0, 0, 0, 0.97) 65%,
-    rgba(0, 0, 0, 0.82) 73%,
-    rgba(0, 0, 0, 0.52) 83%,
-    rgba(0, 0, 0, 0.18) 93%,
-    transparent 100%
-  );
+  mask-image: var(--signup-edge-mask);
 }
 
 .auth-badge,
@@ -510,34 +515,12 @@
 }
 
 @media (max-width: 1000px), (max-aspect-ratio: 5/4) {
-  .auth-container {
+  .auth-container:not(.signup-layout) {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* Em janelas altas, a faixa segue a largura e a linha do formulário
-     mantém a altura do próprio cartão. */
-  .auth-container:has(> .signup-image) {
-    --signup-portrait-band: min(66.667vw, max(22.5rem, 32vw));
-
-    align-content: start;
-    padding-block-start: calc(var(--signup-portrait-band) + 0.75rem);
-    row-gap: 0;
-  }
-
-  .form-container {
+  .auth-container:not(.signup-layout) .form-container {
     grid-column: 1;
-  }
-
-  .auth-container:has(> .signup-image) .form-container {
-    justify-self: center;
-  }
-
-  .signup-scene--original .signup-backdrop {
-    inline-size: 100%;
-    block-size: var(--signup-portrait-band);
-    object-fit: cover;
-    object-position: center top;
-    mask-image: linear-gradient(to bottom, #000 0%, #000 88%, transparent 100%);
   }
 }
 
@@ -840,7 +823,11 @@
 
 /* Harmonizar proporções no desktop ultrawide: card não pode parecer
    miniatura, e a área da foto não deve crescer indefinidamente. */
-@media (min-width: 1600px) and (min-height: 640px) and (aspect-ratio > 5/4) {
+@media (min-width: 1600px) and (min-height: 640px) and (aspect-ratio > 7/5) {
+  .signup-layout {
+    padding-inline-end: clamp(3rem, calc((100vw - 1600px) / 5), 30rem);
+  }
+
   .auth-container:not(.auth-container--stage-detail) {
     grid-template-columns: minmax(0, 1fr) minmax(440px, 510px);
   }
@@ -851,42 +838,15 @@
   }
 }
 
-/* Composição da cena aprovada: a foto completa fica à esquerda.
-   O restante do viewport recebe a continuidade escura para o card.
-   Não ampliar/cortar rostos com object-fit: cover.
-   O primeiro formulário (apelido) mantém seu enquadramento original. */
 .auth-container.auth-container--stage-detail {
-  grid-template-columns: minmax(0, 1fr) minmax(310px, 390px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, min(44vw, 390px));
   column-gap: clamp(1rem, 2.5vw, 2.5rem);
 }
 
-.auth-container--stage-detail .signup-image {
-  position: absolute;
-  inset: 0 0 auto;
-  z-index: -1;
-  inline-size: 100%;
-  block-size: 100dvh;
-  min-block-size: 0;
-  overflow: hidden;
-  border-radius: 0;
-  /* Mesma continuidade tonal da primeira cena, sem faixa linear entre imagens. */
-  box-shadow: none;
-  isolation: auto;
-}
-
-/* Cenas 2 e 3: dissolver a borda da fotografia, e NÃO a do viewport.
-   O elemento conserva a proporção original; o fade começa mais à direita
-   porque as fotografias dessas etapas têm mais personagens em cena. */
-.auth-container--stage-detail .signup-backdrop {
-  position: absolute;
-  inset-block-start: var(--signup-photo-top);
-  inset-inline-start: 0;
-  inline-size: auto;
-  max-inline-size: 100%;
-  block-size: max(0px, calc(100dvh - var(--signup-photo-top)));
-  object-fit: contain;
-  object-position: left center;
-  mask-image: linear-gradient(
+/* Mantém o grupo iluminado e dissolve a borda direita das cenas de e-mail e
+   declarações no fundo da página. */
+.signup-scene:is(.signup-scene--email, .signup-scene--confirm) {
+  --signup-edge-mask: linear-gradient(
     to right,
     #000 0%,
     #000 79%,
@@ -898,9 +858,42 @@
   );
 }
 
-@media (min-width: 1001px) and (min-aspect-ratio: 5/4) {
-  .auth-container--email-link .signup-scene--email .signup-backdrop {
-    mask-image: linear-gradient(to right, #000 79%, #000d 89%, #0007 95%, transparent);
+/* Quanto mais baixa a janela, menor a largura máxima da foto. O recorte
+   parte do topo para manter os rostos acima da borda inferior. */
+@media (min-width: 52rem) and (aspect-ratio > 7/5) {
+  .signup-scene--original {
+    --signup-fill-width: var(--signup-panorama-width);
+  }
+
+  .signup-backdrop {
+    inline-size: var(--signup-fill-width, auto);
+    object-fit: var(--signup-fit, cover);
+    object-position: var(--signup-object-position, left top);
+    mask-image: var(--signup-edge-mask), linear-gradient(#000 96%, transparent);
+    mask-composite: intersect;
+  }
+}
+
+@media (min-width: 52rem) and (7/5 < aspect-ratio < 2/1) {
+  .signup-scene:is(.signup-scene--email, .signup-scene--confirm) {
+    --signup-fit: contain;
+    --signup-object-position: left center;
+  }
+}
+
+@media (min-width: 52rem) and (min-aspect-ratio: 2/1) {
+  .signup-scene:is(.signup-scene--email, .signup-scene--confirm) {
+    --signup-fill-width: var(--signup-panorama-width);
+  }
+}
+
+@media (min-width: 52rem) and (max-height: 560px) and (aspect-ratio > 7/5) {
+  .signup-layout {
+    padding-block: 0.625rem;
+  }
+
+  .signup-layout .form-container {
+    padding: 1rem;
   }
 }
 
@@ -917,33 +910,42 @@
   backdrop-filter: blur(6px);
 }
 
-/* No celular/tablet, mostrar a foto inteira acima do formulário.
-   A altura reservada acompanha a proporção da imagem (aprox. 1.93:1);
-   não há divisão em colunas e o espaço não depende da altura da tela.
-   O documento pode rolar naturalmente quando for fisicamente necessário. */
-@media (max-width: 1000px), (max-aspect-ratio: 5/4) {
-  .auth-container:is(.auth-container--stage-detail, .auth-container--email-link-step) {
-    --signup-mobile-scene-height: clamp(9rem, 52vw, 20rem);
+/* Reserva a mesma faixa ao trocar de etapa. O mínimo escala com a largura
+   para manter os rostos no quadro, e a altura útil rege as telas baixas. */
+@media (width < 52rem), (aspect-ratio <= 7/5) {
+  .auth-container.signup-layout {
+    --signup-portrait-band: clamp(36vw, 34svh, min(78vw, max(19rem, 45vw)));
 
     grid-template-columns: minmax(0, 1fr);
-    padding-block-start: calc(var(--signup-mobile-scene-height) + 0.75rem);
-    padding-block-end: 0.5rem;
+    align-content: start;
+    padding-block-start: calc(var(--signup-portrait-band) + 0.75rem);
     row-gap: 0;
   }
 
-  .auth-container:is(.auth-container--stage-detail, .auth-container--email-link-step) .signup-backdrop {
+  .signup-layout .signup-scene .signup-backdrop {
     inline-size: 100%;
-    block-size: var(--signup-mobile-scene-height);
-    object-fit: contain;
-    object-position: center top;
-    mask-image: linear-gradient(to bottom, #000 0%, #000 94%, transparent 100%);
+    block-size: var(--signup-portrait-band);
+    object-fit: cover;
+    object-position: var(--signup-portrait-focus, 12%) top;
+    mask-image: linear-gradient(to bottom, #000 0%, #000 88%, transparent 100%);
   }
 
-  :is(.auth-container--stage-detail, .auth-container--email-link-step) .form-container {
+  .signup-scene--email {
+    --signup-portrait-focus: 28%;
+  }
+
+  .signup-scene--confirm {
+    --signup-portrait-focus: 24%;
+  }
+
+  .signup-layout .form-container {
     grid-column: 1;
     grid-row: auto;
-    inline-size: min(100%, 390px);
     justify-self: center;
+  }
+
+  .signup-layout.auth-container--email-link-step .form-container {
+    inline-size: min(100%, 390px);
   }
 }
 
