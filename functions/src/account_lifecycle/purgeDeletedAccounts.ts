@@ -301,6 +301,8 @@ function toCandidate(uid: string, user: PurgeUserDoc): PurgeCandidate {
 }
 
 function isPurgeCandidate(user: PurgeUserDoc, now: number): boolean {
+  // A rotina executa exclusões já programadas. Um perfil incompleto apenas
+  // indica que ainda há uma etapa de cadastro a retomar.
   const status = String(user.accountStatus ?? 'active');
   const purgeAfter = Number(user.purgeAfter ?? 0);
 

@@ -112,6 +112,8 @@ function reserveInTransaction(
 ): void {
   const now = FieldValue.serverTimestamp();
   if (!indexExists) {
+    // O apelido já pertence ao UID durante a retomada, mesmo com o perfil pendente.
+    // Uma futura liberação por abandono precisa verificar se esse UID ainda é o titular.
     tx.create(indexRef, {
       uid, type: 'nickname', value: nickname.key,
       createdAt: now, lastChangedAt: now,

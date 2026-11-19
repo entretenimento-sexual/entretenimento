@@ -10,6 +10,8 @@ import { ADULT_SELF_DECLARATION_VERSION } from '../compliance/platform-legal.con
 import { normalizeRegistrationNicknameClaim } from './nickname-reservation.policy';
 
 const PREVIEW_UID_PREFIX = 'email-link-preview-';
+// Prazo de uso do rascunho antes da confirmação. A leitura valida expiresAtMs;
+// a remoção ocorre na transação que vincula o rascunho à conta.
 const DRAFT_LIFETIME_MS = 30 * 60_000;
 const DRAFT_ID_PATTERN = /^[a-f0-9-]{36}$/;
 const LINK_CODE_PATTERN = /^[A-Za-z0-9_-]{1,256}$/;
@@ -82,6 +84,8 @@ async function bindSignupEvidence(
       nickname = draft.nickname;
       tx.delete(draftRef);
     }
+    // A mesma coleção também guarda este recibo por UID, usado na retomada e
+    // na conciliação da declaração 18+. A limpeza de rascunhos deve preservar o recibo.
     tx.create(evidenceRef, {
       nickname,
       oobCodeHash: codeHash,

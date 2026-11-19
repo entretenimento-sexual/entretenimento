@@ -1,5 +1,6 @@
 // Rascunho temporário de uma aba; nunca salva senha, termos, idade ou UID.
 export const SIGNUP_DRAFT_KEY = 'registration:signup-draft:v1';
+// Janela de retomada da aba, avaliada na próxima leitura do rascunho.
 const TTL_MS = 30 * 60_000;
 export type SignupLinkConfirmation = 'requested' | 'unconfirmed';
 export interface SignupDraft {
