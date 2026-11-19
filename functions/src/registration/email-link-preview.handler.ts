@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { UserRecord } from 'firebase-admin/auth';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -12,10 +12,24 @@ import { normalizeRegistrationNicknameClaim } from './nickname-reservation.polic
 const PREVIEW_UID_PREFIX = 'email-link-preview-';
 const DRAFT_LIFETIME_MS = 30 * 60_000;
 const DRAFT_ID_PATTERN = /^[a-f0-9-]{36}$/;
+const LINK_CODE_PATTERN = /^[A-Za-z0-9_-]{1,256}$/;
+const drafts = () => db.collection('registration_email_link_drafts');
+
+type BlockedLinkState = 'sign-in' | 'unavailable' | 'draft-expired';
+type LinkLookup = { state: BlockedLinkState } | {
+  state: 'confirm';
+  email: string;
+  draftId: string | null;
+  existing?: UserRecord;
+};
+
+function linkCodeHash(code: string): string {
+  return createHash('sha256').update(code).digest('hex');
+}
 
 export function emailLinkSignupEvidenceRef(uid: string) {
   return isFunctionsEmulatorRuntime() && uid.startsWith(PREVIEW_UID_PREFIX)
-    ? db.collection('registration_email_link_drafts').doc(uid)
+    ? drafts().doc(uid)
     : null;
 }
 
@@ -31,7 +45,7 @@ export const stageEmailLinkRegistration = isFunctionsEmulatorRuntime() ? onCall<
     throw new HttpsError('invalid-argument', 'Confira o apelido e o endereço de e-mail do cadastro.');
   }
   const draftId = randomUUID();
-  await db.collection('registration_email_link_drafts').doc(draftId).create({
+  await drafts().doc(draftId).create({
     email, nickname: nickname.display, expiresAtMs: Date.now() + DRAFT_LIFETIME_MS,
   });
   return { draftId };
@@ -40,40 +54,58 @@ export const stageEmailLinkRegistration = isFunctionsEmulatorRuntime() ? onCall<
 function readDraftId(oobLink: string): string | null {
   const target = new URL(oobLink).searchParams.get('continueUrl');
   if (!target) return null;
-  const url = new URL(target);
-  if (url.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(url.hostname) ||
-      url.pathname !== '/register/continuar-por-email') throw unavailableLink();
+  const url = URL.canParse(target) ? new URL(target) : null;
+  if (!url || url.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(url.hostname) ||
+      url.pathname !== '/register/continuar-por-email') throw blockedLinkError('unavailable');
   const draftId = url.searchParams.get('draft');
-  if (draftId !== null && !DRAFT_ID_PATTERN.test(draftId)) throw unavailableLink();
+  if (draftId !== null && !DRAFT_ID_PATTERN.test(draftId)) throw blockedLinkError('unavailable');
   return draftId;
 }
 
-async function bindSignupEvidence(uid: string, email: string, draftId: string | null): Promise<void> {
+async function bindSignupEvidence(
+  uid: string, email: string, draftId: string | null, code: string
+): Promise<void> {
   const evidenceRef = emailLinkSignupEvidenceRef(uid);
-  if (!evidenceRef) throw unavailableLink();
+  if (!evidenceRef) throw blockedLinkError('unavailable');
   await db.runTransaction(async tx => {
     const evidence = await tx.get(evidenceRef);
-    if (evidence.exists) return;
+    const codeHash = linkCodeHash(code);
+    if (evidence.exists) {
+      if (evidence.get('oobCodeHash') !== codeHash) tx.update(evidenceRef, { oobCodeHash: codeHash });
+      return;
+    }
     let nickname: string | null = null;
     if (draftId) {
       const draftRef = evidenceRef.parent.doc(draftId);
       const draft = (await tx.get(draftRef)).data();
-      if (!draft || draft.email !== email || draft.expiresAtMs < Date.now()) throw unavailableLink();
+      if (!isValidDraft(draft, email)) throw blockedLinkError('draft-expired');
       nickname = draft.nickname;
       tx.delete(draftRef);
     }
     tx.create(evidenceRef, {
       nickname,
+      oobCodeHash: codeHash,
       adultDeclaredAtMs: Date.now(),
       adultDeclarationVersion: ADULT_SELF_DECLARATION_VERSION,
     });
   });
 }
 
-function unavailableLink(): HttpsError {
-  return new HttpsError('failed-precondition', 'Este link não pode mais ser usado.', {
-    reason: 'registration/email-link-unavailable',
+const BLOCKED_LINK_REASONS = {
+  'sign-in': 'registration/account-already-created',
+  'unavailable': 'registration/email-link-unavailable',
+  'draft-expired': 'registration/email-link-draft-expired',
+} as const satisfies Record<BlockedLinkState, string>;
+
+function blockedLinkError(state: BlockedLinkState): HttpsError {
+  return new HttpsError('failed-precondition', 'O link não está disponível para criar uma conta.', {
+    reason: BLOCKED_LINK_REASONS[state],
   });
+}
+
+function isValidDraft(draft: FirebaseFirestore.DocumentData | undefined, email: string):
+  draft is FirebaseFirestore.DocumentData {
+  return !!draft && draft['email'] === email && draft['expiresAtMs'] > Date.now();
 }
 
 function isPreviewAccount(user: UserRecord | undefined): user is UserRecord {
@@ -100,6 +132,63 @@ function requireLocalAuth(): URL {
   return new URL(`http://${host}/emulator/v1/projects/${project}/oobCodes`);
 }
 
+async function lookupSignupLink(code: string, emulatorCodesUrl: URL): Promise<LinkLookup> {
+  // Both the initial check and the submission ask Auth about the supplied code.
+  const response = await fetch(emulatorCodesUrl, { signal: AbortSignal.timeout(5_000) })
+    .catch(() => { throw new HttpsError('unavailable', 'Não foi possível consultar o Auth Emulator.'); });
+  if (!response.ok) throw new HttpsError('unavailable', 'Não foi possível validar o link agora.');
+  const { oobCodes } = await response.json() as {
+    oobCodes?: { email: string; oobCode: string; oobLink: string; requestType: string }[];
+  };
+  const link = oobCodes?.find(entry => entry.requestType === 'EMAIL_SIGNIN' && entry.oobCode === code);
+  if (!link) {
+    const receipts = await drafts().where('oobCodeHash', '==', linkCodeHash(code)).limit(1).get();
+    const receipt = receipts.docs[0];
+    const account = receipt
+      ? await auth.getUser(receipt.id).catch(error => {
+          if ((error as { code?: string }).code === 'auth/user-not-found') return undefined;
+          throw error;
+        })
+      : undefined;
+    return { state: isPreviewAccount(account) && account.emailVerified && account.passwordHash
+      ? 'sign-in' : 'unavailable' };
+  }
+
+  const email = link.email.trim().toLowerCase();
+  if (!email) return { state: 'unavailable' };
+  const existing = await findAccount(email);
+  if (existing?.disabled) return { state: 'unavailable' };
+  if (existing && (!isPreviewAccount(existing) || existing.passwordHash)) return { state: 'sign-in' };
+
+  let draftId: string | null;
+  try {
+    draftId = readDraftId(link.oobLink);
+  } catch {
+    return { state: 'unavailable' };
+  }
+  if (draftId) {
+    const evidence = existing ? await emailLinkSignupEvidenceRef(existing.uid)?.get() : null;
+    if (!evidence?.exists) {
+      const draft = (await drafts().doc(draftId).get()).data();
+      if (!isValidDraft(draft, email)) return { state: 'draft-expired' };
+    }
+  }
+  return { state: 'confirm', email, draftId, existing };
+}
+
+export const inspectEmailLinkRegistration = isFunctionsEmulatorRuntime() ? onCall<{ code?: unknown }>(
+  { region: FUNCTIONS_REGION },
+  async (request): Promise<{ state: LinkLookup['state'] }> => {
+    const url = requireLocalAuth();
+    if (request.auth) throw new HttpsError('permission-denied', 'Encerre a sessão atual antes de continuar.');
+    const code = request.data?.code;
+    if (typeof code !== 'string' || !LINK_CODE_PATTERN.test(code)) return { state: 'unavailable' };
+    const result = await lookupSignupLink(code, url);
+    // This check does not create an account and never returns the recipient.
+    return { state: result.state };
+  }
+) : undefined;
+
 /** Reserve a fresh Auth identity before calling the Firebase native sign-in API. */
 export const prepareEmailLinkRegistration = isFunctionsEmulatorRuntime() ? onCall<{
   email?: unknown;
@@ -109,34 +198,15 @@ export const prepareEmailLinkRegistration = isFunctionsEmulatorRuntime() ? onCal
   const emulatorCodesUrl = requireLocalAuth();
   if (request.auth) throw new HttpsError('permission-denied', 'Encerre a sessão atual antes de continuar.');
   const { code, confirmsAdult, email: previousClientEmail } = request.data ?? {};
-  if (confirmsAdult !== true || typeof code !== 'string' || !/^[A-Za-z0-9_-]{1,256}$/.test(code)) {
+  if (confirmsAdult !== true || typeof code !== 'string' || !LINK_CODE_PATTERN.test(code)) {
     throw new HttpsError('invalid-argument', 'Confira o link e a declaração de maioridade.');
   }
-
-  // Resolve the recipient from the pending, high-entropy Auth Emulator code.
-  // Only the holder of a valid signup link can receive the associated identity.
-  const response = await fetch(emulatorCodesUrl, { signal: AbortSignal.timeout(5_000) })
-    .catch(() => { throw new HttpsError('unavailable', 'Não foi possível consultar o Auth Emulator.'); });
-  if (!response.ok) throw new HttpsError('unavailable', 'Não foi possível validar o link agora.');
-  const { oobCodes } = await response.json() as {
-    oobCodes?: { email: string; oobCode: string; oobLink: string; requestType: string }[];
-  };
-  const link = oobCodes?.find(entry => entry.requestType === 'EMAIL_SIGNIN' && entry.oobCode === code);
-  if (!link) throw unavailableLink();
-  const email = link.email.trim().toLowerCase();
-  if (!email || (previousClientEmail !== undefined &&
-      (typeof previousClientEmail !== 'string' || previousClientEmail.trim().toLowerCase() !== email))) {
-    throw unavailableLink();
-  }
-
-  const draftId = readDraftId(link.oobLink);
-  // Confira o rascunho antes de criar uma conta. A transação confirma a
-  // vinculação e permite que a mesma preparação seja retomada.
-  const existing = await findAccount(email);
-  if (existing && (!isPreviewAccount(existing) || existing.passwordHash)) throw unavailableLink();
-  if (draftId && !existing) {
-    const draft = (await db.collection('registration_email_link_drafts').doc(draftId).get()).data();
-    if (!draft || draft.email !== email || draft.expiresAtMs < Date.now()) throw unavailableLink();
+  const link = await lookupSignupLink(code, emulatorCodesUrl);
+  if (link.state !== 'confirm') throw blockedLinkError(link.state);
+  const { email, draftId, existing } = link;
+  if (previousClientEmail !== undefined &&
+      (typeof previousClientEmail !== 'string' || previousClientEmail.trim().toLowerCase() !== email)) {
+    throw blockedLinkError('unavailable');
   }
 
   let user: UserRecord;
@@ -148,11 +218,12 @@ export const prepareEmailLinkRegistration = isFunctionsEmulatorRuntime() ? onCal
     } catch (error) {
       if ((error as { code?: string }).code !== 'auth/email-already-exists') throw error;
       const winner = await findAccount(email);
-      if (!isPreviewAccount(winner) || winner.passwordHash) throw unavailableLink();
+      if (!winner || winner.disabled) throw blockedLinkError('unavailable');
+      if (!isPreviewAccount(winner) || winner.passwordHash) throw blockedLinkError('sign-in');
       user = winner;
     }
   }
-  await bindSignupEvidence(user.uid, email, draftId);
+  await bindSignupEvidence(user.uid, email, draftId, code);
   return { uid: user.uid, email };
 }) : undefined;
 

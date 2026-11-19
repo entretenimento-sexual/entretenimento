@@ -1,5 +1,5 @@
 import { Location } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -8,7 +8,7 @@ import { Observable, catchError, defer, filter, finalize, from, map, of, switchM
 
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import {
-  EMAIL_LINK_PASSWORD_ROUTE, EMAIL_LINK_REGISTRATION_ROUTE, EmailLinkRegistrationService, isEmailLinkPreviewUid,
+  EMAIL_LINK_PASSWORD_ROUTE, EMAIL_LINK_REGISTRATION_ROUTE, EmailLinkRegistrationService, isEmailLinkPreviewUid, type EmailLinkInspectionState,
 } from '@core/services/autentication/register/email-link-registration.service';
 import { RegistrationBootstrapService } from '@core/services/autentication/register/registration-bootstrap.service';
 import { RegistrationRecoveryService } from '@core/services/autentication/register/registration-recovery.service';
@@ -44,6 +44,17 @@ export class EmailLinkRegistrationPageComponent {
 
   readonly mode = this.route.snapshot.data['emailLinkMode'] as LinkMode;
   readonly hasLink = Boolean(this.authLink);
+  readonly linkState = signal<EmailLinkInspectionState | 'retry' | 'active-session'>(this.hasLink ? 'retry' : 'unavailable');
+  readonly title = computed(() => {
+    if (this.mode === 'password') return 'Defina sua senha';
+    switch (this.linkState()) {
+      case 'confirm': return 'Confirme sua maioridade';
+      case 'sign-in':
+      case 'active-session': return 'Retome sua conta';
+      case 'draft-expired': return 'Solicite um novo link';
+      default: return 'Link de cadastro';
+    }
+  });
   readonly declaration = ADULT_SELF_DECLARATION_TEXT_PT_BR;
   readonly emailForm = this.fb.group({ adult: false });
   readonly passwordForm = this.fb.group({ password: '', confirmation: '' });
@@ -57,14 +68,41 @@ export class EmailLinkRegistrationPageComponent {
 
   constructor() {
     afterNextRender(() => this.heading()?.nativeElement.focus({ preventScroll: true }));
-    if (this.authLink && this.mode === 'confirm') {
-      inject(Location).replaceState(EMAIL_LINK_REGISTRATION_ROUTE);
+    if (this.mode === 'confirm') {
+      if (this.authLink) inject(Location).replaceState(EMAIL_LINK_REGISTRATION_ROUTE);
+      this.checkLink();
+    } else {
+      this.checkPasswordState();
     }
-    if (this.mode === 'password') this.checkPasswordState();
+  }
+
+  checkLink(): void {
+    if (this.busy()) return;
+    this.linkState.set('retry');
+    this.run(() => this.session.readyAuthUser$.pipe(
+      take(1),
+      switchMap(user => {
+        if (user) return of('active-session' as const);
+        return this.hasLink ? this.emailLink.inspectLink$(this.authLink) : of('unavailable' as const);
+      }),
+      map(state => this.linkState.set(state)),
+    ));
+  }
+
+  resumeActiveSession(): void {
+    const uid = this.auth.currentUser?.uid;
+    if (!uid || this.linkState() !== 'active-session') return;
+    this.run(() => this.flow.vm$.pipe(
+      filter(vm => vm.authReady && vm.uid === uid && vm.currentStep !== 'loading'),
+      take(1),
+      timeout({ first: 10_000 }),
+      switchMap(vm => this.auth.currentUser?.uid === uid && !this.session.isTerminatingSnapshot
+        ? this.open(vm.nextRoute) : of(void 0)),
+    ));
   }
 
   confirm(): void {
-    if (this.busy() || !this.hasLink) return;
+    if (this.busy() || this.linkState() !== 'confirm') return;
     if (!this.emailForm.controls.adult.value) {
       this.error.set('Confirme a declaração de maioridade para continuar.');
       return;
@@ -179,9 +217,18 @@ export class EmailLinkRegistrationPageComponent {
 
   private feedback(error: { code?: string; message?: string; localValidation?: boolean; details?: { reason?: string } } | null): string {
     if (error?.localValidation && error.message) return error.message;
+    if (error?.details?.reason === 'registration/account-already-created') {
+      this.linkState.set('sign-in');
+      return '';
+    }
+    if (error?.details?.reason === 'registration/email-link-draft-expired') {
+      this.linkState.set('draft-expired');
+      return '';
+    }
     if (error?.details?.reason === 'registration/email-link-unavailable' ||
         error?.code === 'auth/invalid-action-code' || error?.code === 'auth/expired-action-code') {
-      return 'Este link não pode mais ser usado. Solicite um novo link para continuar.';
+      this.linkState.set('unavailable');
+      return '';
     }
     if (error?.code === 'functions/not-found' || error?.code === 'functions/unavailable') {
       return 'A confirmação está indisponível. Verifique se os emuladores de Auth e Functions estão ativos e tente novamente.';

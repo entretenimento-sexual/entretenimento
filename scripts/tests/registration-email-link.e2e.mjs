@@ -60,6 +60,18 @@ try {
   const { data: { draftId } } = await sender.call('stageEmailLinkRegistration', { email, nickname });
   const { oobCode, oobLink } = await issueLink(sender.auth, email, draftId);
   const prepare = { code: oobCode, confirmsAdult: true };
+  assert.deepEqual((await consumer.call('inspectEmailLinkRegistration', { code: oobCode })).data, { state: 'confirm' });
+  await assert.rejects(adminAuth.getUserByEmail(email), { code: 'auth/user-not-found' });
+  assert.deepEqual((await consumer.call('inspectEmailLinkRegistration', { code: 'unknown-code' })).data, { state: 'unavailable' });
+  const expiredEmail = `expired-${run}@example.test`;
+  const expiredDraft = await sender.call('stageEmailLinkRegistration', { email: expiredEmail, nickname });
+  const expiredLink = await issueLink(sender.auth, expiredEmail, expiredDraft.data.draftId);
+  await db.collection('registration_email_link_drafts').doc(expiredDraft.data.draftId).update({ expiresAtMs: 1 });
+  assert.deepEqual((await consumer.call('inspectEmailLinkRegistration', { code: expiredLink.oobCode })).data,
+    { state: 'draft-expired' });
+  await rejects(consumer.call('prepareEmailLinkRegistration', { code: expiredLink.oobCode, confirmsAdult: true }),
+    'failed-precondition', 'registration/email-link-draft-expired');
+  await assert.rejects(adminAuth.getUserByEmail(expiredEmail), { code: 'auth/user-not-found' });
   await rejects(consumer.call('prepareEmailLinkRegistration', { ...prepare, confirmsAdult: false }), 'invalid-argument');
   await rejects(consumer.call('prepareEmailLinkRegistration', { ...prepare, email: 'outro@example.test' }),
     'failed-precondition', 'registration/email-link-unavailable');
@@ -129,8 +141,11 @@ try {
   assert.equal(publicProfile.orientation, 'pansexual');
   assert.equal('email' in publicProfile, false);
   assert.equal((await signInWithEmailAndPassword(sender.auth, email, password)).user.uid, uid);
-  await rejects(client('used-link').call('prepareEmailLinkRegistration', prepare),
-    'failed-precondition', 'registration/email-link-unavailable');
+  const guestWithUsedLink = client('used-link');
+  assert.deepEqual((await guestWithUsedLink.call('inspectEmailLinkRegistration', { code: oobCode })).data,
+    { state: 'sign-in' });
+  await rejects(guestWithUsedLink.call('prepareEmailLinkRegistration', prepare),
+    'failed-precondition', 'registration/account-already-created');
   console.log('[email-link:e2e] PASS new identity, single-use link, password and protected onboarding');
 
   for (const emailVerified of [false, true]) {
@@ -138,8 +153,10 @@ try {
     const guest = client('legacy-' + emailVerified);
     const { oobCode } = await issueLink(guest.auth, email);
     const existing = await adminAuth.createUser({ email, password, emailVerified });
+    assert.deepEqual((await guest.call('inspectEmailLinkRegistration', { code: oobCode })).data,
+      { state: 'sign-in' });
     await rejects(guest.call('prepareEmailLinkRegistration', { code: oobCode, confirmsAdult: true }),
-      'failed-precondition', 'registration/email-link-unavailable');
+      'failed-precondition', 'registration/account-already-created');
     const signIn = await signInWithEmailAndPassword(guest.auth, email, password);
     assert.equal(signIn.user.uid, existing.uid);
     assert.equal(signIn.user.emailVerified, emailVerified);

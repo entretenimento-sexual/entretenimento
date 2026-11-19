@@ -59,6 +59,16 @@ function checkedEmail(input: string): string {
   return email;
 }
 
+export type EmailLinkInspectionState = 'confirm' | 'sign-in' | 'unavailable' | 'draft-expired';
+
+const EXPECTED_LINK_REJECTIONS = new Set([
+  'registration/account-already-created',
+  'registration/email-link-unavailable',
+  'registration/email-link-draft-expired',
+  'auth/invalid-action-code',
+  'auth/expired-action-code',
+]);
+
 export interface EmailLinkRegistrationIdentity {
   readonly uid: string;
   readonly email: string;
@@ -110,6 +120,23 @@ export class EmailLinkRegistrationService {
         map(() => void 0)
       );
     }).pipe(catchError((error: unknown) => this.reportAndRethrow(error, 'requestEmailLink')));
+  }
+
+  inspectLink$(fullLink: string): Observable<EmailLinkInspectionState> {
+    return defer(() => {
+      this.assertPreview();
+      this.assertNoSession();
+      this.localOrigin();
+      const action = parseActionCodeURL(fullLink);
+      if (!action || !this.firebase.isSignInWithEmailLink(this.auth, fullLink)) {
+        return of('unavailable' as const);
+      }
+      const inspect = this.callable<{ code: string }, { state: EmailLinkInspectionState }>('inspectEmailLinkRegistration');
+      return from(inspect({ code: action.code })).pipe(
+        map(({ data }) => data.state),
+        timeout({ first: ACTION_TIMEOUT_MS }),
+      );
+    }).pipe(catchError((error: unknown) => this.reportAndRethrow(error, 'inspectEmailLink')));
   }
 
   /**
@@ -306,7 +333,9 @@ export class EmailLinkRegistrationService {
   }
 
   private reportAndRethrow(error: unknown, operation: string): Observable<never> {
-    if ((error as Partial<LocalError> | null)?.localValidation !== true) {
+    const diagnostic = error as (Partial<LocalError> & { details?: { reason?: string } }) | null;
+    const knownRejection = EXPECTED_LINK_REJECTIONS.has(diagnostic?.details?.reason ?? diagnostic?.code ?? '');
+    if (diagnostic?.localValidation !== true && !knownRejection) {
       try {
         // Nunca encaminhar detalhes que possam conter endereço, código ou senha.
         this.errors.report({ code: (error as { code?: string } | null)?.code }, {

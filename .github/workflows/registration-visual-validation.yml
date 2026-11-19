@@ -551,9 +551,17 @@ jobs:
               const link = oobCodes.findLast(entry => entry.email === email && entry.requestType === 'EMAIL_SIGNIN');
               if (!link) throw new Error('Auth Emulator did not issue the confirmation link');
 
+              await page.route('**/inspectEmailLinkRegistration', route => route.fulfill({
+                headers: {
+                  'access-control-allow-origin': '*',
+                  'access-control-allow-headers': 'content-type, authorization, x-firebase-appcheck, firebase-instance-id-token',
+                },
+                json: { result: { state: 'confirm' } },
+              }));
               await page.goto(link.oobLink);
               const confirm = page.getByRole('button', { name: 'Confirmar e continuar', exact: true });
               await confirm.waitFor({ state: 'visible' });
+              await page.getByRole('heading', { name: 'Confirme sua maioridade', exact: true }).waitFor();
               const loginLink = await page.locator('a').evaluateAll(links => links.some(link => link.getAttribute('href') === '/login'));
               if (await page.locator('input[type=email]').count() || loginLink ||
                   await page.locator('app-register-progress .next strong').textContent() !== 'Definir sua senha') {
@@ -565,8 +573,8 @@ jobs:
               }
               if (await page.locator('.public-footer--compact').count() !== 1 ||
                   await page.locator('.public-footer').count() !== 1 ||
-                  !(await page.locator('app-register-progress [aria-current=step]').textContent()).includes('E-mail')) {
-                throw new Error('Link return must retain the compact legal footer and the email step');
+                  !(await page.locator('app-register-progress [aria-current=step]').textContent()).includes('18+')) {
+                throw new Error('Link return must retain the compact legal footer and show the adult declaration step');
               }
               const checkPhoto = async (filename) => {
                 const photo = page.locator('.email-link-photo');

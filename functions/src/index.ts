@@ -60,6 +60,7 @@ export {
 } from './registration/registration-profile-authority.handler';
 export { getRegistrationNicknameAvailability } from './registration/get-registration-nickname-availability.handler';
 export {
+  inspectEmailLinkRegistration,
   prepareEmailLinkRegistration,
   stageEmailLinkRegistration,
   getEmailLinkRegistrationState,

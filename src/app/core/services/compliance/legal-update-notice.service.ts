@@ -51,19 +51,20 @@ export class LegalUpdateNoticeService {
       map(([_, uid, user]) => {
         const ownerUid = String(uid ?? '').trim() || null;
         const ownerUser = ownerUid && user?.uid === ownerUid ? user : null;
-
-        return {
-          ownerUid,
-          current: isCurrentLegalAcceptanceSatisfied(ownerUser?.acceptedTerms),
-        };
+        const terms = ownerUser?.acceptedTerms;
+        // A notificação é de reaceite. A sessão pode existir antes de users/{uid}.
+        const requiresUpdate = terms?.accepted === true &&
+          String(terms.version ?? '').trim() !== '' &&
+          !isCurrentLegalAcceptanceSatisfied(terms);
+        return { ownerUid, requiresUpdate };
       }),
       distinctUntilChanged(
         (previous, current) =>
           previous.ownerUid === current.ownerUid &&
-          previous.current === current.current
+          previous.requiresUpdate === current.requiresUpdate
       ),
-      switchMap(({ ownerUid, current }) => {
-        if (!ownerUid || current) {
+      switchMap(({ ownerUid, requiresUpdate }) => {
+        if (!ownerUid || !requiresUpdate) {
           return of(void 0);
         }
 

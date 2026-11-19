@@ -6,7 +6,7 @@
 2. Digitação de e-mail: campo único, aviso breve de privacidade e ação para solicitar link. Sem senha nessa tela após o cutover. Respostas de solicitação não podem revelar se o e-mail já pertence a uma conta.
 3. Link único recebido: aplicar o fluxo Firebase de email-link sign-in; não tratar como simples `sendEmailVerification` de uma conta com senha. Na prévia local, o Functions Emulator cruza o código pendente com o Auth Emulator e resolve o destinatário, inclusive em outra aba ou navegador. A URL e o formulário de retorno dispensam o endereço. Link inválido/usado/expirado: feedback próprio + reenvio com limites.
 4. Depois de autenticar por link, exibir a definição e confirmação de senha. A senha deve ser criada pelo mecanismo do Firebase Auth e jamais persistida em Firestore, telemetria ou storage. Não publicar o perfil nesta fase.
-5. Termos vigentes, declaração 18+ e avaliação etária canônica, com aceites explícitos e versionados.
+5. Após os Termos vigentes, reconciliar a evidência 18+ coletada na abertura do link e aplicar a decisão etária canônica.
 6. Conclusão de perfil, manutenção do UID esperado, transação protegida e liberação somente depois da decisão backend.
 
 ## Risco documentado pelo Firebase — contas já existentes
@@ -64,7 +64,7 @@ As duas cenas fotográficas WebP foram integradas à `main` no commit `4f3922c7`
 
 ## Fase técnica B — prévia na interface emulada
 
-- Em `dev-emu`, **Continuar** na etapa de apelido abre a etapa de e-mail no mesmo formulário. A ação **Enviar link** solicita a confirmação e apresenta a tela **Confira seu e-mail**. Em testes locais, copie o link do log do Auth Emulator. A página de retorno pede a declaração 18+ antes da chamada de autenticação. Depois da confirmação, a etapa Senha aparece no indicador de progresso e encaminha aos Termos.
+- Em `dev-emu`, **Continuar** na etapa de apelido abre a etapa de e-mail no mesmo formulário. A ação **Enviar link** solicita a confirmação e apresenta a tela **Confira seu e-mail**. Em testes locais, copie o link do log do Auth Emulator. A página faz uma consulta de leitura ao Auth Emulator ao abrir o link. Um link válido para cadastro abre a etapa 18+, antes de Senha e Termos. Se o endereço já possui conta, oferece entrada pelo método de acesso já cadastrado. Um link indisponível ou com rascunho expirado oferece um novo envio.
 - No emulador, `prepareEmailLinkRegistration` confirma o código e resolve o destinatário no Auth local, devolvendo o endereço ao portador do link válido para o consumo pelo Firebase Auth. O callable reserva um UID por meio da unicidade do Firebase Auth. Antes do consumo nativo, recusa contas fora da prévia e contas cuja senha já foi configurada. A resposta de envio permanece genérica.
 - `passwordSetup` consulta a credencial no Auth Emulator e limita a definição de senha à sessão e ao UID esperados. As operações de Termos, maioridade, reserva de apelido e perfil conferem a credencial no backend. A tela consulta o que foi salvo antes de repetir uma gravação de senha que ficou sem confirmação.
 - Antes do envio, o apelido fica em um rascunho privado do emulador. O link leva uma referência opaca e o backend a valida contra o destinatário do código antes de transferir o apelido ao UID. Após a senha, a reserva atualiza o índice, o documento privado e o nome de exibição no Auth. Se houver disputa pelo apelido ou se um link antigo não tiver rascunho recuperável, o usuário pode concluir essa escolha em Perfil.

@@ -22,18 +22,24 @@ describe('RegisterProgressComponent', () => {
     expect(view.querySelector('.next strong')?.textContent?.trim()).toBe(next);
   });
 
-  it('exibe a criação de senha como a terceira etapa do cadastro por link', () => {
+  it('exibe a declaração 18+ antes da senha e dos termos no cadastro por link', () => {
     const fixture = TestBed.createComponent(RegisterProgressComponent);
     fixture.componentRef.setInput('emailLinkFlow', true);
     fixture.componentRef.setInput('step', 'emailVerification');
     fixture.detectChanges();
 
     const view: HTMLElement = fixture.nativeElement;
+    expect(view.querySelector('.next strong')?.textContent).toBe('Confirmar sua maioridade');
+    fixture.componentRef.setInput('step', 'ageVerification');
+    fixture.detectChanges();
+
+    expect(view.querySelector('.summary')?.textContent?.trim()).toBe('Etapa 3 de 6');
+    expect(view.querySelector('[aria-current="step"]')?.textContent).toContain('18+');
     expect(view.querySelector('.next strong')?.textContent).toBe('Definir sua senha');
     fixture.componentRef.setInput('step', 'passwordSetup');
     fixture.detectChanges();
 
-    expect(view.querySelector('.summary')?.textContent?.trim()).toBe('Etapa 3 de 6');
+    expect(view.querySelector('.summary')?.textContent?.trim()).toBe('Etapa 4 de 6');
     expect(view.querySelector('[aria-current="step"]')?.textContent).toContain('Senha');
     expect(view.querySelector('.next strong')?.textContent).toBe('Revisar e aceitar os termos');
   });

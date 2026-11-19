@@ -6,16 +6,24 @@
 
   <div class="auth-container email-link-layout">
     <section class="form-container" aria-labelledby="email-link-heading" [attr.aria-busy]="busy()">
-      <app-register-progress [step]="mode === 'confirm' ? 'emailVerification' : 'passwordSetup'"
-        [emailLinkFlow]="true" [compact]="true" />
+      @if (mode === 'password' || linkState() === 'confirm') {
+        <app-register-progress [step]="mode === 'confirm' ? 'ageVerification' : 'passwordSetup'"
+          [emailLinkFlow]="true" [compact]="true" />
+      }
 
       <header class="email-link-header">
-        <h1 id="email-link-heading" #heading tabindex="-1">
-          {{ mode === 'confirm' ? 'Confirme seu e-mail' : 'Defina sua senha' }}
-        </h1>
+        <h1 id="email-link-heading" #heading tabindex="-1">{{ title() }}</h1>
         @if (mode === 'confirm') {
-          <p>{{ hasLink ? 'Confirme para criar a senha da sua conta.' :
-            'Abra o link recebido no e-mail ou solicite um novo link.' }}</p>
+          @switch (linkState()) {
+            @case ('confirm') { <p>Link recebido. Confirme a declaração de maioridade para validar o e-mail e seguir para a senha.</p> }
+            @case ('sign-in') { <p>Este e-mail já está vinculado a uma conta. Entre pelo método de acesso que você usou no cadastro.</p> }
+            @case ('active-session') { <p>Já existe uma sessão aberta neste navegador. Continue com a conta atual ou saia para usar outra.</p> }
+            @case ('draft-expired') { <p>O rascunho do cadastro expirou. Solicite um novo link para recuperar o fluxo.</p> }
+            @case ('unavailable') {
+              <p>{{ hasLink ? 'Este link expirou ou já foi usado. Solicite um novo link.' :
+                'Abra o link recebido no e-mail ou solicite um novo link.' }}</p>
+            }
+          }
         } @else if (passwordReady()) {
           <p role="status">E-mail confirmado. Crie uma senha para entrar na sua conta.</p>
         }
@@ -25,7 +33,7 @@
       @if (status()) { <p class="email-link-message" role="status">{{ status() }}</p> }
 
       @if (mode === 'confirm') {
-        @if (hasLink) {
+        @if (linkState() === 'confirm') {
           <form [formGroup]="emailForm" (ngSubmit)="confirm()" novalidate>
             <label class="form-checkbox email-link-declaration">
               <input type="checkbox" formControlName="adult" required />
@@ -35,10 +43,22 @@
               {{ busy() ? 'Confirmando e-mail…' : 'Confirmar e continuar' }}
             </button>
           </form>
+        } @else if (linkState() === 'sign-in') {
+          <a class="app-action app-action--primary email-link-continue" routerLink="/login">Entrar na minha conta</a>
+        } @else if (linkState() === 'active-session') {
+          <button class="app-action app-action--primary email-link-continue" type="button"
+            [disabled]="busy()" (click)="resumeActiveSession()">Continuar com a sessão atual</button>
+        } @else if (linkState() === 'retry') {
+          <button class="app-action app-action--primary email-link-continue" type="button"
+            [disabled]="busy()" (click)="checkLink()">
+            {{ busy() ? 'Verificando link…' : 'Verificar link novamente' }}
+          </button>
         }
-        <nav class="email-link-actions" aria-label="Alternativas de cadastro">
-          <a routerLink="/register/enviar-link">Solicitar novo link</a>
-        </nav>
+        @if (linkState() !== 'sign-in' && linkState() !== 'active-session' && !busy()) {
+          <nav class="email-link-actions" aria-label="Alternativas de cadastro">
+            <a routerLink="/register/enviar-link">Solicitar novo link</a>
+          </nav>
+        }
       } @else if (passwordReady()) {
         <form [formGroup]="passwordForm" (ngSubmit)="setPassword()" novalidate>
           <div class="app-field">
