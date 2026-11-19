@@ -70,6 +70,22 @@
   accent-color: var(--primary-color);
 }
 
+.email-link-layout .password-field .app-control {
+  padding-inline-end: 3rem;
+}
+
+.email-link-layout .password-field .toggle-input {
+  inset-inline-end: 0;
+  inline-size: 44px;
+  block-size: 44px;
+  cursor: pointer;
+}
+
+.email-link-layout .password-field .toggle-input:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -3px;
+}
+
 .email-link-actions {
   display: flex;
   flex-wrap: wrap;

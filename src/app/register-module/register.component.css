@@ -124,11 +124,19 @@
   text-align: left;
 }
 
-.form-container :is(form > header, .email-link-header) {
+.signup-resume {
+  inline-size: 100%;
+  margin-block-start: 0.75rem;
+  border-color: var(--primary-color);
+  background: var(--primary-color);
+  color: var(--button-text-color);
+}
+
+.form-container :is(form > header, .email-link-header, .signup-email-heading) {
   margin-block-end: 0.15rem;
 }
 
-.form-container :is(form > header, .email-link-header) h1 {
+.form-container :is(form > header, .email-link-header, .signup-email-heading) h1 {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -152,7 +160,7 @@
   white-space: nowrap;
 }
 
-.form-container :is(form > header, .email-link-header) p {
+.form-container :is(form > header, .email-link-header, .signup-email-heading) p {
   margin: 0.4rem 0 0;
   color: var(--text-muted, var(--text-color));
   line-height: 1.45;

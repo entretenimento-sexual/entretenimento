@@ -60,17 +60,45 @@
           </nav>
         }
       } @else if (passwordReady()) {
+        <ng-template #visibilityIcon let-visible>
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            @if (visible) {
+              <path d="M3 3l18 18m-10.4-16A10.8 10.8 0 0 1 12 5c6 0 9.5 7 9.5 7a16.5 16.5 0 0 1-2.7 3.3M6.2 6.8A16.3 16.3 0 0 0 2.5 12s3.5 7 9.5 7c1.8 0 3.4-.5 4.8-1.2M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+            } @else {
+              <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+              <circle cx="12" cy="12" r="3" />
+            }
+          </svg>
+        </ng-template>
         <form [formGroup]="passwordForm" (ngSubmit)="setPassword()" novalidate>
           <div class="app-field">
             <label for="link-password">Senha</label>
-            <input class="app-control" id="link-password" name="password" type="password" formControlName="password"
-              maxlength="128" autocomplete="new-password" aria-describedby="link-password-hint" required />
+            <div class="password-field">
+              <input class="app-control" id="link-password" name="password"
+                [type]="showPassword() ? 'text' : 'password'" formControlName="password"
+                maxlength="128" autocomplete="new-password" spellcheck="false" autocapitalize="none"
+                aria-describedby="link-password-hint" required />
+              <button type="button" class="toggle-input" aria-label="Mostrar senha" aria-controls="link-password"
+                [attr.aria-pressed]="showPassword()" [title]="showPassword() ? 'Ocultar senha' : 'Mostrar senha'"
+                (click)="showPassword.set(!showPassword())">
+                <ng-container *ngTemplateOutlet="visibilityIcon; context: { $implicit: showPassword() }" />
+              </button>
+            </div>
             <small id="link-password-hint" class="field-hint">Use ao menos 8 caracteres, com letra maiúscula, letra minúscula e número.</small>
           </div>
           <div class="app-field">
             <label for="link-password-confirmation">Confirme a senha</label>
-            <input class="app-control" id="link-password-confirmation" name="confirmPassword" type="password"
-              formControlName="confirmation" maxlength="128" autocomplete="new-password" required />
+            <div class="password-field">
+              <input class="app-control" id="link-password-confirmation" name="confirmPassword"
+                [type]="showConfirmPassword() ? 'text' : 'password'" formControlName="confirmation"
+                maxlength="128" autocomplete="new-password" spellcheck="false" autocapitalize="none" required />
+              <button type="button" class="toggle-input" aria-label="Mostrar confirmação de senha"
+                aria-controls="link-password-confirmation" [attr.aria-pressed]="showConfirmPassword()"
+                [title]="showConfirmPassword() ? 'Ocultar confirmação de senha' : 'Mostrar confirmação de senha'"
+                (click)="showConfirmPassword.set(!showConfirmPassword())">
+                <ng-container *ngTemplateOutlet="visibilityIcon; context: { $implicit: showConfirmPassword() }" />
+              </button>
+            </div>
           </div>
           <button class="app-action app-action--primary" type="submit" [disabled]="busy()">
             {{ busy() ? 'Confirmando senha…' : 'Definir senha e continuar' }}

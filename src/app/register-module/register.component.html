@@ -16,6 +16,17 @@
   </div>
 
   <div class="form-container">
+    @if (emailLinkPreview) {
+      <span class="sr-only" role="status">{{ signupResumption()?.title }}</span>
+    }
+    @if (signupResumption(); as resumption) {
+      <header class="signup-email-heading">
+        <h1>{{ resumption.title }}</h1>
+        <p>{{ resumption.description }}</p>
+      </header>
+      <a class="app-action app-action--primary signup-resume"
+        routerLink="/register/welcome" [replaceUrl]="true">{{ resumption.action }}</a>
+    } @else {
     <app-register-progress
       [step]="emailLinkPreview && sectionIndex() === 1 ? 'emailVerification' : 'signup'"
       [emailLinkFlow]="emailLinkPreview"
@@ -362,6 +373,7 @@
         <a routerLink="/login">Entrar</a>
       </p>
     </form>
+    }
   </div>
 </div>
 

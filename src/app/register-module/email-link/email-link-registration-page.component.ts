@@ -1,4 +1,4 @@
-import { Location } from '@angular/common';
+import { Location, NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
@@ -23,7 +23,7 @@ type LinkMode = 'confirm' | 'password';
 
 @Component({
   selector: 'app-email-link-registration-page',
-  imports: [ReactiveFormsModule, RouterLink, RegisterProgressComponent, FooterModule],
+  imports: [ReactiveFormsModule, RouterLink, NgTemplateOutlet, RegisterProgressComponent, FooterModule],
   templateUrl: './email-link-registration-page.component.html',
   styleUrls: ['../register.component.css', './email-link-registration-page.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -62,6 +62,8 @@ export class EmailLinkRegistrationPageComponent {
   readonly error = signal('');
   readonly status = signal('');
   readonly passwordReady = signal(false);
+  protected readonly showPassword = signal(false);
+  protected readonly showConfirmPassword = signal(false);
   private readonly heading = viewChild<ElementRef<HTMLHeadingElement>>('heading');
   private ownerUid: string | null = null;
   private skipNickname = false;
@@ -145,6 +147,8 @@ export class EmailLinkRegistrationPageComponent {
     this.run(() => this.emailLink.setPassword$(uid, email, password, confirmation).pipe(
       switchMap(() => {
         this.passwordForm.reset();
+        this.showPassword.set(false);
+        this.showConfirmPassword.set(false);
         this.passwordReady.set(false);
         return this.continueRegistration(uid);
       }),

@@ -109,7 +109,7 @@ app-navbar {
   position: static;
 }
 
-.auth-shell[data-shell-mode='guest'] .auth-shell__content:has(> :is(app-register, app-email-link-registration-page)) {
+.auth-shell[data-shell-mode='guest'] .auth-shell__content:has(> :is(app-register, app-email-link-registration-page, app-terms-acceptance-page)) {
   display: flex;
   flex-direction: column;
   padding: 0;

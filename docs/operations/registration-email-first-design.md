@@ -9,6 +9,21 @@
 5. Após os Termos vigentes, reconciliar a evidência 18+ coletada na abertura do link e aplicar a decisão etária canônica.
 6. Conclusão de perfil, manutenção do UID esperado, transação protegida e liberação somente depois da decisão backend.
 
+## Retomada e liberação de acesso
+
+| Marco | Como retomar | Acesso |
+|---|---|---|
+| Link solicitado | Abrir o link recebido e confirmar a declaração de maioridade. | Cadastro inicial. |
+| E-mail confirmado, senha pendente | A sessão aberta pelo link permite criar a senha. Em outra aba que compartilha a mesma sessão, **Continuar cadastro** abre a etapa pendente. Se a sessão for encerrada antes da senha, é preciso solicitar um novo link. | Cadastro e ações de suporte. |
+| Senha definida | **Entrar** com o e-mail verificado e a senha já funciona, inclusive se o cadastro foi interrompido. A navegação encaminha para a primeira pendência registrada, como Termos, confirmação 18+ quando necessária ou Perfil. | Sessão autenticada para concluir o cadastro. Perfil privado e interações bloqueadas enquanto a conta estiver incompleta. |
+| Termos vigentes aceitos, elegibilidade 18+ confirmada e perfil concluído | O backend grava a conclusão do perfil e a sessão já aberta pode seguir. Preferências podem ser ajustadas depois. | Recursos da plataforma conforme o estado da conta e as permissões de cada recurso. |
+
+Na prévia, quando a sessão da mesma conta é reconhecida na aba que solicitou o link, **E-mail confirmado** substitui a tela de espera. A pessoa escolhe em qual aba continuar. Se houver outra conta conectada, a página oferece retomar a sessão ativa, sem atribuir a ela a confirmação do e-mail solicitado. Em outro navegador, dispositivo ou origem local (por exemplo, alternando `localhost` e `127.0.0.1`), a sessão é independente. Continue onde o link foi aberto ou use **Entrar** depois de definir a senha.
+
+`loginAllowed: true` é um dos sinais usados para decidir se a conta pode entrar. A conclusão do cadastro é marcada por `profileCompleted: true` e `registrationCompletedAt`. A presença em Authentication ou a reserva do apelido no índice podem ocorrer antes disso.
+
+Ao abrir diretamente uma rota como Explorar enquanto `interactionBlocked` está ativo, o guard pode encaminhar para o status da conta. Para retomar a primeira etapa pendente, use a página de entrada ou **Continuar cadastro** na aba que solicitou o link.
+
 ## Risco documentado pelo Firebase — contas já existentes
 
 O Firebase Auth informa que a autenticação por link pode **invalidar sessões anteriores e remover a senha de uma conta criada com e-mail/senha ainda não verificada**, no momento em que o link é consumido. Isso não pode ser introduzido silenciosamente em um cadastro existente. Fonte: https://firebase.google.com/docs/auth/web/email-link-auth
@@ -44,6 +59,7 @@ As duas cenas fotográficas WebP foram integradas à `main` no commit `4f3922c7`
 ## Layout e cenas
 - As três cenas WebP usam `object-fit: contain` e tamanho do elemento alinhado à proporção intrínseca da imagem no desktop. A primeira cena dissolve sua borda direita suavemente; a segunda (e-mail) e a terceira (declarações) usam uma máscara própria com início mais à direita para proteger a composição com mais personagens. Todas compartilham fundo escuro radial, sem faixa linear de transição. O formulário permanece na área escura à direita. Em telas estreitas a imagem é apresentada acima do formulário com máscara vertical discreta, e a rolagem natural só ocorre quando necessária para manter todos os controles acessíveis.
 - A confirmação do link e a criação de senha usam fotografia WebP que preenche a área entre a navbar e o fim do rodapé. A versão vertical preserva o enquadramento em retrato e o formulário permanece em primeiro plano.
+- Termos mantém a paleta escura e a tipografia do cadastro, com os documentos e o aceite em primeiro plano. Criação de senha e confirmação têm controles de visibilidade independentes.
 - Fade de ~380 ms; respeitar `prefers-reduced-motion`, sem vídeos, animações contínuas ou nova biblioteca. Imagem decorativa com `alt=""` e `aria-hidden`.
 - Padronizar a largura do card e manter as instruções curtas, com erros não modais, visíveis quando for necessária ação e anunciados por leitores de tela.
 

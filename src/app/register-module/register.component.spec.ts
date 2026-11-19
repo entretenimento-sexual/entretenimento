@@ -7,8 +7,9 @@ import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
-import { of, Subject, throwError } from 'rxjs';
+import { BehaviorSubject, of, Subject, throwError } from 'rxjs';
 import { Auth } from '@angular/fire/auth';
+import type { User } from 'firebase/auth';
 
 import { RegisterComponent } from './register.component';
 import { SIGNUP_DRAFT_KEY } from './data-access/signup-draft.storage';
@@ -17,6 +18,7 @@ import { FirestoreValidationService } from '../core/services/data-handling/fires
 import { RegisterService } from '../core/services/autentication/register/register.service';
 import { EmailVerificationService } from '../core/services/autentication/register/email-verification.service';
 import { EmailLinkRegistrationService } from '../core/services/autentication/register/email-link-registration.service';
+import { AuthSessionService } from '../core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from '../core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../core/services/error-handler/error-notification.service';
 import { ActionStateDirective } from '../shared/action-state/action-state.directive';
@@ -58,8 +60,10 @@ describe('RegisterComponent', () => {
   let registerService: MockRegisterService;
   let errorNotification: MockErrorNotificationService;
   let router: Router;
+  let authUser: BehaviorSubject<Pick<User, 'uid' | 'email' | 'emailVerified'> | null>;
 
   beforeEach(async () => {
+    authUser = new BehaviorSubject<Pick<User, 'uid' | 'email' | 'emailVerified'> | null>(null);
     window.sessionStorage.removeItem(SIGNUP_DRAFT_KEY);
     await TestBed.configureTestingModule({
       declarations: [RegisterComponent],
@@ -82,6 +86,7 @@ describe('RegisterComponent', () => {
           report: vi.fn((_error, options) => ({ userMessage: options.fallbackMessage })),
         } },
         { provide: Auth, useValue: { currentUser: { uid: 'u-test' } } },
+        { provide: AuthSessionService, useValue: { authUser$: authUser.asObservable() } },
       ],
       schemas: [NO_ERRORS_SCHEMA],
     }).compileComponents();
@@ -185,6 +190,22 @@ describe('RegisterComponent', () => {
       expect(input.readOnly).toBe(false);
       expect(input.value).toBe('teste@example.com');
       expect(view.querySelector('#register-section-title')?.textContent).toContain('Confirme seu e-mail');
+
+      vi.advanceTimersByTime(30_000);
+      preview.detectChanges();
+      view.querySelector<HTMLButtonElement>('button[type=submit]')!.click();
+      preview.detectChanges();
+      authUser.next({ uid: 'other', email: 'other@example.com', emailVerified: true });
+      preview.detectChanges();
+      expect(view.querySelector('h1')?.textContent).toContain('Retome sua conta');
+      expect(view.textContent).not.toContain('E-mail confirmado');
+      expect(view.textContent).not.toContain('other@example.com');
+
+      authUser.next({ uid: 'signup', email: 'Teste@example.com', emailVerified: true });
+      preview.detectChanges();
+      expect(view.querySelector('h1')?.textContent).toContain('E-mail confirmado');
+      expect(view.querySelector('.signup-resume')?.getAttribute('href')).toBe('/register/welcome');
+      expect(view.querySelector('form')).toBeNull();
     } finally {
       preview.destroy();
       vi.useRealTimers();

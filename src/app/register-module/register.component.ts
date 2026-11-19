@@ -47,6 +47,7 @@ import { RegisterService } from 'src/app/core/services/autentication/register/re
 import {
   EmailLinkRegistrationService, emailLinkSignupPreviewAllowed,
 } from 'src/app/core/services/autentication/register/email-link-registration.service';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ADULT_SELF_DECLARATION_TEXT_PT_BR } from 'src/app/core/services/compliance/platform-legal.constants';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -134,6 +135,8 @@ export class RegisterComponent {
   private readonly signupSections = this.emailLinkPreview
     ? [SIGNUP_SECTIONS[0], EMAIL_LINK_SECTION] as const : SIGNUP_SECTIONS;
   private readonly emailLink = this.emailLinkPreview ? inject(EmailLinkRegistrationService) : null;
+  private readonly activeSignupSession = toSignal(this.emailLinkPreview
+    ? inject(AuthSessionService).authUser$ : of(null), { initialValue: null });
   private readonly networkStatus = inject(NetworkStatusService);
   protected readonly offline = toSignal(this.networkStatus.isOffline$, {
     initialValue: !this.networkStatus.isOnlineSnapshot(),
@@ -257,6 +260,26 @@ export class RegisterComponent {
   readonly currentSection = computed(() => this.signupSections[this.sectionIndex()]);
   protected readonly isEmailLinkSection = computed(() => this.emailLinkPreview && this.sectionIndex() === 1);
   protected readonly waitingForEmailLink = computed(() => this.isEmailLinkSection() && this.emailLinkConfirmation() !== null);
+  protected readonly signupResumption = computed(() => {
+    const user = this.activeSignupSession();
+    if (!user) return null;
+
+    const requestedEmail = String(this.form.get('email')?.value ?? '').trim().toLowerCase();
+    const confirmedHere = this.waitingForEmailLink() && user.emailVerified &&
+      user.email?.toLowerCase() === requestedEmail;
+
+    return confirmedHere
+      ? {
+          title: 'E-mail confirmado',
+          description: 'Continue nesta aba ou volte à aba em que abriu o link.',
+          action: 'Continuar cadastro',
+        }
+      : {
+          title: 'Retome sua conta',
+          description: 'Existe uma sessão aberta neste navegador. Continue com ela ou saia para usar outra conta.',
+          action: 'Continuar com a sessão atual',
+        };
+  });
   protected readonly sectionHeadingCopy = computed(() => {
     const confirmation = this.emailLinkConfirmation();
     const section = this.isEmailLinkSection() && confirmation
