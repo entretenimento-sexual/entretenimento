@@ -74,7 +74,7 @@ export class AgeVerificationPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private continued = false;
-  private pageUid: string | undefined;
+  protected pageUid: string | undefined;
 
   readonly processing = signal(false);
   readonly reconciling = signal(true);

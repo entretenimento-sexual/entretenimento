@@ -45,7 +45,7 @@ describe('EmailLinkRegistrationService (emulador, sem alterar fluxo antigo)', ()
     firebase.send.mockResolvedValue(undefined);
     firebase.isLink.mockReturnValue(true);
     passwordRequired = true;
-    prepare = vi.fn().mockResolvedValue({ data: { uid } });
+    prepare = vi.fn().mockResolvedValue({ data: { uid, email } });
     read = vi.fn(async () => ({ data: { passwordRequired } }));
     vi.spyOn(service as any, 'callable').mockImplementation(name =>
       name === 'prepareEmailLinkRegistration' ? prepare : read);
@@ -93,7 +93,7 @@ describe('EmailLinkRegistrationService (emulador, sem alterar fluxo antigo)', ()
   });
 
   it('exige maioridade antes do login por link criar UID', async () => {
-    await expect(firstValueFrom(service.completeLink$(email, link, false)))
+    await expect(firstValueFrom(service.completeLink$(link, false)))
       .rejects.toMatchObject({ code: 'registration/adult-declaration-required' });
     expect(firebase.consume).not.toHaveBeenCalled();
     expect(prepare).not.toHaveBeenCalled();
@@ -101,20 +101,21 @@ describe('EmailLinkRegistrationService (emulador, sem alterar fluxo antigo)', ()
 
   it('não consome link inválido nem troca uma sessão existente', async () => {
     firebase.isLink.mockReturnValue(false);
-    await expect(firstValueFrom(service.completeLink$(email, link, true)))
+    await expect(firstValueFrom(service.completeLink$(link, true)))
       .rejects.toMatchObject({ code: 'registration/invalid-link' });
     expect(firebase.consume).not.toHaveBeenCalled();
     firebase.isLink.mockReturnValue(true);
     auth.currentUser = { uid: 'outra-conta' };
-    await expect(firstValueFrom(service.completeLink$(email, link, true)))
+    await expect(firstValueFrom(service.completeLink$(link, true)))
       .rejects.toMatchObject({ code: 'registration/session-active' });
     expect(firebase.consume).not.toHaveBeenCalled();
   });
 
   it('confirma o UID devolvido pelo Auth e define a senha sem persisti-la', async () => {
-    const result = await firstValueFrom(service.completeLink$(email, link, true));
+    const result = await firstValueFrom(service.completeLink$(link, true));
     expect(result).toEqual({ uid, email });
-    expect(prepare).toHaveBeenCalledWith({ email, code: 'demo', confirmsAdult: true });
+    expect(prepare).toHaveBeenCalledWith({ code: 'demo', confirmsAdult: true });
+    expect(firebase.consume).toHaveBeenCalledWith(auth, email, link);
     await firstValueFrom(service.setPassword$(uid, email, 'SenhaTeste123', 'SenhaTeste123'));
     expect(firebase.update).toHaveBeenCalledOnce();
     expect(firebase.update).toHaveBeenCalledWith(auth.currentUser, 'SenhaTeste123');
@@ -125,7 +126,7 @@ describe('EmailLinkRegistrationService (emulador, sem alterar fluxo antigo)', ()
   it('não pode redefinir senha de conta preexistente via laboratório', async () => {
     const blocked = { code: 'functions/failed-precondition' };
     prepare.mockRejectedValueOnce(blocked);
-    await expect(firstValueFrom(service.completeLink$(email, link, true))).rejects.toBe(blocked);
+    await expect(firstValueFrom(service.completeLink$(link, true))).rejects.toBe(blocked);
     expect(firebase.consume).not.toHaveBeenCalled();
     auth.currentUser = { uid: 'legado', email, emailVerified: true };
     await expect(
@@ -135,7 +136,7 @@ describe('EmailLinkRegistrationService (emulador, sem alterar fluxo antigo)', ()
   });
 
   it('recusa definir senha depois de troca de UID', async () => {
-    await firstValueFrom(service.completeLink$(email, link, true));
+    await firstValueFrom(service.completeLink$(link, true));
     auth.currentUser = { uid: 'outro', email, emailVerified: true };
     await expect(firstValueFrom(service.setPassword$(uid, email, 'SenhaTeste123','SenhaTeste123')))
       .rejects.toMatchObject({ code: 'registration/session-changed' });
@@ -147,7 +148,7 @@ describe('EmailLinkRegistrationService (emulador, sem alterar fluxo antigo)', ()
       auth.currentUser = { uid: 'outro', email, emailVerified: true };
       return { user: { uid, email, emailVerified: true } };
     });
-    await expect(firstValueFrom(service.completeLink$(email, link, true)))
+    await expect(firstValueFrom(service.completeLink$(link, true)))
       .rejects.toMatchObject({ code: 'registration/session-changed' });
   });
 
@@ -156,7 +157,7 @@ describe('EmailLinkRegistrationService (emulador, sem alterar fluxo antigo)', ()
       auth.currentUser = { uid: 'outro' };
       firebase.beforeStateChanged.mock.calls[0][1]({ uid });
     });
-    await expect(firstValueFrom(service.completeLink$(email, link, true)))
+    await expect(firstValueFrom(service.completeLink$(link, true)))
       .rejects.toMatchObject({ code: 'registration/session-changed' });
     expect(auth.currentUser.uid).toBe('outro');
   });

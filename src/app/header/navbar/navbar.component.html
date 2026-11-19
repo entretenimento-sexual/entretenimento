@@ -4,7 +4,7 @@
     <div class="navbar-container">
       <div class="navbar-header">
         <a
-          [routerLink]="homeLink"
+          [routerLink]="isEmailLinkStep ? null : homeLink"
           class="navbar-brand"
           routerLinkActive="active"
           [routerLinkActiveOptions]="{ exact: true }"
@@ -13,7 +13,9 @@
           (click)="closeMobileMenu()"
         >
           <app-logo class="navbar-logo"></app-logo>
-          <span class="visually-hidden">Página inicial</span>
+          @if (!isEmailLinkStep) {
+            <span class="visually-hidden">Página inicial</span>
+          }
         </a>
 
         @if (isMobileMenuViewport) {
@@ -133,7 +135,7 @@
             </button>
           </li>
         } @else if (!logoutPending()) {
-          @if (!isLoginPage) {
+          @if (!isLoginPage && !isEmailLinkStep) {
             <li class="navbar-item">
               <a
                 routerLink="/login"
@@ -251,7 +253,7 @@
       } @else if (logoutPending()) {
         <span class="navbar-mobile-link">Encerrando sessão…</span>
       } @else {
-        @if (!isLoginPage) {
+        @if (!isLoginPage && !isEmailLinkStep) {
           <a
             routerLink="/login"
             class="navbar-mobile-link"

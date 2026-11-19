@@ -53,7 +53,7 @@ try {
   const consumer = client('consumer');
   const email = `novo-${run}@example.test`;
   const { oobCode, oobLink } = await issueLink(sender.auth, email);
-  const prepare = { email, code: oobCode, confirmsAdult: true };
+  const prepare = { code: oobCode, confirmsAdult: true };
   await rejects(consumer.call('prepareEmailLinkRegistration', { ...prepare, confirmsAdult: false }), 'invalid-argument');
   await rejects(consumer.call('prepareEmailLinkRegistration', { ...prepare, email: 'outro@example.test' }),
     'failed-precondition', 'registration/email-link-unavailable');
@@ -65,7 +65,8 @@ try {
   ]);
   const { uid } = first.data;
   assert.equal(second.data.uid, uid, 'Parallel preparations must reserve the same Auth identity');
-  const credential = await signInWithEmailLink(consumer.auth, email, oobLink);
+  assert.equal(first.data.email, email, 'The emulator must resolve the recipient from the link');
+  const credential = await signInWithEmailLink(consumer.auth, first.data.email, oobLink);
   assert.equal(credential.user.uid, uid);
   const expectedUid = { expectedUid: uid };
   const state = (expectedUid) => consumer.call('getEmailLinkRegistrationState', { expectedUid });
@@ -95,7 +96,7 @@ try {
     const guest = client('legacy-' + emailVerified);
     const { oobCode } = await issueLink(guest.auth, email);
     const existing = await adminAuth.createUser({ email, password, emailVerified });
-    await rejects(guest.call('prepareEmailLinkRegistration', { email, code: oobCode, confirmsAdult: true }),
+    await rejects(guest.call('prepareEmailLinkRegistration', { code: oobCode, confirmsAdult: true }),
       'failed-precondition', 'registration/email-link-unavailable');
     const signIn = await signInWithEmailAndPassword(guest.auth, email, password);
     assert.equal(signIn.user.uid, existing.uid);

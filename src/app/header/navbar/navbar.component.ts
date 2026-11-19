@@ -63,6 +63,7 @@ import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
+import { isRegistrationEmailLinkStep } from '../../register-module/data-access/register-flow.model';
 import { inRegistrationFlow as isRegistrationFlow } from 'src/app/core/services/autentication/auth/auth.types';
 
 @Component({
@@ -80,6 +81,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public isFree = false;
 
   public isLoginPage = false;
+  protected isEmailLinkStep = false;
   public isPublicAuthRoute = false;
   public canShowGuestBanner = false;
 
@@ -188,6 +190,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private syncRouteUiFlags(url: string | null | undefined): void {
     const normalizedUrl = url ?? '';
     this.isLoginPage = this.isLoginRoute(normalizedUrl);
+    this.isEmailLinkStep = isRegistrationEmailLinkStep(normalizedUrl);
     this.isPublicAuthRoute = this.isLoginPage || isRegistrationFlow(normalizedUrl);
 
     this.recomputeHeaderVisibility();

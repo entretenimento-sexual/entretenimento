@@ -5,6 +5,7 @@ import {
   input,
 } from '@angular/core';
 
+import { isEmailLinkPreviewUid } from '@core/services/autentication/register/email-link-registration.service';
 import type { RegisterFlowStep } from '../data-access/register-flow.model';
 
 // Apresentação das rotas autorizadas pelo fluxo. A ordem de acesso continua
@@ -12,6 +13,7 @@ import type { RegisterFlowStep } from '../data-access/register-flow.model';
 const STAGES = [
   { step: 'signup', label: 'Conta', action: 'Criar sua conta' },
   { step: 'emailVerification', label: 'E-mail', action: 'Confirmar seu e-mail' },
+  { step: 'passwordSetup', label: 'Senha', action: 'Definir sua senha' },
   { step: 'termsAcceptance', label: 'Termos', action: 'Revisar e aceitar os termos' },
   { step: 'ageVerification', label: '18+', action: 'Confirmar sua maioridade' },
   { step: 'profileCompletion', label: 'Perfil', action: 'Completar seu perfil' },
@@ -32,15 +34,23 @@ export class RegisterProgressComponent {
   readonly completed = input(false);
   readonly nextAction = input<string | null>(null);
   readonly compact = input(false);
+  readonly emailLinkFlow = input(false);
+  readonly ownerUid = input<string | null | undefined>(null);
 
-  protected readonly stages = STAGES;
+  protected readonly showsPasswordStep = computed(() => {
+    const uid = this.ownerUid();
+    return this.emailLinkFlow() || this.step() === 'passwordSetup' || (!!uid && isEmailLinkPreviewUid(uid));
+  });
+  protected readonly stages = computed(() => this.showsPasswordStep()
+    ? STAGES : STAGES.filter(stage => stage.step !== 'passwordSetup')
+  );
   protected readonly position = computed(() =>
-    STAGES.findIndex(stage => stage.step === this.step())
+    this.stages().findIndex(stage => stage.step === this.step())
   );
   protected readonly finishedCount = computed(() =>
     this.position() + (this.completed() ? 1 : 0)
   );
   protected readonly upcomingAction = computed(() =>
-    this.nextAction() ?? STAGES[this.position() + 1]?.action ?? null
+    this.nextAction() ?? this.stages()[this.position() + 1]?.action ?? null
   );
 }

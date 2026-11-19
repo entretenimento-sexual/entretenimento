@@ -15,8 +15,12 @@ export function usesRegistrationPresentation(url: string): boolean {
   const path = url.trim().split(/[?#]/)[0].replace(/\/$/, '');
   return path === '/register' ||
     path === '/register/enviar-link' ||
-    path === '/register/continuar-por-email' ||
-    path === '/register/definir-senha';
+    isRegistrationEmailLinkStep(path);
+}
+
+export function isRegistrationEmailLinkStep(url: string): boolean {
+  const path = url.split(/[?#]/)[0].replace(/\/$/, '');
+  return path === '/register/continuar-por-email' || path === '/register/definir-senha';
 }
 
 export function isRegistrationStepRoute(url: string): boolean {

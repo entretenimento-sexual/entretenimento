@@ -96,7 +96,7 @@ export class RegisterFlowFacade {
         return continueRegistration();
       }
 
-      return this.emailLink.passwordRequired$(uid).pipe(
+      return this.emailLink.watchPasswordRequired$(uid).pipe(
         catchError(() => of(true)),
         switchMap(required => required ? of(resolve(false, true)) : continueRegistration()),
       );

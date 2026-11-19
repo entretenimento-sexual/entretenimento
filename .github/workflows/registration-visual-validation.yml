@@ -544,9 +544,13 @@ jobs:
               if (!link) throw new Error('Auth Emulator did not issue the confirmation link');
 
               await page.goto(link.oobLink);
-              const address = page.getByRole('textbox', { name: 'E-mail', exact: true });
-              await address.waitFor({ state: 'visible' });
-              if (await address.inputValue() !== email) throw new Error('Same-tab return lost the draft email');
+              const confirm = page.getByRole('button', { name: 'Confirmar e continuar', exact: true });
+              await confirm.waitFor({ state: 'visible' });
+              if (await page.locator('input[type=email], a[href='/login']').count() ||
+                  await page.locator('.signup-backdrop').getAttribute('src') !== 'assets/registration/signup-stage-email-link.svg' ||
+                  await page.locator('app-register-progress .next strong').textContent() !== 'Definir sua senha') {
+                throw new Error('Link return must offer password as the next step without email or login fields');
+              }
               const after = await page.locator('.form-container').boundingBox();
               if (!before || !after || Math.abs(before.x - after.x) > 2 || Math.abs(before.width - after.width) > 2) {
                 throw new Error('Opening the confirmation link changed the desktop card layout');
@@ -570,7 +574,7 @@ jobs:
 
               await page.reload();
               await page.getByText('Abra o link recebido no e-mail ou solicite um novo link.').waitFor();
-              if (await address.count() || await page.getByRole('link', { name: 'Solicitar novo link' }).count() !== 1) {
+              if (await confirm.count() || await page.getByRole('link', { name: 'Solicitar novo link' }).count() !== 1) {
                 throw new Error('Direct return without a link must offer recovery instead of the form');
               }
             }"

@@ -9,7 +9,7 @@
     </div>
 
     @let ageVm = vm$ | async;
-    <app-register-progress step="ageVerification" [completed]="!reconciling() && ageVm?.accessAllowed === true" />
+    <app-register-progress [ownerUid]="pageUid" step="ageVerification" [completed]="!reconciling() && ageVm?.accessAllowed === true" />
 
     @if (feedback(); as message) {
       <section

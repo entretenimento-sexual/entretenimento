@@ -12,7 +12,7 @@ import {
   signInWithEmailLink,
   updatePassword,
 } from 'firebase/auth';
-import { defer, finalize, from, map, Observable, of, switchMap, timeout, catchError, throwError } from 'rxjs';
+import { defer, finalize, from, map, Observable, of, switchMap, timeout, catchError, filter, startWith, Subject, throwError } from 'rxjs';
 
 import { environment } from 'src/environments/environment';
 import { ValidatorService } from '../../general/validator.service';
@@ -66,6 +66,7 @@ export interface EmailLinkRegistrationIdentity {
 
 @Injectable({ providedIn: 'root' })
 export class EmailLinkRegistrationService {
+  private readonly passwordChanged = new Subject<string>();
   private readonly firebase = {
     beforeAuthStateChanged, isSignInWithEmailLink, reauthenticateWithCredential,
     sendSignInLinkToEmail, signInWithEmailLink, updatePassword,
@@ -106,11 +107,7 @@ export class EmailLinkRegistrationService {
    * confirmada nesta página antes de qualquer chamada que crie o UID.
    * O backend valida o código para este endereço e reserva um UID de cadastro.
    */
-  completeLink$(
-    emailInput: string,
-    fullLink: string,
-    preAuthAdultDeclared: boolean
-  ): Observable<EmailLinkRegistrationIdentity> {
+  completeLink$(fullLink: string, preAuthAdultDeclared: boolean): Observable<EmailLinkRegistrationIdentity> {
     return defer(() => {
       this.assertPreview();
       this.assertNoSession();
@@ -121,21 +118,20 @@ export class EmailLinkRegistrationService {
           'Confirme que você tem 18 anos ou mais antes de continuar.'
         );
       }
-      const email = checkedEmail(emailInput);
       const action = parseActionCodeURL(fullLink);
       if (!action || !this.firebase.isSignInWithEmailLink(this.auth, fullLink)) {
         throw localError('registration/invalid-link', 'Este link não é válido para confirmar o e-mail.');
       }
       const sessionVersion = this.session.terminationVersionSnapshot;
-      const prepare = this.callable<{ email: string; code: string; confirmsAdult: boolean }, { uid: string }>(
+      const prepare = this.callable<{ code: string; confirmsAdult: boolean }, EmailLinkRegistrationIdentity>(
         'prepareEmailLinkRegistration'
       );
-      return from(prepare({ email, code: action.code, confirmsAdult: true })).pipe(
+      return from(prepare({ code: action.code, confirmsAdult: true })).pipe(
         switchMap(({ data }) => {
           this.assertNoSession();
           if (this.session.terminationVersionSnapshot !== sessionVersion ||
               !data?.uid?.startsWith(PREVIEW_UID_PREFIX)) throw this.sessionChanged();
-          return this.consumeForUid$(data.uid, sessionVersion, email, fullLink);
+          return this.consumeForUid$(data.uid, sessionVersion, checkedEmail(data.email), fullLink);
         }),
         timeout({ first: ACTION_TIMEOUT_MS })
       );
@@ -150,6 +146,14 @@ export class EmailLinkRegistrationService {
       if (!isEmailLinkPreviewUid(uid)) return of(false);
       return this.readPasswordRequired$(uid);
     });
+  }
+
+  watchPasswordRequired$(uid: string): Observable<boolean> {
+    return this.passwordChanged.pipe(
+      filter(changedUid => changedUid === uid),
+      startWith(uid),
+      switchMap(() => this.passwordRequired$(uid)),
+    );
   }
 
   setPassword$(
@@ -211,6 +215,7 @@ export class EmailLinkRegistrationService {
         map(required => {
           assertSession();
           if (required) throw localError('registration/invalid-password', 'Sua senha ainda não foi confirmada. Tente novamente.');
+          this.passwordChanged.next(uid);
         }),
         timeout({ first: ACTION_TIMEOUT_MS }),
       );

@@ -1,7 +1,7 @@
 import { Location } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
 import { Observable, catchError, defer, filter, finalize, from, map, of, switchMap, take, timeout } from 'rxjs';
@@ -11,6 +11,7 @@ import {
   EMAIL_LINK_PASSWORD_ROUTE, EMAIL_LINK_REGISTRATION_ROUTE, EmailLinkRegistrationService, isEmailLinkPreviewUid,
 } from '@core/services/autentication/register/email-link-registration.service';
 import { RegistrationBootstrapService } from '@core/services/autentication/register/registration-bootstrap.service';
+import { RegistrationRecoveryService } from '@core/services/autentication/register/registration-recovery.service';
 import { ADULT_SELF_DECLARATION_TEXT_PT_BR } from '@core/services/compliance/platform-legal.constants';
 import { NicknameUtils } from '@core/utils/nickname-utils';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
@@ -31,6 +32,7 @@ export class EmailLinkRegistrationPageComponent {
   private readonly session = inject(AuthSessionService);
   private readonly emailLink = inject(EmailLinkRegistrationService);
   private readonly bootstrap = inject(RegistrationBootstrapService);
+  private readonly recovery = inject(RegistrationRecoveryService);
   private readonly flow = inject(RegisterFlowFacade);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -42,10 +44,7 @@ export class EmailLinkRegistrationPageComponent {
   readonly mode = this.route.snapshot.data['emailLinkMode'] as LinkMode;
   readonly hasLink = Boolean(this.authLink);
   readonly declaration = ADULT_SELF_DECLARATION_TEXT_PT_BR;
-  readonly emailForm = this.fb.group({
-    email: [readSignupDraft()?.email ?? '', [Validators.required, Validators.email, Validators.maxLength(254)]],
-    adult: false,
-  });
+  readonly emailForm = this.fb.group({ adult: false });
   readonly passwordForm = this.fb.group({ password: '', confirmation: '' });
   readonly busy = signal(false);
   readonly error = signal('');
@@ -64,16 +63,15 @@ export class EmailLinkRegistrationPageComponent {
   }
 
   confirm(): void {
-    if (this.busy() || !this.hasLink || !this.checkEmail()) return;
+    if (this.busy() || !this.hasLink) return;
     if (!this.emailForm.controls.adult.value) {
       this.error.set('Confirme a declaração de maioridade para continuar.');
       return;
     }
 
-    const email = this.emailForm.controls.email.value.trim();
     this.run(() => this.session.readyAuthUser$.pipe(
       take(1),
-      switchMap(() => this.emailLink.completeLink$(email, this.authLink, true)),
+      switchMap(() => this.emailLink.completeLink$(this.authLink, true)),
       switchMap(() => this.open(EMAIL_LINK_PASSWORD_ROUTE)),
     ));
   }
@@ -127,7 +125,7 @@ export class EmailLinkRegistrationPageComponent {
       : '';
     const reserve = nickname && !this.skipNickname
       ? this.bootstrap.reserveNickname$(uid, nickname)
-      : of(void 0);
+      : this.recovery.recoverForUser$(uid).pipe(map(() => void 0));
     return reserve.pipe(
       map(() => true),
       catchError(error => {
@@ -135,7 +133,7 @@ export class EmailLinkRegistrationPageComponent {
           this.skipNickname = true;
           this.status.set('A senha foi confirmada. O apelido escolhido ficou indisponível. Ao continuar, escolha outro na conclusão do perfil.');
         } else {
-          this.error.set('A senha foi confirmada. Não foi possível confirmar o apelido. Tente continuar novamente.');
+          this.error.set('A senha foi confirmada. Não foi possível preparar o cadastro. Tente continuar novamente.');
         }
         return of(false);
       }),
@@ -143,20 +141,13 @@ export class EmailLinkRegistrationPageComponent {
         if (!reserved || this.auth.currentUser?.uid !== uid || this.session.isTerminatingSnapshot) return of(void 0);
         clearSignupDraft();
         return this.flow.vm$.pipe(
-          filter(vm => vm.authReady && vm.uid === uid && vm.currentStep !== 'loading'),
+          filter(vm => vm.authReady && vm.uid === uid && vm.currentStep !== 'loading' && vm.currentStep !== 'passwordSetup'),
           take(1),
           timeout({ first: 10_000 }),
-          switchMap(vm => this.open(vm.currentStep !== 'passwordSetup' ? vm.nextRoute : '/register/welcome')),
+          switchMap(vm => this.open(vm.nextRoute)),
         );
       }),
     );
-  }
-
-  private checkEmail(): boolean {
-    this.emailForm.controls.email.markAsTouched();
-    if (this.emailForm.controls.email.valid) return true;
-    this.error.set('Confira o endereço de e-mail informado.');
-    return false;
   }
 
   private open(path: string): Observable<void> {
@@ -186,7 +177,10 @@ export class EmailLinkRegistrationPageComponent {
     if (error?.localValidation && error.message) return error.message;
     if (error?.details?.reason === 'registration/email-link-unavailable' ||
         error?.code === 'auth/invalid-action-code' || error?.code === 'auth/expired-action-code') {
-      return 'Este link não pode mais ser usado. Peça outro link ou entre se você já tem uma conta.';
+      return 'Este link não pode mais ser usado. Solicite um novo link para continuar.';
+    }
+    if (error?.code === 'functions/not-found' || error?.code === 'functions/unavailable') {
+      return 'A confirmação está indisponível. Verifique se os emuladores de Auth e Functions estão ativos e tente novamente.';
     }
     if (error?.code === 'auth/requires-recent-login') {
       return 'A confirmação ficou antiga. Saia e solicite um novo link para definir sua senha.';

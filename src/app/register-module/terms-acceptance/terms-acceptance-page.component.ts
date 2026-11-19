@@ -50,7 +50,7 @@ import { RegisterProgressComponent } from '../register-progress/register-progres
 export class TermsAcceptancePageComponent {
   private readonly FLOW_RESOLUTION_TIMEOUT_MS = 5000;
   private readonly destroyRef = inject(DestroyRef);
-  private readonly pageUid: string | null;
+  protected readonly pageUid: string | null;
 
   readonly legalManifest = PLATFORM_LEGAL_MANIFEST;
 

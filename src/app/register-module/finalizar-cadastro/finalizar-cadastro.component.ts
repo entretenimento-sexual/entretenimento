@@ -134,7 +134,7 @@ implements OnInit, UnsavedChangesAware
 
   public formErrors: Partial<Record<ProfileCompletionField, string>> = {};
 
-  private latestVm: RegisterFlowVm | null = null;
+  protected latestVm: RegisterFlowVm | null = null;
   private draftReady = false;
   private draftKey = '';
   private initialDraftSnapshot = '';

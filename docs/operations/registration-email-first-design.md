@@ -4,7 +4,7 @@
 ## Etapas e apresentação
 1. Apelido principal exclusivo (4–12), complemento opcional (até 12). Manter o formulário e consultar somente o principal. A reserva transacional usa `public_index/nickname:<principal>`; sem coleção duplicada.
 2. Digitação de e-mail: campo único, aviso breve de privacidade e ação para solicitar link. Sem senha nessa tela após o cutover. Respostas de solicitação não podem revelar se o e-mail já pertence a uma conta.
-3. Link único recebido: aplicar o fluxo Firebase de email-link sign-in; não tratar como simples `sendEmailVerification` de uma conta com senha. No outro dispositivo, pedir o endereço novamente, sem transportá-lo em query string. Link inválido/usado/expirado: feedback próprio + reenvio com limites.
+3. Link único recebido: aplicar o fluxo Firebase de email-link sign-in; não tratar como simples `sendEmailVerification` de uma conta com senha. Na prévia local, o Functions Emulator cruza o código pendente com o Auth Emulator e resolve o destinatário, inclusive em outra aba ou navegador. A URL e o formulário de retorno dispensam o endereço. Link inválido/usado/expirado: feedback próprio + reenvio com limites.
 4. Depois de autenticar por link, exibir a definição e confirmação de senha. A senha deve ser criada pelo mecanismo do Firebase Auth e jamais persistida em Firestore, telemetria ou storage. Não publicar o perfil nesta fase.
 5. Termos vigentes, declaração 18+ e avaliação etária canônica, com aceites explícitos e versionados.
 6. Conclusão de perfil, manutenção do UID esperado, transação protegida e liberação somente depois da decisão backend.
@@ -43,6 +43,7 @@ As duas cenas fotográficas WebP foram integradas à `main` no commit `4f3922c7`
 
 ## Layout e cenas
 - As três cenas WebP usam `object-fit: contain` e tamanho do elemento alinhado à proporção intrínseca da imagem no desktop. A primeira cena dissolve sua borda direita suavemente; a segunda (e-mail) e a terceira (declarações) usam uma máscara própria com início mais à direita para proteger a composição com mais personagens. Todas compartilham fundo escuro radial, sem faixa linear de transição. O formulário permanece na área escura à direita. Em telas estreitas a imagem é apresentada acima do formulário com máscara vertical discreta, e a rolagem natural só ocorre quando necessária para manter todos os controles acessíveis.
+- A confirmação do link e a criação de senha usam a ilustração SVG própria, com a mesma composição responsiva do cadastro.
 - Fade de ~380 ms; respeitar `prefers-reduced-motion`, sem vídeos, animações contínuas ou nova biblioteca. Imagem decorativa com `alt=""` e `aria-hidden`.
 - Padronizar a largura do card e manter as instruções curtas, com erros não modais, visíveis quando for necessária ação e anunciados por leitores de tela.
 
@@ -63,8 +64,8 @@ As duas cenas fotográficas WebP foram integradas à `main` no commit `4f3922c7`
 
 ## Fase técnica B — prévia na interface emulada
 
-- Em `dev-emu`, **Continuar** na etapa de apelido abre a etapa de e-mail no mesmo formulário. A ação **Enviar link** solicita a confirmação e apresenta a tela **Confira seu e-mail**. Em testes locais, copie o link do log do Auth Emulator. A página de retorno pede o mesmo endereço e a declaração 18+ antes da chamada de autenticação.
-- No emulador, `prepareEmailLinkRegistration` confirma o código e o destinatário no Auth local e reserva um UID por meio da unicidade do Firebase Auth. Antes do consumo nativo, recusa contas fora da prévia e contas cuja senha já foi configurada. A resposta de envio permanece genérica.
+- Em `dev-emu`, **Continuar** na etapa de apelido abre a etapa de e-mail no mesmo formulário. A ação **Enviar link** solicita a confirmação e apresenta a tela **Confira seu e-mail**. Em testes locais, copie o link do log do Auth Emulator. A página de retorno pede a declaração 18+ antes da chamada de autenticação. Depois da confirmação, a etapa Senha aparece no indicador de progresso e encaminha aos Termos.
+- No emulador, `prepareEmailLinkRegistration` confirma o código e resolve o destinatário no Auth local, devolvendo o endereço ao portador do link válido para o consumo pelo Firebase Auth. O callable reserva um UID por meio da unicidade do Firebase Auth. Antes do consumo nativo, recusa contas fora da prévia e contas cuja senha já foi configurada. A resposta de envio permanece genérica.
 - `passwordSetup` consulta a credencial no Auth Emulator e limita a definição de senha à sessão e ao UID esperados. As operações de Termos, maioridade, reserva de apelido e perfil conferem a credencial no backend. A tela consulta o que foi salvo antes de repetir uma gravação de senha que ficou sem confirmação.
-- O rascunho da mesma aba pode reaproveitar o apelido no índice atual. Se o apelido ficou indisponível ou o usuário abriu o link em outro navegador, pode escolher o apelido na conclusão do perfil. A aplicação usa a senha e o código apenas em memória.
+- O rascunho da mesma aba pode reaproveitar o apelido no índice atual. Se o apelido ficou indisponível ou o usuário abriu o link em outro navegador, pode escolher o apelido na conclusão do perfil. A aplicação usa a senha e o código apenas em memória. Ao abrir o link em outra aba ou navegador, a recuperação do documento privado é automática após a senha.
 - Os callables desta fase são exportados somente no Functions Emulator. A reserva baseada na verificação local de códigos é específica da prévia. A arquitetura para habilitação remota e os critérios de virada continuam pendentes.

@@ -18,7 +18,7 @@
   <div class="form-container">
     <app-register-progress
       [step]="emailLinkPreview && sectionIndex() === 1 ? 'emailVerification' : 'signup'"
-      [signupLabel]="emailLinkPreview ? 'Apelido' : 'Conta'"
+      [emailLinkFlow]="emailLinkPreview"
       [completed]="accountCreated()"
       [nextAction]="nextSectionTitle()"
       [compact]="true"
