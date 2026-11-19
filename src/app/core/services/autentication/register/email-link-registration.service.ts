@@ -44,7 +44,7 @@ export function emailLinkSignupPreviewAllowed(
 
 function checkedEmail(input: string): string {
   const email = String(input ?? '').trim();
-  if (email.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw localError('registration/invalid-email', 'Confira o endereço de e-mail informado.');
   }
   return email;

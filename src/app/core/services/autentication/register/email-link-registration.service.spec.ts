@@ -68,7 +68,7 @@ describe('EmailLinkRegistrationService (emulador, sem alterar fluxo antigo)', ()
     await firstValueFrom(service.requestLink$(email));
     expect(firebase.send).toHaveBeenCalledTimes(1);
     expect(firebase.send).toHaveBeenCalledWith(auth, email, {
-      url: 'http://localhost:3000/register/continuar-por-email',
+      url: `${location.origin}/register/continuar-por-email`,
       handleCodeInApp: true,
     });
     const settings = firebase.send.mock.calls[0][2];
