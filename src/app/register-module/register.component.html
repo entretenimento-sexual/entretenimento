@@ -70,14 +70,14 @@
       [formValidationOnSubmit]="false"
       [attr.aria-busy]="(isLoading() || creating() || sendingLink()) ? 'true' : null">
 
-      <header>
+      <header [class.signup-email-heading]="isEmailLinkSection()">
         <h1 id="register-section-title" #sectionHeading tabindex="-1">
-          {{ currentSection().title }}
+          {{ sectionHeadingCopy().title }}
           @if (!emailLinkPreview) {
             <span class="signup-section-count">{{ sectionIndex() + 1 }} de {{ sectionCount }}</span>
           }
         </h1>
-        <p>{{ currentSection().description }}</p>
+        <p [attr.aria-live]="isEmailLinkSection() ? 'polite' : null">{{ sectionHeadingCopy().description }}</p>
       </header>
 
       @switch (sectionIndex()) {
@@ -171,33 +171,28 @@
       @let emailTouched = submitted() || form.get('email')?.touched;
       @let emailError = emailTouched ? getError('email') : null;
       <div class="app-field">
-        <label for="email">E-mail *</label>
+        <label for="email">{{ waitingForEmailLink() ? 'E-mail informado' : 'E-mail *' }}</label>
 
         <div [matTooltip]="emailError || ''" matTooltipPosition="above" matTooltipTouchGestures="off"
           [registrationFeedbackTooltip]="emailError"
           [registrationFeedbackAttempt]="emailFeedbackAttempt()"
           [registrationFeedbackDuration]="4000">
           <input id="email" formControlName="email" type="email" class="app-control" name="email" autocomplete="email"
-            placeholder="email@exemplo.com" autocapitalize="none" inputmode="email" aria-label="E-mail"
-            maxlength="254" [readonly]="sendingLink()"
+            placeholder="email@exemplo.com" autocapitalize="none" inputmode="email"
+            maxlength="254" [readonly]="sendingLink() || waitingForEmailLink()"
+            [attr.aria-label]="waitingForEmailLink() ? 'E-mail informado' : 'E-mail'"
+            [attr.aria-required]="waitingForEmailLink() ? null : true"
             aria-describedby="register-email-help emailTooltip" [attr.aria-invalid]="emailError ? true : null"
             [class.is-invalid]="!!emailError"
-            [class.is-valid]="emailTouched && form.get('email')?.valid" />
+            [class.is-valid]="!waitingForEmailLink() && emailTouched && form.get('email')?.valid"
+            [class.app-control--email-recipient]="waitingForEmailLink()" />
         </div>
-        <small id="register-email-help" class="field-hint">Seu e-mail fica fora do perfil público.</small>
+        <small id="register-email-help" class="field-hint">{{ waitingForEmailLink()
+          ? 'Você cria a senha depois de abrir o link.' : 'Seu e-mail fica fora do perfil público.' }}</small>
         <span id="emailTooltip" class="sr-only" role="alert" aria-live="polite" aria-atomic="true">{{ emailError }}</span>
       </div>
 
-      @if (emailLinkPreview) {
-        @if (linkRequested()) {
-          <p class="signup-link-feedback" role="status">
-            Se o endereço puder receber a mensagem, abra o link mais recente. No emulador, ele aparece nos logs do Authentication.
-          </p>
-        }
-        @if (resendCooldown() && !sendingLink()) {
-          <small class="field-hint">Aguarde até 30 segundos para fazer um novo envio.</small>
-        }
-      } @else {
+      @if (!emailLinkPreview) {
       <div class="signup-pair">
       <!-- Senha -->
       <div class="app-field">
@@ -351,12 +346,12 @@
         @if (sectionIndex() > 0) {
           <button type="button" class="app-action app-action--ghost" (click)="previousSection()"
             [disabled]="isLoading() || creating() || sendingLink() || accountCreated()">
-            Voltar
+            {{ waitingForEmailLink() ? 'Alterar e-mail' : 'Voltar' }}
           </button>
         }
         <button class="app-action app-action--primary" type="submit"
           [appActionState]="isLoading() || creating() || sendingLink()"
-          [actionDisabled]="awaitingNickname() || accountCreated() || (emailLinkPreview && sectionIndex() === 1 && resendCooldown())">
+          [actionDisabled]="awaitingNickname() || accountCreated() || (isEmailLinkSection() && (resendCooldown() || offline()))">
           {{ submitLabel() }}
         </button>
       </div>

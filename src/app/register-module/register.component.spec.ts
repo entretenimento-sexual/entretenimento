@@ -136,13 +136,56 @@ describe('RegisterComponent', () => {
       expect(view.querySelector('button[type=submit]')?.textContent).toContain('Enviar link');
 
       registration.form.patchValue({ email: 'teste@example.com' });
-      view.querySelector<HTMLButtonElement>('button[type=submit]')!.click();
+      const submit = view.querySelector<HTMLButtonElement>('button[type=submit]')!;
+      const request = vi.mocked(TestBed.inject(EmailLinkRegistrationService).requestLink$);
+      const response = new Subject<void>();
+      request.mockReturnValueOnce(response);
+      window.dispatchEvent(new Event('offline'));
       preview.detectChanges();
-      expect(TestBed.inject(EmailLinkRegistrationService).requestLink$).toHaveBeenCalledWith('teste@example.com');
+      expect(submit.disabled).toBe(true);
+      expect(view.querySelector('header p')?.textContent).toContain('Aguarde a conexão voltar');
+      window.dispatchEvent(new Event('online'));
+      preview.detectChanges();
+      expect(submit.disabled).toBe(false);
+      expect(view.querySelector('header p')?.textContent).toContain('Informe o endereço');
+      expect(request).not.toHaveBeenCalled();
+      vi.useFakeTimers();
+      submit.click();
+      preview.detectChanges();
+      expect(submit.textContent).toContain('Enviando link');
+      expect(request).toHaveBeenCalledWith('teste@example.com');
       expect(registerService.registerUser).not.toHaveBeenCalled();
-      expect(view.querySelector('.signup-link-feedback')?.textContent).toContain('logs do Authentication');
+      response.next();
+      response.complete();
+      preview.detectChanges();
+
+      const input = view.querySelector<HTMLInputElement>('#email')!;
+      expect(view.querySelector('#register-section-title')?.textContent).toContain('Confira seu e-mail');
+      expect(view.querySelector('header p')?.textContent).toContain('caixa de entrada ou no spam');
+      expect(view.textContent).not.toMatch(/emulador|Authentication/i);
+      expect(input.value).toBe('teste@example.com');
+      expect(input.readOnly).toBe(true);
+      expect(submit.disabled).toBe(true);
+      expect(submit.textContent).toContain('Reenviar em 30 s');
+      vi.advanceTimersByTime(30_000);
+      preview.detectChanges();
+      expect(submit.textContent).toContain('Reenviar link');
+      expect(submit.disabled).toBe(false);
+
+      request.mockReturnValueOnce(throwError(() => ({ code: 'auth/network-request-failed' })));
+      submit.click();
+      preview.detectChanges();
+      expect(view.querySelector('header p')?.textContent).toContain('Envio sem confirmação');
+      expect(view.querySelector('.alert')).toBeNull();
+      view.querySelector<HTMLButtonElement>('.signup-actions button[type=button]')!.click();
+      preview.detectChanges();
+      expect(registration.sectionIndex()).toBe(1);
+      expect(input.readOnly).toBe(false);
+      expect(input.value).toBe('teste@example.com');
+      expect(view.querySelector('#register-section-title')?.textContent).toContain('Confirme seu e-mail');
     } finally {
       preview.destroy();
+      vi.useRealTimers();
       Object.assign(environment, original);
     }
   });

@@ -273,7 +273,7 @@ export class EmailLinkRegistrationService {
         !['localhost', '127.0.0.1'].includes(location.hostname) ||
         location.protocol !== 'http:') {
       throw localError('registration/email-link-preview-disabled',
-        'O teste exige o ambiente emulado local.');
+        'O cadastro por link está indisponível neste endereço.');
     }
     return location.origin;
   }

@@ -34,6 +34,7 @@ import {
   map,
   switchMap,
   take,
+  takeWhile,
   tap,
   startWith,
   timeout,
@@ -49,6 +50,7 @@ import {
 import { ADULT_SELF_DECLARATION_TEXT_PT_BR } from 'src/app/core/services/compliance/platform-legal.constants';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
 import { FirestoreValidationService } from 'src/app/core/services/data-handling/firestore/validation/firestore-validation.service';
 import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
 import { ValidatorService } from 'src/app/core/services/general/validator.service';
@@ -96,9 +98,22 @@ const SIGNUP_SECTIONS = [
 
 const EMAIL_LINK_SECTION = {
   title: 'Confirme seu e-mail',
-  description: 'Confirme seu endereço pelo link. Você vai definir a senha depois.',
+  description: 'Informe o endereço em que você quer receber o link.',
   fields: ['email'],
   groupError: null,
+} as const;
+
+const EMAIL_LINK_WAIT_SECONDS = 30;
+
+const EMAIL_LINK_CONFIRMATION = {
+  requested: {
+    title: 'Confira seu e-mail',
+    description: 'Procure o link na caixa de entrada ou no spam.',
+  },
+  unconfirmed: {
+    title: 'Confira seu e-mail',
+    description: 'Envio sem confirmação. Confira a caixa de entrada e o spam.',
+  },
 } as const;
 
 @Component({
@@ -119,6 +134,10 @@ export class RegisterComponent {
   private readonly signupSections = this.emailLinkPreview
     ? [SIGNUP_SECTIONS[0], EMAIL_LINK_SECTION] as const : SIGNUP_SECTIONS;
   private readonly emailLink = this.emailLinkPreview ? inject(EmailLinkRegistrationService) : null;
+  private readonly networkStatus = inject(NetworkStatusService);
+  protected readonly offline = toSignal(this.networkStatus.isOffline$, {
+    initialValue: !this.networkStatus.isOnlineSnapshot(),
+  });
   private readonly opensEmailStep = this.emailLinkPreview &&
     inject(ActivatedRoute).snapshot.data['requestRegistrationLink'] === true;
   private readonly destroyRef = inject(DestroyRef);
@@ -223,13 +242,10 @@ export class RegisterComponent {
   readonly accountCreated = signal(false);
   readonly adultDeclarationText = ADULT_SELF_DECLARATION_TEXT_PT_BR;
   protected readonly sendingLink = signal(false);
-  protected readonly resendCooldown = signal(false);
-  private readonly lastRequestedEmail = signal<string | null>(null);
-  private readonly emailValue = toSignal(this.form.get('email')!.valueChanges);
-  protected readonly linkRequested = computed(() => {
-    const email = this.lastRequestedEmail();
-    return email !== null && email === String(this.emailValue() ?? '').trim().toLowerCase();
-  });
+  private readonly resendSeconds = signal(0);
+  protected readonly resendCooldown = computed(() => this.resendSeconds() > 0);
+  private readonly emailLinkConfirmation = signal<keyof typeof EMAIL_LINK_CONFIRMATION | null>(null);
+  private readonly emailLinkNotice = signal<string | null>(null);
   readonly creatingMsg = signal('Estamos criando seu usuário, aguarde…');
   readonly syncing = signal(false);
 
@@ -239,14 +255,31 @@ export class RegisterComponent {
   // O snapshot não pode substituir a consulta ao índice na mesma visita.
   private restoredNicknameCheckRequired = false;
   readonly currentSection = computed(() => this.signupSections[this.sectionIndex()]);
+  protected readonly isEmailLinkSection = computed(() => this.emailLinkPreview && this.sectionIndex() === 1);
+  protected readonly waitingForEmailLink = computed(() => this.isEmailLinkSection() && this.emailLinkConfirmation() !== null);
+  protected readonly sectionHeadingCopy = computed(() => {
+    const confirmation = this.emailLinkConfirmation();
+    const section = this.isEmailLinkSection() && confirmation
+      ? EMAIL_LINK_CONFIRMATION[confirmation] : this.currentSection();
+    const notice = this.offline() ? 'Aguarde a conexão voltar para enviar o link.' : this.emailLinkNotice();
+    return {
+      title: section.title,
+      description: this.isEmailLinkSection()
+        ? notice ?? section.description : section.description,
+    };
+  });
   readonly sectionCount = this.signupSections.length;
   readonly lastSection = computed(() => this.sectionIndex() === this.sectionCount - 1);
   protected readonly submitLabel = computed(() => {
     if (this.sendingLink()) return 'Enviando link…';
     if (this.isLoading() || this.creating()) return 'Criando conta…';
     if (this.awaitingNickname()) return 'Validando apelido…';
-    if (this.emailLinkPreview && this.sectionIndex() === 1) {
-      return this.linkRequested() ? 'Reenviar link' : 'Enviar link';
+    if (this.isEmailLinkSection()) {
+      if (this.offline()) return 'Sem conexão';
+      const waiting = this.waitingForEmailLink();
+      const seconds = this.resendSeconds();
+      if (seconds > 0) return `${waiting ? 'Reenviar' : 'Enviar'} em ${seconds} s`;
+      return waiting ? 'Reenviar link' : 'Enviar link';
     }
     return this.lastSection() ? 'Criar conta' : 'Continuar';
   });
@@ -697,6 +730,12 @@ export class RegisterComponent {
 
   previousSection(): void {
     if (this.isLoading() || this.sendingLink() || this.accountCreated() || this.sectionIndex() === 0) return;
+    if (this.waitingForEmailLink()) {
+      this.emailLinkConfirmation.set(null);
+      this.emailLinkNotice.set(null);
+      this.focusSectionAfterRender('email');
+      return;
+    }
     this.openSection(this.sectionIndex() - 1);
   }
 
@@ -711,14 +750,10 @@ export class RegisterComponent {
   }
 
   private requestEmailLink(): void {
-    if (!this.emailLink || this.resendCooldown()) return;
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      this.setBanner('warn', 'Sem conexão', 'Aguarde a conexão voltar e tente enviar o link novamente.');
-      return;
-    }
+    if (!this.emailLink || this.resendCooldown() || !this.networkStatus.isOnlineSnapshot()) return;
     if (this.restoredNicknameCheckRequired && !this.hasAvailableNickname()) {
       if (this.nicknameChecking()) {
-        this.setBanner('info', 'Verificando apelido', 'Aguarde a consulta ao índice e tente novamente.');
+        this.emailLinkNotice.set('Aguarde a verificação do apelido e tente novamente.');
       } else {
         this.openSection(0, 'apelidoPrincipal');
         this.nicknameCheckRequests$.next(true);
@@ -728,22 +763,34 @@ export class RegisterComponent {
 
     const email = String(this.form.get('email')?.value ?? '').trim();
     this.sendingLink.set(true);
-    this.resendCooldown.set(true);
+    this.emailLinkNotice.set(null);
     this.banner.set(null);
-    timer(30_000).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.resendCooldown.set(false));
+    this.resendSeconds.set(EMAIL_LINK_WAIT_SECONDS);
+    const resendAt = Date.now() + EMAIL_LINK_WAIT_SECONDS * 1_000;
+    timer(1_000, 1_000).pipe(
+      map(() => Math.max(0, Math.ceil((resendAt - Date.now()) / 1_000))),
+      takeWhile(seconds => seconds > 0, true),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(seconds => this.resendSeconds.set(seconds));
     this.emailLink.requestLink$(email).pipe(
       finalize(() => this.sendingLink.set(false)),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
-      next: () => this.lastRequestedEmail.set(email.toLowerCase()),
-      error: (error: { localValidation?: boolean; message?: string } | null) => this.setBanner(
-        'warn',
-        'Envio do link pendente',
-        error?.localValidation && error.message
-          ? error.message
-          : 'Não foi possível confirmar o envio. Confira se recebeu o link antes de solicitar outro.'
-      ),
+      next: () => this.showEmailLinkConfirmation('requested'),
+      error: (error: { localValidation?: boolean; message?: string } | null) => {
+        if (error?.localValidation && error.message) {
+          this.emailLinkNotice.set(error.message);
+          return;
+        }
+        this.showEmailLinkConfirmation('unconfirmed');
+      },
     });
+  }
+
+  private showEmailLinkConfirmation(status: keyof typeof EMAIL_LINK_CONFIRMATION): void {
+    const stateChanged = this.emailLinkConfirmation() !== status;
+    this.emailLinkConfirmation.set(status);
+    if (stateChanged) this.focusSectionAfterRender();
   }
 
   private showInvalidSection(index: number, field?: string): void {
@@ -769,9 +816,14 @@ export class RegisterComponent {
     this.saveSignupDraft();
     this.submitted.set(false);
     this.banner.set(null);
+    this.emailLinkNotice.set(null);
     this.showPassword.set(false);
     this.showConfirmPassword.set(false);
 
+    this.focusSectionAfterRender(field);
+  }
+
+  private focusSectionAfterRender(field?: string): void {
     afterNextRender(() => {
       if (field) this.validationFocus()?.focusControl(field);
       else this.sectionHeading()?.nativeElement.focus();

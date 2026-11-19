@@ -31,8 +31,9 @@ As duas cenas fotográficas WebP foram integradas à `main` no commit `4f3922c7`
 | Estado | Feedback | Ação |
 |---|---|---|
 | E-mail inválido | Confira o endereço informado. | Corrigir campo |
-| Envio confirmado | Se o endereço puder receber a mensagem, verifique sua caixa de entrada. | Verificar e-mail |
-| Envio inconclusivo por rede | Não foi possível confirmar o envio. Sua solicitação pode ter sido recebida. | Repetir com limite |
+| Pedido de envio aceito | Procure o link na caixa de entrada ou no spam. | Verificar e-mail, corrigir o endereço ou aguardar o contador para reenviar |
+| Envio inconclusivo por rede | Envio sem confirmação. Confira a caixa de entrada e o spam. | Verificar e-mail ou reenviar quando o botão voltar a ficar disponível |
+| Sem conexão antes do envio | Aguarde a conexão voltar para enviar o link. | Retomar com o endereço preenchido |
 | Link inválido/expirado | Este link não pode mais ser usado. | Pedir outro |
 | Link de outra conta | Esta confirmação pertence a outra sessão. | Trocar conta com segurança |
 | E-mail confirmado | Endereço confirmado. Agora defina sua senha. | Criar senha |
@@ -62,7 +63,7 @@ As duas cenas fotográficas WebP foram integradas à `main` no commit `4f3922c7`
 
 ## Fase técnica B — prévia na interface emulada
 
-- Em `dev-emu`, **Continuar** na etapa de apelido abre a etapa de e-mail no mesmo formulário. A ação **Enviar link** solicita a confirmação. O link é registrado no log do Auth Emulator e pode ser aberto em outra aba ou navegador. A página de retorno pede o mesmo endereço e a declaração 18+ antes da chamada de autenticação.
+- Em `dev-emu`, **Continuar** na etapa de apelido abre a etapa de e-mail no mesmo formulário. A ação **Enviar link** solicita a confirmação e apresenta a tela **Confira seu e-mail**. Em testes locais, copie o link do log do Auth Emulator. A página de retorno pede o mesmo endereço e a declaração 18+ antes da chamada de autenticação.
 - No emulador, `prepareEmailLinkRegistration` confirma o código e o destinatário no Auth local e reserva um UID por meio da unicidade do Firebase Auth. Antes do consumo nativo, recusa contas fora da prévia e contas cuja senha já foi configurada. A resposta de envio permanece genérica.
 - `passwordSetup` consulta a credencial no Auth Emulator e limita a definição de senha à sessão e ao UID esperados. As operações de Termos, maioridade, reserva de apelido e perfil conferem a credencial no backend. A tela consulta o que foi salvo antes de repetir uma gravação de senha que ficou sem confirmação.
 - O rascunho da mesma aba pode reaproveitar o apelido no índice atual. Se o apelido ficou indisponível ou o usuário abriu o link em outro navegador, pode escolher o apelido na conclusão do perfil. A aplicação usa a senha e o código apenas em memória.
