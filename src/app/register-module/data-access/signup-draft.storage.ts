@@ -1,11 +1,13 @@
 // Rascunho temporário de uma aba; nunca salva senha, termos, idade ou UID.
 export const SIGNUP_DRAFT_KEY = 'registration:signup-draft:v1';
 const TTL_MS = 30 * 60_000;
+export type SignupLinkConfirmation = 'requested' | 'unconfirmed';
 export interface SignupDraft {
   sectionIndex: 0 | 1 | 2;
   apelidoPrincipal: string;
   complementoApelido: string;
   email: string;
+  linkConfirmation?: SignupLinkConfirmation;
 }
 type StoredDraft = SignupDraft & { version: 1; updatedAt: number };
 const getStorage = (): Storage | null => {
@@ -35,6 +37,8 @@ export function readSignupDraft(): SignupDraft | null {
       apelidoPrincipal: d.apelidoPrincipal,
       complementoApelido: d.complementoApelido,
       email: d.email,
+      ...(d.sectionIndex === 1 && (d.linkConfirmation === 'requested' || d.linkConfirmation === 'unconfirmed')
+        ? { linkConfirmation: d.linkConfirmation } : {}),
     };
   } catch {
     clearSignupDraft();

@@ -242,6 +242,30 @@ describe('RegisterComponent', () => {
     reopened.destroy();
   });
 
+  it('restaura a espera pelo link e mantém a entrada de retomada após recarregar', () => {
+    const original = { ...environment };
+    Object.assign(environment, {
+      production: false, useEmulators: true,
+      features: { ...environment.features, emailFirstSignupPreview: true },
+    });
+    window.sessionStorage.setItem(SIGNUP_DRAFT_KEY, JSON.stringify({
+      version: 1, updatedAt: Date.now(), sectionIndex: 1,
+      apelidoPrincipal: 'retomada', complementoApelido: '', email: 'teste@example.test',
+      linkConfirmation: 'requested',
+    }));
+    const resumed = TestBed.createComponent(RegisterComponent);
+    try {
+      resumed.detectChanges();
+      const view = resumed.nativeElement as HTMLElement;
+      expect(view.querySelector('h1')?.textContent).toContain('Confira seu e-mail');
+      expect(view.querySelector('#email')).toBeNull();
+      expect(view.querySelector('.login-redirect a')?.getAttribute('href')).toBe('/login?retomarCadastro=1');
+    } finally {
+      resumed.destroy();
+      Object.assign(environment, original);
+    }
+  });
+
   it('reabre apelido recusado se foi reservado antes da recarga', () => {
     window.sessionStorage.setItem(SIGNUP_DRAFT_KEY, JSON.stringify({
       version: 1, updatedAt: Date.now(), sectionIndex: 1,

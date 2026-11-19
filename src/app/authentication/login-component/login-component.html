@@ -4,7 +4,7 @@
   @let hasRegistrationSession = registrationTarget !== null && !!(sessionUid$ | async);
   <section class="auth-intro" aria-labelledby="auth-intro-title">
     <h1 id="auth-intro-title">
-      {{ hasRegistrationSession ? 'Retomar cadastro' : 'Entrar' }}
+      {{ hasRegistrationSession || retomarCadastro === '1' ? 'Retomar cadastro' : 'Entrar' }}
     </h1>
 
     @if (hasRegistrationSession && registrationTarget) {
@@ -33,9 +33,14 @@
       }
     } @else if (sessionNotice; as notice) {
       <p role="status" aria-live="polite">{{ notice }}</p>
+      @if (retomarCadastro === '1' && !sessionRetryHref) {
+        <p>Use a mesma conta para abrir a primeira etapa pendente.</p>
+      }
       @if (sessionRetryHref; as href) {
         <a class="app-action app-action--secondary" [href]="href">Tentar novamente</a>
       }
+    } @else if (retomarCadastro === '1') {
+      <p>Entre com o mesmo e-mail e a senha que cadastrou. Abriremos a primeira etapa que ainda estiver pendente.</p>
     } @else {
       <p>Continue de onde parou com seu perfil, preferências e conversas.</p>
     }
@@ -181,8 +186,13 @@
       }
 
       <p class="register-link">
-        Não tem conta?
-        <a [routerLink]="['/register']">Cadastre-se</a>
+        @if (retomarCadastro === '1' && emailLinkPreview) {
+          Ainda vai definir sua senha?
+          <a routerLink="/register/enviar-link">Receber novo link</a>
+        } @else {
+          Não tem conta?
+          <a [routerLink]="['/register']">Cadastre-se</a>
+        }
       </p>
     </form>
     </div>

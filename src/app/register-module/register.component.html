@@ -354,8 +354,9 @@
       }
       }
 
-      <div class="signup-actions" [class.signup-actions--with-back]="sectionIndex() > 0">
-        @if (sectionIndex() > 0) {
+      @let showBack = sectionIndex() > 0 && (!opensEmailStep || waitingForEmailLink());
+      <div class="signup-actions" [class.signup-actions--with-back]="showBack">
+        @if (showBack) {
           <button type="button" class="app-action app-action--ghost" (click)="previousSection()"
             [disabled]="isLoading() || creating() || sendingLink() || accountCreated()">
             {{ waitingForEmailLink() ? 'Alterar e-mail' : 'Voltar' }}
@@ -369,8 +370,13 @@
       </div>
 
       <p class="login-redirect">
-        Já tem conta?
-        <a routerLink="/login">Entrar</a>
+        @if (emailLinkPreview) {
+          {{ opensEmailStep ? 'Já definiu sua senha?' : 'Já começou?' }}
+          <a routerLink="/login" [queryParams]="{ retomarCadastro: '1' }">{{ opensEmailStep ? 'Entrar' : 'Retomar cadastro' }}</a>
+        } @else {
+          Já tem conta?
+          <a routerLink="/login">Entrar</a>
+        }
       </p>
     </form>
     }

@@ -29,6 +29,10 @@ import { ProfileAvatarWriteService } from './profile-avatar-write.service';
 import { ProfileCompletionWriteService } from './profile-completion-write.service';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import {
+  EmailLinkRegistrationService,
+  isEmailLinkPreviewUid,
+} from 'src/app/core/services/autentication/register/email-link-registration.service';
 import { FirestoreReadService } from 'src/app/core/services/data-handling/firestore/core/firestore-read.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
@@ -42,6 +46,7 @@ import {
 export interface ProfileCompletionInitialData {
   email: string;
   nickname: string;
+  savedNicknameSuggestion?: string;
   gender: string;
   orientation: string;
   estado: string;
@@ -83,7 +88,8 @@ export class ProfileCompletionFacade {
     private readonly profileAvatarWrite: ProfileAvatarWriteService,
     private readonly profileCompletionWrite: ProfileCompletionWriteService,
     private readonly storageService: StorageService,
-    private readonly ibgeLocationService: IBGELocationService
+    private readonly ibgeLocationService: IBGELocationService,
+    private readonly emailLink: EmailLinkRegistrationService
   ) {}
 
   loadUserForFormByUid$(
@@ -93,12 +99,12 @@ export class ProfileCompletionFacade {
     const safeUid = (uid ?? '').trim();
 
     return this.firestoreUserQuery.getUser(safeUid).pipe(
-      map((doc) => {
+      switchMap((doc) => {
         if (!doc) {
-          return null;
+          return of(null);
         }
 
-        return {
+        const initialData = {
           email: doc.email ?? vm.email ?? '',
           nickname: doc.nickname ?? '',
           gender: doc.gender ?? '',
@@ -106,6 +112,14 @@ export class ProfileCompletionFacade {
           estado: doc.estado ?? '',
           municipio: doc.municipio ?? '',
         };
+        if (initialData.nickname.trim() || !isEmailLinkPreviewUid(safeUid)) return of(initialData);
+
+        // Uma interrupção após criar a senha pode anteceder a reserva do apelido.
+        // O recibo privado fornece o valor original enquanto o campo segue editável.
+        return this.emailLink.preparedNickname$(safeUid).pipe(
+          map(nickname => nickname ? { ...initialData, savedNicknameSuggestion: nickname } : initialData),
+          catchError(() => of(initialData))
+        );
       })
     );
   }

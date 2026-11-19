@@ -212,6 +212,23 @@ describe('FinalizarCadastroComponent', () => {
     expect(component.selectedMunicipio).toBe('Rio de Janeiro');
   });
 
+  it('preenche o apelido recuperado com o campo editável quando a reserva ficou pendente', async () => {
+    profileCompletionFacadeMock.loadUserForFormByUid$.mockReturnValueOnce(of({
+      email: 'teste@email.com', nickname: '', savedNicknameSuggestion: 'apelidosalvo',
+      gender: '', orientation: '', estado: '', municipio: '',
+    }));
+    const reopened = TestBed.createComponent(FinalizarCadastroComponent);
+    try {
+      reopened.detectChanges();
+      await reopened.whenStable();
+      const field: HTMLInputElement = reopened.nativeElement.querySelector('#nickname');
+      expect(field.value).toBe('apelidosalvo');
+      expect(field.disabled).toBe(false);
+    } finally {
+      reopened.destroy();
+    }
+  });
+
   it('atualiza o formulário e os municípios quando os dados chegam de forma assíncrona', async () => {
     const profile$ = new Subject<{
       email: string; nickname: string; gender: string; orientation: string; estado: string; municipio: string;

@@ -188,6 +188,7 @@ function decideGuestAccess$(
       if (!authUid) {
         if (tryingWelcome || tryingRecovery || tryingTerms || tryingFinalize) {
           return buildRedirectTree(router, '/login', redirectToParam ?? undefined, {
+            retomarCadastro: '1',
             reason: authSession.currentAuthUser
               ? 'session-ended'
               : appBlock.invalidationSnapshot?.reason ?? 'session-ended',

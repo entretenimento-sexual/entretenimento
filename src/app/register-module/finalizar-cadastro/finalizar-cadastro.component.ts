@@ -310,8 +310,9 @@ implements OnInit, UnsavedChangesAware
         }
 
         this.email = initialData.email;
-        this.nickname = NicknameUtils.normalizarApelido(initialData.nickname);
-        this.needsNickname = !this.nickname;
+        const reservedNickname = NicknameUtils.normalizarApelido(initialData.nickname);
+        this.needsNickname = !reservedNickname;
+        this.nickname = reservedNickname || NicknameUtils.normalizarApelido(initialData.savedNicknameSuggestion ?? '');
         this.gender = initialData.gender;
         this.orientation = initialData.orientation;
         this.selectedEstado = initialData.estado;

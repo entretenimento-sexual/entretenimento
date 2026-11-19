@@ -41,7 +41,9 @@ import {
 } from 'rxjs/operators';
 import { toObservable, toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { REGISTRATION_ACTION_TIMEOUT_MS } from './data-access/register-action.policy';
-import { clearSignupDraft, readSignupDraft, writeSignupDraft } from './data-access/signup-draft.storage';
+import {
+  clearSignupDraft, readSignupDraft, writeSignupDraft, type SignupLinkConfirmation,
+} from './data-access/signup-draft.storage';
 
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
 import {
@@ -141,7 +143,7 @@ export class RegisterComponent {
   protected readonly offline = toSignal(this.networkStatus.isOffline$, {
     initialValue: !this.networkStatus.isOnlineSnapshot(),
   });
-  private readonly opensEmailStep = this.emailLinkPreview &&
+  protected readonly opensEmailStep = this.emailLinkPreview &&
     inject(ActivatedRoute).snapshot.data['requestRegistrationLink'] === true;
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
@@ -247,7 +249,8 @@ export class RegisterComponent {
   protected readonly sendingLink = signal(false);
   private readonly resendSeconds = signal(0);
   protected readonly resendCooldown = computed(() => this.resendSeconds() > 0);
-  private readonly emailLinkConfirmation = signal<keyof typeof EMAIL_LINK_CONFIRMATION | null>(null);
+  private readonly emailLinkConfirmation = signal<SignupLinkConfirmation | null>(null);
+  private recoveryDraftEmail = '';
   private readonly emailLinkNotice = signal<string | null>(null);
   readonly creatingMsg = signal('Estamos criando seu usuário, aguarde…');
   readonly syncing = signal(false);
@@ -284,11 +287,14 @@ export class RegisterComponent {
     const confirmation = this.emailLinkConfirmation();
     const section = this.isEmailLinkSection() && confirmation
       ? EMAIL_LINK_CONFIRMATION[confirmation] : this.currentSection();
+    const copy = this.opensEmailStep && this.isEmailLinkSection() && !confirmation
+      ? { title: 'Retome pelo e-mail', description: 'Informe o mesmo e-mail para receber um novo link de cadastro.' }
+      : section;
     const notice = this.offline() ? 'Aguarde a conexão voltar para enviar o link.' : this.emailLinkNotice();
     return {
-      title: section.title,
+      title: copy.title,
       description: this.isEmailLinkSection()
-        ? notice ?? section.description : section.description,
+        ? notice ?? copy.description : copy.description,
     };
   });
   readonly sectionCount = this.signupSections.length;
@@ -323,12 +329,17 @@ export class RegisterComponent {
       complementoApelido: draft.complementoApelido,
       email: draft.email,
     });
+    if (this.opensEmailStep) this.recoveryDraftEmail = draft.email.trim().toLowerCase();
     const valid = this.form.get('apelidoPrincipal')?.valid === true &&
       !this.form.hasError('invalidFullNickname');
     // O rascunho só restaura as etapas de apelido e e-mail.
-    const target = this.opensEmailStep ? 1 : valid ? Math.min(draft.sectionIndex, 1) : 0;
+    const recoverWaiting = this.emailLinkPreview && this.form.get('email')?.valid && draft.linkConfirmation;
+    const target = this.opensEmailStep || recoverWaiting ? 1 : valid ? Math.min(draft.sectionIndex, 1) : 0;
     this.sectionIndex.set(target);
-    if (target > 0 && valid) {
+    if (!this.opensEmailStep && recoverWaiting) {
+      this.emailLinkConfirmation.set(recoverWaiting);
+    }
+    if (target > 0 && valid && !this.opensEmailStep && !recoverWaiting) {
       this.restoredNicknameCheckRequired = true;
       this.recheckingRestoredNickname = true;
       this.nicknameFeedbackArmed.set(true);
@@ -342,11 +353,15 @@ export class RegisterComponent {
   private saveSignupDraft(): void {
     if (this.accountCreated()) return;
     const { apelidoPrincipal, complementoApelido, email } = this.form.getRawValue();
+    const draftEmail = String(email ?? '');
+    const keepNickname = !this.opensEmailStep || this.recoveryDraftEmail === draftEmail.trim().toLowerCase();
+    const linkConfirmation = this.emailLinkConfirmation();
     writeSignupDraft({
       sectionIndex: this.sectionIndex() as 0 | 1 | 2,
-      apelidoPrincipal: String(apelidoPrincipal ?? ''),
-      complementoApelido: String(complementoApelido ?? ''),
-      email: String(email ?? ''),
+      apelidoPrincipal: keepNickname ? String(apelidoPrincipal ?? '') : '',
+      complementoApelido: keepNickname ? String(complementoApelido ?? '') : '',
+      email: draftEmail,
+      ...(this.waitingForEmailLink() && linkConfirmation ? { linkConfirmation } : {}),
     });
   }
 
@@ -756,10 +771,11 @@ export class RegisterComponent {
     if (this.waitingForEmailLink()) {
       this.emailLinkConfirmation.set(null);
       this.emailLinkNotice.set(null);
+      this.saveSignupDraft();
       this.focusSectionAfterRender('email');
       return;
     }
-    this.openSection(this.sectionIndex() - 1);
+    if (!this.opensEmailStep) this.openSection(this.sectionIndex() - 1);
   }
 
   private firstInvalidField(index: number): string | undefined {
@@ -795,10 +811,13 @@ export class RegisterComponent {
       takeWhile(seconds => seconds > 0, true),
       takeUntilDestroyed(this.destroyRef),
     ).subscribe(seconds => this.resendSeconds.set(seconds));
-    const nickname = NicknameUtils.montarApelidoCompleto(
+    const savedNickname = NicknameUtils.montarApelidoCompleto(
       String(this.form.get('apelidoPrincipal')?.value ?? ''),
       String(this.form.get('complementoApelido')?.value ?? '')
     );
+    const nickname = !this.opensEmailStep ||
+      (this.recoveryDraftEmail === email.toLowerCase() && NicknameUtils.isApelidoDeCadastroValido(savedNickname))
+      ? savedNickname : undefined;
     this.emailLink.requestLink$(email, nickname).pipe(
       finalize(() => this.sendingLink.set(false)),
       takeUntilDestroyed(this.destroyRef)
@@ -814,9 +833,10 @@ export class RegisterComponent {
     });
   }
 
-  private showEmailLinkConfirmation(status: keyof typeof EMAIL_LINK_CONFIRMATION): void {
+  private showEmailLinkConfirmation(status: SignupLinkConfirmation): void {
     const stateChanged = this.emailLinkConfirmation() !== status;
     this.emailLinkConfirmation.set(status);
+    this.saveSignupDraft();
     if (stateChanged) this.focusSectionAfterRender();
   }
 

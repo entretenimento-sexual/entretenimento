@@ -260,7 +260,10 @@ export class EmailLinkRegistrationService {
   }
 
   preparedNickname$(uid: string): Observable<string | null> {
-    return this.readRegistrationState$(uid).pipe(map(state => state.nickname ?? null));
+    return this.readRegistrationState$(uid).pipe(
+      map(state => state.nickname ?? null),
+      catchError((error: unknown) => this.reportAndRethrow(error, 'readPreparedNickname')),
+    );
   }
 
   private readPasswordRequired$(uid: string): Observable<boolean> {

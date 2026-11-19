@@ -13,12 +13,16 @@
 
 | Marco | Como retomar | Acesso |
 |---|---|---|
-| Link solicitado | Abrir o link recebido e confirmar a declaração de maioridade. | Cadastro inicial. |
-| E-mail confirmado, senha pendente | A sessão aberta pelo link permite criar a senha. Em outra aba que compartilha a mesma sessão, **Continuar cadastro** abre a etapa pendente. Se a sessão for encerrada antes da senha, é preciso solicitar um novo link. | Cadastro e ações de suporte. |
-| Senha definida | **Entrar** com o e-mail verificado e a senha já funciona, inclusive se o cadastro foi interrompido. A navegação encaminha para a primeira pendência registrada, como Termos, confirmação 18+ quando necessária ou Perfil. | Sessão autenticada para concluir o cadastro. Perfil privado e interações bloqueadas enquanto a conta estiver incompleta. |
+| Apelido ou e-mail digitados | Reabrir o cadastro na mesma aba. O rascunho local expira 30 minutos após a última gravação. Sem rascunho, link válido ou conta vinculada, preencher novamente os dados iniciais. | Cadastro inicial. |
+| Link solicitado | Abrir o link recebido. Ao recarregar a aba que solicitou o envio, a tela volta para **Confira seu e-mail** enquanto o rascunho existe. Se o link não estiver disponível, usar **Retomar cadastro → Receber novo link** com o mesmo e-mail. | Cadastro inicial. |
+| E-mail confirmado, senha pendente | A sessão aberta pelo link permite criar a senha. Em outra aba que compartilha a mesma sessão, **Continuar cadastro** abre a etapa pendente. Sem sessão, solicitar um novo link com o mesmo e-mail. O backend pode reutilizar a conta e o apelido já vinculados. | Cadastro e ações de suporte. |
+| Senha definida, Termos pendentes | Na tela de cadastro, usar **Retomar cadastro** e entrar com o mesmo e-mail e senha. A plataforma reabre os Termos. Marcar a caixa sem enviar o formulário deixa o aceite pendente. | Sessão autenticada para concluir o cadastro. Perfil privado e interações bloqueadas enquanto a conta estiver incompleta. |
+| Termos aceitos, cadastro pendente | Entrar com a mesma conta para abrir a primeira pendência após o aceite, como confirmação 18+ quando necessária ou Perfil. Vale o aceite registrado pelo backend, inclusive se a aba foi fechada antes de mostrar a próxima etapa. | Sessão autenticada para concluir o cadastro. |
 | Termos vigentes aceitos, elegibilidade 18+ confirmada e perfil concluído | O backend grava a conclusão do perfil e a sessão já aberta pode seguir. Preferências podem ser ajustadas depois. | Recursos da plataforma conforme o estado da conta e as permissões de cada recurso. |
 
 Na prévia, quando a sessão da mesma conta é reconhecida na aba que solicitou o link, **E-mail confirmado** substitui a tela de espera. A pessoa escolhe em qual aba continuar. Se houver outra conta conectada, a página oferece retomar a sessão ativa, sem atribuir a ela a confirmação do e-mail solicitado. Em outro navegador, dispositivo ou origem local (por exemplo, alternando `localhost` e `127.0.0.1`), a sessão é independente. Continue onde o link foi aberto ou use **Entrar** depois de definir a senha.
+
+Se a senha ficou pronta antes da reserva do apelido, a conclusão de Perfil preenche o apelido do registro privado vinculado ao UID como sugestão editável. O apelido já reservado é reutilizado automaticamente. Se o rascunho anterior à confirmação do e-mail expirou e nenhum apelido foi vinculado, a etapa de Perfil pede esse dado.
 
 `loginAllowed: true` é um dos sinais usados para decidir se a conta pode entrar. A conclusão do cadastro é marcada por `profileCompleted: true` e `registrationCompletedAt`. A presença em Authentication ou a reserva do apelido no índice podem ocorrer antes disso.
 

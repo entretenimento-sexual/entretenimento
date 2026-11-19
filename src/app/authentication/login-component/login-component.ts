@@ -45,6 +45,8 @@ import { LoginService } from 'src/app/core/services/autentication/login.service'
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PostAuthNavigationService } from 'src/app/register-module/data-access/post-auth-navigation.service';
 import { isRegistrationStepRoute } from 'src/app/register-module/data-access/register-flow.model';
+import { emailLinkSignupPreviewAllowed } from '@core/services/autentication/register/email-link-registration.service';
+import { environment } from 'src/environments/environment';
 
 import { VOLUNTARY_LOGOUT_NOTICE } from '@core/services/autentication/auth/auth-session-exit.service';
 import { AuthAppBlockService } from '@core/services/autentication/auth/auth-app-block.service';
@@ -74,6 +76,8 @@ type LoginAction =
 export class LoginComponent implements OnInit {
   loginForm!: FormGroup;
   @Input() reason?: string;
+  @Input() retomarCadastro?: string;
+  protected readonly emailLinkPreview = emailLinkSignupPreviewAllowed(environment);
 
   private readonly location = inject(Location);
 

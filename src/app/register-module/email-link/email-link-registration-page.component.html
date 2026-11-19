@@ -44,7 +44,8 @@
             </button>
           </form>
         } @else if (linkState() === 'sign-in') {
-          <a class="app-action app-action--primary email-link-continue" routerLink="/login">Entrar na minha conta</a>
+          <a class="app-action app-action--primary email-link-continue" routerLink="/login"
+            [queryParams]="{ retomarCadastro: '1' }">Entrar na minha conta</a>
         } @else if (linkState() === 'active-session') {
           <button class="app-action app-action--primary email-link-continue" type="button"
             [disabled]="busy()" (click)="resumeActiveSession()">Continuar com a sessão atual</button>
