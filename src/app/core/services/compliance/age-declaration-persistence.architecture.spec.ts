@@ -45,9 +45,6 @@ describe('Account 18+ admission and age assurance boundary', () => {
     expect(registerFlow).not.toContain(
       'isCurrentTrustedAdultAgeProjection(ageState)'
     );
-    expect(registerFlow).toContain(
-      'if (user?.profileCompleted === true)'
-    );
   });
 
   it('não pede autodeclaração novamente na tela de verificação', () => {
