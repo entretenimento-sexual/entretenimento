@@ -43,7 +43,7 @@ As duas cenas fotográficas WebP foram integradas à `main` no commit `4f3922c7`
 
 ## Layout e cenas
 - As três cenas WebP usam `object-fit: contain` e tamanho do elemento alinhado à proporção intrínseca da imagem no desktop. A primeira cena dissolve sua borda direita suavemente; a segunda (e-mail) e a terceira (declarações) usam uma máscara própria com início mais à direita para proteger a composição com mais personagens. Todas compartilham fundo escuro radial, sem faixa linear de transição. O formulário permanece na área escura à direita. Em telas estreitas a imagem é apresentada acima do formulário com máscara vertical discreta, e a rolagem natural só ocorre quando necessária para manter todos os controles acessíveis.
-- A confirmação do link e a criação de senha usam a ilustração SVG própria, com a mesma composição responsiva do cadastro.
+- A confirmação do link e a criação de senha usam fotografia WebP que preenche a área entre a navbar e o fim do rodapé. A versão vertical preserva o enquadramento em retrato e o formulário permanece em primeiro plano.
 - Fade de ~380 ms; respeitar `prefers-reduced-motion`, sem vídeos, animações contínuas ou nova biblioteca. Imagem decorativa com `alt=""` e `aria-hidden`.
 - Padronizar a largura do card e manter as instruções curtas, com erros não modais, visíveis quando for necessária ação e anunciados por leitores de tela.
 

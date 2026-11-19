@@ -14,6 +14,7 @@ import { RegistrationBootstrapService } from '@core/services/autentication/regis
 import { RegistrationRecoveryService } from '@core/services/autentication/register/registration-recovery.service';
 import { ADULT_SELF_DECLARATION_TEXT_PT_BR } from '@core/services/compliance/platform-legal.constants';
 import { NicknameUtils } from '@core/utils/nickname-utils';
+import { FooterModule } from '../../footer/footer.module';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { clearSignupDraft, readSignupDraft } from '../data-access/signup-draft.storage';
 import { RegisterProgressComponent } from '../register-progress/register-progress.component';
@@ -22,7 +23,7 @@ type LinkMode = 'confirm' | 'password';
 
 @Component({
   selector: 'app-email-link-registration-page',
-  imports: [ReactiveFormsModule, RouterLink, RegisterProgressComponent],
+  imports: [ReactiveFormsModule, RouterLink, RegisterProgressComponent, FooterModule],
   templateUrl: './email-link-registration-page.component.html',
   styleUrls: ['../register.component.css', './email-link-registration-page.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

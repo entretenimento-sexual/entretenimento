@@ -61,7 +61,7 @@
     [friendRequestsCount]="vm.friendRequestsCount"
   ></app-mobile-bottom-nav>
 
-  @if (usesRegistrationPresentation(vm.currentUrl)) {
+  @if (usesRegistrationPresentation(vm.currentUrl) && !isRegistrationEmailLinkStep(vm.currentUrl)) {
     <app-footer [compact]="true" />
   }
 </div>

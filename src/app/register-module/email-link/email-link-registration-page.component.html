@@ -1,66 +1,69 @@
-<div class="auth-container auth-container--email-link auth-container--email-link-step">
-  <div class="signup-image" aria-hidden="true">
-    <picture class="signup-scene signup-scene--email">
-      <img class="signup-backdrop" src="assets/registration/signup-stage-email-link.svg" alt="" decoding="async" />
-    </picture>
-  </div>
+<div class="email-link-page">
+  <picture class="email-link-backdrop" aria-hidden="true">
+    <source media="(orientation: portrait)" srcset="assets/registration/signup-email-link-portrait.webp" type="image/webp" />
+    <img class="email-link-photo" src="assets/registration/signup-email-link-wide.webp" alt="" decoding="async" />
+  </picture>
 
-  <section class="form-container" aria-labelledby="email-link-heading" [attr.aria-busy]="busy()">
-    <app-register-progress [step]="mode === 'confirm' ? 'emailVerification' : 'passwordSetup'"
-      [emailLinkFlow]="true" [compact]="true" />
+  <div class="auth-container email-link-layout">
+    <section class="form-container" aria-labelledby="email-link-heading" [attr.aria-busy]="busy()">
+      <app-register-progress [step]="mode === 'confirm' ? 'emailVerification' : 'passwordSetup'"
+        [emailLinkFlow]="true" [compact]="true" />
 
-    <header class="email-link-header">
-      <h1 id="email-link-heading" #heading tabindex="-1">
-        {{ mode === 'confirm' ? 'Confirme seu e-mail' : 'Defina sua senha' }}
-      </h1>
+      <header class="email-link-header">
+        <h1 id="email-link-heading" #heading tabindex="-1">
+          {{ mode === 'confirm' ? 'Confirme seu e-mail' : 'Defina sua senha' }}
+        </h1>
+        @if (mode === 'confirm') {
+          <p>{{ hasLink ? 'Confirme para criar a senha da sua conta.' :
+            'Abra o link recebido no e-mail ou solicite um novo link.' }}</p>
+        } @else if (passwordReady()) {
+          <p role="status">E-mail confirmado. Crie uma senha para entrar na sua conta.</p>
+        }
+      </header>
+
+      @if (error()) { <p class="email-link-message email-link-message--error" role="alert">{{ error() }}</p> }
+      @if (status()) { <p class="email-link-message" role="status">{{ status() }}</p> }
+
       @if (mode === 'confirm') {
-        <p>{{ hasLink ? 'Confirme para criar a senha da sua conta.' :
-          'Abra o link recebido no e-mail ou solicite um novo link.' }}</p>
+        @if (hasLink) {
+          <form [formGroup]="emailForm" (ngSubmit)="confirm()" novalidate>
+            <label class="form-checkbox email-link-declaration">
+              <input type="checkbox" formControlName="adult" required />
+              {{ declaration }}
+            </label>
+            <button class="app-action app-action--primary" type="submit" [disabled]="busy()">
+              {{ busy() ? 'Confirmando e-mail…' : 'Confirmar e continuar' }}
+            </button>
+          </form>
+        }
+        <nav class="email-link-actions" aria-label="Alternativas de cadastro">
+          <a routerLink="/register/enviar-link">Solicitar novo link</a>
+        </nav>
       } @else if (passwordReady()) {
-        <p role="status">E-mail confirmado. Crie uma senha para entrar na sua conta.</p>
-      }
-    </header>
-
-    @if (error()) { <p class="email-link-message email-link-message--error" role="alert">{{ error() }}</p> }
-    @if (status()) { <p class="email-link-message" role="status">{{ status() }}</p> }
-
-    @if (mode === 'confirm') {
-      @if (hasLink) {
-        <form [formGroup]="emailForm" (ngSubmit)="confirm()" novalidate>
-          <label class="form-checkbox email-link-declaration">
-            <input type="checkbox" formControlName="adult" required />
-            {{ declaration }}
-          </label>
+        <form [formGroup]="passwordForm" (ngSubmit)="setPassword()" novalidate>
+          <div class="app-field">
+            <label for="link-password">Senha</label>
+            <input class="app-control" id="link-password" name="password" type="password" formControlName="password"
+              maxlength="128" autocomplete="new-password" aria-describedby="link-password-hint" required />
+            <small id="link-password-hint" class="field-hint">Use ao menos 8 caracteres, com letra maiúscula, letra minúscula e número.</small>
+          </div>
+          <div class="app-field">
+            <label for="link-password-confirmation">Confirme a senha</label>
+            <input class="app-control" id="link-password-confirmation" name="confirmPassword" type="password"
+              formControlName="confirmation" maxlength="128" autocomplete="new-password" required />
+          </div>
           <button class="app-action app-action--primary" type="submit" [disabled]="busy()">
-            {{ busy() ? 'Confirmando e-mail…' : 'Confirmar e continuar' }}
+            {{ busy() ? 'Confirmando senha…' : 'Definir senha e continuar' }}
           </button>
         </form>
+      } @else if (busy()) {
+        <p class="email-link-message" role="status">Estamos conferindo sua conta…</p>
+      } @else {
+        <button class="app-action app-action--primary email-link-continue" type="button"
+          (click)="checkPasswordState()">Continuar</button>
       }
-      <nav class="email-link-actions" aria-label="Alternativas de cadastro">
-        <a routerLink="/register/enviar-link">Solicitar novo link</a>
-      </nav>
-    } @else if (passwordReady()) {
-      <form [formGroup]="passwordForm" (ngSubmit)="setPassword()" novalidate>
-        <div class="app-field">
-          <label for="link-password">Senha</label>
-          <input class="app-control" id="link-password" name="password" type="password" formControlName="password"
-            maxlength="128" autocomplete="new-password" aria-describedby="link-password-hint" required />
-          <small id="link-password-hint" class="field-hint">Use ao menos 8 caracteres, com letra maiúscula, letra minúscula e número.</small>
-        </div>
-        <div class="app-field">
-          <label for="link-password-confirmation">Confirme a senha</label>
-          <input class="app-control" id="link-password-confirmation" name="confirmPassword" type="password"
-            formControlName="confirmation" maxlength="128" autocomplete="new-password" required />
-        </div>
-        <button class="app-action app-action--primary" type="submit" [disabled]="busy()">
-          {{ busy() ? 'Confirmando senha…' : 'Definir senha e continuar' }}
-        </button>
-      </form>
-    } @else if (busy()) {
-      <p class="email-link-message" role="status">Estamos conferindo sua conta…</p>
-    } @else {
-      <button class="app-action app-action--primary email-link-continue" type="button"
-        (click)="checkPasswordState()">Continuar</button>
-    }
-  </section>
+    </section>
+  </div>
+
+  <app-footer [compact]="true" />
 </div>

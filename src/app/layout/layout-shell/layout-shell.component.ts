@@ -23,7 +23,7 @@ import {
 } from '@core/services/navigation/authenticated-navigation.service';
 import { HeaderModule } from '../../header/header.module';
 import { FooterModule } from '../../footer/footer.module';
-import { usesRegistrationPresentation } from '../../register-module/data-access/register-flow.model';
+import { isRegistrationEmailLinkStep, usesRegistrationPresentation } from '../../register-module/data-access/register-flow.model';
 import {
   UniversalSidebarComponent,
   type UniversalSidebarQuickAction,
@@ -62,6 +62,7 @@ import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy
 })
 export class LayoutShellComponent {
   protected readonly usesRegistrationPresentation = usesRegistrationPresentation;
+  protected readonly isRegistrationEmailLinkStep = isRegistrationEmailLinkStep;
   private readonly store = inject<Store<AppState>>(Store as any);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 

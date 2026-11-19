@@ -546,8 +546,8 @@ jobs:
               await page.goto(link.oobLink);
               const confirm = page.getByRole('button', { name: 'Confirmar e continuar', exact: true });
               await confirm.waitFor({ state: 'visible' });
-              if (await page.locator('input[type=email], a[href='/login']').count() ||
-                  await page.locator('.signup-backdrop').getAttribute('src') !== 'assets/registration/signup-stage-email-link.svg' ||
+              const loginLink = await page.locator('a').evaluateAll(links => links.some(link => link.getAttribute('href') === '/login'));
+              if (await page.locator('input[type=email]').count() || loginLink ||
                   await page.locator('app-register-progress .next strong').textContent() !== 'Definir sua senha') {
                 throw new Error('Link return must offer password as the next step without email or login fields');
               }
@@ -560,16 +560,32 @@ jobs:
                   !(await page.locator('app-register-progress [aria-current=step]').textContent()).includes('E-mail')) {
                 throw new Error('Link return must retain the compact legal footer and the email step');
               }
+              const checkPhoto = async (filename) => {
+                const photo = page.locator('.email-link-photo');
+                await photo.evaluate(image => image.decode());
+                const metrics = await photo.evaluate(image => ({
+                  asset: new URL(image.currentSrc).pathname,
+                  photo: image.getBoundingClientRect().toJSON(),
+                  navbarBottom: document.querySelector('app-navbar').getBoundingClientRect().bottom,
+                  footerBottom: document.querySelector('.public-footer--compact').getBoundingClientRect().bottom,
+                  viewport: document.documentElement.clientWidth,
+                  viewportHeight: window.innerHeight,
+                  pageWidth: document.documentElement.scrollWidth,
+                  objectFit: getComputedStyle(image).objectFit,
+                }));
+                if (!metrics.asset.endsWith(filename) || metrics.objectFit !== 'cover' ||
+                    Math.abs(metrics.photo.top - metrics.navbarBottom) > 2 ||
+                    Math.abs(metrics.photo.bottom - metrics.footerBottom) > 2 ||
+                    metrics.photo.bottom < metrics.viewportHeight - 2 ||
+                    Math.abs(metrics.photo.left) > 2 || Math.abs(metrics.photo.right - metrics.viewport) > 2 ||
+                    metrics.pageWidth > metrics.viewport + 1) {
+                  throw new Error('Link return photo must cover the viewport below the navbar and behind the footer');
+                }
+              };
+              await checkPhoto('signup-email-link-wide.webp');
               await page.screenshot({ path: '$OUT/desktop-email-link-return.png', fullPage: true });
               await page.setViewportSize({ width: 390, height: 844 });
-              const photo = page.locator('.signup-backdrop');
-              await photo.evaluate(image => image.decode());
-              const photoBox = await photo.boundingBox();
-              const cardBox = await page.locator('.form-container').boundingBox();
-              if (!photoBox || !cardBox || photoBox.y + photoBox.height > cardBox.y + 2 ||
-                  await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)) {
-                throw new Error('Link return must show the photo above the form without horizontal overflow on mobile');
-              }
+              await checkPhoto('signup-email-link-portrait.webp');
               await page.screenshot({ path: '$OUT/mobile-email-link-return.png', fullPage: true });
 
               await page.reload();
