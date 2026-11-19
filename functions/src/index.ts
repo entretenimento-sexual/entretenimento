@@ -61,6 +61,7 @@ export {
 export { getRegistrationNicknameAvailability } from './registration/get-registration-nickname-availability.handler';
 export {
   prepareEmailLinkRegistration,
+  stageEmailLinkRegistration,
   getEmailLinkRegistrationState,
 } from './registration/email-link-preview.handler';
 

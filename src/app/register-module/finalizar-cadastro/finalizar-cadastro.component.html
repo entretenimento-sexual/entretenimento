@@ -108,7 +108,7 @@
 
       <div class="app-field">
         <label for="gender">
-          Quero me cadastrar como <span class="req" aria-hidden="true">*</span>
+          Identificação do perfil <span class="req" aria-hidden="true">*</span>
           <span class="sr-only">(obrigatório)</span>
         </label>
 
@@ -118,8 +118,8 @@
           name="gender"
           required
           class="app-control"
-          (change)="checkFieldValidity('gender', gender, 'Quero me cadastrar como')"
-          (blur)="checkFieldValidity('gender', gender, 'Quero me cadastrar como')"
+          (change)="checkFieldValidity('gender', gender, 'Identificação do perfil')"
+          (blur)="checkFieldValidity('gender', gender, 'Identificação do perfil')"
           [disabled]="isSubmitting"
           [attr.aria-invalid]="isFieldInvalid('gender') ? 'true' : 'false'"
           [attr.aria-describedby]="isFieldInvalid('gender') ? 'gender-err' : null"
@@ -138,22 +138,24 @@
       </div>
 
       <div class="app-field">
-        <label for="orientation">Eu sou (opcional)</label>
+        <label for="orientation">Orientação sexual (opcional)</label>
 
         <select
           id="orientation"
           [(ngModel)]="orientation"
           name="orientation"
           class="app-control"
+          aria-describedby="orientation-help"
           (change)="onDraftChange()"
           [disabled]="isSubmitting"
         >
-          <option value="" disabled>Selecione...</option>
+          <option value="">Prefiro não informar</option>
           <option value="bissexual">Bissexual</option>
           <option value="homossexual">Homossexual</option>
           <option value="heterossexual">Heterossexual</option>
           <option value="pansexual">Pansexual</option>
         </select>
+        <p class="field-hint" id="orientation-help">Se informada, a orientação aparece no seu perfil.</p>
       </div>
 
       <div class="app-field">

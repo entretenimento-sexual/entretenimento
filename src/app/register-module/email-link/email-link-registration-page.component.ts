@@ -121,13 +121,16 @@ export class EmailLinkRegistrationPageComponent {
     }
 
     const draft = readSignupDraft();
-    const nickname = draft && draft.email.toLowerCase() === user.email?.toLowerCase()
+    const localNickname = draft && draft.email.toLowerCase() === user.email?.toLowerCase()
       ? NicknameUtils.montarApelidoCompleto(draft.apelidoPrincipal, draft.complementoApelido)
       : '';
-    const reserve = nickname && !this.skipNickname
-      ? this.bootstrap.reserveNickname$(uid, nickname)
-      : this.recovery.recoverForUser$(uid).pipe(map(() => void 0));
-    return reserve.pipe(
+    return this.emailLink.preparedNickname$(uid).pipe(
+      switchMap(preparedNickname => {
+        const nickname = preparedNickname ?? localNickname;
+        return nickname && !this.skipNickname
+          ? this.bootstrap.reserveNickname$(uid, nickname)
+          : this.recovery.recoverForUser$(uid).pipe(map(() => void 0));
+      }),
       map(() => true),
       catchError(error => {
         if (error?.details?.reason === 'nickname/in-use') {

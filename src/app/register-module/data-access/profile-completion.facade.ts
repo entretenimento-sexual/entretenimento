@@ -130,7 +130,7 @@ export class ProfileCompletionFacade {
           uid,
           nickname: input.nickname || existingUserData.nickname || '',
           gender: input.gender || existingUserData.gender || '',
-          orientation: input.orientation || existingUserData.orientation || '',
+          orientation: input.orientation ?? existingUserData.orientation ?? '',
           estado: input.estado || existingUserData.estado || '',
           municipio: input.municipio || existingUserData.municipio || '',
         });

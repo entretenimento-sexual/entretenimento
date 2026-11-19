@@ -11,15 +11,7 @@ export interface InitialUserSeedOptions {
   source?: 'auth-trigger' | 'registration-recovery';
 }
 
-export function buildInitialUserSeed(
-  user: UserRecord,
-  options: InitialUserSeedOptions = {}
-): Record<string, unknown> {
-  const now = FieldValue.serverTimestamp();
-  const nowMs = Number.isFinite(options.nowMs)
-    ? Number(options.nowMs)
-    : Date.now();
-
+export function buildRegistrationAuthProjection(user: UserRecord) {
   const authProviders = Array.from(
     new Set(
       (user.providerData ?? [])
@@ -29,6 +21,18 @@ export function buildInitialUserSeed(
   );
 
   const lastProvider = authProviders[0] ?? null;
+  return { emailVerified: user.emailVerified === true, authProviders, lastProvider };
+}
+
+export function buildInitialUserSeed(
+  user: UserRecord,
+  options: InitialUserSeedOptions = {}
+): Record<string, unknown> {
+  const now = FieldValue.serverTimestamp();
+  const nowMs = Number.isFinite(options.nowMs)
+    ? Number(options.nowMs)
+    : Date.now();
+
   const photoURL = String(user.photoURL ?? '').trim();
 
   return {
@@ -41,7 +45,7 @@ export function buildInitialUserSeed(
     role: 'free',
     tier: 'free',
 
-    emailVerified: user.emailVerified === true,
+    ...buildRegistrationAuthProjection(user),
     isSubscriber: false,
     subscriptionStatus: 'inactive',
     accountStatus: 'active',
@@ -67,9 +71,6 @@ export function buildInitialUserSeed(
     publicVisibility: 'hidden',
     interactionBlocked: true,
     loginAllowed: true,
-
-    authProviders,
-    lastProvider,
 
     firstLogin: now,
     registrationDate: now,

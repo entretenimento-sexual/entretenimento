@@ -772,7 +772,11 @@ export class RegisterComponent {
       takeWhile(seconds => seconds > 0, true),
       takeUntilDestroyed(this.destroyRef),
     ).subscribe(seconds => this.resendSeconds.set(seconds));
-    this.emailLink.requestLink$(email).pipe(
+    const nickname = NicknameUtils.montarApelidoCompleto(
+      String(this.form.get('apelidoPrincipal')?.value ?? ''),
+      String(this.form.get('complementoApelido')?.value ?? '')
+    );
+    this.emailLink.requestLink$(email, nickname).pipe(
       finalize(() => this.sendingLink.set(false)),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({

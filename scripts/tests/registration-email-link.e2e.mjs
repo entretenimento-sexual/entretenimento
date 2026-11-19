@@ -7,6 +7,7 @@ import {
 } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
 import { initializeApp as initializeAdminApp, deleteApp as deleteAdminApp } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 
 const projectId = 'demo-entretenimento-media-e2e';
@@ -19,6 +20,7 @@ const apps = [];
 const password = 'SenhaValidacao123!';
 const adminApp = initializeAdminApp({ projectId }, 'email-link-check-' + run);
 const adminAuth = getAdminAuth(adminApp);
+const db = getFirestore(adminApp);
 
 function client(name) {
   const app = initializeApp({ projectId, apiKey: 'fake-api-key' }, name + '-' + run);
@@ -30,9 +32,11 @@ function client(name) {
   return { auth, call: (name, data) => httpsCallable(functions, name)(data) };
 }
 
-async function issueLink(auth, email) {
+async function issueLink(auth, email, draftId) {
+  const url = new URL('http://localhost:4200/register/continuar-por-email');
+  if (draftId) url.searchParams.set('draft', draftId);
   await sendSignInLinkToEmail(auth, email, {
-    url: 'http://localhost:4200/register/continuar-por-email',
+    url: url.href,
     handleCodeInApp: true,
   });
   const codes = await fetch(`http://${authHost}/emulator/v1/projects/${projectId}/oobCodes`);
@@ -52,7 +56,9 @@ try {
   const sender = client('sender');
   const consumer = client('consumer');
   const email = `novo-${run}@example.test`;
-  const { oobCode, oobLink } = await issueLink(sender.auth, email);
+  const nickname = 'Teste' + run.slice(0, 6);
+  const { data: { draftId } } = await sender.call('stageEmailLinkRegistration', { email, nickname });
+  const { oobCode, oobLink } = await issueLink(sender.auth, email, draftId);
   const prepare = { code: oobCode, confirmsAdult: true };
   await rejects(consumer.call('prepareEmailLinkRegistration', { ...prepare, confirmsAdult: false }), 'invalid-argument');
   await rejects(consumer.call('prepareEmailLinkRegistration', { ...prepare, email: 'outro@example.test' }),
@@ -85,7 +91,43 @@ try {
   await new Promise(resolve => setTimeout(resolve, 1_100));
   await updatePassword(credential.user, password);
   await reauthenticateWithCredential(credential.user, EmailAuthProvider.credential(email, password));
-  assert.equal((await state(uid)).data.passwordRequired, false);
+  assert.deepEqual((await state(uid)).data, { passwordRequired: false, nickname });
+  const reservation = await consumer.call('reserveRegistrationNickname', { ...expectedUid, nickname });
+  assert.equal(reservation.data.nickname, nickname);
+  const privateRef = db.collection('users').doc(uid);
+  const declarationRef = db.collection('adult_self_declarations').doc(uid);
+  const indexRef = db.collection('public_index').doc('nickname:' + nickname.toLowerCase());
+  const publicRef = db.collection('public_profiles').doc(uid);
+  const beforeTerms = (await privateRef.get()).data();
+  assert.equal(beforeTerms.nickname, nickname);
+  assert.equal(beforeTerms.emailVerified, true);
+  assert.ok(beforeTerms.authProviders.includes('password'));
+  assert.equal(beforeTerms.profileCompleted, false);
+  assert.equal(beforeTerms.acceptedTerms.accepted, false);
+  assert.equal((await adminAuth.getUser(uid)).displayName, nickname);
+  assert.equal((await indexRef.get()).get('uid'), uid);
+  assert.equal((await publicRef.get()).exists, false);
+  assert.equal((await declarationRef.get()).exists, false);
+  const terms = { ...expectedUid, acceptedTerms: true, acknowledgedPrivacyNotice: true };
+  assert.equal((await consumer.call('acceptPlatformTerms', terms)).data.signupAdultDeclarationRecorded, true);
+  const declared = (await declarationRef.get()).data();
+  assert.ok(declared.declaredAtMs <= declared.termsAcceptedAtMs);
+  assert.equal(declared.legalSnapshotCapturedAtDeclaration, false);
+  await consumer.call('refreshMyAgeEligibility', {});
+  assert.equal((await db.collection('age_eligibility_records').doc(uid).get()).get('status'), 'SELF_DECLARED_ADULT');
+  await consumer.call('acceptPlatformTerms', terms);
+  assert.equal((await declarationRef.get()).get('declaredAtMs'), declared.declaredAtMs);
+  await consumer.call('completeRegistrationProfile', {
+    uid, nickname, gender: 'homem', orientation: 'pansexual', estado: 'RJ', municipio: 'Rio de Janeiro',
+  });
+  const completed = (await privateRef.get()).data();
+  assert.equal(completed.profileCompleted, true);
+  assert.equal(completed.gender, 'homem');
+  assert.equal(completed.orientation, 'pansexual');
+  const publicProfile = (await publicRef.get()).data();
+  assert.equal(publicProfile.nickname, nickname);
+  assert.equal(publicProfile.orientation, 'pansexual');
+  assert.equal('email' in publicProfile, false);
   assert.equal((await signInWithEmailAndPassword(sender.auth, email, password)).user.uid, uid);
   await rejects(client('used-link').call('prepareEmailLinkRegistration', prepare),
     'failed-precondition', 'registration/email-link-unavailable');

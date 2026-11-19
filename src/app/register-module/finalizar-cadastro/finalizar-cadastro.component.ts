@@ -470,7 +470,7 @@ implements OnInit, UnsavedChangesAware
     }
 
     this.checkFieldValidity('nickname', this.nickname, 'Apelido');
-    this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
+    this.checkFieldValidity('gender', this.gender, 'Identificação do perfil');
     this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
     this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
 

@@ -51,6 +51,8 @@ export class RegisterProgressComponent {
     this.position() + (this.completed() ? 1 : 0)
   );
   protected readonly upcomingAction = computed(() =>
-    this.nextAction() ?? this.stages()[this.position() + 1]?.action ?? null
+    this.nextAction() ??
+    (this.step() === 'termsAcceptance' && this.showsPasswordStep()
+      ? 'Validar o registro de maioridade' : this.stages()[this.position() + 1]?.action) ?? null
   );
 }

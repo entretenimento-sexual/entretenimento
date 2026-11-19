@@ -153,7 +153,7 @@ describe('RegisterComponent', () => {
       submit.click();
       preview.detectChanges();
       expect(submit.textContent).toContain('Enviando link');
-      expect(request).toHaveBeenCalledWith('teste@example.com');
+      expect(request).toHaveBeenCalledWith('teste@example.com', 'visualteste');
       expect(registerService.registerUser).not.toHaveBeenCalled();
       response.next();
       response.complete();
@@ -175,7 +175,7 @@ describe('RegisterComponent', () => {
       submit.click();
       preview.detectChanges();
       expect(request).toHaveBeenCalledTimes(2);
-      expect(request).toHaveBeenLastCalledWith('teste@example.com');
+      expect(request).toHaveBeenLastCalledWith('teste@example.com', 'visualteste');
       expect(view.querySelector('header p')?.textContent).toContain('Envio sem confirmação');
       expect(view.querySelector('.alert')).toBeNull();
       view.querySelector<HTMLButtonElement>('.signup-actions button[type=button]')!.click();

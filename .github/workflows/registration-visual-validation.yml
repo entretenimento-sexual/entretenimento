@@ -531,6 +531,14 @@ jobs:
             playwright-cli run-code "async (page) => {
               await page.setViewportSize({ width: 1440, height: 1000 });
               const email = 'visual@example.test';
+              // Este job visual roda com Auth Emulator. A Function real é coberta pelo job de integração.
+              await page.route('**/stageEmailLinkRegistration', route => route.fulfill({
+                headers: {
+                  'access-control-allow-origin': '*',
+                  'access-control-allow-headers': 'content-type, authorization, x-firebase-appcheck, firebase-instance-id-token',
+                },
+                json: { result: { draftId: 'f631dbea-3db0-4c0a-a147-3b941ab14386' } },
+              }));
               await page.getByRole('button', { name: 'Enviar link', exact: true }).click();
               await page.getByRole('heading', { name: 'Confira seu e-mail', exact: true }).waitFor();
               if (await page.locator('#email').count() || (await page.locator('.form-container').textContent()).includes(email)) {

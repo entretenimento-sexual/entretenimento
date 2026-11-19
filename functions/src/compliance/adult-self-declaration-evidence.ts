@@ -20,6 +20,7 @@ export function writeAdultSelfDeclarationEvidence(
     uid: string;
     declaredAtMs: number;
     origin: 'LIVE_DECLARATION' | 'MIGRATED_EXISTING_AUDIT' | 'SIGNUP_FORM';
+    legalSnapshotCapturedAtDeclaration?: boolean;
     legal: {
       termsAcceptanceVersion: string;
       termsDocumentVersion: string;
@@ -56,7 +57,7 @@ export function writeAdultSelfDeclarationEvidence(
     declarationTextVersion,
     declarationText: migrated ? null : ADULT_SELF_DECLARATION_TEXT_PT_BR,
     exactDeclarationTextCaptured: !migrated,
-    legalSnapshotCapturedAtDeclaration: !migrated,
+    legalSnapshotCapturedAtDeclaration: input.legalSnapshotCapturedAtDeclaration ?? !migrated,
     ...legal,
   });
   transaction.create(auditRef, {

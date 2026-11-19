@@ -15,6 +15,9 @@ export function usesRegistrationPresentation(url: string): boolean {
   const path = url.trim().split(/[?#]/)[0].replace(/\/$/, '');
   return path === '/register' ||
     path === '/register/enviar-link' ||
+    path === '/register/aceitar-termos' ||
+    path === '/adulto/verificar-idade' ||
+    path === '/register/finalizar-cadastro' ||
     isRegistrationEmailLinkStep(path);
 }
 

@@ -85,17 +85,27 @@ export class EmailLinkRegistrationService {
    * A declaração pré-Auth é exigida ao CONSUMIR o link (inclusive noutro dispositivo).
    * Sem retry automático: timeout de envio não prova que o e-mail não foi enviado.
    */
-  requestLink$(emailInput: string): Observable<void> {
+  requestLink$(emailInput: string, nickname?: string): Observable<void> {
     return defer(() => {
       this.assertPreview();
       this.assertNoSession();
       const email = checkedEmail(emailInput);
       const origin = this.localOrigin();
-      const settings = {
-        url: `${origin}${EMAIL_LINK_REGISTRATION_ROUTE}`,
-        handleCodeInApp: true,
-      };
-      return from(this.firebase.sendSignInLinkToEmail(this.auth, email, settings)).pipe(
+      const target = new URL(EMAIL_LINK_REGISTRATION_ROUTE, origin);
+      const stage$: Observable<string | null> = nickname
+        ? from(this.callable<{ email: string; nickname: string }, { draftId: string }>(
+            'stageEmailLinkRegistration'
+          )({ email, nickname })).pipe(map(({ data }) => data.draftId))
+        : of(null);
+      return stage$.pipe(
+        switchMap(draftId => {
+          this.assertNoSession();
+          if (draftId) target.searchParams.set('draft', draftId);
+          return this.firebase.sendSignInLinkToEmail(this.auth, email, {
+            url: target.href,
+            handleCodeInApp: true,
+          });
+        }),
         timeout({ first: ACTION_TIMEOUT_MS }),
         map(() => void 0)
       );
@@ -222,9 +232,21 @@ export class EmailLinkRegistrationService {
     }).pipe(catchError((error: unknown) => this.reportAndRethrow(error, 'setEmailLinkPassword')));
   }
 
-  private readPasswordRequired$(expectedUid: string): Observable<boolean> {
-    const state = this.callable<{ expectedUid: string }, { passwordRequired: boolean }>('getEmailLinkRegistrationState');
-    return from(state({ expectedUid })).pipe(map(({ data }) => data.passwordRequired));
+  preparedNickname$(uid: string): Observable<string | null> {
+    return this.readRegistrationState$(uid).pipe(map(state => state.nickname ?? null));
+  }
+
+  private readPasswordRequired$(uid: string): Observable<boolean> {
+    return this.readRegistrationState$(uid).pipe(map(state => state.passwordRequired));
+  }
+
+  private readRegistrationState$(uid: string): Observable<{ passwordRequired: boolean; nickname?: string }> {
+    return defer(() => {
+      const query = this.callable<{ expectedUid: string }, { passwordRequired: boolean; nickname?: string }>(
+        'getEmailLinkRegistrationState'
+      );
+      return from(query({ expectedUid: uid })).pipe(map(({ data }) => data));
+    });
   }
 
   private consumeForUid$(uid: string, version: number, email: string, link: string): Observable<EmailLinkRegistrationIdentity> {

@@ -9,7 +9,7 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue, Timestamp, auth } from '../firebaseApp';
 import { assertCallableAppCheck } from '../shared/security/callable-app-check';
 import { TERMS_ACCEPTANCE_VERSION } from '../compliance/platform-legal.constants';
-import { buildInitialUserSeed } from '../auth/user-registration-seed';
+import { buildInitialUserSeed, buildRegistrationAuthProjection } from '../auth/user-registration-seed';
 import {
   PROFILE_IDENTITY_CATALOG_VERSION, isSelectableProfileIdentityCode,
 } from '../identity/profile-identity.catalog';
@@ -165,6 +165,7 @@ export const reserveRegistrationNickname = onCall<{ nickname?: unknown; expected
       // Idempotent under Auth onCreate races. Never reset consent, billing or age.
       if (userSnap.exists) {
         tx.update(userRef, {
+          ...buildRegistrationAuthProjection(authUser),
           nickname: nickname.display,
           nicknameNormalized: nickname.key,
           ...(!Array.isArray(user['nicknameHistory']) || user['nicknameHistory'].length === 0
@@ -286,7 +287,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
         gender, declaredIdentityCode: gender,
         identityCatalogVersion: PROFILE_IDENTITY_CATALOG_VERSION,
         orientation, estado, municipio,
-        emailVerified: true,
+        ...buildRegistrationAuthProjection(authUser),
         profileCompleted: true, publicVisibility: 'visible',
         interactionBlocked: false, registrationCompletedAt: now,
         updatedAt: now, updatedAtMs: nowMs,

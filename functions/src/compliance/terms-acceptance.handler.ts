@@ -60,8 +60,8 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
     }
 
     const signupVersion = request.data?.signupAdultDeclarationVersion;
-    const recordSignupDeclaration = signupVersion !== undefined;
-    if (recordSignupDeclaration) {
+    const signupDeclarationRequested = signupVersion !== undefined;
+    if (signupDeclarationRequested) {
       assertCallableAppCheck(request.app);
       if (request.data?.expectedUid !== uid) {
         throw new HttpsError('permission-denied', 'A conta ativa mudou durante o cadastro.');
@@ -92,6 +92,14 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
       }
 
       const userData = userSnap.data() ?? {};
+      const emailLinkEvidence = emailLinkSignupEvidenceRef(uid);
+      const preparedDeclaration = emailLinkEvidence && userData.profileCompleted !== true &&
+        request.auth?.token?.email_verified === true
+        ? (await tx.get(emailLinkEvidence)).data() : undefined;
+      const preparedAtMs = preparedDeclaration?.adultDeclaredAtMs;
+      const usePreparedDeclaration = preparedDeclaration?.adultDeclarationVersion === ADULT_SELF_DECLARATION_VERSION &&
+        typeof preparedAtMs === 'number' && preparedAtMs > 0 && preparedAtMs <= nowMs;
+      const recordSignupDeclaration = signupDeclarationRequested || usePreparedDeclaration;
       const previous = (userData.acceptedTerms ?? {}) as Record<string, unknown>;
       const normalizedPreviousVersion = String(previous.version ?? '').trim();
       const priorDate = previous.acceptedAt ?? previous.date;
@@ -123,8 +131,9 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
         if (!evidence.exists) {
           writeAdultSelfDeclarationEvidence(tx, {
             uid,
-            declaredAtMs: nowMs,
+            declaredAtMs: usePreparedDeclaration ? preparedAtMs : nowMs,
             origin: 'SIGNUP_FORM',
+            legalSnapshotCapturedAtDeclaration: !usePreparedDeclaration,
             legal: {
               termsAcceptanceVersion: TERMS_ACCEPTANCE_VERSION,
               termsDocumentVersion: TERMS_DOCUMENT_VERSION,
@@ -135,7 +144,7 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
           });
         }
         if (previouslyAcceptedAtMs !== null) {
-          return { acceptedAtMs: previouslyAcceptedAtMs, previousVersion, acceptanceContext };
+          return { acceptedAtMs: previouslyAcceptedAtMs, previousVersion, acceptanceContext, recordSignupDeclaration };
         }
       }
 
@@ -186,17 +195,18 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
        * 18+ é reconciliada em outra etapa, após a verificação do e-mail.
        */
       tx.delete(pendingNotificationRef);
-      return { acceptedAtMs: nowMs, previousVersion, acceptanceContext };
+      return { acceptedAtMs: nowMs, previousVersion, acceptanceContext, recordSignupDeclaration };
     });
 
+    const { recordSignupDeclaration, ...result } = acceptance;
     return {
       ok: true,
       version: TERMS_ACCEPTANCE_VERSION,
       termsDocumentVersion: TERMS_DOCUMENT_VERSION,
       privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
-      ...acceptance,
+      ...result,
       ...(recordSignupDeclaration ? { signupAdultDeclarationRecorded: true as const } : {}),
     };
   }
 );
-import { assertRegistrationPasswordDefined } from '../registration/email-link-preview.handler';
+import { assertRegistrationPasswordDefined, emailLinkSignupEvidenceRef } from '../registration/email-link-preview.handler';

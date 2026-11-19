@@ -7,7 +7,7 @@ import {
   generatePublicProfileId,
   normalizePublicProfileId,
 } from '../identity/public-profile-id';
-import { buildInitialUserSeed } from './user-registration-seed';
+import { buildInitialUserSeed, buildRegistrationAuthProjection } from './user-registration-seed';
 
 export interface RecoverRegistrationSeedResponse {
   ok: true;
@@ -66,11 +66,22 @@ export const recoverRegistrationSeed = onCall<{ expectedUid?: unknown } | null>(
       const existing = await transaction.get(userRef);
 
       if (existing.exists) {
-        if (!normalizePublicProfileId(existing.data()?.['profileId'])) {
+        const data = existing.data() ?? {};
+        const authFields = buildRegistrationAuthProjection(authUser);
+        const identityMissing = !normalizePublicProfileId(data['profileId']);
+        const authFieldsChanged = data['profileCompleted'] !== true && (
+          data['emailVerified'] !== authFields.emailVerified ||
+          data['lastProvider'] !== authFields.lastProvider ||
+          JSON.stringify(data['authProviders']) !== JSON.stringify(authFields.authProviders)
+        );
+        if (identityMissing || authFieldsChanged) {
           transaction.update(userRef, {
-            profileId: generatePublicProfileId(),
+            ...(identityMissing ? { profileId: generatePublicProfileId() } : {}),
+            ...(authFieldsChanged ? authFields : {}),
           });
+        }
 
+        if (identityMissing) {
           transaction.create(auditRef, {
             uid,
             type: 'registration.public_profile_id_recovered',

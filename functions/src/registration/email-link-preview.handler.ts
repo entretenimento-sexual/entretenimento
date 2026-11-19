@@ -3,10 +3,72 @@ import type { UserRecord } from 'firebase-admin/auth';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import { auth } from '../firebaseApp';
+import { auth, db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 
+import { ADULT_SELF_DECLARATION_VERSION } from '../compliance/platform-legal.constants';
+import { normalizeRegistrationNicknameClaim } from './nickname-reservation.policy';
+
 const PREVIEW_UID_PREFIX = 'email-link-preview-';
+const DRAFT_LIFETIME_MS = 30 * 60_000;
+const DRAFT_ID_PATTERN = /^[a-f0-9-]{36}$/;
+
+export function emailLinkSignupEvidenceRef(uid: string) {
+  return isFunctionsEmulatorRuntime() && uid.startsWith(PREVIEW_UID_PREFIX)
+    ? db.collection('registration_email_link_drafts').doc(uid)
+    : null;
+}
+
+export const stageEmailLinkRegistration = isFunctionsEmulatorRuntime() ? onCall<{
+  email?: unknown;
+  nickname?: unknown;
+}>({ region: FUNCTIONS_REGION }, async (request): Promise<{ draftId: string }> => {
+  requireLocalAuth();
+  if (request.auth) throw new HttpsError('permission-denied', 'Encerre a sessão atual antes de continuar.');
+  const email = typeof request.data?.email === 'string' ? request.data.email.trim().toLowerCase() : '';
+  const nickname = normalizeRegistrationNicknameClaim(request.data?.nickname);
+  if (!nickname || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    throw new HttpsError('invalid-argument', 'Confira o apelido e o endereço de e-mail do cadastro.');
+  }
+  const draftId = randomUUID();
+  await db.collection('registration_email_link_drafts').doc(draftId).create({
+    email, nickname: nickname.display, expiresAtMs: Date.now() + DRAFT_LIFETIME_MS,
+  });
+  return { draftId };
+}) : undefined;
+
+function readDraftId(oobLink: string): string | null {
+  const target = new URL(oobLink).searchParams.get('continueUrl');
+  if (!target) return null;
+  const url = new URL(target);
+  if (url.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(url.hostname) ||
+      url.pathname !== '/register/continuar-por-email') throw unavailableLink();
+  const draftId = url.searchParams.get('draft');
+  if (draftId !== null && !DRAFT_ID_PATTERN.test(draftId)) throw unavailableLink();
+  return draftId;
+}
+
+async function bindSignupEvidence(uid: string, email: string, draftId: string | null): Promise<void> {
+  const evidenceRef = emailLinkSignupEvidenceRef(uid);
+  if (!evidenceRef) throw unavailableLink();
+  await db.runTransaction(async tx => {
+    const evidence = await tx.get(evidenceRef);
+    if (evidence.exists) return;
+    let nickname: string | null = null;
+    if (draftId) {
+      const draftRef = evidenceRef.parent.doc(draftId);
+      const draft = (await tx.get(draftRef)).data();
+      if (!draft || draft.email !== email || draft.expiresAtMs < Date.now()) throw unavailableLink();
+      nickname = draft.nickname;
+      tx.delete(draftRef);
+    }
+    tx.create(evidenceRef, {
+      nickname,
+      adultDeclaredAtMs: Date.now(),
+      adultDeclarationVersion: ADULT_SELF_DECLARATION_VERSION,
+    });
+  });
+}
 
 function unavailableLink(): HttpsError {
   return new HttpsError('failed-precondition', 'Este link não pode mais ser usado.', {
@@ -57,31 +119,41 @@ export const prepareEmailLinkRegistration = isFunctionsEmulatorRuntime() ? onCal
     .catch(() => { throw new HttpsError('unavailable', 'Não foi possível consultar o Auth Emulator.'); });
   if (!response.ok) throw new HttpsError('unavailable', 'Não foi possível validar o link agora.');
   const { oobCodes } = await response.json() as {
-    oobCodes?: { email: string; oobCode: string; requestType: string }[];
+    oobCodes?: { email: string; oobCode: string; oobLink: string; requestType: string }[];
   };
   const link = oobCodes?.find(entry => entry.requestType === 'EMAIL_SIGNIN' && entry.oobCode === code);
-  const email = link?.email.trim().toLowerCase();
+  if (!link) throw unavailableLink();
+  const email = link.email.trim().toLowerCase();
   if (!email || (previousClientEmail !== undefined &&
       (typeof previousClientEmail !== 'string' || previousClientEmail.trim().toLowerCase() !== email))) {
     throw unavailableLink();
   }
 
+  const draftId = readDraftId(link.oobLink);
+  // Confira o rascunho antes de criar uma conta. A transação confirma a
+  // vinculação e permite que a mesma preparação seja retomada.
   const existing = await findAccount(email);
-  if (existing) {
-    if (!isPreviewAccount(existing) || existing.passwordHash) throw unavailableLink();
-    return { uid: existing.uid, email };
+  if (existing && (!isPreviewAccount(existing) || existing.passwordHash)) throw unavailableLink();
+  if (draftId && !existing) {
+    const draft = (await db.collection('registration_email_link_drafts').doc(draftId).get()).data();
+    if (!draft || draft.email !== email || draft.expiresAtMs < Date.now()) throw unavailableLink();
   }
 
-  try {
-    const user = await auth.createUser({ uid: PREVIEW_UID_PREFIX + randomUUID(), email });
-    return { uid: user.uid, email };
-  } catch (error) {
-    if ((error as { code?: string }).code !== 'auth/email-already-exists') throw error;
-    // The Auth uniqueness check arbitrates races with normal signup. Never modify the winner.
-    const winner = await findAccount(email);
-    if (!isPreviewAccount(winner) || winner.passwordHash) throw unavailableLink();
-    return { uid: winner.uid, email };
+  let user: UserRecord;
+  if (existing) {
+    user = existing;
+  } else {
+    try {
+      user = await auth.createUser({ uid: PREVIEW_UID_PREFIX + randomUUID(), email });
+    } catch (error) {
+      if ((error as { code?: string }).code !== 'auth/email-already-exists') throw error;
+      const winner = await findAccount(email);
+      if (!isPreviewAccount(winner) || winner.passwordHash) throw unavailableLink();
+      user = winner;
+    }
   }
+  await bindSignupEvidence(user.uid, email, draftId);
+  return { uid: user.uid, email };
 }) : undefined;
 
 export async function registrationPasswordRequired(uid: string): Promise<boolean> {
@@ -101,11 +173,15 @@ export async function assertRegistrationPasswordDefined(uid: string): Promise<vo
 
 export const getEmailLinkRegistrationState = isFunctionsEmulatorRuntime() ? onCall<{
   expectedUid?: unknown;
-}>({ region: FUNCTIONS_REGION }, async (request): Promise<{ passwordRequired: boolean }> => {
+}>({ region: FUNCTIONS_REGION }, async (request): Promise<{ passwordRequired: boolean; nickname?: string }> => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Confirme seu e-mail para continuar.');
   if (request.data?.expectedUid !== uid) {
     throw new HttpsError('permission-denied', 'A conta ativa mudou durante o cadastro.');
   }
-  return { passwordRequired: await registrationPasswordRequired(uid) };
+  const passwordRequired = await registrationPasswordRequired(uid);
+  const evidenceRef = emailLinkSignupEvidenceRef(uid);
+  if (passwordRequired || !evidenceRef) return { passwordRequired };
+  const nickname = (await evidenceRef.get()).get('nickname');
+  return { passwordRequired, ...(typeof nickname === 'string' ? { nickname } : {}) };
 }) : undefined;
