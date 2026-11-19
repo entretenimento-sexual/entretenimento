@@ -14,6 +14,12 @@ import { FooterRoutingModule } from './footer/footer-routing.module';
 import { accountLifecycleGuard } from './account/guards/account-lifecycle.guard';
 import { registrationStepGuard } from './register-module/data-access/registration-step.guard';
 import { legacyEmailVerificationReturnGuard } from './register-module/data-access/legacy-email-verification-return.guard';
+import { emailLinkSignupPreviewAllowed } from './core/services/autentication/register/email-link-registration.service';
+import { environment } from 'src/environments/environment';
+
+const emailLinkPreviewCanMatch = () => emailLinkSignupPreviewAllowed(environment);
+const loadEmailLinkPage = () => import('./register-module/email-link/email-link-registration-page.component')
+  .then(module => module.EmailLinkRegistrationPageComponent);
 
 const routes: Routes = [
   {
@@ -119,6 +125,25 @@ const routes: Routes = [
         pathMatch: 'full',
       },
 
+      {
+        path: 'register/enviar-link',
+        canMatch: [emailLinkPreviewCanMatch],
+        loadComponent: loadEmailLinkPage,
+        data: { emailLinkMode: 'request', allowUnverified: true },
+      },
+      {
+        path: 'register/continuar-por-email',
+        canMatch: [emailLinkPreviewCanMatch],
+        loadComponent: loadEmailLinkPage,
+        data: { emailLinkMode: 'confirm', allowUnverified: true },
+      },
+      {
+        path: 'register/definir-senha',
+        canMatch: [emailLinkPreviewCanMatch],
+        canActivate: [authGuard],
+        loadComponent: loadEmailLinkPage,
+        data: { emailLinkMode: 'password' },
+      },
       {
         path: 'register',
         loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule),

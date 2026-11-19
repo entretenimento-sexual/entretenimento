@@ -105,6 +105,7 @@ export const refreshMyAgeEligibility = onCall(
     if (!uid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
+    await assertRegistrationPasswordDefined(uid);
 
     return db.runTransaction(async (transaction) => {
       const userRef = db.collection('users').doc(uid);
@@ -341,3 +342,4 @@ export const refreshMyAgeEligibility = onCall(
     });
   }
 );
+import { assertRegistrationPasswordDefined } from '../registration/email-link-preview.handler';

@@ -1,5 +1,5 @@
 // src/app/register-module/data-access/register-flow.facade.ts
-import { Injectable } from '@angular/core';
+import { Injectable, Optional } from '@angular/core';
 
 import { combineLatest, concat, Observable, of } from 'rxjs';
 import {
@@ -17,6 +17,9 @@ import {
   isCurrentAdultAccountAdmissionProjection,
 } from 'src/app/core/services/compliance/trusted-adult-age-assurance.policy';
 import { isCurrentLegalAcceptanceSatisfied } from 'src/app/core/services/compliance/terms-acceptance.service';
+import {
+  EmailLinkRegistrationService, isEmailLinkPreviewUid,
+} from 'src/app/core/services/autentication/register/email-link-registration.service';
 
 import { RegisterNavigationService } from './register-navigation.service';
 import {
@@ -42,7 +45,7 @@ export class RegisterFlowFacade {
       const termsAccepted =
         isCurrentLegalAcceptanceSatisfied(user?.acceptedTerms);
 
-      const resolve = (ageEligibilityAllowed: boolean) => {
+      const resolve = (ageEligibilityAllowed: boolean, passwordRequired = false) => {
         const state: RegisterFlowAccessState = {
           authReady: authReady === true,
           uid,
@@ -53,41 +56,35 @@ export class RegisterFlowFacade {
           termsAccepted,
           ageEligibilityAllowed,
           profileCompleted: user?.profileCompleted === true,
+          passwordRequired,
         };
 
         return this.navigation.resolveVm(state);
       };
 
-      // Registration completion is a one-way, backend-authorized admission.
-      // A later assurance expiry must not restart onboarding for that account.
-      // Lifecycle/account guards handle any subsequent restriction separately.
-      // Perfil completo não é prova de consentimento adulto.
-      // Se o aceite canônico ainda estiver pendente, reconciliamos a idade
-      // antes de escolher a próxima rota para evitar loop idade/consentimento.
-      if (user?.profileCompleted === true) {
-        return of(resolve(true));
+      const continueRegistration = () => {
+        // Uma expiração posterior de elegibilidade não reinicia o cadastro.
+        if (user?.profileCompleted === true) return of(resolve(true));
+
+        if (!authReady || !uid || !emailVerified || !user || !termsAccepted) {
+          return of(resolve(false));
+        }
+
+        return concat(
+          this.ageEligibility.reconcileTrustedStateOncePerSession$().pipe(
+            catchError(() => of(user.ageEligibility))
+          ),
+          this.ageEligibility.current$
+        ).pipe(map(ageState => resolve(isCurrentAdultAccountAdmissionProjection(ageState))));
+      };
+
+      if (!authReady || !uid || !emailVerified || !this.emailLink || !isEmailLinkPreviewUid(uid)) {
+        return continueRegistration();
       }
 
-      const shouldReconcile =
-        authReady === true &&
-        !!uid &&
-        emailVerified &&
-        user !== null &&
-        termsAccepted;
-
-      if (!shouldReconcile) {
-        return of(resolve(false));
-      }
-
-      return concat(
-        this.ageEligibility.reconcileTrustedStateOncePerSession$().pipe(
-          catchError(() => of(user.ageEligibility))
-        ),
-        this.ageEligibility.current$
-      ).pipe(
-        map((ageState) =>
-          resolve(isCurrentAdultAccountAdmissionProjection(ageState))
-        )
+      return this.emailLink.passwordRequired$(uid).pipe(
+        catchError(() => of(true)),
+        switchMap(required => required ? of(resolve(false, true)) : continueRegistration()),
       );
     }),
     distinctUntilChanged((a, b) => this.vmEquals(a, b)),
@@ -103,7 +100,8 @@ export class RegisterFlowFacade {
     private readonly session: AuthSessionService,
     private readonly currentUser: CurrentUserStoreService,
     private readonly ageEligibility: AgeEligibilityService,
-    private readonly navigation: RegisterNavigationService
+    private readonly navigation: RegisterNavigationService,
+    @Optional() private readonly emailLink?: EmailLinkRegistrationService,
   ) {}
 
   private vmEquals(a: RegisterFlowVm, b: RegisterFlowVm): boolean {

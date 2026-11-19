@@ -17,6 +17,11 @@ describe('RegisterNavigationService / onboarding 18+ e Termos', () => {
     const vm = service.resolveVm({ ...ready, userExists: false });
     expect(vm.currentStep).toBe('accountRecovery');
   });
+  it('exige senha confirmada antes de recuperar, aceitar termos ou concluir perfil', () => {
+    const vm = service.resolveVm({ ...ready, passwordRequired: true });
+    expect(vm.currentStep).toBe('passwordSetup');
+    expect(vm.nextRoute).toBe('/register/definir-senha');
+  });
   it('exige termos antes de idade e perfil', () => {
     const vm = service.resolveVm({ ...ready, termsAccepted: false, profileCompleted: false });
     expect(vm.nextRoute).toBe('/register/aceitar-termos');

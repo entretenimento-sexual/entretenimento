@@ -180,6 +180,9 @@
             'is-valid': (submitted() || form.get('email')?.touched) && form.get('email')?.valid
           }" />
         <small id="register-email-help" class="field-hint">Seu e-mail fica fora do perfil público.</small>
+        @if (emailLinkPreview) {
+          <a class="app-action app-action--ghost" routerLink="/register/enviar-link">Testar cadastro por link</a>
+        }
 
         <div *ngIf="getError('email') && (submitted() || form.get('email')?.touched)" id="emailTooltip"
           class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">

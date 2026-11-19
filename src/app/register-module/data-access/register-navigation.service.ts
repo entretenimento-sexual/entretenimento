@@ -1,5 +1,6 @@
 // src/app/register-module/data-access/register-navigation.service.ts
 import { Injectable } from '@angular/core';
+import { EMAIL_LINK_PASSWORD_ROUTE } from '../../core/services/autentication/register/email-link-registration.service';
 
 import {
   RegisterFlowAccessState,
@@ -51,6 +52,20 @@ export class RegisterNavigationService {
         primaryActionLabel: 'Já verifiquei',
         secondaryActionLabel: 'Reenviar e-mail',
         blockingMessage: 'Confirme seu e-mail para continuar com segurança.',
+      };
+    }
+
+    if (state.passwordRequired) {
+      return {
+        ...state,
+        uid,
+        email,
+        currentStep: 'passwordSetup',
+        nextRoute: EMAIL_LINK_PASSWORD_ROUTE,
+        progress: 25,
+        canContinue: true,
+        primaryActionLabel: 'Definir senha',
+        blockingMessage: 'Defina a senha da sua conta antes de continuar.',
       };
     }
 

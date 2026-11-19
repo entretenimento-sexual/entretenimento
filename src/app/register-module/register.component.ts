@@ -43,6 +43,7 @@ import { REGISTRATION_ACTION_TIMEOUT_MS } from './data-access/register-action.po
 import { clearSignupDraft, readSignupDraft, writeSignupDraft } from './data-access/signup-draft.storage';
 
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
+import { emailLinkSignupPreviewAllowed } from 'src/app/core/services/autentication/register/email-link-registration.service';
 import { ADULT_SELF_DECLARATION_TEXT_PT_BR } from 'src/app/core/services/compliance/platform-legal.constants';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -206,6 +207,7 @@ export class RegisterComponent {
   readonly creating = signal(false);
   readonly accountCreated = signal(false);
   readonly adultDeclarationText = ADULT_SELF_DECLARATION_TEXT_PT_BR;
+  readonly emailLinkPreview = emailLinkSignupPreviewAllowed(environment);
   readonly creatingMsg = signal('Estamos criando seu usuário, aguarde…');
   readonly syncing = signal(false);
 

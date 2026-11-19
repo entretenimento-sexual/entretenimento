@@ -139,7 +139,7 @@ jobs:
 
           CHECK_SIGNUP_PHOTO=$(cat <<'PLAYWRIGHT'
           async (page) => {
-            const backdrop = page.locator('.signup-backdrop');
+            const backdrop = page.locator('.signup-scene:not(.signup-scene--inactive) .signup-backdrop');
             await backdrop.evaluate(image => image.decode());
             const framing = await backdrop.evaluate(image => {
               const box = image.getBoundingClientRect();
@@ -259,7 +259,7 @@ jobs:
           playwright-cli screenshot --full-page --filename="$OUT/desktop-initial.png"
           playwright-cli run-code "$CHECK_SIGNUP_PHOTO" | tee "$OUT/desktop-photo-paint.log"
           playwright-cli run-code "async (page) => {
-            await page.locator('.signup-backdrop').evaluate(image => image.decode());
+            await page.locator('.signup-scene:not(.signup-scene--inactive) .signup-backdrop').evaluate(image => image.decode());
             const metrics = await page.evaluate(() => ({
               viewportWidth: window.innerWidth,
               viewportHeight: window.innerHeight,
@@ -323,7 +323,7 @@ jobs:
           playwright-cli screenshot --full-page --filename="$OUT/mobile-initial.png"
           playwright-cli run-code "$CHECK_SIGNUP_PHOTO" | tee "$OUT/mobile-photo-paint.log"
           playwright-cli run-code "async (page) => {
-            await page.locator('.signup-backdrop').evaluate(image => image.decode());
+            await page.locator('.signup-scene:not(.signup-scene--inactive) .signup-backdrop').evaluate(image => image.decode());
             const metrics = await page.evaluate(() => {
               const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
               const inputRect = document.querySelector('.signup-pair--nickname')?.getBoundingClientRect();

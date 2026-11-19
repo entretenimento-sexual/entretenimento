@@ -21,6 +21,7 @@ import {
   resolveStoredRegistrationNickname, type RegistrationNickname,
 } from './nickname-reservation.policy';
 import { hasNicknameOwnerWithoutIndex } from './registration-nickname-availability.policy';
+import { assertRegistrationPasswordDefined } from './email-link-preview.handler';
 
 interface CompleteRegistrationInput {
   uid: unknown;
@@ -138,6 +139,7 @@ export const reserveRegistrationNickname = onCall<{ nickname?: unknown; expected
     if (request.data?.expectedUid !== undefined && request.data.expectedUid !== uid) {
       throw new HttpsError('permission-denied', 'A conta ativa mudou durante o cadastro.');
     }
+    await assertRegistrationPasswordDefined(uid);
     const { display } = nicknameInput(normalizeRegistrationNickname(request.data?.nickname));
     const authUser = await auth.getUser(uid);
     if (authUser.disabled) {
@@ -201,6 +203,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
         reason: 'auth/session-changed',
       });
     }
+    await assertRegistrationPasswordDefined(uid);
 
     const { display } = nicknameInput(normalizeRegistrationNickname(request.data?.nickname));
     const gender = String(request.data?.gender ?? '').trim().toLowerCase();

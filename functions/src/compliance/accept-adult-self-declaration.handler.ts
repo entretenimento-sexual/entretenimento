@@ -145,6 +145,7 @@ export const acceptAdultSelfDeclaration =
           reason: 'auth/session-changed',
         });
       }
+      await assertRegistrationPasswordDefined(uid);
 
       if (request.auth?.token?.email_verified !== true) {
         throw new HttpsError(
@@ -357,3 +358,4 @@ export const acceptAdultSelfDeclaration =
       });
     }
   );
+import { assertRegistrationPasswordDefined } from '../registration/email-link-preview.handler';

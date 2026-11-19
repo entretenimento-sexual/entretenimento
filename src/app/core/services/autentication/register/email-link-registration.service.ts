@@ -1,16 +1,18 @@
 // src/app/core/services/autentication/register/email-link-registration.service.ts
-// Laboratório exclusivamente emulado: API de cadastro por link sem trocar
-// o RegisterService atual. Nenhum campo de senha ou token é persistido aqui.
-import { Injectable } from '@angular/core';
+import { EnvironmentInjector, Injectable, runInInjectionContext } from '@angular/core';
 import { Auth, type UserCredential } from '@angular/fire/auth';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import {
-  getAdditionalUserInfo,
+  beforeAuthStateChanged,
+  EmailAuthProvider,
   isSignInWithEmailLink,
+  parseActionCodeURL,
+  reauthenticateWithCredential,
   sendSignInLinkToEmail,
   signInWithEmailLink,
   updatePassword,
 } from 'firebase/auth';
-import { defer, from, map, Observable, tap, timeout, catchError, throwError } from 'rxjs';
+import { defer, finalize, from, map, Observable, of, switchMap, timeout, catchError, throwError } from 'rxjs';
 
 import { environment } from 'src/environments/environment';
 import { ValidatorService } from '../../general/validator.service';
@@ -18,6 +20,13 @@ import { AuthSessionService } from '../auth/auth-session.service';
 import { ApplicationErrorService } from '../../error-handler/application-error.service';
 
 const ACTION_TIMEOUT_MS = 15_000;
+const PREVIEW_UID_PREFIX = 'email-link-preview-';
+export const EMAIL_LINK_REGISTRATION_ROUTE = '/register/continuar-por-email';
+export const EMAIL_LINK_PASSWORD_ROUTE = '/register/definir-senha';
+
+export function isEmailLinkPreviewUid(uid: string): boolean {
+  return emailLinkSignupPreviewAllowed(environment) && uid.startsWith(PREVIEW_UID_PREFIX);
+}
 type LocalCode =
   | 'registration/email-link-preview-disabled'
   | 'registration/session-active'
@@ -53,18 +62,21 @@ function checkedEmail(input: string): string {
 export interface EmailLinkRegistrationIdentity {
   readonly uid: string;
   readonly email: string;
-  readonly newUser: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
 export class EmailLinkRegistrationService {
-  /** Prova efêmera da criação desta conta pelo link; nunca persistida. */
-  private newlyCreatedLinkIdentity: { uid: string; email: string } | null = null;
+  private readonly firebase = {
+    beforeAuthStateChanged, isSignInWithEmailLink, reauthenticateWithCredential,
+    sendSignInLinkToEmail, signInWithEmailLink, updatePassword,
+  };
 
   constructor(
     private readonly auth: Auth,
     private readonly session: AuthSessionService,
-    private readonly errors: ApplicationErrorService
+    private readonly errors: ApplicationErrorService,
+    private readonly functions: Functions,
+    private readonly injector: EnvironmentInjector,
   ) {}
 
   /**
@@ -79,10 +91,10 @@ export class EmailLinkRegistrationService {
       const email = checkedEmail(emailInput);
       const origin = this.localOrigin();
       const settings = {
-        url: `${origin}/register/continuar-por-email`,
+        url: `${origin}${EMAIL_LINK_REGISTRATION_ROUTE}`,
         handleCodeInApp: true,
       };
-      return from(sendSignInLinkToEmail(this.auth, email, settings)).pipe(
+      return from(this.firebase.sendSignInLinkToEmail(this.auth, email, settings)).pipe(
         timeout({ first: ACTION_TIMEOUT_MS }),
         map(() => void 0)
       );
@@ -92,7 +104,7 @@ export class EmailLinkRegistrationService {
   /**
    * A posse do e-mail não prova maioridade. A declaração precisa ter sido
    * confirmada nesta página antes de qualquer chamada que crie o UID.
-   * Nunca buscar identidade pelo e-mail nem colocar o endereço no link.
+   * O backend valida o código para este endereço e reserva um UID de cadastro.
    */
   completeLink$(
     emailInput: string,
@@ -102,6 +114,7 @@ export class EmailLinkRegistrationService {
     return defer(() => {
       this.assertPreview();
       this.assertNoSession();
+      this.localOrigin();
       if (preAuthAdultDeclared !== true) {
         throw localError(
           'registration/adult-declaration-required',
@@ -109,42 +122,36 @@ export class EmailLinkRegistrationService {
         );
       }
       const email = checkedEmail(emailInput);
-      if (!isSignInWithEmailLink(this.auth, fullLink)) {
+      const action = parseActionCodeURL(fullLink);
+      if (!action || !this.firebase.isSignInWithEmailLink(this.auth, fullLink)) {
         throw localError('registration/invalid-link', 'Este link não é válido para confirmar o e-mail.');
       }
       const sessionVersion = this.session.terminationVersionSnapshot;
-      return from(signInWithEmailLink(this.auth, email, fullLink)).pipe(
-        timeout({ first: ACTION_TIMEOUT_MS }),
-        map((credential: UserCredential) => {
-          if (
-            this.session.isTerminatingSnapshot ||
-            this.session.terminationVersionSnapshot !== sessionVersion ||
-            this.auth.currentUser?.uid !== credential.user.uid ||
-            credential.user.email?.toLowerCase() !== email.toLowerCase() ||
-            credential.user.emailVerified !== true
-          ) {
-            throw localError('registration/session-changed',
-              'A sessão mudou durante a confirmação. Confira a conta antes de continuar.');
-          }
-          const newUser = getAdditionalUserInfo(credential)?.isNewUser === true;
-          // Nunca oferecer redefinição silenciosa da senha de uma conta preexistente.
-          this.newlyCreatedLinkIdentity = newUser
-            ? { uid: credential.user.uid, email }
-            : null;
-          return {
-            uid: credential.user.uid,
-            email,
-            newUser,
-          };
-        })
+      const prepare = this.callable<{ email: string; code: string; confirmsAdult: boolean }, { uid: string }>(
+        'prepareEmailLinkRegistration'
+      );
+      return from(prepare({ email, code: action.code, confirmsAdult: true })).pipe(
+        switchMap(({ data }) => {
+          this.assertNoSession();
+          if (this.session.terminationVersionSnapshot !== sessionVersion ||
+              !data?.uid?.startsWith(PREVIEW_UID_PREFIX)) throw this.sessionChanged();
+          return this.consumeForUid$(data.uid, sessionVersion, email, fullLink);
+        }),
+        timeout({ first: ACTION_TIMEOUT_MS })
       );
     }).pipe(catchError((error: unknown) => this.reportAndRethrow(error, 'completeEmailLink')));
   }
 
   /**
-   * A futura página de senha informa explicitamente o UID retornado pelo link.
-   * Nenhum valor desta etapa entra em Firestore, sessionStorage ou telemetry.
+   * Consulta somente a conta emulada autenticada. O backend lê a credencial no Auth.
    */
+  passwordRequired$(uid: string): Observable<boolean> {
+    return defer(() => {
+      if (!isEmailLinkPreviewUid(uid)) return of(false);
+      return this.readPasswordRequired$(uid);
+    });
+  }
+
   setPassword$(
     expectedUid: string,
     expectedEmail: string,
@@ -153,6 +160,7 @@ export class EmailLinkRegistrationService {
   ): Observable<void> {
     return defer(() => {
       this.assertPreview();
+      this.localOrigin();
       const user = this.auth.currentUser;
       const uid = expectedUid.trim();
       const email = checkedEmail(expectedEmail);
@@ -160,15 +168,14 @@ export class EmailLinkRegistrationService {
         !uid || user?.uid !== uid ||
         user.email?.toLowerCase() !== email.toLowerCase() ||
         user.emailVerified !== true ||
-        this.session.isTerminatingSnapshot ||
-        this.newlyCreatedLinkIdentity?.uid !== uid ||
-        this.newlyCreatedLinkIdentity?.email.toLowerCase() !== email.toLowerCase()
+        this.session.isTerminatingSnapshot || !uid.startsWith(PREVIEW_UID_PREFIX)
       ) {
         throw localError('registration/session-changed',
           'A conta ativa mudou. Confirme sua identidade novamente para criar a senha.');
       }
       if (
         password !== confirmation ||
+        password.length > 128 ||
         !ValidatorService.isValidPassword(password, 8)
       ) {
         throw localError('registration/invalid-password',
@@ -176,23 +183,75 @@ export class EmailLinkRegistrationService {
       }
 
       const sessionVersion = this.session.terminationVersionSnapshot;
-      return from(updatePassword(user, password)).pipe(
-        timeout({ first: ACTION_TIMEOUT_MS }),
-        tap(() => {
-          if (
-            this.session.isTerminatingSnapshot ||
-            this.session.terminationVersionSnapshot !== sessionVersion ||
-            this.auth.currentUser?.uid !== uid
-          ) {
-            this.newlyCreatedLinkIdentity = null;
-            throw localError('registration/session-changed',
-              'A sessão mudou ao definir a senha. Verifique sua conta antes de continuar.');
-          }
-          this.newlyCreatedLinkIdentity = null;
+      const assertSession = () => {
+        if (this.session.isTerminatingSnapshot || this.session.terminationVersionSnapshot !== sessionVersion ||
+            this.auth.currentUser !== user) throw this.sessionChanged();
+      };
+      const reauthenticate$ = () => defer(() => {
+        assertSession();
+        return from(this.firebase.reauthenticateWithCredential(user, EmailAuthProvider.credential(email, password)));
+      });
+      const readState$ = () => defer(() => {
+        assertSession();
+        return this.readPasswordRequired$(uid);
+      });
+      return readState$().pipe(
+        catchError(error => error?.code === 'functions/unauthenticated'
+          ? reauthenticate$().pipe(switchMap(readState$))
+          : throwError(() => error)),
+        switchMap(required => {
+          assertSession();
+          if (!required) return of(false);
+          // Auth may revoke the email-link token when the password is defined.
+          return from(this.firebase.updatePassword(user, password)).pipe(
+            switchMap(reauthenticate$),
+            switchMap(readState$),
+          );
         }),
-        map(() => void 0)
+        map(required => {
+          assertSession();
+          if (required) throw localError('registration/invalid-password', 'Sua senha ainda não foi confirmada. Tente novamente.');
+        }),
+        timeout({ first: ACTION_TIMEOUT_MS }),
       );
     }).pipe(catchError((error: unknown) => this.reportAndRethrow(error, 'setEmailLinkPassword')));
+  }
+
+  private readPasswordRequired$(expectedUid: string): Observable<boolean> {
+    const state = this.callable<{ expectedUid: string }, { passwordRequired: boolean }>('getEmailLinkRegistrationState');
+    return from(state({ expectedUid })).pipe(map(({ data }) => data.passwordRequired));
+  }
+
+  private consumeForUid$(uid: string, version: number, email: string, link: string): Observable<EmailLinkRegistrationIdentity> {
+    let cancelled = false;
+    const removeGuard = this.firebase.beforeAuthStateChanged(this.auth, next => {
+      if (next?.uid === uid && (cancelled || this.session.isTerminatingSnapshot ||
+          this.session.terminationVersionSnapshot !== version || this.auth.currentUser !== null)) {
+        throw this.sessionChanged();
+      }
+    });
+    return from(this.firebase.signInWithEmailLink(this.auth, email, link).finally(removeGuard)).pipe(
+      map((credential: UserCredential) => {
+        if (credential.user.uid !== uid || this.auth.currentUser?.uid !== uid ||
+            this.session.isTerminatingSnapshot || this.session.terminationVersionSnapshot !== version ||
+            credential.user.email?.toLowerCase() !== email.toLowerCase() || !credential.user.emailVerified) {
+          throw this.sessionChanged();
+        }
+        return { uid, email };
+      }),
+      catchError(error => throwError(() => error?.code === 'auth/login-blocked' ? this.sessionChanged() : error)),
+      finalize(() => { cancelled = true; }),
+    );
+  }
+
+  private sessionChanged(): LocalError {
+    return localError('registration/session-changed', 'A sessão mudou durante o cadastro. Confira a conta antes de continuar.');
+  }
+
+  private callable<Input, Result>(name: string) {
+    return runInInjectionContext(this.injector, () => httpsCallable<Input, Result>(this.functions, name, {
+      timeout: ACTION_TIMEOUT_MS,
+    }));
   }
 
   private assertPreview(): void {
@@ -222,7 +281,8 @@ export class EmailLinkRegistrationService {
   private reportAndRethrow(error: unknown, operation: string): Observable<never> {
     if ((error as Partial<LocalError> | null)?.localValidation !== true) {
       try {
-        this.errors.report(error, {
+        // Nunca encaminhar detalhes que possam conter endereço, código ou senha.
+        this.errors.report({ code: (error as { code?: string } | null)?.code }, {
           feature: 'registration-email-link-preview',
           operation,
           fallbackMessage: 'Não foi possível concluir esta etapa do e-mail.',

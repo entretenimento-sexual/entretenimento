@@ -47,6 +47,7 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
     if (request.data?.expectedUid !== undefined && request.data.expectedUid !== uid) {
       throw new HttpsError('permission-denied', 'A conta ativa mudou durante o aceite dos termos.');
     }
+    await assertRegistrationPasswordDefined(uid);
 
     if (
       request.data?.acceptedTerms !== true ||
@@ -198,3 +199,4 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
     };
   }
 );
+import { assertRegistrationPasswordDefined } from '../registration/email-link-preview.handler';

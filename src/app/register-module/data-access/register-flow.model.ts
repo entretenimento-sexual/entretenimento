@@ -4,6 +4,7 @@ export type RegisterFlowStep =
   | 'loading'
   | 'signup'
   | 'emailVerification'
+  | 'passwordSetup'
   | 'accountRecovery'
   | 'termsAcceptance'
   | 'ageVerification'
@@ -18,6 +19,7 @@ export function isRegistrationStartRoute(url: string): boolean {
 export function isRegistrationStepRoute(url: string): boolean {
   const path = url.split(/[?#]/)[0];
   return path === '/register/welcome' ||
+    path === '/register/definir-senha' ||
     path === '/register/recuperar-conta' ||
     path === '/register/aceitar-termos' ||
     path === '/adulto/verificar-idade' ||
@@ -44,6 +46,7 @@ export interface RegisterFlowVm {
 }
 
 export interface RegisterFlowAccessState {
+  passwordRequired?: boolean;
   authReady: boolean;
   uid: string | null;
   email: string | null;

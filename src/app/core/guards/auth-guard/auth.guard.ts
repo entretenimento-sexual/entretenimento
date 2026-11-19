@@ -16,6 +16,10 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
+  EMAIL_LINK_PASSWORD_ROUTE, EmailLinkRegistrationService, emailLinkSignupPreviewAllowed, isEmailLinkPreviewUid,
+} from '../../services/autentication/register/email-link-registration.service';
+import { environment } from 'src/environments/environment';
+import {
   AUTH_GUARD_WAIT_MS,
   buildAuthRetryTree,
   buildRedirectTree,
@@ -35,6 +39,8 @@ export const authGuard: CanActivateFn = (_route, state): Observable<GuardResult>
   const notify = inject(ErrorNotificationService);
 
   const appBlock = inject(AuthAppBlockService);
+  const emailLink = emailLinkSignupPreviewAllowed(environment) ? inject(EmailLinkRegistrationService) : null;
+  const isPasswordRoute = state.url.split(/[?#]/, 1)[0] === EMAIL_LINK_PASSWORD_ROUTE;
   const toLogin = (showReason = true) => buildRedirectTree(
     router, '/login', state.url, showReason
       ? { reason: appBlock.invalidationSnapshot?.reason ?? 'session-ended' }
@@ -59,8 +65,7 @@ export const authGuard: CanActivateFn = (_route, state): Observable<GuardResult>
         if (appBlock.snapshot === 'auth-invalid' && appBlock.invalidationSnapshot?.uid === uid) {
           return of(toLogin());
         }
-        guardLog('auth', 'ready:true', 'uid:', uid, 'ok:', true, 'url:', state.url);
-        return of(true);
+        return permitSession(uid);
       }
 
       if (appBlock.invalidationSnapshot && !authSession.currentAuthUser) return of(toLogin());
@@ -78,18 +83,19 @@ export const authGuard: CanActivateFn = (_route, state): Observable<GuardResult>
       ]).pipe(
         filter(([restoredUid, isTerminating]) => !!restoredUid || isTerminating),
         take(1),
-        map(([restoredUid, isTerminating]) => !isTerminating && !!restoredUid &&
-          !(appBlock.snapshot === 'auth-invalid' && appBlock.invalidationSnapshot?.uid === restoredUid)),
+        map(([restoredUid, isTerminating]) => !isTerminating && restoredUid &&
+          !(appBlock.snapshot === 'auth-invalid' && appBlock.invalidationSnapshot?.uid === restoredUid)
+          ? restoredUid : null),
         timeout({
           first: AUTH_REFRESH_GRACE_MS,
-          with: () => of(false),
+          with: () => of(null),
         }),
-        map((authorized): GuardResult => {
+        switchMap((restoredUid): Observable<GuardResult> => {
           guardLog('auth', 'restoration finished', {
-            ok: authorized,
+            ok: !!restoredUid,
             url: state.url,
           });
-          return authorized ? true : toLogin(!authSession.isTerminatingSnapshot);
+          return restoredUid ? permitSession(restoredUid) : of(toLogin(!authSession.isTerminatingSnapshot));
         })
       );
     }),
@@ -110,4 +116,12 @@ export const authGuard: CanActivateFn = (_route, state): Observable<GuardResult>
       return of(buildRedirectTree(router, '/login', state.url, { reason: 'auth_error' }));
     })
   );
+
+  function permitSession(uid: string): Observable<GuardResult> {
+    if (!emailLink || !isEmailLinkPreviewUid(uid) || isPasswordRoute) return of(true);
+    return emailLink.passwordRequired$(uid).pipe(
+      map(required => required ? router.parseUrl(EMAIL_LINK_PASSWORD_ROUTE) : true),
+      catchError(() => of(router.parseUrl(EMAIL_LINK_PASSWORD_ROUTE))),
+    );
+  }
 };

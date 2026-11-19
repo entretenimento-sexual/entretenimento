@@ -50,8 +50,12 @@ export class RegistrationBootstrapService {
   createEmailPasswordSeed$(
     input: EmailPasswordRegistrationBootstrapInput
   ): Observable<void> {
-    const uid = this.cleanText(input.uid);
-    const nickname = this.cleanText(input.userData?.nickname);
+    return this.reserveNickname$(input.uid, input.userData?.nickname, input.traceId);
+  }
+
+  reserveNickname$(expectedUid: string, displayNickname: string, traceId?: string): Observable<void> {
+    const uid = this.cleanText(expectedUid);
+    const nickname = this.cleanText(displayNickname);
     const normalized = this.normalizeNickname(nickname);
     if (!uid) {
       return throwError(
@@ -89,7 +93,7 @@ export class RegistrationBootstrapService {
         }),
         catchError((error) => {
           this.reportOperationalError(error, 'createEmailPasswordSeed', {
-            uid, traceId: input.traceId ?? null,
+            uid, traceId: traceId ?? null,
             nicknamePresent: !!nickname, normalizedLength: normalized.length,
           });
           return throwError(() => error);

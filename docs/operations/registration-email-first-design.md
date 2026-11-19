@@ -56,6 +56,14 @@ As duas cenas fotográficas WebP foram integradas à `main` no commit `4f3922c7`
 ## Fase técnica A — preparação da autenticação por link (sem cutover)
 
 - Criado `EmailLinkRegistrationService` com APIs RxJS para solicitar link, consumi-lo após declaração 18+ e definir senha para UID esperado, com tratamento de erro centralizado e nenhuma gravação de segredo.
-- Habilitação estritamente limitada ao emulador e à flag `emailFirstSignupPreview`. Nenhuma rota ou botão produtivo chama o serviço; o `RegisterService` atual continua sendo a única entrada de cadastro.
+- A fase técnica A limitou o serviço ao emulador e à flag `emailFirstSignupPreview`. O `RegisterService` era a única entrada de cadastro nessa fase.
 - A confirmação do link usa a API `signInWithEmailLink` (não `applyActionCode`) e compara UID e e-mail resultantes com a sessão corrente.
-- Antes de ligar a UI, falta implementar a etapa `passwordSetup` com autoridade backend e guarda de navegação, o tratamento de contas preexistentes e os E2E com links usados/expirados, sessão trocada e retorno em outro dispositivo. A simples presença do serviço não autoriza ativar o fluxo.
+- A interface depende da autoridade backend de `passwordSetup`, da proteção de contas preexistentes e dos testes com links usados, sessão trocada e retorno em outro dispositivo.
+
+## Fase técnica B — prévia na interface emulada
+
+- A etapa de e-mail do cadastro oferece a opção **Testar cadastro por link** em `dev-emu`. O link é registrado no log do Auth Emulator e pode ser aberto em outra aba ou navegador. A página de retorno pede o mesmo endereço e a declaração 18+ antes da chamada de autenticação.
+- No emulador, `prepareEmailLinkRegistration` confirma o código e o destinatário no Auth local e reserva um UID por meio da unicidade do Firebase Auth. Antes do consumo nativo, recusa contas fora da prévia e contas cuja senha já foi configurada. A resposta de envio permanece genérica.
+- `passwordSetup` consulta a credencial no Auth Emulator e limita a definição de senha à sessão e ao UID esperados. As operações de Termos, maioridade, reserva de apelido e perfil conferem a credencial no backend. A tela consulta o que foi salvo antes de repetir uma gravação de senha que ficou sem confirmação.
+- O rascunho da mesma aba pode reaproveitar o apelido no índice atual. Se o apelido ficou indisponível ou o usuário abriu o link em outro navegador, pode escolher o apelido na conclusão do perfil. A aplicação usa a senha e o código apenas em memória.
+- Os callables desta fase são exportados somente no Functions Emulator. A reserva baseada na verificação local de códigos é específica da prévia. A arquitetura para habilitação remota e os critérios de virada continuam pendentes.

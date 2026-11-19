@@ -158,7 +158,7 @@ export const registrationStepGuard: CanActivateFn = (
     filter((vm) => vm.authReady === true),
     filter(
       (vm) =>
-        vm.currentStep === 'emailVerification' ||
+        vm.currentStep === 'emailVerification' || vm.currentStep === 'passwordSetup' ||
         vm.userResolved === true
     ),
     take(1),
