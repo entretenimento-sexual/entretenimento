@@ -33,7 +33,14 @@
   inline-size: 100%;
   block-size: 100dvh;
   overflow: hidden;
-  background: linear-gradient(100deg, #351711 0%, #240e11 64%, #16090e 100%);
+  /* O fundo acompanha as sombras da sala sem criar uma faixa vertical artificial. */
+  background: radial-gradient(
+    ellipse 125% 110% at 20% 48%,
+    #391718 0%,
+    #2c1115 42%,
+    #1e0d12 76%,
+    #170a10 100%
+  );
   pointer-events: none;
 }
 
@@ -48,17 +55,28 @@
   opacity: 0;
 }
 
-/* Manter a fotografia original inteira, sem ampliar o casal em monitores largos.
-   A continuidade escura ocupa o restante do viewport sob o formulário. */
+/* O tamanho do elemento acompanha a proporção intrínseca do WebP.
+   O fade acontece no limite REAL da fotografia, não no fim do viewport:
+   assim não sobra um retângulo visível com recorte seco. */
 .signup-backdrop {
   position: absolute;
   inset-block-start: var(--signup-photo-top);
   inset-inline-start: 0;
-  inline-size: 100%;
+  inline-size: auto;
+  max-inline-size: 100%;
   block-size: max(0px, calc(100dvh - var(--signup-photo-top)));
   object-fit: contain;
   object-position: left center;
-  mask-image: linear-gradient(to right, #000 0%, #000 64%, transparent 86%);
+  mask-image: linear-gradient(
+    to right,
+    #000 0%,
+    #000 58%,
+    rgba(0, 0, 0, 0.97) 65%,
+    rgba(0, 0, 0, 0.82) 73%,
+    rgba(0, 0, 0, 0.52) 83%,
+    rgba(0, 0, 0, 0.18) 93%,
+    transparent 100%
+  );
 }
 
 .auth-badge,
