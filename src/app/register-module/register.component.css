@@ -849,20 +849,33 @@
   min-block-size: 0;
   overflow: hidden;
   border-radius: 0;
-  background: linear-gradient(95deg, #32150f 0%, #250e10 64%, #170a0e 100%);
+  /* Mesma continuidade tonal da primeira cena, sem faixa linear entre imagens. */
   box-shadow: none;
   isolation: auto;
 }
 
+/* Cenas 2 e 3: dissolver a borda da fotografia, e NÃO a do viewport.
+   O elemento conserva a proporção original; o fade começa mais à direita
+   porque as fotografias dessas etapas têm mais personagens em cena. */
 .auth-container--stage-detail .signup-backdrop {
   position: absolute;
   inset-block-start: var(--signup-photo-top);
   inset-inline-start: 0;
-  inline-size: 100%;
+  inline-size: auto;
+  max-inline-size: 100%;
   block-size: max(0px, calc(100dvh - var(--signup-photo-top)));
   object-fit: contain;
   object-position: left center;
-  mask-image: none;
+  mask-image: linear-gradient(
+    to right,
+    #000 0%,
+    #000 79%,
+    rgba(0, 0, 0, 0.97) 83%,
+    rgba(0, 0, 0, 0.83) 89%,
+    rgba(0, 0, 0, 0.48) 95%,
+    rgba(0, 0, 0, 0.15) 99%,
+    transparent 100%
+  );
 }
 
 .auth-container--stage-detail .form-container {
