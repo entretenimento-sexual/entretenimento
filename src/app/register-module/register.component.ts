@@ -306,6 +306,7 @@ export class RegisterComponent {
   readonly nicknameFeedbackArmed = signal(false);
   readonly complementFeedbackArmed = signal(false);
   readonly nicknameFeedbackAttempt = signal(0);
+  protected readonly emailFeedbackAttempt = signal(0);
   readonly nicknamePartMaxLength = NicknameUtils.DISPLAY_PART_MAX_LEN;
   readonly submitted = signal(false);
 
@@ -753,6 +754,11 @@ export class RegisterComponent {
     if (index === 0) {
       this.banner.set(null);
       this.nicknameFeedbackAttempt.update(attempt => attempt + 1);
+      return;
+    }
+    if (field === 'email') {
+      this.banner.set(null);
+      this.emailFeedbackAttempt.update(attempt => attempt + 1);
       return;
     }
     this.setBanner('error', 'Verifique os campos', 'Revise os campos destacados para continuar.');

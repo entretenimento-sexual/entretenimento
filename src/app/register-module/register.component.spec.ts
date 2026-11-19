@@ -372,6 +372,47 @@ describe('RegisterComponent', () => {
     }
   });
 
+  it('mostra o erro de e-mail em sobreposição por quatro segundos e reapresenta a cada envio inválido', () => {
+    vi.useFakeTimers();
+    const show = vi.spyOn(MatTooltip.prototype, 'show').mockImplementation(() => {});
+    const hide = vi.spyOn(MatTooltip.prototype, 'hide').mockImplementation(() => {});
+    try {
+      const view = fixture.nativeElement as HTMLElement;
+      component.sectionIndex.set(1);
+      fixture.detectChanges();
+      component.submitSection();
+      fixture.detectChanges();
+      vi.advanceTimersByTime(0);
+
+      expect(show).toHaveBeenCalledOnce();
+      expect(view.querySelector('.alert')).toBeNull();
+      expect(view.querySelector('#emailTooltip.sr-only')?.textContent).toBe('Campo obrigatório');
+      expect(view.querySelector('#email')?.getAttribute('aria-invalid')).toBe('true');
+      hide.mockClear();
+
+      vi.advanceTimersByTime(3999);
+      expect(hide).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(hide).toHaveBeenCalledWith(0);
+      expect(view.querySelector('#emailTooltip')?.textContent).toBe('Campo obrigatório');
+
+      component.submitSection();
+      fixture.detectChanges();
+      vi.advanceTimersByTime(0);
+      expect(show).toHaveBeenCalledTimes(2);
+
+      component.form.get('email')!.setValue('teste@example.com');
+      fixture.detectChanges();
+      expect(view.querySelector('#email')?.hasAttribute('aria-invalid')).toBe(false);
+      expect(view.querySelector('#emailTooltip')?.textContent).toBe('');
+    } finally {
+      fixture.destroy();
+      show.mockRestore();
+      hide.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it('exibe apenas a tela atual e cria a conta somente após confirmar a última', async () => {
     const view: HTMLElement = fixture.nativeElement;
     const submit = () => {

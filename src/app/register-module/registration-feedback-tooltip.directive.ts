@@ -12,6 +12,7 @@ const FEEDBACK_DURATION_MS = 3_000;
 export class RegistrationFeedbackTooltipDirective {
   readonly automaticMessage = input<string | null>(null, { alias: 'registrationFeedbackTooltip' });
   readonly attempt = input(0, { alias: 'registrationFeedbackAttempt' });
+  readonly duration = input(FEEDBACK_DURATION_MS, { alias: 'registrationFeedbackDuration' });
 
   private readonly tooltip = inject(MatTooltip, { self: true });
   private readonly requested$ = new Subject<void>();
@@ -31,7 +32,7 @@ export class RegistrationFeedbackTooltipDirective {
         // O botão condicional e a mensagem do Material precisam estar renderizados.
         return timer(0).pipe(
           tap(() => this.tooltip.show(0)),
-          switchMap(() => timer(FEEDBACK_DURATION_MS)),
+          switchMap(() => timer(this.duration())),
           tap(() => this.tooltip.hide(0)),
         );
       }),

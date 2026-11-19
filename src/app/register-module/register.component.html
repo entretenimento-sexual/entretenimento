@@ -168,28 +168,24 @@
       </div>
       }
       @case (1) {
-      <!-- Email -->
+      @let emailTouched = submitted() || form.get('email')?.touched;
+      @let emailError = emailTouched ? getError('email') : null;
       <div class="app-field">
         <label for="email">E-mail *</label>
 
-        <input id="email" formControlName="email" type="email" class="app-control" name="email" autocomplete="email"
-          placeholder="email@exemplo.com" autocapitalize="none" inputmode="email" aria-label="E-mail"
-          maxlength="254" [readonly]="sendingLink()"
-          aria-describedby="register-email-help emailTooltip" [attr.aria-invalid]="
-            (submitted() || form.get('email')?.touched)
-            && form.get('email')?.invalid
-              ? true
-              : null
-          " [ngClass]="{
-            'is-invalid': (submitted() || form.get('email')?.touched) && form.get('email')?.invalid,
-            'is-valid': (submitted() || form.get('email')?.touched) && form.get('email')?.valid
-          }" />
-        <small id="register-email-help" class="field-hint">Seu e-mail fica fora do perfil público.</small>
-
-        <div *ngIf="getError('email') && (submitted() || form.get('email')?.touched)" id="emailTooltip"
-          class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
-          {{ getError('email') }}
+        <div [matTooltip]="emailError || ''" matTooltipPosition="above" matTooltipTouchGestures="off"
+          [registrationFeedbackTooltip]="emailError"
+          [registrationFeedbackAttempt]="emailFeedbackAttempt()"
+          [registrationFeedbackDuration]="4000">
+          <input id="email" formControlName="email" type="email" class="app-control" name="email" autocomplete="email"
+            placeholder="email@exemplo.com" autocapitalize="none" inputmode="email" aria-label="E-mail"
+            maxlength="254" [readonly]="sendingLink()"
+            aria-describedby="register-email-help emailTooltip" [attr.aria-invalid]="emailError ? true : null"
+            [class.is-invalid]="!!emailError"
+            [class.is-valid]="emailTouched && form.get('email')?.valid" />
         </div>
+        <small id="register-email-help" class="field-hint">Seu e-mail fica fora do perfil público.</small>
+        <span id="emailTooltip" class="sr-only" role="alert" aria-live="polite" aria-atomic="true">{{ emailError }}</span>
       </div>
 
       @if (emailLinkPreview) {
