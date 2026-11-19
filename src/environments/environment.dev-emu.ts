@@ -70,6 +70,7 @@ export const environment: AppEnvironment = {
   },
 
   features: {
+    emailFirstSignupPreview: true,
     enforceEmailVerified: false,
     showGuestBanner: true,
     restrictedRoutesWhenUnverified: [

@@ -51,3 +51,11 @@ As duas cenas fotográficas WebP foram integradas à `main` no commit `4f3922c7`
 3. Casos de link expirado, duplicado, e-mail já existente, falta de conexão, timeout, usuário lento, troca de sessão, logout e disputa pelo apelido.
 4. Verificar feedback e invariância visual em desktop/móvel, inclusive `prefers-reduced-motion`.
 5. Nenhum deploy de produção; revisar custo e configuração do provedor antes de qualquer habilitação remota.
+
+
+## Fase técnica A — preparação da autenticação por link (sem cutover)
+
+- Criado `EmailLinkRegistrationService` com APIs RxJS para solicitar link, consumi-lo após declaração 18+ e definir senha para UID esperado, com tratamento de erro centralizado e nenhuma gravação de segredo.
+- Habilitação estritamente limitada ao emulador e à flag `emailFirstSignupPreview`. Nenhuma rota ou botão produtivo chama o serviço; o `RegisterService` atual continua sendo a única entrada de cadastro.
+- A confirmação do link usa a API `signInWithEmailLink` (não `applyActionCode`) e compara UID e e-mail resultantes com a sessão corrente.
+- Antes de ligar a UI, falta implementar a etapa `passwordSetup` com autoridade backend e guarda de navegação, o tratamento de contas preexistentes e os E2E com links usados/expirados, sessão trocada e retorno em outro dispositivo. A simples presença do serviço não autoriza ativar o fluxo.

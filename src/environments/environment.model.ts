@@ -68,6 +68,8 @@ export interface IntegrationsConfig {
 // Features flags
 // ---------------------------
 export interface FeaturesConfig {
+  /** Laboratório emulado para o cadastro por link, sem ativar o fluxo em produção. */
+  emailFirstSignupPreview?: boolean;
   enforceEmailVerified?: boolean;
   showGuestBanner?: boolean;
   restrictedRoutesWhenUnverified?: string[];
