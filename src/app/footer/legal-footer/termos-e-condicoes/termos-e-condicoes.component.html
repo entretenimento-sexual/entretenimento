@@ -207,6 +207,6 @@
     <p>
       A pessoa usuária pode conservar uma cópia deste documento por impressão ou salvamento da página. A versão registrada no aceite permanece vinculada ao histórico de conformidade da conta.
     </p>
-    <button type="button" (click)="closeDialog()">Fechar</button>
+    <button type="button" (click)="closeDialog()">{{ fromRegistration() ? 'Voltar ao cadastro' : 'Fechar' }}</button>
   </footer>
 </main>

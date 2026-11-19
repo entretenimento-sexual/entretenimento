@@ -30,7 +30,7 @@
     }
 
     <nav class="terms-acceptance__links" aria-label="Documentos legais">
-      <a routerLink="/termos-e-condicoes" target="_blank" rel="noopener noreferrer">
+      <a routerLink="/termos-e-condicoes" [queryParams]="{ origem: 'cadastro' }" target="_blank" rel="noopener noreferrer">
         <span>Termos de Uso <small>Versão {{ legalManifest.termsAcceptanceVersion }}</small></span>
         <span class="terms-acceptance__external-icon" aria-hidden="true"></span>
         <span class="terms-acceptance__sr-only">(abre em nova aba)</span>

@@ -62,6 +62,7 @@ import { ApplicationErrorService } from '@core/services/error-handler/applicatio
 
 import {
   inRegistrationFlow as isRegFlow,
+  isPublicLegalDocument,
   type TerminateReason,
 } from './auth.types';
 import { UserRepositoryService } from '../../data-handling/firestore/repositories/user-repository.service';
@@ -230,7 +231,8 @@ export class AuthOrchestratorService {
 
     this.refreshGraceWindow(ctx.authUser);
 
-    if (ctx.blockedReason === 'auth-invalid') {
+    // A leitura jurídica é pública, mesmo durante o cadastro ou um bloqueio.
+    if (ctx.blockedReason === 'auth-invalid' || isPublicLegalDocument(ctx.navPath)) {
       this.stopRuntimeSideEffects();
       return;
     }
@@ -584,7 +586,7 @@ export class AuthOrchestratorService {
    */
   private notifyAppBlocked(reason: TerminateReason): void {
     const url = this.router.url || '';
-    if (this.isRegistrationFlowUrl(url)) return;
+    if (this.isRegistrationFlowUrl(url) || isPublicLegalDocument(url)) return;
 
     this.applicationError.report(new Error('App session blocked'), {
       feature: 'auth-orchestrator',
@@ -604,8 +606,9 @@ export class AuthOrchestratorService {
    */
   private navigateToWelcome(reason: TerminateReason, replaceUrl = true): void {
     const target = '/register/welcome';
+    const url = this.router.url || '';
 
-    if ((this.router.url || '').startsWith(target)) return;
+    if (url.startsWith(target) || isPublicLegalDocument(url)) return;
 
     this.router
       .navigate([target], {
@@ -712,7 +715,7 @@ export class AuthOrchestratorService {
         });
 
         const url = this.router.url || '';
-        if (this.isRegistrationFlowUrl(url)) return;
+        if (this.isRegistrationFlowUrl(url) || isPublicLegalDocument(url)) return;
 
         const allowAct = this.sawUserDocOnce || Date.now() > this.freshUntil;
         if (!allowAct) return;

@@ -15,6 +15,13 @@ export const normalizePath = (url: string | null | undefined): string => {
   return raw.split('?')[0].split('#')[0] || '/';
 };
 
+export function isPublicLegalDocument(url: string | null): boolean {
+  const path = normalizePath(url).replace(/;[^/]*|\/$/g, '');
+  return path === '/termos-e-condicoes' ||
+    path === '/politica-de-privacidade' ||
+    path === '/politica-de-cookies';
+}
+
 /**
  * Fonte única: define rotas sensíveis (registro/login/ações de auth).
  * - Inclui /login

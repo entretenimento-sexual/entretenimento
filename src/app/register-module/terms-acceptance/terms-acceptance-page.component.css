@@ -220,8 +220,8 @@ h1 {
   .terms-acceptance {
     grid-template-columns: minmax(0, 1fr) minmax(0, 39rem);
     background:
-      linear-gradient(90deg, #180c1355, #180c1388 26%, #180c13ed 67%, #1d1317),
-      #1d1317 url('/assets/registration/signup-email-link-wide.webp') left center / cover;
+      linear-gradient(90deg, #180c1322, #180c1333 26%, #180c13c9 68%, #1d1317),
+      #1d1317 url('/assets/registration/signup-terms-masquerade.webp') left center / cover;
   }
 
   .terms-acceptance__card {

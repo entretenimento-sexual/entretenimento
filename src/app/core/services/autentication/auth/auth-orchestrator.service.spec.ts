@@ -136,6 +136,46 @@ describe('AuthOrchestratorService canonical errors', () => {
 
     expect(applicationError.report).not.toHaveBeenCalled();
   });
+
+  it('mantém documentos públicos disponíveis com cadastro incompleto e protege a navegação interna', () => {
+    const route = (url: string) => ({
+      currentUrl: url,
+      navPath: url.split(/[?#]/)[0],
+      routerReady: true,
+      inRegistrationFlow: false,
+    });
+    const routes = new BehaviorSubject(route('/termos-e-condicoes?origem=cadastro'));
+    const router = { url: routes.value.currentUrl, navigate: vi.fn().mockResolvedValue(true) };
+    const watch$ = vi.fn(() => NEVER);
+    const sessionMonitor = { start: vi.fn(), stop: vi.fn() };
+    const user$ = of({ uid: 'a', accountStatus: 'active', interactionBlocked: true, profileCompleted: false });
+
+    new AuthOrchestratorService(
+      { ready$: of(true), authUser$: of({ uid: 'a', emailVerified: true }) } as unknown as AuthSessionService,
+      { context$: routes } as unknown as AuthRouteContextService,
+      { watch$ } as unknown as AuthUserDocumentWatchService,
+      sessionMonitor as unknown as AuthSessionMonitorService,
+      { run$: () => of(null) } as unknown as AuthPostLoginEffectsService,
+      {} as UserRepositoryService,
+      router as never,
+      { report: vi.fn() } as unknown as ApplicationErrorService,
+      new AuthAppBlockService(),
+      { user$ } as unknown as CurrentUserStoreService,
+      { log: vi.fn() } as unknown as PrivacyDebugLoggerService
+    ).start();
+
+    for (const path of ['/politica-de-privacidade#privacy-title', '/politica-de-cookies/']) {
+      router.url = path;
+      routes.next(route(path));
+    }
+    expect(router.navigate).not.toHaveBeenCalled();
+    expect(watch$).not.toHaveBeenCalled();
+    expect(sessionMonitor.start).not.toHaveBeenCalled();
+
+    router.url = '/dashboard/explorar';
+    routes.next(route(router.url));
+    expect(router.navigate).toHaveBeenCalledExactlyOnceWith(['/conta/status'], { replaceUrl: true });
+  });
   it('preserva bloqueio inicial e limpa na troca real de UID', () => {
     const { service, appBlock } = createHarness();
     const target = service as unknown as {
