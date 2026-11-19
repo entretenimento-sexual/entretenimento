@@ -1,5 +1,6 @@
 // src/app/register-module/finalizar-cadastro/finalizar-cadastro.component.ts
 import {
+  ChangeDetectorRef,
   Component,
   DestroyRef,
   HostListener,
@@ -81,6 +82,7 @@ export class FinalizarCadastroComponent
 implements OnInit, UnsavedChangesAware
 {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly networkStatus = inject(NetworkStatusService);
   private readonly draftChanges$ = new Subject<void>();
   private readonly municipiosRequests$ = new Subject<string>();
@@ -188,6 +190,7 @@ implements OnInit, UnsavedChangesAware
         timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
         finalize(() => {
           this.isLoading = false;
+          this.changeDetector.markForCheck();
         }),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -241,16 +244,19 @@ implements OnInit, UnsavedChangesAware
   private setErrorMessage(message: string): void {
     this.message = message;
     this.messageKind = 'error';
+    this.changeDetector.markForCheck();
   }
 
   private setWarningMessage(message: string): void {
     this.message = message;
     this.messageKind = 'warning';
+    this.changeDetector.markForCheck();
   }
 
   private setSuccessMessage(message: string): void {
     this.message = message;
     this.messageKind = 'success';
+    this.changeDetector.markForCheck();
     this.errorNotification.showSuccess(message);
   }
 
@@ -274,6 +280,7 @@ implements OnInit, UnsavedChangesAware
 
   private setUploadWarning(message: string): void {
     this.uploadMessage = message;
+    this.changeDetector.markForCheck();
   }
 
   private resetAvatarUploadState(): void {
@@ -329,7 +336,10 @@ implements OnInit, UnsavedChangesAware
         take(1),
         timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
         catchError(() => of([])),
-        finalize(() => { this.loadingEstados = false; }),
+        finalize(() => {
+          this.loadingEstados = false;
+          this.changeDetector.markForCheck();
+        }),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
@@ -356,7 +366,10 @@ implements OnInit, UnsavedChangesAware
           take(1),
           timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
           catchError(() => of([])),
-          finalize(() => { this.loadingMunicipios = false; })
+          finalize(() => {
+            this.loadingMunicipios = false;
+            this.changeDetector.markForCheck();
+          })
         );
       }),
       takeUntilDestroyed(this.destroyRef)
@@ -532,6 +545,7 @@ implements OnInit, UnsavedChangesAware
         map(() => void 0),
         finalize(() => {
           this.isSubmitting = false;
+          this.changeDetector.markForCheck();
         }),
         takeUntilDestroyed(this.destroyRef),
         catchError((error) => {
@@ -585,6 +599,7 @@ implements OnInit, UnsavedChangesAware
 
   private confirmProfileAfterUncertainSave$(uid: string): Observable<boolean> {
     this.confirmingProfile = true;
+    this.changeDetector.markForCheck();
 
     const accountChanged$ = this.currentUserStore.getLoggedUserUID$().pipe(
       filter((currentUid) => currentUid !== uid),
@@ -603,7 +618,10 @@ implements OnInit, UnsavedChangesAware
       take(1),
       timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
       catchError(() => of(false)),
-      finalize(() => { this.confirmingProfile = false; })
+      finalize(() => {
+        this.confirmingProfile = false;
+        this.changeDetector.markForCheck();
+      })
     );
   }
 
@@ -628,7 +646,10 @@ implements OnInit, UnsavedChangesAware
         ));
         return EMPTY;
       }),
-      finalize(() => { this.openingSavedProfile = false; }),
+      finalize(() => {
+        this.openingSavedProfile = false;
+        this.changeDetector.markForCheck();
+      }),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe();
   }
@@ -648,6 +669,7 @@ implements OnInit, UnsavedChangesAware
     this.isUploading = true;
     this.progressValue = 0;
     this.uploadMessage = '';
+    this.changeDetector.markForCheck();
 
     return this.profileCompletion
       .uploadProfileAvatarAfterSave$({
@@ -660,6 +682,7 @@ implements OnInit, UnsavedChangesAware
             0,
             Math.min(100, Math.round(progress || 0))
           );
+          this.changeDetector.markForCheck();
         },
       })
       .pipe(
@@ -683,6 +706,7 @@ implements OnInit, UnsavedChangesAware
         }),
         finalize(() => {
           this.isUploading = false;
+          this.changeDetector.markForCheck();
         }),
         map(() => void 0)
       );
@@ -740,6 +764,7 @@ implements OnInit, UnsavedChangesAware
         finalize(() => {
           this.isEditingAvatar = false;
           if (input) input.value = '';
+          this.changeDetector.markForCheck();
         }),
         takeUntilDestroyed(this.destroyRef)
       )

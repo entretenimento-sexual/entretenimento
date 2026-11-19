@@ -212,6 +212,38 @@ describe('FinalizarCadastroComponent', () => {
     expect(component.selectedMunicipio).toBe('Rio de Janeiro');
   });
 
+  it('atualiza o formulário e os municípios quando os dados chegam de forma assíncrona', async () => {
+    const profile$ = new Subject<{
+      email: string; nickname: string; gender: string; orientation: string; estado: string; municipio: string;
+    }>();
+    const municipios$ = new Subject<{ id: number; nome: string }[]>();
+    profileCompletionFacadeMock.loadUserForFormByUid$.mockReturnValueOnce(profile$);
+    profileCompletionFacadeMock.getMunicipios$.mockReturnValueOnce(municipios$);
+    const delayed = TestBed.createComponent(FinalizarCadastroComponent);
+    try {
+      delayed.autoDetectChanges();
+      const view = delayed.nativeElement as HTMLElement;
+      expect(view.textContent).toContain('Carregando os dados do seu perfil');
+      profile$.next({
+        email: 'teste@email.com', nickname: 'tester', gender: '', orientation: '', estado: '', municipio: '',
+      });
+      await delayed.whenStable();
+      expect(view.querySelector('#gender')).not.toBeNull();
+
+      const estado = view.querySelector<HTMLSelectElement>('#estado')!;
+      estado.value = 'RJ';
+      estado.dispatchEvent(new Event('change', { bubbles: true }));
+      const municipio = view.querySelector<HTMLSelectElement>('#municipio')!;
+      expect(municipio.disabled).toBe(true);
+      municipios$.next([{ id: 3304557, nome: 'Rio de Janeiro' }]);
+      await delayed.whenStable();
+      expect(municipio.disabled).toBe(false);
+      expect(municipio.textContent).toContain('Rio de Janeiro');
+    } finally {
+      delayed.destroy();
+    }
+  });
+
   it('salva conclusão do perfil e segue sem aceite adulto redundante', () => {
     component.onSubmit();
 
