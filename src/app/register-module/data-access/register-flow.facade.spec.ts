@@ -1,4 +1,4 @@
-import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of, Subject } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import type { IUserAgeEligibility } from 'src/app/core/interfaces/iuser-dados';
 import { RegisterFlowFacade } from './register-flow.facade';
@@ -17,21 +17,23 @@ function facade(profileCompleted: boolean) {
     status: 'UNVERIFIED', policyVersion: 1, source: 'INITIAL_VERIFICATION',
     method: 'MANUAL_REVIEW',
   });
+  const user$ = new BehaviorSubject({
+    uid: 'adult-user', emailVerified: true, profileCompleted,
+    accountStatus: 'active', initialAdultConsentRequired: true,
+    adultConsent: null,
+    acceptedTerms: { accepted: true, version: 'v3', acknowledgedPrivacyNotice: true },
+    ageEligibility: {
+      status: 'EXPIRED', policyVersion: 1, source: 'INITIAL_VERIFICATION',
+      method: 'MANUAL_REVIEW', verifiedAtMs: 1, expiresAtMs: 2,
+    },
+  });
   const vm = new RegisterFlowFacade(
     { ready$: of(true), authUser$ } as never,
-    { user$: of({
-      uid: 'adult-user', emailVerified: true, profileCompleted,
-      accountStatus: 'active', initialAdultConsentRequired: true,
-      adultConsent: null,
-      acceptedTerms: { accepted:true,version:'v3',acknowledgedPrivacyNotice:true },
-      ageEligibility: { status:'EXPIRED', policyVersion:1,
-        source:'INITIAL_VERIFICATION',method:'MANUAL_REVIEW',
-        verifiedAtMs:1,expiresAtMs:2 },
-    }) } as never,
+    { user$ } as never,
     { reconcileTrustedStateOncePerSession$: reconcileAge, current$: currentAge$ } as never,
     new RegisterNavigationService()
   );
-  return { vm, reconcileAge, authUser$, currentAge$ };
+  return { vm, reconcileAge, authUser$, currentAge$, user$ };
 }
 describe('registration admission without redundant adult consent', () => {
   it('não reabre idade ou consentimento em perfil admitido', async () => {
@@ -46,6 +48,27 @@ describe('registration admission without redundant adult consent', () => {
     expect(state.ageEligibilityAllowed).toBe(true);
     expect(state.currentStep).toBe('profileCompletion');
     expect(reconcileAge).toHaveBeenCalledTimes(1);
+  });
+
+  it('não reinicia a consulta quando a própria reconciliação atualiza o perfil', async () => {
+    const { vm, reconcileAge, user$ } = facade(false);
+    const pending = new Subject<IUserAgeEligibility>();
+    reconcileAge.mockReturnValue(pending);
+    const ready = firstValueFrom(vm.vm$);
+    const previous = user$.value;
+
+    user$.next({
+      ...previous,
+      ageEligibility: { ...previous.ageEligibility, expiresAtMs: 3 },
+    });
+
+    expect(reconcileAge).toHaveBeenCalledOnce();
+    pending.next({
+      status: 'SELF_DECLARED_ADULT', policyVersion: 1,
+      source: 'SELF_DECLARATION', method: 'SELF_DECLARATION',
+      verifiedAtMs: null, expiresAtMs: null, updatedAtMs: 10,
+    });
+    await expect(ready).resolves.toMatchObject({ currentStep: 'profileCompletion' });
   });
   it('desconsidera perfil antigo quando a identidade Firebase muda ou desaparece', async () => {
     const { vm, authUser$ } = facade(true);

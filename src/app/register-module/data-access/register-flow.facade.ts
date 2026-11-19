@@ -1,7 +1,7 @@
 // src/app/register-module/data-access/register-flow.facade.ts
 import { Injectable, Optional } from '@angular/core';
 
-import { combineLatest, concat, Observable, of } from 'rxjs';
+import { combineLatest, concat, EMPTY, Observable, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -34,45 +34,59 @@ export class RegisterFlowFacade {
     this.session.authUser$,
     this.currentUser.user$,
   ]).pipe(
-    switchMap(([
+    map(([
       authReady,
       authUser,
       appUser,
     ]) => {
       const uid = authUser?.uid ?? null;
       const user = appUser && uid && appUser.uid === uid ? appUser : null;
-      const emailVerified = authUser?.emailVerified === true;
-      const termsAccepted =
-        isCurrentLegalAcceptanceSatisfied(user?.acceptedTerms);
-
+      return {
+        authReady: authReady === true,
+        uid,
+        email: authUser?.email ?? user?.email ?? null,
+        emailVerified: authUser?.emailVerified === true,
+        userResolved: !uid || appUser === null || user !== null,
+        userExists: user !== null,
+        termsAccepted: isCurrentLegalAcceptanceSatisfied(user?.acceptedTerms),
+        profileCompleted: user?.profileCompleted === true,
+      };
+    }),
+    // A consulta da autoridade etária pode atualizar users/{uid}. Mudanças
+    // na projeção são observadas em current$ e não devem cancelar a consulta.
+    distinctUntilChanged((previous, current) =>
+      previous.authReady === current.authReady &&
+      previous.uid === current.uid &&
+      previous.email === current.email &&
+      previous.emailVerified === current.emailVerified &&
+      previous.userResolved === current.userResolved &&
+      previous.userExists === current.userExists &&
+      previous.termsAccepted === current.termsAccepted &&
+      previous.profileCompleted === current.profileCompleted
+    ),
+    switchMap((state) => {
+      const { authReady, uid, emailVerified, userExists, termsAccepted, profileCompleted } = state;
       const resolve = (ageEligibilityAllowed: boolean, passwordRequired = false) => {
-        const state: RegisterFlowAccessState = {
-          authReady: authReady === true,
-          uid,
-          email: authUser?.email ?? user?.email ?? null,
-          emailVerified,
-          userResolved: !uid || appUser === null || user !== null,
-          userExists: user !== null,
-          termsAccepted,
+        const access: RegisterFlowAccessState = {
+          ...state,
           ageEligibilityAllowed,
-          profileCompleted: user?.profileCompleted === true,
           passwordRequired,
         };
 
-        return this.navigation.resolveVm(state);
+        return this.navigation.resolveVm(access);
       };
 
       const continueRegistration = () => {
         // Uma expiração posterior de elegibilidade não reinicia o cadastro.
-        if (user?.profileCompleted === true) return of(resolve(true));
+        if (profileCompleted) return of(resolve(true));
 
-        if (!authReady || !uid || !emailVerified || !user || !termsAccepted) {
+        if (!authReady || !uid || !emailVerified || !userExists || !termsAccepted) {
           return of(resolve(false));
         }
 
         return concat(
           this.ageEligibility.reconcileTrustedStateOncePerSession$().pipe(
-            catchError(() => of(user.ageEligibility))
+            catchError(() => EMPTY)
           ),
           this.ageEligibility.current$
         ).pipe(map(ageState => resolve(isCurrentAdultAccountAdmissionProjection(ageState))));
