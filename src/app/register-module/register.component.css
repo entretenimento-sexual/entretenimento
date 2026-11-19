@@ -184,11 +184,6 @@
   min-block-size: 2lh;
 }
 
-.form-container .app-control--email-recipient {
-  background: color-mix(in srgb, var(--surface-color) 75%, transparent);
-  border-color: color-mix(in srgb, var(--surface-border) 70%, transparent);
-}
-
 .signup-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

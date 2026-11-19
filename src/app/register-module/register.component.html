@@ -169,29 +169,29 @@
       </div>
       }
       @case (1) {
-      @let emailTouched = submitted() || form.get('email')?.touched;
-      @let emailError = emailTouched ? getError('email') : null;
-      <div class="app-field">
-        <label for="email">{{ waitingForEmailLink() ? 'E-mail informado' : 'E-mail *' }}</label>
+      @if (waitingForEmailLink()) {
+        <p class="field-hint">Você cria a senha depois de abrir o link.</p>
+      } @else {
+        @let emailTouched = submitted() || form.get('email')?.touched;
+        @let emailError = emailTouched ? getError('email') : null;
+        <div class="app-field">
+          <label for="email">E-mail *</label>
 
-        <div [matTooltip]="emailError || ''" matTooltipPosition="above" matTooltipTouchGestures="off"
-          [registrationFeedbackTooltip]="emailError"
-          [registrationFeedbackAttempt]="emailFeedbackAttempt()"
-          [registrationFeedbackDuration]="4000">
-          <input id="email" formControlName="email" type="email" class="app-control" name="email" autocomplete="email"
-            placeholder="email@exemplo.com" autocapitalize="none" inputmode="email"
-            maxlength="254" [readonly]="sendingLink() || waitingForEmailLink()"
-            [attr.aria-label]="waitingForEmailLink() ? 'E-mail informado' : 'E-mail'"
-            [attr.aria-required]="waitingForEmailLink() ? null : true"
-            aria-describedby="register-email-help emailTooltip" [attr.aria-invalid]="emailError ? true : null"
-            [class.is-invalid]="!!emailError"
-            [class.is-valid]="!waitingForEmailLink() && emailTouched && form.get('email')?.valid"
-            [class.app-control--email-recipient]="waitingForEmailLink()" />
+          <div [matTooltip]="emailError || ''" matTooltipPosition="above" matTooltipTouchGestures="off"
+            [registrationFeedbackTooltip]="emailError"
+            [registrationFeedbackAttempt]="emailFeedbackAttempt()"
+            [registrationFeedbackDuration]="4000">
+            <input id="email" formControlName="email" type="email" class="app-control" name="email" autocomplete="email"
+              placeholder="email@exemplo.com" autocapitalize="none" inputmode="email"
+              maxlength="254" [readonly]="sendingLink()" aria-label="E-mail" aria-required="true"
+              aria-describedby="register-email-help emailTooltip" [attr.aria-invalid]="emailError ? true : null"
+              [class.is-invalid]="!!emailError"
+              [class.is-valid]="emailTouched && form.get('email')?.valid" />
+          </div>
+          <small id="register-email-help" class="field-hint">Seu e-mail fica fora do perfil público.</small>
+          <span id="emailTooltip" class="sr-only" role="alert" aria-live="polite" aria-atomic="true">{{ emailError }}</span>
         </div>
-        <small id="register-email-help" class="field-hint">{{ waitingForEmailLink()
-          ? 'Você cria a senha depois de abrir o link.' : 'Seu e-mail fica fora do perfil público.' }}</small>
-        <span id="emailTooltip" class="sr-only" role="alert" aria-live="polite" aria-atomic="true">{{ emailError }}</span>
-      </div>
+      }
 
       @if (!emailLinkPreview) {
       <div class="signup-pair">

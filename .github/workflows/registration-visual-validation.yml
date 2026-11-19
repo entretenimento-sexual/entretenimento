@@ -533,6 +533,9 @@ jobs:
               const email = 'visual@example.test';
               await page.getByRole('button', { name: 'Enviar link', exact: true }).click();
               await page.getByRole('heading', { name: 'Confira seu e-mail', exact: true }).waitFor();
+              if (await page.locator('#email').count() || (await page.locator('.form-container').textContent()).includes(email)) {
+                throw new Error('The waiting screen must clear the visible email field');
+              }
               const before = await page.locator('.form-container').boundingBox();
               const codes = await page.request.get('http://127.0.0.1:9099/emulator/v1/projects/demo-registration-visual/oobCodes');
               if (!codes.ok()) throw new Error('Auth Emulator did not return the link list');

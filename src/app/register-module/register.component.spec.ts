@@ -159,12 +159,11 @@ describe('RegisterComponent', () => {
       response.complete();
       preview.detectChanges();
 
-      const input = view.querySelector<HTMLInputElement>('#email')!;
       expect(view.querySelector('#register-section-title')?.textContent).toContain('Confira seu e-mail');
       expect(view.querySelector('header p')?.textContent).toContain('caixa de entrada ou no spam');
       expect(view.textContent).not.toMatch(/emulador|Authentication/i);
-      expect(input.value).toBe('teste@example.com');
-      expect(input.readOnly).toBe(true);
+      expect(view.querySelector('#email')).toBeNull();
+      expect(view.textContent).not.toContain('teste@example.com');
       expect(submit.disabled).toBe(true);
       expect(submit.textContent).toContain('Reenviar em 30 s');
       vi.advanceTimersByTime(30_000);
@@ -175,11 +174,14 @@ describe('RegisterComponent', () => {
       request.mockReturnValueOnce(throwError(() => ({ code: 'auth/network-request-failed' })));
       submit.click();
       preview.detectChanges();
+      expect(request).toHaveBeenCalledTimes(2);
+      expect(request).toHaveBeenLastCalledWith('teste@example.com');
       expect(view.querySelector('header p')?.textContent).toContain('Envio sem confirmação');
       expect(view.querySelector('.alert')).toBeNull();
       view.querySelector<HTMLButtonElement>('.signup-actions button[type=button]')!.click();
       preview.detectChanges();
       expect(registration.sectionIndex()).toBe(1);
+      const input = view.querySelector<HTMLInputElement>('#email')!;
       expect(input.readOnly).toBe(false);
       expect(input.value).toBe('teste@example.com');
       expect(view.querySelector('#register-section-title')?.textContent).toContain('Confirme seu e-mail');
