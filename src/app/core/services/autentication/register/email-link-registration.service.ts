@@ -2,7 +2,7 @@
 // Laboratório exclusivamente emulado: API de cadastro por link sem trocar
 // o RegisterService atual. Nenhum campo de senha ou token é persistido aqui.
 import { Injectable } from '@angular/core';
-import type { Auth, UserCredential } from '@angular/fire/auth';
+import { Auth, type UserCredential } from '@angular/fire/auth';
 import {
   getAdditionalUserInfo,
   isSignInWithEmailLink,
