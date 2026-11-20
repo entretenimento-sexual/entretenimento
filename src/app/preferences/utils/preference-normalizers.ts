@@ -3,6 +3,7 @@
 // Não dependem do legado.
 // Servem para criar estado consistente mesmo sem documento salvo.
 import { resolveConversationPace } from '../catalogs/conversation-pace.catalog';
+import { normalizeIntimateInterests } from '../catalogs/intimate-interests.catalog';
 import type { IntentState } from '../models/intent-state.model';
 import type { MatchProfile } from '../models/match-profile.model';
 import type {
@@ -97,6 +98,7 @@ export function normalizePreferenceProfile(
       ...(source.softRules ?? {}),
       bodyPreferences: uniqueStrings(source.softRules?.bodyPreferences),
       sexualPractices: uniqueStrings(source.softRules?.sexualPractices),
+      intimateInterests: normalizeIntimateInterests(source.softRules?.intimateInterests),
       vibes: uniqueStrings(source.softRules?.vibes),
       styles: uniqueStrings(source.softRules?.styles),
       interests: uniqueStrings(source.softRules?.interests),

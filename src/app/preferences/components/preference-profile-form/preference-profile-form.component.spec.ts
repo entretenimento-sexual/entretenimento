@@ -86,6 +86,48 @@ describe('PreferenceProfileFormComponent', () => {
     fixture.destroy();
   });
 
+  it('edita e remove interesses privados no Gratuito e preserva preferências de busca anteriores', () => {
+    const fixture = TestBed.createComponent(PreferenceProfileFormComponent);
+    const profile = createEmptyPreferenceProfile('u1');
+    profile.softRules.sexualPractices = ['bdsm'];
+    profile.softRules.intimateInterests = { shibari: 'familiar' };
+    fixture.componentRef.setInput('profile', profile);
+    fixture.componentRef.setInput('capabilities', {
+      ...capabilities,
+      currentPlan: 'free',
+      canEditAdvancedPreferences: false,
+      canRequireAdvancedPreferences: false,
+    });
+    fixture.detectChanges();
+    const view = fixture.nativeElement as HTMLElement;
+    const saved = vi.fn();
+    fixture.componentInstance.saveProfile.subscribe(saved);
+
+    const shibari = view.querySelector<HTMLSelectElement>('#intimate-interest-shibari')!;
+    const bdsm = view.querySelector<HTMLSelectElement>('#intimate-interest-bdsm')!;
+    expect(shibari.value).toBe('familiar');
+    expect(bdsm.value).toBe('');
+    expect(bdsm.disabled).toBe(false);
+    expect(view.querySelector('.intimate-interests > summary')?.textContent).toContain('1 interesse');
+
+    bdsm.value = 'explore';
+    bdsm.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(view.querySelector('.intimate-interests > summary')?.textContent).toContain('2 interesses');
+
+    shibari.value = '';
+    shibari.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    fixture.componentInstance.submit();
+
+    expect(saved).toHaveBeenCalledWith(expect.objectContaining({
+      softRules: expect.objectContaining({
+        sexualPractices: ['bdsm'],
+        intimateInterests: { bdsm: 'explore' },
+      }),
+    }));
+  });
+
   it('mostra opções complementares quando ritmo e distância foram escolhidos', () => {
     const fixture = TestBed.createComponent(PreferenceProfileFormComponent);
     fixture.componentRef.setInput('profile', createEmptyPreferenceProfile('u1'));

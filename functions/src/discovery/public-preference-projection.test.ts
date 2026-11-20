@@ -116,6 +116,20 @@ describe('public preference projection', () => {
     assert.deepEqual(projection.publicBodyTraits, ['tattoos']);
   });
 
+  it('mantém interesses íntimos privados mesmo com sinais públicos e entitlement', () => {
+    const base = profile();
+    const options = { canPublishAdvanced: true };
+    const projection = buildPublicPreferenceProjection({
+      ...base,
+      softRules: {
+        ...base.softRules,
+        intimateInterests: { bdsm: 'explore', shibari: 'familiar' },
+      },
+    }, options);
+
+    assert.deepEqual(projection, buildPublicPreferenceProjection(base, options));
+  });
+
   it('remove valores fora dos catálogos públicos', () => {
     const projection = buildPublicPreferenceProjection(
       profile({

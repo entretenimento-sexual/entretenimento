@@ -17,6 +17,11 @@ import {
   PreferenceOption,
 } from '../catalogs/preference-profile-options.catalog';
 import { resolveConversationPace, type ConversationPace } from '../catalogs/conversation-pace.catalog';
+import {
+  INTIMATE_INTEREST_OPTIONS,
+  normalizeIntimateInterests,
+  type IntimateInterestLevel,
+} from '../catalogs/intimate-interests.catalog';
 import type { PreferenceProfile } from '../models/preference-profile.model';
 import type { PreferenceMatchMode } from '../models/preference.types';
 import type { PreferencesCapabilitySnapshot } from '../services/preferences-capability.service';
@@ -45,6 +50,12 @@ export function buildPreferenceProfileForm(fb: FormBuilder) {
       showSeekingPublicly: fb.nonNullable.control(false),
       conversationPace: fb.nonNullable.control<ConversationPace | ''>(''),
       shareConversationPace: fb.nonNullable.control(false),
+      intimateInterests: fb.record(Object.fromEntries(
+        INTIMATE_INTEREST_OPTIONS.map(({ key }) => [
+          key,
+          fb.nonNullable.control<IntimateInterestLevel | ''>(''),
+        ])
+      )),
 
       ...buildFlagControls(fb, 'ri', RELATIONSHIP_INTENT_OPTIONS),
       ...buildFlagControls(fb, 'gi', GENDER_INTEREST_OPTIONS),
@@ -57,6 +68,8 @@ export function buildPreferenceProfileForm(fb: FormBuilder) {
 }
 
 export function mapPreferenceProfileToFormValue(profile: PreferenceProfile): RawFormValue {
+  const intimateInterests = normalizeIntimateInterests(profile.softRules.intimateInterests);
+
   return {
     minAge: profile.hardRules.ageRange?.min ?? null,
     maxAge: profile.hardRules.ageRange?.max ?? null,
@@ -71,6 +84,9 @@ export function mapPreferenceProfileToFormValue(profile: PreferenceProfile): Raw
     showSeekingPublicly: profile.visibility?.showSeekingPublicly === true,
     conversationPace: profile.conversationPace ?? '',
     shareConversationPace: profile.visibility?.shareConversationPace === true,
+    intimateInterests: Object.fromEntries(
+      INTIMATE_INTEREST_OPTIONS.map(({ key }) => [key, intimateInterests[key] ?? ''])
+    ),
     ...buildFlagPatch(profile.relationshipIntents, 'ri', RELATIONSHIP_INTENT_OPTIONS),
     ...buildFlagPatch(profile.hardRules.acceptedGenders, 'gi', GENDER_INTEREST_OPTIONS),
     ...buildFlagPatch(profile.softRules.sexualPractices, 'sp', SEXUAL_PRACTICE_OPTIONS),
@@ -112,6 +128,7 @@ export function mapFormValueToPreferenceProfile(
       sexualPractices: canEditAdvanced
         ? collectSelected(raw, 'sp', SEXUAL_PRACTICE_OPTIONS)
         : current.softRules.sexualPractices ?? [],
+      intimateInterests: normalizeIntimateInterests(raw['intimateInterests'] ?? current.softRules.intimateInterests),
       vibes: current.softRules.vibes ?? [],
       styles: current.softRules.styles ?? [],
       interests: current.softRules.interests ?? [],

@@ -4,6 +4,7 @@
 // Role continua canônico em IUserDados/Auth e é consumido por capability services.
 
 import type { ConversationPace } from '../catalogs/conversation-pace.catalog';
+import type { IntimateInterests } from '../catalogs/intimate-interests.catalog';
 import {
   BodyPreference,
   DiscoveryMode,
@@ -34,6 +35,8 @@ export interface PreferenceSoftRules {
   /** Características que o usuário procura em outras pessoas. */
   bodyPreferences: BodyPreference[];
   sexualPractices: SexualPractice[];
+  /** Autorrelato privado. A projeção pública usa apenas sexualPractices. */
+  intimateInterests?: IntimateInterests;
   vibes: string[];
   styles: string[];
   interests: string[];

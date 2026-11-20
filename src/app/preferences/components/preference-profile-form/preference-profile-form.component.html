@@ -74,6 +74,46 @@
     </div>
   </details>
 
+  <details class="preference-group preference-group--primary intimate-interests app-disclosure">
+    <summary class="preference-group__summary app-disclosure__summary">
+      <strong class="preference-group__title app-disclosure__title">
+        <i class="fa-solid fa-heart preference-group__icon" aria-hidden="true"></i>
+        <span>O que desperta seu interesse?</span>
+      </strong>
+      <span class="app-disclosure__state">{{ intimateInterestSummary() || 'Opcional' }}</span>
+    </summary>
+    <div class="preference-group__content app-disclosure__content" formGroupName="intimateInterests">
+      <p class="intimate-interests__privacy field-help">
+        <i class="fa-solid fa-lock" aria-hidden="true"></i>
+        <span>Escolha o que você quer explorar ou o que já faz parte da sua vida. Suas respostas ficam privadas.</span>
+      </p>
+      <div class="intimate-interests__groups">
+        @for (group of intimateInterestGroups; track group.key) {
+          <details class="intimate-interests__group app-disclosure">
+            <summary class="app-disclosure__summary">
+              <strong class="app-disclosure__title">{{ group.label }}</strong>
+              @if (intimateInterestSummary(group.options); as summary) {
+                <span class="app-disclosure__state">{{ summary }}</span>
+              }
+            </summary>
+            <div class="intimate-interests__options app-disclosure__content app-responsive-grid">
+              @for (option of group.options; track option.key) {
+                <div class="intimate-interests__option app-field" [class.intimate-interests__option--selected]="form.controls.intimateInterests.controls[option.key].value">
+                  <label [for]="'intimate-interest-' + option.key">{{ option.label }}</label>
+                  <select class="app-control" [id]="'intimate-interest-' + option.key" [formControlName]="option.key">
+                    <option value="">Sem seleção</option>
+                    <option value="explore">Quero explorar</option>
+                    <option value="familiar">Já faz parte da minha vida</option>
+                  </select>
+                </div>
+              }
+            </div>
+          </details>
+        }
+      </div>
+    </div>
+  </details>
+
   <details class="preference-group app-disclosure">
     <summary class="preference-group__summary app-disclosure__summary">
       <strong class="preference-group__title app-disclosure__title">No seu ritmo</strong>
@@ -129,7 +169,7 @@
       @if (canEditAdvanced()) {
         <div class="preference-subgroup">
           <div class="preference-subgroup__header">
-            <strong class="preference-subgroup__title">Práticas que te interessam</strong>
+            <strong class="preference-subgroup__title">Práticas usadas na busca</strong>
             <select class="matching-mode__compact app-control" formControlName="sexualPracticeMode" aria-label="Como usar práticas desejadas">
               <option value="prefer">Preferir</option>
               <option value="require" [disabled]="!canRequireAdvanced()">{{ advancedRequirementLabel() }}</option>
@@ -160,7 +200,7 @@
         }
       } @else {
         <div class="preference-upgrade app-card app-card--flat app-card--compact" role="note">
-          <span>Práticas e características procuradas ficam disponíveis a partir do Básico.</span>
+          <span>Priorize perfis por práticas ou características a partir do Básico.</span>
           <a class="preference-upgrade__action app-action app-action--ghost" routerLink="/subscription-plan" [queryParams]="{ minimumRole: 'basic' }">Ver opções</a>
         </div>
       }

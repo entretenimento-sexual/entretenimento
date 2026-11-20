@@ -93,6 +93,18 @@ match /users/{userId}/preferences/{docId} {
       && selfTraits.bodyTraits.size() <= 30;
   }
 
+  function validIntimateInterests(value) {
+    // Catálogo privado correspondente a intimate-interests.catalog.ts.
+    return value is map
+      && value.keys().hasOnly([
+        "vanilla", "tantra", "sensual_massage", "bdsm", "dom_sub", "switching",
+        "high_intensity", "bondage", "shibari", "sensory_play", "textures",
+        "eye_masks", "roleplay", "dirty_talk", "voyeurism", "exhibitionism",
+        "foot_fetish", "latex_leather", "swing", "menage", "group_sex"
+      ])
+      && value.values().hasOnly(["explore", "familiar"]);
+  }
+
   function validProfileIdentity(subscriptionRank) {
     let data = request.resource.data;
     return data.keys().hasAll([
@@ -110,6 +122,7 @@ match /users/{userId}/preferences/{docId} {
       && data.softRules.bodyPreferences.size() <= 30
       && data.softRules.sexualPractices is list
       && data.softRules.sexualPractices.size() <= 40
+      && validIntimateInterests(data.softRules.get("intimateInterests", {}))
       && validSelfTraits(data.selfTraits)
       && validMatchingModesShape(data)
       && data.visibility is map

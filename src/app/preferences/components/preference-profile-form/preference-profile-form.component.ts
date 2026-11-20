@@ -43,6 +43,7 @@ import {
 } from '../../utils/preference-profile-form.factory';
 
 import { CONVERSATION_PACE_OPTIONS, resolveConversationPace } from '../../catalogs/conversation-pace.catalog';
+import { INTIMATE_INTEREST_GROUPS, INTIMATE_INTEREST_OPTIONS } from '../../catalogs/intimate-interests.catalog';
 
 type NumericPreferenceControl = 'minAge' | 'maxAge' | 'maxDistanceKm';
 
@@ -71,6 +72,7 @@ export class PreferenceProfileFormComponent {
   readonly genderInterestOptions = GENDER_INTEREST_OPTIONS;
   readonly sexualPracticeOptions = SEXUAL_PRACTICE_OPTIONS;
   readonly bodyPreferenceOptions = BODY_PREFERENCE_OPTIONS;
+  readonly intimateInterestGroups = INTIMATE_INTEREST_GROUPS;
 
   private readonly fb = new FormBuilder();
   private readonly destroyRef = inject(DestroyRef);
@@ -203,6 +205,15 @@ export class PreferenceProfileFormComponent {
     if (count === 0) return 'Nenhuma seleção';
     if (count === 1) return '1 selecionada';
     return `${count} selecionadas`;
+  }
+
+  intimateInterestSummary(
+    options: ReadonlyArray<{ key: string }> = INTIMATE_INTEREST_OPTIONS
+  ): string {
+    const controls = this.form.controls.intimateInterests.controls;
+    const count = options.filter(({ key }) => Boolean(controls[key]?.value)).length;
+    if (count === 0) return '';
+    return count === 1 ? '1 interesse' : `${count} interesses`;
   }
 
   paceSummary(): string {

@@ -7,7 +7,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { Timestamp, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { Timestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 
 const PROJECT_ID = 'demo-entretenimento-preferences-rules';
@@ -149,6 +149,24 @@ describe('Firestore Rules / preference subscription tiers', () => {
         ageRange: { min: 25, max: 45 },
       })
     ));
+  });
+
+  it('permite interesses íntimos apenas ao titular e exige opções e níveis do catálogo', async () => {
+    const path = ['users', 'free-user', 'preferences', 'profile'] as const;
+    const ownProfile = doc(authenticatedDb('free-user'), ...path);
+    await assertSucceeds(setDoc(ownProfile, profilePayload('free-user')));
+    await assertSucceeds(updateDoc(ownProfile, {
+      'softRules.intimateInterests': { shibari: 'explore', foot_fetish: 'familiar' },
+    }));
+    await assertSucceeds(getDoc(ownProfile));
+    await assertFails(getDoc(doc(authenticatedDb('vip-user'), ...path)));
+    await assertFails(updateDoc(ownProfile, {
+      'softRules.intimateInterests': { invalid_interest: 'explore' },
+    }));
+    await assertFails(updateDoc(ownProfile, {
+      'softRules.intimateInterests': { shibari: 'invalid_level' },
+    }));
+    await assertSucceeds(updateDoc(ownProfile, { 'softRules.intimateInterests': {} }));
   });
 
   it('exige escolha expressa do free para publicar badges gerais', async () => {

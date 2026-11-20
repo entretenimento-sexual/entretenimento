@@ -99,6 +99,45 @@
   gap: var(--space-3, 16px);
 }
 
+.intimate-interests__privacy {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1, 8px);
+  margin: 0;
+}
+
+.intimate-interests__groups {
+  display: grid;
+  gap: var(--space-1, 8px);
+}
+
+.intimate-interests__group {
+  background: color-mix(in oklab, var(--text-color) 2%, var(--surface-color));
+}
+
+.intimate-interests__options {
+  --app-responsive-grid-min: 15rem;
+  --app-responsive-grid-gap: var(--space-1, 8px);
+  padding: var(--space-2, 12px);
+}
+
+.intimate-interests__option {
+  min-width: 0;
+  padding: var(--space-2, 12px);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--control-radius, 12px);
+  background: var(--surface-color);
+}
+
+.intimate-interests__option--selected {
+  border-color: color-mix(in oklab, var(--primary-color) 58%, var(--surface-border));
+  background: color-mix(in oklab, var(--primary-color) 6%, var(--surface-color));
+}
+
+.intimate-interests__option .app-control {
+  min-height: var(--control-height, 44px);
+}
+
 .checkbox-grid {
   --app-responsive-grid-min: 11rem;
   --app-responsive-grid-gap: var(--space-1, 8px);

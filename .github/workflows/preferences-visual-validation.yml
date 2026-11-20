@@ -155,6 +155,37 @@ jobs:
             fi
           }
 
+          capture_intimate_interests() {
+            local size="$1"
+            run_checked "$OUT/free/${size}-intimate-interests.metrics.log" "async (page) => {
+              const section = page.locator('.intimate-interests');
+              await section.locator(':scope > summary').click();
+              await section.getByText('Dinâmicas de poder', { exact: true }).click();
+              const interest = section.getByLabel('BDSM', { exact: true });
+              await interest.selectOption('explore');
+              await page.waitForFunction(() =>
+                document.querySelector('.intimate-interests > summary')?.textContent?.includes('1 interesse'));
+              const metrics = await interest.evaluate((control) => ({
+                selected: control.value,
+                minHeight: control.getBoundingClientRect().height,
+                scrollWidth: document.documentElement.scrollWidth,
+                viewportWidth: window.innerWidth,
+              }));
+              if (metrics.selected !== 'explore' || metrics.minHeight < 44 || metrics.scrollWidth > metrics.viewportWidth + 1) {
+                throw new Error('Private interest selection lost its usable responsive layout');
+              }
+              return metrics;
+            }"
+            playwright-cli screenshot --full-page --filename="$OUT/free/${size}-intimate-interests.png"
+            require_file "$OUT/free/${size}-intimate-interests.png"
+            run_checked "$OUT/free/${size}-intimate-save.metrics.log" "async (page) => {
+              await page.locator('.preference-profile-form button[type=submit]').click();
+              await page.waitForFunction(() =>
+                document.querySelector('.preference-profile-form button[type=submit]')?.disabled);
+            }"
+            playwright-cli reload
+          }
+
           playwright-cli open "$BASE?visualPlan=free"
           playwright-cli resize 1440 1000
 
@@ -211,6 +242,7 @@ jobs:
           playwright-cli screenshot --full-page --filename="$OUT/free/desktop-advanced.png"
           require_file "$OUT/free/desktop-advanced.png"
 
+          capture_intimate_interests desktop
           playwright-cli resize 390 844
           playwright-cli reload
 
@@ -248,6 +280,7 @@ jobs:
           require_file "$OUT/free/mobile.accessibility.yml"
           require_file "$OUT/free/mobile.png"
 
+          capture_intimate_interests mobile
           run_checked "$OUT/free/mobile-invalid.metrics.log" "async (page) => {
             const summary = page.locator('.preference-group__summary').filter({ hasText: 'Ajustar alcance' });
             await summary.click();
