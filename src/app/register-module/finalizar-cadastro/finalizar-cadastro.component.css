@@ -147,6 +147,19 @@ label {
   font-size: 0.8125rem;
 }
 
+.completion-orientations {
+  display: grid;
+  gap: clamp(0.75rem, 1.2vw, 1rem);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.completion-orientations .field-hint {
+  line-height: 1.55;
+}
+
 .form-container .alert,
 .app-field .tooltip-error {
   position: static;
