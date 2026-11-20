@@ -220,7 +220,7 @@ h1 {
   }
 }
 
-@media (min-width: 64rem) {
+@media (min-width: 80rem) and (min-aspect-ratio: 7/5) {
   .terms-acceptance {
     grid-template-columns: minmax(0, 1fr) minmax(0, 39rem);
     background:

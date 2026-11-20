@@ -943,19 +943,24 @@ jobs:
           playwright-cli snapshot --filename="$OUT/profile/mobile-invalid.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/profile/mobile-invalid.png"
 
-          playwright-cli resize 1440 1000
+          playwright-cli resize 2048 756
           playwright-cli run-code "async (page) => {
             await page.goto('$BASE/register/aceitar-termos');
             await page.waitForSelector('.terms-acceptance__card', { state: 'visible' });
-            const metrics = await page.evaluate(() => ({
-              viewportWidth: window.innerWidth,
-              scrollWidth: document.documentElement.scrollWidth,
-              links: document.querySelectorAll('.terms-acceptance__links a').length,
-              checkboxVisible: !!document.querySelector('input[type=checkbox]')?.getClientRects().length,
-              actions: document.querySelectorAll('.terms-acceptance__actions button').length,
-            }));
+            const metrics = await page.evaluate(() => {
+              const photo = getComputedStyle(document.querySelector('.terms-acceptance'));
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                links: document.querySelectorAll('.terms-acceptance__links a').length,
+                checkboxVisible: !!document.querySelector('input[type=checkbox]')?.getClientRects().length,
+                actions: document.querySelectorAll('.terms-acceptance__actions button').length,
+                photoFramed: photo.backgroundImage.includes('signup-terms-masquerade.webp') &&
+                  photo.backgroundPositionY.split(',').at(-1).trim() === '0%',
+              };
+            });
             console.log(JSON.stringify(metrics));
-            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Terms desktop overflow');
+            if (!metrics.photoFramed || metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Terms desktop photo framing or overflow');
             if (metrics.links !== 2 || !metrics.checkboxVisible || metrics.actions !== 2) throw new Error('Terms desktop incomplete');
             return metrics;
           }" | tee "$OUT/terms/desktop-initial.metrics.log"
