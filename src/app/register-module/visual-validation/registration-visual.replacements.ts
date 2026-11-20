@@ -180,6 +180,7 @@ export interface ProfileCompletionInitialData {
   savedNicknameSuggestion?: string;
   gender: string;
   orientation: string;
+  showOrientationPublicly?: boolean;
   estado: string;
   municipio: string;
 }
@@ -190,6 +191,7 @@ export interface ProfileCompletionSubmitInput {
   nickname: string;
   gender: string;
   orientation: string;
+  showOrientationPublicly?: boolean;
   estado: string;
   municipio: string;
 }
