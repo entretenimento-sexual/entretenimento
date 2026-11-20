@@ -6,6 +6,15 @@
     </div>
   }
 
+  @if (canConfirmVerification) {
+    <section class="form-container" aria-labelledby="verify-email-title">
+      <h1 id="verify-email-title">Confirme seu e-mail</h1>
+      <button type="button" class="app-action app-action--primary" (click)="confirmEmailVerification()">
+        Confirmar e-mail
+      </button>
+    </section>
+  }
+
   @if (!isLoading && message) {
     <div class="alert-container">
       <p

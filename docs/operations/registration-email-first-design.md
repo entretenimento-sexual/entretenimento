@@ -64,7 +64,9 @@ Para a experiência adulta, o contrato de lançamento exige verificação confi�
 
 A integração escolhida deve confirmar somente a faixa 18+, com emissor, referência pseudonimizada, data, validade e versão da política. Use comprovação de origem no servidor, rejeição de reaproveitamento por outra conta, fluxo de revisão e convergência de Functions, Rules, acesso a mídia e links já emitidos. Evite armazenar documento, biometria, data de nascimento exata ou material de verificação no cadastro. A decisão de acesso deve ser conferida a cada acesso restrito. A checagem pode reaproveitar evidência válida e revogável, sem pedir a mesma prova a cada tela.
 
-A modalidade `AGE_ADMISSION_MODE=VERIFIED_REQUIRED` exige evidência confiável na conclusão pelo callable. A implantação depende também da verificação pré-Auth, do fechamento do caminho legado de conclusão pelas Rules e dos testes de acesso restrito. A flag sozinha não é a virada. O projeto ainda depende de configurar um emissor confiável e um bloqueio pré-criação em todos os provedores. O caminho de laboratório permanece separado.
+Com `AGE_ADMISSION_MODE=VERIFIED_REQUIRED`, a função de bloqueio `blockDirectAuthRegistration` reserva a criação de novas contas para o provisionamento pelo servidor. Ela recusa o cadastro direto no Auth quando registrada no projeto de homologação com Identity Platform. Contas existentes continuam podendo entrar. Antes de criar `users/{uid}`, o trigger, a recuperação e a reserva de apelido exigem evidência confiável, vigente e vinculada ao mesmo UID. A conclusão pelo callable confere novamente a evidência. O fluxo de laboratório que cria UID por autodeclaração fica indisponível no modo verificado. A candidata de Rules impede a criação direta do documento privado, a conclusão e a primeira projeção pública pelo cliente.
+
+O modo verificado ainda depende de um emissor confiável e de um fluxo de provisionamento que verifique a prova **antes** de criar o UID. A função de bloqueio do Firebase só cobre métodos alcançados pelos eventos de bloqueio. Autenticação anônima deve ficar desabilitada no projeto homologado, e emissores de tokens personalizados e operações do Admin SDK precisam ser controlados no servidor. Ao reverter a configuração de homologação, desregistre o gatilho no Auth antes de remover a função. Confirme separadamente a autorização de contas existentes para conteúdo restrito e a revogação de acesso antes de qualquer virada em produção.
 
 Referências oficiais:
 
@@ -73,11 +75,21 @@ Referências oficiais:
 
 ## Certificação dos dois tipos de link
 
-- **Confirmação de e-mail do cadastro vigente.** O SDK envia com `sendEmailVerification`. O handler valida `VERIFY_EMAIL` com `checkActionCode` e consome com `applyActionCode`. A confirmação pode ser feita em outra sessão ou janela. O link confirma apenas seu destinatário, preserva a sessão de outra conta e pede que se entre com a conta confirmada para continuar. A integração do emulador usa essas operações reais do SDK e comprova a preservação da senha e a rejeição de reaproveitamento do código.
+- **Confirmação de e-mail do cadastro vigente.** O SDK envia com `sendEmailVerification`. A página hospedada pede a ação **Confirmar e-mail**. Só após o clique o handler valida `VERIFY_EMAIL` com `checkActionCode` e consome com `applyActionCode`. Isso preserva o código quando um verificador de e-mail apenas visita a URL. A confirmação pode ser feita em outra sessão ou janela. O link confirma apenas seu destinatário, preserva a sessão de outra conta e pede que se entre com a conta confirmada para continuar. A integração do emulador usa essas operações reais do SDK e comprova a preservação da senha e a rejeição de reaproveitamento do código.
 - **Cadastro futuro por autenticação com link.** O método nativo é `sendSignInLinkToEmail`, `isSignInWithEmailLink` e `signInWithEmailLink`. Use o e-mail salvo localmente ou solicite o endereço em outro dispositivo. O endereço fica fora da URL. O link não substitui a prova 18+ nem pode trocar a credencial de uma conta anterior. Antes de habilitar, teste contas existentes com e sem endereço verificado, nova conta, mesmo e outro dispositivo, duplicação, vencimento, troca de sessão e rejeição de destinatário divergente.
 - **Certificação em ambiente hospedado.** Depois de configurar um projeto de homologação, validar entrega real, domínio HTTPS autorizado, template e handler de ação, `continueUrl`, provedores e recuperação. A simulação local não comprova entrega nem configuração de domínio. O método de consulta de códigos do emulador é exclusivo do laboratório.
 
 [Validação por link de autenticação no Firebase](https://firebase.google.com/docs/auth/web/email-link-auth?hl=pt-BR) · [Handler de confirmação do Firebase](https://firebase.google.com/docs/auth/custom-email-handler)
+
+### Ensaio de homologação do e-mail
+
+Use o projeto isolado `entretenimento-staging` e uma origem HTTPS cadastrada em **Authentication → Authorized domains**. Configure App Check para esse app Web de staging e o template de verificação para apontar ao handler hospedado em `/post-verification/action`. O `continueUrl` do SDK é o retorno ao cadastro e está separado da URL do handler.
+
+No PowerShell, confira o App Check e a compilação de staging com `npm.cmd run appcheck:staging:check` e `npm.cmd run build:staging`. Depois de disponibilizar o build no ambiente isolado, use caixas de e-mail de teste para registrar os resultados de entrega, visita à página sem consumo do código, confirmação com clique, outro dispositivo, outra conta ativa, código expirado e tentativa de reutilização. Registre o resultado de cada caso sem colar o código do link ou o endereço pessoal nos logs. Para testar o fluxo vigente enquanto o provisionamento verificado está pendente, use contas de teste previamente preparadas no projeto isolado. A confirmação de e-mail e o login por link são certificações distintas.
+
+O App Check de staging precisa de uma site key reCAPTCHA Enterprise associada ao domínio efetivamente usado. A configuração no repositório ainda está sem essa chave.
+
+[Funções de bloqueio do Firebase Auth](https://firebase.google.com/docs/auth/extend-with-blocking-functions)
 
 ## Risco documentado pelo Firebase — contas já existentes
 

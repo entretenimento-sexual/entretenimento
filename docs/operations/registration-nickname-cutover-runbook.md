@@ -7,8 +7,9 @@ pré-flight, não autorização nem comando de deploy.
 
 - Cadastro Angular novo usa reserveRegistrationNickname e
   completeRegistrationProfile. Foi validado por E2E em emulador.
-- A versão candidata de Firestore Rules nega o batch legado de
-  conclusão e criação do índice, mas não é a regra ativa.
+- A candidata de Firestore Rules impede o cliente de criar `users/{uid}`,
+  concluir o cadastro ou criar a primeira projeção pública. A candidata fica
+  separada da regra ativa.
 - Usuários e índices legados ainda não foram auditados integralmente
   no ambiente real.
 - Clientes antigos ainda podem tentar concluir por operações diretas

@@ -68,6 +68,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   public message = '';
 
   public verifyOk = false;
+  public canConfirmVerification = false;
   public canRetryVerification = false;
   public canSwitchAccount = false;
   private verifiedUser: AuthSessionService['currentAuthUser'] = null;
@@ -146,7 +147,8 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
         }
 
         if (this.mode === 'verifyEmail') {
-          this.processVerifyEmail();
+          this.isLoading = false;
+          this.canConfirmVerification = true;
           return;
         }
 
@@ -165,6 +167,13 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.ngUnsubscribe.next();
     this.ngUnsubscribe.complete();
     this.actionChanged.complete();
+  }
+
+  confirmEmailVerification(): void {
+    if (this.isLoading || !this.canConfirmVerification || this.mode !== 'verifyEmail') return;
+
+    this.canConfirmVerification = false;
+    this.processVerifyEmail();
   }
 
   private processVerifyEmail(): void {
@@ -469,6 +478,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.isLoading = true;
     this.message = '';
     this.verifyOk = false;
+    this.canConfirmVerification = false;
     this.canRetryVerification = false;
     this.canSwitchAccount = false;
     this.verifiedUser = null;

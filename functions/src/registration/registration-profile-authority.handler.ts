@@ -22,6 +22,7 @@ import {
   resolveStoredRegistrationNickname, type RegistrationNickname,
 } from './nickname-reservation.policy';
 import { hasNicknameOwnerWithoutIndex } from './registration-nickname-availability.policy';
+import { assertCanCreateRegistrationSeed } from './registration-seed-admission.service';
 import { assertRegistrationPasswordDefined } from './email-link-preview.handler';
 
 interface CompleteRegistrationInput {
@@ -164,6 +165,7 @@ export const reserveRegistrationNickname = onCall<{ nickname?: unknown; expected
         throw new HttpsError('failed-precondition', 'Conta indisponível para registro.');
       }
       if (user['profileCompleted'] === true) assertClaimAllowed('account-completed');
+      if (!userSnap.exists) await assertCanCreateRegistrationSeed(tx, uid);
       const nickname = nicknameForAccount(display, user);
       const ownership = await getNicknameOwnership(tx, uid, nickname, user['nickname']);
 

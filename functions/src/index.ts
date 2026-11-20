@@ -58,6 +58,7 @@ export {
   reserveRegistrationNickname,
   completeRegistrationProfile,
 } from './registration/registration-profile-authority.handler';
+export { blockDirectAuthRegistration } from './registration/registration-auth-admission.handler';
 export { getRegistrationNicknameAvailability } from './registration/get-registration-nickname-availability.handler';
 export {
   inspectEmailLinkRegistration,

@@ -15,6 +15,7 @@ assert.equal(process.env.FIRESTORE_EMULATOR_HOST, '127.0.0.1:18080');
 const rules = buildRegistrationLockdownCandidate();
 for (const expected of [
   'return false && isSelf(userId)',
+  '// Seeds privados são criados apenas pelo backend nesta candidata.',
   'allow create: if false && resource == null',
   'allow create: if isEmailDoc() && common()',
   'allow get: if (false && isNicknameDoc()',
@@ -39,6 +40,19 @@ try {
   });
   const db = testEnv.authenticatedContext(UID, { email_verified: true }).firestore();
   const owner = doc(db, 'users', UID);
+
+  const direct = testEnv.authenticatedContext('lockdown-seed', {
+    email: 'seed@example.test', email_verified: false,
+  }).firestore();
+  await assertFails(setDoc(doc(direct, 'users', 'lockdown-seed'), {
+    uid: 'lockdown-seed', email: 'seed@example.test', nickname: 'Perfil Pendente',
+    role: 'free', tier: 'free', emailVerified: false, isSubscriber: false, subscriptionStatus: 'inactive',
+    profileCompleted: false, publicVisibility: 'hidden', interactionBlocked: true, loginAllowed: true,
+    accountStatus: 'active', registrationFlowVersion: 'v3-private-by-default', registrationCompletedAt: null,
+    acceptedTerms: { accepted: false, date: serverTimestamp() },
+    createdAt: serverTimestamp(), updatedAt: serverTimestamp(), registrationDate: serverTimestamp(),
+    firstLogin: serverTimestamp(), nicknameHistory: [],
+  }));
 
   await assertFails(updateDoc(owner, {
     gender: 'mulher', declaredIdentityCode: 'mulher', identityCatalogVersion: 1,

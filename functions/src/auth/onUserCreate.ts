@@ -6,6 +6,7 @@ import {
   generatePublicProfileId,
   normalizePublicProfileId,
 } from '../identity/public-profile-id';
+import { canCreateRegistrationSeed } from '../registration/registration-seed-admission.service';
 import { buildInitialUserSeed } from './user-registration-seed';
 
 /**
@@ -37,6 +38,10 @@ export const onUserCreate = authTrigger.user().onCreate(async (user) => {
 
       return;
     }
+
+    // Uma conta criada fora do provisionamento verificado pode ser conciliada
+    // mais tarde pela recuperação, quando houver evidência canônica.
+    if (!await canCreateRegistrationSeed(transaction, user.uid)) return;
 
     transaction.create(
       userRef,

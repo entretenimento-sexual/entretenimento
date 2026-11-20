@@ -7,6 +7,7 @@ import {
   generatePublicProfileId,
   normalizePublicProfileId,
 } from '../identity/public-profile-id';
+import { assertCanCreateRegistrationSeed } from '../registration/registration-seed-admission.service';
 import { buildInitialUserSeed, buildRegistrationAuthProjection } from './user-registration-seed';
 
 export interface RecoverRegistrationSeedResponse {
@@ -94,6 +95,7 @@ export const recoverRegistrationSeed = onCall<{ expectedUid?: unknown } | null>(
         return false;
       }
 
+      await assertCanCreateRegistrationSeed(transaction, uid);
       transaction.create(
         userRef,
         buildInitialUserSeed(authUser, {

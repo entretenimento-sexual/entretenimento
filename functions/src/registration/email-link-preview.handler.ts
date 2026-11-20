@@ -6,9 +6,11 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { auth, db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 
+import { requiresTrustedAdultVerification } from '../compliance/adult-self-declaration-evidence';
 import { ADULT_SELF_DECLARATION_VERSION } from '../compliance/platform-legal.constants';
 import { normalizeRegistrationNicknameClaim } from './nickname-reservation.policy';
 
+const emailLinkPreviewAllowed = isFunctionsEmulatorRuntime() && !requiresTrustedAdultVerification;
 const PREVIEW_UID_PREFIX = 'email-link-preview-';
 // Prazo de uso do rascunho antes da confirmação. A leitura valida expiresAtMs;
 // a remoção ocorre na transação que vincula o rascunho à conta.
@@ -35,7 +37,7 @@ export function emailLinkSignupEvidenceRef(uid: string) {
     : null;
 }
 
-export const stageEmailLinkRegistration = isFunctionsEmulatorRuntime() ? onCall<{
+export const stageEmailLinkRegistration = emailLinkPreviewAllowed ? onCall<{
   email?: unknown;
   nickname?: unknown;
 }>({ region: FUNCTIONS_REGION }, async (request): Promise<{ draftId: string }> => {
@@ -180,7 +182,7 @@ async function lookupSignupLink(code: string, emulatorCodesUrl: URL): Promise<Li
   return { state: 'confirm', email, draftId, existing };
 }
 
-export const inspectEmailLinkRegistration = isFunctionsEmulatorRuntime() ? onCall<{ code?: unknown }>(
+export const inspectEmailLinkRegistration = emailLinkPreviewAllowed ? onCall<{ code?: unknown }>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<{ state: LinkLookup['state'] }> => {
     const url = requireLocalAuth();
@@ -194,7 +196,7 @@ export const inspectEmailLinkRegistration = isFunctionsEmulatorRuntime() ? onCal
 ) : undefined;
 
 /** Reserve a fresh Auth identity before calling the Firebase native sign-in API. */
-export const prepareEmailLinkRegistration = isFunctionsEmulatorRuntime() ? onCall<{
+export const prepareEmailLinkRegistration = emailLinkPreviewAllowed ? onCall<{
   email?: unknown;
   code?: unknown;
   confirmsAdult?: unknown;

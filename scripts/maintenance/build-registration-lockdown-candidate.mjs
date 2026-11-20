@@ -1,5 +1,5 @@
 // CANDIDATE ONLY. Never writes firestore.rules, deploys or changes active rules.
-// Reuses the canonical manifest and replaces only the three registration escape hatches.
+// Reuses the canonical manifest and closes the legacy client registration paths.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +21,12 @@ export function buildRegistrationLockdownCandidate() {
     let src = fs.readFileSync(path.join(root, 'firestore-rules', fragment), 'utf8')
       .replace(/\r\n/g, '\n').trimEnd();
     if (fragment === 'users.rules') {
+      src = replaceExactlyOnce(
+        src,
+        'allow create: if resource == null\n    && isSelf(userId)',
+        '// Seeds privados são criados apenas pelo backend nesta candidata.\n  allow create: if false && resource == null\n    && isSelf(userId)',
+        fragment
+      );
       src = replaceExactlyOnce(
         src,
         'function selfCompletingRegistration(changedKeys) {\n    let data = request.resource.data;\n    let current = resource.data;\n    return isSelf(userId)',

@@ -13,6 +13,7 @@ on:
       - 'scripts/tests/registration-nickname-callables.e2e.mjs'
       - 'scripts/tests/registration-email-link.e2e.mjs'
       - 'scripts/tests/registration-lockdown-candidate.e2e.mjs'
+      - 'scripts/tests/registration-verified-admission.e2e.mjs'
       - 'scripts/maintenance/build-registration-lockdown-candidate.mjs'
       - 'scripts/maintenance/audit-registration-draft-cleanup-emulator.mjs'
       - 'scripts/tests/nickname-reservation-backfill.policy.test.mjs'
@@ -66,3 +67,14 @@ jobs:
             --only auth,firestore,functions,storage \
             --project demo-entretenimento-media-e2e \
             "node scripts/tests/registration-nickname-callables.e2e.mjs && node scripts/tests/registration-lockdown-candidate.e2e.mjs && node scripts/tests/registration-email-link.e2e.mjs"
+      - name: Verify closed signup in verified mode
+        env:
+          AGE_ADMISSION_MODE: VERIFIED_REQUIRED
+        run: |
+          # O Functions Emulator carrega a variável do arquivo do projeto.
+          printf 'AGE_ADMISSION_MODE=VERIFIED_REQUIRED\n' > functions/.env.demo-entretenimento-verified-e2e
+          node node_modules/firebase-tools/lib/bin/firebase.js emulators:exec \
+            --config firebase.media-e2e.json \
+            --only auth,firestore,functions,storage \
+            --project demo-entretenimento-verified-e2e \
+            "node scripts/tests/registration-verified-admission.e2e.mjs"

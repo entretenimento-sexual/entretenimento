@@ -189,6 +189,10 @@ describe('AuthVerificationHandlerComponent', () => {
     queryParamsSubject.next({ mode: 'verifyEmail', oobCode: 'abc123' });
     fixture.detectChanges();
 
+    expect(emailVerificationMock.handleEmailVerification).not.toHaveBeenCalled();
+    const confirm = fixture.nativeElement.querySelector('button');
+    expect(confirm.textContent.trim()).toBe('Confirmar e-mail');
+    confirm.click();
     expect(emailVerificationMock.handleEmailVerification).toHaveBeenCalledTimes(1);
     expect(component.verifyOk).toBe(true);
     expect(component.actionSucceeded).toBe(true);
@@ -207,6 +211,8 @@ describe('AuthVerificationHandlerComponent', () => {
     });
     fixture.detectChanges();
 
+    component.confirmEmailVerification();
+    fixture.detectChanges();
     expect(component.verifyOk).toBe(false);
     expect(component.showGoToLoginCTA).toBe(true);
     expect(component.message).toContain('Entre na conta que recebeu o link');
@@ -220,6 +226,8 @@ describe('AuthVerificationHandlerComponent', () => {
     queryParamsSubject.next({ mode: 'verifyEmail', oobCode: 'test-code' });
     fixture.detectChanges();
 
+    component.confirmEmailVerification();
+    fixture.detectChanges();
     expect(component.verifyOk).toBe(true);
     expect(component.canSwitchAccount).toBe(true);
     expect(fixture.nativeElement.textContent).not.toContain('Continuar cadastro');
@@ -235,6 +243,8 @@ describe('AuthVerificationHandlerComponent', () => {
     );
     queryParamsSubject.next({ mode: 'verifyEmail', oobCode: 'test-code' });
     fixture.detectChanges();
+    component.confirmEmailVerification();
+    fixture.detectChanges();
     expect(component.message).toContain('ainda está pendente');
     session.currentAuthUser = { uid: 'B' };
     component.goToWelcome();
@@ -249,7 +259,9 @@ describe('AuthVerificationHandlerComponent', () => {
       .mockReturnValueOnce(of({ ok: false, reason: 'expired' }));
     queryParamsSubject.next({ mode: 'verifyEmail', oobCode: 'older' });
     fixture.detectChanges();
+    component.confirmEmailVerification();
     queryParamsSubject.next({ mode: 'verifyEmail', oobCode: 'newer' });
+    component.confirmEmailVerification();
     oldResult.next({ ok: true, firestoreUpdated: true });
 
     expect(component.verifyOk).toBe(false);
