@@ -768,7 +768,7 @@ jobs:
 
           playwright-cli close
 
-      - name: Capture onboarding flow surfaces
+      - name: Capture welcome and profile surfaces
         shell: bash
         env:
           PLAYWRIGHT_CLI_SESSION: onboarding-${{ matrix.configuration }}
@@ -776,7 +776,7 @@ jobs:
           set -euo pipefail
           OUT="artifacts/${{ matrix.configuration }}/onboarding"
           BASE="http://127.0.0.1:4200"
-          mkdir -p "$OUT/welcome" "$OUT/profile" "$OUT/terms" "$OUT/adult"
+          mkdir -p "$OUT/welcome" "$OUT/profile"
 
           playwright-cli open "$BASE/register/welcome?verificationEmail=failed"
           playwright-cli resize 1440 1000
@@ -1009,6 +1009,17 @@ jobs:
           test -s "$OUT/profile/mobile-ready.png"
 
           playwright-cli close
+
+      - name: Capture terms and legacy age redirect
+        shell: bash
+        env:
+          PLAYWRIGHT_CLI_SESSION: onboarding-terms-${{ matrix.configuration }}
+        run: |
+          set -euo pipefail
+          OUT="artifacts/${{ matrix.configuration }}/onboarding"
+          BASE="http://127.0.0.1:4200"
+          mkdir -p "$OUT/terms" "$OUT/adult"
+
           playwright-cli open "$BASE/register/aceitar-termos"
           playwright-cli resize 2048 756
           playwright-cli run-code "async (page) => {
