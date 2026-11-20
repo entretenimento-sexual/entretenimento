@@ -11,6 +11,16 @@
       </a>
     </app-page-header>
 
+    @if (showProfileReady) {
+      <section class="profile-ready app-card app-card--flat" aria-labelledby="profile-ready-title">
+        <div class="profile-ready__copy">
+          <h2 id="profile-ready-title">Seu perfil está pronto</h2>
+          <p>Você pode ajustar suas preferências agora ou voltar a elas quando quiser.</p>
+        </div>
+        <a class="app-action app-action--primary" routerLink="/dashboard/principal">Explorar agora</a>
+      </section>
+    }
+
     @if (state$ | async; as state) {
       <section
         class="editor-section"

@@ -1,6 +1,7 @@
 // src/app/register-module/data-access/register-flow.model.ts
 
 export const REGISTRATION_COMPLETION_ROUTE = '/preferencias/editar';
+export const PROFILE_COMPLETED_NAVIGATION_INFO = 'profile-completed';
 
 export function resolveRegistrationReturnUrl(raw: string | null | undefined): string | null {
   const value = raw?.trim() ?? '';

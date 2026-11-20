@@ -32,10 +32,11 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { PROFILE_COMPLETED_NAVIGATION_INFO } from '../../../register-module/data-access/register-flow.model';
 
 import { PreferencesEditorFacade } from '../../application/preferences-editor.facade';
 import { IntentState } from '../../models/intent-state.model';
@@ -76,6 +77,9 @@ export class PreferencesEditorComponent
 
   @ViewChild(IntentStateFormComponent)
   private intentForm?: IntentStateFormComponent;
+
+  // A marca pertence à navegação em curso e não é gravada no histórico.
+  readonly showProfileReady = inject(Router).currentNavigation()?.extras.info === PROFILE_COMPLETED_NAVIGATION_INFO;
 
   readonly isSavingProfile = signal(false);
   readonly isSavingIntent = signal(false);

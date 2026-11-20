@@ -29,7 +29,7 @@ import { FormValidationFocusDirective } from '../../shared/form-validation-focus
 
 import { ProfileCompletionFacade } from '../data-access/profile-completion.facade';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
-import { RegisterFlowVm } from '../data-access/register-flow.model';
+import { PROFILE_COMPLETED_NAVIGATION_INFO, type RegisterFlowVm } from '../data-access/register-flow.model';
 
 type MockFn = ReturnType<typeof vi.fn>;
 
@@ -333,7 +333,7 @@ describe('FinalizarCadastroComponent', () => {
       expect(profileCompletionFacadeMock.saveProfileCompletion$).toHaveBeenCalledWith(
         expect.objectContaining({ nickname: 'Alex', orientation: '', municipio: 'Rio de Janeiro' })
       );
-      expect(router.navigateByUrl).toHaveBeenCalledWith('/preferencias/editar', { replaceUrl: true });
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/preferencias/editar', { replaceUrl: true, info: PROFILE_COMPLETED_NAVIGATION_INFO });
     } finally {
       fresh.destroy();
     }
@@ -428,12 +428,10 @@ describe('FinalizarCadastroComponent', () => {
       profileCompleted: true,
     });
 
-    expect(errorNotificationMock.showSuccess).toHaveBeenCalledWith(
-      'Perfil finalizado com sucesso!'
-    );
+    expect(errorNotificationMock.showSuccess).not.toHaveBeenCalled();
     expect(router.navigateByUrl).toHaveBeenCalledWith(
       '/preferencias/editar',
-      { replaceUrl: true }
+      { replaceUrl: true, info: PROFILE_COMPLETED_NAVIGATION_INFO }
     );
     expect(component.hasUnsavedChanges()).toBe(false);
   });
@@ -453,6 +451,10 @@ describe('FinalizarCadastroComponent', () => {
     await fixture.whenStable();
 
     expect(router.navigateByUrl).toHaveBeenCalledTimes(2);
+    expect(router.navigateByUrl).toHaveBeenLastCalledWith(
+      '/preferencias/editar',
+      { replaceUrl: true, info: PROFILE_COMPLETED_NAVIGATION_INFO }
+    );
     expect(profileCompletionFacadeMock.saveProfileCompletion$).toHaveBeenCalledTimes(1);
   });
 
@@ -582,8 +584,8 @@ describe('FinalizarCadastroComponent', () => {
     expect(currentUserStoreMock.patch).toHaveBeenCalledWith({ profileCompleted: true });
     expect(component.profileSaved).toBe(true);
     expect(component.isSubmitting).toBe(false);
-    expect(errorNotificationMock.showSuccess).toHaveBeenCalledOnce();
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/preferencias/editar', { replaceUrl: true });
+    expect(errorNotificationMock.showSuccess).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/preferencias/editar', { replaceUrl: true, info: PROFILE_COMPLETED_NAVIGATION_INFO });
   });
 
   it('mantém o rascunho se a leitura de confirmação falhar', () => {

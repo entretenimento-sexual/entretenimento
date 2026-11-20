@@ -53,7 +53,12 @@ import {
 import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
 import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
-import { REGISTRATION_COMPLETION_ROUTE, resolveRegistrationReturnUrl, type RegisterFlowVm } from '../data-access/register-flow.model';
+import {
+  PROFILE_COMPLETED_NAVIGATION_INFO,
+  REGISTRATION_COMPLETION_ROUTE,
+  resolveRegistrationReturnUrl,
+  type RegisterFlowVm,
+} from '../data-access/register-flow.model';
 import { ProfileCompletionFacade } from '../data-access/profile-completion.facade';
 import {
   isRegistrationConfirmationUncertain,
@@ -552,6 +557,11 @@ implements OnInit, UnsavedChangesAware
       REGISTRATION_COMPLETION_ROUTE;
   }
 
+  private opensPreferences(target: string): boolean {
+    const path = target.split(/[?#;]/, 1)[0];
+    return path === REGISTRATION_COMPLETION_ROUTE || path.startsWith(REGISTRATION_COMPLETION_ROUTE + '/');
+  }
+
   private canSubmitProfileCompletion(): boolean {
     const vm = this.latestVm;
     if (!vm?.uid) {
@@ -695,14 +705,17 @@ implements OnInit, UnsavedChangesAware
             return;
           }
 
-          if (!this.uploadMessage) this.setSuccessMessage('Perfil finalizado com sucesso!');
+          const target = this.getRedirectToAfterCompletion();
+          if (!this.uploadMessage && !this.opensPreferences(target)) {
+            this.setSuccessMessage('Perfil finalizado com sucesso!');
+          }
           if (this.currentUserStore.getSnapshot()?.uid === uid) {
             this.currentUserStore.patch({ profileCompleted: true });
           }
           this.localDraft.remove(this.draftKey);
           this.initialDraftSnapshot = this.currentDraftSnapshot();
           this.avatarFile = null;
-          this.savedProfileDestination = { uid, target: this.getRedirectToAfterCompletion() };
+          this.savedProfileDestination = { uid, target };
           if (!this.uploadMessage) this.continueAfterProfileSave();
         },
       });
@@ -746,7 +759,10 @@ implements OnInit, UnsavedChangesAware
 
     this.openingSavedProfile = true;
     this.savedProfileNavigationFailed = false;
-    defer(() => this.router.navigateByUrl(saved.target, { replaceUrl: true })).pipe(
+    const navigation = this.opensPreferences(saved.target)
+      ? { replaceUrl: true, info: PROFILE_COMPLETED_NAVIGATION_INFO }
+      : { replaceUrl: true };
+    defer(() => this.router.navigateByUrl(saved.target, navigation)).pipe(
       timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
       tap((navigated) => {
         if (!navigated || this.router.url.split(/[?#]/)[0] === '/register/finalizar-cadastro') {
