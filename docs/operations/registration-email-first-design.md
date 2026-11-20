@@ -27,11 +27,26 @@ Solicitar outro link para um e-mail que já tem senha leva à entrada da conta e
 
 `loginAllowed: true` é um dos sinais usados para decidir se a conta pode entrar. A conclusão do cadastro é marcada por `profileCompleted: true` e `registrationCompletedAt`. A presença em Authentication ou a reserva do apelido no índice podem ocorrer antes disso.
 
-Ao abrir diretamente uma rota como Explorar enquanto `interactionBlocked` está ativo, o guard pode encaminhar para o status da conta. Para retomar a primeira etapa pendente, use a página de entrada ou **Continuar cadastro** na aba que solicitou o link.
+Enquanto o perfil estiver incompleto, ativo e privado por padrão, a abertura direta de uma rota protegida encaminha à primeira etapa pendente, preservando o destino interno válido. Suspensão, restrição etária ou de moderação, exclusão em curso e bloqueios independentes têm precedência e abrem o status da conta. Termos e documentos públicos seguem disponíveis.
 
-## Simulação de limpeza de rascunhos
+## Retenção proposta e simulação de abandono
 
-Com o Firestore Emulator ativo, execute na raiz do repositório.
+Os prazos abaixo são limites de inatividade para triagem. Recontam a partir da atividade válida mais recente. Expiração de link e inatividade da conta são relógios independentes.
+
+| Estado | Janela | Resultado da triagem |
+|---|---|---|
+| E-mail ainda no formulário | 30 minutos | Expiração do rascunho da aba |
+| Link com rascunho pré-Auth | 30 minutos | Identificar o rascunho vencido, preservando recibos por UID |
+| Conta criada e e-mail pendente | 7 dias | Candidata após o prazo. Um novo pedido de link permite retomar durante a janela |
+| E-mail confirmado na prévia e senha pendente | 7 dias | Candidata após o prazo. A sessão ou novo link válido permite retomar |
+| E-mail confirmado e Termos pendentes | 30 dias | Candidata após o prazo. Entrada com a credencial da conta retoma os Termos |
+| Termos aceitos e maioridade ou perfil pendentes | 90 dias | Candidata após o prazo. A primeira etapa pendente abre ao entrar |
+| Revisão de maioridade, menoridade apurada, suspensão, exclusão, hold, assinatura ou projeção pública | Revisão separada | Excluir da limpeza por abandono |
+| Recibo por UID, documento legado, ausência de Auth compatível ou de datas confiáveis | Revisão separada | Preservar para reconciliação |
+
+A simulação usa os documentos privados explicitamente incompletos, confirma a conta no Auth, considera as evidências de idade e a projeção pública, e calcula a inatividade a partir das datas confiáveis de criação, sessão, aceite ou decisão etária. Um UID existente só no Auth fica fora do conjunto automático. A conta concluída segue a política normal de conta. O rascunho de edição local do perfil tem prazo de 24 horas e guarda somente os campos permitidos.
+
+Com **Auth e Firestore Emulator** ativos, execute na raiz do repositório.
 
 ```sh
 node scripts/maintenance/audit-registration-draft-cleanup-emulator.mjs --dry-run
@@ -39,7 +54,30 @@ node scripts/maintenance/audit-registration-draft-cleanup-emulator.mjs --dry-run
 
 O relatório reúne contagens de rascunhos temporários vencidos (`expiredDrafts`), válidos (`validDrafts`), recibos de contas (`accountReceipts`) e registros que ficaram fora da classificação (`unclassified`). Ele usa `expiresAtMs` com uma referência de horário fixa. A consulta é somente leitura e o resultado contém só contagens e metadados da execução. Recibos por UID preservam os dados já vinculados ao cadastro.
 
-Por padrão, o comando usa o projeto local `entretenimento-sexual` no endereço `127.0.0.1:8080`. Para um emulador isolado, informe `FIRESTORE_EMULATOR_HOST` e `FIREBASE_PROJECT_ID` antes de executar. O prazo de retenção de contas incompletas segue como uma decisão separada.
+O objeto `accounts` separa contas na janela, candidatas, protegidas e sem classificação segura. O comando só aceita endereços locais. Por padrão usa o projeto `entretenimento-sexual`, Auth em `127.0.0.1:9099` e Firestore em `127.0.0.1:8080`. Para um emulador isolado, configure `FIREBASE_AUTH_EMULATOR_HOST`, `FIRESTORE_EMULATOR_HOST` e `FIREBASE_PROJECT_ID`.
+
+Uma futura rotina de limpeza deve operar em lotes, permitir aviso e janela de retomada, conferir novamente o estado e os vínculos imediatamente antes da operação e proteger evidências com obrigação de retenção. Deve coordenar Auth, documento privado, apelido, projeções e recibos, com retomada idempotente após falha parcial. O relatório atual é somente leitura.
+
+## Regra de liberação do novo cadastro
+
+Para a experiência adulta, o contrato de lançamento exige verificação confiável de maioridade antes da liberação das áreas restritas. Quando houver oferta de conteúdo pornográfico, a regra alcança a criação de conta ou perfil. O novo cadastro deve exigir sinal confiável **antes de criar a conta**, incluindo e-mail/senha, link e provedores sociais. Enquanto a prova faltar, as superfícies públicas se limitam a cadastro, recuperação, documentos legais e suporte. Autodeclaração pode registrar intenção e servir à prévia local. A autoridade para o conteúdo restrito vem de um resultado 18+ válido, vinculado ao usuário, verificável e revogável.
+
+A integração escolhida deve confirmar somente a faixa 18+, com emissor, referência pseudonimizada, data, validade e versão da política. Use comprovação de origem no servidor, rejeição de reaproveitamento por outra conta, fluxo de revisão e convergência de Functions, Rules, acesso a mídia e links já emitidos. Evite armazenar documento, biometria, data de nascimento exata ou material de verificação no cadastro. A decisão de acesso deve ser conferida a cada acesso restrito. A checagem pode reaproveitar evidência válida e revogável, sem pedir a mesma prova a cada tela.
+
+A modalidade `AGE_ADMISSION_MODE=VERIFIED_REQUIRED` exige evidência confiável na conclusão pelo callable. A implantação depende também da verificação pré-Auth, do fechamento do caminho legado de conclusão pelas Rules e dos testes de acesso restrito. A flag sozinha não é a virada. O projeto ainda depende de configurar um emissor confiável e um bloqueio pré-criação em todos os provedores. O caminho de laboratório permanece separado.
+
+Referências oficiais:
+
+- [Lei nº 15.211/2025, art. 9º](https://www2.camara.leg.br/legin/fed/lei/2025/lei-15211-17-setembro-2025-797997-normaatualizada-pl.html)
+- [ANPD, atos e orientações do ECA Digital](https://www.gov.br/anpd/pt-br/assuntos/eca-digital/)
+
+## Certificação dos dois tipos de link
+
+- **Confirmação de e-mail do cadastro vigente.** O SDK envia com `sendEmailVerification`. O handler valida `VERIFY_EMAIL` com `checkActionCode` e consome com `applyActionCode`. A confirmação pode ser feita em outra sessão ou janela. O link confirma apenas seu destinatário, preserva a sessão de outra conta e pede que se entre com a conta confirmada para continuar. A integração do emulador usa essas operações reais do SDK e comprova a preservação da senha e a rejeição de reaproveitamento do código.
+- **Cadastro futuro por autenticação com link.** O método nativo é `sendSignInLinkToEmail`, `isSignInWithEmailLink` e `signInWithEmailLink`. Use o e-mail salvo localmente ou solicite o endereço em outro dispositivo. O endereço fica fora da URL. O link não substitui a prova 18+ nem pode trocar a credencial de uma conta anterior. Antes de habilitar, teste contas existentes com e sem endereço verificado, nova conta, mesmo e outro dispositivo, duplicação, vencimento, troca de sessão e rejeição de destinatário divergente.
+- **Certificação em ambiente hospedado.** Depois de configurar um projeto de homologação, validar entrega real, domínio HTTPS autorizado, template e handler de ação, `continueUrl`, provedores e recuperação. A simulação local não comprova entrega nem configuração de domínio. O método de consulta de códigos do emulador é exclusivo do laboratório.
+
+[Validação por link de autenticação no Firebase](https://firebase.google.com/docs/auth/web/email-link-auth?hl=pt-BR) · [Handler de confirmação do Firebase](https://firebase.google.com/docs/auth/custom-email-handler)
 
 ## Risco documentado pelo Firebase — contas já existentes
 

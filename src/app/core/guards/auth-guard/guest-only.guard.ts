@@ -49,6 +49,7 @@ import { AccessControlService } from '../../services/autentication/auth/access-c
 import { AuthReturnUrlService } from '../../services/autentication/auth/auth-return-url.service';
 import { ApplicationErrorService } from '../../services/error-handler/application-error.service';
 import { REGISTRATION_COMPLETION_ROUTE, resolveRegistrationReturnUrl } from 'src/app/register-module/data-access/register-flow.model';
+import { normalizeUserAccountLifecycleStatus } from '../../services/autentication/auth/account-lifecycle.policy';
 import { ErrorNotificationService } from '../../services/error-handler/error-notification.service';
 
 import {
@@ -211,6 +212,13 @@ function decideGuestAccess$(
           : buildWelcomeRedirectTree(router, redirectTo, {
               reason: blockedReason,
             });
+      }
+
+      if (appUser) {
+        const status = normalizeUserAccountLifecycleStatus(appUser);
+        if (status !== 'active' && status !== 'unknown' && status !== 'registration_pending') {
+          return router.createUrlTree(['/conta/status']);
+        }
       }
 
       if (tryingWelcome) {

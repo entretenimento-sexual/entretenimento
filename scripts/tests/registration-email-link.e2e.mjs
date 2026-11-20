@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import { initializeApp, deleteApp } from 'firebase/app';
 import {
-  connectAuthEmulator, EmailAuthProvider, getAuth, reauthenticateWithCredential, sendSignInLinkToEmail,
+  applyActionCode, checkActionCode, connectAuthEmulator, createUserWithEmailAndPassword,
+  EmailAuthProvider, getAuth, reauthenticateWithCredential, sendEmailVerification, sendSignInLinkToEmail,
   signInWithEmailLink, signInWithEmailAndPassword, updatePassword,
 } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
@@ -55,6 +56,71 @@ async function rejects(action, code, reason) {
     (!reason || error.details?.reason === reason));
 }
 
+async function verifyProductionEmailAction() {
+  const sender = client('verify-email-sender');
+  const otherBrowser = client('verify-email-other-session');
+  const address = `verify-action-${run}@example.test`;
+  const otherAddress = `verify-other-${run}@example.test`;
+  const { user } = await createUserWithEmailAndPassword(sender.auth, address, password);
+  const { user: other } = await createUserWithEmailAndPassword(otherBrowser.auth, otherAddress, password);
+  await sendEmailVerification(user, {
+    url: 'http://localhost:4200/post-verification/action',
+    handleCodeInApp: true,
+  });
+
+  // Só o transporte do emulador fornece o código ao teste. A validação
+  // usa o mesmo SDK e a mesma operação VERIFY_EMAIL da aplicação.
+  const response = await fetch(`http://${authHost}/emulator/v1/projects/${projectId}/oobCodes`);
+  assert.ok(response.ok);
+  const { oobCodes } = await response.json();
+  const message = oobCodes.findLast(code => code.email === address && code.requestType === 'VERIFY_EMAIL');
+  assert.ok(message);
+  const action = await checkActionCode(otherBrowser.auth, message.oobCode);
+  assert.equal(action.operation, 'VERIFY_EMAIL');
+  assert.equal(action.data.email, address);
+  await applyActionCode(otherBrowser.auth, message.oobCode);
+
+  assert.equal(otherBrowser.auth.currentUser.uid, other.uid);
+  assert.equal((await adminAuth.getUser(other.uid)).emailVerified, false);
+  assert.equal((await adminAuth.getUser(user.uid)).emailVerified, true);
+  assert.equal((await signInWithEmailAndPassword(sender.auth, address, password)).user.uid, user.uid);
+  await assert.rejects(checkActionCode(otherBrowser.auth, message.oobCode), { code: 'auth/invalid-action-code' });
+  console.log('[email-link:e2e] PASS native VERIFY_EMAIL action verifies only the recipient and preserves both sessions and credentials');
+}
+
+async function seedRetentionCases() {
+  const day = 24 * 60 * 60 * 1000;
+  const fixtures = [
+    { key: 'email', days: 8, emailVerified: false },
+    { key: 'password', days: 8, emailVerified: true, preview: true },
+    { key: 'terms', days: 32, emailVerified: true },
+    { key: 'recent', days: 2, emailVerified: true },
+    { key: 'profile', days: 92, emailVerified: true, terms: true },
+    { key: 'hold', days: 92, emailVerified: true, terms: true, legalHold: true },
+  ].map(fixture => ({
+    ...fixture,
+    uid: `${fixture.preview ? 'email-link-preview-' : ''}retention-${fixture.key}-${run}`,
+    createdAt: Date.now() - fixture.days * day,
+  }));
+
+  const imported = await adminAuth.importUsers(fixtures.map(({ uid, key, createdAt, emailVerified }) => ({
+    uid,
+    email: `retention-${key}-${run}@example.test`,
+    emailVerified,
+    metadata: { creationTime: new Date(createdAt).toUTCString() },
+  })));
+  assert.equal(imported.failureCount, 0);
+
+  await Promise.all(fixtures.map(({ uid, createdAt, terms, legalHold }) => db.doc(`users/${uid}`).set({
+    uid, createdAt, accountStatus: 'active', profileCompleted: false,
+    publicVisibility: 'hidden', interactionBlocked: true, loginAllowed: true,
+    registrationFlowVersion: 'v3-private-by-default',
+    acceptedTerms: { accepted: terms === true, ...(terms ? { acceptedAt: createdAt } : {}) },
+    ...(legalHold ? { legalHold } : {}),
+  })));
+  return fixtures.map(({ uid }) => uid);
+}
+
 async function verifyDraftCleanupDryRun() {
   const collection = db.collection('registration_email_link_drafts');
   const validDraft = collection.doc(randomUUID());
@@ -73,14 +139,36 @@ async function verifyDraftCleanupDryRun() {
   const script = 'scripts/maintenance/audit-registration-draft-cleanup-emulator.mjs';
   const env = { ...process.env, FIREBASE_PROJECT_ID: projectId };
   const { stdout } = await runNode(process.execPath, [script, '--dry-run'], { env });
-  const { asOf, ...report } = JSON.parse(stdout);
+  const { asOf, accounts: beforeAccounts, ...report } = JSON.parse(stdout);
   assert.ok(Number.isFinite(Date.parse(asOf)));
   assert.deepEqual(report, {
     mode: 'dry-run', projectId, expiredDrafts: 1, validDrafts: 1, accountReceipts: 3, unclassified: 1,
   });
+  const accountUids = await seedRetentionCases();
+  const accountRefs = accountUids.map(uid => db.doc(`users/${uid}`));
+  // O onCreate emulado também pode atualizar projeções de billing/identidade
+  // enquanto a auditoria lê. Compare os campos de cadastro e a criação do documento.
+  const readAccounts = async () => (await db.getAll(...accountRefs, { fieldMask: [
+    'uid', 'createdAt', 'accountStatus', 'profileCompleted', 'publicVisibility',
+    'interactionBlocked', 'loginAllowed', 'registrationFlowVersion', 'acceptedTerms', 'legalHold',
+  ] })).map(doc => ({ exists: doc.exists, created: doc.createTime?.toMillis(), data: doc.data() }));
+  const beforeUsers = await readAccounts();
+  const audit = await runNode(process.execPath, [script, '--dry-run'], { env });
+  const { accounts } = JSON.parse(audit.stdout);
+  for (const stage of ['emailPending', 'passwordPending', 'termsPending', 'profilePending']) {
+    assert.equal(accounts.stages[stage].candidates, beforeAccounts.stages[stage].candidates + 1, stage);
+  }
+  assert.equal(accounts.stages.termsPending.active, beforeAccounts.stages.termsPending.active + 1);
+  assert.equal(accounts.protected, beforeAccounts.protected + 1);
+  assert.deepEqual(await readAccounts(), beforeUsers);
+  for (const uid of accountUids) assert.equal((await adminAuth.getUser(uid)).uid, uid);
+  assert.ok(accountUids.every(uid => !audit.stdout.includes(uid)));
   await assert.rejects(runNode(process.execPath, [script, '--apply'], { env }), { code: 1 });
   await assert.rejects(runNode(process.execPath, [script], {
     env: { ...env, FIRESTORE_EMULATOR_HOST: '192.0.2.10:8080' },
+  }), { code: 1 });
+  await assert.rejects(runNode(process.execPath, [script], {
+    env: { ...env, FIREBASE_AUTH_EMULATOR_HOST: '192.0.2.10:9099' },
   }), { code: 1 });
   assert.deepEqual(await readDocuments(), before);
   console.log('[email-link:e2e] PASS draft cleanup dry-run counts candidates and preserves receipts and drafts');
@@ -121,6 +209,7 @@ try {
   const credential = await signInWithEmailLink(consumer.auth, first.data.email, oobLink);
   assert.equal(credential.user.uid, uid);
   await verifyDraftCleanupDryRun();
+  await verifyProductionEmailAction();
   const expectedUid = { expectedUid: uid };
   const state = (expectedUid) => consumer.call('getEmailLinkRegistrationState', { expectedUid });
   assert.equal((await state(uid)).data.passwordRequired, true);
@@ -233,6 +322,13 @@ try {
   assert.ok(!(await freshPrivateRef.get()).get('nickname'));
   assert.equal((await freshIndexRef.get()).exists, false);
   assert.equal((await freshPublicRef.get()).exists, false);
+  await freshPrivateRef.update({ moderationAutomationHold: { active: true } });
+  await rejects(emailFirst.call('completeRegistrationProfile', profileInput), 'failed-precondition');
+  assert.equal((await freshPrivateRef.get()).get('profileCompleted'), false);
+  assert.equal((await freshPrivateRef.get()).get('interactionBlocked'), true);
+  assert.equal((await freshPublicRef.get()).exists, false);
+  await freshPrivateRef.update({ 'moderationAutomationHold.active': false });
+
   await rejects(emailFirst.call('completeRegistrationProfile', { ...profileInput, nickname: nickname + ' RJ' }),
     'already-exists', 'nickname/in-use');
   await emailFirst.call('completeRegistrationProfile', profileInput);

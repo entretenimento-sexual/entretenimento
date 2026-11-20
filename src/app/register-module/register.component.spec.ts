@@ -124,7 +124,7 @@ describe('RegisterComponent', () => {
       expect(registration.sectionIndex()).toBe(0);
       expect(view.querySelector('.summary')?.textContent?.trim()).toBe('Etapa 1 de 5');
       expect(view.querySelector('[aria-current="step"]')?.textContent).toContain('E-mail');
-      expect(view.querySelector('#register-section-title')?.textContent).toContain('Comece pelo e-mail');
+      expect(view.querySelector('#register-section-title')?.textContent).toContain('A próxima aventura começa aqui');
       expect(view.querySelector('.signup-scene--original')?.classList.contains('signup-scene--inactive')).toBe(false);
       expect(view.querySelector('.auth-container--stage-detail')).toBeNull();
       expect(view.querySelector('#email')).not.toBeNull();
@@ -182,7 +182,7 @@ describe('RegisterComponent', () => {
       const input = view.querySelector<HTMLInputElement>('#email')!;
       expect(input.readOnly).toBe(false);
       expect(input.value).toBe('teste@example.com');
-      expect(view.querySelector('#register-section-title')?.textContent).toContain('Comece pelo e-mail');
+      expect(view.querySelector('#register-section-title')?.textContent).toContain('A próxima aventura começa aqui');
 
       vi.advanceTimersByTime(30_000);
       preview.detectChanges();

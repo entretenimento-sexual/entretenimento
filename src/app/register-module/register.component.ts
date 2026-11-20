@@ -80,7 +80,7 @@ type NicknameCheckState =
 
 const SIGNUP_SECTIONS = [
   {
-    title: 'Escolha seu apelido',
+    title: 'A próxima aventura começa aqui',
     description: 'Seu apelido identifica o perfil. O complemento é opcional.',
     fields: ['apelidoPrincipal', 'complementoApelido'],
     groupError: { code: 'invalidFullNickname', field: 'apelidoPrincipal' },
@@ -100,7 +100,7 @@ const SIGNUP_SECTIONS = [
 ] as const;
 
 const EMAIL_LINK_SECTION = {
-  title: 'Comece pelo e-mail',
+  title: 'A próxima aventura começa aqui',
   description: 'Receba um link para confirmar seu e-mail.',
   fields: ['email'],
   groupError: null,

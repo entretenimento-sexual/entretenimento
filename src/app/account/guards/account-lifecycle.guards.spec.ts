@@ -126,11 +126,17 @@ describe('account lifecycle guards', () => {
     currentUser$.next(pending);
 
     expect(await runLifecycleGuard('/adulto/verificar-idade', true)).toBe(true);
-    expect(await runLifecycleGuard()).toBeInstanceOf(UrlTree);
+    const result = await runLifecycleGuard('/dashboard/principal');
+    expect(router.serializeUrl(result as UrlTree)).toContain('/register/welcome');
+    expect((result as UrlTree).queryParams).toMatchObject({
+      reason: 'registration_pending', redirectTo: '/dashboard/principal',
+    });
+    expect(router.serializeUrl(await runStatusGuard() as UrlTree)).toContain('/register/welcome');
 
     currentUser$.next({ ...pending, ageReverificationRestrictedAt: 1 });
     const restricted = await runLifecycleGuard('/adulto/verificar-idade', true);
     expect(router.serializeUrl(restricted as UrlTree)).toContain('/conta/status');
+    expect(await runStatusGuard()).toBe(true);
   });
 
   it('mantém a página de status acessível para estado unknown', async () => {

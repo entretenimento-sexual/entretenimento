@@ -15,6 +15,7 @@ import type { AuthFacadeSocialAuthResult } from 'src/app/core/services/autentica
 import type { LoginResult } from 'src/app/core/services/autentication/login.service';
 import { hasAcceptedCurrentTerms } from 'src/app/core/services/compliance/terms-acceptance.service';
 
+import { normalizeUserAccountLifecycleStatus } from '@core/services/autentication/auth/account-lifecycle.policy';
 import { RegisterFlowFacade } from './register-flow.facade';
 import { REGISTRATION_COMPLETION_ROUTE, resolveRegistrationReturnUrl, type RegisterFlowVm } from './register-flow.model';
 
@@ -293,7 +294,9 @@ export class PostAuthNavigationService {
       return '/conta/status?reason=deleted';
     }
 
+    const runtimeStatus = normalizeUserAccountLifecycleStatus(user);
     if (
+      runtimeStatus === 'locked' ||
       status === 'self_suspended' ||
       status === 'moderation_suspended' ||
       status === 'pending_deletion' ||

@@ -117,7 +117,9 @@ describe('account lifecycle policy', () => {
     };
 
     expect(canContinueAgeRegistration(context)).toBe(true);
-    expect(resolveRuntimeAccountLifecycleStatus(context)).toBe('locked');
+    const status = resolveRuntimeAccountLifecycleStatus(context);
+    expect(status).toBe('registration_pending');
+    expect(isRuntimeAccountLifecycleBlocked(status)).toBe(true);
     expect(canContinueAgeRegistration({ ...context, authUid: 'other-user' })).toBe(false);
     expect(canContinueAgeRegistration({ ...context, userResolved: false })).toBe(false);
     for (const restriction of [

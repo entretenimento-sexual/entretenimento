@@ -1,4 +1,5 @@
 // src/app/account/models/account-lifecycle.model.ts
+import type { RuntimeAccountLifecycleStatus } from '@core/services/autentication/auth/account-lifecycle.policy';
 
 export type AccountStatus =
   | 'active'
@@ -11,7 +12,7 @@ export type AccountStatus =
  * Estado efetivo no runtime. `locked` é um bloqueio técnico/administrativo e
  * `unknown` impede fail-open enquanto sessão e perfil não estão coerentes.
  */
-export type RuntimeAccountStatus = AccountStatus | 'locked' | 'unknown';
+export type RuntimeAccountStatus = RuntimeAccountLifecycleStatus;
 
 export type AccountLifecycleSource =
   | 'self'
@@ -65,6 +66,7 @@ export interface AccountStatusVm {
   badgeLabel: string;
 
   isBlocked: boolean;
+  canResumeRegistration?: boolean;
   canReactivateSelfSuspension: boolean;
   canCancelDeletion: boolean;
   canGoToAccountHome: boolean;

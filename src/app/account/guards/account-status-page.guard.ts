@@ -4,7 +4,7 @@ import { Router, type UrlTree, type CanActivateFn } from '@angular/router';
 import { combineLatest, of, type Observable } from 'rxjs';
 import { filter, map, take, timeout } from 'rxjs/operators';
 
-import { AUTH_GUARD_WAIT_MS, buildAuthRetryTree } from '@core/guards/_shared-guard/guard-utils';
+import { AUTH_GUARD_WAIT_MS, buildAuthRetryTree, buildWelcomeRedirectTree } from '@core/guards/_shared-guard/guard-utils';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import {
@@ -45,6 +45,10 @@ export const accountStatusPageGuard: CanActivateFn = (_route, state): Observable
         userResolved: appUser !== undefined,
         user: appUser,
       });
+
+      if (status === 'registration_pending') {
+        return buildWelcomeRedirectTree(router, undefined, { reason: 'registration_pending' });
+      }
 
       if (isRestrictedAccountStatus(status)) {
         return true;

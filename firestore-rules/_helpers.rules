@@ -92,6 +92,8 @@ service cloud.firestore {
         && request.time < automationHoldExpiresAt;
 
       return suspended != true
+        && mapFieldOrNull(user, "profileCompleted") != false
+        && mapFieldOrNull(user, "ageReverificationRestrictedAt") == null
         && interactionBlocked != true
         && accountLocked != true
         && loginAllowed != false

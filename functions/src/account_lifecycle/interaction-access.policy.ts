@@ -10,6 +10,8 @@ interface InteractionAccessUserDocument {
   loginAllowed?: unknown;
   suspended?: unknown;
   interactionBlocked?: unknown;
+  profileCompleted?: unknown;
+  ageReverificationRestrictedAt?: unknown;
   moderationAutomationHold?: {
     active?: unknown;
     expiresAtMs?: unknown;
@@ -57,14 +59,17 @@ export function assertPlatformAccountAccessData(
     Number.isFinite(holdExpiresAtMs) &&
     Date.now() < holdExpiresAtMs;
 
-  if (
-    accountStatus !== 'active' ||
-    user.accountLocked === true ||
-    user.loginAllowed === false ||
-    user.suspended === true ||
-    user.interactionBlocked === true ||
-    automationHoldActive
-  ) {
+  const administrativelyRestricted =
+    accountStatus !== 'active' || user.accountLocked === true ||
+    user.loginAllowed === false || user.suspended === true ||
+    user.ageReverificationRestrictedAt != null || automationHoldActive;
+  if (!administrativelyRestricted && user.profileCompleted === false) {
+    throw new HttpsError('failed-precondition', 'Conclua o cadastro para realizar esta ação.', {
+      reason: 'registration_pending',
+    });
+  }
+
+  if (administrativelyRestricted || user.interactionBlocked === true) {
     throw new HttpsError(
       'failed-precondition',
       'Esta conta não pode realizar interações no momento.',

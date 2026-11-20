@@ -45,7 +45,7 @@
         }
       </section>
 
-      @if (vm.isBlocked) {
+      @if (vm.isBlocked && !vm.canResumeRegistration) {
         <section class="app-card account-status-card" aria-label="Manifestação e revisão">
           <h2>Manifestação e revisão</h2>
           <p>
@@ -80,6 +80,12 @@
           >
             {{ isCancelingDeletion() ? 'Cancelando...' : 'Cancelar solicitação de exclusão' }}
           </button>
+        }
+
+        @if (vm.canResumeRegistration) {
+          <a class="app-action app-action--primary" routerLink="/register/welcome">
+            Continuar cadastro
+          </a>
         }
 
         @if (vm.canGoToAccountHome) {

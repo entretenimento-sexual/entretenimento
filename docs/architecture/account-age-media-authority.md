@@ -2,6 +2,15 @@
 
 Status: **18+ admission implementation on main; CI verification pending** (2026-10-13).
 
+## Release policy for the adult registration experience
+
+The existing lifecycle model describes the current deployed contract and
+the emulator. The new adult experience requires trusted verification
+before access to restricted resources and, where pornographic content is
+offered, before creation of an Auth account or profile. The release gates,
+production link certification and retention simulation are documented in
+[the registration runbook](../operations/registration-email-first-design.md#regra-de-liberação-do-novo-cadastro).
+
 ## Canonical split
 
 1. `age_eligibility_records/{uid}` is the backend-only source for account age

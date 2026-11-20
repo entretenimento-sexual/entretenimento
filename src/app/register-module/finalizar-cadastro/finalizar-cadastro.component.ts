@@ -524,6 +524,11 @@ implements OnInit, UnsavedChangesAware
             this.setErrorMessage('A conta ativa mudou. Recarregue a página para retomar o cadastro.');
             return EMPTY;
           }
+          const reason = (error as { details?: { reason?: unknown } } | null)?.details?.reason;
+          if (reason === 'trusted_age_verification_required') {
+            this.setWarningMessage('Sua maioridade ainda precisa ser verificada para concluir o cadastro.');
+            return EMPTY;
+          }
           if (code === 'nickname/in-use' || code === 'functions/already-exists') {
             this.formErrors['nickname'] = 'Este apelido já está em uso.';
             this.setErrorMessage('Escolha outro apelido para continuar.');

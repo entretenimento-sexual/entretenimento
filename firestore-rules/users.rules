@@ -391,6 +391,13 @@ match /users/{userId} {
       && current.get("profileCompleted", false) != true
       && data.profileCompleted == true
       && current.get("accountStatus", "active") == "active"
+      && current.get("accountLocked", false) != true
+      && current.get("suspended", false) != true
+      && current.get("loginAllowed", true) != false
+      && current.get("deletionRequestedAt", null) == null
+      && current.get("ageReverificationRestrictedAt", null) == null
+      && (!(current.get("moderationAutomationHold", null) is map)
+        || current.moderationAutomationHold.get("active", false) != true)
       && data.accountStatus == "active"
       && authEmailVerified()
       && data.emailVerified == true

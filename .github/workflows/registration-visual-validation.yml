@@ -593,7 +593,7 @@ jobs:
 
           if [ "$SIGNUP_CONFIGURATION" = "dev-emu" ]; then
             playwright-cli run-code "async (page) => {
-              const heading = page.getByRole('heading', { name: 'Comece pelo e-mail', exact: true });
+              const heading = page.getByRole('heading', { name: 'A próxima aventura começa aqui', exact: true });
               await heading.waitFor({ state: 'visible' });
               const send = page.getByRole('button', { name: 'Continuar com e-mail', exact: true });
               await send.click();

@@ -6,9 +6,8 @@ import { filter, map, take, timeout } from 'rxjs/operators';
 
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { AuthAppBlockService } from '@core/services/autentication/auth/auth-app-block.service';
-import { canContinueAgeRegistration } from '@core/services/autentication/auth/account-lifecycle.policy';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
-import { AUTH_GUARD_WAIT_MS, buildAuthRetryTree } from '@core/guards/_shared-guard/guard-utils';
+import { AUTH_GUARD_WAIT_MS, buildAuthRetryTree, buildWelcomeRedirectTree } from '@core/guards/_shared-guard/guard-utils';
 import {
   isRestrictedAccountStatus,
   resolveAccountStatus,
@@ -67,11 +66,12 @@ export const accountLifecycleGuard: CanActivateFn = (
       };
 
       const blockedReason = ageRegistrationRoute && appBlock.snapshot;
-      if (ageRegistrationRoute && !blockedReason && canContinueAgeRegistration(context)) {
-        return true;
-      }
-
       const status = resolveAccountStatus(context);
+      if (!blockedReason && status === 'registration_pending') {
+        return ageRegistrationRoute || buildWelcomeRedirectTree(router, state.url, {
+          reason: 'registration_pending',
+        });
+      }
 
       if (blockedReason || isRestrictedAccountStatus(status)) {
         return router.createUrlTree(['/conta/status'], {

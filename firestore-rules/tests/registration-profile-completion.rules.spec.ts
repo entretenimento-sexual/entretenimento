@@ -296,8 +296,18 @@ describe('Firestore Rules / registration and profile completion', () => {
     await assertFails(batch.commit());
   });
 
-  it('permite a conclusão atômica elegível e a criação da projeção pública', async () => {
+  it.each([
+    { name: 'permite a conclusão atômica elegível', restriction: null },
+    { name: 'nega conclusão durante bloqueio administrativo', restriction: { accountLocked: true } },
+    { name: 'nega conclusão durante restrição etária', restriction: { ageReverificationRestrictedAt: 1 } },
+    { name: 'nega conclusão durante hold de moderação', restriction: { moderationAutomationHold: { active: true } } },
+  ])('$name', async ({ restriction }) => {
     await seedReadyPrivateUser();
+    if (restriction) {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await updateDoc(doc(context.firestore(), 'users', UID), restriction);
+      });
+    }
     const db = authenticatedDb(true);
     const batch = writeBatch(db);
 
@@ -321,7 +331,7 @@ describe('Firestore Rules / registration and profile completion', () => {
       publicProfilePayload()
     );
 
-    await assertSucceeds(batch.commit());
+    await (restriction ? assertFails(batch.commit()) : assertSucceeds(batch.commit()));
   });
 
   it('conclui cadastro de conta histórica com consentimento v1 não aceito, mas admissão 18+ válida', async () => {

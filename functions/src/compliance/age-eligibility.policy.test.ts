@@ -5,6 +5,7 @@ import {
   AGE_ELIGIBILITY_POLICY_VERSION,
   evaluateCanonicalAgeEligibility,
   isTrustedAdultAgeDecision,
+  isRegistrationAgeAdmitted,
   isAdultAccountAdmissionDecision,
 } from './age-eligibility.policy';
 
@@ -200,6 +201,9 @@ describe('age-eligibility.policy', () => {
     assert.equal(verified.status, 'VERIFIED_ADULT');
     assert.equal(verified.verifiedAtMs, NOW - 1_000);
     assert.equal(isTrustedAdultAgeDecision(selfDeclared), false);
+    assert.equal(isRegistrationAgeAdmitted(selfDeclared, false), true);
+    assert.equal(isRegistrationAgeAdmitted(selfDeclared, true), false);
+    assert.equal(isRegistrationAgeAdmitted(verified, true), true);
     assert.equal(isTrustedAdultAgeDecision(verified), true);
   });
 

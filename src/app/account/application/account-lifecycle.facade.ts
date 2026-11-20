@@ -237,6 +237,22 @@ export class AccountLifecycleFacade {
           purgeAfter: state.purgeAfter,
         };
 
+      case 'registration_pending':
+        return {
+          title: 'Conclua seu cadastro',
+          description: 'Continue da etapa em que parou para acessar a plataforma.',
+          badgeLabel: 'Cadastro pendente',
+          canResumeRegistration: true,
+          isBlocked: true,
+          canReactivateSelfSuspension: false,
+          canCancelDeletion: false,
+          canGoToAccountHome: false,
+          suspensionReason: null,
+          suspensionEndsAt: null,
+          deletionUndoUntil: null,
+          purgeAfter: null,
+        };
+
       case 'locked':
         return {
           title: 'Sua conta está temporariamente bloqueada',

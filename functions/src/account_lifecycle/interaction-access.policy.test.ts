@@ -51,6 +51,16 @@ describe('interaction access policy', () => {
     }
   });
 
+  it('distingue cadastro pendente de bloqueio em conta incompleta', () => {
+    const pending = { ...validUser, profileCompleted: false };
+    assert.throws(() => assertPlatformAccountAccessData(pending), { details: {
+      reason: 'registration_pending',
+    } });
+    assert.throws(() => assertPlatformAccountAccessData({ ...pending, accountLocked: true }), { details: {
+      reason: 'account_interaction_blocked',
+    } });
+  });
+
   it('bloqueia conta com interactionBlocked', () => {
     assert.throws(() =>
       assertPlatformAccountAccessData({

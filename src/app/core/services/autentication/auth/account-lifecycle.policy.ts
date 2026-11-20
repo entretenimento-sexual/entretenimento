@@ -11,6 +11,7 @@ import type { AccountStatus, IUserDados } from '@core/interfaces/iuser-dados';
 
 export type RuntimeAccountLifecycleStatus =
   | AccountStatus
+  | 'registration_pending'
   | 'locked'
   | 'unknown';
 
@@ -51,7 +52,10 @@ export function normalizeUserAccountLifecycleStatus(
       : 'moderation_suspended';
   }
 
-  if (user.interactionBlocked === true) {
+  if (isPendingRegistration(user)) return 'registration_pending';
+
+  if (user.interactionBlocked === true || user.ageReverificationRestrictedAt != null ||
+      (user.profileCompleted === false && user.moderationAutomationHold?.active === true)) {
     return 'locked';
   }
 
@@ -68,16 +72,9 @@ export function normalizeUserAccountLifecycleStatus(
   return raw ? 'unknown' : 'active';
 }
 
-/** Libera apenas a continuação do cadastro; o lifecycle geral segue restrito. */
-export function canContinueAgeRegistration(
-  context: RuntimeAccountLifecycleContext
-): boolean {
-  const { user } = context;
-  return context.authReady === true &&
-    context.userResolved === true &&
-    !!context.authUid &&
-    user?.uid === context.authUid &&
-    user.accountStatus === 'active' &&
+/** O seed privado permite retomar apenas enquanto não houver restrição independente. */
+function isPendingRegistration(user: IUserDados): boolean {
+  return user.accountStatus === 'active' &&
     user.profileCompleted === false &&
     user.publicVisibility === 'hidden' &&
     user.interactionBlocked === true &&
@@ -85,9 +82,14 @@ export function canContinueAgeRegistration(
     user.accountLocked !== true &&
     user.suspended !== true &&
     user.deletionRequestedAt == null &&
+    user.deletedAt == null &&
     user.registrationCompletedAt == null &&
     user.ageReverificationRestrictedAt == null &&
     user.moderationAutomationHold?.active !== true;
+}
+
+export function canContinueAgeRegistration(context: RuntimeAccountLifecycleContext): boolean {
+  return resolveRuntimeAccountLifecycleStatus(context) === 'registration_pending';
 }
 
 /**

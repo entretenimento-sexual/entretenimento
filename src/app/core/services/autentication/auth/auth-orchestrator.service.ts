@@ -251,7 +251,11 @@ export class AuthOrchestratorService {
       this.stopRuntimeSideEffects();
 
       if (!ctx.inReg) {
-        this.navigateToAccountStatus(true);
+        if (ctx.accountStatus === 'registration_pending' && !ctx.blockedReason) {
+          this.navigateToWelcome('registration_pending', true, ctx.navPath === '/conta/status' ? undefined : ctx.url);
+        } else {
+          this.navigateToAccountStatus(true);
+        }
       }
 
       return;
@@ -604,7 +608,7 @@ export class AuthOrchestratorService {
   /**
    * Navegação defensiva para a tela de welcome/onboarding.
    */
-  private navigateToWelcome(reason: TerminateReason, replaceUrl = true): void {
+  private navigateToWelcome(reason: TerminateReason | 'registration_pending', replaceUrl = true, redirectTo?: string): void {
     const target = '/register/welcome';
     const url = this.router.url || '';
 
@@ -612,7 +616,7 @@ export class AuthOrchestratorService {
 
     this.router
       .navigate([target], {
-        queryParams: { reason, autocheck: '1' },
+        queryParams: { reason, autocheck: '1', ...(redirectTo ? { redirectTo } : {}) },
         replaceUrl,
       })
       .catch(() => {});
