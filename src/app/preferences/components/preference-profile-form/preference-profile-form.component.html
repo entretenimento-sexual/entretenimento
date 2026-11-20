@@ -12,31 +12,71 @@
       <span class="preference-group__count app-disclosure__state">{{ selectionLabel(selectedCount('ri', relationshipIntentOptions)) }}</span>
     </summary>
     <div class="preference-group__content app-disclosure__content">
-      <div class="matching-mode">
-        <span class="matching-mode__label">Como considerar</span>
-        <select class="app-control" id="relationshipIntentMode" formControlName="relationshipIntentMode" aria-describedby="relationshipIntentModeHelp">
-          <option value="prefer">Preferência — ajuda a ordenar</option>
-          <option value="require">Essencial — mostra apenas compatíveis</option>
-        </select>
-        <small id="relationshipIntentModeHelp" class="field-help app-field-help">Escolhas marcadas como essenciais não são ampliadas automaticamente.</small>
-      </div>
       <div class="checkbox-grid checkbox-grid--nested app-responsive-grid">
         @for (option of relationshipIntentOptions; track option.key) {
           <label class="checkbox-item app-choice"><input type="checkbox" [formControlName]="'ri_' + option.key" /><span>{{ option.label }}</span></label>
         }
       </div>
+      @if (selectedCount('ri', relationshipIntentOptions)) {
+        <fieldset class="matching-mode" aria-describedby="relationshipIntentModeHelp">
+          <legend class="matching-mode__label">Como considerar</legend>
+          <div class="matching-mode__choices app-responsive-grid">
+            <label class="checkbox-item app-choice">
+              <input type="radio" formControlName="relationshipIntentMode" value="prefer" />
+              <span>Dar prioridade</span>
+            </label>
+            <label class="checkbox-item app-choice">
+              <input type="radio" formControlName="relationshipIntentMode" value="require" />
+              <span>Usar como filtro</span>
+            </label>
+          </div>
+          <p id="relationshipIntentModeHelp" class="field-help app-field-help" aria-live="polite">
+            {{ form.controls['relationshipIntentMode'].value === 'require'
+              ? 'A descoberta exige pelo menos uma das escolhas marcadas.'
+              : 'As escolhas ajudam a ordenar os resultados. Outros perfis podem aparecer.' }}
+          </p>
+        </fieldset>
+      }
     </div>
   </details>
 
   <details class="preference-group app-disclosure" open>
     <summary class="preference-group__summary app-disclosure__summary">
+      <strong class="preference-group__title app-disclosure__title">Quem você gostaria de conhecer?</strong>
+      <span class="preference-group__count app-disclosure__state">{{ selectionLabel(selectedCount('gi', genderInterestOptions)) }}</span>
+    </summary>
+    <div class="preference-group__content app-disclosure__content">
+      <div class="checkbox-grid checkbox-grid--nested app-responsive-grid">
+        @for (option of genderInterestOptions; track option.key) {
+          <label class="checkbox-item app-choice"><input type="checkbox" [formControlName]="'gi_' + option.key" /><span>{{ option.label }}</span></label>
+        }
+      </div>
+      <div class="seeking-visibility">
+        <p class="field-help app-field-help" aria-live="polite">{{ seekingVisibilitySummary() }}</p>
+        <label class="checkbox-item app-choice">
+          <input type="checkbox" formControlName="showSeekingPublicly"
+            [attr.aria-describedby]="preferenceBadgesEnabled() ? null : 'seekingVisibilityHelp'" />
+          <span>Mostrar no meu perfil quem gostaria de conhecer</span>
+        </label>
+        @if (!preferenceBadgesEnabled()) {
+          <p class="field-help app-field-help" id="seekingVisibilityHelp">
+            Para exibir essas escolhas no perfil, ative “Exibir sinais de preferências” em
+            <a routerLink="/preferencias/discovery-settings">Visibilidade na descoberta</a>.
+          </p>
+        }
+      </div>
+    </div>
+  </details>
+
+  <details class="preference-group app-disclosure">
+    <summary class="preference-group__summary app-disclosure__summary">
       <strong class="preference-group__title app-disclosure__title">No seu ritmo</strong>
+      <span class="preference-group__count app-disclosure__state">{{ paceSummary() }}</span>
     </summary>
     <div class="preference-group__content app-disclosure__content">
       <div class="app-field">
         <label for="conversationPace">Como você gosta de conhecer alguém?</label>
-        <select id="conversationPace" class="app-control" formControlName="conversationPace"
-          aria-describedby="conversationPaceHelp">
+        <select id="conversationPace" class="app-control" formControlName="conversationPace">
           <option value="">Prefiro deixar em aberto</option>
           @for (option of conversationPaceOptions; track option.code) {
             <option [value]="option.code">{{ option.label }}</option>
@@ -45,29 +85,13 @@
       </div>
       @if (form.controls['conversationPace'].value) {
         <label class="checkbox-item app-choice">
-          <input type="checkbox" formControlName="shareConversationPace" />
+          <input type="checkbox" formControlName="shareConversationPace" aria-describedby="conversationPaceHelp" />
           <span>Usar meu ritmo em sugestões de conversa</span>
         </label>
+        <p id="conversationPaceHelp" class="field-help app-field-help">
+          A sugestão fica disponível na conversa direta quando as duas pessoas escolherem o mesmo ritmo e ativarem essa opção.
+        </p>
       }
-      <p id="conversationPaceHelp" class="field-help app-field-help">
-        Você pode pedir uma sugestão na conversa direta quando os dois escolherem o mesmo ritmo e ativarem essa opção.
-      </p>
-    </div>
-  </details>
-
-  <details class="preference-group app-disclosure">
-    <summary class="preference-group__summary app-disclosure__summary">
-      <strong class="preference-group__title app-disclosure__title">Quem você gostaria de conhecer?</strong>
-      <span class="preference-group__count app-disclosure__state">{{ selectionLabel(selectedCount('gi', genderInterestOptions)) }}</span>
-    </summary>
-    <div class="preference-group__content app-disclosure__content">
-      <p class="preference-note" role="note">A exibição da sua busca no perfil visitado é opcional, exige também “Exibir sinais de preferências” ativo e não altera seus filtros de descoberta.</p>
-      <label class="checkbox-item app-choice"><input type="checkbox" formControlName="showSeekingPublicly" /><span>Mostrar no meu perfil quem gostaria de conhecer</span></label>
-      <div class="checkbox-grid app-responsive-grid">
-      @for (option of genderInterestOptions; track option.key) {
-        <label class="checkbox-item app-choice"><input type="checkbox" [formControlName]="'gi_' + option.key" /><span>{{ option.label }}</span></label>
-      }
-      </div>
     </div>
   </details>
 
@@ -92,7 +116,7 @@
       @if (canEditAdvanced()) {
         <span class="preference-group__count app-disclosure__state">{{ advancedSummary() }}</span>
       } @else {
-        <span class="preference-group__plan app-disclosure__state"><i class="fas fa-lock" aria-hidden="true"></i>Opcional · Básico</span>
+        <span class="preference-group__plan app-disclosure__state"><i class="fas fa-lock" aria-hidden="true"></i>Disponível no Básico</span>
       }
     </summary>
     <div class="preference-group__content app-disclosure__content">
@@ -215,13 +239,15 @@
       <div class="inline-options app-responsive-grid">
         <label class="checkbox-item app-choice"><input type="checkbox" formControlName="acceptsCouples" /><span>Incluir casais</span></label>
         <label class="checkbox-item app-choice"><input type="checkbox" formControlName="acceptsSingles" /><span>Incluir pessoas individuais</span></label>
-        <label class="checkbox-item app-choice"><input type="checkbox" formControlName="locationRequired" /><span>Exigir localização para aplicar distância</span></label>
+        @if (hasDistanceLimit()) {
+          <label class="checkbox-item app-choice"><input type="checkbox" formControlName="locationRequired" /><span>Exigir localização para aplicar distância</span></label>
+        }
       </div>
     </div>
   </details>
 
-  <footer class="form-actions app-form-actions">
-    @if (saving() || form.dirty) {
+  <footer class="form-actions app-form-actions" [class.form-actions--pending]="hasPendingChanges() || saving()">
+    @if (saving() || hasPendingChanges()) {
       <span class="form-actions__status" aria-live="polite">
         {{ saving() ? 'Salvando alterações…' : 'Alterações não salvas.' }}
       </span>
@@ -229,7 +255,7 @@
     <button
       type="submit"
       class="app-action app-action--primary"
-      [disabled]="!canEdit() || saving() || form.pristine"
+      [disabled]="!canEdit() || saving() || !hasPendingChanges()"
       [attr.aria-busy]="saving() ? 'true' : 'false'"
     >
       {{ saving() ? 'Salvando…' : 'Salvar preferências' }}

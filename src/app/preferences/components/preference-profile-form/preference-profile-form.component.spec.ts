@@ -56,6 +56,61 @@ describe('PreferenceProfileFormComponent', () => {
     fixture.destroy();
   });
 
+  it('abre as escolhas principais e explica o filtro após selecionar uma intenção', () => {
+    const fixture = TestBed.createComponent(PreferenceProfileFormComponent);
+    fixture.componentRef.setInput('profile', createEmptyPreferenceProfile('u1'));
+    fixture.componentRef.setInput('capabilities', capabilities);
+    fixture.detectChanges();
+
+    const view = fixture.nativeElement as HTMLElement;
+    const openTitles = Array.from(view.querySelectorAll('details[open] .preference-group__title'))
+      .map(title => title.textContent?.trim());
+    expect(openTitles).toEqual(['O que você procura', 'Quem você gostaria de conhecer?']);
+    expect(view.querySelector('.matching-mode')).toBeNull();
+    expect(view.querySelector('.form-actions--pending')).toBeNull();
+
+    const dating = Array.from(view.querySelectorAll('label')).find(label => label.textContent?.trim() === 'Encontros');
+    dating!.querySelector('input')!.click();
+    fixture.detectChanges();
+    const prefer = view.querySelector<HTMLInputElement>('input[type="radio"][value="prefer"]');
+    expect(view.querySelector<HTMLInputElement>('input[type="radio"][value="require"]')?.checked).toBe(true);
+    prefer!.click();
+    fixture.detectChanges();
+    expect(view.querySelector('#relationshipIntentModeHelp')?.textContent).toContain('Outros perfis podem aparecer');
+    expect(view.querySelector('.form-actions--pending')).not.toBeNull();
+    expect(fixture.componentInstance.form.getRawValue().relationshipIntentMode).toBe('prefer');
+    fixture.componentInstance.markSaved();
+    fixture.componentInstance.form.updateValueAndValidity();
+    fixture.detectChanges();
+    expect(view.querySelector('.form-actions--pending')).toBeNull();
+    fixture.destroy();
+  });
+
+  it('mostra opções complementares quando ritmo e distância foram escolhidos', () => {
+    const fixture = TestBed.createComponent(PreferenceProfileFormComponent);
+    fixture.componentRef.setInput('profile', createEmptyPreferenceProfile('u1'));
+    fixture.componentRef.setInput('capabilities', capabilities);
+    fixture.detectChanges();
+    const view = fixture.nativeElement as HTMLElement;
+    const { form } = fixture.componentInstance;
+    const location = () => view.querySelector<HTMLInputElement>('input[formControlName="locationRequired"]');
+    expect(view.querySelector('#conversationPaceHelp')).toBeNull();
+    expect(location()).toBeNull();
+
+    form.patchValue({ conversationPace: 'talk_first', maxDistanceKm: 20 });
+    fixture.detectChanges();
+    expect(view.querySelector('#conversationPaceHelp')).not.toBeNull();
+    expect(location()).not.toBeNull();
+    form.controls.locationRequired.setValue(true);
+    form.controls.maxDistanceKm.setValue(null);
+    fixture.detectChanges();
+    expect(location()).toBeNull();
+    form.controls.maxDistanceKm.setValue(20);
+    fixture.detectChanges();
+    expect(location()?.checked).toBe(true);
+    fixture.destroy();
+  });
+
   it('mantém visibilidade fora do editor geral e preserva o estado atual ao salvar', () => {
     const fixture = TestBed.createComponent(PreferenceProfileFormComponent);
     const base = createEmptyPreferenceProfile('u1');
@@ -88,6 +143,8 @@ describe('PreferenceProfileFormComponent', () => {
     ) as HTMLInputElement;
     expect(seekingToggle).not.toBeNull();
     expect(seekingToggle.checked).toBe(false);
+    expect(fixture.nativeElement.querySelector('#seekingVisibilityHelp a')?.getAttribute('href'))
+      .toBe('/preferencias/discovery-settings');
     expect(mapped.visibility).toEqual({
       ...profile.visibility,
       shareConversationPace: false,
@@ -113,9 +170,13 @@ describe('PreferenceProfileFormComponent', () => {
     ) as HTMLInputElement;
 
     expect(seekingToggle.checked).toBe(false);
+    expect(fixture.nativeElement.querySelector('.seeking-visibility [aria-live]')?.textContent)
+      .toContain('Só para minha descoberta');
     component.form.controls.showSeekingPublicly.setValue(true);
     fixture.detectChanges();
     expect(seekingToggle.checked).toBe(true);
+    expect(fixture.nativeElement.querySelector('.seeking-visibility [aria-live]')?.textContent)
+      .toContain('Ao salvar · Visível no perfil');
 
     const mapped = mapFormValueToPreferenceProfile(
       component.form.getRawValue(),

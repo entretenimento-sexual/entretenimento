@@ -5,7 +5,7 @@
 
 .preference-profile-form {
   display: grid;
-  gap: 10px;
+  gap: var(--space-2, 12px);
   min-width: 0;
 }
 
@@ -43,33 +43,45 @@
 .checkbox-grid {
   --app-responsive-grid-min: 11rem;
   --app-responsive-grid-gap: var(--space-1, 8px);
-  padding-top: var(--space-3, 16px);
 }
 
-.checkbox-grid--nested {
-  padding-top: 0;
-}
-
-.matching-mode {
+.matching-mode,
+.seeking-visibility {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(190px, 260px);
-  align-items: center;
-  gap: 6px var(--space-3, 16px);
-  padding-top: var(--space-3, 16px);
+  gap: var(--space-1, 8px);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .matching-mode__label {
+  float: none;
+  width: auto;
+  margin-block-end: var(--space-1, 8px);
   color: var(--text-color);
   font-size: var(--font-size-label, 0.875rem);
   font-weight: 850;
 }
 
-.matching-mode select {
-  width: 100%;
+.matching-mode__choices {
+  --app-responsive-grid-min: 12rem;
+  --app-responsive-grid-gap: var(--space-1, 8px);
 }
 
-.matching-mode .field-help {
-  grid-column: 1 / -1;
+.seeking-visibility {
+  padding-block-start: var(--space-2, 12px);
+  border-block-start: 1px solid var(--surface-border);
+}
+
+.matching-mode .field-help,
+.seeking-visibility .field-help {
+  margin: 0;
+}
+
+.preference-group__count {
+  max-inline-size: 36ch;
+  white-space: normal;
 }
 
 .matching-mode__compact {
@@ -157,11 +169,14 @@
 }
 
 .form-actions {
+  min-height: 66px;
+  padding: 10px 0;
+}
+
+.form-actions--pending {
   position: sticky;
   z-index: 3;
   bottom: 0;
-  min-height: 66px;
-  padding: 10px 0;
   background: color-mix(in oklab, var(--background-color) 92%, transparent);
   backdrop-filter: blur(10px);
 }
@@ -171,10 +186,6 @@
 }
 
 @media (max-width: 640px) {
-  .matching-mode {
-    grid-template-columns: 1fr;
-  }
-
   .preference-subgroup__header,
   .preference-upgrade {
     align-items: stretch;
@@ -188,6 +199,12 @@
 
   .form-actions__status {
     text-align: center;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .form-actions--pending {
+    bottom: var(--app-mobile-bottom-nav-reserved-space, 76px);
   }
 }
 

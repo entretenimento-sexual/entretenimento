@@ -14,6 +14,7 @@
 import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   DestroyRef,
   computed,
@@ -41,7 +42,7 @@ import {
   mapPreferenceProfileToFormValue,
 } from '../../utils/preference-profile-form.factory';
 
-import { CONVERSATION_PACE_OPTIONS } from '../../catalogs/conversation-pace.catalog';
+import { CONVERSATION_PACE_OPTIONS, resolveConversationPace } from '../../catalogs/conversation-pace.catalog';
 
 type NumericPreferenceControl = 'minAge' | 'maxAge' | 'maxDistanceKm';
 
@@ -73,9 +74,11 @@ export class PreferenceProfileFormComponent {
 
   private readonly fb = new FormBuilder();
   private readonly destroyRef = inject(DestroyRef);
+  private readonly changeDetector = inject(ChangeDetectorRef);
   readonly hasPendingChanges = signal(false);
 
   readonly form = buildPreferenceProfileForm(this.fb);
+  private lastFormValue = JSON.stringify(this.form.getRawValue());
 
   readonly canEdit = computed(
     () => this.capabilities()?.canEditCorePreferences ?? false
@@ -99,7 +102,13 @@ export class PreferenceProfileFormComponent {
       });
     this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.hasPendingChanges.set(true));
+      .subscribe(() => {
+        const currentValue = JSON.stringify(this.form.getRawValue());
+        // A revalidação no submit também pode emitir sem alterar nenhuma escolha.
+        if (currentValue !== this.lastFormValue) this.hasPendingChanges.set(true);
+        this.lastFormValue = currentValue;
+        this.changeDetector.markForCheck();
+      });
     effect(() => {
       const profile = this.profile() ?? createEmptyPreferenceProfile('');
       this.form.patchValue(mapPreferenceProfileToFormValue(profile), {
@@ -140,6 +149,7 @@ export class PreferenceProfileFormComponent {
         this.forceAdvancedModeToPrefer('bodyPreferenceMode');
       }
 
+      this.lastFormValue = JSON.stringify(this.form.getRawValue());
     });
   }
 
@@ -168,6 +178,7 @@ export class PreferenceProfileFormComponent {
   }
 
   markSaved(): void {
+    this.lastFormValue = JSON.stringify(this.form.getRawValue());
     this.form.markAsPristine();
     this.form.markAsUntouched();
     this.hasPendingChanges.set(false);
@@ -194,18 +205,51 @@ export class PreferenceProfileFormComponent {
     return `${count} selecionadas`;
   }
 
-  reachSummary(): string {
-    const minAge = Number(this.form.controls['minAge']?.value ?? 18);
-    const maxAge = Number(this.form.controls['maxAge']?.value ?? 100);
-    const maxDistanceKm = Number(this.form.controls['maxDistanceKm']?.value ?? 0);
-
-    if (!Number.isFinite(maxDistanceKm) || maxDistanceKm <= 0) {
-      return `${minAge}–${maxAge} anos`;
-    }
-
-    return `${minAge}–${maxAge} anos · até ${maxDistanceKm} km`;
+  paceSummary(): string {
+    return resolveConversationPace(this.form.controls['conversationPace'].value)?.label ?? 'Ritmo em aberto';
   }
 
+  preferenceBadgesEnabled(): boolean {
+    return this.profile()?.visibility.showPreferenceBadges === true;
+  }
+
+  seekingVisibilitySummary(): string {
+    const profile = this.profile();
+    const current = this.seekingVisibilityLabel(
+      profile?.hardRules.acceptedGenders.length ?? 0,
+      profile?.visibility.showSeekingPublicly === true
+    );
+    const next = this.seekingVisibilityLabel(
+      this.selectedCount('gi', this.genderInterestOptions),
+      this.form.controls['showSeekingPublicly'].value === true
+    );
+    return current === next ? current : `Ao salvar · ${next}`;
+  }
+
+  private seekingVisibilityLabel(count: number, requested: boolean): string {
+    if (count === 0) return 'Nenhuma escolha para exibir';
+    return requested && this.preferenceBadgesEnabled()
+      ? 'Visível no perfil'
+      : 'Só para minha descoberta';
+  }
+
+  hasDistanceLimit(): boolean {
+    const control = this.form.controls['maxDistanceKm'];
+    return control.valid && control.value !== null && control.value > 0;
+  }
+
+  reachSummary(): string {
+    const minAge = this.form.controls['minAge'].value;
+    const maxAge = this.form.controls['maxAge'].value;
+    const distance = this.hasDistanceLimit() ? `Até ${this.form.controls['maxDistanceKm'].value} km` : 'Sem limite de distância';
+    if (!this.form.controls['minAge'].valid || !this.form.controls['maxAge'].valid ||
+        this.form.hasError('ageRangeOrder') || this.form.controls['maxDistanceKm'].invalid) {
+      return 'Revise o alcance';
+    }
+    return minAge == null && maxAge == null
+      ? distance
+      : `${minAge ?? 18}–${maxAge ?? 100} anos · ${distance.toLowerCase()}`;
+  }
 
   selfDescriptionSummary(): string {
     return this.selectionLabel(

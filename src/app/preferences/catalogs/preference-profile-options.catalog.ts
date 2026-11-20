@@ -23,14 +23,24 @@ export interface PreferenceOption<T extends string> {
 }
 
 /**
- * Os três catálogos abaixo são aliases tipados do catálogo público canônico.
- * Mantemos estes nomes por compatibilidade com o módulo de Preferências.
+ * As chaves vêm do catálogo público. Os rótulos do editor podem acompanhar a linguagem do cadastro.
  */
+const relationshipLabels: Partial<Record<RelationshipIntent, string>> = {
+  dating: 'Encontros',
+  serious: 'Relacionamento sério',
+};
+
+const genderInterestLabels: Partial<Record<GenderInterest, string>> = {
+  couple_mm: 'Casal (Ele/Ele)',
+  couple_mf: 'Casal (Ele/Ela)',
+  couple_ff: 'Casal (Ela/Ela)',
+};
+
 export const RELATIONSHIP_INTENT_OPTIONS: ReadonlyArray<PreferenceOption<RelationshipIntent>> =
-  PUBLIC_RELATIONSHIP_INTENT_OPTIONS;
+  PUBLIC_RELATIONSHIP_INTENT_OPTIONS.map(({ key, label }) => ({ key, label: relationshipLabels[key] ?? label }));
 
 export const GENDER_INTEREST_OPTIONS: ReadonlyArray<PreferenceOption<GenderInterest>> =
-  PUBLIC_GENDER_INTEREST_OPTIONS;
+  PUBLIC_GENDER_INTEREST_OPTIONS.map(({ key, label }) => ({ key, label: genderInterestLabels[key] ?? label }));
 
 export const SEXUAL_PRACTICE_OPTIONS: ReadonlyArray<PreferenceOption<SexualPractice>> =
   PUBLIC_SEXUAL_PRACTICE_OPTIONS;

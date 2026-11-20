@@ -22,6 +22,23 @@
     }
 
     @if (state$ | async; as state) {
+      <details class="availability-section app-disclosure">
+        <summary class="app-disclosure__summary">
+          <strong class="app-disclosure__title">Editar disponibilidade</strong>
+          <span class="app-disclosure__state">{{ intentSummary(state.intent) }}</span>
+        </summary>
+
+        <div class="availability-section__content app-disclosure__content">
+          <app-intent-state-form
+            [intent]="state.intent"
+            [capabilities]="state.capabilities"
+            [saving]="isSavingIntent()"
+            (saveIntent)="onSaveIntent(state.uid, $event)"
+          >
+          </app-intent-state-form>
+        </div>
+      </details>
+
       <section
         class="editor-section"
         aria-label="Preferências pessoais"
@@ -35,24 +52,6 @@
         </app-preference-profile-form>
       </section>
 
-      <details class="availability-section app-disclosure">
-        <summary class="app-disclosure__summary">
-          <strong class="app-disclosure__title">Disponibilidade atual</strong>
-          <span class="app-disclosure__state">
-            {{ intentSummary(state.intent) }}
-          </span>
-        </summary>
-
-        <div class="availability-section__content app-disclosure__content">
-          <app-intent-state-form
-            [intent]="state.intent"
-            [capabilities]="state.capabilities"
-            [saving]="isSavingIntent()"
-            (saveIntent)="onSaveIntent(state.uid, $event)"
-          >
-          </app-intent-state-form>
-        </div>
-      </details>
     } @else {
       <app-content-state
         state="loading"

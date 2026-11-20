@@ -98,6 +98,12 @@ app-navbar {
   overflow-y: auto;
 }
 
+/* A barra de salvamento de Preferências acompanha a rolagem da página. */
+.auth-shell__content:has(> app-preferences-editor) {
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
 /* O cadastro ancora a fotografia no topo do shell, incluindo a área da navbar. */
 .auth-shell[data-shell-mode='guest']:has(app-register) {
   position: relative;
