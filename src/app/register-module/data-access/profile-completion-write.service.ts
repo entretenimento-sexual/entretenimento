@@ -6,6 +6,7 @@ import { Observable, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
 import {
+  isCoupleProfileIdentityCode,
   isSelectableProfileIdentityCode,
 } from 'src/app/core/domain/profile-identity/profile-identity.catalog';
 import { resolveProfileOrientationOption } from 'src/app/core/domain/profile-identity/profile-orientation.catalog';
@@ -25,6 +26,8 @@ export interface AtomicProfileCompletionInput {
   gender: string;
   orientation: string;
   showOrientationPublicly?: boolean;
+  partner1Orientation?: string;
+  partner2Orientation?: string;
   estado: string;
   municipio: string;
 }
@@ -45,7 +48,10 @@ export class ProfileCompletionWriteService {
     const nicknameNormalized =
       NicknameUtils.normalizarApelidoParaIndice(nickname);
     const gender = this.cleanText(input.gender).toLowerCase();
-    const orientation = this.cleanText(input.orientation).toLowerCase();
+    const isCouple = isCoupleProfileIdentityCode(gender);
+    const orientation = isCouple ? '' : this.cleanText(input.orientation).toLowerCase();
+    const partner1Orientation = input.partner1Orientation?.trim().toLowerCase();
+    const partner2Orientation = input.partner2Orientation?.trim().toLowerCase();
     const estado = this.cleanText(input.estado).toUpperCase();
     const municipio = this.cleanText(input.municipio);
 
@@ -72,7 +78,7 @@ export class ProfileCompletionWriteService {
 
     const validationError = this.validateRequiredProfileFields({
       gender,
-      orientation,
+      orientations: isCouple ? [partner1Orientation, partner2Orientation] : [orientation],
       estado,
       municipio,
     });
@@ -95,6 +101,8 @@ export class ProfileCompletionWriteService {
         return callable({
           uid, nickname, gender, orientation, estado, municipio,
           showOrientationPublicly: !!orientation && input.showOrientationPublicly === true,
+          ...(isCouple && partner1Orientation !== undefined ? { partner1Orientation } : {}),
+          ...(isCouple && partner2Orientation !== undefined ? { partner2Orientation } : {}),
         });
       })
       .pipe(
@@ -108,7 +116,7 @@ export class ProfileCompletionWriteService {
 
   private validateRequiredProfileFields(input: {
     gender: string;
-    orientation: string;
+    orientations: ReadonlyArray<string | undefined>;
     estado: string;
     municipio: string;
   }): Error | null {
@@ -119,10 +127,7 @@ export class ProfileCompletionWriteService {
       );
     }
 
-    if (
-      input.orientation &&
-      !resolveProfileOrientationOption(input.orientation)
-    ) {
+    if (input.orientations.some(value => value && !resolveProfileOrientationOption(value))) {
       return this.createError(
         'profile/invalid-orientation',
         'A orientação informada é inválida.'

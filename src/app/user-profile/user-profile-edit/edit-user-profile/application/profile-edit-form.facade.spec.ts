@@ -92,6 +92,18 @@ describe('ProfileEditFormFacade', () => {
     expect(facade.form.get('partner2Orientation')?.enabled).toBe(true);
   });
 
+  it('carrega separadamente as escolhas registradas no perfil do casal', () => {
+    const { facade } = setup();
+    facade.bind();
+    facade.initialize({
+      uid: 'u1', gender: 'casal-ele-ele', partner1Orientation: 'assexual', partner2Orientation: 'bissexual',
+    } as any, []);
+
+    expect(facade.isCouple()).toBe(true);
+    expect(facade.form.get('partner1Orientation')?.value).toBe('assexual');
+    expect(facade.form.get('partner2Orientation')?.value).toBe('bissexual');
+  });
+
   it('restaura orientação individual e limpa campos de casal', () => {
     const { facade } = setup();
     facade.bind();

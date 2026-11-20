@@ -181,6 +181,8 @@ export interface ProfileCompletionInitialData {
   gender: string;
   orientation: string;
   showOrientationPublicly?: boolean;
+  partner1Orientation?: string;
+  partner2Orientation?: string;
   estado: string;
   municipio: string;
 }
@@ -192,6 +194,8 @@ export interface ProfileCompletionSubmitInput {
   gender: string;
   orientation: string;
   showOrientationPublicly?: boolean;
+  partner1Orientation?: string;
+  partner2Orientation?: string;
   estado: string;
   municipio: string;
 }

@@ -14,7 +14,7 @@ import { normalizePublicProfileDiscoveryFields } from '../discovery/profile-disc
 import { TERMS_ACCEPTANCE_VERSION } from '../compliance/platform-legal.constants';
 import { buildInitialUserSeed, buildRegistrationAuthProjection } from '../auth/user-registration-seed';
 import {
-  PROFILE_IDENTITY_CATALOG_VERSION, isSelectableProfileIdentityCode,
+  PROFILE_IDENTITY_CATALOG_VERSION, isCoupleProfileIdentityCode, isSelectableProfileIdentityCode,
 } from '../identity/profile-identity.catalog';
 import {
   evaluateCanonicalAgeEligibility, isRegistrationAgeAdmitted,
@@ -33,6 +33,8 @@ interface CompleteRegistrationInput {
   gender?: unknown;
   orientation?: unknown;
   showOrientationPublicly?: unknown;
+  partner1Orientation?: unknown;
+  partner2Orientation?: unknown;
   estado?: unknown;
   municipio?: unknown;
 }
@@ -41,6 +43,15 @@ const UFS = new Set([
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS',
   'MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO',
 ]);
+
+function optionalPartnerOrientation(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === 'string') {
+    const orientation = value.trim().toLowerCase();
+    if (!orientation || ORIENTATIONS.has(orientation)) return orientation;
+  }
+  throw new HttpsError('invalid-argument', 'Revise as orientações informadas para o casal.');
+}
 
 function hasControlCharacter(value: string): boolean {
   return Array.from(value).some((char) => {
@@ -218,7 +229,11 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
 
     const { display } = nicknameInput(normalizeRegistrationNickname(request.data?.nickname));
     const gender = String(request.data?.gender ?? '').trim().toLowerCase();
-    const orientation = String(request.data?.orientation ?? '').trim().toLowerCase();
+    const isCouple = isCoupleProfileIdentityCode(gender);
+    const submittedOrientation = String(request.data?.orientation ?? '').trim().toLowerCase();
+    const orientation = isCouple ? '' : submittedOrientation;
+    const partner1Orientation = optionalPartnerOrientation(request.data?.partner1Orientation);
+    const partner2Orientation = optionalPartnerOrientation(request.data?.partner2Orientation);
     const orientationConsent = request.data?.showOrientationPublicly;
     const showOrientationPublicly = !!orientation && orientationConsent === true;
     const publicDiscovery = normalizePublicProfileDiscoveryFields({ gender, orientation, showOrientationPublicly });
@@ -226,7 +241,8 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
     const municipio = String(request.data?.municipio ?? '').trim();
     if ((orientationConsent !== undefined && typeof orientationConsent !== 'boolean') ||
       !isSelectableProfileIdentityCode(gender) ||
-      (orientation && !ORIENTATIONS.has(orientation)) || !UFS.has(estado) ||
+      (submittedOrientation && !ORIENTATIONS.has(submittedOrientation)) ||
+      (!isCouple && (partner1Orientation || partner2Orientation)) || !UFS.has(estado) ||
       !municipio || municipio.length > 120 || hasControlCharacter(municipio)) {
       throw new HttpsError('invalid-argument', 'Revise os dados necessários para concluir o perfil.');
     }
@@ -299,6 +315,15 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
 
       const now = FieldValue.serverTimestamp();
       const nowMs = Date.now();
+      // Clientes antigos preservam escolhas omitidas quando a composição do casal é a mesma.
+      const sameCouple = isCouple && (user['declaredIdentityCode'] ?? user['gender']) === gender;
+      const partnerOrientations = isCouple ? {
+        partner1Orientation: partner1Orientation ?? (sameCouple ? user['partner1Orientation'] ?? '' : ''),
+        partner2Orientation: partner2Orientation ?? (sameCouple ? user['partner2Orientation'] ?? '' : ''),
+      } : {
+        partner1Orientation: FieldValue.delete(),
+        partner2Orientation: FieldValue.delete(),
+      };
       tx.update(userRef, {
         nickname: nickname.display,
         nicknameNormalized: nickname.key,
@@ -308,6 +333,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
         gender, declaredIdentityCode: gender,
         identityCatalogVersion: PROFILE_IDENTITY_CATALOG_VERSION,
         orientation, showOrientationPublicly, estado, municipio,
+        ...partnerOrientations,
         ...buildRegistrationAuthProjection(authUser),
         profileCompleted: true, publicVisibility: 'visible',
         interactionBlocked: false, registrationCompletedAt: now,
@@ -324,7 +350,10 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
         estado, municipio,
         updatedAt: now,
       };
-      if (!publicSnap.exists) {
+      if (publicSnap.exists) {
+        publicFields['partner1Orientation'] = FieldValue.delete();
+        publicFields['partner2Orientation'] = FieldValue.delete();
+      } else {
         publicFields['createdAt'] = now;
         publicFields['role'] = 'free';
       }
@@ -338,7 +367,8 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
 );
 
 // A edição e o consentimento alteram a fonte privada e a projeção na mesma transação.
-export const updateProfileOrientation = onCall<Pick<CompleteRegistrationInput, 'uid' | 'orientation' | 'showOrientationPublicly'>>(
+type ProfileOrientationUpdate = Pick<CompleteRegistrationInput, 'uid' | 'orientation' | 'showOrientationPublicly'>;
+export const updateProfileOrientation = onCall<ProfileOrientationUpdate>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<{ saved: true }> => {
     assertCallableAppCheck(request.app);
@@ -359,6 +389,9 @@ export const updateProfileOrientation = onCall<Pick<CompleteRegistrationInput, '
       const [userSnapshot, publicSnapshot] = await transaction.getAll(userRef, publicRef);
       const user = userSnapshot.data();
       assertPlatformAccountAccessData(user);
+      if (isCoupleProfileIdentityCode(user?.['declaredIdentityCode'] ?? user?.['gender'])) {
+        throw new HttpsError('failed-precondition', 'Informe a orientação de cada pessoa no perfil do casal.');
+      }
       const keepsPrivateLegacyValue = !consent && orientation === user?.['orientation'];
       if (orientation && !ORIENTATIONS.has(orientation) && !keepsPrivateLegacyValue) {
         throw new HttpsError('invalid-argument', 'Revise a orientação e sua visibilidade.');

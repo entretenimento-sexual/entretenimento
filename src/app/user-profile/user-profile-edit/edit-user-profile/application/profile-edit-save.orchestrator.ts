@@ -20,7 +20,8 @@ export class ProfileEditSaveOrchestrator {
     uid: string,
     rawValue: Record<string, unknown>,
     isCouple: boolean,
-    photoURL: string | null | undefined
+    photoURL: string | null | undefined,
+    currentProfile?: Pick<IUserDados, 'orientation' | 'showOrientationPublicly'>
   ): Observable<void> {
     const safeUid = String(uid ?? '').trim();
 
@@ -41,10 +42,14 @@ export class ProfileEditSaveOrchestrator {
 
     const hasVisibilityControl = !isCouple && typeof rawValue['showOrientationPublicly'] === 'boolean';
     const orientation = profilePatch.orientation ?? '';
-    const writeOrientation$ = hasVisibilityControl
-      ? this.saveOrientation$(safeUid, orientation, rawValue['showOrientationPublicly'] === true)
+    const showOrientationPublicly = !!orientation && rawValue['showOrientationPublicly'] === true;
+    const orientationChanged = !currentProfile ||
+      orientation !== (currentProfile.orientation ?? '').trim() ||
+      showOrientationPublicly !== (currentProfile.showOrientationPublicly === true);
+    const writeOrientation$ = hasVisibilityControl && orientationChanged
+      ? this.saveOrientation$(safeUid, orientation, showOrientationPublicly)
       : null;
-    if (writeOrientation$) delete profilePatch.orientation;
+    if (hasVisibilityControl) delete profilePatch.orientation;
 
     const writeProfile$ = defer(() => this.usuarioService.atualizarUsuario(safeUid, profilePatch));
     return (writeOrientation$ ? writeOrientation$.pipe(switchMap(() => writeProfile$)) : writeProfile$)

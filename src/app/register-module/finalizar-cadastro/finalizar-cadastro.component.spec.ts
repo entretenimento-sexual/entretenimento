@@ -339,6 +339,52 @@ describe('FinalizarCadastroComponent', () => {
     }
   });
 
+  it('oferece duas orientações opcionais na retomada de um perfil de casal', async () => {
+    profileCompletionFacadeMock.loadUserForFormByUid$.mockReturnValueOnce(of({
+      email: 'teste@email.com', nickname: 'casalteste', gender: 'casal-ele-ela', orientation: '',
+      estado: 'RJ', municipio: 'Rio de Janeiro',
+    }));
+    const reopened = TestBed.createComponent(FinalizarCadastroComponent);
+    try {
+      reopened.autoDetectChanges();
+      await reopened.whenStable();
+      const view = reopened.nativeElement as HTMLElement;
+      const first = view.querySelector<HTMLSelectElement>('#partner1Orientation')!;
+      const second = view.querySelector<HTMLSelectElement>('#partner2Orientation')!;
+      expect(view.querySelector('#orientation, [name="showOrientationPublicly"]')).toBeNull();
+      expect(view.querySelector('label[for="partner1Orientation"]')?.textContent).toContain('Orientação dele');
+      expect(view.querySelector('label[for="partner2Orientation"]')?.textContent).toContain('Orientação dela');
+      expect(view.querySelector('form button[type="submit"]')?.textContent).toContain('Pular');
+      expect(first.value).toBe('');
+      second.value = 'assexual';
+      second.dispatchEvent(new Event('change', { bubbles: true }));
+      reopened.detectChanges();
+      expect(first.value).toBe('');
+      expect(view.querySelector('form button[type="submit"]')?.textContent).toContain('Continuar');
+
+      reopened.componentInstance.onSubmit();
+      expect(profileCompletionFacadeMock.saveProfileCompletion$).toHaveBeenCalledWith(
+        expect.objectContaining({ partner1Orientation: '', partner2Orientation: 'assexual', showOrientationPublicly: false })
+      );
+    } finally {
+      reopened.destroy();
+    }
+  });
+
+  it('redireciona para as orientações ao alterar a composição do casal', () => {
+    component.gender = 'casal-ele-ela';
+    component.partner1Orientation = 'bissexual';
+    component.partner2Orientation = 'pansexual';
+    component.profileStep = 'location';
+    component.editIdentity();
+    component.onGenderChange('casal-ela-ela');
+    component.advanceProfileStep();
+
+    expect(component.profileStep).toBe('orientation');
+    expect(component.partner1Orientation).toBe('');
+    expect(component.partner2Orientation).toBe('');
+  });
+
   it('retoma no município quando os campos anteriores estão no rascunho', async () => {
     TestBed.inject(LocalDraftService).save('profile-completion:u1', {
       nickname: 'Alex extra', gender: 'homem', estado: 'RJ',

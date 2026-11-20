@@ -50,6 +50,8 @@ export interface ProfileCompletionInitialData {
   gender: string;
   orientation: string;
   showOrientationPublicly?: boolean;
+  partner1Orientation?: string;
+  partner2Orientation?: string;
   estado: string;
   municipio: string;
 }
@@ -61,6 +63,8 @@ export interface ProfileCompletionSubmitInput {
   gender: string;
   orientation: string;
   showOrientationPublicly?: boolean;
+  partner1Orientation?: string;
+  partner2Orientation?: string;
   estado: string;
   municipio: string;
 }
@@ -112,6 +116,8 @@ export class ProfileCompletionFacade {
           gender: doc.gender ?? '',
           orientation: doc.orientation ?? '',
           showOrientationPublicly: doc.showOrientationPublicly === true,
+          ...(doc.partner1Orientation !== undefined ? { partner1Orientation: doc.partner1Orientation } : {}),
+          ...(doc.partner2Orientation !== undefined ? { partner2Orientation: doc.partner2Orientation } : {}),
           estado: doc.estado ?? '',
           municipio: doc.municipio ?? '',
         };
@@ -149,6 +155,8 @@ export class ProfileCompletionFacade {
           gender: input.gender || existingUserData.gender || '',
           orientation: input.orientation ?? existingUserData.orientation ?? '',
           showOrientationPublicly: input.showOrientationPublicly === true,
+          ...(input.partner1Orientation !== undefined ? { partner1Orientation: input.partner1Orientation } : {}),
+          ...(input.partner2Orientation !== undefined ? { partner2Orientation: input.partner2Orientation } : {}),
           estado: input.estado || existingUserData.estado || '',
           municipio: input.municipio || existingUserData.municipio || '',
         });

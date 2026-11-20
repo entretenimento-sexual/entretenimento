@@ -15,6 +15,7 @@ import {
 
 import { EditUserProfileComponent } from './edit-user-profile.component';
 import { FirestoreUserQueryService } from '../../../core/services/data-handling/firestore-user-query.service';
+import { PublicProfileDiscoveryService } from '../../../core/services/discovery/public-profile-discovery.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from '../../../core/services/error-handler/application-error.service';
 import { PhotoEditorLauncherService } from '../../../core/services/image-handling/photo-editor-launcher.service';
@@ -82,6 +83,10 @@ describe('EditUserProfileComponent', () => {
           },
         },
         {
+          provide: PublicProfileDiscoveryService,
+          useValue: { getPublicProfileByUid$: vi.fn(() => of(null)) },
+        },
+        {
           provide: UsuarioService,
           useValue: usuarioServiceMock,
         },
@@ -127,7 +132,7 @@ describe('EditUserProfileComponent', () => {
   });
 
   afterEach(() => {
-    fixture.destroy();
+    fixture?.destroy();
     localStorage.clear();
     vi.unstubAllGlobals();
   });
@@ -175,6 +180,24 @@ describe('EditUserProfileComponent', () => {
       expect.objectContaining({ descricao: 'Descrição salva' })
     );
     expect(component.hasUnsavedChanges()).toBe(false);
+  });
+
+  it('edita e salva separadamente as orientações de um casal', () => {
+    component.editForm.patchValue({
+      gender: 'casal-ele-ela', partner1Orientation: 'pansexual', partner2Orientation: 'assexual',
+    });
+    fixture.detectChanges();
+
+    const view = fixture.nativeElement as HTMLElement;
+    expect(view.querySelector<HTMLSelectElement>('#partner1Orientation')?.value).toBe('pansexual');
+    expect(view.querySelector<HTMLSelectElement>('#partner2Orientation')?.value).toBe('assexual');
+    expect(view.querySelector('#orientation')).toBeNull();
+
+    component.editForm.get('partner1Orientation')?.setValue('');
+    component.onSubmit();
+    expect(usuarioServiceMock.atualizarUsuario).toHaveBeenCalledWith(
+      'u1', expect.objectContaining({ partner1Orientation: '', partner2Orientation: 'assexual' })
+    );
   });
 
   it('separa revisão de identidade do salvamento comum', () => {

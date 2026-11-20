@@ -238,18 +238,22 @@
     </div>
 
     @if (isCouple()) {
+      <p class="help-text app-field-help" id="edit-partner-orientation-help">
+        Cada pessoa pode informar sua orientação, se quiser. As escolhas ficam privadas.
+      </p>
       <div class="form-grid couple-grid" aria-label="Orientações do casal">
         <div class="app-field">
           <label class="form-label" for="partner1Orientation">
-            Orientação da pessoa 1
+            {{ partnerOrientationLabels[0] }}
           </label>
           <select
             id="partner1Orientation"
             class="app-control"
             formControlName="partner1Orientation"
             name="partner1Orientation"
+            aria-describedby="edit-partner-orientation-help"
           >
-            <option value="">Selecione</option>
+            <option value="">Prefiro não informar</option>
             @for (option of orientationOptions; track option.code) {
               <option [value]="option.code">{{ option.label }}</option>
             }
@@ -258,15 +262,16 @@
 
         <div class="app-field">
           <label class="form-label" for="partner2Orientation">
-            Orientação da pessoa 2
+            {{ partnerOrientationLabels[1] }}
           </label>
           <select
             id="partner2Orientation"
             class="app-control"
             formControlName="partner2Orientation"
             name="partner2Orientation"
+            aria-describedby="edit-partner-orientation-help"
           >
-            <option value="">Selecione</option>
+            <option value="">Prefiro não informar</option>
             @for (option of orientationOptions; track option.code) {
               <option [value]="option.code">{{ option.label }}</option>
             }

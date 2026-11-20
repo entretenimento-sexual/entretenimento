@@ -144,11 +144,11 @@
 
           <select
             id="gender"
-            [(ngModel)]="gender"
+            [ngModel]="gender"
+            (ngModelChange)="onGenderChange($event)"
             name="gender"
             required
             class="app-control"
-            (change)="checkFieldValidity('gender', gender, 'Identificação do perfil')"
             (blur)="checkFieldValidity('gender', gender, 'Identificação do perfil')"
             [disabled]="isSubmitting"
             [attr.aria-invalid]="isFieldInvalid('gender') ? 'true' : 'false'"
@@ -173,37 +173,66 @@
       }
 
       @if (profileStep === 'orientation') {
-        <div class="app-field completion-reveal">
-          <label for="orientation">Orientação sexual (opcional)</label>
-
-          <select
-            id="orientation"
-            [ngModel]="orientation"
-            (ngModelChange)="onOrientationChange($event)"
-            name="orientation"
-            class="app-control"
-            aria-describedby="orientation-help"
-            [disabled]="isSubmitting"
-          >
-            <option value="">Prefiro não informar</option>
-            @for (option of orientationOptions; track option.code) {
-              <option [value]="option.code">{{ option.label }}</option>
-            }
-          </select>
-          <p class="field-hint" id="orientation-help">Você escolhe se quer informar e quem poderá ver.</p>
-          @if (orientation) {
-            <label class="completion-opt-in">
-              <input type="checkbox" name="showOrientationPublicly" [(ngModel)]="showOrientationPublicly" />
-              Mostrar minha orientação no perfil
-            </label>
-            <div class="completion-preview" aria-live="polite">
-              <small>Como outras pessoas veem seu perfil</small>
-              <span>{{ nickname }} · {{ identityLabel }}{{ showOrientationPublicly ? ' · ' + orientationLabel : '' }}</span>
+        @if (isCouple) {
+          <fieldset class="completion-reveal">
+            <legend class="sr-only">Orientações sexuais do casal</legend>
+            <p class="field-hint" id="partner-orientation-help">
+              Cada pessoa pode informar sua orientação, se quiser. As escolhas ficam privadas.
+            </p>
+            <div class="app-field">
+              <label for="partner1Orientation">{{ partnerOrientationLabels[0] }}</label>
+              <select id="partner1Orientation" name="partner1Orientation" class="app-control"
+                [(ngModel)]="partner1Orientation" aria-describedby="partner-orientation-help">
+                <option value="">Prefiro não informar</option>
+                @for (option of orientationOptions; track option.code) {
+                  <option [value]="option.code">{{ option.label }}</option>
+                }
+              </select>
             </div>
-          }
-        </div>
+            <div class="app-field">
+              <label for="partner2Orientation">{{ partnerOrientationLabels[1] }}</label>
+              <select id="partner2Orientation" name="partner2Orientation" class="app-control"
+                [(ngModel)]="partner2Orientation" aria-describedby="partner-orientation-help">
+                <option value="">Prefiro não informar</option>
+                @for (option of orientationOptions; track option.code) {
+                  <option [value]="option.code">{{ option.label }}</option>
+                }
+              </select>
+            </div>
+          </fieldset>
+        } @else {
+          <div class="app-field completion-reveal">
+            <label for="orientation">Orientação sexual (opcional)</label>
 
-        <button class="app-action app-action--primary" type="submit">{{ orientation ? 'Continuar' : 'Pular' }}</button>
+            <select
+              id="orientation"
+              [ngModel]="orientation"
+              (ngModelChange)="onOrientationChange($event)"
+              name="orientation"
+              class="app-control"
+              aria-describedby="orientation-help"
+              [disabled]="isSubmitting"
+            >
+              <option value="">Prefiro não informar</option>
+              @for (option of orientationOptions; track option.code) {
+                <option [value]="option.code">{{ option.label }}</option>
+              }
+            </select>
+            <p class="field-hint" id="orientation-help">Você escolhe se quer informar e quem poderá ver.</p>
+            @if (orientation) {
+              <label class="completion-opt-in">
+                <input type="checkbox" name="showOrientationPublicly" [(ngModel)]="showOrientationPublicly" />
+                Mostrar minha orientação no perfil
+              </label>
+              <div class="completion-preview" aria-live="polite">
+                <small>Como outras pessoas veem seu perfil</small>
+                <span>{{ nickname }} · {{ identityLabel }}{{ showOrientationPublicly ? ' · ' + orientationLabel : '' }}</span>
+              </div>
+            }
+          </div>
+        }
+
+        <button class="app-action app-action--primary" type="submit">{{ hasOrientationSelection ? 'Continuar' : 'Pular' }}</button>
       }
 
       @if (profileStep === 'location') {

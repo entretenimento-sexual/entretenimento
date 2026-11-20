@@ -9,3 +9,9 @@ export const PROFILE_ORIENTATION_OPTIONS = [
 export function resolveProfileOrientationOption(code: string | undefined) {
   return PROFILE_ORIENTATION_OPTIONS.find(option => option.code === code);
 }
+
+export function coupleOrientationLabels(identityCode: string): readonly [string, string] {
+  return identityCode === 'casal-ele-ela'
+    ? ['Orientação dele', 'Orientação dela']
+    : ['Orientação da pessoa 1', 'Orientação da pessoa 2'];
+}

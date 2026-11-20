@@ -354,6 +354,49 @@ try {
   console.log('[email-link:e2e] PASS private orientation, opt-in and revocation');
   console.log('[email-link:e2e] PASS email-first account reserves the nickname only when completing its profile');
 
+  const couple = client('couple-profile');
+  const coupleEmail = `casal-${run}@example.test`;
+  const coupleLink = await issueLink(couple.auth, coupleEmail);
+  const coupleDraft = await couple.call('prepareEmailLinkRegistration', {
+    code: coupleLink.oobCode, confirmsAdult: true,
+  });
+  const coupleUid = coupleDraft.data.uid;
+  const coupleCredential = await signInWithEmailLink(couple.auth, coupleEmail, coupleLink.oobLink);
+  await new Promise(resolve => setTimeout(resolve, 1_100));
+  await updatePassword(coupleCredential.user, password);
+  await reauthenticateWithCredential(coupleCredential.user, EmailAuthProvider.credential(coupleEmail, password));
+  await couple.call('getEmailLinkRegistrationState', { expectedUid: coupleUid });
+  await couple.call('acceptPlatformTerms', { ...terms, expectedUid: coupleUid });
+  await couple.call('refreshMyAgeEligibility', {});
+  const coupleProfile = {
+    ...profileInput,
+    uid: coupleUid,
+    nickname: 'Casal' + run.slice(0, 6),
+    gender: 'casal-ele-ela',
+    partner1Orientation: 'pansexual',
+    partner2Orientation: 'assexual',
+    showOrientationPublicly: true,
+  };
+  await rejects(couple.call('completeRegistrationProfile', {
+    ...coupleProfile, partner2Orientation: 'inválida',
+  }), 'invalid-argument');
+  await couple.call('completeRegistrationProfile', coupleProfile);
+  await couple.call('completeRegistrationProfile', { ...coupleProfile, partner2Orientation: '' });
+  const couplePrivate = await db.collection('users').doc(coupleUid).get();
+  const couplePublic = await db.collection('public_profiles').doc(coupleUid).get();
+  assert.equal(couplePrivate.get('partner1Orientation'), 'pansexual');
+  assert.equal(couplePrivate.get('partner2Orientation'), 'assexual');
+  assert.equal(couplePrivate.get('orientation'), '');
+  assert.equal(couplePrivate.get('showOrientationPublicly'), false);
+  assert.equal(couplePublic.get('partner1Orientation'), undefined);
+  assert.equal(couplePublic.get('partner2Orientation'), undefined);
+  assert.equal(couplePublic.get('orientation'), null);
+  assert.equal(couplePublic.get('normalizedOrientation'), 'unknown');
+  await rejects(couple.call('updateProfileOrientation', {
+    uid: coupleUid, orientation: 'pansexual', showOrientationPublicly: true,
+  }), 'failed-precondition');
+  console.log('[email-link:e2e] PASS independent private couple orientations and idempotent completion');
+
   for (const emailVerified of [false, true]) {
     const email = `legado-${emailVerified}-${run}@example.test`;
     const guest = client('legacy-' + emailVerified);

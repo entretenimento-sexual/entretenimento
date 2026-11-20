@@ -15,7 +15,7 @@ import {
 } from 'rxjs/operators';
 
 import { UnsavedChangesAware } from 'src/app/core/guards/unsaved-changes/unsaved-changes.guard';
-import { PROFILE_ORIENTATION_OPTIONS, resolveProfileOrientationOption } from 'src/app/core/domain/profile-identity/profile-orientation.catalog';
+import { PROFILE_ORIENTATION_OPTIONS, coupleOrientationLabels, resolveProfileOrientationOption } from 'src/app/core/domain/profile-identity/profile-orientation.catalog';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
@@ -101,6 +101,10 @@ export class EditUserProfileComponent
     private readonly identityChangeService: ProfileIdentityChangeService
   ) {
     this.editForm = this.formFacade.form;
+  }
+
+  get partnerOrientationLabels(): readonly [string, string] {
+    return coupleOrientationLabels(this.editForm.get('gender')?.value ?? '');
   }
 
   isCouple(): boolean {
@@ -240,7 +244,8 @@ export class EditUserProfileComponent
         this.uid,
         this.editForm.getRawValue(),
         this.isCouple(),
-        this.userData.photoURL
+        this.userData.photoURL,
+        this.userData
       )
       .pipe(
         finalize(() => (this.isSaving = false)),

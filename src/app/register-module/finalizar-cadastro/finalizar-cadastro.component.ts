@@ -30,9 +30,10 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import {
   SELECTABLE_PROFILE_IDENTITY_OPTIONS,
+  isCoupleProfileIdentityCode,
   isSelectableProfileIdentityCode,
 } from 'src/app/core/domain/profile-identity/profile-identity.catalog';
-import { PROFILE_ORIENTATION_OPTIONS } from 'src/app/core/domain/profile-identity/profile-orientation.catalog';
+import { PROFILE_ORIENTATION_OPTIONS, coupleOrientationLabels } from 'src/app/core/domain/profile-identity/profile-orientation.catalog';
 import { UnsavedChangesAware } from 'src/app/core/guards/unsaved-changes/unsaved-changes.guard';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { LocalDraftService } from 'src/app/core/services/drafts/local-draft.service';
@@ -109,7 +110,9 @@ implements OnInit, UnsavedChangesAware
 
   get pageTitle(): string {
     if (this.isLoading || this.profileDataUnavailable) return 'Complete seu perfil';
-    if (this.profileStep === 'orientation') return 'Quer acrescentar sua orientação?';
+    if (this.profileStep === 'orientation') {
+      return this.isCouple ? 'Querem acrescentar suas orientações?' : 'Quer acrescentar sua orientação?';
+    }
     if (this.profileStep === 'location') return 'Em que cidade você está?';
     if (this.profileStep === 'review') return 'Seu perfil está quase pronto';
     const nicknameValid = this.isNicknameValid(this.nickname) && !this.isFieldInvalid('nickname');
@@ -146,6 +149,38 @@ implements OnInit, UnsavedChangesAware
 
   get identityLabel(): string {
     return this.identityOptions.find(({ code }) => code === this.gender)?.label ?? '';
+  }
+
+  get isCouple(): boolean {
+    return isCoupleProfileIdentityCode(this.gender);
+  }
+
+  get partnerOrientationLabels(): readonly [string, string] {
+    return coupleOrientationLabels(this.gender);
+  }
+
+  get hasOrientationSelection(): boolean {
+    return this.isCouple
+      ? !!(this.partner1Orientation || this.partner2Orientation)
+      : !!this.orientation;
+  }
+
+  onGenderChange(gender: string): void {
+    const compositionChanged = this.gender !== gender &&
+      (this.isCouple || isCoupleProfileIdentityCode(gender));
+    this.gender = gender;
+    if (compositionChanged) {
+      this.clearOrientationChoices();
+      this.stepAfterIdentity = 'orientation';
+    }
+    this.checkFieldValidity('gender', gender, 'Identificação do perfil');
+  }
+
+  private clearOrientationChoices(): void {
+    this.orientation = '';
+    this.showOrientationPublicly = false;
+    this.partner1Orientation = '';
+    this.partner2Orientation = '';
   }
 
   get orientationLabel(): string {
@@ -221,6 +256,8 @@ implements OnInit, UnsavedChangesAware
   public readonly avatarMaxMegabytes = resolveImageMaxBytes('avatar') / 1024 / 1024;
   public gender = '';
   public orientation = '';
+  public partner1Orientation = '';
+  public partner2Orientation = '';
   public showOrientationPublicly = false;
   public selectedEstado = '';
   public selectedMunicipio = '';
@@ -425,15 +462,17 @@ implements OnInit, UnsavedChangesAware
         this.needsNickname = !reservedNickname;
         this.nickname = reservedNickname || NicknameUtils.normalizarApelido(initialData.savedNicknameSuggestion ?? '');
         this.gender = initialData.gender;
-        this.orientation = initialData.orientation;
-        this.showOrientationPublicly = initialData.showOrientationPublicly === true;
+        this.orientation = this.isCouple ? '' : initialData.orientation;
+        this.showOrientationPublicly = !this.isCouple && initialData.showOrientationPublicly === true;
+        this.partner1Orientation = this.isCouple ? initialData.partner1Orientation ?? '' : '';
+        this.partner2Orientation = this.isCouple ? initialData.partner2Orientation ?? '' : '';
         this.selectedEstado = initialData.estado;
         this.selectedMunicipio = initialData.municipio;
 
         this.initializeDraftState(uid);
         this.profileStep = this.selectedEstado && this.isNicknameValid(this.nickname) &&
           isSelectableProfileIdentityCode(this.gender)
-          ? 'location'
+          ? (this.isCouple ? 'orientation' : 'location')
           : 'identity';
         this.stepAfterIdentity = 'orientation';
         if (this.selectedEstado) {
@@ -576,6 +615,10 @@ implements OnInit, UnsavedChangesAware
         gender: this.gender,
         orientation: this.orientation,
         showOrientationPublicly: !!this.orientation && this.showOrientationPublicly,
+        ...(this.isCouple ? {
+          partner1Orientation: this.partner1Orientation,
+          partner2Orientation: this.partner2Orientation,
+        } : {}),
         estado: this.selectedEstado,
         municipio: this.selectedMunicipio,
       })
@@ -853,6 +896,9 @@ implements OnInit, UnsavedChangesAware
       if (this.needsNickname) {
         this.nickname = draft.nickname || this.nickname;
       }
+      if (this.gender !== draft.gender && (this.isCouple || isCoupleProfileIdentityCode(draft.gender))) {
+        this.clearOrientationChoices();
+      }
       this.gender = String(draft.gender ?? '');
       if (draft.estado !== this.selectedEstado) this.selectedMunicipio = '';
       this.selectedEstado = draft.estado;
@@ -885,6 +931,8 @@ implements OnInit, UnsavedChangesAware
     return JSON.stringify({
       ...this.currentDraftValue(),
       orientation: this.orientation.trim(),
+      partner1Orientation: this.partner1Orientation,
+      partner2Orientation: this.partner2Orientation,
       showOrientationPublicly: this.showOrientationPublicly,
       municipio: this.selectedMunicipio.trim(),
     });
