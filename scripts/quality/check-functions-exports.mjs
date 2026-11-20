@@ -66,6 +66,8 @@ const expectedDeploymentExports = [
   'configureCommunityRankingMode',
   // Cadastro canônico server-only: novas APIs validadas pela superfície de exports.
   'completeRegistrationProfile',
+  // Titular autenticado e App Check. A escolha e a projeção são gravadas juntas.
+  'updateProfileOrientation',
   'createCommunity',
   'createCommunityFeedComment',
   'createCommunityFeedCommentReply',
@@ -87,6 +89,8 @@ const expectedDeploymentExports = [
   'endFriendship',
   'ensureCurrentLegalNotice',
   'ensureDirectChat',
+  // App Check, participação, conexão bilateral e consentimento mútuo de ritmo.
+  'getDirectConversationStarter',
   'reconcileDirectChatAccess',
   // Callable de reconciliação bilateral, autenticada, com rate limit e resposta
   // neutra; a autoridade continua nos bloqueios canônicos do Firestore.

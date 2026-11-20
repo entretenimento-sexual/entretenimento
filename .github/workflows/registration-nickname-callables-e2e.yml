@@ -8,6 +8,7 @@ on:
       - 'functions/src/auth/**'
       - 'functions/src/compliance/**'
       - 'functions/src/index.ts'
+      - 'scripts/quality/check-functions-exports.mjs'
       - 'functions/src/public_index/**'
       - 'firestore-rules/**'
       - 'scripts/tests/registration-nickname-callables.e2e.mjs'
