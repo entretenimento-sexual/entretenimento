@@ -55,12 +55,21 @@
 }
 
 @media (min-width: 375px) and (max-width: 640px) {
+  .preference-group--primary .preference-group__content {
+    padding-inline: var(--space-1, 8px);
+  }
+
   .preference-group--primary .checkbox-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .preference-group--primary .checkbox-grid .app-choice {
+    gap: 6px;
+    padding-inline: 7px;
+  }
+
   .preference-group--primary .checkbox-grid .app-choice span {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
 }
 
