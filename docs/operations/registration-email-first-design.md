@@ -24,6 +24,8 @@ Na prévia, quando a sessão da mesma conta é reconhecida na aba que solicitou 
 
 Se a senha ficou pronta antes da reserva do apelido, a conclusão de Perfil preenche o apelido do registro privado vinculado ao UID como sugestão editável. O apelido já reservado é reutilizado automaticamente. Se o rascunho anterior à confirmação do e-mail expirou e nenhum apelido foi vinculado, a etapa de Perfil pede esse dado.
 
+Solicitar outro link com um apelido diferente para um e-mail que já tem senha leva à entrada da conta existente. Depois da autenticação, a plataforma abre a primeira etapa pendente. A tela de Termos identifica o cadastro pelo apelido salvo, quando disponível. Um apelido digitado apenas no rascunho do navegador não vira uma reserva após a autenticação.
+
 `loginAllowed: true` é um dos sinais usados para decidir se a conta pode entrar. A conclusão do cadastro é marcada por `profileCompleted: true` e `registrationCompletedAt`. A presença em Authentication ou a reserva do apelido no índice podem ocorrer antes disso.
 
 Ao abrir diretamente uma rota como Explorar enquanto `interactionBlocked` está ativo, o guard pode encaminhar para o status da conta. Para retomar a primeira etapa pendente, use a página de entrada ou **Continuar cadastro** na aba que solicitou o link.

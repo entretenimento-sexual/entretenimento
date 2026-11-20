@@ -13,10 +13,9 @@ import {
 import { RegistrationBootstrapService } from '@core/services/autentication/register/registration-bootstrap.service';
 import { RegistrationRecoveryService } from '@core/services/autentication/register/registration-recovery.service';
 import { ADULT_SELF_DECLARATION_TEXT_PT_BR } from '@core/services/compliance/platform-legal.constants';
-import { NicknameUtils } from '@core/utils/nickname-utils';
 import { FooterModule } from '../../footer/footer.module';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
-import { clearSignupDraft, readSignupDraft } from '../data-access/signup-draft.storage';
+import { clearSignupDraft } from '../data-access/signup-draft.storage';
 import { RegisterProgressComponent } from '../register-progress/register-progress.component';
 
 type LinkMode = 'confirm' | 'password';
@@ -162,16 +161,17 @@ export class EmailLinkRegistrationPageComponent {
       return of(void 0);
     }
 
-    const draft = readSignupDraft();
-    const localNickname = draft && draft.email.toLowerCase() === user.email?.toLowerCase()
-      ? NicknameUtils.montarApelidoCompleto(draft.apelidoPrincipal, draft.complementoApelido)
-      : '';
+    const recover$ = defer(() => this.recovery.recoverForUser$(uid)).pipe(map(() => void 0));
     return this.emailLink.preparedNickname$(uid).pipe(
-      switchMap(preparedNickname => {
-        const nickname = preparedNickname ?? localNickname;
-        return nickname && !this.skipNickname
-          ? this.bootstrap.reserveNickname$(uid, nickname)
-          : this.recovery.recoverForUser$(uid).pipe(map(() => void 0));
+      switchMap(nickname => {
+        // Após autenticar, só o recibo vinculado ao UID pode fornecer o apelido inicial.
+        if (!nickname || this.skipNickname) return recover$;
+        return this.bootstrap.reserveNickname$(uid, nickname).pipe(
+          catchError(error => {
+            if (error?.details?.reason === 'nickname/change-not-allowed') return recover$;
+            throw error;
+          }),
+        );
       }),
       map(() => true),
       catchError(error => {

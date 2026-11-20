@@ -101,7 +101,7 @@ const SIGNUP_SECTIONS = [
 
 const EMAIL_LINK_SECTION = {
   title: 'Confirme seu e-mail',
-  description: 'Informe o endereço em que você quer receber o link.',
+  description: 'Informe o endereço para receber o link. Se já definiu uma senha, use Retomar cadastro para continuar com o apelido salvo.',
   fields: ['email'],
   groupError: null,
 } as const;
@@ -279,7 +279,7 @@ export class RegisterComponent {
         }
       : {
           title: 'Retome sua conta',
-          description: 'Existe uma sessão aberta neste navegador. Continue com ela ou saia para usar outra conta.',
+          description: 'Existe uma sessão aberta neste navegador. Continue com o apelido e a etapa pendente dessa conta ou saia para usar outra.',
           action: 'Continuar com a sessão atual',
         };
   });

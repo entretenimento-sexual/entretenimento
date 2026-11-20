@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
-import { of, throwError } from 'rxjs';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
@@ -18,6 +18,7 @@ describe('TermsAcceptancePageComponent', () => {
   let fixture: ComponentFixture<TermsAcceptancePageComponent>;
   let component: TermsAcceptancePageComponent;
   let router: Router;
+  let account$: BehaviorSubject<{ uid: string; nickname: string } | null>;
 
   let termsAcceptanceMock: {
     acceptCurrentTerms$: MockFn;
@@ -35,6 +36,7 @@ describe('TermsAcceptancePageComponent', () => {
   };
 
   beforeEach(async () => {
+    account$ = new BehaviorSubject<{ uid: string; nickname: string } | null>(null);
     termsAcceptanceMock = {
       acceptCurrentTerms$: vi.fn(() => of({ uid: 'u1' })),
       acceptForUser$: vi.fn(() => of({ uid: 'u1' })),
@@ -92,7 +94,7 @@ describe('TermsAcceptancePageComponent', () => {
         {
           provide: CurrentUserStoreService,
           useValue: {
-            user$: of(null),
+            user$: account$,
             getLoggedUserUIDSnapshot: () => 'u1',
           },
         },
@@ -118,6 +120,18 @@ describe('TermsAcceptancePageComponent', () => {
     fixture = TestBed.createComponent(TermsAcceptancePageComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  it('identifica o cadastro nos Termos apenas pelo apelido da conta da etapa', () => {
+    account$.next({ uid: 'u1', nickname: 'ApelidoOriginal' });
+    fixture.detectChanges();
+    const notice = fixture.nativeElement.querySelector('.terms-acceptance__lead');
+    expect(notice?.textContent).toContain('O cadastro de ApelidoOriginal aguarda o aceite dos Termos.');
+
+    account$.next({ uid: 'u2', nickname: 'OutraConta' });
+    fixture.detectChanges();
+    expect(notice?.textContent).toContain('Seu cadastro aguarda o aceite dos Termos.');
+    expect(notice?.textContent).not.toContain('OutraConta');
   });
 
   it('bloqueia o avanço enquanto o aceite obrigatório não foi confirmado', () => {

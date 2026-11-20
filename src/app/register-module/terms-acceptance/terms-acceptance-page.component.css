@@ -49,6 +49,10 @@ h1 {
   line-height: 1.55;
 }
 
+.terms-acceptance__lead strong {
+  overflow-wrap: anywhere;
+}
+
 .terms-acceptance__changes {
   margin-block-start: 1rem;
   padding: 1rem;
@@ -221,7 +225,7 @@ h1 {
     grid-template-columns: minmax(0, 1fr) minmax(0, 39rem);
     background:
       linear-gradient(90deg, #180c1322, #180c1333 26%, #180c13c9 68%, #1d1317),
-      #1d1317 url('/assets/registration/signup-terms-masquerade.webp') left center / cover;
+      #1d1317 url('/assets/registration/signup-terms-masquerade.webp') left top / cover;
   }
 
   .terms-acceptance__card {

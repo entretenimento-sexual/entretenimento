@@ -66,6 +66,7 @@ export class TermsAcceptancePageComponent {
 
   readonly isMaterialUpdate$: Observable<boolean>;
   readonly currentTermsAccepted$: Observable<boolean>;
+  protected readonly registrationNickname$: Observable<string | null>;
   readonly isSaving = signal(false);
   readonly resumingSignupAcceptance = signal(false);
   readonly acceptanceConfirmed = signal(false);
@@ -82,6 +83,10 @@ export class TermsAcceptancePageComponent {
     private readonly errorNotifier: ErrorNotificationService,
   ) {
     this.pageUid = this.currentUser.getLoggedUserUIDSnapshot();
+    this.registrationNickname$ = this.currentUser.user$.pipe(
+      map(user => user && user.uid === this.pageUid ? user.nickname?.trim() || null : null),
+      distinctUntilChanged(),
+    );
     this.currentTermsAccepted$ = this.currentUser.user$.pipe(
       map(user => !!user && user.uid === this.pageUid && hasAcceptedCurrentTerms(user.acceptedTerms)),
       distinctUntilChanged(),

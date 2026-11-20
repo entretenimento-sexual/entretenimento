@@ -16,8 +16,12 @@
         @if (mode === 'confirm') {
           @switch (linkState()) {
             @case ('confirm') { <p>Link recebido. Confirme a declaração de maioridade para validar o e-mail e seguir para a senha.</p> }
-            @case ('sign-in') { <p>Este e-mail já está vinculado a uma conta. Entre pelo método de acesso que você usou no cadastro.</p> }
-            @case ('active-session') { <p>Já existe uma sessão aberta neste navegador. Continue com a conta atual ou saia para usar outra.</p> }
+            @case ('sign-in') {
+              <p>Este e-mail já está vinculado a uma conta. Entre com o mesmo acesso para abrir a etapa que ficou pendente. O apelido salvo dessa conta será mantido.</p>
+            }
+            @case ('active-session') {
+              <p>Já existe uma sessão aberta neste navegador. Continue com o apelido e a etapa pendente dessa conta ou saia para usar outra.</p>
+            }
             @case ('draft-expired') { <p>O rascunho do cadastro expirou. Solicite um novo link para recuperar o fluxo.</p> }
             @case ('unavailable') {
               <p>{{ hasLink ? 'Este link expirou ou já foi usado. Solicite um novo link.' :

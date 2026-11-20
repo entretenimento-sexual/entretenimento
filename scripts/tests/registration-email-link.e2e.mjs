@@ -155,6 +155,28 @@ try {
   assert.equal((await indexRef.get()).get('uid'), uid);
   assert.equal((await publicRef.get()).exists, false);
   assert.equal((await declarationRef.get()).exists, false);
+
+  const resuming = client('resume-with-another-nickname');
+  const differentNickname = 'Outro' + run.slice(0, 6);
+  const { data: { draftId: differentDraft } } = await resuming.call('stageEmailLinkRegistration', {
+    email, nickname: differentNickname,
+  });
+  const replacementLink = await issueLink(resuming.auth, email, differentDraft);
+  assert.deepEqual((await resuming.call('inspectEmailLinkRegistration', { code: replacementLink.oobCode })).data,
+    { state: 'sign-in' });
+  await rejects(resuming.call('prepareEmailLinkRegistration', {
+    code: replacementLink.oobCode, confirmsAdult: true,
+  }), 'failed-precondition', 'registration/account-already-created');
+  assert.equal((await signInWithEmailAndPassword(resuming.auth, email, password)).user.uid, uid);
+  await rejects(resuming.call('reserveRegistrationNickname', { ...expectedUid, nickname: differentNickname }),
+    'failed-precondition', 'nickname/change-not-allowed');
+  const resumed = (await privateRef.get()).data();
+  assert.equal(resumed.nickname, nickname);
+  assert.equal(resumed.acceptedTerms.accepted, false);
+  assert.equal(resumed.profileCompleted, false);
+  assert.equal((await db.collection('public_index').doc('nickname:' + differentNickname.toLowerCase()).get()).exists, false);
+  console.log('[email-link:e2e] PASS existing signup retains its nickname and pending Terms');
+
   const terms = { ...expectedUid, acceptedTerms: true, acknowledgedPrivacyNotice: true };
   assert.equal((await consumer.call('acceptPlatformTerms', terms)).data.signupAdultDeclarationRecorded, true);
   const declared = (await declarationRef.get()).data();

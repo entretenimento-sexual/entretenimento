@@ -25,10 +25,15 @@
       <h1 id="terms-acceptance-title">Termos da plataforma</h1>
 
       <p class="terms-acceptance__lead">
-        Consulte os documentos antes de concluir seu cadastro. Você só precisará confirmar o aceite novamente se houver uma alteração relevante.
+        @if (registrationNickname$ | async; as nickname) {
+          O cadastro de <strong>{{ nickname }}</strong> aguarda o aceite dos Termos.
+        } @else {
+          Seu cadastro aguarda o aceite dos Termos.
+        }
+        Consulte os documentos e confirme para continuar.
       </p>
       <p class="terms-acceptance__help">
-        Se sair agora, entre novamente com a mesma conta para retomar esta etapa.
+        Se sair agora, entre novamente com a mesma conta para voltar a esta etapa.
       </p>
     }
 
