@@ -40,6 +40,7 @@ describe('LoginComponent e sessão compartilhada', () => {
   let googleLogin$: ReturnType<typeof vi.fn>;
   let report: ReturnType<typeof vi.fn>;
   let registrationVm$: Observable<RegisterFlowVm>;
+  let invalidation: AuthAppBlockService['invalidationSnapshot'];
 
   beforeEach(async () => {
     uid$ = new BehaviorSubject<string | null>(null);
@@ -49,6 +50,7 @@ describe('LoginComponent e sessão compartilhada', () => {
     googleLogin$ = vi.fn();
     report = vi.fn().mockReturnValue({ userMessage: 'Falha na tentativa local.' });
     registrationVm$ = NEVER;
+    invalidation = null;
     const ready$ = of(true);
     TestBed.configureTestingModule({
       declarations: [LoginComponent],
@@ -76,6 +78,13 @@ describe('LoginComponent e sessão compartilhada', () => {
             canActivate: [registrationStepGuard],
             data: { allowedRegisterSteps: ['profileCompletion'] },
           },
+          {
+            path: 'register/aceitar-termos',
+            component: DestinationComponent,
+            canMatch: [guestOnlyCanMatch],
+            canActivate: [guestOnlyCanActivate, registrationStepGuard],
+            data: { allowedRegisterSteps: ['termsAcceptance'] },
+          },
         ], withComponentInputBinding()),
         { provide: AuthSessionService, useValue: {
           ready$, uid$,
@@ -85,7 +94,8 @@ describe('LoginComponent e sessão compartilhada', () => {
           ready$, authUid$: uid$, appUser$, blockedReason$, emailVerified$: of(true),
         } },
         { provide: AuthAppBlockService, useValue: {
-          invalidationSnapshot: null, reason$: blockedReason$,
+          get invalidationSnapshot() { return invalidation; },
+          reason$: blockedReason$,
         } },
         { provide: AuthReturnUrlService, useValue: {
           resolveAuthedRedirect: (redirect: string | null, fallback: string) => redirect ?? fallback,
@@ -109,6 +119,43 @@ describe('LoginComponent e sessão compartilhada', () => {
       filter((event) => event instanceof NavigationEnd && event.urlAfterRedirects === destination)
     ));
   }
+
+  it('mostra um convite neutro sem sessão e abre os Termos quando a sessão é restaurada', async () => {
+    const target = '/register/aceitar-termos';
+    await harness.navigateByUrl(target, LoginComponent);
+
+    const loginUrl = router.parseUrl(router.url);
+    expect(loginUrl.queryParamMap.get('retomarCadastro')).toBe('1');
+    expect(loginUrl.queryParamMap.has('reason')).toBe(false);
+    expect(harness.routeNativeElement?.textContent).toContain('Entre com a mesma conta para continuar de onde parou.');
+    expect(harness.routeNativeElement?.textContent).not.toContain('Sua sessão foi encerrada.');
+    expect(harness.routeNativeElement?.querySelector('form')).not.toBeNull();
+
+    registrationVm$ = of({
+      authReady: true, uid: 'shared-user', email: null, emailVerified: true,
+      userResolved: true, userExists: true, termsAccepted: false, ageEligibilityAllowed: false,
+      profileCompleted: false, currentStep: 'termsAcceptance', nextRoute: target,
+      progress: 60, canContinue: true, primaryActionLabel: 'Aceitar e continuar',
+    });
+    const navigated = firstValueFrom(router.events.pipe(
+      filter((event) => event instanceof NavigationEnd && event.urlAfterRedirects === target)
+    ));
+    uid$.next('shared-user');
+    appUser$.next({ uid: 'shared-user', profileCompleted: false });
+
+    await navigated;
+    expect(router.url).toBe(target);
+    expect(login$).not.toHaveBeenCalled();
+  });
+
+  it('mantém somente o aviso de expiração quando o motivo está registrado', async () => {
+    invalidation = { uid: 'expired-user', reason: 'session-expired' };
+    await harness.navigateByUrl('/register/aceitar-termos', LoginComponent);
+    expect(router.parseUrl(router.url).queryParamMap.get('reason')).toBe('session-expired');
+    expect(harness.routeNativeElement?.textContent).toContain('Sua sessão expirou. Entre novamente para continuar.');
+    expect(harness.routeNativeElement?.textContent).not.toContain('Use a mesma conta');
+    expect(harness.routeNativeElement?.querySelector('form')).not.toBeNull();
+  });
 
   it('segue para o destino original quando outra aba autentica e o perfil termina de carregar', async () => {
     expect(router.url).toBe(attempt);
@@ -181,7 +228,7 @@ describe('LoginComponent e sessão compartilhada', () => {
         expect(report).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({
           operation: 'resumeSharedSession',
         }));
-        const action = harness.routeNativeElement?.querySelector<HTMLButtonElement>('button')!;
+        const action = harness.routeNativeElement!.querySelector<HTMLButtonElement>('button')!;
         expect(action.textContent).toContain('Continuar com a sessão atual');
         const navigated = waitForDestination();
         action.click();
@@ -270,7 +317,7 @@ describe('LoginComponent e sessão compartilhada', () => {
       const navigated = firstValueFrom(router.events.pipe(
         filter((event) => event instanceof NavigationEnd && event.urlAfterRedirects === registrationTarget)
       ));
-      const action = harness.routeNativeElement?.querySelector<HTMLButtonElement>('button')!;
+      const action = harness.routeNativeElement!.querySelector<HTMLButtonElement>('button')!;
       expect(action.textContent).toContain('Tentar novamente');
       action.click();
       harness.detectChanges();

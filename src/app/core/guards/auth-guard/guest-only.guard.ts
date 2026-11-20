@@ -161,8 +161,8 @@ function decideGuestAccess$(
 
     take(1),
 
-    map(([_, authUid, appUser, blockedReason, emailVerified]): GuardResult => {
-      const profileCompleted = (appUser as any)?.profileCompleted === true;
+    map(([, authUid, appUser, blockedReason, emailVerified]): GuardResult => {
+      const profileCompleted = appUser?.profileCompleted === true;
       const registrationReturnUrl = resolveRegistrationReturnUrl(redirectToParam);
 
       const redirectTo = returnUrl.resolveAuthedRedirect(
@@ -192,9 +192,8 @@ function decideGuestAccess$(
         if (tryingWelcome || tryingRecovery || tryingTerms || tryingFinalize) {
           return buildRedirectTree(router, '/login', redirectToParam ?? undefined, {
             retomarCadastro: '1',
-            reason: authSession.currentAuthUser
-              ? 'session-ended'
-              : appBlock.invalidationSnapshot?.reason ?? 'session-ended',
+            // Abrir uma etapa como visitante indica intenção de retomar o cadastro.
+            reason: authSession.currentAuthUser ? undefined : appBlock.invalidationSnapshot?.reason,
           });
         }
 

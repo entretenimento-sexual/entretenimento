@@ -33,14 +33,11 @@
       }
     } @else if (sessionNotice; as notice) {
       <p role="status" aria-live="polite">{{ notice }}</p>
-      @if (retomarCadastro === '1' && !sessionRetryHref) {
-        <p>Use a mesma conta para abrir a primeira etapa pendente.</p>
-      }
       @if (sessionRetryHref; as href) {
         <a class="app-action app-action--secondary" [href]="href">Tentar novamente</a>
       }
     } @else if (retomarCadastro === '1') {
-      <p>Entre com o mesmo e-mail e a senha que cadastrou. Abriremos a primeira etapa que ainda estiver pendente.</p>
+      <p>Entre com a mesma conta para continuar de onde parou.</p>
     } @else {
       <p>Continue de onde parou com seu perfil, preferências e conversas.</p>
     }
