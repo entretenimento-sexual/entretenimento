@@ -107,7 +107,7 @@ describe('RegisterComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('avança do apelido para a confirmação de e-mail e envia o link no próprio formulário em dev-emu', async () => {
+  it('começa pelo e-mail e envia o link pelo próprio formulário em dev-emu', () => {
     const original = { ...environment };
     Object.assign(environment, {
       production: false,
@@ -118,27 +118,20 @@ describe('RegisterComponent', () => {
     try {
       const registration = preview.componentInstance;
       const view = preview.nativeElement as HTMLElement;
-      const lookup = new Subject<boolean>();
       const validation = TestBed.inject(FirestoreValidationService);
-      vi.mocked(validation.checkIfNicknameExists).mockReturnValueOnce(lookup);
       preview.detectChanges();
 
-      registration.form.patchValue({ apelidoPrincipal: 'visualteste' });
-      view.querySelector<HTMLButtonElement>('button[type=submit]')!.click();
       expect(registration.sectionIndex()).toBe(0);
-      lookup.next(false);
-      preview.detectChanges();
-      await preview.whenStable();
-      preview.detectChanges();
-
-      expect(registration.sectionIndex()).toBe(1);
+      expect(view.querySelector('.summary')?.textContent?.trim()).toBe('Etapa 1 de 5');
       expect(view.querySelector('[aria-current="step"]')?.textContent).toContain('E-mail');
-      expect(view.querySelector('#register-section-title')?.textContent).toContain('Confirme seu e-mail');
-      expect(view.querySelector('.signup-scene--email')?.classList.contains('signup-scene--inactive')).toBe(false);
+      expect(view.querySelector('#register-section-title')?.textContent).toContain('Comece pelo e-mail');
+      expect(view.querySelector('.signup-scene--original')?.classList.contains('signup-scene--inactive')).toBe(false);
       expect(view.querySelector('.auth-container--stage-detail')).toBeNull();
       expect(view.querySelector('#email')).not.toBeNull();
-      expect(view.querySelector('#password, #confirmPassword, .signup-section-count')).toBeNull();
-      expect(view.querySelector('button[type=submit]')?.textContent).toContain('Enviar link');
+      expect(view.querySelector('#apelidoPrincipal, #complementoApelido, #password, #confirmPassword, .signup-section-count')).toBeNull();
+      expect(view.querySelector('button[type=submit]')?.textContent).toContain('Continuar com e-mail');
+      expect(view.querySelector('.login-redirect a')?.textContent?.trim()).toBe('Entrar');
+      expect(validation.checkIfNicknameExists).not.toHaveBeenCalled();
 
       registration.form.patchValue({ email: 'teste@example.com' });
       const submit = view.querySelector<HTMLButtonElement>('button[type=submit]')!;
@@ -152,13 +145,13 @@ describe('RegisterComponent', () => {
       window.dispatchEvent(new Event('online'));
       preview.detectChanges();
       expect(submit.disabled).toBe(false);
-      expect(view.querySelector('header p')?.textContent).toContain('Informe o endereço');
+      expect(view.querySelector('header p')?.textContent).toContain('Receba um link');
       expect(request).not.toHaveBeenCalled();
       vi.useFakeTimers();
       submit.click();
       preview.detectChanges();
       expect(submit.textContent).toContain('Enviando link');
-      expect(request).toHaveBeenCalledWith('teste@example.com', 'visualteste');
+      expect(request).toHaveBeenCalledWith('teste@example.com', undefined);
       expect(registerService.registerUser).not.toHaveBeenCalled();
       response.next();
       response.complete();
@@ -180,16 +173,16 @@ describe('RegisterComponent', () => {
       submit.click();
       preview.detectChanges();
       expect(request).toHaveBeenCalledTimes(2);
-      expect(request).toHaveBeenLastCalledWith('teste@example.com', 'visualteste');
+      expect(request).toHaveBeenLastCalledWith('teste@example.com', undefined);
       expect(view.querySelector('header p')?.textContent).toContain('Envio sem confirmação');
       expect(view.querySelector('.alert')).toBeNull();
       view.querySelector<HTMLButtonElement>('.signup-actions button[type=button]')!.click();
       preview.detectChanges();
-      expect(registration.sectionIndex()).toBe(1);
+      expect(registration.sectionIndex()).toBe(0);
       const input = view.querySelector<HTMLInputElement>('#email')!;
       expect(input.readOnly).toBe(false);
       expect(input.value).toBe('teste@example.com');
-      expect(view.querySelector('#register-section-title')?.textContent).toContain('Confirme seu e-mail');
+      expect(view.querySelector('#register-section-title')?.textContent).toContain('Comece pelo e-mail');
 
       vi.advanceTimersByTime(30_000);
       preview.detectChanges();
@@ -242,7 +235,10 @@ describe('RegisterComponent', () => {
     reopened.destroy();
   });
 
-  it('restaura a espera pelo link e mantém a entrada de retomada após recarregar', () => {
+  it.each([
+    ['teste@example.test', 'retomada'],
+    ['outro@example.test', undefined],
+  ])('restaura a espera e limita o apelido antigo ao e-mail original (%s)', (email, nickname) => {
     const original = { ...environment };
     Object.assign(environment, {
       production: false, useEmulators: true,
@@ -260,6 +256,13 @@ describe('RegisterComponent', () => {
       expect(view.querySelector('h1')?.textContent).toContain('Confira seu e-mail');
       expect(view.querySelector('#email')).toBeNull();
       expect(view.querySelector('.login-redirect a')?.getAttribute('href')).toBe('/login?retomarCadastro=1');
+      view.querySelector<HTMLButtonElement>('.signup-actions button[type=button]')!.click();
+      resumed.detectChanges();
+      expect(view.querySelector('#apelidoPrincipal')).toBeNull();
+      expect(view.querySelector<HTMLInputElement>('#email')?.value).toBe('teste@example.test');
+      resumed.componentInstance.form.patchValue({ email });
+      resumed.componentInstance.submitSection();
+      expect(TestBed.inject(EmailLinkRegistrationService).requestLink$).toHaveBeenCalledWith(email, nickname);
     } finally {
       resumed.destroy();
       Object.assign(environment, original);

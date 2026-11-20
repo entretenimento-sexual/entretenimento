@@ -20,10 +20,10 @@ const STAGE = {
 } as const satisfies Record<string, { step: RegisterFlowStep; label: string; action: string }>;
 
 const STAGES = [STAGE.signup, STAGE.email, STAGE.terms, STAGE.age, STAGE.profile] as const;
-const EMAIL_LINK_STAGES = [STAGE.signup, STAGE.email, STAGE.age, STAGE.password, STAGE.terms, STAGE.profile] as const;
-const EMAIL_LINK_LATE_AGE_STAGES = [STAGE.signup, STAGE.email, STAGE.password, STAGE.terms, STAGE.age, STAGE.profile] as const;
+const EMAIL_LINK_STAGES = [STAGE.email, STAGE.age, STAGE.password, STAGE.terms, STAGE.profile] as const;
+const EMAIL_LINK_LATE_AGE_STAGES = [STAGE.email, STAGE.password, STAGE.terms, STAGE.age, STAGE.profile] as const;
 
-type ProgressStep = (typeof EMAIL_LINK_STAGES)[number]['step'];
+type ProgressStep = (typeof STAGES | typeof EMAIL_LINK_STAGES)[number]['step'];
 
 @Component({
   selector: 'app-register-progress',

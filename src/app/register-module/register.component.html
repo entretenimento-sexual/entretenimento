@@ -1,6 +1,6 @@
 <!-- src/app/register-module/register.component.html -->
-<div class="auth-container signup-layout" [class.auth-container--email-link]="emailLinkPreview"
-  [class.auth-container--email-link-step]="isEmailLinkSection()"
+<div class="auth-container signup-layout"
+  [class.auth-container--email-link-step]="emailLinkPreview"
   [class.auth-container--stage-detail]="!emailLinkPreview && sectionIndex() > 0">
   <div class="signup-image" aria-hidden="true">
     <picture class="signup-scene signup-scene--original" [class.signup-scene--inactive]="sectionIndex() !== 0">
@@ -13,12 +13,14 @@
       <source srcset="assets/registration/signup-shadow.webp" type="image/webp" />
       <img class="signup-backdrop" src="assets/registration/signup-noir.svg" alt="" decoding="async" />
     </picture>
+    @if (!emailLinkPreview) {
     <picture class="signup-scene signup-scene--email" [class.signup-scene--inactive]="sectionIndex() !== 1">
       <img class="signup-backdrop" src="assets/registration/signup-stage-email.webp" alt="" decoding="async" fetchpriority="low" />
     </picture>
     <picture class="signup-scene signup-scene--confirm" [class.signup-scene--inactive]="sectionIndex() < 2">
       <img class="signup-backdrop" src="assets/registration/signup-stage-confirm.webp" alt="" decoding="async" fetchpriority="low" />
     </picture>
+    }
   </div>
 
   <div class="form-container">
@@ -34,7 +36,7 @@
         routerLink="/register/welcome" [replaceUrl]="true">{{ resumption.action }}</a>
     } @else {
     <app-register-progress
-      [step]="emailLinkPreview && sectionIndex() === 1 ? 'emailVerification' : 'signup'"
+      [step]="emailLinkPreview ? 'emailVerification' : 'signup'"
       [emailLinkFlow]="emailLinkPreview"
       [completed]="accountCreated()"
       [nextAction]="nextSectionTitle()"
@@ -88,17 +90,17 @@
       [formValidationOnSubmit]="false"
       [attr.aria-busy]="(isLoading() || creating() || sendingLink()) ? 'true' : null">
 
-      <header [class.signup-email-heading]="isEmailLinkSection()">
+      <header [class.signup-email-heading]="emailLinkPreview">
         <h1 id="register-section-title" #sectionHeading tabindex="-1">
           {{ sectionHeadingCopy().title }}
           @if (!emailLinkPreview) {
             <span class="signup-section-count">{{ sectionIndex() + 1 }} de {{ sectionCount }}</span>
           }
         </h1>
-        <p [attr.aria-live]="isEmailLinkSection() ? 'polite' : null">{{ sectionHeadingCopy().description }}</p>
+        <p [attr.aria-live]="emailLinkPreview ? 'polite' : null">{{ sectionHeadingCopy().description }}</p>
       </header>
 
-      @switch (sectionIndex()) {
+      @switch (emailLinkPreview ? 1 : sectionIndex()) {
       @case (0) {
       @let nicknameError = !nicknameChecking() && (submitted() || nicknameFeedbackArmed())
         ? getError('apelidoPrincipal') : null;
@@ -360,7 +362,7 @@
       }
       }
 
-      @let showBack = sectionIndex() > 0 && (!opensEmailStep || waitingForEmailLink());
+      @let showBack = sectionIndex() > 0 || waitingForEmailLink();
       <div class="signup-actions" [class.signup-actions--with-back]="showBack">
         @if (showBack) {
           <button type="button" class="app-action app-action--ghost" (click)="previousSection()"
@@ -370,15 +372,15 @@
         }
         <button class="app-action app-action--primary" type="submit"
           [appActionState]="isLoading() || creating() || sendingLink()"
-          [actionDisabled]="awaitingNickname() || accountCreated() || (isEmailLinkSection() && (resendCooldown() || offline()))">
+          [actionDisabled]="awaitingNickname() || accountCreated() || (emailLinkPreview && (resendCooldown() || offline()))">
           {{ submitLabel() }}
         </button>
       </div>
 
       <p class="login-redirect">
         @if (emailLinkPreview) {
-          {{ opensEmailStep ? 'Já definiu sua senha?' : 'Já começou?' }}
-          <a routerLink="/login" [queryParams]="{ retomarCadastro: '1' }">{{ opensEmailStep ? 'Entrar' : 'Retomar cadastro' }}</a>
+          Já definiu sua senha?
+          <a routerLink="/login" [queryParams]="{ retomarCadastro: '1' }">Entrar</a>
         } @else {
           Já tem conta?
           <a routerLink="/login">Entrar</a>

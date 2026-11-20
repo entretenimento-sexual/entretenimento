@@ -29,17 +29,18 @@ describe('RegisterProgressComponent', () => {
     fixture.detectChanges();
 
     const view: HTMLElement = fixture.nativeElement;
+    expect(view.querySelector('.summary')?.textContent?.trim()).toBe('Etapa 1 de 5');
     expect(view.querySelector('.next strong')?.textContent).toBe('Confirmar sua maioridade');
     fixture.componentRef.setInput('step', 'ageVerification');
     fixture.detectChanges();
 
-    expect(view.querySelector('.summary')?.textContent?.trim()).toBe('Etapa 3 de 6');
+    expect(view.querySelector('.summary')?.textContent?.trim()).toBe('Etapa 2 de 5');
     expect(view.querySelector('[aria-current="step"]')?.textContent).toContain('18+');
     expect(view.querySelector('.next strong')?.textContent).toBe('Definir sua senha');
     fixture.componentRef.setInput('step', 'passwordSetup');
     fixture.detectChanges();
 
-    expect(view.querySelector('.summary')?.textContent?.trim()).toBe('Etapa 4 de 6');
+    expect(view.querySelector('.summary')?.textContent?.trim()).toBe('Etapa 3 de 5');
     expect(view.querySelector('[aria-current="step"]')?.textContent).toContain('Senha');
     expect(view.querySelector('.next strong')?.textContent).toBe('Revisar e aceitar os termos');
   });

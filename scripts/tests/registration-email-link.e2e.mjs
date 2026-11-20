@@ -205,6 +205,43 @@ try {
     'failed-precondition', 'registration/account-already-created');
   console.log('[email-link:e2e] PASS new identity, single-use link, password and protected onboarding');
 
+  const emailFirst = client('email-first');
+  const freshEmail = `primeiro-email-${run}@example.test`;
+  const linkWithoutNickname = await issueLink(emailFirst.auth, freshEmail);
+  await assert.rejects(adminAuth.getUserByEmail(freshEmail), { code: 'auth/user-not-found' });
+  const preparedEmailFirst = await emailFirst.call('prepareEmailLinkRegistration', {
+    code: linkWithoutNickname.oobCode, confirmsAdult: true,
+  });
+  const emailFirstUid = preparedEmailFirst.data.uid;
+  const emailFirstCredential = await signInWithEmailLink(emailFirst.auth, freshEmail, linkWithoutNickname.oobLink);
+  assert.equal(emailFirstCredential.user.uid, emailFirstUid);
+  await new Promise(resolve => setTimeout(resolve, 1_100));
+  await updatePassword(emailFirstCredential.user, password);
+  await reauthenticateWithCredential(emailFirstCredential.user, EmailAuthProvider.credential(freshEmail, password));
+  assert.deepEqual((await emailFirst.call('getEmailLinkRegistrationState', { expectedUid: emailFirstUid })).data,
+    { passwordRequired: false });
+  const freshIndexRef = db.collection('public_index').doc('nickname:perfil' + run.slice(0, 6));
+  const freshPrivateRef = db.collection('users').doc(emailFirstUid);
+  const freshPublicRef = db.collection('public_profiles').doc(emailFirstUid);
+  const profileInput = {
+    uid: emailFirstUid, nickname: 'Perfil' + run.slice(0, 6) + ' RJ',
+    gender: 'homem', estado: 'RJ', municipio: 'Rio de Janeiro',
+  };
+  await rejects(emailFirst.call('completeRegistrationProfile', profileInput), 'failed-precondition', 'terms_required');
+  await emailFirst.call('acceptPlatformTerms', { ...terms, expectedUid: emailFirstUid });
+  await emailFirst.call('refreshMyAgeEligibility', {});
+  assert.ok(!(await freshPrivateRef.get()).get('nickname'));
+  assert.equal((await freshIndexRef.get()).exists, false);
+  assert.equal((await freshPublicRef.get()).exists, false);
+  await rejects(emailFirst.call('completeRegistrationProfile', { ...profileInput, nickname: nickname + ' RJ' }),
+    'already-exists', 'nickname/in-use');
+  await emailFirst.call('completeRegistrationProfile', profileInput);
+  assert.equal((await freshPrivateRef.get()).get('nickname'), profileInput.nickname);
+  assert.equal((await freshPublicRef.get()).get('nickname'), profileInput.nickname);
+  assert.equal((await freshIndexRef.get()).get('uid'), emailFirstUid);
+  assert.equal((await adminAuth.getUser(emailFirstUid)).displayName, profileInput.nickname);
+  console.log('[email-link:e2e] PASS email-first account reserves the nickname only when completing its profile');
+
   for (const emailVerified of [false, true]) {
     const email = `legado-${emailVerified}-${run}@example.test`;
     const guest = client('legacy-' + emailVerified);

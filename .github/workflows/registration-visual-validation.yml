@@ -332,8 +332,10 @@ jobs:
               introVisible: !!document.querySelector('.form-container form > header')?.getClientRects().length,
               title: document.querySelector('#register-section-title')?.textContent?.trim() || '',
               submitVisible: !!document.querySelector('button[type=submit]')?.getClientRects().length,
+              emailVisible: !!document.querySelector('#email')?.getClientRects().length,
               nicknameVisible: !!document.querySelector('#apelidoPrincipal')?.getClientRects().length,
-              laterFieldsPresent: !!document.querySelector('#email, #password, #maioridade-inicial, #termos'),
+              nicknameFieldsPresent: !!document.querySelector('#apelidoPrincipal, #complementoApelido'),
+              laterFieldsPresent: !!document.querySelector('#password, #maioridade-inicial, #termos'),
               viewportImage: document.querySelector('.signup-image')?.getBoundingClientRect().toJSON(),
               bodyWidth: document.documentElement.clientWidth,
               bodyHeight: document.documentElement.clientHeight,
@@ -356,8 +358,11 @@ jobs:
             if (!metrics.introVisible || !metrics.title || !metrics.submitVisible) {
               throw new Error('Desktop initial registration shell is incomplete');
             }
-            if (!metrics.nicknameVisible || metrics.laterFieldsPresent) {
-              throw new Error('Desktop must start with only the nickname fields');
+            const emailFirst = '${{ matrix.configuration }}' === 'dev-emu';
+            if (metrics.laterFieldsPresent || (emailFirst
+                ? !metrics.emailVisible || metrics.nicknameFieldsPresent
+                : !metrics.nicknameVisible || metrics.emailVisible || !metrics.nicknameRow)) {
+              throw new Error('Desktop must show exactly the fields for the first signup step');
             }
             if (!metrics.photoSource || !metrics.viewportImage || Math.abs(metrics.viewportImage.width - metrics.bodyWidth) > 1 || Math.abs(metrics.viewportImage.height - metrics.bodyHeight) > 1) {
               throw new Error('Desktop must show the photographic background across the viewport');
@@ -368,19 +373,21 @@ jobs:
                 metrics.footerDocs.some(path => !['/politica-de-privacidade', '/termos-e-condicoes', '/politica-de-cookies'].includes(path))) {
               throw new Error('Desktop signup must show the compact legal footer and the photo within the first viewport');
             }
-            if (!metrics.nicknameRow || !metrics.formHeight || metrics.formHeight > 420) {
-              throw new Error('Desktop signup form must keep the nickname fields in a compact row');
+            if (!metrics.formHeight || metrics.formHeight > 420) {
+              throw new Error('Desktop signup form must stay compact');
             }
-            const expectedAction = '${{ matrix.configuration }}' === 'dev-emu' ? 'Confirme seu e-mail' : 'Configure seu acesso';
+            const expectedAction = emailFirst ? 'Abrir o link de confirmação' : 'Configure seu acesso';
             if (metrics.formStart < metrics.viewportWidth * 0.52 || metrics.nextAction !== expectedAction) {
               throw new Error('Desktop must keep the form to the right and show the next signup screen');
             }
             return metrics;
           }" | tee "$OUT/desktop-initial.metrics.log"
 
-          playwright-cli run-code "$CHECK_NICKNAME_ERROR" | tee "$OUT/desktop-invalid.metrics.log"
-          playwright-cli snapshot --filename="$OUT/desktop-invalid.accessibility.yml"
-          playwright-cli screenshot --full-page --filename="$OUT/desktop-invalid.png"
+          if [ '${{ matrix.configuration }}' != 'dev-emu' ]; then
+            playwright-cli run-code "$CHECK_NICKNAME_ERROR" | tee "$OUT/desktop-invalid.metrics.log"
+            playwright-cli snapshot --filename="$OUT/desktop-invalid.accessibility.yml"
+            playwright-cli screenshot --full-page --filename="$OUT/desktop-invalid.png"
+          fi
 
           playwright-cli resize 390 844
           playwright-cli reload
@@ -391,7 +398,7 @@ jobs:
             await page.locator('.signup-scene:not(.signup-scene--inactive) .signup-backdrop').evaluate(image => image.decode());
             const metrics = await page.evaluate(() => {
               const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
-              const inputRect = document.querySelector('.signup-pair--nickname')?.getBoundingClientRect();
+              const inputRect = document.querySelector('#email, .signup-pair--nickname')?.getBoundingClientRect();
               return {
                 viewportWidth: window.innerWidth,
                 viewportHeight: window.innerHeight,
@@ -453,11 +460,14 @@ jobs:
             return metrics;
           }" | tee "$OUT/mobile-initial.metrics.log"
 
-          playwright-cli run-code "$CHECK_NICKNAME_ERROR" | tee "$OUT/mobile-invalid.metrics.log"
-          playwright-cli snapshot --filename="$OUT/mobile-invalid.accessibility.yml"
-          playwright-cli screenshot --full-page --filename="$OUT/mobile-invalid.png"
+          if [ '${{ matrix.configuration }}' != 'dev-emu' ]; then
+            playwright-cli run-code "$CHECK_NICKNAME_ERROR" | tee "$OUT/mobile-invalid.metrics.log"
+            playwright-cli snapshot --filename="$OUT/mobile-invalid.accessibility.yml"
+            playwright-cli screenshot --full-page --filename="$OUT/mobile-invalid.png"
+          fi
 
       - name: Verify nickname feedback and progression
+        if: ${{ matrix.configuration != 'dev-emu' }}
         shell: bash
         env:
           PLAYWRIGHT_CLI_SESSION: registration-${{ matrix.configuration }}
@@ -583,19 +593,23 @@ jobs:
 
           if [ "$SIGNUP_CONFIGURATION" = "dev-emu" ]; then
             playwright-cli run-code "async (page) => {
-              const heading = page.getByRole('heading', { name: 'Confirme seu e-mail', exact: true });
+              const heading = page.getByRole('heading', { name: 'Comece pelo e-mail', exact: true });
               await heading.waitFor({ state: 'visible' });
-              await page.getByRole('button', { name: 'Enviar link', exact: true }).waitFor({ state: 'visible' });
+              const send = page.getByRole('button', { name: 'Continuar com e-mail', exact: true });
+              await send.click();
+              const email = page.locator('#email');
+              await page.locator('#email[aria-invalid=true]').waitFor({ state: 'visible' });
               const step = await page.locator('app-register-progress [aria-current=step]').textContent();
-              if (!step.includes('E-mail') || await page.locator('#password, #confirmPassword, #termos').count()) {
-                throw new Error('Email-link signup must advance directly to email confirmation');
+              const summary = await page.locator('app-register-progress .summary').textContent();
+              if (!step.includes('E-mail') || summary.trim() !== 'Etapa 1 de 5' ||
+                  await page.locator('#apelidoPrincipal, #password, #confirmPassword, #termos').count()) {
+                throw new Error('Email-link signup must start with the email field');
               }
-              await page.locator('#email').fill('visual@example.test');
-              await page.getByRole('button', { name: 'Voltar', exact: true }).click();
-              await page.locator('#apelidoPrincipal').waitFor({ state: 'visible' });
-              await page.getByRole('button', { name: 'Continuar', exact: true }).click();
-              if (await page.locator('#email').inputValue() !== 'visual@example.test') {
-                throw new Error('Returning to the nickname step must preserve the email');
+              await page.locator('.login-redirect').getByRole('link', { name: 'Entrar', exact: true }).waitFor();
+              await email.fill('visual@example.test');
+              await page.reload();
+              if (await email.inputValue() !== 'visual@example.test') {
+                throw new Error('Reloading before the link is sent must preserve the email');
               }
             }"
             playwright-cli screenshot --full-page --filename="$OUT/mobile-email-confirmation.png"
@@ -603,19 +617,13 @@ jobs:
             playwright-cli run-code "async (page) => {
               await page.setViewportSize({ width: 1440, height: 1000 });
               const email = 'visual@example.test';
-              // Este job visual roda com Auth Emulator. A Function real é coberta pelo job de integração.
-              await page.route('**/stageEmailLinkRegistration', route => route.fulfill({
-                headers: {
-                  'access-control-allow-origin': '*',
-                  'access-control-allow-headers': 'content-type, authorization, x-firebase-appcheck, firebase-instance-id-token',
-                },
-                json: { result: { draftId: 'f631dbea-3db0-4c0a-a147-3b941ab14386' } },
-              }));
-              await page.getByRole('button', { name: 'Enviar link', exact: true }).click();
+              await page.getByRole('button', { name: 'Continuar com e-mail', exact: true }).click();
               await page.getByRole('heading', { name: 'Confira seu e-mail', exact: true }).waitFor();
               if (await page.locator('#email').count() || (await page.locator('.form-container').textContent()).includes(email)) {
                 throw new Error('The waiting screen must clear the visible email field');
               }
+              await page.reload();
+              await page.getByRole('heading', { name: 'Confira seu e-mail', exact: true }).waitFor();
               const before = await page.locator('.form-container').boundingBox();
               const codes = await page.request.get('http://127.0.0.1:9099/emulator/v1/projects/demo-registration-visual/oobCodes');
               if (!codes.ok()) throw new Error('Auth Emulator did not return the link list');
@@ -738,15 +746,17 @@ jobs:
           playwright-cli run-code "async (page) => {
             const context = page.context();
             const cdp = await context.newCDPSession(page);
-            const nickname = page.locator('#apelidoPrincipal');
+            const emailFirst = '${{ matrix.configuration }}' === 'dev-emu';
+            const field = page.locator(emailFirst ? '#email' : '#apelidoPrincipal');
+            const value = emailFirst ? 'visual@example.test' : 'PerfilTeste';
             try {
               await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-              await nickname.fill('PerfilTeste');
+              await field.fill(value);
               await context.setOffline(true);
               await page.getByText('Sem conexão detectada', { exact: true }).waitFor({ state: 'visible' });
               await context.setOffline(false);
               await page.getByText('Conexão restabelecida', { exact: true }).waitFor({ state: 'visible' });
-              if (await nickname.inputValue() !== 'PerfilTeste') {
+              if (await field.inputValue() !== value) {
                 throw new Error('Reconnecting must preserve the signup form input');
               }
             } finally {

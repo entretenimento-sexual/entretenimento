@@ -100,8 +100,8 @@ const SIGNUP_SECTIONS = [
 ] as const;
 
 const EMAIL_LINK_SECTION = {
-  title: 'Confirme seu e-mail',
-  description: 'Informe o endereço para receber o link. Se já definiu uma senha, use Retomar cadastro para continuar com o apelido salvo.',
+  title: 'Comece pelo e-mail',
+  description: 'Receba um link para confirmar seu e-mail.',
   fields: ['email'],
   groupError: null,
 } as const;
@@ -135,7 +135,7 @@ export class RegisterComponent {
   private readonly router = inject(Router);
   protected readonly emailLinkPreview = emailLinkSignupPreviewAllowed(environment);
   private readonly signupSections = this.emailLinkPreview
-    ? [SIGNUP_SECTIONS[0], EMAIL_LINK_SECTION] as const : SIGNUP_SECTIONS;
+    ? [EMAIL_LINK_SECTION] as const : SIGNUP_SECTIONS;
   private readonly emailLink = this.emailLinkPreview ? inject(EmailLinkRegistrationService) : null;
   private readonly activeSignupSession = toSignal(this.emailLinkPreview
     ? inject(AuthSessionService).authUser$ : of(null), { initialValue: null });
@@ -261,8 +261,7 @@ export class RegisterComponent {
   // O snapshot não pode substituir a consulta ao índice na mesma visita.
   private restoredNicknameCheckRequired = false;
   readonly currentSection = computed(() => this.signupSections[this.sectionIndex()]);
-  protected readonly isEmailLinkSection = computed(() => this.emailLinkPreview && this.sectionIndex() === 1);
-  protected readonly waitingForEmailLink = computed(() => this.isEmailLinkSection() && this.emailLinkConfirmation() !== null);
+  protected readonly waitingForEmailLink = computed(() => this.emailLinkPreview && this.emailLinkConfirmation() !== null);
   protected readonly signupResumption = computed(() => {
     const user = this.activeSignupSession();
     if (!user) return null;
@@ -285,15 +284,15 @@ export class RegisterComponent {
   });
   protected readonly sectionHeadingCopy = computed(() => {
     const confirmation = this.emailLinkConfirmation();
-    const section = this.isEmailLinkSection() && confirmation
+    const section = this.emailLinkPreview && confirmation
       ? EMAIL_LINK_CONFIRMATION[confirmation] : this.currentSection();
-    const copy = this.opensEmailStep && this.isEmailLinkSection() && !confirmation
+    const copy = this.opensEmailStep && !confirmation
       ? { title: 'Retome pelo e-mail', description: 'Informe o mesmo e-mail para receber um novo link de cadastro.' }
       : section;
     const notice = this.offline() ? 'Aguarde a conexão voltar para enviar o link.' : this.emailLinkNotice();
     return {
       title: copy.title,
-      description: this.isEmailLinkSection()
+      description: this.emailLinkPreview
         ? notice ?? copy.description : copy.description,
     };
   });
@@ -303,12 +302,12 @@ export class RegisterComponent {
     if (this.sendingLink()) return 'Enviando link…';
     if (this.isLoading() || this.creating()) return 'Criando conta…';
     if (this.awaitingNickname()) return 'Validando apelido…';
-    if (this.isEmailLinkSection()) {
+    if (this.emailLinkPreview) {
       if (this.offline()) return 'Sem conexão';
       const waiting = this.waitingForEmailLink();
       const seconds = this.resendSeconds();
       if (seconds > 0) return `${waiting ? 'Reenviar' : 'Enviar'} em ${seconds} s`;
-      return waiting ? 'Reenviar link' : 'Enviar link';
+      return waiting ? 'Reenviar link' : this.opensEmailStep ? 'Enviar novo link' : 'Continuar com e-mail';
     }
     return this.lastSection() ? 'Criar conta' : 'Continuar';
   });
@@ -320,33 +319,30 @@ export class RegisterComponent {
 
   private restoreSignupDraft(): void {
     const draft = readSignupDraft();
-    if (!draft) {
-      if (this.opensEmailStep) this.sectionIndex.set(1);
-      return;
-    }
+    if (!draft) return;
     this.form.patchValue({
       apelidoPrincipal: draft.apelidoPrincipal,
       complementoApelido: draft.complementoApelido,
       email: draft.email,
     });
-    if (this.opensEmailStep) this.recoveryDraftEmail = draft.email.trim().toLowerCase();
+    if (this.emailLinkPreview) {
+      // Um reenvio pode recuperar um rascunho antigo para o mesmo endereço.
+      this.recoveryDraftEmail = draft.email.trim().toLowerCase();
+      if (!this.opensEmailStep && this.form.get('email')?.valid && draft.linkConfirmation) {
+        this.emailLinkConfirmation.set(draft.linkConfirmation);
+      }
+      return;
+    }
     const valid = this.form.get('apelidoPrincipal')?.valid === true &&
       !this.form.hasError('invalidFullNickname');
-    // O rascunho só restaura as etapas de apelido e e-mail.
-    const recoverWaiting = this.emailLinkPreview && this.form.get('email')?.valid && draft.linkConfirmation;
-    const target = this.opensEmailStep || recoverWaiting ? 1 : valid ? Math.min(draft.sectionIndex, 1) : 0;
+    const target = valid ? Math.min(draft.sectionIndex, 1) : 0;
     this.sectionIndex.set(target);
-    if (!this.opensEmailStep && recoverWaiting) {
-      this.emailLinkConfirmation.set(recoverWaiting);
-    }
-    if (target > 0 && valid && !this.opensEmailStep && !recoverWaiting) {
+    if (target > 0) {
       this.restoredNicknameCheckRequired = true;
       this.recheckingRestoredNickname = true;
       this.nicknameFeedbackArmed.set(true);
       this.nicknameCheckRequests$.next(true);
-      if (!this.emailLinkPreview) {
-        this.errorNotification.showInfo('Cadastro retomado. Informe a senha novamente para continuar.');
-      }
+      this.errorNotification.showInfo('Cadastro retomado. Informe a senha novamente para continuar.');
     }
   }
 
@@ -354,10 +350,11 @@ export class RegisterComponent {
     if (this.accountCreated()) return;
     const { apelidoPrincipal, complementoApelido, email } = this.form.getRawValue();
     const draftEmail = String(email ?? '');
-    const keepNickname = !this.opensEmailStep || this.recoveryDraftEmail === draftEmail.trim().toLowerCase();
+    const keepNickname = !this.emailLinkPreview || this.recoveryDraftEmail === draftEmail.trim().toLowerCase();
     const linkConfirmation = this.emailLinkConfirmation();
     writeSignupDraft({
-      sectionIndex: this.sectionIndex() as 0 | 1 | 2,
+      // No rascunho v1, a etapa de e-mail permanece identificada por 1.
+      sectionIndex: this.emailLinkPreview ? 1 : this.sectionIndex() as 0 | 1 | 2,
       apelidoPrincipal: keepNickname ? String(apelidoPrincipal ?? '') : '',
       complementoApelido: keepNickname ? String(complementoApelido ?? '') : '',
       email: draftEmail,
@@ -731,7 +728,7 @@ export class RegisterComponent {
       return;
     }
 
-    if (this.emailLinkPreview && index === 1) {
+    if (this.emailLinkPreview) {
       this.requestEmailLink();
       return;
     }
@@ -767,7 +764,7 @@ export class RegisterComponent {
   }
 
   previousSection(): void {
-    if (this.isLoading() || this.sendingLink() || this.accountCreated() || this.sectionIndex() === 0) return;
+    if (this.isLoading() || this.sendingLink() || this.accountCreated()) return;
     if (this.waitingForEmailLink()) {
       this.emailLinkConfirmation.set(null);
       this.emailLinkNotice.set(null);
@@ -775,7 +772,7 @@ export class RegisterComponent {
       this.focusSectionAfterRender('email');
       return;
     }
-    if (!this.opensEmailStep) this.openSection(this.sectionIndex() - 1);
+    if (this.sectionIndex() > 0) this.openSection(this.sectionIndex() - 1);
   }
 
   private firstInvalidField(index: number): string | undefined {
@@ -790,15 +787,6 @@ export class RegisterComponent {
 
   private requestEmailLink(): void {
     if (!this.emailLink || this.resendCooldown() || !this.networkStatus.isOnlineSnapshot()) return;
-    if (this.restoredNicknameCheckRequired && !this.hasAvailableNickname()) {
-      if (this.nicknameChecking()) {
-        this.emailLinkNotice.set('Aguarde a verificação do apelido e tente novamente.');
-      } else {
-        this.openSection(0, 'apelidoPrincipal');
-        this.nicknameCheckRequests$.next(true);
-      }
-      return;
-    }
 
     const email = String(this.form.get('email')?.value ?? '').trim();
     this.sendingLink.set(true);
@@ -815,8 +803,8 @@ export class RegisterComponent {
       String(this.form.get('apelidoPrincipal')?.value ?? ''),
       String(this.form.get('complementoApelido')?.value ?? '')
     );
-    const nickname = !this.opensEmailStep ||
-      (this.recoveryDraftEmail === email.toLowerCase() && NicknameUtils.isApelidoDeCadastroValido(savedNickname))
+    const nickname = this.recoveryDraftEmail === email.toLowerCase() &&
+      NicknameUtils.isApelidoDeCadastroValido(savedNickname)
       ? savedNickname : undefined;
     this.emailLink.requestLink$(email, nickname).pipe(
       finalize(() => this.sendingLink.set(false)),
@@ -845,7 +833,7 @@ export class RegisterComponent {
     else if (field) this.validationFocus()?.focusControl(field);
 
     this.submitted.set(true);
-    if (index === 0) {
+    if (!this.emailLinkPreview && index === 0) {
       this.banner.set(null);
       this.nicknameFeedbackAttempt.update(attempt => attempt + 1);
       return;
