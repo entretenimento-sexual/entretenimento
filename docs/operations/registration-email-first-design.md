@@ -8,6 +8,8 @@
 4. **Termos.** Após o aceite, reconciliar a evidência 18+ da abertura do link e aplicar a decisão etária canônica.
 5. **Perfil.** Quem ainda não tem apelido escolhe o principal (4–12) e pode acrescentar um complemento (até 12). A mesma transação valida o UID, reserva `public_index/nickname:<principal>`, grava o perfil e libera o acesso. O apelido reservado antes desta mudança continua associado à conta.
 
+O formulário revela a identificação após o apelido válido ou reservado. A orientação permanece opcional. Depois de escolher a identificação, a pessoa escolhe o estado e seleciona o município na lista carregada para aquele estado. Com os campos obrigatórios preenchidos, ela pode adicionar uma foto ou concluir o cadastro diretamente. Ao retomar, os campos já recuperados revelam a próxima pendência. Orientação, município e foto ainda sem envio precisam ser informados novamente.
+
 ## Retomada e liberação de acesso
 
 | Marco | Como retomar | Acesso |
@@ -32,6 +34,8 @@ Enquanto o perfil estiver incompleto, ativo e privado por padrão, a abertura di
 ## Retenção proposta e simulação de abandono
 
 Os prazos abaixo são limites de inatividade para triagem. Recontam a partir da atividade válida mais recente. Expiração de link e inatividade da conta são relógios independentes.
+
+Fechar o navegador não inicia uma exclusão. O `dev-emu` permite simular a classificação abaixo com Auth e Firestore locais. O script não aceita destinos remotos. O build `development` padrão usa a configuração Firebase remota, e `staging` aponta para `entretenimento-staging`. O repositório não ativa uma rotina de exclusão por abandono nesses ambientes. A passagem do prazo classifica candidatos, sem apagar dados.
 
 | Estado | Janela | Resultado da triagem |
 |---|---|---|

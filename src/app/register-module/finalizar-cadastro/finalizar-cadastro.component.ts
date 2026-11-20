@@ -103,9 +103,39 @@ implements OnInit, UnsavedChangesAware
     'Informe apenas o necessário agora. Fotos, preferências e outros detalhes podem ser ajustados depois.';
 
   public email = '';
-  public nickname = '';
-  readonly nicknameMaxLength = NicknameUtils.DISPLAY_MAX_LEN;
+  public nicknameMain = '';
+  public nicknameComplement = '';
+  readonly nicknameMaxLength = NicknameUtils.DISPLAY_PART_MAX_LEN;
   public needsNickname = false;
+
+  get nickname(): string {
+    return NicknameUtils.montarApelidoCompleto(this.nicknameMain, this.nicknameComplement);
+  }
+
+  set nickname(value: string) {
+    const [main, ...complement] = NicknameUtils.normalizarApelido(value).split(' ');
+    this.nicknameMain = main;
+    this.nicknameComplement = complement.join(' ');
+  }
+
+  get showIdentity(): boolean {
+    return !this.needsNickname || this.isNicknameValid(this.nickname) || !!this.gender;
+  }
+
+  get showLocation(): boolean {
+    return this.showIdentity && (isSelectableProfileIdentityCode(this.gender) || !!this.selectedEstado);
+  }
+
+  get showCompletionActions(): boolean {
+    return (!this.needsNickname || this.isNicknameValid(this.nickname)) &&
+      isSelectableProfileIdentityCode(this.gender) && !!this.selectedEstado &&
+      this.municipios.some(({ nome }) => nome === this.selectedMunicipio);
+  }
+
+  get nicknameMainValid(): boolean {
+    const main = this.nicknameMain.trim();
+    return !/\s/.test(main) && NicknameUtils.isApelidoDeCadastroValido(main);
+  }
 
   public readonly identityOptions = SELECTABLE_PROFILE_IDENTITY_OPTIONS;
   public readonly avatarAccept = MEDIA_IMAGE_ACCEPT;
@@ -206,6 +236,7 @@ implements OnInit, UnsavedChangesAware
   @HostListener('window:beforeunload', ['$event'])
   onBeforeUnload(event: BeforeUnloadEvent): void {
     if (!this.hasUnsavedChanges()) return;
+    this.persistUnsavedChanges();
     event.preventDefault();
     event.returnValue = '';
   }
@@ -383,16 +414,10 @@ implements OnInit, UnsavedChangesAware
   }
 
   onEstadoChange(): void {
-    if (!this.selectedEstado) {
-      this.loadMunicipiosForEstado('');
-      this.selectedMunicipio = '';
-      this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
-      this.onDraftChange();
-      return;
-    }
-
+    this.selectedMunicipio = '';
+    delete this.formErrors.municipio;
     this.loadMunicipiosForEstado(this.selectedEstado);
-    this.onDraftChange();
+    this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
   }
 
   private getRedirectToAfterCompletion(): string {
@@ -439,33 +464,17 @@ implements OnInit, UnsavedChangesAware
       return;
     }
 
-    this.checkFieldValidity('nickname', this.nickname, 'Apelido');
-    this.checkFieldValidity('gender', this.gender, 'Identificação do perfil');
-    this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
-    this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
-
-    if (
-      this.isFieldInvalid('nickname') ||
-      this.isFieldInvalid('gender') ||
-      this.isFieldInvalid('estado') ||
-      this.isFieldInvalid('municipio')
-    ) {
-      this.setErrorMessage('Por favor, preencha os campos obrigatórios.');
-      return;
-    }
-
-    if (!isSelectableProfileIdentityCode(this.gender)) {
-      this.formErrors['gender'] = 'Selecione uma identificação de perfil válida.';
-      this.setErrorMessage('Revise a identificação de perfil escolhida.');
-      return;
-    }
-
-    if (!this.municipios.some(({ nome }) => nome === this.selectedMunicipio)) {
-      this.formErrors['municipio'] = 'Selecione um município da lista do estado escolhido.';
-      this.setErrorMessage(this.loadingMunicipios
-        ? 'Aguarde a lista de municípios carregar para salvar.'
-        : 'Confira o estado e selecione um município da lista para continuar.');
-      return;
+    // A tecla Enter também pode submeter o formulário durante a revelação dos campos.
+    const fields = [
+      ['nickname', this.nickname, 'Apelido'],
+      ['gender', this.gender, 'Identificação do perfil'],
+      ['estado', this.selectedEstado, 'Estado'],
+      ['municipio', this.selectedMunicipio, 'Município'],
+    ] as const;
+    for (const [field, value, label] of fields) {
+      if (field === 'municipio' && this.loadingMunicipios) return;
+      this.checkFieldValidity(field, value, label);
+      if (this.isFieldInvalid(field)) return;
     }
 
     this.persistUnsavedChanges();
@@ -753,7 +762,7 @@ implements OnInit, UnsavedChangesAware
     const draft = this.localDraft.load<ProfileCompletionDraft>(this.draftKey);
     if (draft) {
       if (this.needsNickname) {
-        this.nickname = NicknameUtils.normalizarApelido(draft.nickname);
+        this.nickname = draft.nickname || this.nickname;
       }
       this.gender = String(draft.gender ?? '');
       if (draft.estado !== this.selectedEstado) this.selectedMunicipio = '';
@@ -796,8 +805,7 @@ implements OnInit, UnsavedChangesAware
     if (reason === 'profile_incomplete') {
       this.entryReason = 'profile_incomplete';
       this.pageTitle = 'Complete seu perfil';
-      this.introText =
-        'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
+      this.introText = 'Conclua seu perfil para acessar a plataforma.';
       return;
     }
     if (reason === 'email_unverified') {
@@ -809,8 +817,22 @@ implements OnInit, UnsavedChangesAware
     }
     this.entryReason = null;
     this.pageTitle = 'Complete seu perfil';
-    this.introText =
-      'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
+    this.introText = 'Conclua seu perfil para acessar a plataforma.';
+  }
+
+  onNicknameChange(): void {
+    if (this.isFieldInvalid('nickname')) {
+      this.checkFieldValidity('nickname', this.nickname);
+      return;
+    }
+    this.onDraftChange();
+  }
+
+  private isNicknameValid(display: string): boolean {
+    return this.needsNickname
+      ? this.nicknameMainValid && !/\s/.test(this.nicknameComplement.trim()) &&
+        NicknameUtils.isApelidoDeCadastroValido(display)
+      : NicknameUtils.isApelidoValido(display) && NicknameUtils.isApelidoIndiceValido(display);
   }
 
   checkFieldValidity(
@@ -822,13 +844,9 @@ implements OnInit, UnsavedChangesAware
     const clean = String(value ?? '').trim();
 
     if (field === 'nickname') {
-      const display = NicknameUtils.normalizarApelido(clean);
-      const valid = this.needsNickname
-        ? NicknameUtils.isApelidoDeCadastroValido(display)
-        : NicknameUtils.isApelidoValido(display) && NicknameUtils.isApelidoIndiceValido(display);
-      this.formErrors[field] = valid
+      this.formErrors[field] = this.isNicknameValid(clean)
         ? ''
-        : 'Use de 4 a 12 caracteres no apelido. Se quiser, acrescente um complemento de até 12 caracteres após um espaço. Use letras sem acento, números, ponto, hífen ou sublinhado.';
+        : 'Use de 4 a 12 caracteres no apelido e até 12 no complemento. São aceitos letras sem acento, números, ponto, hífen e sublinhado.';
       this.onDraftChange();
       return;
     }
@@ -841,9 +859,10 @@ implements OnInit, UnsavedChangesAware
       return;
     }
 
-    this.formErrors[field] = clean
-      ? ''
-      : `O campo "${nice}" é obrigatório.`;
+    this.formErrors[field] = clean ? '' : `O campo "${nice}" é obrigatório.`;
+    if (field === 'municipio' && clean && !this.municipios.some(({ nome }) => nome === clean)) {
+      this.formErrors[field] = 'Selecione um município da lista do estado escolhido.';
+    }
     this.onDraftChange();
   }
 

@@ -836,11 +836,7 @@ jobs:
 
           playwright-cli run-code "async (page) => {
             await page.goto('$BASE/register/finalizar-cadastro?reason=profile_incomplete');
-            await page.waitForSelector('.form-container', { state: 'visible' });
-            await page.waitForFunction(() => {
-              const button = document.querySelector('.completion-submit');
-              return button && !button.disabled;
-            });
+            await page.waitForSelector('#nickname', { state: 'visible' });
           }"
           playwright-cli resize 1440 1000
           playwright-cli run-code "async (page) => {
@@ -852,25 +848,27 @@ jobs:
                 scrollWidth: document.documentElement.scrollWidth,
                 formWidth: formRect?.width ?? 0,
                 firstInputWidth: inputRect?.width ?? 0,
-                heroVisible: !!document.querySelector('.completion-hero')?.getClientRects().length,
+                identityVisible: !!document.querySelector('#gender')?.getClientRects().length,
                 submitVisible: !!document.querySelector('.completion-submit')?.getClientRects().length,
               };
             });
             console.log(JSON.stringify(metrics));
             if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Profile completion desktop overflow');
-            if (!metrics.heroVisible || !metrics.submitVisible || metrics.formWidth < 320) throw new Error('Profile completion desktop incomplete');
+            if (metrics.identityVisible || metrics.submitVisible || metrics.formWidth < 320) throw new Error('Profile completion fields appeared before the nickname');
             return metrics;
           }" | tee "$OUT/profile/desktop-initial.metrics.log"
           playwright-cli snapshot --filename="$OUT/profile/desktop-initial.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/profile/desktop-initial.png"
-          playwright-cli click ".completion-submit"
           playwright-cli run-code "async (page) => {
+            const nickname = page.locator('#nickname');
+            await nickname.fill('abc');
+            await nickname.press('Tab');
             await page.waitForSelector('.tooltip-error', { state: 'visible' });
             const metrics = await page.evaluate(() => {
               const errors = Array.from(document.querySelectorAll('.tooltip-error')).filter((el) => el.getClientRects().length);
               const overlaps = [];
               for (const error of errors) {
-                const owner = error.closest('.form-field');
+                const owner = error.closest('.app-field');
                 const next = owner?.nextElementSibling;
                 if (!next) continue;
                 if (error.getBoundingClientRect().bottom > next.getBoundingClientRect().top + 1) {
@@ -887,7 +885,7 @@ jobs:
             });
             console.log(JSON.stringify(metrics));
             if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Profile completion desktop invalid overflow');
-            if (metrics.visibleErrors !== 4 || metrics.accessibleErrors !== 4 || metrics.overlaps.length) throw new Error('Profile completion desktop invalid feedback regression');
+            if (metrics.visibleErrors !== 1 || metrics.accessibleErrors !== 1 || metrics.overlaps.length) throw new Error('Profile completion desktop invalid feedback regression');
             return metrics;
           }" | tee "$OUT/profile/desktop-invalid.metrics.log"
           playwright-cli snapshot --filename="$OUT/profile/desktop-invalid.accessibility.yml"
@@ -896,10 +894,7 @@ jobs:
           playwright-cli resize 390 844
           playwright-cli run-code "async (page) => {
             await page.goto('$BASE/register/finalizar-cadastro?reason=profile_incomplete');
-            await page.waitForFunction(() => {
-              const button = document.querySelector('.completion-submit');
-              return button && !button.disabled;
-            });
+            await page.waitForSelector('#nickname', { state: 'visible' });
             const metrics = await page.evaluate(() => {
               const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
               const inputRect = document.querySelector('#nickname')?.getBoundingClientRect();
@@ -908,25 +903,27 @@ jobs:
                 scrollWidth: document.documentElement.scrollWidth,
                 formWidth: formRect?.width ?? 0,
                 firstInputWidth: inputRect?.width ?? 0,
-                heroVisible: !!document.querySelector('.completion-hero')?.getClientRects().length,
+                identityVisible: !!document.querySelector('#gender')?.getClientRects().length,
               };
             });
             console.log(JSON.stringify(metrics));
             if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Profile completion mobile overflow');
-            if (metrics.formWidth < metrics.viewportWidth * 0.85 || metrics.firstInputWidth < metrics.viewportWidth * 0.70) throw new Error('Profile completion mobile lost useful width');
+            if (metrics.identityVisible || metrics.formWidth < metrics.viewportWidth * 0.85 || metrics.firstInputWidth < metrics.viewportWidth * 0.70) throw new Error('Profile completion mobile lost useful width');
             return metrics;
           }" | tee "$OUT/profile/mobile-initial.metrics.log"
           playwright-cli snapshot --filename="$OUT/profile/mobile-initial.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/profile/mobile-initial.png"
-          playwright-cli click ".completion-submit"
           playwright-cli run-code "async (page) => {
+            const nickname = page.locator('#nickname');
+            await nickname.fill('abc');
+            await nickname.press('Tab');
             await page.waitForSelector('.tooltip-error', { state: 'visible' });
             const metrics = await page.evaluate(() => {
               const errors = Array.from(document.querySelectorAll('.tooltip-error')).filter((el) => el.getClientRects().length);
               const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
               const overlaps = [];
               for (const error of errors) {
-                const owner = error.closest('.form-field');
+                const owner = error.closest('.app-field');
                 const next = owner?.nextElementSibling;
                 if (!next) continue;
                 if (error.getBoundingClientRect().bottom > next.getBoundingClientRect().top + 1) overlaps.push(error.id);
@@ -947,11 +944,27 @@ jobs:
             console.log(JSON.stringify(metrics));
             if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Profile completion mobile invalid overflow');
             if (metrics.formWidth < metrics.viewportWidth * 0.85) throw new Error('Profile completion mobile invalid card too narrow');
-            if (metrics.visibleErrors !== 4 || metrics.accessibleErrors !== 4 || metrics.outOfViewportErrors.length || metrics.overlaps.length) throw new Error('Profile completion mobile invalid feedback regression');
+            if (metrics.visibleErrors !== 1 || metrics.accessibleErrors !== 1 || metrics.outOfViewportErrors.length || metrics.overlaps.length) throw new Error('Profile completion mobile invalid feedback regression');
             return metrics;
           }" | tee "$OUT/profile/mobile-invalid.metrics.log"
           playwright-cli snapshot --filename="$OUT/profile/mobile-invalid.accessibility.yml"
           playwright-cli screenshot --full-page --filename="$OUT/profile/mobile-invalid.png"
+
+          playwright-cli run-code "async (page) => {
+            const nickname = page.locator('#nickname');
+            await nickname.fill('perfilnovo');
+            await page.locator('#gender').waitFor({ state: 'visible' });
+            if (!(await nickname.evaluate(input => document.activeElement === input))) throw new Error('Profile completion moved focus while typing');
+            if (await page.locator('#estado').isVisible()) throw new Error('State appeared before profile identity');
+            await page.locator('#gender').selectOption('homem');
+            if (await page.locator('#municipio').isVisible()) throw new Error('Municipality appeared before state');
+            await page.locator('#estado').selectOption('RJ');
+            await page.locator('#municipio').selectOption('Rio de Janeiro');
+            await page.locator('.completion-submit').waitFor({ state: 'visible' });
+            if (await page.locator('#orientation').inputValue()) throw new Error('Optional orientation should start empty');
+            if (await page.locator('#avatar').inputValue()) throw new Error('Optional photo should start empty');
+          }"
+          playwright-cli screenshot --full-page --filename="$OUT/profile/mobile-ready.png"
 
           playwright-cli resize 2048 756
           playwright-cli run-code "async (page) => {

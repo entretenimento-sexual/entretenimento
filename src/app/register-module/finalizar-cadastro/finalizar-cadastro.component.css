@@ -24,7 +24,8 @@
   min-height: 100svh;
   min-height: 100dvh;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  align-content: start;
   justify-content: center;
 
   padding:
@@ -128,8 +129,8 @@ input[type="file"]:focus {
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary-color) 30%, transparent);
 }
 
-.app-control.ng-invalid.ng-touched,
-select.ng-invalid.ng-touched {
+.app-control[aria-invalid="true"],
+.app-control.ng-invalid.ng-touched {
   border-color: var(--danger-color);
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--danger-color) 25%, transparent);
 }
@@ -258,7 +259,7 @@ form .error-message {
 ---------------------------------------------------------------------------- */
 @media (max-width: 520px) {
   .auth-container {
-    align-items: stretch;
+    align-items: flex-start;
     justify-content: flex-start;
   }
 

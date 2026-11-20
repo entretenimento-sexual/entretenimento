@@ -21,7 +21,7 @@
 
     @if (hasUnsavedChanges()) {
       <p class="alert alert-info" role="status" aria-live="polite" aria-atomic="true">
-        Rascunho salvo neste dispositivo. Ele expira automaticamente em 24 horas.
+        Apelido, identificação e estado podem ser retomados neste dispositivo por até 24 horas.
       </p>
     }
 
@@ -79,7 +79,7 @@
           <input
             id="nickname"
             type="text"
-            [(ngModel)]="nickname"
+            [(ngModel)]="nicknameMain"
             name="nickname"
             required
             minlength="4"
@@ -87,15 +87,15 @@
             autocomplete="nickname"
             class="app-control"
             placeholder="Como você quer aparecer?"
-            (input)="checkFieldValidity('nickname', nickname, 'Apelido')"
-            (blur)="checkFieldValidity('nickname', nickname, 'Apelido')"
+            (ngModelChange)="onNicknameChange()"
+            (blur)="checkFieldValidity('nickname', nickname)"
             [disabled]="isSubmitting"
-            [attr.aria-invalid]="isFieldInvalid('nickname') ? 'true' : 'false'"
-            [attr.aria-describedby]="isFieldInvalid('nickname') ? 'nickname-err nickname-hint' : 'nickname-hint'"
+            [attr.aria-invalid]="isFieldInvalid('nickname') && !nicknameMainValid"
+            [attr.aria-describedby]="isFieldInvalid('nickname') && !nicknameMainValid ? 'nickname-hint nickname-err' : 'nickname-hint'"
           />
 
           <p class="field-hint" id="nickname-hint">
-            Use de 4 a 12 caracteres. Após um espaço, você pode acrescentar um complemento de até 12 caracteres.
+            Use de 4 a 12 caracteres.
           </p>
 
           @if (isFieldInvalid('nickname')) {
@@ -104,178 +104,203 @@
             </div>
           }
         </div>
+        <div class="app-field">
+          <label for="nickname-complement">Complemento (opcional)</label>
+          <input
+            id="nickname-complement"
+            type="text"
+            [(ngModel)]="nicknameComplement"
+            name="nicknameComplement"
+            [maxlength]="nicknameMaxLength"
+            class="app-control"
+            (ngModelChange)="onNicknameChange()"
+            (blur)="nicknameMain && checkFieldValidity('nickname', nickname)"
+            [disabled]="isSubmitting"
+            [attr.aria-invalid]="isFieldInvalid('nickname') && nicknameMainValid"
+            [attr.aria-describedby]="isFieldInvalid('nickname') && nicknameMainValid ? 'nickname-err' : null"
+          />
+        </div>
       }
 
-      <div class="app-field">
-        <label for="gender">
-          Identificação do perfil <span class="req" aria-hidden="true">*</span>
-          <span class="sr-only">(obrigatório)</span>
-        </label>
+      @if (showIdentity) {
+        <div class="app-field">
+          <label for="gender">
+            Identificação do perfil <span class="req" aria-hidden="true">*</span>
+            <span class="sr-only">(obrigatório)</span>
+          </label>
 
-        <select
-          id="gender"
-          [(ngModel)]="gender"
-          name="gender"
-          required
-          class="app-control"
-          (change)="checkFieldValidity('gender', gender, 'Identificação do perfil')"
-          (blur)="checkFieldValidity('gender', gender, 'Identificação do perfil')"
-          [disabled]="isSubmitting"
-          [attr.aria-invalid]="isFieldInvalid('gender') ? 'true' : 'false'"
-          [attr.aria-describedby]="isFieldInvalid('gender') ? 'gender-err' : null"
-        >
-          <option value="" disabled>Selecione...</option>
-          @for (identityOption of identityOptions; track identityOption.code) {
-            <option [value]="identityOption.code">{{ identityOption.label }}</option>
+          <select
+            id="gender"
+            [(ngModel)]="gender"
+            name="gender"
+            required
+            class="app-control"
+            (change)="checkFieldValidity('gender', gender, 'Identificação do perfil')"
+            (blur)="checkFieldValidity('gender', gender, 'Identificação do perfil')"
+            [disabled]="isSubmitting"
+            [attr.aria-invalid]="isFieldInvalid('gender') ? 'true' : 'false'"
+            [attr.aria-describedby]="isFieldInvalid('gender') ? 'gender-err' : null"
+          >
+            <option value="" disabled>Selecione...</option>
+            @for (identityOption of identityOptions; track identityOption.code) {
+              <option [value]="identityOption.code">{{ identityOption.label }}</option>
+            }
+          </select>
+
+          @if (isFieldInvalid('gender')) {
+            <div class="tooltip-error" id="gender-err" role="alert" aria-live="polite" aria-atomic="true">
+              {{ formErrors['gender'] }}
+            </div>
           }
-        </select>
+        </div>
+      }
 
-        @if (isFieldInvalid('gender')) {
-          <div class="tooltip-error" id="gender-err" role="alert" aria-live="polite" aria-atomic="true">
-            {{ formErrors['gender'] }}
-          </div>
-        }
-      </div>
+      @if (showLocation) {
+        <div class="app-field">
+          <label for="orientation">Orientação sexual (opcional)</label>
 
-      <div class="app-field">
-        <label for="orientation">Orientação sexual (opcional)</label>
+          <select
+            id="orientation"
+            [(ngModel)]="orientation"
+            name="orientation"
+            class="app-control"
+            aria-describedby="orientation-help"
+            (change)="onDraftChange()"
+            [disabled]="isSubmitting"
+          >
+            <option value="">Prefiro não informar</option>
+            <option value="bissexual">Bissexual</option>
+            <option value="homossexual">Homossexual</option>
+            <option value="heterossexual">Heterossexual</option>
+            <option value="pansexual">Pansexual</option>
+          </select>
+          <p class="field-hint" id="orientation-help">Se informada, a orientação aparece no seu perfil.</p>
+        </div>
 
-        <select
-          id="orientation"
-          [(ngModel)]="orientation"
-          name="orientation"
-          class="app-control"
-          aria-describedby="orientation-help"
-          (change)="onDraftChange()"
-          [disabled]="isSubmitting"
-        >
-          <option value="">Prefiro não informar</option>
-          <option value="bissexual">Bissexual</option>
-          <option value="homossexual">Homossexual</option>
-          <option value="heterossexual">Heterossexual</option>
-          <option value="pansexual">Pansexual</option>
-        </select>
-        <p class="field-hint" id="orientation-help">Se informada, a orientação aparece no seu perfil.</p>
-      </div>
+        <div class="app-field">
+          <label for="estado">
+            Estado <span class="req" aria-hidden="true">*</span>
+            <span class="sr-only">(obrigatório)</span>
+          </label>
 
-      <div class="app-field">
-        <label for="estado">
-          Estado <span class="req" aria-hidden="true">*</span>
-          <span class="sr-only">(obrigatório)</span>
-        </label>
+          <select
+            id="estado"
+            [ngModel]="selectedEstado"
+            name="estado"
+            required
+            class="app-control"
+            (ngModelChange)="selectedEstado = $event; onEstadoChange()"
+            (blur)="checkFieldValidity('estado', selectedEstado, 'Estado')"
+            [disabled]="isSubmitting || loadingEstados"
+            [attr.aria-invalid]="isFieldInvalid('estado') ? 'true' : 'false'"
+            [attr.aria-describedby]="isFieldInvalid('estado') ? 'estado-err' : null"
+          >
+            <option value="" disabled>{{ loadingEstados ? 'Carregando estados…' : 'Selecione…' }}</option>
+            @for (estado of estados; track estado.id) {
+              <option [value]="estado.sigla">{{ estado.nome }}</option>
+            }
+          </select>
 
-        <select
-          id="estado"
-          [(ngModel)]="selectedEstado"
-          name="estado"
-          required
-          class="app-control"
-          (change)="selectedMunicipio = ''; municipios = []; onEstadoChange(); checkFieldValidity('estado', selectedEstado, 'Estado'); checkFieldValidity('municipio', selectedMunicipio, 'Município')"
-          (blur)="checkFieldValidity('estado', selectedEstado, 'Estado')"
-          [disabled]="isSubmitting || loadingEstados"
-          [attr.aria-invalid]="isFieldInvalid('estado') ? 'true' : 'false'"
-          [attr.aria-describedby]="isFieldInvalid('estado') ? 'estado-err' : null"
-        >
-          <option value="" disabled>{{ loadingEstados ? 'Carregando estados…' : 'Selecione…' }}</option>
-          @for (estado of estados; track estado.id) {
-            <option [value]="estado.sigla">{{ estado.nome }}</option>
+          @if (isFieldInvalid('estado')) {
+            <div class="tooltip-error" id="estado-err" role="alert" aria-live="polite" aria-atomic="true">
+              {{ formErrors['estado'] }}
+            </div>
           }
-        </select>
-
-        @if (isFieldInvalid('estado')) {
-          <div class="tooltip-error" id="estado-err" role="alert" aria-live="polite" aria-atomic="true">
-            {{ formErrors['estado'] }}
-          </div>
-        }
-        @if (estadosUnavailable) {
-          <p class="field-hint" role="alert">Não foi possível carregar os estados.</p>
-          <button class="app-action app-action--ghost" type="button" (click)="loadEstados()">Recarregar estados</button>
-        }
-      </div>
-
-      <div class="app-field">
-        <label for="municipio">
-          Município <span class="req" aria-hidden="true">*</span>
-          <span class="sr-only">(obrigatório)</span>
-        </label>
-
-        <select
-          id="municipio"
-          [(ngModel)]="selectedMunicipio"
-          name="municipio"
-          required
-          class="app-control"
-          (change)="checkFieldValidity('municipio', selectedMunicipio, 'Município')"
-          (blur)="checkFieldValidity('municipio', selectedMunicipio, 'Município')"
-          [disabled]="isSubmitting || !selectedEstado || municipios.length === 0"
-          [attr.aria-invalid]="isFieldInvalid('municipio') ? 'true' : 'false'"
-          [attr.aria-describedby]="isFieldInvalid('municipio') ? 'municipio-err' : null"
-        >
-          <option value="" disabled>{{ loadingMunicipios ? 'Carregando municípios…' : 'Selecione…' }}</option>
-          @for (municipio of municipios; track municipio.id) {
-            <option [value]="municipio.nome">{{ municipio.nome }}</option>
+          @if (estadosUnavailable) {
+            <p class="field-hint" role="alert">Não foi possível carregar os estados.</p>
+            <button class="app-action app-action--ghost" type="button" (click)="loadEstados()">Recarregar estados</button>
           }
-        </select>
+        </div>
 
-        @if (isFieldInvalid('municipio')) {
-          <div class="tooltip-error" id="municipio-err" role="alert" aria-live="polite" aria-atomic="true">
-            {{ formErrors['municipio'] }}
-          </div>
-        }
-        @if (municipiosUnavailable) {
+        @if (loadingMunicipios) {
+          <p class="field-hint" role="status">Carregando municípios…</p>
+        } @else if (municipiosUnavailable) {
           <p class="field-hint" role="alert">Não foi possível carregar os municípios deste estado.</p>
           <button class="app-action app-action--ghost" type="button" (click)="retryMunicipios()">Recarregar municípios</button>
-        }
-      </div>
+        } @else if (municipios.length) {
+          <div class="app-field">
+            <label for="municipio">
+              Município <span class="req" aria-hidden="true">*</span>
+              <span class="sr-only">(obrigatório)</span>
+            </label>
 
-      <div class="app-field">
-        <label for="avatar">Foto principal (opcional)</label>
+            <select
+              id="municipio"
+              [(ngModel)]="selectedMunicipio"
+              name="municipio"
+              required
+              class="app-control"
+              (change)="checkFieldValidity('municipio', selectedMunicipio, 'Município')"
+              (blur)="checkFieldValidity('municipio', selectedMunicipio, 'Município')"
+              [disabled]="isSubmitting"
+              [attr.aria-invalid]="isFieldInvalid('municipio') ? 'true' : 'false'"
+              [attr.aria-describedby]="isFieldInvalid('municipio') ? 'municipio-err' : null"
+            >
+              <option value="" disabled>Selecione…</option>
+              @for (municipio of municipios; track municipio.id) {
+                <option [value]="municipio.nome">{{ municipio.nome }}</option>
+              }
+            </select>
 
-        <input
-          id="avatar"
-          type="file"
-          (change)="uploadFile($event)"
-          class="app-control"
-          [attr.accept]="avatarAccept"
-          [disabled]="isSubmitting || isEditingAvatar"
-          aria-describedby="avatar-hint avatar-status"
-        />
-
-        <p class="field-hint" id="avatar-hint">
-          {{ avatarFormatLabel }}, com até {{ avatarMaxMegabytes }} MB. Antes do envio, a foto será aberta no editor e enquadrada em formato quadrado.
-        </p>
-
-        <div id="avatar-status" aria-live="polite" aria-atomic="true">
-          @if (isEditingAvatar) {
-            <p class="field-hint">Preparando o editor da foto principal...</p>
-          } @else if (avatarFile) {
-            <p class="field-hint">Foto principal editada e pronta: {{ avatarFile.name }}</p>
-          }
-        </div>
-      </div>
-
-      @if (isUploading) {
-        <div class="progress-custom" aria-label="Enviando foto principal">
-          <div
-            class="progress-bar-custom"
-            role="progressbar"
-            [attr.aria-valuenow]="progressValue"
-            aria-valuemin="0"
-            aria-valuemax="100"
-            [style.width]="progressValue + '%'"
-          >
-            {{ progressValue | number:'1.0-0' }}%
+            @if (isFieldInvalid('municipio')) {
+              <div class="tooltip-error" id="municipio-err" role="alert" aria-live="polite" aria-atomic="true">
+                {{ formErrors['municipio'] }}
+              </div>
+            }
           </div>
-        </div>
+        }
       }
 
-      <button
-        type="submit"
-        [disabled]="isSubmitting || isLoading || isEditingAvatar"
-        class="app-action app-action--primary completion-submit"
-      >
-        {{ isSubmitting ? 'Concluindo…' : 'Concluir cadastro' }}
-      </button>
+      @if (showCompletionActions) {
+        <div class="app-field">
+          <label for="avatar">Foto principal (opcional)</label>
+
+          <input
+            id="avatar"
+            type="file"
+            (change)="uploadFile($event)"
+            class="app-control"
+            [attr.accept]="avatarAccept"
+            [disabled]="isSubmitting || isEditingAvatar"
+            aria-describedby="avatar-hint avatar-status"
+          />
+
+          <p class="field-hint" id="avatar-hint">
+            {{ avatarFormatLabel }}, com até {{ avatarMaxMegabytes }} MB. Antes do envio, a foto será aberta no editor e enquadrada em formato quadrado.
+          </p>
+
+          <div id="avatar-status" aria-live="polite" aria-atomic="true">
+            @if (isEditingAvatar) {
+              <p class="field-hint">Preparando o editor da foto principal...</p>
+            } @else if (avatarFile) {
+              <p class="field-hint">Foto principal editada e pronta: {{ avatarFile.name }}</p>
+            }
+          </div>
+        </div>
+
+        @if (isUploading) {
+          <div class="progress-custom" aria-label="Enviando foto principal">
+            <div
+              class="progress-bar-custom"
+              role="progressbar"
+              [attr.aria-valuenow]="progressValue"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              [style.width]="progressValue + '%'"
+            >
+              {{ progressValue | number:'1.0-0' }}%
+            </div>
+          </div>
+        }
+
+        <button
+          type="submit"
+          [disabled]="isSubmitting || isLoading || isEditingAvatar"
+          class="app-action app-action--primary completion-submit"
+        >
+          {{ isSubmitting ? 'Concluindo…' : 'Concluir cadastro' }}
+        </button>
+      }
     </form>
     }
     }

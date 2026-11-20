@@ -214,7 +214,7 @@ describe('FinalizarCadastroComponent', () => {
 
   it('preenche o apelido recuperado com o campo editável quando a reserva ficou pendente', async () => {
     profileCompletionFacadeMock.loadUserForFormByUid$.mockReturnValueOnce(of({
-      email: 'teste@email.com', nickname: '', savedNicknameSuggestion: 'apelidosalvo',
+      email: 'teste@email.com', nickname: '', savedNicknameSuggestion: 'apelidosalvo extra',
       gender: '', orientation: '', estado: '', municipio: '',
     }));
     const reopened = TestBed.createComponent(FinalizarCadastroComponent);
@@ -224,6 +224,8 @@ describe('FinalizarCadastroComponent', () => {
       const field: HTMLInputElement = reopened.nativeElement.querySelector('#nickname');
       expect(field.value).toBe('apelidosalvo');
       expect(field.disabled).toBe(false);
+      expect(reopened.nativeElement.querySelector('#nickname-complement').value).toBe('extra');
+      expect(reopened.nativeElement.querySelector('#gender')).not.toBeNull();
     } finally {
       reopened.destroy();
     }
@@ -242,7 +244,7 @@ describe('FinalizarCadastroComponent', () => {
       const view = delayed.nativeElement as HTMLElement;
       expect(view.textContent).toContain('Carregando os dados do seu perfil');
       profile$.next({
-        email: 'teste@email.com', nickname: 'tester', gender: '', orientation: '', estado: '', municipio: '',
+        email: 'teste@email.com', nickname: 'tester', gender: 'homem', orientation: '', estado: '', municipio: '',
       });
       await delayed.whenStable();
       expect(view.querySelector('#gender')).not.toBeNull();
@@ -250,14 +252,83 @@ describe('FinalizarCadastroComponent', () => {
       const estado = view.querySelector<HTMLSelectElement>('#estado')!;
       estado.value = 'RJ';
       estado.dispatchEvent(new Event('change', { bubbles: true }));
-      const municipio = view.querySelector<HTMLSelectElement>('#municipio')!;
-      expect(municipio.disabled).toBe(true);
+      delayed.detectChanges();
+      expect(view.querySelector('#municipio')).toBeNull();
+      expect(view.textContent).toContain('Carregando municípios');
       municipios$.next([{ id: 3304557, nome: 'Rio de Janeiro' }]);
       await delayed.whenStable();
+      const municipio = view.querySelector<HTMLSelectElement>('#municipio')!;
       expect(municipio.disabled).toBe(false);
       expect(municipio.textContent).toContain('Rio de Janeiro');
     } finally {
       delayed.destroy();
+    }
+  });
+
+  it('revela os campos sem mover o foco e permite concluir sem os opcionais', async () => {
+    profileCompletionFacadeMock.loadUserForFormByUid$.mockReturnValueOnce(of({
+      email: 'teste@email.com', nickname: '', gender: '', orientation: '', estado: '', municipio: '',
+    }));
+    const fresh = TestBed.createComponent(FinalizarCadastroComponent);
+    try {
+      fresh.autoDetectChanges();
+      await fresh.whenStable();
+      const view = fresh.nativeElement as HTMLElement;
+      const nickname = view.querySelector<HTMLInputElement>('#nickname')!;
+      expect(view.querySelector('#gender, #estado, #municipio, #avatar, .completion-submit, .tooltip-error')).toBeNull();
+
+      nickname.focus();
+      nickname.value = 'Alex';
+      nickname.dispatchEvent(new Event('input', { bubbles: true }));
+      await fresh.whenStable();
+      fresh.detectChanges();
+      expect(document.activeElement).toBe(nickname);
+      expect(view.querySelector('#estado')).toBeNull();
+
+      const select = async (id: string, value: string) => {
+        const field = view.querySelector<HTMLSelectElement>(`#${id}`)!;
+        field.value = value;
+        field.dispatchEvent(new Event('change', { bubbles: true }));
+        await fresh.whenStable();
+        fresh.detectChanges();
+      };
+      await select('gender', 'homem');
+      expect(view.querySelector('#orientation')).not.toBeNull();
+      expect(view.querySelector('#municipio')).toBeNull();
+      await select('estado', 'RJ');
+      expect(view.querySelector('.completion-submit')).toBeNull();
+      await select('municipio', 'Rio de Janeiro');
+      view.querySelector<HTMLButtonElement>('.completion-submit')!.click();
+
+      expect(profileCompletionFacadeMock.saveProfileCompletion$).toHaveBeenCalledWith(
+        expect.objectContaining({ nickname: 'Alex', orientation: '', municipio: 'Rio de Janeiro' })
+      );
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/preferencias/editar', { replaceUrl: true });
+    } finally {
+      fresh.destroy();
+    }
+  });
+
+  it('retoma no município quando os campos anteriores estão no rascunho', async () => {
+    TestBed.inject(LocalDraftService).save('profile-completion:u1', {
+      nickname: 'Alex extra', gender: 'homem', estado: 'RJ',
+    });
+    profileCompletionFacadeMock.loadUserForFormByUid$.mockReturnValueOnce(of({
+      email: 'teste@email.com', nickname: '', gender: '', orientation: '', estado: '', municipio: '',
+    }));
+    const reopened = TestBed.createComponent(FinalizarCadastroComponent);
+    try {
+      reopened.autoDetectChanges();
+      await reopened.whenStable();
+      const view = reopened.nativeElement as HTMLElement;
+      expect(view.querySelector<HTMLInputElement>('#nickname')?.value).toBe('Alex');
+      expect(view.querySelector<HTMLInputElement>('#nickname-complement')?.value).toBe('extra');
+      expect(view.querySelector<HTMLSelectElement>('#gender')?.value).toBe('homem');
+      expect(view.querySelector<HTMLSelectElement>('#estado')?.value).toBe('RJ');
+      expect(view.querySelector('#municipio')).not.toBeNull();
+      expect(view.querySelector('.completion-submit')).toBeNull();
+    } finally {
+      reopened.destroy();
     }
   });
 
@@ -569,7 +640,7 @@ describe('FinalizarCadastroComponent', () => {
       ) as NodeListOf<HTMLElement>
     );
 
-    expect(errors).toHaveLength(3);
+    expect(errors).toHaveLength(1);
     for (const error of errors) {
       expect(error.getAttribute('role')).toBe('alert');
       expect(error.getAttribute('aria-live')).toBe('polite');

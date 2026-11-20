@@ -145,6 +145,27 @@ describe('account lifecycle guards', () => {
     expect(await runStatusGuard()).toBe(true);
   });
 
+  it.each(['/dashboard/principal', '/chat', '/preferencias/editar'])(
+    'veda %s após o aceite dos Termos até a conclusão do perfil', async (url) => {
+      const pending = user({
+        emailVerified: true,
+        acceptedTerms: { accepted: true, date: 1, version: 'v3', acknowledgedPrivacyNotice: true },
+        profileCompleted: false,
+        publicVisibility: 'hidden',
+        interactionBlocked: true,
+        loginAllowed: true,
+      });
+      currentUser$.next(pending);
+
+      const result = await runLifecycleGuard(url) as UrlTree;
+      expect(router.serializeUrl(result)).toContain('/register/welcome');
+      expect(result.queryParams['redirectTo']).toBe(url);
+
+      currentUser$.next({ ...pending, profileCompleted: true, publicVisibility: 'visible', interactionBlocked: false });
+      expect(await runLifecycleGuard(url)).toBe(true);
+    }
+  );
+
   it('oferece nova tentativa quando até a página de status espera pelo perfil', async () => {
     vi.useFakeTimers();
     currentUser$.next(undefined);
