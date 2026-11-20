@@ -778,6 +778,22 @@ jobs:
           BASE="http://127.0.0.1:4200"
           mkdir -p "$OUT/welcome" "$OUT/profile" "$OUT/terms" "$OUT/adult"
 
+          NAVIGATE_FROM_PROFILE=$(cat <<'PLAYWRIGHT'
+          async (page, url) => {
+            const handleDraftLeave = async (dialog) => {
+              if (dialog.type() === 'beforeunload') await dialog.accept();
+              else await dialog.dismiss();
+            };
+            page.on('dialog', handleDraftLeave);
+            try {
+              await page.goto(url);
+            } finally {
+              page.off('dialog', handleDraftLeave);
+            }
+          }
+          PLAYWRIGHT
+          )
+
           playwright-cli open "$BASE/register/welcome?verificationEmail=failed"
           playwright-cli resize 1440 1000
           playwright-cli run-code "async (page) => {
@@ -901,7 +917,7 @@ jobs:
 
           playwright-cli resize 390 844
           playwright-cli run-code "async (page) => {
-            await page.goto('$BASE/register/finalizar-cadastro?reason=profile_incomplete');
+            await ($NAVIGATE_FROM_PROFILE)(page, '$BASE/register/finalizar-cadastro?reason=profile_incomplete');
             await page.waitForSelector('#nickname', { state: 'visible' });
             await page.waitForFunction(() => document.querySelector('.completion-scene__photo img').currentSrc.includes('signup-profile-portrait'));
             await page.locator('.completion-scene__photo img').evaluate(photo => photo.decode());
@@ -975,7 +991,7 @@ jobs:
             await page.locator('.completion-submit').waitFor({ state: 'visible' });
             if (await page.locator('#orientation').inputValue()) throw new Error('Optional orientation should start empty');
             if (await page.locator('#avatar').inputValue()) throw new Error('Optional photo should start empty');
-          }"
+          }" | tee "$OUT/profile/mobile-ready.metrics.log"
           playwright-cli screenshot --full-page --filename="$OUT/profile/mobile-ready.png"
 
           playwright-cli resize 1080 1600
@@ -986,11 +1002,17 @@ jobs:
             const imageBox = await photo.boundingBox();
             const formBox = await page.locator('.form-container').boundingBox();
             if (!imageBox || !formBox || formBox.y < imageBox.y + imageBox.height - 24) throw new Error('Tall profile layout covers the portrait');
-          }"
+          }" | tee "$OUT/profile/tall.metrics.log"
+          if grep -q '^### Error' "$OUT/profile/"*.metrics.log; then
+            echo 'A validação visual do perfil encontrou erros.' >&2
+            exit 1
+          fi
+          test -s "$OUT/profile/mobile-initial.png"
+          test -s "$OUT/profile/mobile-ready.png"
 
           playwright-cli resize 2048 756
           playwright-cli run-code "async (page) => {
-            await page.goto('$BASE/register/aceitar-termos');
+            await ($NAVIGATE_FROM_PROFILE)(page, '$BASE/register/aceitar-termos');
             await page.waitForSelector('.terms-acceptance__card', { state: 'visible' });
             const metrics = await page.evaluate(() => {
               const photo = getComputedStyle(document.querySelector('.terms-acceptance'));
