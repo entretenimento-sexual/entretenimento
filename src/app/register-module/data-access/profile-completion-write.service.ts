@@ -8,16 +8,10 @@ import { catchError, map } from 'rxjs/operators';
 import {
   isSelectableProfileIdentityCode,
 } from 'src/app/core/domain/profile-identity/profile-identity.catalog';
+import { resolveProfileOrientationOption } from 'src/app/core/domain/profile-identity/profile-orientation.catalog';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
-
-const ALLOWED_ORIENTATIONS = new Set([
-  'bissexual',
-  'homossexual',
-  'heterossexual',
-  'pansexual',
-]);
 
 const BRAZILIAN_UFS = new Set([
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
@@ -123,7 +117,7 @@ export class ProfileCompletionWriteService {
 
     if (
       input.orientation &&
-      !ALLOWED_ORIENTATIONS.has(input.orientation)
+      !resolveProfileOrientationOption(input.orientation)
     ) {
       return this.createError(
         'profile/invalid-orientation',

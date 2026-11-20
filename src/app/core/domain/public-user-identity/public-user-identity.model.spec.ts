@@ -37,6 +37,7 @@ describe('normalizePublicUserIdentity', () => {
       ['bissexual', 'Bi'],
       ['homossexual', 'Homo'],
       ['pansexual', 'Pan'],
+      ['assexual', 'Assexual'],
     ]) {
       const identity = normalizePublicUserIdentity({
         nickname: 'perfil teste',

@@ -298,6 +298,7 @@ describe('FinalizarCadastroComponent', () => {
       await select('gender', 'homem');
       expect(view.querySelector('h1')?.textContent).toBe('De onde você é?');
       expect(view.querySelector('#orientation')).not.toBeNull();
+      expect(view.querySelector('#orientation option[value="assexual"]')?.textContent?.trim()).toBe('Assexual');
       expect(view.querySelector('#municipio')).toBeNull();
       await select('estado', 'RJ');
       expect(view.querySelector('.completion-submit')).toBeNull();

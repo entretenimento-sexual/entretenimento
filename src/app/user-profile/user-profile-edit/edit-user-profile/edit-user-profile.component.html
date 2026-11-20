@@ -167,10 +167,9 @@
             name="orientation"
           >
             <option value="">Selecione</option>
-            <option value="bissexual">Bissexual</option>
-            <option value="homossexual">Homossexual</option>
-            <option value="heterossexual">Heterossexual</option>
-            <option value="pansexual">Pansexual</option>
+            @for (option of orientationOptions; track option.code) {
+              <option [value]="option.code">{{ option.label }}</option>
+            }
           </select>
         </div>
       }
@@ -239,10 +238,9 @@
             name="partner1Orientation"
           >
             <option value="">Selecione</option>
-            <option value="bissexual">Bissexual</option>
-            <option value="homossexual">Homossexual</option>
-            <option value="heterossexual">Heterossexual</option>
-            <option value="pansexual">Pansexual</option>
+            @for (option of orientationOptions; track option.code) {
+              <option [value]="option.code">{{ option.label }}</option>
+            }
           </select>
         </div>
 
@@ -257,10 +255,9 @@
             name="partner2Orientation"
           >
             <option value="">Selecione</option>
-            <option value="bissexual">Bissexual</option>
-            <option value="homossexual">Homossexual</option>
-            <option value="heterossexual">Heterossexual</option>
-            <option value="pansexual">Pansexual</option>
+            @for (option of orientationOptions; track option.code) {
+              <option [value]="option.code">{{ option.label }}</option>
+            }
           </select>
         </div>
       </div>

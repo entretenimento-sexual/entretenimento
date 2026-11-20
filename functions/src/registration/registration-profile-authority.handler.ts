@@ -33,7 +33,7 @@ interface CompleteRegistrationInput {
   estado?: unknown;
   municipio?: unknown;
 }
-const ORIENTATIONS = new Set(['bissexual','homossexual','heterossexual','pansexual']);
+const ORIENTATIONS = new Set(['assexual', 'bissexual', 'heterossexual', 'homossexual', 'pansexual']);
 const UFS = new Set([
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS',
   'MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO',

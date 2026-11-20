@@ -28,6 +28,7 @@ import {
   SELECTABLE_PROFILE_IDENTITY_OPTIONS,
   isSelectableProfileIdentityCode,
 } from 'src/app/core/domain/profile-identity/profile-identity.catalog';
+import { PROFILE_ORIENTATION_OPTIONS } from 'src/app/core/domain/profile-identity/profile-orientation.catalog';
 import { UnsavedChangesAware } from 'src/app/core/guards/unsaved-changes/unsaved-changes.guard';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { LocalDraftService } from 'src/app/core/services/drafts/local-draft.service';
@@ -147,6 +148,7 @@ implements OnInit, UnsavedChangesAware
   }
 
   public readonly identityOptions = SELECTABLE_PROFILE_IDENTITY_OPTIONS;
+  public readonly orientationOptions = PROFILE_ORIENTATION_OPTIONS;
   public readonly avatarAccept = MEDIA_IMAGE_ACCEPT;
   public readonly avatarFormatLabel = MEDIA_IMAGE_FORMAT_LABEL;
   public readonly avatarMaxMegabytes = resolveImageMaxBytes('avatar') / 1024 / 1024;

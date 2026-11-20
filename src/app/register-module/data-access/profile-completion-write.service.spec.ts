@@ -62,7 +62,7 @@ describe('ProfileCompletionWriteService validation', () => {
     ).rejects.toMatchObject({ code: 'profile/invalid-city' });
   });
 
-  it('permite orientação vazia como campo opcional e avança para a transação', async () => {
+  it.each(['', 'assexual'])('aceita a orientação %j e avança para a transação', (orientation) => {
     const transactionError = new Error('transaction reached');
     const ctx = {
       run: vi.fn(() => ({})),
@@ -79,7 +79,7 @@ describe('ProfileCompletionWriteService validation', () => {
     expect(() =>
       service.complete$({
         ...validInput(),
-        orientation: '',
+        orientation,
       })
     ).toThrow(transactionError);
   });

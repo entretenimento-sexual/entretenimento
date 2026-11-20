@@ -12,6 +12,7 @@ import {
   resolveProfileIdentityOption,
   type ProfileIdentityDiscoveryGroup,
 } from '../profile-identity/profile-identity.catalog';
+import { resolveProfileOrientationOption } from '../profile-identity/profile-orientation.catalog';
 import { normalizePublicProfileId } from './public-profile-id.model';
 
 export interface PublicUserIdentity {
@@ -49,13 +50,6 @@ const DISCOVERY_GROUPS = new Set<ProfileIdentityDiscoveryGroup>([
   'crossdresser',
   'nonbinary',
 ]);
-
-const PUBLIC_ORIENTATION_SHORT_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  heterossexual: 'Hétero',
-  bissexual: 'Bi',
-  homossexual: 'Homo',
-  pansexual: 'Pan',
-});
 
 const BRAZILIAN_UFS = new Set([
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
@@ -184,8 +178,7 @@ export function normalizePublicUserIdentity(
   // representar cada integrante; nunca inferir um rotulo agregado.
   const orientationShortLabel =
     discoveryGroup !== 'couple'
-      && Object.prototype.hasOwnProperty.call(PUBLIC_ORIENTATION_SHORT_LABELS, declaredOrientation)
-      ? PUBLIC_ORIENTATION_SHORT_LABELS[declaredOrientation]
+      ? resolveProfileOrientationOption(declaredOrientation)?.shortLabel ?? null
       : null;
 
   return {

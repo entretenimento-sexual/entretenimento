@@ -23,6 +23,7 @@ import { Observable } from 'rxjs';
 
 import { ProfileMyCommunitiesComponent } from 'src/app/community/profile-my-communities/profile-my-communities.component';
 import { ProfileOfficialCommunitiesComponent } from 'src/app/community/profile-official-communities/profile-official-communities.component';
+import { resolveProfileOrientationOption } from 'src/app/core/domain/profile-identity/profile-orientation.catalog';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
@@ -113,18 +114,7 @@ export class UserProfileViewComponent implements OnInit {
   }
 
   getOrientationDescription(orientation: string | undefined): string {
-    switch (orientation) {
-      case 'bissexual':
-        return 'bissexual';
-      case 'homossexual':
-        return 'homossexual';
-      case 'heterossexual':
-        return 'heterossexual';
-      case 'pansexual':
-        return 'pansexual';
-      default:
-        return '';
-    }
+    return resolveProfileOrientationOption(orientation)?.code ?? '';
   }
 
   isOnOwnProfile(): boolean {

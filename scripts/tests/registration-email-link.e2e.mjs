@@ -276,15 +276,15 @@ try {
   await consumer.call('acceptPlatformTerms', terms);
   assert.equal((await declarationRef.get()).get('declaredAtMs'), declared.declaredAtMs);
   await consumer.call('completeRegistrationProfile', {
-    uid, nickname, gender: 'homem', orientation: 'pansexual', estado: 'RJ', municipio: 'Rio de Janeiro',
+    uid, nickname, gender: 'homem', orientation: 'assexual', estado: 'RJ', municipio: 'Rio de Janeiro',
   });
   const completed = (await privateRef.get()).data();
   assert.equal(completed.profileCompleted, true);
   assert.equal(completed.gender, 'homem');
-  assert.equal(completed.orientation, 'pansexual');
+  assert.equal(completed.orientation, 'assexual');
   const publicProfile = (await publicRef.get()).data();
   assert.equal(publicProfile.nickname, nickname);
-  assert.equal(publicProfile.orientation, 'pansexual');
+  assert.equal(publicProfile.orientation, 'assexual');
   assert.equal('email' in publicProfile, false);
   assert.equal((await signInWithEmailAndPassword(sender.auth, email, password)).user.uid, uid);
   const guestWithUsedLink = client('used-link');

@@ -175,10 +175,9 @@
             [disabled]="isSubmitting"
           >
             <option value="">Prefiro não informar</option>
-            <option value="bissexual">Bissexual</option>
-            <option value="homossexual">Homossexual</option>
-            <option value="heterossexual">Heterossexual</option>
-            <option value="pansexual">Pansexual</option>
+            @for (option of orientationOptions; track option.code) {
+              <option [value]="option.code">{{ option.label }}</option>
+            }
           </select>
           <p class="field-hint" id="orientation-help">Se informada, a orientação aparece no seu perfil.</p>
         </div>
