@@ -186,6 +186,14 @@ match /public_profiles/{userId} {
       );
   }
 
+  function orientationMatchesPrivateAfter() {
+    let user = getAfter(privateUserPath()).data;
+    let consent = user.get("showOrientationPublicly", null);
+    let projected = request.resource.data.get("orientation", null);
+    return consent == null || projected == null
+      || (consent == true && projected == user.get("orientation", null));
+  }
+
   function avatarOnlyUpdate() {
     let changed = request.resource.data.diff(resource.data).affectedKeys();
     return changed.hasOnly(["photoURL", "avatarUrl", "updatedAt"])
@@ -202,6 +210,7 @@ match /public_profiles/{userId} {
     && request.resource.data.updatedAt == request.time
     && identityMatchesPrivateDeclarationAfter()
     && nicknameMatchesPrivateAfter()
+    && orientationMatchesPrivateAfter()
     && publicProfileTextFieldsValid(request.resource.data)
     && privateUserEligibleAfter();
 
@@ -214,6 +223,7 @@ match /public_profiles/{userId} {
         updateKeysValid()
         && request.resource.data.uid == resource.data.uid
         && identityChangeSafe()
+        && orientationMatchesPrivateAfter()
         && request.resource.data.updatedAt == request.time
       )
     )

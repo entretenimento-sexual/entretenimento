@@ -87,6 +87,7 @@ type ComparableUserShape = {
   roomIds?: string[];
   gender?: string;
   orientation?: string;
+  showOrientationPublicly?: boolean;
   partner1Orientation?: string;
   partner2Orientation?: string;
   descricao: string;
@@ -258,6 +259,7 @@ export class UserStateCacheService {
       roomIds: user.roomIds ?? [],
       gender: user.gender ?? undefined,
       orientation: user.orientation ?? undefined,
+      showOrientationPublicly: user.showOrientationPublicly,
       partner1Orientation: user.partner1Orientation ?? undefined,
       partner2Orientation: user.partner2Orientation ?? undefined,
       descricao: user.descricao,

@@ -1,6 +1,7 @@
-import { Injectable } from '@angular/core';
-import { EMPTY, Observable } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { EnvironmentInjector, Injectable, Optional, runInInjectionContext } from '@angular/core';
+import { Functions, httpsCallable } from '@angular/fire/functions';
+import { defer, EMPTY, Observable } from 'rxjs';
+import { catchError, map, switchMap } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
@@ -10,7 +11,9 @@ import { UsuarioService } from 'src/app/core/services/user-profile/usuario.servi
 export class ProfileEditSaveOrchestrator {
   constructor(
     private readonly usuarioService: UsuarioService,
-    private readonly applicationError: ApplicationErrorService
+    private readonly applicationError: ApplicationErrorService,
+    @Optional() private readonly functions?: Functions,
+    @Optional() private readonly injector?: EnvironmentInjector
   ) {}
 
   save$(
@@ -36,8 +39,15 @@ export class ProfileEditSaveOrchestrator {
       photoURL
     );
 
-    return this.usuarioService
-      .atualizarUsuario(safeUid, profilePatch)
+    const hasVisibilityControl = !isCouple && typeof rawValue['showOrientationPublicly'] === 'boolean';
+    const orientation = profilePatch.orientation ?? '';
+    const writeOrientation$ = hasVisibilityControl
+      ? this.saveOrientation$(safeUid, orientation, rawValue['showOrientationPublicly'] === true)
+      : null;
+    if (writeOrientation$) delete profilePatch.orientation;
+
+    const writeProfile$ = defer(() => this.usuarioService.atualizarUsuario(safeUid, profilePatch));
+    return (writeOrientation$ ? writeOrientation$.pipe(switchMap(() => writeProfile$)) : writeProfile$)
       .pipe(
         map(() => void 0),
         catchError((error) => {
@@ -49,6 +59,15 @@ export class ProfileEditSaveOrchestrator {
           return EMPTY;
         })
       );
+  }
+
+  private saveOrientation$(uid: string, orientation: string, showOrientationPublicly: boolean): Observable<unknown> {
+    return defer(() => {
+      if (!this.functions || !this.injector) throw new Error('Serviço de visibilidade indisponível.');
+      return runInInjectionContext(this.injector, () =>
+        httpsCallable(this.functions!, 'updateProfileOrientation')({ uid, orientation, showOrientationPublicly })
+      );
+    });
   }
 
   private buildPatch(

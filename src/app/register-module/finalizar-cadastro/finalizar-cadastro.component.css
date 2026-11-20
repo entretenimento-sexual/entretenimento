@@ -274,3 +274,39 @@ label {
     transition: none;
   }
 }
+
+.completion-summary,
+.completion-preview {
+  display: flex;
+  gap: 0.375rem 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid currentColor;
+  border-color: rgb(197 230 241 / 26%);
+  border-radius: 0.625rem;
+  overflow-wrap: anywhere;
+}
+
+.completion-summary {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.completion-summary .app-action {
+  width: auto;
+  flex: none;
+}
+
+.completion-opt-in {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-block: 0.625rem;
+}
+
+.completion-opt-in input {
+  accent-color: #ffbc91;
+}
+
+.completion-preview {
+  flex-direction: column;
+}

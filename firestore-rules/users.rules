@@ -176,6 +176,7 @@ match /users/{userId} {
       "email",
       "profileId",
       "socialConnectionsEstablishedAt",
+      "showOrientationPublicly",
       "adultConsent",
       "acceptedTerms",
       "registrationFlowVersion",

@@ -2,6 +2,7 @@
 // Normalizadores/defaults do domínio novo.
 // Não dependem do legado.
 // Servem para criar estado consistente mesmo sem documento salvo.
+import { resolveConversationPace } from '../catalogs/conversation-pace.catalog';
 import type { IntentState } from '../models/intent-state.model';
 import type { MatchProfile } from '../models/match-profile.model';
 import type {
@@ -63,12 +64,14 @@ export function normalizePreferenceProfile(
 ): PreferenceProfile {
   const fallback = createEmptyPreferenceProfile(userId);
   const source = value ?? fallback;
+  const conversationPace = resolveConversationPace(source.conversationPace)?.code ?? null;
 
   return {
     ...fallback,
     ...source,
     userId: String(source.userId ?? userId).trim() || userId,
     relationshipIntents: uniqueStrings(source.relationshipIntents),
+    conversationPace,
     hardRules: {
       ...fallback.hardRules,
       ...(source.hardRules ?? {}),
@@ -123,6 +126,8 @@ export function normalizePreferenceProfile(
       showPreferenceBadges:
         source.visibility?.showPreferenceBadges !== false,
       showSeekingPublicly: source.visibility?.showSeekingPublicly === true,
+      shareConversationPace: conversationPace !== null &&
+        source.visibility?.shareConversationPace === true,
       showIntentPublicly: source.visibility?.showIntentPublicly === true,
       discoveryMode: source.visibility?.discoveryMode ?? 'standard',
     },

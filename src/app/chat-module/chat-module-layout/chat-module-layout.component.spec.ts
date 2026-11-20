@@ -1,3 +1,4 @@
+import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { Directive, NO_ERRORS_SCHEMA } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
@@ -42,6 +43,7 @@ describe('ChatModuleLayoutComponent', () => {
       declarations: [ChatModuleLayoutComponent, MockChatEmojiComposerDirective],
       imports: [CommonModule, RouterTestingModule],
       providers: [
+        { provide: DirectChatService, useValue: { getConversationStarter$: vi.fn(() => of(null)) } },
         {
           provide: AuthSessionService,
           useValue: {
@@ -182,6 +184,25 @@ describe('ChatModuleLayoutComponent', () => {
     fixture.detectChanges();
     expect(textarea.readOnly).toBe(false);
     expect(button.disabled).toBe(false);
+  });
+
+  it('insere a sugestão em um rascunho editável sem enviar a mensagem', () => {
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
+    const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator);
+    const service = TestBed.inject(DirectChatService);
+    vi.mocked(service.getConversationStarter$).mockReturnValueOnce(of('talk_first'));
+    selection.selectedChatId.mockReturnValue('chat-1');
+    selection.selectedType.mockReturnValue('chat');
+    selectedChatId$.next('chat-1');
+    selectedType$.next('chat');
+    component.canSendCurrentMessage.set(true);
+    fixture.detectChanges();
+
+    const textarea = fixture.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
+    component.requestConversationStarter(textarea);
+    expect(component.messageContent).toContain('Também gosto de conversar um pouco primeiro');
+    expect(component.conversationStarterFeedback).toContain('Vocês dois preferem conversar');
+    expect(orchestrator.send$).not.toHaveBeenCalled();
   });
 
   it('não limpa rascunho da nova conversa após resposta atrasada de envio', async () => {

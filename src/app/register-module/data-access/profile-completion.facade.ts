@@ -49,6 +49,7 @@ export interface ProfileCompletionInitialData {
   savedNicknameSuggestion?: string;
   gender: string;
   orientation: string;
+  showOrientationPublicly?: boolean;
   estado: string;
   municipio: string;
 }
@@ -59,6 +60,7 @@ export interface ProfileCompletionSubmitInput {
   nickname: string;
   gender: string;
   orientation: string;
+  showOrientationPublicly?: boolean;
   estado: string;
   municipio: string;
 }
@@ -109,6 +111,7 @@ export class ProfileCompletionFacade {
           nickname: doc.nickname ?? '',
           gender: doc.gender ?? '',
           orientation: doc.orientation ?? '',
+          showOrientationPublicly: doc.showOrientationPublicly === true,
           estado: doc.estado ?? '',
           municipio: doc.municipio ?? '',
         };
@@ -145,6 +148,7 @@ export class ProfileCompletionFacade {
           nickname: input.nickname || existingUserData.nickname || '',
           gender: input.gender || existingUserData.gender || '',
           orientation: input.orientation ?? existingUserData.orientation ?? '',
+          showOrientationPublicly: input.showOrientationPublicly === true,
           estado: input.estado || existingUserData.estado || '',
           municipio: input.municipio || existingUserData.municipio || '',
         });

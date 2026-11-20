@@ -3,7 +3,7 @@
 // DIRECT CHAT DOMAIN EXPORTS
 // -------------------------------------------------------------------
 export { ensureDirectChat } from './application/ensure-direct-chat.handler';
-export { sendDirectMessage } from './application/send-direct-message.handler';
+export { getDirectConversationStarter, sendDirectMessage } from './application/send-direct-message.handler';
 export {
   sendDirectVideoReference,
 } from './application/send-direct-video-reference.handler';

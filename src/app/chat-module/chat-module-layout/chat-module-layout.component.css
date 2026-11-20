@@ -347,3 +347,7 @@
     padding-inline: 0.5rem;
   }
 }@media (max-width: 520px) {}
+
+.chat-shell__starter {
+  align-self: flex-start;
+}

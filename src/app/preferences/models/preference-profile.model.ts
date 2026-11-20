@@ -3,6 +3,7 @@
 // Não guarda role.
 // Role continua canônico em IUserDados/Auth e é consumido por capability services.
 
+import type { ConversationPace } from '../catalogs/conversation-pace.catalog';
 import {
   BodyPreference,
   DiscoveryMode,
@@ -56,12 +57,14 @@ export interface PreferenceVisibilitySettings {
   showPreferenceBadges: boolean;
   /** Consentimento distinto para publicar os perfis que deseja conhecer. */
   showSeekingPublicly?: boolean;
+  shareConversationPace?: boolean;
   showIntentPublicly: boolean;
   discoveryMode: DiscoveryMode;
 }
 
 export interface PreferenceProfile {
   userId: string;
+  conversationPace?: ConversationPace | null;
 
   relationshipIntents: RelationshipIntent[];
 

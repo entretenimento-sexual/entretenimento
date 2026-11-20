@@ -24,6 +24,7 @@ export interface AtomicProfileCompletionInput {
   nickname: string;
   gender: string;
   orientation: string;
+  showOrientationPublicly?: boolean;
   estado: string;
   municipio: string;
 }
@@ -91,7 +92,10 @@ export class ProfileCompletionWriteService {
             this.functions!, 'completeRegistrationProfile'
           )
         );
-        return callable({ uid, nickname, gender, orientation, estado, municipio });
+        return callable({
+          uid, nickname, gender, orientation, estado, municipio,
+          showOrientationPublicly: !!orientation && input.showOrientationPublicly === true,
+        });
       })
       .pipe(
         map(() => void 0),

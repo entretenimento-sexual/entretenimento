@@ -114,6 +114,10 @@ match /users/{userId}/preferences/{docId} {
       && validMatchingModesShape(data)
       && data.visibility is map
       && data.visibility.keys().hasAll(["discoveryMode"])
+      && data.get("conversationPace", null) in [null, "talk_first", "take_it_slow", "open_to_meeting"]
+      && data.visibility.get("shareConversationPace", false) is bool
+      && (!data.visibility.get("shareConversationPace", false)
+        || data.get("conversationPace", null) != null)
       && data.visibility.discoveryMode is string
       && validDiscoveryMode(data.visibility.discoveryMode, subscriptionRank)
       && data.updatedAt is number;

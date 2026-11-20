@@ -9,6 +9,8 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue, Timestamp, auth } from '../firebaseApp';
 import { assertCallableAppCheck } from '../shared/security/callable-app-check';
 import { requiresTrustedAdultVerification } from '../compliance/adult-self-declaration-evidence';
+import { assertPlatformAccountAccessData } from '../account_lifecycle/interaction-access.policy';
+import { normalizePublicProfileDiscoveryFields } from '../discovery/profile-discovery-normalization';
 import { TERMS_ACCEPTANCE_VERSION } from '../compliance/platform-legal.constants';
 import { buildInitialUserSeed, buildRegistrationAuthProjection } from '../auth/user-registration-seed';
 import {
@@ -30,6 +32,7 @@ interface CompleteRegistrationInput {
   nickname?: unknown;
   gender?: unknown;
   orientation?: unknown;
+  showOrientationPublicly?: unknown;
   estado?: unknown;
   municipio?: unknown;
 }
@@ -216,9 +219,13 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
     const { display } = nicknameInput(normalizeRegistrationNickname(request.data?.nickname));
     const gender = String(request.data?.gender ?? '').trim().toLowerCase();
     const orientation = String(request.data?.orientation ?? '').trim().toLowerCase();
+    const orientationConsent = request.data?.showOrientationPublicly;
+    const showOrientationPublicly = !!orientation && orientationConsent === true;
+    const publicDiscovery = normalizePublicProfileDiscoveryFields({ gender, orientation, showOrientationPublicly });
     const estado = String(request.data?.estado ?? '').trim().toUpperCase();
     const municipio = String(request.data?.municipio ?? '').trim();
-    if (!isSelectableProfileIdentityCode(gender) ||
+    if ((orientationConsent !== undefined && typeof orientationConsent !== 'boolean') ||
+      !isSelectableProfileIdentityCode(gender) ||
       (orientation && !ORIENTATIONS.has(orientation)) || !UFS.has(estado) ||
       !municipio || municipio.length > 120 || hasControlCharacter(municipio)) {
       throw new HttpsError('invalid-argument', 'Revise os dados necessários para concluir o perfil.');
@@ -300,7 +307,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
           : {}),
         gender, declaredIdentityCode: gender,
         identityCatalogVersion: PROFILE_IDENTITY_CATALOG_VERSION,
-        orientation, estado, municipio,
+        orientation, showOrientationPublicly, estado, municipio,
         ...buildRegistrationAuthProjection(authUser),
         profileCompleted: true, publicVisibility: 'visible',
         interactionBlocked: false, registrationCompletedAt: now,
@@ -311,7 +318,10 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
         uid, nickname: nickname.display, nicknameNormalized: nickname.key,
         gender, identityCode: gender,
         identityCatalogVersion: PROFILE_IDENTITY_CATALOG_VERSION,
-        orientation: orientation || null, estado, municipio,
+        orientation: showOrientationPublicly ? orientation : null,
+        normalizedOrientation: publicDiscovery.normalizedOrientation,
+        compatibilityReady: publicDiscovery.compatibilityReady,
+        estado, municipio,
         updatedAt: now,
       };
       if (!publicSnap.exists) {
@@ -324,5 +334,49 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
     });
     await syncRegistrationDisplayName(authUser, result.nickname);
     return result;
+  }
+);
+
+// A edição e o consentimento alteram a fonte privada e a projeção na mesma transação.
+export const updateProfileOrientation = onCall<Pick<CompleteRegistrationInput, 'uid' | 'orientation' | 'showOrientationPublicly'>>(
+  { region: FUNCTIONS_REGION },
+  async (request): Promise<{ saved: true }> => {
+    assertCallableAppCheck(request.app);
+    const uid = signedOwner(request.auth?.uid);
+    if (request.data?.uid !== uid || request.auth?.token.email_verified !== true) {
+      throw new HttpsError('permission-denied', 'Use a conta verificada do perfil.');
+    }
+
+    const orientation = request.data?.orientation;
+    const consent = request.data?.showOrientationPublicly;
+    if (typeof orientation !== 'string' || typeof consent !== 'boolean') {
+      throw new HttpsError('invalid-argument', 'Revise a orientação e sua visibilidade.');
+    }
+    const showOrientationPublicly = !!orientation && consent;
+    return db.runTransaction(async (transaction) => {
+      const userRef = db.collection('users').doc(uid);
+      const publicRef = db.collection('public_profiles').doc(uid);
+      const [userSnapshot, publicSnapshot] = await transaction.getAll(userRef, publicRef);
+      const user = userSnapshot.data();
+      assertPlatformAccountAccessData(user);
+      const keepsPrivateLegacyValue = !consent && orientation === user?.['orientation'];
+      if (orientation && !ORIENTATIONS.has(orientation) && !keepsPrivateLegacyValue) {
+        throw new HttpsError('invalid-argument', 'Revise a orientação e sua visibilidade.');
+      }
+      const stamp = FieldValue.serverTimestamp();
+      transaction.update(userRef, { orientation, showOrientationPublicly, updatedAt: stamp, updatedAtMs: Date.now() });
+      if (publicSnapshot.exists) {
+        const discovery = normalizePublicProfileDiscoveryFields({
+          ...user, orientation, showOrientationPublicly,
+        });
+        transaction.update(publicRef, {
+          orientation: showOrientationPublicly ? orientation : null,
+          normalizedOrientation: discovery.normalizedOrientation,
+          compatibilityReady: discovery.compatibilityReady,
+          updatedAt: stamp,
+        });
+      }
+      return { saved: true };
+    });
   }
 );

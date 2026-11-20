@@ -11,7 +11,7 @@ import {
 } from '../identity/public-profile-id';
 import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
 
-import { normalizeProfileDiscoveryFields } from './profile-discovery-normalization';
+import { normalizePublicProfileDiscoveryFields } from './profile-discovery-normalization';
 import {
   buildPublicPreferenceProjection,
   publicPreferenceProjectionMatches,
@@ -112,7 +112,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
           genero: publicIdentity.identityDiscoveryGroup,
         }
         : user;
-      const canonical = normalizeProfileDiscoveryFields(discoverySource);
+      const canonical = normalizePublicProfileDiscoveryFields(discoverySource);
       const age = resolvePublicProfileAge(user['idade']);
       const publicPreferences = buildPublicPreferenceProjection(
         preferenceSnapshot.exists ? (preferenceSnapshot.data() ?? {}) : null,
@@ -122,10 +122,14 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
       const publicAvatar = buildPublicAvatarProjection(user);
       const publicDescription = buildPublicDescriptionProjection(user);
       const currentPublic = publicProfileSnapshot.data() ?? {};
+      const publicOrientation = user['showOrientationPublicly'] === true
+        ? user['orientation'] || null
+        : user['showOrientationPublicly'] === false ? null : currentPublic['orientation'] ?? null;
 
       if (
         !publicProfileHasPrivateEmailFields(currentPublic) &&
         currentPublic['profileId'] === profileId &&
+        (currentPublic['orientation'] ?? null) === publicOrientation &&
         publicProfileDiscoveryProjectionMatches(currentPublic, canonical) &&
         publicIdentityProjectionMatches(currentPublic, publicIdentity) &&
         (currentPublic['age'] ?? null) === age &&
@@ -146,6 +150,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
           ...publicAvatar,
           ...publicDescription,
           normalizedGender: canonical.normalizedGender,
+          orientation: publicOrientation,
           normalizedOrientation: canonical.normalizedOrientation,
           // A reciprocidade é calculada com users/{uid} no callable.
           // Nunca persistir listas de busca no documento público consultável.

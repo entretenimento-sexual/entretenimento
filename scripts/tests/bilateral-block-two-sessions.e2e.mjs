@@ -15,7 +15,7 @@ import {
 } from 'firebase/functions';
 import {
   getFirestore as getClientFirestore, connectFirestoreEmulator,
-  collection, doc, getDoc, onSnapshot, query, where,
+  collection, doc, getDoc, onSnapshot, query, setDoc, updateDoc, where,
 } from 'firebase/firestore';
 import {
   initializeApp as initializeAdminApp, deleteApp as deleteAdminApp,
@@ -216,6 +216,7 @@ try {
   const aDiscovery = httpsCallable(a.functions, 'getPublicProfilesPage');
   const bDiscovery = httpsCallable(b.functions, 'getPublicProfilesPage');
   const ensureChat = httpsCallable(a.functions, 'ensureDirectChat');
+  const getStarter = httpsCallable(a.functions, 'getDirectConversationStarter');
   const bEnsureChat = httpsCallable(b.functions, 'ensureDirectChat');
   const bSend = httpsCallable(b.functions, 'sendDirectMessage');
   const aBlock = httpsCallable(a.functions, 'blockUser');
@@ -231,6 +232,39 @@ try {
 
   const chatId = (await ensureChat({ otherUserUid: bUid })).data.chatId;
   assert.ok(chatId);
+  assert.deepEqual((await getStarter({ chatId })).data, { pace: null });
+  const aPreferences = doc(a.firestore, 'users', aUid, 'preferences', 'profile');
+  const bPreferences = doc(b.firestore, 'users', bUid, 'preferences', 'profile');
+  const paceProfile = (userId, conversationPace) => ({
+    userId, conversationPace, relationshipIntents: [],
+    hardRules: {
+      acceptedGenders: [], acceptedRelationshipIntents: [], ageRange: null, maxDistanceKm: null,
+      acceptsCouples: true, acceptsSingles: true, acceptsTransProfiles: null, locationRequired: false,
+    },
+    softRules: { bodyPreferences: [], sexualPractices: [] },
+    selfTraits: { bodyTraits: [] },
+    visibility: { discoveryMode: 'standard', showPreferenceBadges: true, shareConversationPace: true },
+    updatedAt: Date.now(),
+  });
+  await expectDenied(
+    () => updateDoc(doc(a.firestore, 'users', aUid), { showOrientationPublicly: true }),
+    'permission-denied'
+  );
+  await setDoc(aPreferences, paceProfile(aUid, 'talk_first'));
+  assert.deepEqual((await getStarter({ chatId })).data, { pace: null });
+  await setDoc(bPreferences, paceProfile(bUid, 'take_it_slow'));
+  assert.deepEqual((await getStarter({ chatId })).data, { pace: null });
+  await expectDenied(() => updateDoc(bPreferences, { conversationPace: 'unrecognized' }), 'permission-denied');
+  await expectDenied(
+    () => getDoc(doc(a.firestore, 'users', bUid, 'preferences', 'profile')),
+    'permission-denied'
+  );
+  await updateDoc(bPreferences, { conversationPace: 'talk_first' });
+  assert.deepEqual((await getStarter({ chatId })).data, { pace: 'talk_first' });
+  await updateDoc(bPreferences, { 'visibility.shareConversationPace': false });
+  assert.deepEqual((await getStarter({ chatId })).data, { pace: null });
+  await updateDoc(bPreferences, { 'visibility.shareConversationPace': true });
+  console.log('[bilateral-two-sessions:e2e] PASS private pace, mutual suggestion and consent revocation');
   await reconcile({ peerUid: bUid });
   const firstMessage = (await bSend({
     chatId, content: 'Mensagem antes do bloqueio',
@@ -285,6 +319,7 @@ try {
   assert.deepEqual(await lookup(aDiscovery, bUid), []);
   assert.deepEqual(await lookup(bDiscovery, aUid), []);
   await expectDenied(() => bEnsureChat({ otherUserUid: aUid }), 'functions/permission-denied');
+  await expectDenied(() => getStarter({ chatId }), 'functions/permission-denied');
   await expectDenied(() => bSend({
     chatId, content: 'Não deve ser enviada',
     clientRequestId: randomUUID().replaceAll('-', ''),

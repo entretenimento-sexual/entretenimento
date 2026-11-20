@@ -28,6 +28,33 @@
     </div>
   </details>
 
+  <details class="preference-group app-disclosure" open>
+    <summary class="preference-group__summary app-disclosure__summary">
+      <strong class="preference-group__title app-disclosure__title">No seu ritmo</strong>
+    </summary>
+    <div class="preference-group__content app-disclosure__content">
+      <div class="app-field">
+        <label for="conversationPace">Como você gosta de conhecer alguém?</label>
+        <select id="conversationPace" class="app-control" formControlName="conversationPace"
+          aria-describedby="conversationPaceHelp">
+          <option value="">Prefiro deixar em aberto</option>
+          @for (option of conversationPaceOptions; track option.code) {
+            <option [value]="option.code">{{ option.label }}</option>
+          }
+        </select>
+      </div>
+      @if (form.controls['conversationPace'].value) {
+        <label class="checkbox-item app-choice">
+          <input type="checkbox" formControlName="shareConversationPace" />
+          <span>Usar meu ritmo em sugestões de conversa</span>
+        </label>
+      }
+      <p id="conversationPaceHelp" class="field-help app-field-help">
+        Você pode pedir uma sugestão na conversa direta quando os dois escolherem o mesmo ritmo e ativarem essa opção.
+      </p>
+    </div>
+  </details>
+
   <details class="preference-group app-disclosure">
     <summary class="preference-group__summary app-disclosure__summary">
       <strong class="preference-group__title app-disclosure__title">Quem você gostaria de conhecer?</strong>

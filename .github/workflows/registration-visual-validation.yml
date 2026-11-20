@@ -970,12 +970,24 @@ jobs:
             if (!(await nickname.evaluate(input => document.activeElement === input))) throw new Error('Profile completion moved focus while typing');
             if (await page.locator('#estado').isVisible()) throw new Error('State appeared before profile identity');
             await page.locator('#gender').selectOption('homem');
-            await page.getByRole('heading', { name: 'De onde você é?' }).waitFor();
+            await page.locator('.form-container form').getByRole('button', { name: 'Continuar', exact: true }).click();
+            await page.getByRole('heading', { name: 'Quer acrescentar sua orientação?' }).waitFor();
+            if (await page.locator('#nickname').isVisible()) throw new Error('Nickname did not collapse');
+            if (await page.locator('#orientation').inputValue()) throw new Error('Optional orientation should start empty');
+            await page.locator('#orientation').selectOption('assexual');
+            const consent = page.getByRole('checkbox', { name: 'Mostrar minha orientação no perfil' });
+            if (await consent.isChecked()) throw new Error('Orientation visibility should be opt-in');
+            if ((await page.locator('.completion-preview').textContent()).includes('Assexual')) throw new Error('Preview exposed a private orientation');
+            await consent.check();
+            await page.locator('.completion-preview').getByText('perfilnovo · Homem · Assexual', { exact: true }).waitFor();
+            await page.locator('#orientation').selectOption('');
+            await page.getByRole('button', { name: 'Pular', exact: true }).click();
+            await page.getByRole('heading', { name: 'Em que cidade você está?' }).waitFor();
             if (await page.locator('#municipio').isVisible()) throw new Error('Municipality appeared before state');
             await page.locator('#estado').selectOption('RJ');
             await page.locator('#municipio').selectOption('Rio de Janeiro');
+            await page.locator('.form-container form').getByRole('button', { name: 'Continuar', exact: true }).click();
             await page.locator('.completion-submit').waitFor({ state: 'visible' });
-            if (await page.locator('#orientation').inputValue()) throw new Error('Optional orientation should start empty');
             if (await page.locator('#avatar').inputValue()) throw new Error('Optional photo should start empty');
           }" | tee "$OUT/profile/mobile-ready.metrics.log"
           playwright-cli screenshot --full-page --filename="$OUT/profile/mobile-ready.png"

@@ -165,12 +165,24 @@
             class="app-control"
             formControlName="orientation"
             name="orientation"
+            (change)="editForm.get('orientation')?.value || editForm.get('showOrientationPublicly')?.setValue(false)"
           >
-            <option value="">Selecione</option>
+            <option value="">Prefiro não informar</option>
             @for (option of orientationOptions; track option.code) {
               <option [value]="option.code">{{ option.label }}</option>
             }
           </select>
+          @if (editForm.get('orientation')?.value; as orientation) {
+            <label class="help-text app-field-help">
+              <input type="checkbox" formControlName="showOrientationPublicly" />
+              Mostrar minha orientação no perfil
+            </label>
+            <p class="help-text app-field-help" aria-live="polite">
+              {{ editForm.get('showOrientationPublicly')?.value
+                ? 'Prévia no perfil: ' + orientationLabel(orientation)
+                : 'A orientação ficará oculta no perfil.' }}
+            </p>
+          }
         </div>
       }
     </div>

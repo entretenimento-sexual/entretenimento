@@ -16,6 +16,7 @@ import {
   SEXUAL_PRACTICE_OPTIONS,
   PreferenceOption,
 } from '../catalogs/preference-profile-options.catalog';
+import { resolveConversationPace, type ConversationPace } from '../catalogs/conversation-pace.catalog';
 import type { PreferenceProfile } from '../models/preference-profile.model';
 import type { PreferenceMatchMode } from '../models/preference.types';
 import type { PreferencesCapabilitySnapshot } from '../services/preferences-capability.service';
@@ -42,7 +43,8 @@ export function buildPreferenceProfileForm(fb: FormBuilder) {
       acceptsTransProfiles: fb.nonNullable.control<AcceptsTransProfilesFormValue>('all'),
       locationRequired: fb.nonNullable.control(false),
       showSeekingPublicly: fb.nonNullable.control(false),
-
+      conversationPace: fb.nonNullable.control<ConversationPace | ''>(''),
+      shareConversationPace: fb.nonNullable.control(false),
 
       ...buildFlagControls(fb, 'ri', RELATIONSHIP_INTENT_OPTIONS),
       ...buildFlagControls(fb, 'gi', GENDER_INTEREST_OPTIONS),
@@ -67,6 +69,8 @@ export function mapPreferenceProfileToFormValue(profile: PreferenceProfile): Raw
     acceptsTransProfiles: writeAcceptsTransProfiles(profile.hardRules.acceptsTransProfiles),
     locationRequired: profile.hardRules.locationRequired,
     showSeekingPublicly: profile.visibility?.showSeekingPublicly === true,
+    conversationPace: profile.conversationPace ?? '',
+    shareConversationPace: profile.visibility?.shareConversationPace === true,
     ...buildFlagPatch(profile.relationshipIntents, 'ri', RELATIONSHIP_INTENT_OPTIONS),
     ...buildFlagPatch(profile.hardRules.acceptedGenders, 'gi', GENDER_INTEREST_OPTIONS),
     ...buildFlagPatch(profile.softRules.sexualPractices, 'sp', SEXUAL_PRACTICE_OPTIONS),
@@ -83,10 +87,12 @@ export function mapFormValueToPreferenceProfile(
   const canEditAdvanced = capabilities?.canEditAdvancedPreferences === true;
   const canRequireAdvanced = capabilities?.canRequireAdvancedPreferences === true;
   const relationshipIntents = collectSelected(raw, 'ri', RELATIONSHIP_INTENT_OPTIONS);
+  const conversationPace = resolveConversationPace(raw['conversationPace'])?.code ?? null;
 
   return {
     ...current,
     relationshipIntents,
+    conversationPace,
     hardRules: {
       ...current.hardRules,
       acceptedGenders: collectSelected(raw, 'gi', GENDER_INTEREST_OPTIONS),
@@ -125,6 +131,7 @@ export function mapFormValueToPreferenceProfile(
     visibility: {
       ...current.visibility,
       showSeekingPublicly: raw['showSeekingPublicly'] === true,
+      shareConversationPace: conversationPace !== null && raw['shareConversationPace'] === true,
     },
     updatedAt: Date.now(),
   };

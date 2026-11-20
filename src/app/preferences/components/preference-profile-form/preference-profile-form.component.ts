@@ -41,6 +41,8 @@ import {
   mapPreferenceProfileToFormValue,
 } from '../../utils/preference-profile-form.factory';
 
+import { CONVERSATION_PACE_OPTIONS } from '../../catalogs/conversation-pace.catalog';
+
 type NumericPreferenceControl = 'minAge' | 'maxAge' | 'maxDistanceKm';
 
 @Component({
@@ -63,6 +65,7 @@ export class PreferenceProfileFormComponent {
 
   readonly saveProfile = output<PreferenceProfile>();
 
+  readonly conversationPaceOptions = CONVERSATION_PACE_OPTIONS;
   readonly relationshipIntentOptions = RELATIONSHIP_INTENT_OPTIONS;
   readonly genderInterestOptions = GENDER_INTEREST_OPTIONS;
   readonly sexualPracticeOptions = SEXUAL_PRACTICE_OPTIONS;
@@ -89,6 +92,11 @@ export class PreferenceProfileFormComponent {
 
 
   constructor() {
+    this.form.controls['conversationPace'].valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((pace) => {
+        if (!pace) this.form.controls['shareConversationPace'].setValue(false, { emitEvent: false });
+      });
     this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.hasPendingChanges.set(true));

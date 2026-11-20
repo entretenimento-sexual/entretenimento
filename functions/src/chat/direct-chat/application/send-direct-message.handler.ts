@@ -31,12 +31,14 @@
 // -----------------------------------------------------------------------------
 
 import { createHash } from 'node:crypto';
+import type { DocumentReference, Transaction } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
   assertPlatformAccountAccessData,
 } from '../../../account_lifecycle/interaction-access.policy';
 import { db, FieldValue } from '../../../firebaseApp';
+import { assertCallableAppCheck } from '../../../shared/security/callable-app-check';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
 
 import {
@@ -138,6 +140,76 @@ function isSameIdempotentMessage(
   );
 }
 
+async function assertDirectMessageParticipantAccess(
+  transaction: Transaction,
+  actorRef: DocumentReference,
+  targetRef: DocumentReference
+): Promise<MessagingUserDoc | undefined> {
+  const [actorSnapshot, targetSnapshot, actorBlock, targetBlock, actorFriend, targetFriend] =
+    await transaction.getAll(
+      actorRef,
+      targetRef,
+      actorRef.collection('blocks').doc(targetRef.id),
+      targetRef.collection('blocks').doc(actorRef.id),
+      actorRef.collection('friends').doc(targetRef.id),
+      targetRef.collection('friends').doc(actorRef.id)
+    );
+
+  const actor = actorSnapshot.data() as MessagingUserDoc | undefined;
+  const target = targetSnapshot.data() as MessagingUserDoc | undefined;
+  assertMessagingAccountOperational(actor, { operation: 'send-direct-message', perspective: 'actor' });
+  assertMessagingAccountOperational(target, { operation: 'send-direct-message', perspective: 'target' });
+  assertPlatformAccountAccessData(actor);
+  assertPlatformAccountAccessData(target);
+  assertNoDirectMessagingBlock({
+    actorBlockedTarget: isBlocked(actorBlock.data()),
+    targetBlockedActor: isBlocked(targetBlock.data()),
+  });
+  assertAcceptedFriendshipForDirectMessage({
+    actorFriendExists: actorFriend.exists,
+    targetFriendExists: targetFriend.exists,
+  });
+  return actor;
+}
+
+const CONVERSATION_PACES = ['talk_first', 'take_it_slow', 'open_to_meeting'] as const;
+type ConversationPace = typeof CONVERSATION_PACES[number];
+
+export const getDirectConversationStarter = onCall<{ chatId?: unknown }>(
+  { region: FUNCTIONS_REGION, invoker: 'public' },
+  async (request): Promise<{ pace: ConversationPace | null }> => {
+    assertCallableAppCheck(request.app);
+    const actorUid = request.auth?.uid;
+    if (!actorUid) throw new HttpsError('unauthenticated', 'Entre para abrir a conversa.');
+    if (request.auth?.token.email_verified !== true) {
+      throw new HttpsError('failed-precondition', 'Confirme seu e-mail para conversar.');
+    }
+    const chatId = normalizeIdentifier(request.data?.chatId);
+    if (!chatId || chatId.includes('/') || chatId === '.' || chatId === '..' || chatId.length > 256) {
+      throw new HttpsError('invalid-argument', 'Conversa não identificada.');
+    }
+
+    return db.runTransaction(async (transaction) => {
+      const chat = await transaction.get(db.collection('chats').doc(chatId));
+      const targetUid = resolveDirectMessageTargetUid(chat.data(), actorUid);
+      const actorRef = db.collection('users').doc(actorUid);
+      const targetRef = db.collection('users').doc(targetUid);
+      await assertDirectMessageParticipantAccess(transaction, actorRef, targetRef);
+      const [actorPreferences, targetPreferences] = await transaction.getAll(
+        actorRef.collection('preferences').doc('profile'),
+        targetRef.collection('preferences').doc('profile')
+      );
+
+      // Um resultado vazio não revela escolhas individuais nem quem autorizou.
+      const pace = CONVERSATION_PACES.find((value) => value === actorPreferences.get('conversationPace'));
+      const mutual = pace && pace === targetPreferences.get('conversationPace') &&
+        actorPreferences.get('visibility.shareConversationPace') === true &&
+        targetPreferences.get('visibility.shareConversationPace') === true;
+      return { pace: mutual ? pace : null };
+    }, { readOnly: true });
+  }
+);
+
 export const sendDirectMessage = onCall<SendDirectMessageRequest>(
   {
     region: FUNCTIONS_REGION,
@@ -197,65 +269,10 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
       const actorRef = db.collection('users').doc(actorUid);
       const targetRef = db.collection('users').doc(targetUid);
 
-      const actorBlockRef = actorRef.collection('blocks').doc(targetUid);
-      const targetBlockRef = targetRef.collection('blocks').doc(actorUid);
-
-      const actorFriendRef = actorRef.collection('friends').doc(targetUid);
-      const targetFriendRef = targetRef.collection('friends').doc(actorUid);
-
-      const [
-        actorSnapshot,
-        targetSnapshot,
-        actorBlockSnapshot,
-        targetBlockSnapshot,
-        actorFriendSnapshot,
-        targetFriendSnapshot,
-        existingMessageSnapshot,
-      ] = await Promise.all([
-        transaction.get(actorRef),
-        transaction.get(targetRef),
-        transaction.get(actorBlockRef),
-        transaction.get(targetBlockRef),
-        transaction.get(actorFriendRef),
-        transaction.get(targetFriendRef),
+      const [actor, existingMessageSnapshot] = await Promise.all([
+        assertDirectMessageParticipantAccess(transaction, actorRef, targetRef),
         transaction.get(messageRef),
       ]);
-
-      const actor = actorSnapshot.data() as MessagingUserDoc | undefined;
-      const target = targetSnapshot.data() as MessagingUserDoc | undefined;
-
-      assertMessagingAccountOperational(actor, {
-        operation: 'send-direct-message',
-        perspective: 'actor',
-      });
-
-      assertMessagingAccountOperational(target, {
-        operation: 'send-direct-message',
-        perspective: 'target',
-      });
-      assertPlatformAccountAccessData(actor);
-      assertPlatformAccountAccessData(target);
-
-      assertNoDirectMessagingBlock({
-        actorBlockedTarget: isBlocked(
-          actorBlockSnapshot.data() as StoredBlockDoc | undefined
-        ),
-        targetBlockedActor: isBlocked(
-          targetBlockSnapshot.data() as StoredBlockDoc | undefined
-        ),
-      });
-
-      /**
-       * CONSENTIMENTO BILATERAL OBRIGATÓRIO.
-       *
-       * Mesmo que o chat já exista, nova mensagem exige amizade ativa dos dois
-       * lados. Isso protege usuários contra recontato por chats antigos,
-       * dados legados ou documentos criados manualmente no Emulator.
-       */
-      assertAcceptedFriendshipForDirectMessage({
-        actorFriendExists: actorFriendSnapshot.exists,
-        targetFriendExists: targetFriendSnapshot.exists,
-      });
 
       /**
        * Idempotência.

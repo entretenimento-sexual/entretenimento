@@ -276,7 +276,7 @@ try {
   await consumer.call('acceptPlatformTerms', terms);
   assert.equal((await declarationRef.get()).get('declaredAtMs'), declared.declaredAtMs);
   await consumer.call('completeRegistrationProfile', {
-    uid, nickname, gender: 'homem', orientation: 'assexual', estado: 'RJ', municipio: 'Rio de Janeiro',
+    uid, nickname, gender: 'homem', orientation: 'assexual', showOrientationPublicly: true, estado: 'RJ', municipio: 'Rio de Janeiro',
   });
   const completed = (await privateRef.get()).data();
   assert.equal(completed.profileCompleted, true);
@@ -314,7 +314,7 @@ try {
   const freshPublicRef = db.collection('public_profiles').doc(emailFirstUid);
   const profileInput = {
     uid: emailFirstUid, nickname: 'Perfil' + run.slice(0, 6) + ' RJ',
-    gender: 'homem', estado: 'RJ', municipio: 'Rio de Janeiro',
+    gender: 'homem', orientation: 'pansexual', estado: 'RJ', municipio: 'Rio de Janeiro',
   };
   await rejects(emailFirst.call('completeRegistrationProfile', profileInput), 'failed-precondition', 'terms_required');
   await emailFirst.call('acceptPlatformTerms', { ...terms, expectedUid: emailFirstUid });
@@ -336,6 +336,22 @@ try {
   assert.equal((await freshPublicRef.get()).get('nickname'), profileInput.nickname);
   assert.equal((await freshIndexRef.get()).get('uid'), emailFirstUid);
   assert.equal((await adminAuth.getUser(emailFirstUid)).displayName, profileInput.nickname);
+  assert.equal((await freshPrivateRef.get()).get('orientation'), 'pansexual');
+  assert.equal((await freshPrivateRef.get()).get('showOrientationPublicly'), false);
+  assert.equal((await freshPublicRef.get()).get('orientation'), null);
+  assert.equal((await freshPublicRef.get()).get('normalizedOrientation'), 'unknown');
+  await emailFirst.call('updateProfileOrientation', {
+    uid: emailFirstUid, orientation: 'pansexual', showOrientationPublicly: true,
+  });
+  assert.equal((await freshPublicRef.get()).get('orientation'), 'pansexual');
+  assert.equal((await freshPublicRef.get()).get('normalizedOrientation'), 'pansexual');
+  await emailFirst.call('updateProfileOrientation', {
+    uid: emailFirstUid, orientation: 'pansexual', showOrientationPublicly: false,
+  });
+  assert.equal((await freshPrivateRef.get()).get('orientation'), 'pansexual');
+  assert.equal((await freshPublicRef.get()).get('orientation'), null);
+  assert.equal((await freshPublicRef.get()).get('normalizedOrientation'), 'unknown');
+  console.log('[email-link:e2e] PASS private orientation, opt-in and revocation');
   console.log('[email-link:e2e] PASS email-first account reserves the nickname only when completing its profile');
 
   for (const emailVerified of [false, true]) {

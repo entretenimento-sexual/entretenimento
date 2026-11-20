@@ -69,8 +69,16 @@
         >
           @let canSendMessageNow = canSendCurrentMessage();
 
+          @if (canRequestConversationStarter) {
+            <button class="chat-shell__starter app-action app-action--ghost" type="button"
+              [disabled]="loadingConversationStarter()"
+              (click)="requestConversationStarter(composerInput)">
+              {{ loadingConversationStarter() ? 'Buscando sugestão…' : 'Sugerir uma abertura' }}
+            </button>
+          }
           <div class="chat-shell__composer-main">
             <textarea
+              #composerInput
               #emojiComposer="chatEmojiComposer"
               class="app-control"
               appChatEmojiComposer
@@ -102,6 +110,9 @@
             </button>
           </div>
 
+          @if (canSendMessageNow && conversationStarterFeedback; as feedback) {
+            <p class="chat-shell__composer-help" role="status">{{ feedback }}</p>
+          }
           @if (shouldShowComposerHelp) {
             <p
               id="chat-composer-help"

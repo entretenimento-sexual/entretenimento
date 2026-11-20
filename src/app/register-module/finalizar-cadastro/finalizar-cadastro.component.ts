@@ -3,9 +3,13 @@ import {
   ChangeDetectorRef,
   Component,
   DestroyRef,
+  ElementRef,
+  Injector,
   HostListener,
   OnInit,
+  afterNextRender,
   inject,
+  viewChild,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -81,6 +85,8 @@ export class FinalizarCadastroComponent
 implements OnInit, UnsavedChangesAware
 {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+  private readonly stepHeading = viewChild<ElementRef<HTMLHeadingElement>>('stepHeading');
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly networkStatus = inject(NetworkStatusService);
   private readonly draftChanges$ = new Subject<void>();
@@ -103,13 +109,16 @@ implements OnInit, UnsavedChangesAware
 
   get pageTitle(): string {
     if (this.isLoading || this.profileDataUnavailable) return 'Complete seu perfil';
+    if (this.profileStep === 'orientation') return 'Quer acrescentar sua orientação?';
+    if (this.profileStep === 'location') return 'Em que cidade você está?';
+    if (this.profileStep === 'review') return 'Seu perfil está quase pronto';
     const nicknameValid = this.isNicknameValid(this.nickname) && !this.isFieldInvalid('nickname');
     if (this.needsNickname && !nicknameValid) return 'Como você quer aparecer?';
     if (!isSelectableProfileIdentityCode(this.gender)) {
       const nickname = nicknameValid ? this.nicknameMain.trim() : '';
       return nickname ? `${nickname}, como você se identifica?` : 'Como você se identifica?';
     }
-    return this.showCompletionActions ? 'Seu perfil está quase pronto' : 'De onde você é?';
+    return 'Como você se identifica?';
   }
 
   public email = '';
@@ -132,8 +141,66 @@ implements OnInit, UnsavedChangesAware
     return !this.needsNickname || this.isNicknameValid(this.nickname) || !!this.gender;
   }
 
-  get showLocation(): boolean {
-    return this.showIdentity && (isSelectableProfileIdentityCode(this.gender) || !!this.selectedEstado);
+  profileStep: 'identity' | 'orientation' | 'location' | 'review' = 'identity';
+  private stepAfterIdentity: 'orientation' | 'location' | 'review' = 'orientation';
+
+  get identityLabel(): string {
+    return this.identityOptions.find(({ code }) => code === this.gender)?.label ?? '';
+  }
+
+  get orientationLabel(): string {
+    return this.orientationOptions.find(({ code }) => code === this.orientation)?.label ?? '';
+  }
+
+  editIdentity(): void {
+    if (this.profileStep === 'identity') return;
+    this.stepAfterIdentity = this.profileStep;
+    this.openProfileStep('identity');
+  }
+
+  editOrientation(): void {
+    this.openProfileStep('orientation');
+  }
+
+  editLocation(): void {
+    this.openProfileStep('location');
+  }
+
+  onOrientationChange(value: string): void {
+    this.orientation = value;
+    if (!value) this.showOrientationPublicly = false;
+  }
+
+  advanceProfileStep(): void {
+    if (this.isSubmitting || this.isEditingAvatar) return;
+    switch (this.profileStep) {
+      case 'identity':
+        if (this.needsNickname) this.checkFieldValidity('nickname', this.nickname, 'Apelido');
+        if (this.isFieldInvalid('nickname')) return;
+        this.checkFieldValidity('gender', this.gender, 'Identificação do perfil');
+        if (!isSelectableProfileIdentityCode(this.gender)) return;
+        this.persistUnsavedChanges();
+        this.openProfileStep(this.stepAfterIdentity);
+        return;
+      case 'orientation':
+        this.openProfileStep('location');
+        return;
+      case 'location':
+        this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
+        if (!this.loadingMunicipios && this.municipios.length) {
+          this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
+        }
+        if (this.showCompletionActions) this.openProfileStep('review');
+        return;
+      case 'review':
+        this.onSubmit();
+    }
+  }
+
+  private openProfileStep(step: typeof this.profileStep): void {
+    if (this.isSubmitting || this.isEditingAvatar) return;
+    this.profileStep = step;
+    afterNextRender(() => this.stepHeading()?.nativeElement.focus(), { injector: this.injector });
   }
 
   get showCompletionActions(): boolean {
@@ -154,6 +221,7 @@ implements OnInit, UnsavedChangesAware
   public readonly avatarMaxMegabytes = resolveImageMaxBytes('avatar') / 1024 / 1024;
   public gender = '';
   public orientation = '';
+  public showOrientationPublicly = false;
   public selectedEstado = '';
   public selectedMunicipio = '';
 
@@ -358,10 +426,16 @@ implements OnInit, UnsavedChangesAware
         this.nickname = reservedNickname || NicknameUtils.normalizarApelido(initialData.savedNicknameSuggestion ?? '');
         this.gender = initialData.gender;
         this.orientation = initialData.orientation;
+        this.showOrientationPublicly = initialData.showOrientationPublicly === true;
         this.selectedEstado = initialData.estado;
         this.selectedMunicipio = initialData.municipio;
 
         this.initializeDraftState(uid);
+        this.profileStep = this.selectedEstado && this.isNicknameValid(this.nickname) &&
+          isSelectableProfileIdentityCode(this.gender)
+          ? 'location'
+          : 'identity';
+        this.stepAfterIdentity = 'orientation';
         if (this.selectedEstado) {
           this.loadMunicipiosForEstado(this.selectedEstado);
         }
@@ -478,7 +552,6 @@ implements OnInit, UnsavedChangesAware
       return;
     }
 
-    // A tecla Enter também pode submeter o formulário durante a revelação dos campos.
     const fields = [
       ['nickname', this.nickname, 'Apelido'],
       ['gender', this.gender, 'Identificação do perfil'],
@@ -502,6 +575,7 @@ implements OnInit, UnsavedChangesAware
         nickname: NicknameUtils.normalizarApelido(this.nickname),
         gender: this.gender,
         orientation: this.orientation,
+        showOrientationPublicly: !!this.orientation && this.showOrientationPublicly,
         estado: this.selectedEstado,
         municipio: this.selectedMunicipio,
       })
@@ -811,6 +885,7 @@ implements OnInit, UnsavedChangesAware
     return JSON.stringify({
       ...this.currentDraftValue(),
       orientation: this.orientation.trim(),
+      showOrientationPublicly: this.showOrientationPublicly,
       municipio: this.selectedMunicipio.trim(),
     });
   }

@@ -549,3 +549,16 @@ export function normalizeProfileDiscoveryFields(
       interestedInGenders.length > 0,
   };
 }
+
+export function normalizePublicProfileDiscoveryFields(
+  source: ProfileDiscoverySource & { showOrientationPublicly?: unknown }
+): CanonicalProfileDiscoveryFields {
+  if (source.showOrientationPublicly !== false) return normalizeProfileDiscoveryFields(source);
+  return normalizeProfileDiscoveryFields({
+    ...source,
+    orientation: undefined,
+    sexualOrientation: undefined,
+    orientacao: undefined,
+    orientacaoSexual: undefined,
+  });
+}

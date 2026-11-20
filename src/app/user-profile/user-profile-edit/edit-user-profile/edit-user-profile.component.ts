@@ -15,7 +15,7 @@ import {
 } from 'rxjs/operators';
 
 import { UnsavedChangesAware } from 'src/app/core/guards/unsaved-changes/unsaved-changes.guard';
-import { PROFILE_ORIENTATION_OPTIONS } from 'src/app/core/domain/profile-identity/profile-orientation.catalog';
+import { PROFILE_ORIENTATION_OPTIONS, resolveProfileOrientationOption } from 'src/app/core/domain/profile-identity/profile-orientation.catalog';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
@@ -45,6 +45,7 @@ export class EditUserProfileComponent
   userData: IUserDados = {} as IUserDados;
   readonly editForm: FormGroup;
   readonly orientationOptions = PROFILE_ORIENTATION_OPTIONS;
+  readonly orientationLabel = (code: string) => resolveProfileOrientationOption(code)?.label ?? code;
   readonly identityChangeControl = new FormControl('', { nonNullable: true });
   readonly identityChangeAcknowledged = new FormControl(false, { nonNullable: true });
   identityRequestBusy = false;

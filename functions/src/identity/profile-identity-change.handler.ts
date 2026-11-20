@@ -2,7 +2,7 @@
 // Firestore Rules prohibit any direct client modification of canonical identity.
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { assertStaffAuthorization } from '../account_lifecycle/_shared';
-import { normalizeProfileDiscoveryFields } from '../discovery/profile-discovery-normalization';
+import { normalizePublicProfileDiscoveryFields } from '../discovery/profile-discovery-normalization';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { assertCallableAppCheck } from '../shared/security/callable-app-check';
@@ -142,7 +142,7 @@ export const requestProfileIdentityChange = onCall<{ identityCode?: unknown }>(
       }
 
       // Descoberta não pode manter a classificação antiga após a atualização.
-      const discovery = normalizeProfileDiscoveryFields({
+      const discovery = normalizePublicProfileDiscoveryFields({
         ...user, gender: target,
       });
       const stamp = FieldValue.serverTimestamp();
@@ -262,15 +262,16 @@ export const reviewProfileIdentityChange = onCall<{
           tx.update(userRef, {
             ...patch,
             orientation: '',
+            showOrientationPublicly: false,
             partner1Orientation: FieldValue.delete(),
             partner2Orientation: FieldValue.delete(),
           });
         } else {
           tx.update(userRef, patch);
         }
-        const discovery = normalizeProfileDiscoveryFields({
+        const discovery = normalizePublicProfileDiscoveryFields({
           ...user, gender: previous.requestedIdentityCode,
-          ...(wasCouple !== becomesCouple ? { orientation: '' } : {}),
+          ...(wasCouple !== becomesCouple ? { orientation: '', showOrientationPublicly: false } : {}),
         });
         tx.update(publicRef, {
           normalizedGender: discovery.normalizedGender,

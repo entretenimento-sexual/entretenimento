@@ -90,6 +90,7 @@ describe('PreferenceProfileFormComponent', () => {
     expect(seekingToggle.checked).toBe(false);
     expect(mapped.visibility).toEqual({
       ...profile.visibility,
+      shareConversationPace: false,
       showSeekingPublicly: false,
     });
 
@@ -123,6 +124,7 @@ describe('PreferenceProfileFormComponent', () => {
     );
     expect(mapped.visibility).toEqual({
       ...profile.visibility,
+      shareConversationPace: false,
       showSeekingPublicly: true,
     });
     expect(mapped.hardRules.acceptedGenders).toEqual(['women']);
@@ -204,4 +206,18 @@ describe('PreferenceProfileFormComponent', () => {
 
     fixture.destroy();
   });
+  it('mantém o ritmo privado até a autorização e remove a autorização ao limpar a escolha', () => {
+    const profile = createEmptyPreferenceProfile('u1');
+    const resolve = (conversationPace: string, shareConversationPace?: boolean) =>
+      mapFormValueToPreferenceProfile({ conversationPace, shareConversationPace }, profile, null);
+
+    const privatePace = resolve('talk_first');
+    expect(privatePace.conversationPace).toBe('talk_first');
+    expect(privatePace.visibility.shareConversationPace).toBe(false);
+    expect(resolve('talk_first', true).visibility.shareConversationPace).toBe(true);
+    const cleared = resolve('', true);
+    expect(cleared.conversationPace).toBeNull();
+    expect(cleared.visibility.shareConversationPace).toBe(false);
+  });
+
 });

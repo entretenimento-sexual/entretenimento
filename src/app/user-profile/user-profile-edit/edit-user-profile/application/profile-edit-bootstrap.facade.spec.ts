@@ -7,6 +7,7 @@ describe('ProfileEditBootstrapFacade', () => {
   function setup(input?: {
     uid?: string | null;
     user?: any | null;
+    publicOrientation?: string;
     estados?: any[];
     municipios?: any[];
   }) {
@@ -28,6 +29,7 @@ describe('ProfileEditBootstrapFacade', () => {
           : input.user
       )
     );
+    const getPublicProfileByUid$ = vi.fn(() => of({ orientation: input?.publicOrientation }));
     const loadEstados$ = vi.fn(() =>
       of(input?.estados ?? [{ id: 1, sigla: 'RJ', nome: 'Rio de Janeiro' }])
     );
@@ -43,7 +45,8 @@ describe('ProfileEditBootstrapFacade', () => {
       { getUser } as any,
       { loadEstados$, loadMunicipios$ } as any,
       { showError } as any,
-      { report } as any
+      { report } as any,
+      { getPublicProfileByUid$ } as any
     );
 
     return {
@@ -75,6 +78,14 @@ describe('ProfileEditBootstrapFacade', () => {
     expect(getUser).toHaveBeenCalledWith('u1');
     expect(loadEstados$).toHaveBeenCalledTimes(1);
     expect(loadMunicipios$).toHaveBeenCalledWith('RJ');
+  });
+
+  it('preserva a exibição legada quando a mesma orientação está no perfil público', async () => {
+    const user = { uid: 'u1', orientation: 'assexual' };
+    const published = setup({ user, publicOrientation: 'assexual' });
+    const privateOnly = setup({ user });
+    expect((await firstValueFrom(published.facade.load$())).user.showOrientationPublicly).toBe(true);
+    expect((await firstValueFrom(privateOnly.facade.load$())).user.showOrientationPublicly).toBe(false);
   });
 
   it('redireciona quando a rota não contém uid', () => {

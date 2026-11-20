@@ -37,6 +37,7 @@ export type UserDoc = {
   estado?: string | null;
   gender?: string | null;
   orientation?: string | null;
+  showOrientationPublicly?: boolean;
 
   role?: string | null;
   acceptedTerms?: {
@@ -224,7 +225,7 @@ export function buildPublicProfileSeed(
     municipio: user.municipio ?? null,
     estado: user.estado ?? null,
     gender: user.gender ?? null,
-    orientation: user.orientation ?? null,
+    orientation: user.showOrientationPublicly === false ? null : user.orientation ?? null,
     role: 'free',
     createdAt: now,
     updatedAt: now,

@@ -264,6 +264,7 @@ export interface IUserDados {
   descricao: string;
   /** Autorização explícita do proprietário para exibir a apresentação no perfil visitado. */
   publicDescriptionVisible?: boolean;
+  showOrientationPublicly?: boolean;
 
   // ---------------------------------------------------------------------------
   // Estado de presença / uso

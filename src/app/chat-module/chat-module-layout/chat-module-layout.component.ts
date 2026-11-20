@@ -37,6 +37,7 @@ import {
 
 import { ActivatedRoute } from '@angular/router';
 import {
+  EMPTY,
   Observable,
   of,
 } from 'rxjs';
@@ -69,6 +70,8 @@ import {
   normalizeDirectMessageContent,
   trimDirectMessageContent,
 } from '../policies/direct-chat-composer.policy';
+import { resolveConversationPace } from 'src/app/preferences/catalogs/conversation-pace.catalog';
+import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { DirectChatNavigationOrchestrator } from '../application/direct-chat-navigation.orchestrator';
 import { DirectChatComposeAccessFacade } from '../application/direct-chat-compose-access.facade';
 import { DirectChatSendOrchestrator } from '../application/direct-chat-send.orchestrator';
@@ -95,6 +98,7 @@ export class ChatModuleLayoutComponent implements OnInit {
 
   private readonly navigationOrchestrator = inject(DirectChatNavigationOrchestrator);
   private readonly composeAccessFacade = inject(DirectChatComposeAccessFacade);
+  private readonly directChat = inject(DirectChatService);
   private readonly sendOrchestrator = inject(DirectChatSendOrchestrator);
   private readonly selectionContext = inject(DirectChatSelectionContextFacade);
 
@@ -109,6 +113,53 @@ export class ChatModuleLayoutComponent implements OnInit {
   // ---------------------------------------------------------------------------
 
   readonly isSendingMessage = signal(false);
+  readonly loadingConversationStarter = signal(false);
+  private readonly starterFeedback = signal<{ chatId: string; uid: string; message: string } | null>(null);
+
+  get conversationStarterFeedback(): string {
+    const feedback = this.starterFeedback();
+    return feedback && feedback.chatId === this.selectedChatId &&
+      feedback.uid === this.activeSessionUid ? feedback.message : '';
+  }
+
+  get canRequestConversationStarter(): boolean {
+    return this.selectedType === 'chat' && !!this.selectedChatId && this.canSendCurrentMessage() &&
+      !this.isSendingMessage() && !this.trimmedMessageContent;
+  }
+
+  requestConversationStarter(composer: HTMLTextAreaElement): void {
+    const chatId = this.selectedChatId;
+    const uid = this.activeSessionUid;
+    if (!chatId || !uid || !this.canRequestConversationStarter || this.loadingConversationStarter()) return;
+
+    this.starterFeedback.set(null);
+    this.loadingConversationStarter.set(true);
+    this.directChat.getConversationStarter$(chatId).pipe(
+      take(1),
+      takeUntil(this.selectedChatId$.pipe(filter((id) => id !== chatId))),
+      takeUntil(this.currentUid$.pipe(filter((activeUid) => activeUid !== uid))),
+      takeUntil(this.selectedType$.pipe(filter((type) => type !== 'chat'))),
+      takeUntilDestroyed(this.destroyRef),
+      catchError((error) => {
+        const message = 'Não foi possível buscar uma sugestão agora.';
+        this.starterFeedback.set({ chatId, uid, message });
+        this.reportError(message, error, { op: 'getDirectConversationStarter' }, false);
+        return EMPTY;
+      }),
+      finalize(() => this.loadingConversationStarter.set(false))
+    ).subscribe((pace) => {
+      if (!this.canRequestConversationStarter || this.selectedChatId !== chatId || this.activeSessionUid !== uid) return;
+      const option = resolveConversationPace(pace);
+      this.starterFeedback.set({
+        chatId, uid,
+        message: option ? option.shared + ' Edite a sugestão antes de enviar.' : 'Nenhuma sugestão em comum por enquanto.',
+      });
+      if (option) {
+        this.messageContent = option.starter;
+        composer.focus();
+      }
+    });
+  }
 
   /**
    * Motivo de bloqueio visual/preventivo no compose.
@@ -266,6 +317,7 @@ get shouldShowComposerHelp(): boolean {
             this.activeSessionUid = uid;
             this.pendingSend = null;
             this.messageContent = '';
+            this.starterFeedback.set(null);
             this.selectionContext.clear();
             this.directMessageBlockedReason.set(null);
             this.canSendCurrentMessage.set(false);
@@ -371,6 +423,7 @@ get shouldShowComposerHelp(): boolean {
       )
       .pipe(
         tap((state) => {
+          if (!state.canSendCurrentMessage) this.starterFeedback.set(null);
           this.canSendCurrentMessage.set(state.canSendCurrentMessage);
           this.sendStatusMessageSignal.set(state.statusMessage);
         }),
@@ -407,8 +460,9 @@ get shouldShowComposerHelp(): boolean {
     }
 
     this.directMessageBlockedReason.set(null);
+    this.starterFeedback.set(null);
 
-    this.dbg('onChatSelected()', {
+    this.dbg('onChatSelected()',  {
       selectedChatId: this.selectedChatId,
       selectedType: this.selectedType,
       hasActivePeerUid: !!this.activeChatPeerUid,
@@ -501,6 +555,7 @@ if (this.isMessageTooLong) {
             if (this.pendingSend?.requestId === requestId) this.pendingSend = null;
             this.clearPendingSend(sendingUid, selectedChatId, requestId);
             if (this.messageContent === sendingContent) this.messageContent = '';
+            this.starterFeedback.set(null);
             this.directMessageBlockedReason.set(null);
 
             this.dbg('sendMessage() -> direct orchestrator ok', {

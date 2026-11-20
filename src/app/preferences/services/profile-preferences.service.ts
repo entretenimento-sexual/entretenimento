@@ -68,8 +68,13 @@ export class ProfilePreferencesService {
 
     const [collectionName, docId] = this.splitPath(preferencePaths.profile(userId));
 
+    const { visibility, ...fields } = patch;
+    const visibilityFields = Object.fromEntries(
+      Object.entries(visibility ?? {}).map(([key, value]) => [`visibility.${key}`, value])
+    );
     return this.write.updateDocument(collectionName, docId, {
-      ...patch,
+      ...fields,
+      ...visibilityFields,
       userId,
       updatedAt: Date.now(),
     }).pipe(

@@ -248,6 +248,10 @@ describe('FinalizarCadastroComponent', () => {
       });
       await delayed.whenStable();
       expect(view.querySelector('#gender')).not.toBeNull();
+      delayed.componentInstance.advanceProfileStep();
+      delayed.componentInstance.advanceProfileStep();
+      delayed.detectChanges();
+      await delayed.whenStable();
 
       const estado = view.querySelector<HTMLSelectElement>('#estado')!;
       estado.value = 'RJ';
@@ -295,14 +299,34 @@ describe('FinalizarCadastroComponent', () => {
         await fresh.whenStable();
         fresh.detectChanges();
       };
+      const continueStep = async () => {
+        view.querySelector<HTMLButtonElement>('form button[type="submit"]')!.click();
+        fresh.detectChanges();
+        await fresh.whenStable();
+      };
       await select('gender', 'homem');
-      expect(view.querySelector('h1')?.textContent).toBe('De onde você é?');
-      expect(view.querySelector('#orientation')).not.toBeNull();
+      expect(view.querySelector('#estado, #orientation')).toBeNull();
+      await continueStep();
+      expect(view.querySelector('h1')?.textContent).toBe('Quer acrescentar sua orientação?');
+      expect(view.querySelector('.completion-summary')?.textContent).toContain('Alex · Homem');
+      expect(view.querySelector('#nickname, #gender')).toBeNull();
       expect(view.querySelector('#orientation option[value="assexual"]')?.textContent?.trim()).toBe('Assexual');
+      await select('orientation', 'assexual');
+      const consent = view.querySelector<HTMLInputElement>('[name="showOrientationPublicly"]')!;
+      expect(consent.checked).toBe(false);
+      expect(view.querySelector('.completion-preview')?.textContent).not.toContain('Assexual');
+      consent.click();
+      fresh.detectChanges();
+      expect(view.querySelector('.completion-preview')?.textContent).toContain('Assexual');
+      await select('orientation', '');
+      await continueStep();
+      expect(view.querySelector('h1')?.textContent).toBe('Em que cidade você está?');
       expect(view.querySelector('#municipio')).toBeNull();
       await select('estado', 'RJ');
       expect(view.querySelector('.completion-submit')).toBeNull();
       await select('municipio', 'Rio de Janeiro');
+      expect(view.querySelector('h1')?.textContent).toBe('Em que cidade você está?');
+      await continueStep();
       expect(view.querySelector('h1')?.textContent).toBe('Seu perfil está quase pronto');
       view.querySelector<HTMLButtonElement>('.completion-submit')!.click();
 
@@ -327,9 +351,8 @@ describe('FinalizarCadastroComponent', () => {
       reopened.autoDetectChanges();
       await reopened.whenStable();
       const view = reopened.nativeElement as HTMLElement;
-      expect(view.querySelector<HTMLInputElement>('#nickname')?.value).toBe('Alex');
-      expect(view.querySelector<HTMLInputElement>('#nickname-complement')?.value).toBe('extra');
-      expect(view.querySelector<HTMLSelectElement>('#gender')?.value).toBe('homem');
+      expect(view.querySelector('.completion-summary')?.textContent).toContain('Alex extra · Homem');
+      expect(view.querySelector('#nickname, #gender, #orientation')).toBeNull();
       expect(view.querySelector<HTMLSelectElement>('#estado')?.value).toBe('RJ');
       expect(view.querySelector('#municipio')).not.toBeNull();
       expect(view.querySelector('.completion-submit')).toBeNull();
@@ -350,6 +373,7 @@ describe('FinalizarCadastroComponent', () => {
       nickname: 'tester',
       gender: 'homem',
       orientation: 'homossexual',
+      showOrientationPublicly: false,
       estado: 'RJ',
       municipio: 'Rio de Janeiro',
     });
@@ -636,11 +660,12 @@ describe('FinalizarCadastroComponent', () => {
   });
 
   it('renderiza erros obrigatórios como alertas inline acessíveis', () => {
+    component.editIdentity();
     component.gender = '';
     component.selectedEstado = '';
     component.selectedMunicipio = '';
 
-    component.onSubmit();
+    component.advanceProfileStep();
     fixture.detectChanges();
 
     const errors = Array.from(
@@ -669,6 +694,7 @@ describe('FinalizarCadastroComponent', () => {
   });
 
   it('move o foco para o primeiro campo inválido ao submeter o perfil incompleto', async () => {
+    component.editIdentity();
     component.needsNickname = true;
     component.nickname = '';
     component.gender = '';

@@ -29,6 +29,7 @@ import {
   filter,
 } from 'rxjs/operators';
 
+import type { ConversationPace } from 'src/app/preferences/catalogs/conversation-pace.catalog';
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 
 import { ChatService } from '@core/services/batepapo/chat-service/chat.service';
@@ -53,6 +54,16 @@ interface EnsureDirectChatResponse {
 
 @Injectable({ providedIn: 'root' })
 export class DirectChatService {
+  private readonly getConversationStarterCallable = httpsCallable<
+    { chatId: string }, { pace: ConversationPace | null }
+  >(this.functions, 'getDirectConversationStarter');
+
+  getConversationStarter$(chatId: string): Observable<ConversationPace | null> {
+    return defer(() => from(this.getConversationStarterCallable({ chatId }))).pipe(
+      map(({ data }) => data.pace)
+    );
+  }
+
   private readonly ensureDirectChatCallable = httpsCallable<
     EnsureDirectChatPayload,
     EnsureDirectChatResponse
