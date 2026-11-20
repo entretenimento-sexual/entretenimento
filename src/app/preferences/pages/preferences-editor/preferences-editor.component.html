@@ -24,8 +24,11 @@
     @if (state$ | async; as state) {
       <details class="availability-section app-disclosure">
         <summary class="app-disclosure__summary">
-          <strong class="app-disclosure__title">Editar disponibilidade</strong>
-          <span class="app-disclosure__state">{{ intentSummary(state.intent) }}</span>
+          <strong class="availability-section__title app-disclosure__title">
+            <i class="fa-regular fa-clock availability-section__icon" aria-hidden="true"></i>
+            <span>Editar disponibilidade</span>
+          </strong>
+          <span class="availability-section__state app-disclosure__state">{{ intentSummary(state.intent) }}</span>
         </summary>
 
         <div class="availability-section__content app-disclosure__content">

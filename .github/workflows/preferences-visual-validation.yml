@@ -231,14 +231,14 @@ jobs:
                 shellWidth: shellRect?.width ?? 0,
                 gridDisplay: gridStyle?.display ?? '',
                 gridColumns: gridStyle?.gridTemplateColumns?.split(/\\s+/).filter(Boolean).length ?? 0,
-                stacked: rects.length === 2 ? rects[1].top >= rects[0].bottom - 1 : false,
+                firstRowAligned: rects.length === 2 ? Math.abs(rects[0].top - rects[1].top) <= 2 : false,
                 minTouchHeight: rects.length ? Math.min(...rects.map((rect) => rect.height)) : 0,
               };
             });
             console.log(JSON.stringify(metrics));
             if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Free mobile has horizontal overflow');
             if (metrics.shellWidth < metrics.viewportWidth * 0.85) throw new Error('Free mobile editor does not use the available width');
-            if (metrics.gridDisplay !== 'grid' || metrics.gridColumns !== 1 || !metrics.stacked) throw new Error('Nested preference grid did not collapse to one column on mobile');
+            if (metrics.gridDisplay !== 'grid' || metrics.gridColumns !== 2 || !metrics.firstRowAligned) throw new Error('The main preference grid must fit two columns at 390px');
             if (metrics.minTouchHeight < 44) throw new Error('Mobile preference options lost the minimum touch height');
             return metrics;
           }"
@@ -253,7 +253,8 @@ jobs:
             await summary.click();
             await page.getByLabel('Encontros', { exact: true }).check();
             await page.getByRole('radio', { name: 'Dar prioridade' }).check();
-            if (!(await page.locator('#relationshipIntentModeHelp').textContent()).includes('Outros perfis podem aparecer')) throw new Error('The priority mode does not explain what it does');
+            await page.waitForFunction(() => document.querySelector('#relationshipIntentModeHelp')
+              ?.textContent?.includes('Outros perfis podem aparecer'));
             await page.locator('#minAge').fill('17');
             const submit = page.locator('.preference-profile-form button[type=submit]');
             if (await submit.isDisabled()) throw new Error('Invalid dirty form hides the action needed to disclose validation feedback');

@@ -14,6 +14,56 @@
   min-width: 0;
 }
 
+.preference-group--primary {
+  --preference-panel-padding: clamp(0.875rem, 2vw, 1.25rem);
+}
+
+.preference-group--primary .preference-group__summary {
+  padding-inline: var(--preference-panel-padding);
+  background: color-mix(in oklab, var(--primary-color) 4%, var(--surface-color));
+}
+
+.preference-group--primary .preference-group__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1, 8px);
+  font-size: 1rem;
+}
+
+.preference-group__icon {
+  flex: none;
+  width: 1.25rem;
+  color: var(--primary-color);
+  text-align: center;
+}
+
+.preference-group--primary .preference-group__content {
+  padding: var(--preference-panel-padding);
+}
+
+.preference-group--primary .checkbox-grid .app-choice,
+.matching-mode__choices .app-choice {
+  background-color: color-mix(in oklab, var(--text-color) 3%, var(--surface-color));
+}
+
+.preference-group--primary .checkbox-grid .app-choice:has(input:checked),
+.matching-mode__choices .app-choice:has(input:checked) {
+  border-color: color-mix(in oklab, var(--primary-color) 68%, var(--surface-border));
+  background-color: color-mix(in oklab, var(--primary-color) 10%, var(--surface-color));
+  color: var(--text-color);
+  font-weight: 700;
+}
+
+@media (min-width: 375px) and (max-width: 640px) {
+  .preference-group--primary .checkbox-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .preference-group--primary .checkbox-grid .app-choice span {
+    overflow-wrap: anywhere;
+  }
+}
+
 .preference-subgroup__title {
   color: var(--text-color);
   font-weight: 900;
@@ -177,8 +227,11 @@
   position: sticky;
   z-index: 3;
   bottom: 0;
-  background: color-mix(in oklab, var(--background-color) 92%, transparent);
-  backdrop-filter: blur(10px);
+  padding-inline: var(--space-2, 12px);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--app-card-radius-compact, 14px);
+  background: var(--surface-color);
+  box-shadow: 0 6px 20px color-mix(in oklab, var(--text-color) 10%, transparent);
 }
 
 .form-actions .app-action {

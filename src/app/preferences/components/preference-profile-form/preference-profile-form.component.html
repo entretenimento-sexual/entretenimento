@@ -6,9 +6,12 @@
   aria-label="Preferências pessoais"
   formInvalidMessage="Revise as escolhas destacadas antes de salvar."
 >
-  <details class="preference-group app-disclosure" open>
+  <details class="preference-group preference-group--primary app-disclosure" open>
     <summary class="preference-group__summary app-disclosure__summary">
-      <strong class="preference-group__title app-disclosure__title">O que você procura</strong>
+      <strong class="preference-group__title app-disclosure__title">
+        <i class="fa-solid fa-compass preference-group__icon" aria-hidden="true"></i>
+        <span>O que você procura</span>
+      </strong>
       <span class="preference-group__count app-disclosure__state">{{ selectionLabel(selectedCount('ri', relationshipIntentOptions)) }}</span>
     </summary>
     <div class="preference-group__content app-disclosure__content">
@@ -40,9 +43,12 @@
     </div>
   </details>
 
-  <details class="preference-group app-disclosure" open>
+  <details class="preference-group preference-group--primary app-disclosure" open>
     <summary class="preference-group__summary app-disclosure__summary">
-      <strong class="preference-group__title app-disclosure__title">Quem você gostaria de conhecer?</strong>
+      <strong class="preference-group__title app-disclosure__title">
+        <i class="fa-solid fa-user-group preference-group__icon" aria-hidden="true"></i>
+        <span>Quem você gostaria de conhecer?</span>
+      </strong>
       <span class="preference-group__count app-disclosure__state">{{ selectionLabel(selectedCount('gi', genderInterestOptions)) }}</span>
     </summary>
     <div class="preference-group__content app-disclosure__content">
