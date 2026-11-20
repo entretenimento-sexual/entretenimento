@@ -46,6 +46,7 @@ import { buildAuthRetryTree, buildRedirectTree } from '@core/guards/_shared-guar
 import { RegisterFlowFacade } from './register-flow.facade';
 import {
   isRegistrationStepRoute,
+  resolveRegistrationReturnUrl,
   RegisterFlowStep,
   RegisterFlowVm,
 } from './register-flow.model';
@@ -66,30 +67,6 @@ function getAllowedSteps(raw: unknown): RegisterFlowStep[] {
   return Array.isArray(raw)
     ? raw.filter((step): step is RegisterFlowStep => typeof step === 'string')
     : [];
-}
-
-function resolveSafeRedirectTo(router: Router, currentUrl: string): string | null {
-  try {
-    const raw = String(
-      router.parseUrl(currentUrl).queryParams?.['redirectTo'] ?? ''
-    ).trim();
-
-    if (
-      !raw ||
-      !raw.startsWith('/') ||
-      raw.startsWith('//') ||
-      raw.startsWith('/login') ||
-      raw.startsWith('/register') ||
-      raw.startsWith('/adulto/verificar-idade') ||
-      raw.startsWith('/adulto/confirmar')
-    ) {
-      return null;
-    }
-
-    return raw;
-  } catch {
-    return null;
-  }
 }
 
 function buildTargetTree(
@@ -138,11 +115,14 @@ function resolveGuardResult(
     return true;
   }
 
-  return buildTargetTree(
-    router,
-    target,
-    resolveSafeRedirectTo(router, currentUrl)
+  const requested = resolveRegistrationReturnUrl(
+    router.parseUrl(currentUrl).queryParamMap.get('redirectTo')
   );
+  if (vm.currentStep === 'preferences' && requested) {
+    return router.parseUrl(requested);
+  }
+
+  return buildTargetTree(router, target, requested);
 }
 
 export const registrationStepGuard: CanActivateFn = (

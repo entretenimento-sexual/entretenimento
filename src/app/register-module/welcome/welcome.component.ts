@@ -26,7 +26,9 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { environment } from 'src/environments/environment';
 
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
-import { RegisterFlowVm } from '../data-access/register-flow.model';
+import {
+  isRegistrationStepRoute, resolveRegistrationReturnUrl, type RegisterFlowVm,
+} from '../data-access/register-flow.model';
 
 type UiBannerVariant = 'info' | 'warn' | 'error' | 'success';
 type VerificationEmailDeliveryState = 'sent' | 'failed' | 'unknown';
@@ -563,11 +565,18 @@ export class WelcomeComponent implements OnInit {
   }
 
   private resolveTargetRoute(vm: RegisterFlowVm): string {
-    if (vm.currentStep === 'profileCompletion' && vm.uid) {
-      return `/register/finalizar-cadastro?reason=profile_incomplete&redirectTo=${encodeURIComponent(`/preferencias/editar/${vm.uid}`)}`;
-    }
+    const params = this.router.parseUrl(this.router.url).queryParamMap;
+    const redirectTo = resolveRegistrationReturnUrl(params.get('redirectTo'));
+    if (vm.currentStep === 'preferences') return redirectTo ?? vm.nextRoute;
 
-    return vm.nextRoute;
+    const target = this.router.parseUrl(vm.nextRoute);
+    if (vm.currentStep === 'profileCompletion') {
+      target.queryParams['reason'] = 'profile_incomplete';
+    }
+    if (redirectTo && isRegistrationStepRoute(vm.nextRoute)) {
+      target.queryParams['redirectTo'] ??= redirectTo;
+    }
+    return this.router.serializeUrl(target);
   }
 
   private startPolling(): void {

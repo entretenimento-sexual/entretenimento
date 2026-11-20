@@ -42,6 +42,8 @@ import {
 import { PushNotificationDeviceService } from './core/services/notifications/push-notification-device.service';
 import { PublicVideoSwipeFeedbackService } from './media/videos/public-video-viewer/public-video-swipe-feedback.service';
 
+import { LocalDraftService } from './core/services/drafts/local-draft.service';
+
 registerLocaleData(localePt, 'pt-BR');
 
 @NgModule({
@@ -68,6 +70,7 @@ registerLocaleData(localePt, 'pt-BR');
     },
     ErrorNotificationService,
     { provide: LOCALE_ID, useValue: 'pt-BR' },
+    provideAppInitializer(() => inject(LocalDraftService).migrateProfileCompletionDrafts()),
     provideAppInitializer(() => {
       inject(PublicVideoSwipeFeedbackService).start();
     }),

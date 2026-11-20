@@ -33,6 +33,7 @@ type SafeJsonValue =
   | null;
 
 const STORAGE_PREFIX = 'entretenimento:draft:v1:';
+const PROFILE_COMPLETION_PREFIX = 'profile-completion:';
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_SERIALIZED_BYTES = 32 * 1024;
@@ -64,7 +65,8 @@ export class LocalDraftService {
       version: 1,
       savedAt: now,
       expiresAt: now + this.normalizeTtl(ttlMs),
-      value: safeValue,
+      value: normalizedKey.startsWith(PROFILE_COMPLETION_PREFIX)
+        ? this.profileCompletionFields(safeValue) : safeValue,
     };
     const serialized = JSON.stringify(envelope);
 
@@ -110,6 +112,24 @@ export class LocalDraftService {
         return null;
       }
 
+      if (normalizedKey.startsWith(PROFILE_COMPLETION_PREFIX)) {
+        const fields = this.profileCompletionFields(parsed.value);
+        const originalKeys = Object.keys(parsed.value);
+        if (originalKeys.length !== Object.keys(fields).length ||
+            originalKeys.some(field => parsed.value?.[field] !== fields[field])) {
+          // Reescreve apenas os campos permitidos, preservando o prazo original.
+          const sanitized = JSON.stringify({
+            version: 1,
+            savedAt: parsed.savedAt,
+            expiresAt,
+            value: fields,
+          });
+          this.delete(storageKey);
+          this.write(storageKey, sanitized);
+        }
+        return fields as T;
+      }
+
       const safeValue = this.toSafeJsonValue(parsed.value);
       return this.isSafeRecord(safeValue)
         ? safeValue as T
@@ -132,6 +152,30 @@ export class LocalDraftService {
     } finally {
       this.emit(normalizedKey, action);
     }
+  }
+
+  migrateProfileCompletionDrafts(): void {
+    const prefix = STORAGE_PREFIX + PROFILE_COMPLETION_PREFIX;
+
+    try {
+      // Copia as chaves porque load também pode remover rascunhos vencidos.
+      const legacyKeys: string[] = [];
+      for (let index = 0; index < localStorage.length; index++) {
+        const key = localStorage.key(index);
+        if (key?.startsWith(prefix)) legacyKeys.push(key.slice(STORAGE_PREFIX.length));
+      }
+      legacyKeys.forEach(key => this.load(key));
+    } catch {
+      // A migração volta a ser tentada quando o rascunho for lido.
+    }
+  }
+
+  private profileCompletionFields(value: Record<string, unknown>): Record<string, string> {
+    return {
+      nickname: typeof value['nickname'] === 'string' ? value['nickname'] : '',
+      gender: typeof value['gender'] === 'string' ? value['gender'] : '',
+      estado: typeof value['estado'] === 'string' ? value['estado'] : '',
+    };
   }
 
   private normalizeKey(value: unknown): string {

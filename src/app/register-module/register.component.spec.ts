@@ -206,6 +206,53 @@ describe('RegisterComponent', () => {
     }
   });
 
+  it('mantém o prazo original ao recarregar antes e depois da confirmação do envio', () => {
+    const original = { ...environment };
+    Object.assign(environment, {
+      production: false,
+      useEmulators: true,
+      features: { ...environment.features, emailFirstSignupPreview: true },
+    });
+    vi.useFakeTimers();
+    let preview = TestBed.createComponent(RegisterComponent);
+
+    try {
+      const request = vi.mocked(TestBed.inject(EmailLinkRegistrationService).requestLink$);
+      request.mockReturnValueOnce(new Subject<void>());
+      const submitButton = () => preview.nativeElement.querySelector('button[type=submit]') as HTMLButtonElement;
+      const reload = () => {
+        preview.destroy();
+        preview = TestBed.createComponent(RegisterComponent);
+        preview.detectChanges();
+      };
+
+      preview.componentInstance.form.patchValue({ email: 'teste@example.com' });
+      preview.componentInstance.submitSection();
+      vi.advanceTimersByTime(12_000);
+      reload();
+      expect(submitButton().disabled).toBe(true);
+      expect(submitButton().textContent).toContain('Enviar em 18 s');
+      preview.componentInstance.submitSection();
+      expect(request).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(18_000);
+      preview.detectChanges();
+      expect(submitButton().disabled).toBe(false);
+      preview.componentInstance.submitSection();
+      vi.advanceTimersByTime(7_000);
+      reload();
+      expect(submitButton().disabled).toBe(true);
+      expect(submitButton().textContent).toContain('Reenviar em 23 s');
+      vi.advanceTimersByTime(23_000);
+      preview.detectChanges();
+      expect(submitButton().disabled).toBe(false);
+    } finally {
+      preview.destroy();
+      vi.useRealTimers();
+      Object.assign(environment, original);
+    }
+  });
+
   it('retoma a segunda etapa após refresh sem guardar senha nem aceites', () => {
     component.form.patchValue({ apelidoPrincipal: 'visualteste', complementoApelido: 'RJ' });
     component.onNicknameBlur();

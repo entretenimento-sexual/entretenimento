@@ -284,7 +284,7 @@ describe('FinalizarCadastroComponent', () => {
       'Perfil finalizado com sucesso!'
     );
     expect(router.navigateByUrl).toHaveBeenCalledWith(
-      '/perfil/u1',
+      '/preferencias/editar',
       { replaceUrl: true }
     );
     expect(component.hasUnsavedChanges()).toBe(false);
@@ -435,7 +435,7 @@ describe('FinalizarCadastroComponent', () => {
     expect(component.profileSaved).toBe(true);
     expect(component.isSubmitting).toBe(false);
     expect(errorNotificationMock.showSuccess).toHaveBeenCalledOnce();
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/perfil/u1', { replaceUrl: true });
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/preferencias/editar', { replaceUrl: true });
   });
 
   it('mantém o rascunho se a leitura de confirmação falhar', () => {
@@ -450,9 +450,10 @@ describe('FinalizarCadastroComponent', () => {
     component.onSubmit();
 
     expect(component.message).toContain('Ainda não foi possível confirmar se o perfil foi salvo');
-    expect(TestBed.inject(LocalDraftService).load('profile-completion:u1')).toMatchObject({
-      orientation: 'bissexual',
-    });
+    const savedDraft = TestBed.inject(LocalDraftService).load('profile-completion:u1');
+    expect(savedDraft).toEqual({ nickname: '', gender: 'homem', estado: 'RJ' });
+    expect(component.orientation).toBe('bissexual');
+    expect(component.selectedMunicipio).toBe('Rio de Janeiro');
     expect(component.isSubmitting).toBe(false);
     expect(currentUserStoreMock.patch).not.toHaveBeenCalled();
   });

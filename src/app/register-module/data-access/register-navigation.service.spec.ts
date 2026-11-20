@@ -42,6 +42,6 @@ describe('RegisterNavigationService / onboarding 18+ e Termos', () => {
     const state = { ...ready, adultConsentAccepted: false } as RegisterFlowAccessState;
     const vm = service.resolveVm(state);
     expect(vm.currentStep).toBe('preferences');
-    expect(vm.nextRoute).toBe('/preferencias/editar/u1');
+    expect(vm.nextRoute).toBe('/preferencias/editar');
   });
 });

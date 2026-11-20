@@ -37,7 +37,7 @@ import {
   isRegistrationSessionChange,
   REGISTRATION_ACTION_TIMEOUT_MS,
 } from '../data-access/register-action.policy';
-import { RegisterFlowVm } from '../data-access/register-flow.model';
+import { REGISTRATION_COMPLETION_ROUTE, resolveRegistrationReturnUrl, type RegisterFlowVm } from '../data-access/register-flow.model';
 import { RegisterProgressComponent } from '../register-progress/register-progress.component';
 
 @Component({
@@ -241,7 +241,7 @@ export class TermsAcceptancePageComponent {
         if (this.currentUser.getLoggedUserUIDSnapshot() !== uid) {
           throw Object.assign(new Error('A sessão mudou.'), { code: 'auth/session-changed' });
         }
-        return this.router.navigateByUrl(this.resolveNextRoute(vm, uid), { replaceUrl: true });
+        return this.router.navigateByUrl(this.resolveNextRoute(vm), { replaceUrl: true });
       }).pipe(timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }))),
       tap((navigated) => {
         if (!navigated || this.router.url.split(/[?#]/)[0] === '/register/aceitar-termos') {
@@ -272,9 +272,8 @@ export class TermsAcceptancePageComponent {
     });
   }
 
-  private resolveNextRoute(vm: RegisterFlowVm, uid: string): string {
-    const redirectTo = this.resolveSafeRedirectTo();
-    const preferencesRoute = `/preferencias/editar/${encodeURIComponent(uid)}`;
+  private resolveNextRoute(vm: RegisterFlowVm): string {
+    const redirectTo = resolveRegistrationReturnUrl(this.route.snapshot.queryParamMap.get('redirectTo'));
 
     switch (vm.currentStep) {
       case 'emailVerification':
@@ -282,7 +281,7 @@ export class TermsAcceptancePageComponent {
 
       case 'profileCompletion':
         return this.buildProfileCompletionRoute(
-          redirectTo ?? preferencesRoute
+          redirectTo ?? REGISTRATION_COMPLETION_ROUTE
         );
 
       case 'ageVerification':
@@ -291,7 +290,7 @@ export class TermsAcceptancePageComponent {
           : '/adulto/verificar-idade';
 
       case 'preferences':
-        return redirectTo ?? vm.nextRoute ?? preferencesRoute;
+        return redirectTo ?? vm.nextRoute ?? REGISTRATION_COMPLETION_ROUTE;
 
       case 'loading':
       case 'signup':
@@ -300,31 +299,12 @@ export class TermsAcceptancePageComponent {
         return vm.nextRoute && vm.nextRoute !== '/register/aceitar-termos'
           ? vm.nextRoute
           : this.buildProfileCompletionRoute(
-              redirectTo ?? preferencesRoute
+              redirectTo ?? REGISTRATION_COMPLETION_ROUTE
             );
     }
   }
 
   private buildProfileCompletionRoute(redirectTo: string): string {
     return `/register/finalizar-cadastro?reason=profile_incomplete&redirectTo=${encodeURIComponent(redirectTo)}`;
-  }
-
-  private resolveSafeRedirectTo(): string | null {
-    const value = String(
-      this.route.snapshot.queryParamMap.get('redirectTo') ?? ''
-    ).trim();
-
-    if (
-      !value ||
-      !value.startsWith('/') ||
-      value.startsWith('//') ||
-      value.startsWith('/login') ||
-      value.startsWith('/register') ||
-      value.startsWith('/adulto/confirmar')
-    ) {
-      return null;
-    }
-
-    return value;
   }
 }

@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { EMAIL_LINK_PASSWORD_ROUTE } from '../../core/services/autentication/register/email-link-registration.service';
 
 import {
+  REGISTRATION_COMPLETION_ROUTE,
   RegisterFlowAccessState,
   RegisterFlowVm,
 } from './register-flow.model';
@@ -145,7 +146,7 @@ export class RegisterNavigationService {
       uid,
       email,
       currentStep: 'preferences',
-      nextRoute: `/preferencias/editar/${uid}`,
+      nextRoute: REGISTRATION_COMPLETION_ROUTE,
       progress: 90,
       canContinue: true,
       primaryActionLabel: 'Ajustar preferências',

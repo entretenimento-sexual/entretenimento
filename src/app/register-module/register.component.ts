@@ -42,7 +42,7 @@ import {
 import { toObservable, toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { REGISTRATION_ACTION_TIMEOUT_MS } from './data-access/register-action.policy';
 import {
-  clearSignupDraft, readSignupDraft, writeSignupDraft, type SignupLinkConfirmation,
+  clearSignupDraft, EMAIL_LINK_WAIT_SECONDS, readSignupDraft, writeSignupDraft, type SignupLinkConfirmation,
 } from './data-access/signup-draft.storage';
 
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
@@ -106,7 +106,6 @@ const EMAIL_LINK_SECTION = {
   groupError: null,
 } as const;
 
-const EMAIL_LINK_WAIT_SECONDS = 30;
 
 const EMAIL_LINK_CONFIRMATION = {
   requested: {
@@ -248,6 +247,7 @@ export class RegisterComponent {
   readonly adultDeclarationText = ADULT_SELF_DECLARATION_TEXT_PT_BR;
   protected readonly sendingLink = signal(false);
   private readonly resendSeconds = signal(0);
+  private resendAt = 0;
   protected readonly resendCooldown = computed(() => this.resendSeconds() > 0);
   private readonly emailLinkConfirmation = signal<SignupLinkConfirmation | null>(null);
   private recoveryDraftEmail = '';
@@ -328,6 +328,7 @@ export class RegisterComponent {
     if (this.emailLinkPreview) {
       // Um reenvio pode recuperar um rascunho antigo para o mesmo endereço.
       this.recoveryDraftEmail = draft.email.trim().toLowerCase();
+      if (draft.resendAt) this.startResendCooldown(draft.resendAt);
       if (!this.opensEmailStep && this.form.get('email')?.valid && draft.linkConfirmation) {
         this.emailLinkConfirmation.set(draft.linkConfirmation);
       }
@@ -359,6 +360,7 @@ export class RegisterComponent {
       complementoApelido: keepNickname ? String(complementoApelido ?? '') : '',
       email: draftEmail,
       ...(this.waitingForEmailLink() && linkConfirmation ? { linkConfirmation } : {}),
+      ...(this.emailLinkPreview && this.resendAt > Date.now() ? { resendAt: this.resendAt } : {}),
     });
   }
 
@@ -792,13 +794,9 @@ export class RegisterComponent {
     this.sendingLink.set(true);
     this.emailLinkNotice.set(null);
     this.banner.set(null);
-    this.resendSeconds.set(EMAIL_LINK_WAIT_SECONDS);
-    const resendAt = Date.now() + EMAIL_LINK_WAIT_SECONDS * 1_000;
-    timer(1_000, 1_000).pipe(
-      map(() => Math.max(0, Math.ceil((resendAt - Date.now()) / 1_000))),
-      takeWhile(seconds => seconds > 0, true),
-      takeUntilDestroyed(this.destroyRef),
-    ).subscribe(seconds => this.resendSeconds.set(seconds));
+    // Fechar ou recarregar a aba durante o envio mantém o mesmo prazo.
+    this.startResendCooldown(Date.now() + EMAIL_LINK_WAIT_SECONDS * 1_000);
+    this.saveSignupDraft();
     const savedNickname = NicknameUtils.montarApelidoCompleto(
       String(this.form.get('apelidoPrincipal')?.value ?? ''),
       String(this.form.get('complementoApelido')?.value ?? '')
@@ -819,6 +817,16 @@ export class RegisterComponent {
         this.showEmailLinkConfirmation('unconfirmed');
       },
     });
+  }
+
+  private startResendCooldown(resendAt: number): void {
+    this.resendAt = resendAt;
+    timer(1_000, 1_000).pipe(
+      startWith(0),
+      map(() => Math.max(0, Math.ceil((resendAt - Date.now()) / 1_000))),
+      takeWhile(seconds => seconds > 0, true),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(seconds => this.resendSeconds.set(seconds));
   }
 
   private showEmailLinkConfirmation(status: SignupLinkConfirmation): void {

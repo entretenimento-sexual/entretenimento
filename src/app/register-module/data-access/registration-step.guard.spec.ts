@@ -49,8 +49,13 @@ describe('registrationStepGuard / adult consent retired', () => {
       '/adulto/verificar-idade?redirectTo=%2Fdashboard%2Fprincipal');
   });
   it('direciona perfis completos às preferências',async()=>{
-    currentVm=makeVm('preferences','/preferencias/editar/u1');
+    currentVm=makeVm('preferences','/preferencias/editar');
     const result=await runGuard('/register/finalizar-cadastro');
-    expect(router.serializeUrl(result as UrlTree)).toBe('/preferencias/editar/u1');
+    expect(router.serializeUrl(result as UrlTree)).toBe('/preferencias/editar');
+  });
+  it('preserva o destino explícito quando o perfil já foi salvo antes da interrupção',async()=>{
+    currentVm=makeVm('preferences','/preferencias/editar');
+    const result=await runGuard('/register/finalizar-cadastro?redirectTo=%2Ffriends');
+    expect(router.serializeUrl(result as UrlTree)).toBe('/friends');
   });
 });

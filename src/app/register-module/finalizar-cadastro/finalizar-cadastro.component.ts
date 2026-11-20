@@ -47,7 +47,7 @@ import {
 import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
 import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
-import { RegisterFlowVm } from '../data-access/register-flow.model';
+import { REGISTRATION_COMPLETION_ROUTE, resolveRegistrationReturnUrl, type RegisterFlowVm } from '../data-access/register-flow.model';
 import { ProfileCompletionFacade } from '../data-access/profile-completion.facade';
 import {
   isRegistrationConfirmationUncertain,
@@ -67,9 +67,7 @@ type ReportableError = Error | HttpErrorResponse;
 type ProfileCompletionDraft = {
   nickname: string;
   gender: string;
-  orientation: string;
   estado: string;
-  municipio: string;
 };
 
 @Component({
@@ -397,38 +395,9 @@ implements OnInit, UnsavedChangesAware
     this.onDraftChange();
   }
 
-  private resolveSafeRedirectTo(): string | null {
-    const raw = String(
-      this.route.snapshot.queryParamMap.get('redirectTo') ?? ''
-    ).trim();
-
-    if (
-      !raw ||
-      !raw.startsWith('/') ||
-      raw.startsWith('//') ||
-      raw.startsWith('/login') ||
-      raw.startsWith('/register') ||
-      raw.startsWith('/adulto/confirmar')
-    ) {
-      return null;
-    }
-    return raw;
-  }
-
-  private getRedirectToAfterCompletion(uid: string): string {
-    const vm = this.latestVm;
-    const redirectTo = this.resolveSafeRedirectTo();
-
-    // Cadastro concluído não exige aceite adulto independente.
-    if (redirectTo) return redirectTo;
-    if (
-      vm?.uid === uid &&
-      vm.nextRoute &&
-      vm.nextRoute !== '/register/finalizar-cadastro'
-    ) {
-      return vm.nextRoute;
-    }
-    return `/perfil/${uid}`;
+  private getRedirectToAfterCompletion(): string {
+    return resolveRegistrationReturnUrl(this.route.snapshot.queryParamMap.get('redirectTo')) ??
+      REGISTRATION_COMPLETION_ROUTE;
   }
 
   private canSubmitProfileCompletion(): boolean {
@@ -588,7 +557,7 @@ implements OnInit, UnsavedChangesAware
           this.localDraft.remove(this.draftKey);
           this.initialDraftSnapshot = this.currentDraftSnapshot();
           this.avatarFile = null;
-          this.savedProfileDestination = { uid, target: this.getRedirectToAfterCompletion(uid) };
+          this.savedProfileDestination = { uid, target: this.getRedirectToAfterCompletion() };
           if (!this.uploadMessage) this.continueAfterProfileSave();
         },
       });
@@ -782,9 +751,8 @@ implements OnInit, UnsavedChangesAware
         this.nickname = NicknameUtils.normalizarApelido(draft.nickname);
       }
       this.gender = String(draft.gender ?? '');
-      this.orientation = String(draft.orientation ?? '');
-      this.selectedEstado = String(draft.estado ?? '');
-      this.selectedMunicipio = String(draft.municipio ?? '');
+      if (draft.estado !== this.selectedEstado) this.selectedMunicipio = '';
+      this.selectedEstado = draft.estado;
     }
     this.draftReady = true;
   }
@@ -805,14 +773,17 @@ implements OnInit, UnsavedChangesAware
         ? NicknameUtils.normalizarApelido(this.nickname)
         : '',
       gender: String(this.gender ?? '').trim(),
-      orientation: String(this.orientation ?? '').trim(),
       estado: String(this.selectedEstado ?? '').trim(),
-      municipio: String(this.selectedMunicipio ?? '').trim(),
     };
   }
 
   private currentDraftSnapshot(): string {
-    return JSON.stringify(this.currentDraftValue());
+    // O alerta de alterações inclui os campos que só existem no formulário.
+    return JSON.stringify({
+      ...this.currentDraftValue(),
+      orientation: this.orientation.trim(),
+      municipio: this.selectedMunicipio.trim(),
+    });
   }
 
   private resolveEntryContext(): void {

@@ -21,7 +21,7 @@ import { LogoutService } from 'src/app/core/services/autentication/auth/logout.s
 import { RegistrationRecoveryService } from 'src/app/core/services/autentication/register/registration-recovery.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
-import { RegisterFlowVm } from '../data-access/register-flow.model';
+import { REGISTRATION_COMPLETION_ROUTE, resolveRegistrationReturnUrl, type RegisterFlowVm } from '../data-access/register-flow.model';
 import {
   isRegistrationConfirmationUncertain,
   isRegistrationSessionChange,
@@ -115,7 +115,7 @@ export class AccountRecoveryPageComponent implements OnInit {
             ),
             take(1),
             timeout({ first: this.FLOW_RESOLUTION_TIMEOUT_MS }),
-            map((vm) => this.resolveNextRoute(vm, user.uid))
+            map((vm) => this.resolveNextRoute(vm))
           );
         }),
         switchMap((target) => {
@@ -181,16 +181,15 @@ export class AccountRecoveryPageComponent implements OnInit {
     return this.session.currentAuthUser?.uid === uid && !this.session.isTerminatingSnapshot;
   }
 
-  private resolveNextRoute(vm: RegisterFlowVm, uid: string): string {
-    const redirectTo = this.resolveSafeRedirectTo();
-    const preferencesRoute = `/preferencias/editar/${encodeURIComponent(uid)}`;
+  private resolveNextRoute(vm: RegisterFlowVm): string {
+    const redirectTo = resolveRegistrationReturnUrl(this.route.snapshot.queryParamMap.get('redirectTo'));
 
     switch (vm.currentStep) {
       case 'emailVerification':
         return '/register/welcome?autocheck=1';
 
       case 'termsAcceptance':
-        return this.buildTermsRoute(redirectTo ?? preferencesRoute);
+        return this.buildTermsRoute(redirectTo ?? REGISTRATION_COMPLETION_ROUTE);
 
       case 'ageVerification':
         return redirectTo
@@ -199,11 +198,11 @@ export class AccountRecoveryPageComponent implements OnInit {
 
       case 'profileCompletion':
         return this.buildProfileCompletionRoute(
-          redirectTo ?? preferencesRoute
+          redirectTo ?? REGISTRATION_COMPLETION_ROUTE
         );
 
       case 'preferences':
-        return redirectTo ?? vm.nextRoute ?? preferencesRoute;
+        return redirectTo ?? vm.nextRoute ?? REGISTRATION_COMPLETION_ROUTE;
 
       case 'loading':
       case 'signup':
@@ -211,7 +210,7 @@ export class AccountRecoveryPageComponent implements OnInit {
       default:
         return vm.nextRoute && vm.nextRoute !== '/register/recuperar-conta'
           ? vm.nextRoute
-          : this.buildTermsRoute(redirectTo ?? preferencesRoute);
+          : this.buildTermsRoute(redirectTo ?? REGISTRATION_COMPLETION_ROUTE);
     }
   }
 
@@ -243,24 +242,5 @@ export class AccountRecoveryPageComponent implements OnInit {
 
   private buildProfileCompletionRoute(redirectTo: string): string {
     return `/register/finalizar-cadastro?reason=profile_incomplete&redirectTo=${encodeURIComponent(redirectTo)}`;
-  }
-
-  private resolveSafeRedirectTo(): string | null {
-    const value = String(
-      this.route.snapshot.queryParamMap.get('redirectTo') ?? ''
-    ).trim();
-
-    if (
-      !value ||
-      !value.startsWith('/') ||
-      value.startsWith('//') ||
-      value.startsWith('/login') ||
-      value.startsWith('/register') ||
-      value.startsWith('/adulto/confirmar')
-    ) {
-      return null;
-    }
-
-    return value;
   }
 }

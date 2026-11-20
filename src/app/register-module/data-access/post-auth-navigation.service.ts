@@ -16,7 +16,7 @@ import type { LoginResult } from 'src/app/core/services/autentication/login.serv
 import { hasAcceptedCurrentTerms } from 'src/app/core/services/compliance/terms-acceptance.service';
 
 import { RegisterFlowFacade } from './register-flow.facade';
-import type { RegisterFlowVm } from './register-flow.model';
+import { REGISTRATION_COMPLETION_ROUTE, resolveRegistrationReturnUrl, type RegisterFlowVm } from './register-flow.model';
 
 @Injectable({ providedIn: 'root' })
 export class PostAuthNavigationService {
@@ -29,7 +29,7 @@ export class PostAuthNavigationService {
 
   resolveAfterEmailLogin$(
     result: LoginResult,
-    redirectTo: string
+    redirectTo: string | null
   ): Observable<string> {
     return this.resolveForCurrentSession$(result.user?.uid, () =>
       this.resolveEmailDestination$(result, redirectTo)
@@ -38,9 +38,9 @@ export class PostAuthNavigationService {
 
   private resolveEmailDestination$(
     result: LoginResult,
-    redirectTo: string
+    redirectTo: string | null
   ): Observable<string> {
-    const safeRedirectTo = this.sanitizeRedirectTo(redirectTo);
+    const safeRedirectTo = resolveRegistrationReturnUrl(redirectTo);
     const lifecycleRoute = this.resolveAccountLifecycleRoute(result.user);
 
     if (lifecycleRoute) {
@@ -71,7 +71,7 @@ export class PostAuthNavigationService {
 
   resolveAfterSocialLogin$(
     result: AuthFacadeSocialAuthResult,
-    redirectTo: string
+    redirectTo: string | null
   ): Observable<string> {
     return this.resolveForCurrentSession$(result.user?.uid, () =>
       this.resolveSocialDestination$(result, redirectTo)
@@ -80,9 +80,9 @@ export class PostAuthNavigationService {
 
   private resolveSocialDestination$(
     result: AuthFacadeSocialAuthResult,
-    redirectTo: string
+    redirectTo: string | null
   ): Observable<string> {
-    const safeRedirectTo = this.sanitizeRedirectTo(redirectTo);
+    const safeRedirectTo = resolveRegistrationReturnUrl(redirectTo);
     const lifecycleRoute = this.resolveAccountLifecycleRoute(result.user);
 
     if (lifecycleRoute) {
@@ -137,7 +137,7 @@ export class PostAuthNavigationService {
 
   private resolveFromRegisterFlow$(
     user: IUserDados | null | undefined,
-    redirectTo: string,
+    redirectTo: string | null,
     fallback: () => string
   ): Observable<string> {
     return this.registerFlow.vm$.pipe(
@@ -160,7 +160,7 @@ export class PostAuthNavigationService {
   private resolveVmRoute(
     vm: RegisterFlowVm | null,
     user: IUserDados | null | undefined,
-    redirectTo: string,
+    redirectTo: string | null,
     fallback: () => string
   ): string {
     if (!vm) {
@@ -192,10 +192,10 @@ export class PostAuthNavigationService {
         return this.withRedirectTo(vm.nextRoute || '/adulto/verificar-idade', redirectTo);
 
       case 'profileCompletion':
-        return this.profileCompletionRoute(vm.uid, redirectTo);
+        return this.profileCompletionRoute(redirectTo);
 
       case 'preferences':
-        return redirectTo;
+        return redirectTo ?? '/dashboard/principal';
 
       case 'loading':
       case 'signup':
@@ -206,7 +206,7 @@ export class PostAuthNavigationService {
 
   private resolveEmailFallback(
     result: LoginResult,
-    redirectTo: string
+    redirectTo: string | null
   ): string {
     const lifecycleRoute = this.resolveAccountLifecycleRoute(result.user);
     if (lifecycleRoute) {
@@ -234,12 +234,12 @@ export class PostAuthNavigationService {
       return this.withRedirectTo('/register/recuperar-conta', redirectTo);
     }
 
-    return redirectTo;
+    return redirectTo ?? '/dashboard/principal';
   }
 
   private resolveSocialFallback(
     result: AuthFacadeSocialAuthResult,
-    redirectTo: string
+    redirectTo: string | null
   ): string {
     const lifecycleRoute = this.resolveAccountLifecycleRoute(result.user);
     if (lifecycleRoute) {
@@ -262,64 +262,26 @@ export class PostAuthNavigationService {
       result.nextRoute === '/register/finalizar-cadastro' ||
       result.user?.profileCompleted === false
     ) {
-      return this.profileCompletionRoute(result.user?.uid ?? null, redirectTo);
+      return this.profileCompletionRoute(redirectTo);
     }
 
     if (result.nextRoute === '/conta/status') {
       return '/conta/status';
     }
 
-    return redirectTo;
+    return redirectTo ?? '/dashboard/principal';
   }
 
-  private profileCompletionRoute(
-    uid: string | null | undefined,
-    redirectTo: string
-  ): string {
-    const safeUid = String(uid ?? '').trim();
-    const fallbackRedirect = safeUid
-      ? `/preferencias/editar/${encodeURIComponent(safeUid)}`
-      : '/dashboard/principal';
-    const target = this.sanitizeRedirectTo(redirectTo || fallbackRedirect);
-
-    return `/register/finalizar-cadastro?reason=profile_incomplete&redirectTo=${encodeURIComponent(target)}`;
+  private profileCompletionRoute(redirectTo: string | null): string {
+    return this.withRedirectTo('/register/finalizar-cadastro?reason=profile_incomplete',
+      redirectTo ?? REGISTRATION_COMPLETION_ROUTE);
   }
 
-  private withRedirectTo(route: string, redirectTo: string): string {
-    const safeRoute = String(route ?? '').trim() || '/register';
-    const safeRedirectTo = this.sanitizeRedirectTo(redirectTo);
+  private withRedirectTo(route: string, redirectTo: string | null): string {
+    if (!redirectTo || /[?&]redirectTo=/.test(route)) return route;
 
-    if (/[?&]redirectTo=/.test(safeRoute)) {
-      return safeRoute;
-    }
-
-    const separator = safeRoute.includes('?') ? '&' : '?';
-    return `${safeRoute}${separator}redirectTo=${encodeURIComponent(safeRedirectTo)}`;
-  }
-
-  private sanitizeRedirectTo(raw: string | null | undefined): string {
-    const value = String(raw ?? '').trim();
-
-    if (!value || !value.startsWith('/') || value.startsWith('//')) {
-      return '/dashboard/principal';
-    }
-
-    if (
-      value === '/login' ||
-      value.startsWith('/login?') ||
-      value === '/register' ||
-      value.startsWith('/register?') ||
-      value.startsWith('/register/welcome') ||
-      value.startsWith('/register/recuperar-conta') ||
-      value.startsWith('/register/aceitar-termos') ||
-      value.startsWith('/register/finalizar-cadastro') ||
-      value.startsWith('/adulto/verificar-idade') ||
-      value.startsWith('/adulto/confirmar')
-    ) {
-      return '/dashboard/principal';
-    }
-
-    return value;
+    const separator = route.includes('?') ? '&' : '?';
+    return `${route}${separator}redirectTo=${encodeURIComponent(redirectTo)}`;
   }
 
   private resolveAccountLifecycleRoute(

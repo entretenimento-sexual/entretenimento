@@ -151,6 +151,29 @@ describe('PostAuthNavigationService', () => {
     );
   });
 
+  it('separa a retomada sem destino explícito do destino padrão de login', async () => {
+    const flow$ = new BehaviorSubject<RegisterFlowVm>(
+      vm('termsAcceptance', '/register/aceitar-termos')
+    );
+    const service = navigation(flow$);
+    const result: LoginResult = {
+      success: true,
+      emailVerified: true,
+      user: user(),
+      profileResolution: 'resolved',
+      needsProfileCompletion: true,
+    };
+
+    await expect(firstValueFrom(service.resolveAfterEmailLogin$(result, null)))
+      .resolves.toBe('/register/aceitar-termos');
+    flow$.next(vm('profileCompletion', '/register/finalizar-cadastro'));
+    await expect(firstValueFrom(service.resolveAfterEmailLogin$(result, null)))
+      .resolves.toBe('/register/finalizar-cadastro?reason=profile_incomplete&redirectTo=%2Fpreferencias%2Feditar');
+    flow$.next(vm('preferences', '/preferencias/editar', { profileCompleted: true }));
+    await expect(firstValueFrom(service.resolveAfterEmailLogin$(result, null)))
+      .resolves.toBe('/dashboard/principal');
+  });
+
   it('login Google de perfil completo não exige consentimento legado', async () => {
     const flow$ = new BehaviorSubject<RegisterFlowVm>(
       vm('preferences', '/preferencias/editar/u1', {

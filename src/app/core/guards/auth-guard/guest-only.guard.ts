@@ -48,6 +48,7 @@ import { AuthSessionService } from '../../services/autentication/auth/auth-sessi
 import { AccessControlService } from '../../services/autentication/auth/access-control.service';
 import { AuthReturnUrlService } from '../../services/autentication/auth/auth-return-url.service';
 import { ApplicationErrorService } from '../../services/error-handler/application-error.service';
+import { REGISTRATION_COMPLETION_ROUTE, resolveRegistrationReturnUrl } from 'src/app/register-module/data-access/register-flow.model';
 import { ErrorNotificationService } from '../../services/error-handler/error-notification.service';
 
 import {
@@ -161,6 +162,7 @@ function decideGuestAccess$(
 
     map(([_, authUid, appUser, blockedReason, emailVerified]): GuardResult => {
       const profileCompleted = (appUser as any)?.profileCompleted === true;
+      const registrationReturnUrl = resolveRegistrationReturnUrl(redirectToParam);
 
       const redirectTo = returnUrl.resolveAuthedRedirect(
         redirectToParam,
@@ -216,7 +218,7 @@ function decideGuestAccess$(
       }
 
       if (emailVerified !== true) {
-        return buildWelcomeRedirectTree(router, redirectTo, {
+        return buildWelcomeRedirectTree(router, registrationReturnUrl ?? undefined, {
           reason: 'email_unverified',
         });
       }
@@ -234,11 +236,11 @@ function decideGuestAccess$(
           return true;
         }
 
-        return router.parseUrl(redirectTo);
+        return router.parseUrl(registrationReturnUrl ?? REGISTRATION_COMPLETION_ROUTE);
       }
 
       if (!profileCompleted) {
-        return buildFinalizeRedirectTree(router, redirectTo, {
+        return buildFinalizeRedirectTree(router, registrationReturnUrl ?? undefined, {
           reason: 'profile_incomplete',
         });
       }

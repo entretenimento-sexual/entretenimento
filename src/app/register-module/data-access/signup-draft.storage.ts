@@ -2,6 +2,7 @@
 export const SIGNUP_DRAFT_KEY = 'registration:signup-draft:v1';
 // Janela de retomada da aba, avaliada na próxima leitura do rascunho.
 const TTL_MS = 30 * 60_000;
+export const EMAIL_LINK_WAIT_SECONDS = 30;
 export type SignupLinkConfirmation = 'requested' | 'unconfirmed';
 export interface SignupDraft {
   sectionIndex: 0 | 1 | 2;
@@ -9,6 +10,7 @@ export interface SignupDraft {
   complementoApelido: string;
   email: string;
   linkConfirmation?: SignupLinkConfirmation;
+  resendAt?: number;
 }
 type StoredDraft = SignupDraft & { version: 1; updatedAt: number };
 const getStorage = (): Storage | null => {
@@ -24,8 +26,9 @@ export function readSignupDraft(): SignupDraft | null {
     const raw = getStorage()?.getItem(SIGNUP_DRAFT_KEY);
     if (!raw) return null;
     const d = JSON.parse(raw) as Partial<StoredDraft>;
+    const now = Date.now();
     if (d.version !== 1 || typeof d.updatedAt !== 'number' ||
-        d.updatedAt > Date.now() || Date.now() - d.updatedAt > TTL_MS ||
+        d.updatedAt > now || now - d.updatedAt > TTL_MS ||
         ![0, 1, 2].includes(d.sectionIndex as number) ||
         typeof d.apelidoPrincipal !== 'string' || d.apelidoPrincipal.length > 12 ||
         typeof d.complementoApelido !== 'string' || d.complementoApelido.length > 12 ||
@@ -40,6 +43,9 @@ export function readSignupDraft(): SignupDraft | null {
       email: d.email,
       ...(d.sectionIndex === 1 && (d.linkConfirmation === 'requested' || d.linkConfirmation === 'unconfirmed')
         ? { linkConfirmation: d.linkConfirmation } : {}),
+      ...(d.sectionIndex === 1 && typeof d.resendAt === 'number' && d.resendAt > now &&
+        d.resendAt <= now + EMAIL_LINK_WAIT_SECONDS * 1_000
+        ? { resendAt: d.resendAt } : {}),
     };
   } catch {
     clearSignupDraft();

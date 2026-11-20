@@ -1,5 +1,18 @@
 // src/app/register-module/data-access/register-flow.model.ts
 
+export const REGISTRATION_COMPLETION_ROUTE = '/preferencias/editar';
+
+export function resolveRegistrationReturnUrl(raw: string | null | undefined): string | null {
+  const value = raw?.trim() ?? '';
+  if (!/^\/(?![\/\\])/.test(value) || /[\\\x00-\x1f\x7f]/.test(value)) return null;
+
+  const path = value.split(/[?#]/)[0];
+  const excluded = ['/login', '/register', '/adulto/verificar-idade', '/adulto/confirmar',
+    '/post-verification/action', '/__/auth/action'];
+  return excluded.some(route => path === route || path.startsWith(route + '/') || path.startsWith(route + ';'))
+    ? null : value;
+}
+
 export type RegisterFlowStep =
   | 'loading'
   | 'signup'

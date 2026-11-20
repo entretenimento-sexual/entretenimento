@@ -335,7 +335,7 @@ export class LoginComponent implements OnInit {
 
     const email = String(this.email?.value ?? '').trim();
     const password = String(this.password?.value ?? '');
-    const redirectTo = this.getRedirectTo();
+    const redirectTo = this.route.snapshot.queryParamMap.get('redirectTo');
 
     this.setBusyState(true, 'emailLogin');
 
@@ -381,7 +381,7 @@ export class LoginComponent implements OnInit {
     this.resetFeedback();
     this.setBusyState(true, 'googleLogin');
 
-    const redirectTo = this.getRedirectTo();
+    const redirectTo = this.route.snapshot.queryParamMap.get('redirectTo');
 
     this.authFacade
       .googleLogin$()
@@ -478,33 +478,4 @@ export class LoginComponent implements OnInit {
     this.cdr.markForCheck();
   }
 
-  private getRedirectTo(): string {
-    return this.sanitizeRedirectTo(
-      this.route.snapshot.queryParamMap.get('redirectTo')
-    );
-  }
-
-  private sanitizeRedirectTo(raw: string | null | undefined): string {
-    const value = String(raw ?? '').trim();
-
-    if (!value || !value.startsWith('/') || value.startsWith('//')) {
-      return '/dashboard/principal';
-    }
-
-    if (
-      value === '/login' ||
-      value.startsWith('/login?') ||
-      value === '/register' ||
-      value.startsWith('/register?') ||
-      value.startsWith('/register/welcome') ||
-      value.startsWith('/register/recuperar-conta') ||
-      value.startsWith('/register/aceitar-termos') ||
-      value.startsWith('/register/finalizar-cadastro') ||
-      value.startsWith('/adulto/confirmar')
-    ) {
-      return '/dashboard/principal';
-    }
-
-    return value;
-  }
 }
