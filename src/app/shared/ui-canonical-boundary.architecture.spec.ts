@@ -640,6 +640,7 @@ describe('Canonical UI boundary', () => {
     const navigation = source(
       'src/app/register-module/data-access/register-navigation.service.ts'
     );
+    const model = source('src/app/register-module/data-access/register-flow.model.ts');
     const postAuth = source(
       'src/app/register-module/data-access/post-auth-navigation.service.ts'
     );
@@ -648,7 +649,8 @@ describe('Canonical UI boundary', () => {
     );
 
     expect(navigation).toContain("currentStep: 'preferences'");
-    expect(navigation).toContain('/preferencias/editar/');
+    expect(navigation).toContain('nextRoute: REGISTRATION_COMPLETION_ROUTE');
+    expect(model).toContain("REGISTRATION_COMPLETION_ROUTE = '/preferencias/editar';");
     expect(postAuth).toContain("case 'preferences':");
     expect(authRoutes).not.toContain('progressive-signup');
   });
