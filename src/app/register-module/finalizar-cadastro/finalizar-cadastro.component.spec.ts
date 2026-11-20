@@ -276,6 +276,8 @@ describe('FinalizarCadastroComponent', () => {
       const view = fresh.nativeElement as HTMLElement;
       const nickname = view.querySelector<HTMLInputElement>('#nickname')!;
       expect(view.querySelector('#gender, #estado, #municipio, #avatar, .completion-submit, .tooltip-error')).toBeNull();
+      expect(view.querySelector('h1')?.textContent).toBe('Como você quer aparecer?');
+      expect(view.querySelector('.completion-scene__draft')?.textContent).not.toContain('Rascunho salvo');
 
       nickname.focus();
       nickname.value = 'Alex';
@@ -284,6 +286,7 @@ describe('FinalizarCadastroComponent', () => {
       fresh.detectChanges();
       expect(document.activeElement).toBe(nickname);
       expect(view.querySelector('#estado')).toBeNull();
+      expect(view.querySelector('h1')?.textContent).toBe('Alex, como você se identifica?');
 
       const select = async (id: string, value: string) => {
         const field = view.querySelector<HTMLSelectElement>(`#${id}`)!;
@@ -293,11 +296,13 @@ describe('FinalizarCadastroComponent', () => {
         fresh.detectChanges();
       };
       await select('gender', 'homem');
+      expect(view.querySelector('h1')?.textContent).toBe('De onde você é?');
       expect(view.querySelector('#orientation')).not.toBeNull();
       expect(view.querySelector('#municipio')).toBeNull();
       await select('estado', 'RJ');
       expect(view.querySelector('.completion-submit')).toBeNull();
       await select('municipio', 'Rio de Janeiro');
+      expect(view.querySelector('h1')?.textContent).toBe('Seu perfil está quase pronto');
       view.querySelector<HTMLButtonElement>('.completion-submit')!.click();
 
       expect(profileCompletionFacadeMock.saveProfileCompletion$).toHaveBeenCalledWith(
@@ -327,6 +332,7 @@ describe('FinalizarCadastroComponent', () => {
       expect(view.querySelector<HTMLSelectElement>('#estado')?.value).toBe('RJ');
       expect(view.querySelector('#municipio')).not.toBeNull();
       expect(view.querySelector('.completion-submit')).toBeNull();
+      expect(view.querySelector('.completion-scene__draft')?.textContent).toContain('Rascunho salvo');
     } finally {
       reopened.destroy();
     }
@@ -609,11 +615,13 @@ describe('FinalizarCadastroComponent', () => {
     component.gender = 'mulher';
 
     component.persistUnsavedChanges();
+    fixture.detectChanges();
 
     expect(save).toHaveBeenCalledWith(
       expect.stringMatching(/^profile-completion:/),
       expect.objectContaining({ gender: 'mulher' })
     );
+    expect(fixture.nativeElement.querySelector('.completion-scene__draft')?.textContent).toContain('Rascunho salvo');
   });
 
   it('identifica e descarta alterações do onboarding', () => {

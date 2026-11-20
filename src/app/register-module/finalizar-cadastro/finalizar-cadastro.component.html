@@ -1,8 +1,18 @@
 <!-- src/app/register-module/finalizar-cadastro/finalizar-cadastro.component.html -->
-<div class="auth-container">
+<div class="completion-scene">
+  <picture class="completion-scene__photo" aria-hidden="true">
+    <source media="(max-width: 900px), (max-aspect-ratio: 4/5)" sizes="100vw"
+      srcset="assets/registration/signup-profile-portrait-640.webp 640w, assets/registration/signup-profile-portrait.webp 1024w" />
+    <img src="assets/registration/signup-profile-wide.webp" alt="" width="1672" height="941" fetchpriority="high" decoding="async" />
+  </picture>
   <div class="form-container">
+    <app-register-progress [ownerUid]="latestVm?.uid" step="profileCompletion" [completed]="profileSaved" [compact]="true" />
+    <div class="completion-scene__draft" role="status">
+      @if (draftSaved && !profileSaved) {
+        <span aria-hidden="true">✓</span> Rascunho salvo · apelido, identificação e estado
+      }
+    </div>
     <h1>{{ profileSaved ? 'Perfil salvo' : pageTitle }}</h1>
-    <app-register-progress [ownerUid]="latestVm?.uid" step="profileCompletion" [completed]="profileSaved" />
     @if (profileSaved) {
       <p role="status">
         {{ openingSavedProfile
@@ -17,12 +27,8 @@
       <button type="button" class="app-action app-action--primary"
         [disabled]="openingSavedProfile" (click)="continueAfterProfileSave()">Continuar</button>
     } @else {
-    <p>{{ introText }}</p>
-
-    @if (hasUnsavedChanges()) {
-      <p class="alert alert-info" role="status" aria-live="polite" aria-atomic="true">
-        Apelido, identificação e estado podem ser retomados neste dispositivo por até 24 horas.
-      </p>
+    @if (entryReason === 'email_unverified') {
+      <p>Se seu e-mail ainda estiver pendente de verificação, confirme-o para concluir o cadastro.</p>
     }
 
     @if (isSubmitting) {
@@ -86,7 +92,7 @@
             [maxlength]="nicknameMaxLength"
             autocomplete="nickname"
             class="app-control"
-            placeholder="Como você quer aparecer?"
+            placeholder="Seu apelido"
             (ngModelChange)="onNicknameChange()"
             (blur)="checkFieldValidity('nickname', nickname)"
             [disabled]="isSubmitting"
@@ -123,7 +129,7 @@
       }
 
       @if (showIdentity) {
-        <div class="app-field">
+        <div class="app-field completion-reveal">
           <label for="gender">
             Identificação do perfil <span class="req" aria-hidden="true">*</span>
             <span class="sr-only">(obrigatório)</span>
@@ -156,7 +162,7 @@
       }
 
       @if (showLocation) {
-        <div class="app-field">
+        <div class="app-field completion-reveal">
           <label for="orientation">Orientação sexual (opcional)</label>
 
           <select
@@ -177,7 +183,7 @@
           <p class="field-hint" id="orientation-help">Se informada, a orientação aparece no seu perfil.</p>
         </div>
 
-        <div class="app-field">
+        <div class="app-field completion-reveal">
           <label for="estado">
             Estado <span class="req" aria-hidden="true">*</span>
             <span class="sr-only">(obrigatório)</span>
@@ -218,7 +224,7 @@
           <p class="field-hint" role="alert">Não foi possível carregar os municípios deste estado.</p>
           <button class="app-action app-action--ghost" type="button" (click)="retryMunicipios()">Recarregar municípios</button>
         } @else if (municipios.length) {
-          <div class="app-field">
+          <div class="app-field completion-reveal">
             <label for="municipio">
               Município <span class="req" aria-hidden="true">*</span>
               <span class="sr-only">(obrigatório)</span>
@@ -252,7 +258,7 @@
       }
 
       @if (showCompletionActions) {
-        <div class="app-field">
+        <div class="app-field completion-reveal">
           <label for="avatar">Foto principal (opcional)</label>
 
           <input
@@ -296,7 +302,7 @@
         <button
           type="submit"
           [disabled]="isSubmitting || isLoading || isEditingAvatar"
-          class="app-action app-action--primary completion-submit"
+          class="app-action app-action--primary completion-submit completion-reveal"
         >
           {{ isSubmitting ? 'Concluindo…' : 'Concluir cadastro' }}
         </button>

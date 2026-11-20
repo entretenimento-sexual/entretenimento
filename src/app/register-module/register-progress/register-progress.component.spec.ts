@@ -16,7 +16,9 @@ describe('RegisterProgressComponent', () => {
     fixture.detectChanges();
 
     const view: HTMLElement = fixture.nativeElement;
-    expect(view.querySelector('.summary')?.textContent?.trim()).toBe(`Etapa ${position} de 5`);
+    expect(view.querySelector('.summary')?.textContent?.trim()).toBe(
+      step === 'profileCompletion' ? 'Última etapa' : `Etapa ${position} de 5`
+    );
     expect(view.querySelector('[aria-current="step"]')?.textContent).toContain(label);
     expect(view.querySelectorAll('.stage--done')).toHaveLength(position - 1);
     expect(view.querySelector('.next strong')?.textContent?.trim()).toBe(next);

@@ -840,20 +840,28 @@ jobs:
           }"
           playwright-cli resize 1440 1000
           playwright-cli run-code "async (page) => {
+            await page.waitForFunction(() => document.querySelector('.completion-scene__photo img').currentSrc.endsWith('signup-profile-wide.webp'));
+            await page.locator('.completion-scene__photo img').evaluate(photo => photo.decode());
             const metrics = await page.evaluate(() => {
               const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
               const inputRect = document.querySelector('#nickname')?.getBoundingClientRect();
+              const photoRect = document.querySelector('.completion-scene__photo')?.getBoundingClientRect();
+              const headerRect = document.querySelector('app-navbar')?.getBoundingClientRect();
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
                 formWidth: formRect?.width ?? 0,
                 firstInputWidth: inputRect?.width ?? 0,
+                formLeft: formRect?.left ?? 0,
+                photoWidth: photoRect?.width ?? 0,
+                headerGap: Math.abs((photoRect?.top ?? 0) - (headerRect?.bottom ?? 0)),
                 identityVisible: !!document.querySelector('#gender')?.getClientRects().length,
                 submitVisible: !!document.querySelector('.completion-submit')?.getClientRects().length,
               };
             });
             console.log(JSON.stringify(metrics));
             if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Profile completion desktop overflow');
+            if (metrics.formLeft < metrics.viewportWidth * 0.5 || metrics.photoWidth < metrics.viewportWidth - 2 || metrics.headerGap > 2) throw new Error('Profile completion desktop layout has lost the full-width backdrop');
             if (metrics.identityVisible || metrics.submitVisible || metrics.formWidth < 320) throw new Error('Profile completion fields appeared before the nickname');
             return metrics;
           }" | tee "$OUT/profile/desktop-initial.metrics.log"
@@ -895,6 +903,8 @@ jobs:
           playwright-cli run-code "async (page) => {
             await page.goto('$BASE/register/finalizar-cadastro?reason=profile_incomplete');
             await page.waitForSelector('#nickname', { state: 'visible' });
+            await page.waitForFunction(() => document.querySelector('.completion-scene__photo img').currentSrc.includes('signup-profile-portrait'));
+            await page.locator('.completion-scene__photo img').evaluate(photo => photo.decode());
             const metrics = await page.evaluate(() => {
               const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
               const inputRect = document.querySelector('#nickname')?.getBoundingClientRect();
@@ -954,9 +964,11 @@ jobs:
             const nickname = page.locator('#nickname');
             await nickname.fill('perfilnovo');
             await page.locator('#gender').waitFor({ state: 'visible' });
+            await page.getByRole('heading', { name: 'perfilnovo, como você se identifica?' }).waitFor();
             if (!(await nickname.evaluate(input => document.activeElement === input))) throw new Error('Profile completion moved focus while typing');
             if (await page.locator('#estado').isVisible()) throw new Error('State appeared before profile identity');
             await page.locator('#gender').selectOption('homem');
+            await page.getByRole('heading', { name: 'De onde você é?' }).waitFor();
             if (await page.locator('#municipio').isVisible()) throw new Error('Municipality appeared before state');
             await page.locator('#estado').selectOption('RJ');
             await page.locator('#municipio').selectOption('Rio de Janeiro');
@@ -965,6 +977,16 @@ jobs:
             if (await page.locator('#avatar').inputValue()) throw new Error('Optional photo should start empty');
           }"
           playwright-cli screenshot --full-page --filename="$OUT/profile/mobile-ready.png"
+
+          playwright-cli resize 1080 1600
+          playwright-cli run-code "async (page) => {
+            const photo = page.locator('.completion-scene__photo img');
+            await photo.evaluate(image => image.decode());
+            if (!(await photo.evaluate(image => image.currentSrc.includes('signup-profile-portrait')))) throw new Error('Tall profile viewport should use the portrait composition');
+            const imageBox = await photo.boundingBox();
+            const formBox = await page.locator('.form-container').boundingBox();
+            if (!imageBox || !formBox || formBox.y < imageBox.y + imageBox.height - 24) throw new Error('Tall profile layout covers the portrait');
+          }"
 
           playwright-cli resize 2048 756
           playwright-cli run-code "async (page) => {

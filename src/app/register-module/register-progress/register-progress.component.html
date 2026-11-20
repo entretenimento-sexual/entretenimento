@@ -4,6 +4,8 @@
       Cadastro concluído
     } @else if (completed()) {
       {{ finishedCount() }} de {{ stages().length }} etapas concluídas
+    } @else if (step() === 'profileCompletion') {
+      Última etapa
     } @else {
       Etapa {{ position() + 1 }} de {{ stages().length }}
     }

@@ -1,306 +1,276 @@
-/* src/app/authentication/finalizar-cadastro/finalizar-cadastro.component.css
-   ----------------------------------------------------------------------------
-   Finalizar Cadastro (mobile-first)
-   Objetivos:
-   - Layout clean, consistente com tokens globais (variables.css)
-   - Acessível (focus-visible, alvos de toque)
-   - Responsivo real (desktop → 350px)
-   - Sem “pulos” de layout desnecessários
-   ----------------------------------------------------------------------------
-*/
-
-/* Evita dependência de @import de fontes aqui.
-   Sua plataforma já define família em variables.css/global-layout.css. */
 :host {
-  display: block;
+  display: grid;
+  flex: 1;
+  min-inline-size: 0;
 }
 
-/* ----------------------------------------------------------------------------
-   1) Layout base (centralizado, mas respeitando telas pequenas)
-   - Usa dvh/svh para evitar bugs de 100vh no mobile (barra do navegador).
-   - Usa gutters e safe-area definidos no seu design system.
----------------------------------------------------------------------------- */
-.auth-container {
-  min-height: 100svh;
-  min-height: 100dvh;
-  display: flex;
-  align-items: flex-start;
+.completion-scene {
+  --background-color: #0b1821;
+  --surface-color: #162731;
+  --surface-border: #50656d;
+  --text-color: #fff5ec;
+  --text-muted: #c2ced0;
+  --primary-color: #f6c08f;
+  --on-primary-color: #21150e;
+  --danger-color: #ffb4b9;
+  --input-background: #182b36;
+
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 33rem);
   align-content: start;
-  justify-content: center;
-
-  padding:
-    calc(var(--space-4, 24px) + var(--safe-top, 0px)) var(--gutter, 16px) calc(var(--space-5, 40px) + var(--safe-bottom, 0px));
-
+  padding: clamp(1.75rem, 5vw, 5rem) clamp(1.75rem, 5vw, 6rem);
   background: var(--background-color);
   color: var(--text-color);
+  color-scheme: dark;
 }
 
-/* ----------------------------------------------------------------------------
-   2) Card do formulário (superfície)
----------------------------------------------------------------------------- */
+.completion-scene__photo {
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 auto;
+  block-size: min(100%, 100svh);
+}
+
+.completion-scene__photo img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  object-position: 35% 15%;
+}
+
+.completion-scene__photo::after {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 38%, #0b182160 63%, #0b1821c9),
+    linear-gradient(180deg, transparent 58%, var(--background-color));
+  content: '';
+}
+
 .form-container {
-  width: min(100%, 560px);
-  background: var(--surface-color);
-  color: var(--text-color);
+  grid-column: 2;
+  min-inline-size: 0;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid #9abbc453;
+  border-radius: 22px;
+  background: linear-gradient(150deg, #1a2d37f8, #0e1e27 70%);
+  box-shadow: 0 22px 50px #02070c88;
+}
 
-  border: 1px solid var(--surface-border);
-  border-radius: var(--radius-lg, 12px);
-  box-shadow: var(--box-shadow);
+.form-container app-register-progress {
+  margin-block-end: 0.65rem;
+}
 
-  padding: clamp(18px, 3vw, 28px);
-  text-align: left;
+.completion-scene__draft {
+  min-block-size: 2lh;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.completion-scene__draft span {
+  margin-inline-end: 0.2em;
+  color: var(--primary-color);
 }
 
 .form-container h1 {
-  margin: 0 0 var(--space-2, 12px);
-  font-size: clamp(1.2rem, 1rem + 0.8vw, 1.65rem);
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  text-align: center;
-}
-
-.form-container h3 {
-  margin: var(--space-3, 16px) 0 var(--space-2, 12px);
-  font-size: 1.05rem;
-  line-height: 1.25;
-  text-align: center;
+  /* A pergunta pode mudar enquanto a pessoa ainda está digitando o apelido. */
+  min-block-size: 2lh;
+  margin: 0 0 0.75rem;
+  color: var(--text-color);
+  font: 400 clamp(1.7rem, 3.3vw, 2.65rem) / 1.08 'Baskervville', Georgia, serif;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .form-container p {
-  margin: 0 0 var(--space-2, 12px);
-  color: color-mix(in oklab, var(--text-color) 82%, transparent);
-  text-align: center;
+  margin: 0 0 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
 }
 
-.form-container>form {
-  margin-top: var(--space-3, 16px);
-}
-
-/* ----------------------------------------------------------------------------
-   3) Form (grid com gap)
----------------------------------------------------------------------------- */
 form {
   display: grid;
-  gap: var(--space-2, 12px);
+  gap: 1rem;
 }
 
 .app-field {
   display: grid;
   gap: 0.4rem;
-  min-width: 0;
+  min-inline-size: 0;
 }
 
 label {
-  display: block;
-  font-weight: 600;
-  font-size: 0.95rem;
-  margin-top: var(--space-1, 8px);
   color: var(--text-color);
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
-/* ----------------------------------------------------------------------------
-   4) Campos (touch targets + contraste + foco)
----------------------------------------------------------------------------- */
-select,
-.app-control,
-input[type="file"] {
-  width: 100%;
-  min-height: var(--tap-target, 44px);
-  padding: 10px 12px;
+.req {
+  color: var(--primary-color);
+}
 
-  border: 1px solid color-mix(in oklab, var(--text-color) 18%, transparent);
-  border-radius: var(--radius-md, 8px);
-
-  font-size: 1rem;
-  line-height: 1.25;
-
+.app-control {
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 46px;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
   background: var(--input-background);
   color: var(--text-color);
-  margin: 0;
-
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  font: inherit;
 }
 
-select:focus,
-.app-control:focus,
-input[type="file"]:focus {
+.app-control::placeholder {
+  color: var(--text-muted);
+}
+
+.app-control:focus-visible {
   border-color: var(--primary-color);
-  outline: none;
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary-color) 30%, transparent);
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
-.app-control[aria-invalid="true"],
+.app-control[aria-invalid='true'],
 .app-control.ng-invalid.ng-touched {
   border-color: var(--danger-color);
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--danger-color) 25%, transparent);
 }
 
-/* ----------------------------------------------------------------------------
-   5) Mensagens
----------------------------------------------------------------------------- */
-.alert {
-  border-radius: var(--radius-md, 8px);
-  padding: 10px 12px;
-  margin: 0 0 var(--space-2, 12px);
-  font-weight: 600;
-  line-height: 1.25;
-}
-
-.alert.error-message {
-  background: var(--danger-color);
-  color: #fff;
-  border: 1px solid color-mix(in oklab, #fff 20%, transparent);
-}
-
-.alert.success-message {
-  background: var(--success-color);
-  color: #fff;
-  border: 1px solid color-mix(in oklab, #fff 20%, transparent);
-}
-
-.alert.alert-warning {
-  margin-top: var(--space-2, 12px);
-}
-
-form .error-message {
-  margin-top: -6px;
-  margin-bottom: 6px;
-
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--danger-color);
-
-  background: color-mix(in oklab, var(--danger-color) 10%, transparent);
-  border: 1px solid color-mix(in oklab, var(--danger-color) 20%, transparent);
-  border-radius: 10px;
-  padding: 6px 10px;
-}
-
-/* ----------------------------------------------------------------------------
-   6) Ação principal — primitive canônico com sizing local
----------------------------------------------------------------------------- */
-.completion-submit {
-  width: 100%;
-  min-height: var(--tap-target, 44px);
-  font-size: 1rem;
-  font-weight: 700;
-}
-
-/* ----------------------------------------------------------------------------
-   7) Progress bar
----------------------------------------------------------------------------- */
-.progress-custom {
-  width: 100%;
-  background: color-mix(in oklab, var(--text-color) 10%, transparent);
-  border: 1px solid var(--surface-border);
-  border-radius: 999px;
-  overflow: hidden;
-  margin-top: 4px;
-}
-
-.progress-bar-custom {
-  height: 18px;
-  width: 0%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #fff;
-
-  background: var(--primary-color);
-  transition: width 0.25s ease;
-}
-
-/* ----------------------------------------------------------------------------
-   8) Erros de campo em fluxo normal
-   - Reservam espaço real no layout e não cobrem o campo seguinte no mobile.
----------------------------------------------------------------------------- */
-.req {
-  color: var(--danger-color);
-  font-weight: 800;
-  margin-left: 4px;
-}
-
-.field-hint {
+.form-container .field-hint {
   margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.3;
-  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+  font-size: 0.8125rem;
 }
 
+.form-container .alert,
 .app-field .tooltip-error {
   position: static;
   display: block;
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
-  padding: 7px 9px;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  margin: 0 0 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 9px;
+  background: var(--surface-color);
+  color: var(--text-color);
+  box-shadow: none;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  font-weight: 500;
   white-space: normal;
   overflow-wrap: anywhere;
+}
 
-  border-radius: 9px;
-  background: color-mix(in oklab, var(--danger-color) 10%, var(--surface-color));
+.form-container .alert-error,
+.app-field .tooltip-error {
+  margin: 0;
+  border-color: #ffb4b960;
+  background: #4c2b33;
   color: var(--danger-color);
-  border: 1px solid color-mix(in oklab, var(--danger-color) 24%, transparent);
-  box-shadow: none;
-  font-size: 0.9rem;
-  font-weight: 600;
-  line-height: 1.35;
 }
 
 .app-field .tooltip-error::before {
   content: none;
 }
 
-/* ----------------------------------------------------------------------------
-   9) Ajustes de responsividade real (inclui 350px)
----------------------------------------------------------------------------- */
-@media (max-width: 520px) {
-  .auth-container {
-    align-items: flex-start;
-    justify-content: flex-start;
+.form-container .alert-warning {
+  border-color: #f6c08f66;
+  color: #ffdfbf;
+}
+
+.form-container .app-action {
+  min-block-size: 46px;
+}
+
+.form-container .app-action--primary {
+  inline-size: 100%;
+  border-color: var(--primary-color);
+  background: var(--primary-color);
+  color: var(--on-primary-color);
+}
+
+.form-container .app-action--primary:hover:not(:disabled) {
+  border-color: #ffe1c4;
+  background: #ffe1c4;
+}
+
+.form-container .app-action:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 3px;
+}
+
+.completion-submit {
+  font-weight: 800;
+}
+
+.progress-custom {
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: var(--surface-color);
+}
+
+.progress-bar-custom {
+  min-block-size: 18px;
+  background: var(--primary-color);
+  color: var(--on-primary-color);
+  text-align: center;
+  transition: width 200ms ease;
+}
+
+@media (max-width: 900px), (max-aspect-ratio: 4/5) {
+  .completion-scene {
+    --photo-height: clamp(15rem, 61vw, 27rem);
+
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    padding: calc(var(--photo-height) - 1.25rem) 0.875rem 1.5rem;
+  }
+
+  .completion-scene__photo {
+    block-size: var(--photo-height);
+  }
+
+  .completion-scene__photo img {
+    object-position: 50% 14%;
+  }
+
+  .completion-scene__photo::after {
+    background: linear-gradient(180deg, transparent 50%, var(--background-color));
   }
 
   .form-container {
-    width: 100%;
-    border-radius: var(--radius-md, 10px);
-    padding: clamp(16px, 4vw, 22px);
-  }
-
-  .form-container h1 {
-    font-size: 1.25rem;
+    grid-column: 1;
+    inline-size: min(100%, 33rem);
   }
 }
 
-@media (max-width: 350px) {
-  .form-container {
-    padding: 14px;
+@media (prefers-reduced-motion: no-preference) {
+  .completion-reveal {
+    animation: profile-field-reveal 200ms ease-out both;
   }
 
-  select,
-  .app-control,
-  input[type="file"],
-  .completion-submit {
-    font-size: 0.95rem;
-  }
+  @keyframes profile-field-reveal {
+    from {
+      opacity: 0.55;
+      transform: translateY(0.25rem);
+    }
 
-  form .error-message,
-  .app-field .tooltip-error {
-    font-size: 0.85rem;
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
 
-/* ----------------------------------------------------------------------------
-   10) Preferência do usuário (movimento reduzido)
----------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
-
-  .completion-submit,
-  select,
-  .app-control,
   .progress-bar-custom {
-    transition: none !important;
+    transition: none;
   }
 }

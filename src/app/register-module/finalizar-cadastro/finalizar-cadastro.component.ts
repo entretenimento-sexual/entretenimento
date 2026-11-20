@@ -98,9 +98,18 @@ implements OnInit, UnsavedChangesAware
   }
 
   public entryReason: 'profile_incomplete' | 'email_unverified' | null = null;
-  public pageTitle = 'Complete seu perfil';
-  public introText =
-    'Informe apenas o necessário agora. Fotos, preferências e outros detalhes podem ser ajustados depois.';
+  protected draftSaved = false;
+
+  get pageTitle(): string {
+    if (this.isLoading || this.profileDataUnavailable) return 'Complete seu perfil';
+    const nicknameValid = this.isNicknameValid(this.nickname) && !this.isFieldInvalid('nickname');
+    if (this.needsNickname && !nicknameValid) return 'Como você quer aparecer?';
+    if (!isSelectableProfileIdentityCode(this.gender)) {
+      const nickname = nicknameValid ? this.nicknameMain.trim() : '';
+      return nickname ? `${nickname}, como você se identifica?` : 'Como você se identifica?';
+    }
+    return this.showCompletionActions ? 'Seu perfil está quase pronto' : 'De onde você é?';
+  }
 
   public email = '';
   public nicknameMain = '';
@@ -251,12 +260,15 @@ implements OnInit, UnsavedChangesAware
 
   discardUnsavedChanges(): void {
     this.localDraft.remove(this.draftKey);
+    this.draftSaved = false;
     this.initialDraftSnapshot = this.currentDraftSnapshot();
     this.avatarFile = null;
   }
 
   persistUnsavedChanges(): void {
-    if (this.hasUnsavedChanges()) this.localDraft.save(this.draftKey, this.currentDraftValue());
+    if (!this.hasUnsavedChanges()) return;
+    this.draftSaved = this.localDraft.save(this.draftKey, this.currentDraftValue());
+    this.changeDetector.markForCheck();
   }
 
   onDraftChange(): void {
@@ -760,6 +772,7 @@ implements OnInit, UnsavedChangesAware
     this.initialDraftSnapshot = this.currentDraftSnapshot();
 
     const draft = this.localDraft.load<ProfileCompletionDraft>(this.draftKey);
+    this.draftSaved = draft !== null;
     if (draft) {
       if (this.needsNickname) {
         this.nickname = draft.nickname || this.nickname;
@@ -802,22 +815,7 @@ implements OnInit, UnsavedChangesAware
 
   private resolveEntryContext(): void {
     const reason = this.route.snapshot.queryParamMap.get('reason');
-    if (reason === 'profile_incomplete') {
-      this.entryReason = 'profile_incomplete';
-      this.pageTitle = 'Complete seu perfil';
-      this.introText = 'Conclua seu perfil para acessar a plataforma.';
-      return;
-    }
-    if (reason === 'email_unverified') {
-      this.entryReason = 'email_unverified';
-      this.pageTitle = 'Complete seu perfil';
-      this.introText =
-        'Seu e-mail ainda pode estar pendente de verificação, mas esta etapa serve apenas para completar seu perfil.';
-      return;
-    }
-    this.entryReason = null;
-    this.pageTitle = 'Complete seu perfil';
-    this.introText = 'Conclua seu perfil para acessar a plataforma.';
+    this.entryReason = reason === 'profile_incomplete' || reason === 'email_unverified' ? reason : null;
   }
 
   onNicknameChange(): void {
