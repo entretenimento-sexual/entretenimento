@@ -27,12 +27,22 @@ function errorReason(error: unknown): unknown {
   return (error as { details?: { reason?: unknown } }).details?.reason;
 }
 
-test('aceita conta social elegível sem exigir perfil completo', () => {
+test('libera conta social elegível e encaminha cadastro pendente para conclusão', () => {
   assert.doesNotThrow(() =>
     assertCommunitySocialAccessEligible(
-      eligibleUser({ profileCompleted: false }),
+      eligibleUser({ profileCompleted: true }),
       'user-1'
     )
+  );
+
+  assert.throws(
+    () => assertCommunitySocialAccessEligible(
+      eligibleUser({ profileCompleted: false }),
+      'user-1'
+    ),
+    (error: unknown) =>
+      errorCode(error) === 'failed-precondition' &&
+      errorReason(error) === 'registration_pending'
   );
 });
 

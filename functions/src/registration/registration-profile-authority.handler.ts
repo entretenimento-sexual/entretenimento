@@ -266,7 +266,11 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
       if (!isRegistrationAgeAdmitted(age, requiresTrustedAdultVerification)) {
         throw new HttpsError('permission-denied',
           'Conta sem autoridade etária canônica válida para conclusão.',
-          { reason: requiresTrustedAdultVerification ? 'trusted_age_verification_required' : 'age_admission_required' });
+          {
+            reason: requiresTrustedAdultVerification
+              ? 'trusted_age_verification_required'
+              : 'age_admission_required',
+          });
       }
       if (user['profileCompleted'] === true) {
         if (publicSnap.exists && user['nickname'] === nickname.display &&
