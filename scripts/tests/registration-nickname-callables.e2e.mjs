@@ -49,12 +49,12 @@ async function rejects(callable, payload, code) {
   assert.equal(error.code, 'functions/' + code, String(error.message));
   return error;
 }
-async function grantEligibility(db, adminAuth, uid) {
+async function grantEligibility(db, adminAuth, uid, acceptedTerms = {
+  accepted: true, version: 'v3', acknowledgedPrivacyNotice: true,
+}) {
   const now = Date.now();
   await adminAuth.updateUser(uid, { emailVerified: true });
-  await db.doc('users/' + uid).set({
-    acceptedTerms: { accepted: true, version: 'v3', acknowledgedPrivacyNotice: true },
-  }, { merge: true });
+  await db.doc('users/' + uid).update({ acceptedTerms });
   await db.doc('age_eligibility_records/' + uid).set({
     uid, status: 'VERIFIED_ADULT', policyVersion: 1,
     source: 'INITIAL_VERIFICATION', method: 'EXTERNAL_PROVIDER',
@@ -128,7 +128,10 @@ async function run() {
     );
     const legacyRef = db.doc('users/' + legacyUser.uid);
     await waitFor('legacy account seed', async () => (await legacyRef.get()).exists);
-    await legacyRef.update({ nickname: 'Legado Antigo' });
+    await legacyRef.update({
+      nickname: 'Legado Antigo',
+      registrationFlowVersion: 'v2',
+    });
     await db.doc('public_index/nickname:legado_antigo').set({
       uid: legacyUser.uid, type: 'nickname', value: 'legado_antigo',
     });
@@ -147,14 +150,25 @@ async function run() {
       nickname: 'Perfil Original', gender: 'homem',
       orientation: 'heterossexual', estado: 'RJ', municipio: 'Rio de Janeiro',
     };
-    await grantEligibility(db, adminAuth, legacyUser.uid);
+    await grantEligibility(db, adminAuth, legacyUser.uid, { accepted: true });
     const completeLegacy = httpsCallable(legacy.functions, 'completeRegistrationProfile');
-    assert.equal((await completeLegacy({
-      ...profileFields, uid: legacyUser.uid, nickname: 'Legado Antigo',
-    })).data.status, 'COMPLETED');
-    assert.equal((await db.doc('public_profiles/' + legacyUser.uid).get())
-      .get('nicknameNormalized'), 'legado_antigo');
+    const legacyPayload = { ...profileFields, uid: legacyUser.uid, nickname: 'Legado Antigo' };
+    const legacyPublicRef = db.doc('public_profiles/' + legacyUser.uid);
+    const legacyTermsError = await rejects(completeLegacy, legacyPayload, 'failed-precondition');
+    assert.equal(legacyTermsError.details?.reason, 'terms_required');
+    assert.equal((await legacyRef.get()).get('profileCompleted'), false);
+    assert.equal((await legacyPublicRef.get()).exists, false);
+
+    const acceptLegacyTerms = httpsCallable(legacy.functions, 'acceptPlatformTerms');
+    await acceptLegacyTerms({
+      expectedUid: legacyUser.uid, acceptedTerms: true, acknowledgedPrivacyNotice: true,
+    });
+    assert.equal((await completeLegacy(legacyPayload)).data.status, 'COMPLETED');
+    const completedLegacy = await legacyRef.get();
+    assert.equal(completedLegacy.get('profileCompleted'), true);
+    assert.equal((await legacyPublicRef.get()).get('nicknameNormalized'), 'legado_antigo');
     assert.equal((await db.doc('nickname_reservations/legado').get()).exists, false);
+    console.log('[registration:e2e] PASS historical account accepts current terms and resumes with its existing nickname');
     const payload = { ...profileFields, uid };
     await rejects(complete, payload, 'failed-precondition');
     assert.equal((await db.doc('public_profiles/' + uid).get()).exists, false);

@@ -14,7 +14,7 @@ assert.equal(process.env.FIRESTORE_EMULATOR_HOST, '127.0.0.1:18080');
 
 const rules = buildRegistrationLockdownCandidate();
 for (const expected of [
-  'return false && isSelf(userId)',
+  'return !changedKeys.hasAny(registrationKeys)',
   '// Seeds privados são criados apenas pelo backend nesta candidata.',
   'allow create: if false && resource == null',
   'allow create: if isEmailDoc() && common()',

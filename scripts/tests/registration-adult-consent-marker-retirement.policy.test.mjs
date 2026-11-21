@@ -49,9 +49,12 @@ test('backend e bootstrap Angular não criam novos marcadores legados', () => {
   }
 });
 
-test('conclusão de registro exige idade canônica e termos, não consentimento v1', () => {
-  const completion = body(rules, 'selfCompletingRegistration');
-  assert.match(completion, /acceptedTermsReady\(data\)/);
-  assert.match(completion, /currentUserHasRegistrationAgeEligibility\(\)/);
+test('a conclusão pelo backend exige idade canônica e os termos vigentes', () => {
+  const completion = read('functions/src/registration/registration-profile-authority.handler.ts')
+    .split('export const completeRegistrationProfile')[1]?.split('export const updateProfileOrientation')[0] ?? '';
+  assert.match(completion, /evaluateCanonicalAgeEligibility\(/);
+  assert.match(completion, /isRegistrationAgeAdmitted\(age, requiresTrustedAdultVerification\)/);
+  assert.ok(completion.includes("terms?.['version'] !== TERMS_ACCEPTANCE_VERSION"));
+  assert.ok(completion.includes("terms?.['acknowledgedPrivacyNotice'] !== true"));
   assert.doesNotMatch(completion, /adultConsentReady|initialAdultConsentRequired/);
 });

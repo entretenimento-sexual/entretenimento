@@ -274,10 +274,8 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
         throw new HttpsError('failed-precondition', 'Conta indisponível.');
       }
       const terms = user['acceptedTerms'] as Record<string, unknown> | undefined;
-      // A autorização depende da versão vigente e do aceite de privacidade.
-      // Um booleano legado não equivale ao aceite canônico das Rules.
-      // O consentimento adulto legado não é condição independente.
-      // Termos v3 + decisão etária canônica permanecem mandatórios.
+      // Contas novas e cadastros retomados exigem o aceite vigente e a
+      // decisão etária canônica nesta mesma transação.
       if (terms?.['accepted'] !== true ||
         terms?.['version'] !== TERMS_ACCEPTANCE_VERSION ||
         terms?.['acknowledgedPrivacyNotice'] !== true) {

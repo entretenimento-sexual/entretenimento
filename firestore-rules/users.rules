@@ -4,7 +4,7 @@
 // - ordinary profile fields remain self-editable;
 // - auth, privilege, billing, lifecycle and compliance fields are protected;
 // - discovery preference projections are private, bounded and schema-validated;
-// - profileCompleted is a one-way, eligibility-checked registration transition;
+// - only backend code can complete registration or change account visibility;
 // - new accounts are private and interaction-blocked until completion;
 // - accepted terms start false and can only become true through trusted backend.
 // - profileId is generated and maintained only by trusted backend code.
@@ -136,23 +136,6 @@ match /users/{userId} {
   function emailVerifiedSafeOnUpdate(changedKeys) {
     return !changedKeys.hasAny(["emailVerified"])
       || request.resource.data.emailVerified == authEmailVerified();
-  }
-
-  function declaredIdentityValid(data) {
-    return data.keys().hasAll([
-        "gender",
-        "declaredIdentityCode",
-        "identityCatalogVersion"
-      ])
-      && data.gender is string
-      && data.gender.size() >= 1
-      && data.gender.size() <= 80
-      && data.declaredIdentityCode is string
-      && data.declaredIdentityCode == data.gender
-      && data.declaredIdentityCode.size() >= 1
-      && data.declaredIdentityCode.size() <= 80
-      && data.identityCatalogVersion is int
-      && data.identityCatalogVersion >= 1;
   }
 
   // Autodeclaração inicial pertence ao onboarding; depois disso,
@@ -347,77 +330,9 @@ match /users/{userId} {
       && discoveryProjectionSafeOnCreate(data);
   }
 
-  function acceptedTermsReady(data) {
-    return data.keys().hasAny(["acceptedTerms"])
-      && data.acceptedTerms is map
-      && data.acceptedTerms.keys().hasAny(["accepted"])
-      && data.acceptedTerms.accepted == true;
-  }
-
-  function selfCompletingRegistration(changedKeys) {
-    let data = request.resource.data;
-    let current = resource.data;
-    return isSelf(userId)
-      && changedKeys.hasAll([
-        "profileCompleted",
-        "publicVisibility",
-        "interactionBlocked",
-        "registrationCompletedAt",
-        "declaredIdentityCode",
-        "identityCatalogVersion"
-      ])
-      && changedKeys.hasOnly([
-        "nickname",
-        "nicknameHistory",
-        "gender",
-        "declaredIdentityCode",
-        "identityCatalogVersion",
-        "orientation",
-        "estado",
-        "municipio",
-        "profileCompleted",
-        "publicVisibility",
-        "interactionBlocked",
-        "registrationCompletedAt",
-        "updatedAt",
-        "updatedAtMs"
-      ])
-      && declaredIdentityValid(data)
-      // Depois de escolhido, não substitua nickname na transação de conclusão.
-      && data.nickname is string
-      && data.nickname.size() >= 4
-      && data.nickname.size() <= 40
-      && (current.get("nickname", "") == ""
-        || data.nickname == current.get("nickname", ""))
-      && current.get("profileCompleted", false) != true
-      && data.profileCompleted == true
-      && current.get("accountStatus", "active") == "active"
-      && current.get("accountLocked", false) != true
-      && current.get("suspended", false) != true
-      && current.get("loginAllowed", true) != false
-      && current.get("deletionRequestedAt", null) == null
-      && current.get("ageReverificationRestrictedAt", null) == null
-      && (!(current.get("moderationAutomationHold", null) is map)
-        || current.moderationAutomationHold.get("active", false) != true)
-      && data.accountStatus == "active"
-      && authEmailVerified()
-      && data.emailVerified == true
-      && acceptedTermsReady(data)
-      && currentUserHasRegistrationAgeEligibility()
-      && data.publicVisibility == "visible"
-      && data.interactionBlocked == false
-      && data.registrationCompletedAt == request.time;
-  }
-
   function ordinarySelfUpdateAllowed(changedKeys) {
     return isSelf(userId)
       && !changedKeys.hasAny(discoveryProjectionKeys())
-      && !changedKeys.hasAny([
-        "profileCompleted",
-        "registrationCompletedAt",
-        "publicVisibility",
-        "interactionBlocked"
-      ])
       && !selfChangingSensitiveKeys(changedKeys)
       && identityUpdateSafe(changedKeys)
       && nicknameUpdateSafe(changedKeys)
@@ -443,13 +358,15 @@ match /users/{userId} {
       "lastStatusChangeAt"
     ];
 
-    return changedKeys.hasAny(registrationKeys)
-      ? selfCompletingRegistration(changedKeys)
-      : changedKeys.hasAny(discoveryProjectionKeys())
-        ? selfUpdatingDiscoveryProjection(changedKeys)
-        : changedKeys.hasAny(adminModerationKeys) && isAdminActor()
-          ? adminModerationOnly(changedKeys)
-          : ordinarySelfUpdateAllowed(changedKeys);
+    // Conclusão e publicação inicial pertencem à transação de completeRegistrationProfile.
+    return !changedKeys.hasAny(registrationKeys)
+      && (
+        changedKeys.hasAny(discoveryProjectionKeys())
+          ? selfUpdatingDiscoveryProjection(changedKeys)
+          : changedKeys.hasAny(adminModerationKeys) && isAdminActor()
+            ? adminModerationOnly(changedKeys)
+            : ordinarySelfUpdateAllowed(changedKeys)
+      );
   }
 
   // users/{uid}.email é a projeção privada do e-mail cadastral do Auth.

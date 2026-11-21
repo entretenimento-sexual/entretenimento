@@ -10,25 +10,19 @@ import {
 } from '@angular/fire/firestore';
 
 import {
-  getDoc,
   getDocs,
   serverTimestamp,
   setDoc,
   updateDoc,
-  writeBatch,
 } from 'firebase/firestore';
 
 import { Observable, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
 import type { IUserDados } from '@core/interfaces/iuser-dados';
-import type { IUserRegistrationData } from '@core/interfaces/iuser-registration-data';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { FirestoreContextService } from './firestore/core/firestore-context.service';
-import { NicknameUtils } from '@core/utils/nickname-utils';
-
-type ProfileCompletionPayload = Partial<IUserRegistrationData> & Partial<IUserDados>;
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreUserWriteService {
@@ -128,61 +122,6 @@ export class FirestoreUserWriteService {
     );
   }
 
-  saveInitialUserData$(
-    uid: string,
-    data: ProfileCompletionPayload
-  ): Observable<void> {
-    const safeUid = (uid ?? '').trim();
-
-    if (!safeUid) {
-      return throwError(() => new Error('[FirestoreUserWriteService] UID inválido.'));
-    }
-
-    const userRef = this.ctx.run(() => doc(this.db, 'users', safeUid));
-    const publicProfileRef = this.ctx.run(() =>
-      doc(this.db, 'public_profiles', safeUid)
-    );
-
-    return this.ctx.deferPromise$(async () => {
-      const publicProfileSnap = await getDoc(publicProfileRef as any);
-      const existingPublicProfile = publicProfileSnap.exists()
-        ? (publicProfileSnap.data() as Record<string, unknown>)
-        : null;
-
-      const batch = writeBatch(this.db as any);
-
-      batch.set(
-        userRef as any,
-        this.buildUserProfileCompletionPatch(safeUid, data) as any,
-        { merge: true }
-      );
-
-      batch.set(
-        publicProfileRef as any,
-        this.buildPublicProfileCompletionPatch(
-          safeUid,
-          data,
-          existingPublicProfile
-        ) as any,
-        { merge: true }
-      );
-
-      await batch.commit();
-    }).pipe(
-      map(() => void 0),
-      catchError((err) => {
-        this.safeHandle(
-          '[FirestoreUserWriteService] saveInitialUserData$ falhou.',
-          err,
-          { uid: safeUid },
-          { silent: true }
-        );
-
-        return throwError(() => err);
-      })
-    );
-  }
-
   patchProfileAvatar$(uid: string, photoURL: string): Observable<void> {
     const safeUid = (uid ?? '').trim();
     const safePhotoURL = this.cleanText(photoURL);
@@ -246,117 +185,8 @@ export class FirestoreUserWriteService {
     );
   }
 
-  private buildUserProfileCompletionPatch(
-    uid: string,
-    data: ProfileCompletionPayload
-  ): Record<string, unknown> {
-    const patch: Record<string, unknown> = {
-      uid,
-      profileCompleted: true,
-    };
-
-    const nickname = this.cleanText(data.nickname);
-    if (nickname) {
-      patch['nickname'] = nickname;
-    }
-
-    const gender = this.cleanText(data.gender);
-    if (gender) {
-      patch['gender'] = gender;
-    }
-
-    const orientation = this.cleanText(data.orientation);
-    if (orientation) {
-      patch['orientation'] = orientation;
-    }
-
-    const estado = this.cleanText(data.estado);
-    if (estado) {
-      patch['estado'] = estado;
-    }
-
-    const municipio = this.cleanText(data.municipio);
-    if (municipio) {
-      patch['municipio'] = municipio;
-    }
-
-    const photoURL = this.cleanText(data.photoURL);
-    if (this.isHttpUrl(photoURL)) {
-      patch['photoURL'] = photoURL;
-    }
-
-    return patch;
-  }
-
-  private buildPublicProfileCompletionPatch(
-    uid: string,
-    data: ProfileCompletionPayload,
-    existing: Record<string, unknown> | null
-  ): Record<string, unknown> {
-    const nickname = this.cleanText(data.nickname);
-
-    const patch: Record<string, unknown> = {
-      uid,
-      updatedAt: serverTimestamp(),
-      gender: this.cleanTextOrNull(data.gender),
-      orientation: this.cleanTextOrNull(data.orientation),
-      estado: this.cleanTextOrNull(data.estado),
-      municipio: this.cleanTextOrNull(data.municipio),
-    };
-
-    if (nickname) {
-      patch['nickname'] = nickname;
-      patch['nicknameNormalized'] =
-        NicknameUtils.normalizarApelidoParaIndice(nickname);
-    }
-
-    const photoURL = this.cleanText(data.photoURL);
-    if (this.isHttpUrl(photoURL)) {
-      patch['photoURL'] = photoURL;
-    }
-
-    if (!existing) {
-      patch['createdAt'] = serverTimestamp();
-      patch['role'] = 'free';
-      return patch;
-    }
-
-    this.copyExistingPublicServerFields(existing, patch);
-
-    return patch;
-  }
-
-  private copyExistingPublicServerFields(
-    source: Record<string, unknown>,
-    target: Record<string, unknown>
-  ): void {
-    this.copyExistingPublicField(source, target, 'createdAt');
-    this.copyExistingPublicField(source, target, 'role');
-    this.copyExistingPublicField(source, target, 'normalizedGender');
-    this.copyExistingPublicField(source, target, 'normalizedOrientation');
-    this.copyExistingPublicField(source, target, 'interestedInGenders');
-    this.copyExistingPublicField(source, target, 'interestedInOrientations');
-    this.copyExistingPublicField(source, target, 'compatibilityReady');
-    this.copyExistingPublicField(source, target, 'discoveryNormalizedAt');
-  }
-
-  private copyExistingPublicField(
-    source: Record<string, unknown>,
-    target: Record<string, unknown>,
-    field: string
-  ): void {
-    if (Object.prototype.hasOwnProperty.call(source, field)) {
-      target[field] = source[field];
-    }
-  }
-
   private cleanText(value: unknown): string {
     return (value ?? '').toString().trim();
-  }
-
-  private cleanTextOrNull(value: unknown): string | null {
-    const clean = this.cleanText(value);
-    return clean || null;
   }
 
   private isHttpUrl(value: unknown): boolean {

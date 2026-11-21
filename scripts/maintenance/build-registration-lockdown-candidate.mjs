@@ -1,5 +1,5 @@
 // CANDIDATE ONLY. Never writes firestore.rules, deploys or changes active rules.
-// Reuses the canonical manifest and closes the legacy client registration paths.
+// Reuses the canonical Rules and rehearses additional restrictions on legacy clients.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,12 +25,6 @@ export function buildRegistrationLockdownCandidate() {
         src,
         'allow create: if resource == null\n    && isSelf(userId)',
         '// Seeds privados são criados apenas pelo backend nesta candidata.\n  allow create: if false && resource == null\n    && isSelf(userId)',
-        fragment
-      );
-      src = replaceExactlyOnce(
-        src,
-        'function selfCompletingRegistration(changedKeys) {\n    let data = request.resource.data;\n    let current = resource.data;\n    return isSelf(userId)',
-        'function selfCompletingRegistration(changedKeys) {\n    let data = request.resource.data;\n    let current = resource.data;\n    // Only Admin SDK can complete a registration after the cutover.\n    return false && isSelf(userId)',
         fragment
       );
     }

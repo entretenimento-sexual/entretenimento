@@ -84,12 +84,13 @@ alteração de produção é executada por esses scripts.
 
 ## Onde atuar na hora da implantação
 
-O gerador de candidata é build-registration-lockdown-candidate.mjs,
-com E2E de emulador aprovado. Somente depois de fechar os
-portões, revisar manualmente as mudanças nas origens
-firestore-rules/users.rules,
-firestore-rules/public_profiles_next.rules e
-firestore-rules/public_index.rules.
+A conclusão do cadastro é exclusiva da Function
+completeRegistrationProfile nas Rules versionadas de users.rules.
+O gerador build-registration-lockdown-candidate.mjs usa essas Rules e
+ensaia restrições adicionais de criação do documento inicial, criação da
+projeção pública e leitura do índice. Para o rollout, revisar os fragmentos
+users.rules, public_profiles_next.rules e public_index.rules após comprovar
+os critérios acima.
 Nunca editar diretamente o arquivo firestore.rules gerado.
 Não fazer deploy incidental, branch, PR ou merge.
 

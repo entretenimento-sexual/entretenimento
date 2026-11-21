@@ -10,6 +10,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   doc,
+  getDoc,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -20,6 +21,7 @@ import {
   beforeAll,
   beforeEach,
   describe,
+  expect,
   it,
 } from 'vitest';
 
@@ -297,7 +299,7 @@ describe('Firestore Rules / registration and profile completion', () => {
   });
 
   it.each([
-    { name: 'permite a conclusão atômica elegível', restriction: null },
+    { name: 'nega conclusão atômica pelo cliente mesmo quando a conta é elegível', restriction: null },
     { name: 'nega conclusão durante bloqueio administrativo', restriction: { accountLocked: true } },
     { name: 'nega conclusão durante restrição etária', restriction: { ageReverificationRestrictedAt: 1 } },
     { name: 'nega conclusão durante hold de moderação', restriction: { moderationAutomationHold: { active: true } } },
@@ -331,13 +333,23 @@ describe('Firestore Rules / registration and profile completion', () => {
       publicProfilePayload()
     );
 
-    await (restriction ? assertFails(batch.commit()) : assertSucceeds(batch.commit()));
+    await assertFails(batch.commit());
+    expect((await getDoc(doc(db, 'users', UID))).data()).toMatchObject({
+      profileCompleted: false,
+      registrationCompletedAt: null,
+      publicVisibility: 'hidden',
+      interactionBlocked: true,
+    });
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      expect((await getDoc(doc(context.firestore(), 'public_profiles', UID))).exists()).toBe(false);
+    });
   });
 
-  it('conclui cadastro de conta histórica com consentimento v1 não aceito, mas admissão 18+ válida', async () => {
+  it('nega conclusão pelo cliente de conta histórica mesmo com termos e admissão 18+ válidos', async () => {
     await seedReadyPrivateUser();
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await updateDoc(doc(context.firestore(), 'users', UID), {
+        registrationFlowVersion: 'v2',
         initialAdultConsentRequired: true,
         adultConsent: { accepted: false, version: 'v1' },
       });
@@ -355,10 +367,10 @@ describe('Firestore Rules / registration and profile completion', () => {
       updatedAt: serverTimestamp(), updatedAtMs: Date.now(),
     });
     batch.set(doc(db, 'public_profiles', UID), publicProfilePayload());
-    await assertSucceeds(batch.commit());
+    await assertFails(batch.commit());
   });
 
-  it('admite autodeclaração 18+ canônica no cadastro sem exigir VERIFIED_ADULT', async () => {
+  it('nega conclusão direta pelo cliente mesmo com autodeclaração 18+ canônica', async () => {
     await seedReadyPrivateUser();
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), 'age_eligibility_records', UID), {
@@ -379,7 +391,7 @@ describe('Firestore Rules / registration and profile completion', () => {
       updatedAt: serverTimestamp(), updatedAtMs: Date.now(),
     });
     batch.set(doc(db, 'public_profiles', UID), publicProfilePayload());
-    await assertSucceeds(batch.commit());
+    await assertFails(batch.commit());
   });
 
   it.each([

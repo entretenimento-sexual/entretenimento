@@ -123,23 +123,19 @@ if (
 requireAll(
   'firestore-rules/_helpers.rules',
   [
-    'canonicalAgeEligibilityAllowsTrustedAdultAccess',
-    'canonicalAgeEligibilityAllowsRegistration',
-    '"SELF_DECLARED_ADULT"',
-    'status == "VERIFIED_ADULT"',
-    '"EXTERNAL_PROVIDER"',
-    '"MANUAL_REVIEW"',
-    'currentUserHasRegistrationAgeEligibility',
     'canonicalOwnerLifecycleAllowsPublicMediaExposure',
     'currentUserCanUseAdultSocialPlatform',
   ],
-  'Rules devem exigir admissão canônica 18+ e lifecycle no uso normal'
+  'Rules devem aplicar lifecycle e aceite vigente no uso normal'
 );
 
 requireAll(
-  'firestore-rules/users.rules',
-  ['currentUserHasRegistrationAgeEligibility()'],
-  'conclusão do cadastro deve exigir 18+ canônico'
+  'functions/src/registration/registration-profile-authority.handler.ts',
+  [
+    'const age = evaluateCanonicalAgeEligibility(',
+    'if (!isRegistrationAgeAdmitted(age, requiresTrustedAdultVerification))',
+  ],
+  'conclusão do cadastro deve exigir 18+ canônico no backend'
 );
 
 // Novo cadastro nunca deve recriar o marcador de consentimento adulto v1.
@@ -180,17 +176,6 @@ forbidAll(
 );
 
 const helperSource = codeOnly(read('firestore-rules/_helpers.rules'));
-
-const registrationFunction = helperSource.match(
-  /function canonicalAgeEligibilityAllowsRegistration\(userId\)\s*\{([\s\S]*?)\n\s*\}/
-)?.[1] ?? '';
-
-if (!registrationFunction.includes('SELF_DECLARED_ADULT') ||
-    !registrationFunction.includes('"SELF_DECLARATION"') ||
-    !registrationFunction.includes('"decidedAt"') ||
-    !registrationFunction.includes('canonicalAgeEligibilityAllowsTrustedAdultAccess')) {
-  violations.push('firestore-rules/_helpers.rules (admissão 18+ canônica incompleta)');
-}
 
 for (const functionName of [
   'currentUserCanUseAdultSocialPlatform',

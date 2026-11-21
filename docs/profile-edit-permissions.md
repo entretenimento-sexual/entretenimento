@@ -213,8 +213,8 @@ público com o titular. O relatório agregado aponta registros inválidos.
 Documentação pública resumida em docs/references/sexocomcafe-public-policy-review.md.
 O material do concorrente não altera automaticamente as regras da plataforma.
 
-O backend de cadastro passa a exigir a versão vigente dos termos, a
-confirmação de ciência da privacidade e o consentimento adulto canônico.
+A conclusão do cadastro exige a versão vigente dos termos, a ciência do
+aviso de privacidade e a admissão etária canônica.
 A reserva não pode ser realizada por conta suspensa, bloqueada,
 desativada ou em exclusão. Testes E2E específicos validam cenários
 negativos em emuladores. A homologação exige CI integralmente verde.
@@ -230,10 +230,14 @@ Ferramenta: scripts/maintenance/build-registration-lockdown-candidate.mjs.
 Lê os fragmentos do manifesto canônico e produz **somente em memória**
 uma versão estrita, sem alterar firestore.rules, deploy ou banco de dados.
 
-A versão estrita desativa os caminhos abaixo. A escrita no índice já é restrita ao backend nos fragmentos de desenvolvimento.
-- users/{uid}: auto-conclusão do perfil; continua permitida a edição ordinária.
-- public_profiles/{uid}: criação client-side; backend Admin SDK faz a projeção.
-- public_index/nickname:*: criação client-side; email:* mantém seu contrato.
+Os fragmentos versionados já reservam a conclusão em users/{uid} à
+Function completeRegistrationProfile e preservam a edição ordinária. A
+candidata herda essa regra e ensaia três restrições adicionais:
+
+- users/{uid}: criação do documento inicial pelo cliente.
+- public_profiles/{uid}: criação da projeção pelo cliente.
+- public_index/nickname:*: leitura direta pelo cliente. A escrita de nickname
+  já é exclusiva do backend. O índice de e-mail mantém seu contrato.
 
 O E2E de emulador registra tentativas de concluir cadastro, criar projeção
 e indexar nickname diretamente: todas devem ser negadas. Também prova que
@@ -244,8 +248,8 @@ enganosos sobre Rules diferentes das esperadas.
 **Critério de ativação em produção:** Functions de cadastro implantadas,
 clientes antigos tratados com versão mínima compatível, dry-run integral
 e conciliação de nicknames legados revisados, plano de rollback, aprovação
-de segurança e CI do cutover. Somente depois promover manualmente as três
-alterações aos fragmentos versionados. Nenhum teste emulador equivale a
+de segurança e CI do cutover. A aplicação das Rules versionadas em produção
+continua sujeita ao rollout coordenado. Nenhum teste emulador equivale a
 autorização de deploy. A coleção privada não deve ser exposta.
 
 
