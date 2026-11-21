@@ -13,6 +13,8 @@ function eligibleUser(overrides: Record<string, unknown> = {}) {
     acceptedTerms: {
       accepted: true,
       version: 'v3',
+      termsDocumentVersion: '2026-09-29.1',
+      privacyNoticeVersion: '2026-09-29.1',
       acknowledgedPrivacyNotice: true,
     },
     ageReverification: { status: 'NONE' },

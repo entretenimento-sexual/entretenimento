@@ -12,6 +12,13 @@ import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/
 import { initializeApp as initializeAdminApp, deleteApp as deleteAdminApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
+import legal from '../../functions/lib/compliance/platform-legal.constants.js';
+
+const currentVersions = {
+  version: legal.TERMS_ACCEPTANCE_VERSION,
+  termsDocumentVersion: legal.TERMS_DOCUMENT_VERSION,
+  privacyNoticeVersion: legal.PRIVACY_NOTICE_VERSION,
+};
 
 const projectId = 'demo-entretenimento-media-e2e';
 const authHost = '127.0.0.1:19099';
@@ -215,7 +222,7 @@ try {
   assert.equal((await state(uid)).data.passwordRequired, true);
   await rejects(state('another-account'), 'permission-denied');
   for (const [name, data] of [
-    ['acceptPlatformTerms', { ...expectedUid, acceptedTerms: true, acknowledgedPrivacyNotice: true }],
+    ['acceptPlatformTerms', { ...expectedUid, ...currentVersions, acceptedTerms: true, acknowledgedPrivacyNotice: true }],
     ['acceptAdultSelfDeclaration', expectedUid],
     ['completeRegistrationProfile', { uid }],
     ['reserveRegistrationNickname', { ...expectedUid, nickname: 'ApelidoTeste' }],
@@ -266,7 +273,7 @@ try {
   assert.equal((await db.collection('public_index').doc('nickname:' + differentNickname.toLowerCase()).get()).exists, false);
   console.log('[email-link:e2e] PASS existing signup retains its nickname and pending Terms');
 
-  const terms = { ...expectedUid, acceptedTerms: true, acknowledgedPrivacyNotice: true };
+  const terms = { ...expectedUid, ...currentVersions, acceptedTerms: true, acknowledgedPrivacyNotice: true };
   assert.equal((await consumer.call('acceptPlatformTerms', terms)).data.signupAdultDeclarationRecorded, true);
   const declared = (await declarationRef.get()).data();
   assert.ok(declared.declaredAtMs <= declared.termsAcceptedAtMs);
@@ -322,6 +329,11 @@ try {
   assert.ok(!(await freshPrivateRef.get()).get('nickname'));
   assert.equal((await freshIndexRef.get()).exists, false);
   assert.equal((await freshPublicRef.get()).exists, false);
+  await freshPrivateRef.update({ publicVisibility: 'visible', interactionBlocked: true });
+  await rejects(emailFirst.call('completeRegistrationProfile', profileInput),
+    'failed-precondition', 'account_interaction_blocked');
+  assert.equal((await freshPrivateRef.get()).get('interactionBlocked'), true);
+  await freshPrivateRef.update({ publicVisibility: 'hidden' });
   await freshPrivateRef.update({ moderationAutomationHold: { active: true } });
   await rejects(emailFirst.call('completeRegistrationProfile', profileInput), 'failed-precondition');
   assert.equal((await freshPrivateRef.get()).get('profileCompleted'), false);

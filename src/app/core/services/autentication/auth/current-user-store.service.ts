@@ -108,6 +108,12 @@ export function normalizeCurrentUserRuntimeVisibility(
 
   if (!profileIncomplete && !lifecycleRestricted) return user;
 
+  // A projeção pode ocultar um perfil pendente, sem forjar um bloqueio
+  // independente que mudaria sua classificação na próxima leitura.
+  if (lifecycleStatus === 'registration_pending') {
+    return user.publicVisibility === 'hidden' ? user : { ...user, publicVisibility: 'hidden' };
+  }
+
   if (
     user.publicVisibility === 'hidden' &&
     user.interactionBlocked === true

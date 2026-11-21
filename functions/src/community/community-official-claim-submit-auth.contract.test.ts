@@ -70,10 +70,13 @@ function installBoundaryProbe(
           data: () => ({
             uid,
             accountStatus: 'active',
+            profileCompleted: true,
             interactionBlocked: false,
             acceptedTerms: {
               accepted: true,
               version: TERMS_ACCEPTANCE_VERSION,
+              termsDocumentVersion: '2026-09-29.1',
+              privacyNoticeVersion: '2026-09-29.1',
               acknowledgedPrivacyNotice: true,
             },
             adultConsent: {

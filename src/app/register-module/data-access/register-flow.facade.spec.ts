@@ -21,7 +21,7 @@ function facade(profileCompleted: boolean) {
     uid: 'adult-user', emailVerified: true, profileCompleted,
     accountStatus: 'active', initialAdultConsentRequired: true,
     adultConsent: null,
-    acceptedTerms: { accepted: true, version: 'v3', acknowledgedPrivacyNotice: true },
+    acceptedTerms: { accepted: true, version: 'v3', termsDocumentVersion: '2026-09-29.1', privacyNoticeVersion: '2026-09-29.1', acknowledgedPrivacyNotice: true },
     ageEligibility: {
       status: 'EXPIRED', policyVersion: 1, source: 'INITIAL_VERIFICATION',
       method: 'MANUAL_REVIEW', verifiedAtMs: 1, expiresAtMs: 2,

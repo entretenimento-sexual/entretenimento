@@ -9,9 +9,12 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue, Timestamp, auth } from '../firebaseApp';
 import { assertCallableAppCheck } from '../shared/security/callable-app-check';
 import { requiresTrustedAdultVerification } from '../compliance/adult-self-declaration-evidence';
-import { assertPlatformAccountAccessData } from '../account_lifecycle/interaction-access.policy';
+import {
+  assertPlatformAccountAccessData,
+  isRegistrationInteractionBlock,
+} from '../account_lifecycle/interaction-access.policy';
 import { normalizePublicProfileDiscoveryFields } from '../discovery/profile-discovery-normalization';
-import { TERMS_ACCEPTANCE_VERSION } from '../compliance/platform-legal.constants';
+import { hasAcceptedCurrentTerms } from '../compliance/platform-legal.constants';
 import { buildInitialUserSeed, buildRegistrationAuthProjection } from '../auth/user-registration-seed';
 import {
   PROFILE_IDENTITY_CATALOG_VERSION, isCoupleProfileIdentityCode, isSelectableProfileIdentityCode,
@@ -268,17 +271,17 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
       const nickname = nicknameForAccount(display, user);
       if (user['accountStatus'] !== 'active' || user['accountLocked'] === true ||
         user['suspended'] === true || user['loginAllowed'] === false ||
-        user['deletionRequestedAt'] != null ||
+        user['deletionRequestedAt'] != null || user['deletedAt'] != null ||
         user['ageReverificationRestrictedAt'] != null ||
-        user['moderationAutomationHold']?.active === true) {
-        throw new HttpsError('failed-precondition', 'Conta indisponível.');
+        user['moderationAutomationHold']?.active === true ||
+        (user['interactionBlocked'] === true && !isRegistrationInteractionBlock(user))) {
+        throw new HttpsError('failed-precondition', 'Conta indisponível.', {
+          reason: 'account_interaction_blocked',
+        });
       }
-      const terms = user['acceptedTerms'] as Record<string, unknown> | undefined;
       // Contas novas e cadastros retomados exigem o aceite vigente e a
       // decisão etária canônica nesta mesma transação.
-      if (terms?.['accepted'] !== true ||
-        terms?.['version'] !== TERMS_ACCEPTANCE_VERSION ||
-        terms?.['acknowledgedPrivacyNotice'] !== true) {
+      if (!hasAcceptedCurrentTerms(user['acceptedTerms'])) {
         throw new HttpsError('failed-precondition',
           'Aceite os Termos de Uso vigentes para concluir o cadastro.',
           { reason: 'terms_required', recommendedAction: 'accept_terms' });

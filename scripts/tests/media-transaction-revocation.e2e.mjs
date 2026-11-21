@@ -49,6 +49,7 @@ function admittedAccount(uid) {
   return {
     uid,
     accountStatus: 'active',
+    profileCompleted: true,
     publicVisibility: 'visible',
     suspended: false,
     accountLocked: false,
@@ -57,6 +58,8 @@ function admittedAccount(uid) {
     acceptedTerms: {
       accepted: true,
       version: 'v3',
+      termsDocumentVersion: '2026-09-29.1',
+      privacyNoticeVersion: '2026-09-29.1',
       acknowledgedPrivacyNotice: true,
     },
     // Stronger verification is assurance, never a Media access gate.

@@ -2,7 +2,6 @@ import { TestBed } from '@angular/core/testing';
 import { firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CURRENT_LEGAL_ACCEPTANCE_ENFORCED } from '../../compliance/terms-acceptance.service';
 import { AuthFacade } from './auth.facade';
 import { AuthSessionService } from './auth-session.service';
 import { LogoutService } from './logout.service';
@@ -138,9 +137,7 @@ describe('AuthFacade social auth recovery', () => {
     expect(result.code).toBe('social-auth/bootstrap-failed');
   });
 
-  it('não bloqueia login social no dev-real por aceite jurídico remoto', async () => {
-    expect(CURRENT_LEGAL_ACCEPTANCE_ENFORCED).toBe(false);
-
+  it('encaminha o login social sem aceite vigente aos Termos', async () => {
     socialAuth.googleLogin.mockReturnValue(
       of({
         success: true,
@@ -162,7 +159,7 @@ describe('AuthFacade social auth recovery', () => {
     const result = await firstValueFrom(facade.googleLogin$());
 
     expect(result.success).toBe(true);
-    expect(result.nextRoute).toBe('/register/finalizar-cadastro');
+    expect(result.nextRoute).toBe('/register/aceitar-termos');
   });
   it('não converte falha pós-Google de outro UID em recuperação da conta atual', async () => {
     socialAuth.googleLogin.mockReturnValue(of({

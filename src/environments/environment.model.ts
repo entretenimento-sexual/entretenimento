@@ -81,7 +81,6 @@ export interface FeaturesConfig {
    * local a flag pode ser false para impedir que uma Function remota fora de
    * sincronia bloqueie o desenvolvimento inteiro.
    */
-  enforceCurrentLegalAcceptance?: boolean;
 
   /**
    * Libera somente em ambiente controlado a primeira experiência preparada para

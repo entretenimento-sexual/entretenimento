@@ -172,6 +172,25 @@ describe('TermsAcceptancePageComponent', () => {
     expect(component.isSaving()).toBe(false);
   });
 
+  it('pede recarga dos documentos quando as versões exibidas perderam validade', () => {
+    termsAcceptanceMock.acceptCurrentTerms$.mockReturnValueOnce(
+      throwError(() => ({ details: { reason: 'terms/version-mismatch' } }))
+    );
+    component.termsConfirmation.setValue(true);
+    component.accept();
+    fixture.detectChanges();
+
+    expect(component.termsConfirmation.value).toBe(false);
+    expect(component.acceptanceConfirmed()).toBe(false);
+    expect(fixture.nativeElement.querySelector('p[role="alert"]')?.textContent)
+      .toContain('Recarregue a página');
+    expect(fixture.nativeElement.querySelector('.terms-acceptance__button--primary')?.textContent)
+      .toContain('Recarregar documentos');
+    component.accept();
+    expect(termsAcceptanceMock.acceptCurrentTerms$).toHaveBeenCalledTimes(1);
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
   it('libera a tela e delega o feedback de logout ao shell global', () => {
     logoutMock.logout$.mockReturnValueOnce(
       throwError(() => new Error('logout-failed'))

@@ -11,7 +11,7 @@
 // - /users continua sendo fonte privada/self/admin
 // - fluxos públicos devem migrar para /public_profiles
 import { Injectable, Injector, runInInjectionContext } from '@angular/core';
-import { from, Observable, of } from 'rxjs';
+import { defer, from, Observable, of } from 'rxjs';
 import { catchError, finalize, map, shareReplay } from 'rxjs/operators';
 
 import {
@@ -107,12 +107,16 @@ export class UsersReadRepository {
     return this.watchUser$(uid);
   }
 
-  getUserOnce$(uid: string): Observable<IUserDados | null> {
+  getUserOnce$(uid: string, source: 'default' | 'server' = 'default'): Observable<IUserDados | null> {
     const id = this.norm(uid);
     if (!id) return of(null);
 
-    return from(runInInjectionContext(this.injector, () => getDoc(this.userRef(id)))).pipe(
-      map(snap => (snap.exists() ? (snap.data() ?? null) : null)),
+    const read = source === 'server' ? getDocFromServer : getDoc;
+    return defer(() => runInInjectionContext(this.injector, () => read(this.userRef(id)))).pipe(
+      map(snap => {
+        if (source === 'server' && (snap.metadata.fromCache || snap.metadata.hasPendingWrites)) return null;
+        return snap.exists() ? snap.data() : null;
+      }),
       catchError(err => {
         this.firestoreError.report(err, { context: 'UsersReadRepository.getUserOnce$' });
         return of(null);

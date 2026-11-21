@@ -12,6 +12,13 @@ import {
 } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
+import legal from '../../functions/lib/compliance/platform-legal.constants.js';
+
+const currentVersions = {
+  version: legal.TERMS_ACCEPTANCE_VERSION,
+  termsDocumentVersion: legal.TERMS_DOCUMENT_VERSION,
+  privacyNoticeVersion: legal.PRIVACY_NOTICE_VERSION,
+};
 
 const PROJECT = 'demo-entretenimento-media-e2e';
 const HOST = '127.0.0.1';
@@ -50,7 +57,7 @@ async function rejects(callable, payload, code) {
   return error;
 }
 async function grantEligibility(db, adminAuth, uid, acceptedTerms = {
-  accepted: true, version: 'v3', acknowledgedPrivacyNotice: true,
+  ...currentVersions, accepted: true, acknowledgedPrivacyNotice: true,
 }) {
   const now = Date.now();
   await adminAuth.updateUser(uid, { emailVerified: true });
@@ -103,7 +110,7 @@ async function run() {
     await rejects(reserve, { nickname: 'Perfil Original', expectedUid: otherUid }, 'permission-denied');
     await rejects(recover, { expectedUid: otherUid }, 'permission-denied');
     await rejects(acceptTerms, {
-      expectedUid: otherUid, acceptedTerms: true, acknowledgedPrivacyNotice: true,
+      ...currentVersions, expectedUid: otherUid, acceptedTerms: true, acknowledgedPrivacyNotice: true,
     }, 'permission-denied');
     assert.equal((await privateRef.get()).get('acceptedTerms.accepted'), false);
     assert.equal((await db.doc('nickname_reservations/perfil').get()).exists, false);
@@ -160,9 +167,30 @@ async function run() {
     assert.equal((await legacyPublicRef.get()).exists, false);
 
     const acceptLegacyTerms = httpsCallable(legacy.functions, 'acceptPlatformTerms');
-    await acceptLegacyTerms({
+    const legalAcceptance = {
+      ...currentVersions, expectedUid: legacyUser.uid, acceptedTerms: true, acknowledgedPrivacyNotice: true,
+    };
+    const audit = db.collection('compliance_audit').where('uid', '==', legacyUser.uid);
+    const beforeAcceptance = (await audit.get()).size;
+    for (const stale of [
+      { version: 'v2' }, { termsDocumentVersion: 'anterior' }, { privacyNoticeVersion: 'anterior' },
+    ]) {
+      const error = await rejects(acceptLegacyTerms, { ...legalAcceptance, ...stale }, 'failed-precondition');
+      assert.equal(error.details?.reason, 'terms/version-mismatch');
+    }
+    const withoutVersions = {
       expectedUid: legacyUser.uid, acceptedTerms: true, acknowledgedPrivacyNotice: true,
-    });
+    };
+    assert.equal((await rejects(acceptLegacyTerms, withoutVersions, 'failed-precondition')).details?.reason,
+      'terms/version-mismatch');
+    assert.equal((await legacyRef.get()).get('acceptedTerms.accepted'), true);
+    assert.notEqual((await legacyRef.get()).get('acceptedTerms.version'), currentVersions.version);
+    assert.equal((await audit.get()).size, beforeAcceptance);
+    const legacyReceipts = await Promise.all([
+      acceptLegacyTerms(legalAcceptance), acceptLegacyTerms(legalAcceptance),
+    ]);
+    assert.deepEqual(legacyReceipts[0].data, legacyReceipts[1].data);
+    assert.equal((await audit.get()).size, beforeAcceptance + 1);
     assert.equal((await completeLegacy(legacyPayload)).data.status, 'COMPLETED');
     const completedLegacy = await legacyRef.get();
     assert.equal(completedLegacy.get('profileCompleted'), true);
@@ -184,7 +212,7 @@ async function run() {
     }, { merge: true });
     await rejects(complete, payload, 'failed-precondition');
     await privateRef.set({
-      acceptedTerms: { accepted: true, version: 'v3', acknowledgedPrivacyNotice: true },
+      acceptedTerms: { accepted: true, version: 'v3', termsDocumentVersion: '2026-09-29.1', privacyNoticeVersion: '2026-09-29.1', acknowledgedPrivacyNotice: true },
     }, { merge: true });
     await rejects(complete, payload, 'permission-denied');
     assert.equal((await privateRef.get()).get('profileCompleted'), false);
@@ -215,7 +243,7 @@ async function run() {
     await b.user.reload();
     await b.user.getIdToken(true);
     await otherRef.set({
-      acceptedTerms: { accepted: true, version: 'v3', acknowledgedPrivacyNotice: true },
+      acceptedTerms: { accepted: true, version: 'v3', termsDocumentVersion: '2026-09-29.1', privacyNoticeVersion: '2026-09-29.1', acknowledgedPrivacyNotice: true },
     }, { merge: true });
     const declareAge = httpsCallable(other.functions, 'acceptAdultSelfDeclaration');
     const declarationRef = db.doc('adult_self_declarations/' + otherUid);
@@ -267,6 +295,7 @@ async function run() {
     const signupEligibilityRef = db.doc('age_eligibility_records/' + signupUid);
     const acceptOnSignup = httpsCallable(signup.functions, 'acceptPlatformTerms');
     const signupConfirmations = {
+      ...currentVersions,
       expectedUid: signupUid,
       acceptedTerms: true,
       acknowledgedPrivacyNotice: true,

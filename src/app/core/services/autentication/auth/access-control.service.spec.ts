@@ -22,6 +22,7 @@ function createUser(role: IUserDados['role'] = 'free'): IUserDados {
     tier: role === 'admin' ? 'free' : role,
     lastLogin: 1,
     profileCompleted: true,
+    accountStatus: 'active',
     isSubscriber: role !== 'free' && role !== 'admin',
     ageEligibility: {
       status: 'VERIFIED_ADULT',
@@ -153,6 +154,8 @@ describe('AccessControlService canonical subscription roles', () => {
       accepted: true,
       date: 1,
       version: 'v3',
+      termsDocumentVersion: '2026-09-29.1',
+      privacyNoticeVersion: '2026-09-29.1',
       acknowledgedPrivacyNotice: true,
     };
     user$.next({
@@ -178,6 +181,8 @@ describe('AccessControlService canonical subscription roles', () => {
         accepted: true,
         date: 1,
         version: 'v3',
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       },
       adultConsent: {
@@ -202,6 +207,8 @@ describe('AccessControlService canonical subscription roles', () => {
         accepted: false,
         date: 1,
         version: 'v3',
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       },
       adultConsent: {
@@ -223,6 +230,8 @@ describe('AccessControlService canonical subscription roles', () => {
         accepted: true,
         date: 1,
         version: 'v3',
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       },
       adultConsent: {
@@ -243,6 +252,8 @@ describe('AccessControlService canonical subscription roles', () => {
         accepted: true,
         date: 1,
         version: 'v3',
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       },
       adultConsent: {
@@ -278,6 +289,8 @@ describe('AccessControlService canonical subscription roles', () => {
         accepted: true,
         date: 1,
         version: 'v3',
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       },
       adultConsent: {
@@ -317,6 +330,8 @@ describe('AccessControlService canonical subscription roles', () => {
         accepted: true,
         date: 1,
         version: 'v3',
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       },
       adultConsent: {
@@ -355,6 +370,8 @@ describe('AccessControlService canonical subscription roles', () => {
         accepted: true,
         date: 1,
         version: 'v3',
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       },
       adultConsent: {

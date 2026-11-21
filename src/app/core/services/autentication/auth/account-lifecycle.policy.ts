@@ -52,24 +52,23 @@ export function normalizeUserAccountLifecycleStatus(
       : 'moderation_suspended';
   }
 
+  if (user.deletedAt != null) return 'deleted';
+  if (user.deletionRequestedAt != null) return 'pending_deletion';
+
   if (isPendingRegistration(user)) return 'registration_pending';
 
   if (user.interactionBlocked === true || user.ageReverificationRestrictedAt != null ||
-      (user.profileCompleted === false && user.moderationAutomationHold?.active === true)) {
+      (user.profileCompleted !== true && user.moderationAutomationHold?.active === true)) {
     return 'locked';
   }
 
-  const raw = String(user.accountStatus ?? '')
-    .trim()
-    .toLowerCase();
+  const raw = user.accountStatus;
 
-  if (ACCOUNT_STATUSES.has(raw as AccountStatus)) {
-    return raw as AccountStatus;
-  }
+  if (raw === 'active' && user.profileCompleted !== true) return 'registration_pending';
 
-  // Documento legado sem accountStatus continua equivalente a ativo quando
-  // não existem flags restritivas. Valor não vazio e desconhecido falha fechado.
-  return raw ? 'unknown' : 'active';
+  if (raw && ACCOUNT_STATUSES.has(raw)) return raw;
+
+  return 'unknown';
 }
 
 /** O seed privado permite retomar apenas enquanto não houver restrição independente. */
@@ -84,6 +83,9 @@ function isPendingRegistration(user: IUserDados): boolean {
     user.deletionRequestedAt == null &&
     user.deletedAt == null &&
     user.registrationCompletedAt == null &&
+    (user.registrationFlowVersion === 'v3-private-by-default' ||
+      user.registrationSeedSource === 'auth-trigger' ||
+      user.registrationSeedSource === 'registration-recovery') &&
     user.ageReverificationRestrictedAt == null &&
     user.moderationAutomationHold?.active !== true;
 }

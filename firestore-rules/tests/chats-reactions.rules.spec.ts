@@ -19,7 +19,7 @@ function activeUser(uid: string) {
   return {
     uid, profileCompleted: true, accountStatus: 'active',
     interactionBlocked: false, accountLocked: false, loginAllowed: true,
-    acceptedTerms: { accepted: true, version: 'v3', acknowledgedPrivacyNotice: true },
+    acceptedTerms: { accepted: true, version: 'v3', termsDocumentVersion: '2026-09-29.1', privacyNoticeVersion: '2026-09-29.1', acknowledgedPrivacyNotice: true },
     adultConsent: { accepted: true, version: 'v1' },
     ageReverification: { status: 'NONE' },
   };

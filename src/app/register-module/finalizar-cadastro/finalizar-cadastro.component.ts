@@ -272,6 +272,7 @@ implements OnInit, UnsavedChangesAware
 
   public message = '';
   public messageKind: ProfileCompletionMessageKind = null;
+  protected termsReviewRequired = false;
   public isLoading = true;
   public isSubmitting = false;
   public confirmingProfile = false;
@@ -391,6 +392,7 @@ implements OnInit, UnsavedChangesAware
   private clearSubmitMessages(): void {
     this.message = '';
     this.messageKind = null;
+    this.termsReviewRequired = false;
     this.uploadMessage = '';
   }
 
@@ -552,7 +554,7 @@ implements OnInit, UnsavedChangesAware
     this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
   }
 
-  private getRedirectToAfterCompletion(): string {
+  protected getRedirectToAfterCompletion(): string {
     return resolveRegistrationReturnUrl(this.route.snapshot.queryParamMap.get('redirectTo')) ??
       REGISTRATION_COMPLETION_ROUTE;
   }
@@ -675,6 +677,15 @@ implements OnInit, UnsavedChangesAware
             return EMPTY;
           }
           const reason = (error as { details?: { reason?: unknown } } | null)?.details?.reason;
+          if (reason === 'terms_required') {
+            this.termsReviewRequired = true;
+            this.setWarningMessage('Revise os Termos de Uso e o Aviso de Privacidade vigentes para concluir o perfil.');
+            return EMPTY;
+          }
+          if (reason === 'account_interaction_blocked') {
+            this.setWarningMessage('Sua conta está com uma restrição. Consulte o status da conta para saber como continuar.');
+            return EMPTY;
+          }
           if (reason === 'trusted_age_verification_required') {
             this.setWarningMessage('Sua maioridade ainda precisa ser verificada para concluir o cadastro.');
             return EMPTY;
@@ -708,9 +719,6 @@ implements OnInit, UnsavedChangesAware
           const target = this.getRedirectToAfterCompletion();
           if (!this.uploadMessage && !this.opensPreferences(target)) {
             this.setSuccessMessage('Perfil finalizado com sucesso!');
-          }
-          if (this.currentUserStore.getSnapshot()?.uid === uid) {
-            this.currentUserStore.patch({ profileCompleted: true });
           }
           this.localDraft.remove(this.draftKey);
           this.initialDraftSnapshot = this.currentDraftSnapshot();
@@ -762,7 +770,18 @@ implements OnInit, UnsavedChangesAware
     const navigation = this.opensPreferences(saved.target)
       ? { replaceUrl: true, info: PROFILE_COMPLETED_NAVIGATION_INFO }
       : { replaceUrl: true };
-    defer(() => this.router.navigateByUrl(saved.target, navigation)).pipe(
+    const confirm$ = defer(() => {
+      const user = this.currentUserStore.getSnapshot();
+      return user?.uid === saved.uid && user.profileCompleted === true
+        ? of(true) : this.profileCompletion.confirmProfileCompletion$(saved.uid);
+    });
+    confirm$.pipe(
+      take(1),
+      timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
+      switchMap(confirmed => {
+        if (!this.isCurrentAccount(saved.uid)) return EMPTY;
+        return confirmed ? defer(() => this.router.navigateByUrl(saved.target, navigation)) : of(false);
+      }),
       timeout({ first: REGISTRATION_ACTION_TIMEOUT_MS }),
       tap((navigated) => {
         if (!navigated || this.router.url.split(/[?#]/)[0] === '/register/finalizar-cadastro') {

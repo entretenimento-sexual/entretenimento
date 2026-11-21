@@ -115,6 +115,7 @@ describe('account age review lifecycle policy', () => {
   it('prova que suspeita e confirmação de menoridade bloqueiam produtos via lifecycle', () => {
     const baseAccount = {
       accountStatus: 'active',
+      profileCompleted: true,
       suspended: false,
       interactionBlocked: false,
       accountLocked: false,
@@ -122,6 +123,8 @@ describe('account age review lifecycle policy', () => {
       loginAllowed: true,
       acceptedTerms: {
         accepted: true, version: 'v3',
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       },
       adultConsent: { accepted: true, version: 'v1' },

@@ -20,6 +20,7 @@ function user(overrides: Partial<IUserDados> = {}): IUserDados {
     descricao: '',
     isSubscriber: false,
     accountStatus: 'active',
+    profileCompleted: true,
     ...overrides,
   } as IUserDados;
 }
@@ -119,6 +120,7 @@ describe('account lifecycle guards', () => {
   it('libera a etapa etária de um cadastro pendente com interações bloqueadas', async () => {
     const pending = user({
       profileCompleted: false,
+      registrationFlowVersion: 'v3-private-by-default',
       publicVisibility: 'hidden',
       interactionBlocked: true,
       loginAllowed: true,
@@ -149,8 +151,9 @@ describe('account lifecycle guards', () => {
     'veda %s após o aceite dos Termos até a conclusão do perfil', async (url) => {
       const pending = user({
         emailVerified: true,
-        acceptedTerms: { accepted: true, date: 1, version: 'v3', acknowledgedPrivacyNotice: true },
+        acceptedTerms: { accepted: true, date: 1, version: 'v3', termsDocumentVersion: '2026-09-29.1', privacyNoticeVersion: '2026-09-29.1', acknowledgedPrivacyNotice: true },
         profileCompleted: false,
+        registrationFlowVersion: 'v3-private-by-default',
         publicVisibility: 'hidden',
         interactionBlocked: true,
         loginAllowed: true,

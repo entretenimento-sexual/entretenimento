@@ -3,6 +3,8 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const {
   TERMS_ACCEPTANCE_VERSION,
+  TERMS_DOCUMENT_VERSION,
+  PRIVACY_NOTICE_VERSION,
 } = require('../../functions/lib/compliance/platform-legal.constants.js');
 
 /**
@@ -34,6 +36,8 @@ export async function seedPublicMediaCompliance(adminDb, uids) {
           acceptedTerms: {
             accepted: true,
             version: TERMS_ACCEPTANCE_VERSION,
+            termsDocumentVersion: TERMS_DOCUMENT_VERSION,
+            privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
             acknowledgedPrivacyNotice: true,
             source: 'e2e-fixture',
           },

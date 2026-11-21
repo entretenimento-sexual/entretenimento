@@ -3,6 +3,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  hasAcceptedCurrentTerms,
   PLATFORM_LEGAL_CHANGE_SUMMARY,
   PRIVACY_NOTICE_VERSION,
   TERMS_ACCEPTANCE_VERSION,
@@ -29,14 +30,9 @@ export function resolveLegalAcceptanceState(
   const record = value as Record<string, unknown>;
   const accepted = record['accepted'] === true;
   const previousVersion = String(record['version'] ?? '').trim() || null;
-  const acknowledgedPrivacyNotice =
-    record['acknowledgedPrivacyNotice'] === true;
 
   return {
-    current:
-      accepted &&
-      previousVersion === TERMS_ACCEPTANCE_VERSION &&
-      acknowledgedPrivacyNotice,
+    current: hasAcceptedCurrentTerms(record),
     hasPriorAcceptance: accepted && previousVersion !== null,
     previousVersion,
   };

@@ -5,11 +5,14 @@ import { assertPlatformAccountAccessData } from './interaction-access.policy';
 
 const validUser = {
   accountStatus: 'active',
+  profileCompleted: true,
   suspended: false,
   interactionBlocked: false,
   acceptedTerms: {
     accepted: true,
     version: 'v3',
+    termsDocumentVersion: '2026-09-29.1',
+    privacyNoticeVersion: '2026-09-29.1',
     acknowledgedPrivacyNotice: true,
   },
 };
@@ -59,6 +62,13 @@ describe('interaction access policy', () => {
     assert.throws(() => assertPlatformAccountAccessData({ ...pending, accountLocked: true }), { details: {
       reason: 'account_interaction_blocked',
     } });
+    const { profileCompleted: _profileCompleted, ...missingCompletion } = validUser;
+    assert.throws(() => assertPlatformAccountAccessData(missingCompletion), { details: {
+      reason: 'registration_pending',
+    } });
+    assert.throws(() => assertPlatformAccountAccessData({ ...pending, deletionRequestedAt: 1 }), { details: {
+      reason: 'account_interaction_blocked',
+    } });
   });
 
   it('bloqueia conta com interactionBlocked', () => {
@@ -88,6 +98,8 @@ describe('interaction access policy', () => {
         acceptedTerms: {
           accepted: false,
           version: 'v3',
+          termsDocumentVersion: '2026-09-29.1',
+          privacyNoticeVersion: '2026-09-29.1',
           acknowledgedPrivacyNotice: true,
         },
       })

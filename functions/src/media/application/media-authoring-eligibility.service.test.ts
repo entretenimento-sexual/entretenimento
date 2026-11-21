@@ -9,11 +9,14 @@ import {
 describe('media authoring eligibility', () => {
   const eligibleUser = {
     accountStatus: 'active',
+    profileCompleted: true,
     suspended: false,
     interactionBlocked: false,
     acceptedTerms: {
       accepted: true,
       version: 'v3',
+      termsDocumentVersion: '2026-09-29.1',
+      privacyNoticeVersion: '2026-09-29.1',
       acknowledgedPrivacyNotice: true,
     },
   };
@@ -109,7 +112,7 @@ describe('media authoring eligibility', () => {
     assert.throws(
       () => assertMediaAuthoringEligibilityData({
         ...eligibleUser,
-        acceptedTerms: { accepted: false, version: 'v3', acknowledgedPrivacyNotice: true },
+        acceptedTerms: { ...eligibleUser.acceptedTerms, accepted: false },
       }),
       HttpsError
     );

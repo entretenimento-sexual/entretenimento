@@ -120,6 +120,8 @@ function installTransactionProbe(
       acceptedTerms: {
         accepted: true,
         version: TERMS_ACCEPTANCE_VERSION,
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       },
       adultConsent: { accepted: true, version: ADULT_CONSENT_VERSION },
@@ -142,6 +144,8 @@ function installTransactionProbe(
       acceptedTerms: {
         accepted: true,
         version: TERMS_ACCEPTANCE_VERSION,
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       },
       adultConsent: { accepted: true, version: ADULT_CONSENT_VERSION },

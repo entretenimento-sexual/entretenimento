@@ -11,15 +11,20 @@ import { assertCallableAppCheck } from '../shared/security/callable-app-check';
 import { writeAdultSelfDeclarationEvidence } from './adult-self-declaration-evidence';
 import {
   ADULT_SELF_DECLARATION_VERSION,
+  hasAcceptedCurrentTerms,
+  matchesCurrentLegalVersions,
   PRIVACY_NOTICE_VERSION,
   TERMS_ACCEPTANCE_VERSION,
   TERMS_DOCUMENT_VERSION,
 } from './platform-legal.constants';
 
 interface AcceptPlatformTermsRequest {
-  expectedUid?: unknown;
+  expectedUid: unknown;
   acceptedTerms: true;
   acknowledgedPrivacyNotice: true;
+  version: unknown;
+  termsDocumentVersion: unknown;
+  privacyNoticeVersion: unknown;
   signupAdultDeclarationVersion?: unknown;
 }
 
@@ -48,10 +53,11 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
       );
     }
 
-    if (request.data?.expectedUid !== undefined && request.data.expectedUid !== uid) {
-      throw new HttpsError('permission-denied', 'A conta ativa mudou durante o aceite dos termos.');
+    if (request.data?.expectedUid !== uid) {
+      throw new HttpsError('permission-denied', 'A conta ativa mudou durante o aceite dos termos.', {
+        reason: 'auth/session-changed',
+      });
     }
-    await assertRegistrationPasswordDefined(uid);
 
     if (
       request.data?.acceptedTerms !== true ||
@@ -63,13 +69,23 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
       );
     }
 
+    if (!matchesCurrentLegalVersions({
+      version: request.data.version,
+      termsDocumentVersion: request.data.termsDocumentVersion,
+      privacyNoticeVersion: request.data.privacyNoticeVersion,
+    })) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Os documentos foram atualizados. Recarregue a página e revise as versões vigentes.',
+        { reason: 'terms/version-mismatch' },
+      );
+    }
+    await assertRegistrationPasswordDefined(uid);
+
     const signupVersion = request.data?.signupAdultDeclarationVersion;
     const signupDeclarationRequested = signupVersion !== undefined;
     if (signupDeclarationRequested) {
       assertCallableAppCheck(request.app);
-      if (request.data?.expectedUid !== uid) {
-        throw new HttpsError('permission-denied', 'A conta ativa mudou durante o cadastro.');
-      }
       if (signupVersion !== ADULT_SELF_DECLARATION_VERSION) {
         throw new HttpsError('invalid-argument', 'Revise a declaração de maioridade vigente.');
       }
@@ -107,13 +123,7 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
       const previous = (userData.acceptedTerms ?? {}) as Record<string, unknown>;
       const normalizedPreviousVersion = String(previous.version ?? '').trim();
       const priorDate = previous.acceptedAt ?? previous.date;
-      const previouslyAcceptedAtMs = recordSignupDeclaration &&
-        previous.accepted === true &&
-        normalizedPreviousVersion === TERMS_ACCEPTANCE_VERSION &&
-        previous.acknowledgedPrivacyNotice === true &&
-        previous.termsDocumentVersion === TERMS_DOCUMENT_VERSION &&
-        previous.privacyNoticeVersion === PRIVACY_NOTICE_VERSION &&
-        priorDate instanceof Timestamp
+      const previouslyAcceptedAtMs = hasAcceptedCurrentTerms(previous) && priorDate instanceof Timestamp
         ? priorDate.toMillis()
         : null;
       const previousVersion = previouslyAcceptedAtMs !== null
@@ -147,13 +157,14 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
             },
           });
         }
-        if (previouslyAcceptedAtMs !== null) {
-          return { acceptedAtMs: previouslyAcceptedAtMs, previousVersion, acceptanceContext, recordSignupDeclaration };
-        }
+      }
+
+      if (previouslyAcceptedAtMs !== null) {
+        return { acceptedAtMs: previouslyAcceptedAtMs, previousVersion, acceptanceContext, recordSignupDeclaration };
       }
 
       const now = FieldValue.serverTimestamp();
-      const acceptedAt = recordSignupDeclaration ? Timestamp.fromMillis(nowMs) : now;
+      const acceptedAt = Timestamp.fromMillis(nowMs);
 
       tx.set(
         userRef,

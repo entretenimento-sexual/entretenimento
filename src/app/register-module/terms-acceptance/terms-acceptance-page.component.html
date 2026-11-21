@@ -82,6 +82,15 @@
     }
 
     <div class="terms-acceptance__actions">
+      @if (versionsChanged()) {
+        <button
+          type="button"
+          class="terms-acceptance__button terms-acceptance__button--primary"
+          (click)="reloadDocuments()"
+        >
+          Recarregar documentos
+        </button>
+      } @else {
       <button
         type="button"
         class="terms-acceptance__button terms-acceptance__button--primary"
@@ -94,6 +103,7 @@
           : resumingSignupAcceptance() ? 'Confirmando o aceite do cadastro…'
           : (isSaving() ? 'Registrando aceite…' : 'Aceitar e continuar') }}
       </button>
+      }
 
       <button
         type="button"

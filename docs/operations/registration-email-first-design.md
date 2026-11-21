@@ -31,6 +31,12 @@ Solicitar outro link para um e-mail que já tem senha leva à entrada da conta e
 
 Enquanto o perfil estiver incompleto, ativo e privado por padrão, a abertura direta de uma rota protegida encaminha à primeira etapa pendente, preservando o destino interno válido. Suspensão, restrição etária ou de moderação, exclusão em curso e bloqueios independentes têm precedência e abrem o status da conta. Termos e documentos públicos seguem disponíveis.
 
+## Contrato de aceite entre ambientes
+
+Emuladores, staging e produção exigem o aceite dos Termos e a ciência do Aviso de Privacidade registrados pelo backend. O formulário envia o UID esperado, a versão do aceite e as versões dos dois documentos exibidos. A Function compara as versões antes de gravar. Se a página estiver desatualizada, o usuário recarrega os documentos e confirma novamente. Repetir um aceite vigente devolve o recibo original.
+
+O acesso ao produto exige conta ativa, perfil explicitamente concluído e aceite dos documentos vigentes. O cadastro pendente mantém acesso a suas etapas de retomada. Atualize frontend, Functions e Rules como partes da mesma entrega em cada ambiente. O ensaio remoto também depende da configuração de App Check do respectivo projeto.
+
 ## Retenção proposta e simulação de abandono
 
 Os prazos abaixo são limites de inatividade para triagem. Recontam a partir da atividade válida mais recente. Expiração de link e inatividade da conta são relógios independentes.

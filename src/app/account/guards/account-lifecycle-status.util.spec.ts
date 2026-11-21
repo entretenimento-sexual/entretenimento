@@ -56,9 +56,9 @@ describe('account-lifecycle-status.util', () => {
     ).toBe('unknown');
   });
 
-  it('mantém documento legado sem status como active quando não há flags restritivas', () => {
+  it('mantém documento sem status como desconhecido', () => {
     expect(normalizeAccountStatus(user({ accountStatus: undefined }))).toBe(
-      'active'
+      'unknown'
     );
   });
 

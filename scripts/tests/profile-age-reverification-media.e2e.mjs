@@ -116,6 +116,8 @@ function registeredUser(uid, nickname) {
     acceptedTerms: {
       accepted: true,
       version: CURRENT_TERMS_VERSION,
+      termsDocumentVersion: '2026-09-29.1',
+      privacyNoticeVersion: '2026-09-29.1',
       acknowledgedPrivacyNotice: true,
       acceptedAt: Date.now(),
     },

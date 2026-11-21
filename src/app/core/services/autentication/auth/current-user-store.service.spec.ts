@@ -35,6 +35,7 @@ describe('CurrentUserStoreService', () => {
     nickname: 'alex',
     role: 'premium',
     profileCompleted: true,
+    accountStatus: 'active',
     isSubscriber: true,
   } as IUserDados;
 
@@ -145,7 +146,7 @@ describe('CurrentUserStoreService', () => {
       isSubscriber: true,
     }));
     expect(service.getSnapshot()?.tier).toBeUndefined();
-    expect(service.getSnapshot()?.accountStatus).toBeUndefined();
+    expect(service.getSnapshot()?.accountStatus).toBe('active');
     expect(service.getSnapshot()?.accountLocked).toBeUndefined();
     expect(service.getSnapshot()?.subscriptionStatus).toBeUndefined();
     expect(service.getSnapshot()?.legalHold).toBeUndefined();

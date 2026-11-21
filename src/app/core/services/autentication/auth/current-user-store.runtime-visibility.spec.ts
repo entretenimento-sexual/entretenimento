@@ -25,7 +25,7 @@ describe('normalizeCurrentUserRuntimeVisibility', () => {
     expect(normalizeCurrentUserRuntimeVisibility(current)).toBe(current);
   });
 
-  it('oculta e bloqueia perfil incompleto vindo do login social', () => {
+  it('oculta perfil incompleto preservando o estado de interação', () => {
     expect(
       normalizeCurrentUserRuntimeVisibility(
         user({
@@ -37,8 +37,9 @@ describe('normalizeCurrentUserRuntimeVisibility', () => {
     ).toEqual(
       expect.objectContaining({
         profileCompleted: false,
+        registrationFlowVersion: 'v3-private-by-default',
         publicVisibility: 'hidden',
-        interactionBlocked: true,
+        interactionBlocked: false,
       })
     );
   });
@@ -55,7 +56,7 @@ describe('normalizeCurrentUserRuntimeVisibility', () => {
     ).toEqual(
       expect.objectContaining({
         publicVisibility: 'hidden',
-        interactionBlocked: true,
+        interactionBlocked: false,
       })
     );
   });
@@ -80,6 +81,7 @@ describe('normalizeCurrentUserRuntimeVisibility', () => {
   it('não cria novo objeto quando o estado já está protegido', () => {
     const current = user({
       profileCompleted: false,
+      registrationFlowVersion: 'v3-private-by-default',
       publicVisibility: 'hidden',
       interactionBlocked: true,
     });

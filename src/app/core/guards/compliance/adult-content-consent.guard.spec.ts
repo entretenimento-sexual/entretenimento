@@ -8,7 +8,6 @@ import { AuthSessionService } from '../../services/autentication/auth/auth-sessi
 import { CurrentUserStoreService } from '../../services/autentication/auth/current-user-store.service';
 import { AgeEligibilityService } from '../../services/compliance/age-eligibility.service';
 import {
-  CURRENT_LEGAL_ACCEPTANCE_ENFORCED,
   TERMS_ACCEPTANCE_VERSION,
 } from '../../services/compliance/terms-acceptance.service';
 import { adultContentConsentGuard } from './adult-content-consent.guard';
@@ -26,6 +25,8 @@ const DECLARED: IUserAgeEligibility = {
 const CURRENT_TERMS = {
   accepted: true,
   version: TERMS_ACCEPTANCE_VERSION,
+  termsDocumentVersion: '2026-09-29.1',
+  privacyNoticeVersion: '2026-09-29.1',
   acknowledgedPrivacyNotice: true,
 };
 
@@ -105,14 +106,10 @@ describe('adultContentConsentGuard / admission 18+ and Terms without legacy cons
     expect(createUrlTree).toHaveBeenCalledWith(['/adulto/verificar-idade'],expect.any(Object));
   });
 
-  it('exige Termos vigentes quando o gating jurídico está ativo', async () => {
+  it('exige Termos vigentes para uma conta já concluída', async () => {
     user$.next({ uid: 'user-1', acceptedTerms: null,
       accountStatus: 'active', profileCompleted: true });
-    const result = await firstValueFrom(run('/dashboard/principal') as never);
-    if (CURRENT_LEGAL_ACCEPTANCE_ENFORCED) {
-      expect(createUrlTree).toHaveBeenCalledWith(['/register/aceitar-termos'],expect.any(Object));
-    } else {
-      expect(result).toBe(true);
-    }
+    await firstValueFrom(run('/dashboard/principal') as never);
+    expect(createUrlTree).toHaveBeenCalledWith(['/register/aceitar-termos'], expect.any(Object));
   });
 });

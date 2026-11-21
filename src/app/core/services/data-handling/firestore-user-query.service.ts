@@ -192,10 +192,10 @@ getPublicUserById$(
   // ============================================================
   // One-shot direto do Firestore (sem cache/store) - útil em casos pontuais
   // ============================================================
-  getUserOnceFromFirestore$(uid: string): Observable<IUserDados | null> {
+  getUserOnceFromFirestore$(uid: string, source: 'default' | 'server' = 'default'): Observable<IUserDados | null> {
     const id = (uid ?? '').trim();
     if (!id) return of(null);
-    return this.usersReadRepo.getUserOnce$(id);
+    return this.usersReadRepo.getUserOnce$(id, source);
   }
 
   // ============================================================

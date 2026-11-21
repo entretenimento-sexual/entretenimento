@@ -21,6 +21,10 @@ function nullableBoolean(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null;
 }
 
+function legalVersion(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
 function termsAcceptanceContext(
   value: unknown
 ): TermsAcceptanceContext | null {
@@ -59,11 +63,11 @@ export const userConverter: FirestoreDataConverter<IUserDados> = {
             acceptedTerms: {
               accepted: d.acceptedTerms.accepted === true,
               date: ms(d.acceptedTerms.date),
-              version: nullableText(d.acceptedTerms.version),
-              termsDocumentVersion: nullableText(
+              version: legalVersion(d.acceptedTerms.version),
+              termsDocumentVersion: legalVersion(
                 d.acceptedTerms.termsDocumentVersion
               ),
-              privacyNoticeVersion: nullableText(
+              privacyNoticeVersion: legalVersion(
                 d.acceptedTerms.privacyNoticeVersion
               ),
               acknowledgedPrivacyNotice: nullableBoolean(

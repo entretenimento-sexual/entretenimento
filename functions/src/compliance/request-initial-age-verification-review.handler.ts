@@ -25,7 +25,7 @@ import {
   writeCanonicalAgeEligibilityInTransaction,
 } from './age-eligibility.service';
 import {
-  TERMS_ACCEPTANCE_VERSION,
+  hasAcceptedCurrentTerms,
 } from './platform-legal.constants';
 import {
   assertComplianceAuthenticatedUid,
@@ -45,18 +45,6 @@ function initialAgeReportId(uid: string): string {
     .slice(0, 40);
 
   return `age_initial_${digest}`;
-}
-
-function hasCurrentTerms(raw: unknown): boolean {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return false;
-  }
-
-  const terms = raw as Record<string, unknown>;
-
-  return terms['accepted'] === true &&
-    String(terms['version'] ?? '').trim() === TERMS_ACCEPTANCE_VERSION &&
-    terms['acknowledgedPrivacyNotice'] === true;
 }
 
 export const requestInitialAgeVerificationReview = onCall(
@@ -99,7 +87,7 @@ export const requestInitialAgeVerificationReview = onCall(
 
       const user = userSnapshot.data() ?? {};
 
-      if (!hasCurrentTerms(user['acceptedTerms'])) {
+      if (!hasAcceptedCurrentTerms(user['acceptedTerms'])) {
         throw new HttpsError(
           'failed-precondition',
           'Aceite os termos vigentes antes de solicitar a verificação de maioridade.',

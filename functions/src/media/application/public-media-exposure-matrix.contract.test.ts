@@ -90,11 +90,14 @@ describe('public media exposure matrix contract', () => {
   it('conta ativa não é reavaliada por assurance etário em Media', () => {
     const user = {
       accountStatus: 'active',
+      profileCompleted: true,
       suspended: false,
       interactionBlocked: false,
       acceptedTerms: {
         accepted: true,
         version: 'v3',
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       },
       adultConsent: { accepted: true, version: 'v1' },

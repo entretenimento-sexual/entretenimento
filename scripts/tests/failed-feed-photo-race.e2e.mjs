@@ -146,7 +146,7 @@ try {
       uid: ownerUid, emailVerified:true, profileCompleted:true,
       accountStatus:'active', suspended:false, publicVisibility:'visible',
       interactionBlocked:false, accountLocked:false, loginAllowed:true,
-      acceptedTerms:{accepted:true,version:'v3',acknowledgedPrivacyNotice:true},
+      acceptedTerms:{accepted:true,version:'v3', termsDocumentVersion:'2026-09-29.1', privacyNoticeVersion:'2026-09-29.1', acknowledgedPrivacyNotice:true},
       ageReverification:null, updatedAt:Date.now(),
     }, {merge:true}),
     db.doc(`age_eligibility_records/${ownerUid}`).set({

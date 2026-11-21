@@ -227,7 +227,7 @@ describe('PublicVideoViewerComponent', () => {
         { provide: MatDialogRef, useValue: dialogRef },
         {
           provide: CurrentUserStoreService,
-          useValue: { user$: of({ uid: 'viewer-1' }) },
+          useValue: { user$: of({ uid: 'viewer-1', accountStatus: 'active', profileCompleted: true }) },
         },
         { provide: VideoViewTrackingService, useValue: videoViewTracking },
         { provide: PublicVideoAccessService, useValue: publicVideoAccess },

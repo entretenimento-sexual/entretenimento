@@ -20,7 +20,7 @@ import {
   requiresTrustedAdultVerification,
   SIGNUP_ADULT_DECLARATION_SCHEMA_VERSION,
 } from './adult-self-declaration-evidence';
-import { TERMS_ACCEPTANCE_VERSION } from './platform-legal.constants';
+import { hasAcceptedCurrentTerms } from './platform-legal.constants';
 import {
   evaluateCanonicalAgeEligibility,
 } from './age-eligibility.policy';
@@ -276,7 +276,6 @@ export const refreshMyAgeEligibility = onCall(
       const declaration = declarationSnapshot.data();
       const isSignupEvidence =
         Number(declaration?.['schemaVersion']) === SIGNUP_ADULT_DECLARATION_SCHEMA_VERSION;
-      const terms = user['acceptedTerms'];
       const canUseSignupEvidence = request.auth?.token?.email_verified === true &&
         !requiresTrustedAdultVerification &&
         user['accountStatus'] === 'active' &&
@@ -284,9 +283,7 @@ export const refreshMyAgeEligibility = onCall(
         user['suspended'] !== true &&
         user['loginAllowed'] !== false &&
         user['deletionRequestedAt'] == null &&
-        terms?.['accepted'] === true &&
-        terms?.['version'] === TERMS_ACCEPTANCE_VERSION &&
-        terms?.['acknowledgedPrivacyNotice'] === true;
+        hasAcceptedCurrentTerms(user['acceptedTerms']);
       const declaredAtMs = !isSignupEvidence || canUseSignupEvidence
         ? trustedSelfDeclarationAtMs(declaration, uid)
         : null;

@@ -70,13 +70,6 @@ export const environment: AppEnvironment = {
       '/dashboard/featured-profiles',
     ],
 
-    /**
-     * Desenvolvimento local não pode ficar indisponível porque uma Function
-     * jurídica remota está fora de sincronia com o frontend em andamento.
-     * Produção ignora qualquer bypass e continua fail-closed.
-     */
-    enforceCurrentLegalAcceptance: false,
-
     subscriberExperiencesPreview: false,
     communitiesEnabled: true,
     communityPreview: false,

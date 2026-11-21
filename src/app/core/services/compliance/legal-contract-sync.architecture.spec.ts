@@ -29,6 +29,23 @@ describe('Legal contract sync', () => {
     }
   });
 
+  it('valida nas Rules os mesmos documentos apresentados em cada ambiente', () => {
+    const backend = source('functions/src/compliance/platform-legal.constants.ts');
+    const rules = source('firestore-rules/_helpers.rules');
+    for (const [constant, field] of [
+      ['TERMS_ACCEPTANCE_VERSION', 'version'],
+      ['TERMS_DOCUMENT_VERSION', 'termsDocumentVersion'],
+      ['PRIVACY_NOTICE_VERSION', 'privacyNoticeVersion'],
+    ]) {
+      const version = backend.match(new RegExp(`${constant} = '([^']+)'`))?.[1];
+      expect(version).toBeTruthy();
+      expect(rules).toContain(`acceptedTerms.${field} == "${version}"`);
+    }
+    for (const env of ['environment', 'environment.dev-emu', 'environment.staging', 'environment.prod']) {
+      expect(source(`src/environments/${env}.ts`)).not.toContain('enforceCurrentLegalAcceptance');
+    }
+  });
+
   it('mantém Media juridicamente descrita como superfície de maioridade verificada', () => {
     const terms = source(
       'src/app/footer/legal-footer/termos-e-condicoes/termos-e-condicoes.component.html'

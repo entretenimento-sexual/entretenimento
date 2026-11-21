@@ -117,7 +117,7 @@ describe('FinalizarCadastroComponent', () => {
         municipio: 'Rio de Janeiro',
       })),
       saveProfileCompletion$: vi.fn(() => of(void 0)),
-      confirmProfileCompletion$: vi.fn(() => of(false)),
+      confirmProfileCompletion$: vi.fn(() => of(true)),
       uploadProfileAvatarAfterSave$: vi.fn(() => of({
         status: 'skipped',
       })),
@@ -424,9 +424,8 @@ describe('FinalizarCadastroComponent', () => {
       municipio: 'Rio de Janeiro',
     });
 
-    expect(currentUserStoreMock.patch).toHaveBeenCalledWith({
-      profileCompleted: true,
-    });
+    expect(profileCompletionFacadeMock.confirmProfileCompletion$).toHaveBeenCalledWith('u1');
+    expect(currentUserStoreMock.patch).not.toHaveBeenCalled();
 
     expect(errorNotificationMock.showSuccess).not.toHaveBeenCalled();
     expect(router.navigateByUrl).toHaveBeenCalledWith(
@@ -548,6 +547,7 @@ describe('FinalizarCadastroComponent', () => {
     vi.useFakeTimers();
     try {
       profileCompletionFacadeMock.saveProfileCompletion$.mockReturnValueOnce(NEVER);
+      profileCompletionFacadeMock.confirmProfileCompletion$.mockReturnValueOnce(of(false));
       component.onSubmit();
       expect(component.isSubmitting).toBe(true);
       vi.advanceTimersByTime(15_000);
@@ -581,7 +581,7 @@ describe('FinalizarCadastroComponent', () => {
 
     expect(profileCompletionFacadeMock.confirmProfileCompletion$).toHaveBeenCalledWith('u1');
     expect(profileCompletionFacadeMock.saveProfileCompletion$).toHaveBeenCalledTimes(1);
-    expect(currentUserStoreMock.patch).toHaveBeenCalledWith({ profileCompleted: true });
+    expect(currentUserStoreMock.patch).not.toHaveBeenCalled();
     expect(component.profileSaved).toBe(true);
     expect(component.isSubmitting).toBe(false);
     expect(errorNotificationMock.showSuccess).not.toHaveBeenCalled();

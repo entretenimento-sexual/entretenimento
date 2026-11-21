@@ -1,7 +1,8 @@
 import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
-import { TERMS_ACCEPTANCE_VERSION } from '../compliance/platform-legal.constants';
+import { REGISTRATION_FLOW_VERSION } from '../auth/user-registration-seed';
+import { hasAcceptedCurrentTerms } from '../compliance/platform-legal.constants';
 import { db } from '../firebaseApp';
 
 interface InteractionAccessUserDocument {
@@ -11,6 +12,12 @@ interface InteractionAccessUserDocument {
   suspended?: unknown;
   interactionBlocked?: unknown;
   profileCompleted?: unknown;
+  publicVisibility?: unknown;
+  registrationCompletedAt?: unknown;
+  registrationFlowVersion?: unknown;
+  registrationSeedSource?: unknown;
+  deletionRequestedAt?: unknown;
+  deletedAt?: unknown;
   ageReverificationRestrictedAt?: unknown;
   moderationAutomationHold?: {
     active?: unknown;
@@ -28,12 +35,15 @@ function cleanUid(value: unknown): string {
   return /^[A-Za-z0-9_-]{1,128}$/.test(uid) ? uid : '';
 }
 
-function hasCurrentTerms(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const terms = value as Record<string, unknown>;
-  return terms['accepted'] === true &&
-    String(terms['version'] ?? '').trim() === TERMS_ACCEPTANCE_VERSION &&
-    terms['acknowledgedPrivacyNotice'] === true;
+export function isRegistrationInteractionBlock(user: InteractionAccessUserDocument): boolean {
+  return user.interactionBlocked === true &&
+    user.profileCompleted === false &&
+    user.registrationCompletedAt == null &&
+    user.publicVisibility === 'hidden' &&
+    user.loginAllowed === true &&
+    (user.registrationFlowVersion === REGISTRATION_FLOW_VERSION ||
+      user.registrationSeedSource === 'auth-trigger' ||
+      user.registrationSeedSource === 'registration-recovery');
 }
 
 /**
@@ -48,9 +58,6 @@ export function assertPlatformAccountAccessData(
     throw new HttpsError('not-found', 'Conta não encontrada.');
   }
 
-  const accountStatus = String(user.accountStatus ?? '')
-    .trim()
-    .toLowerCase();
   const holdExpiresAtMs = Number(
     user.moderationAutomationHold?.expiresAtMs ?? 0
   );
@@ -60,16 +67,14 @@ export function assertPlatformAccountAccessData(
     Date.now() < holdExpiresAtMs;
 
   const administrativelyRestricted =
-    accountStatus !== 'active' || user.accountLocked === true ||
+    user.accountStatus !== 'active' || user.accountLocked === true ||
     user.loginAllowed === false || user.suspended === true ||
-    user.ageReverificationRestrictedAt != null || automationHoldActive;
-  if (!administrativelyRestricted && user.profileCompleted === false) {
-    throw new HttpsError('failed-precondition', 'Conclua o cadastro para realizar esta ação.', {
-      reason: 'registration_pending',
-    });
-  }
+    user.ageReverificationRestrictedAt != null || user.deletionRequestedAt != null ||
+    user.deletedAt != null || automationHoldActive ||
+    (user.profileCompleted !== true && user.moderationAutomationHold?.active === true);
+  const independentlyBlocked = user.interactionBlocked === true && !isRegistrationInteractionBlock(user);
 
-  if (administrativelyRestricted || user.interactionBlocked === true) {
+  if (administrativelyRestricted || independentlyBlocked) {
     throw new HttpsError(
       'failed-precondition',
       'Esta conta não pode realizar interações no momento.',
@@ -81,7 +86,13 @@ export function assertPlatformAccountAccessData(
     );
   }
 
-  if (!hasCurrentTerms(user.acceptedTerms)) {
+  if (user.profileCompleted !== true) {
+    throw new HttpsError('failed-precondition', 'Conclua o cadastro para realizar esta ação.', {
+      reason: 'registration_pending',
+    });
+  }
+
+  if (!hasAcceptedCurrentTerms(user.acceptedTerms)) {
     throw new HttpsError(
       'failed-precondition',
       'Aceite os termos vigentes antes de realizar esta ação.',

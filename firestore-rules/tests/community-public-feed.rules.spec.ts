@@ -67,6 +67,7 @@ async function seedAdultSocialUser(
   await setDoc(doc(db, 'users', uid), {
     uid,
     accountStatus: 'active',
+    profileCompleted: true,
     suspended: false,
     interactionBlocked: false,
     accountLocked: false,
@@ -74,6 +75,8 @@ async function seedAdultSocialUser(
     acceptedTerms: {
       accepted: true,
       version: 'v3',
+      termsDocumentVersion: '2026-09-29.1',
+      privacyNoticeVersion: '2026-09-29.1',
       acknowledgedPrivacyNotice: true,
     },
     adultConsent: {

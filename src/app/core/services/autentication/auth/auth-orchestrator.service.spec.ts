@@ -234,7 +234,7 @@ describe('AuthOrchestratorService canonical errors', () => {
       routerReady: true,
       inRegistrationFlow: false,
     });
-    const profiles = new BehaviorSubject({ uid: 'a', accountStatus: 'active' });
+    const profiles = new BehaviorSubject({ uid: 'a', accountStatus: 'active', profileCompleted: true });
     const watch$ = vi.fn(() => NEVER);
     const error = new Error('Falha na ativação do monitor');
     const sessionMonitor = {
@@ -262,7 +262,7 @@ describe('AuthOrchestratorService canonical errors', () => {
     expect(watch$).not.toHaveBeenCalled();
 
     users.next({ uid: 'b', emailVerified: true });
-    profiles.next({ uid: 'b', accountStatus: 'active' });
+    profiles.next({ uid: 'b', accountStatus: 'active', profileCompleted: true });
     expect(watch$).toHaveBeenCalledWith('b');
   });
 

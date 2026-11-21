@@ -94,16 +94,17 @@ describe('account lifecycle policy', () => {
     expect(isRuntimeAccountLifecycleBlocked(status)).toBe(true);
   });
 
-  it('preserva compatibilidade com documento legado sem accountStatus', () => {
+  it('falha fechado para documento sem accountStatus', () => {
     expect(
       normalizeUserAccountLifecycleStatus(
         user({ accountStatus: undefined, suspended: false, accountLocked: false })
       )
-    ).toBe('active');
+    ).toBe('unknown');
   });
   it('reserva a passagem para a etapa etária sem liberar o lifecycle geral', () => {
     const pending = user({
       profileCompleted: false,
+      registrationFlowVersion: 'v3-private-by-default',
       publicVisibility: 'hidden',
       interactionBlocked: true,
       loginAllowed: true,

@@ -104,6 +104,7 @@ describe('Firestore Rules / atomic discovery preference projection', () => {
           subscriptionStatus: 'inactive',
           subscriptionScope: null,
           accountStatus: 'active',
+          profileCompleted: true,
           suspended: false,
           interactionBlocked: false,
           accountLocked: false,
@@ -111,6 +112,8 @@ describe('Firestore Rules / atomic discovery preference projection', () => {
           acceptedTerms: {
             accepted: true,
             version: 'v3',
+            termsDocumentVersion: '2026-09-29.1',
+            privacyNoticeVersion: '2026-09-29.1',
             acknowledgedPrivacyNotice: true,
           },
           adultConsent: { accepted: true, version: 'v1' },

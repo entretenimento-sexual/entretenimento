@@ -60,10 +60,13 @@ async function seedBase(visibility: 'PUBLIC' | 'FRIENDS' = 'FRIENDS') {
       setDoc(doc(db, 'users', VIEWER_UID), {
         uid: VIEWER_UID,
         accountStatus: 'active',
+        profileCompleted: true,
         suspended: false,
         acceptedTerms: {
           accepted: true,
           version: 'v3',
+          termsDocumentVersion: '2026-09-29.1',
+          privacyNoticeVersion: '2026-09-29.1',
           acknowledgedPrivacyNotice: true,
         },
         initialAdultConsentRequired: false,
@@ -82,8 +85,9 @@ async function seedBase(visibility: 'PUBLIC' | 'FRIENDS' = 'FRIENDS') {
       setDoc(doc(db, 'users', OWNER_UID), {
         uid: OWNER_UID,
         accountStatus: 'active',
+        profileCompleted: true,
         acceptedTerms: {
-          accepted: true, version: 'v3', acknowledgedPrivacyNotice: true,
+          accepted: true, version: 'v3', termsDocumentVersion: '2026-09-29.1', privacyNoticeVersion: '2026-09-29.1', acknowledgedPrivacyNotice: true,
         },
         adultConsent: { accepted: true, version: 'v1' },
         billingProjectionVersion: 1,

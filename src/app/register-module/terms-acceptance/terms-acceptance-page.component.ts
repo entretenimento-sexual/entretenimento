@@ -25,9 +25,9 @@ import { LogoutService } from 'src/app/core/services/autentication/auth/logout.s
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import {
   PLATFORM_LEGAL_MANIFEST,
-  TERMS_ACCEPTANCE_VERSION,
   TermsAcceptanceService,
   hasAcceptedCurrentTerms,
+  isTermsVersionMismatch,
 } from 'src/app/core/services/compliance/terms-acceptance.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -71,6 +71,7 @@ export class TermsAcceptancePageComponent {
   readonly resumingSignupAcceptance = signal(false);
   readonly acceptanceConfirmed = signal(false);
   readonly operationMessage = signal('');
+  readonly versionsChanged = signal(false);
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -104,17 +105,11 @@ export class TermsAcceptancePageComponent {
           return false;
         }
 
-        const previousVersion = String(record?.version ?? '').trim();
         const routedAsUpdate =
           queryParams.get('reason') === 'material_terms_update_required';
 
         // Histórico sem versão também exige novo aceite explícito.
-        return routedAsUpdate || (
-          record?.accepted === true &&
-          (!previousVersion ||
-            previousVersion !== TERMS_ACCEPTANCE_VERSION ||
-            record.acknowledgedPrivacyNotice !== true)
-        );
+        return routedAsUpdate || record?.accepted === true;
       }),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
@@ -131,7 +126,7 @@ export class TermsAcceptancePageComponent {
   }
 
   accept(): void {
-    if (this.isSaving()) {
+    if (this.isSaving() || this.versionsChanged()) {
       return;
     }
 
@@ -173,6 +168,10 @@ export class TermsAcceptancePageComponent {
         catchError((error: unknown) => {
           if (this.currentUser.getLoggedUserUIDSnapshot() !== uid || isRegistrationSessionChange(error)) {
             this.operationMessage.set('A sessão mudou. Entre na conta que deseja usar para retomar o cadastro.');
+          } else if (isTermsVersionMismatch(error)) {
+            this.termsConfirmation.reset(false);
+            this.versionsChanged.set(true);
+            this.operationMessage.set('Os documentos foram atualizados. Recarregue a página para ler as versões vigentes antes de aceitar.');
           } else if (this.acceptanceConfirmed()) {
             this.reportNavigationFailure(error);
           } else {
@@ -189,6 +188,10 @@ export class TermsAcceptancePageComponent {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
+  }
+
+  reloadDocuments(): void {
+    if (typeof window !== 'undefined') window.location.reload();
   }
 
   decline(): void {

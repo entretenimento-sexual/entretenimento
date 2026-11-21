@@ -11,6 +11,7 @@ import {
   collection,
   collectionGroup,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -51,10 +52,13 @@ async function setViewerCompliance(
       {
         uid: VIEWER_UID,
         accountStatus: 'active',
+        profileCompleted: true,
         suspended: false,
         acceptedTerms: {
           accepted: true,
           version: 'v3',
+          termsDocumentVersion: '2026-09-29.1',
+          privacyNoticeVersion: '2026-09-29.1',
           acknowledgedPrivacyNotice: true,
         },
         initialAdultConsentRequired: false,
@@ -74,10 +78,13 @@ async function seedPublicMedia(): Promise<void> {
       setDoc(doc(db, 'users', VIEWER_UID), {
         uid: VIEWER_UID,
         accountStatus: 'active',
+        profileCompleted: true,
         suspended: false,
         acceptedTerms: {
           accepted: true,
           version: 'v3',
+          termsDocumentVersion: '2026-09-29.1',
+          privacyNoticeVersion: '2026-09-29.1',
           acknowledgedPrivacyNotice: true,
         },
         initialAdultConsentRequired: false,
@@ -876,6 +883,26 @@ describe('Firestore Rules / public media account and content visibility', () => 
         )
       )
     );
+  });
+
+  it('exige a conclusão explícita e as versões dos dois documentos para acesso', async () => {
+    const videoRef = dbRefVideo(viewerDb());
+    await assertSucceeds(getDoc(videoRef));
+
+    for (const field of [
+      'profileCompleted',
+      'acceptedTerms.termsDocumentVersion',
+      'acceptedTerms.privacyNoticeVersion',
+    ]) {
+      await setViewerCompliance();
+      await testEnv.withSecurityRulesDisabled(context =>
+        updateDoc(doc(context.firestore(), 'users', VIEWER_UID), { [field]: deleteField() })
+      );
+      await assertFails(getDoc(videoRef));
+    }
+
+    await setViewerCompliance();
+    await assertSucceeds(getDoc(videoRef));
   });
 
   it('não exige adultConsent legado para viewer admitido com Termos vigentes', async () => {

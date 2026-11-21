@@ -30,6 +30,7 @@ import {
 } from './profile-age-reverification.policy';
 import {
   PRIVACY_NOTICE_VERSION,
+  hasAcceptedCurrentTerms,
   TERMS_ACCEPTANCE_VERSION,
   TERMS_DOCUMENT_VERSION,
 } from './platform-legal.constants';
@@ -43,18 +44,6 @@ const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== 'true';
 interface AcceptAdultSelfDeclarationRequest {
   confirmsAdult?: boolean;
   expectedUid: unknown;
-}
-
-function hasAcceptedCurrentTerms(value: unknown): boolean {
-  if (!value || typeof value !== 'object') return false;
-
-  const record = value as Record<string, unknown>;
-
-  return (
-    record['accepted'] === true &&
-    String(record['version'] ?? '').trim() === TERMS_ACCEPTANCE_VERSION &&
-    record['acknowledgedPrivacyNotice'] === true
-  );
 }
 
 function positiveEpochMs(value: unknown): number | null {

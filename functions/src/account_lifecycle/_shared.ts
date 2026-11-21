@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import { TERMS_ACCEPTANCE_VERSION } from '../compliance/platform-legal.constants';
+import { hasAcceptedCurrentTerms } from '../compliance/platform-legal.constants';
 
 export const ACCOUNT_LIFECYCLE_REGION = FUNCTIONS_REGION;
 export const MAX_LIFECYCLE_REASON_LENGTH = 500;
@@ -47,6 +47,8 @@ export type UserDoc = {
   acceptedTerms?: {
     accepted?: boolean | null;
     version?: string | null;
+    termsDocumentVersion?: string | null;
+    privacyNoticeVersion?: string | null;
     acknowledgedPrivacyNotice?: boolean | null;
   } | null;
   adultConsent?: {
@@ -188,11 +190,7 @@ export function getNicknameIndexDocId(user: UserDoc): string | null {
 
 export function isUserEligibleForPublicProjection(user: UserDoc): boolean {
   const normalized = resolveNicknameNormalized(user);
-  const currentLegalAcceptance =
-    user.acceptedTerms?.accepted === true &&
-    String(user.acceptedTerms.version ?? '').trim() ===
-      TERMS_ACCEPTANCE_VERSION &&
-    user.acceptedTerms.acknowledgedPrivacyNotice === true;
+  const currentLegalAcceptance = hasAcceptedCurrentTerms(user.acceptedTerms);
 
   const accountActive =
     String(user.accountStatus ?? 'active').trim().toLowerCase() === 'active';

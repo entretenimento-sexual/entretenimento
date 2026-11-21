@@ -1,23 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { environment as devEmuEnvironment } from 'src/environments/environment.dev-emu';
 import {
-  CURRENT_LEGAL_ACCEPTANCE_ENFORCED,
   TERMS_ACCEPTANCE_VERSION,
   hasAcceptedCurrentTerms,
   isCurrentTermsRecordAccepted,
 } from './terms-acceptance.service';
 
 describe('política de aceite jurídico', () => {
-  it('mantém o dev-real explicitamente fora da barreira jurídica remota', () => {
-    expect(CURRENT_LEGAL_ACCEPTANCE_ENFORCED).toBe(false);
-    expect(hasAcceptedCurrentTerms(undefined)).toBe(true);
-    expect(hasAcceptedCurrentTerms(null)).toBe(true);
-  });
-
-  it('exige registro jurídico real no ambiente emulado para testar o fluxo integral', () => {
-    expect(devEmuEnvironment.useEmulators).toBe(true);
-    expect(devEmuEnvironment.features?.enforceCurrentLegalAcceptance).toBe(true);
+  it('usa evidência persistida para a política de acesso', () => {
+    expect(hasAcceptedCurrentTerms(undefined)).toBe(false);
+    expect(hasAcceptedCurrentTerms(null)).toBe(false);
   });
 
   it('mantém a validação persistida fail-closed sem evidência', () => {
@@ -35,9 +27,28 @@ describe('política de aceite jurídico', () => {
         accepted: true,
         date: Date.now(),
         version: TERMS_ACCEPTANCE_VERSION,
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       })
     ).toBe(true);
+  });
+
+  it('exige as versões dos dois documentos além da versão do aceite', () => {
+    const acceptance = {
+      accepted: true, date: Date.now(), acknowledgedPrivacyNotice: true,
+      version: TERMS_ACCEPTANCE_VERSION,
+      termsDocumentVersion: '2026-09-29.1',
+      privacyNoticeVersion: '2026-09-29.1',
+    };
+    for (const change of [
+      { termsDocumentVersion: null },
+      { termsDocumentVersion: 'anterior' },
+      { privacyNoticeVersion: null },
+      { privacyNoticeVersion: 'anterior' },
+    ]) {
+      expect(isCurrentTermsRecordAccepted({ ...acceptance, ...change })).toBe(false);
+    }
   });
 
   it('recusa v3 sem ciência explícita da Política de Privacidade', () => {

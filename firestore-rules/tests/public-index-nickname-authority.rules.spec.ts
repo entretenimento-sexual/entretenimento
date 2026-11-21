@@ -54,6 +54,8 @@ async function seed(ownerVisibility = 'visible'): Promise<void> {
       acceptedTerms: {
         accepted: true,
         version: 'v3',
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       },
       adultConsent: { accepted: true, version: 'v1' },

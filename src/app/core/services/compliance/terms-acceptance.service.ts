@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from, of, throwError } from 'rxjs';
+import { Observable, defer, from, throwError } from 'rxjs';
 import { catchError, map, switchMap, timeout } from 'rxjs/operators';
 
 import {
@@ -10,7 +10,6 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { LocalDraftService } from 'src/app/core/services/drafts/local-draft.service';
-import { environment } from 'src/environments/environment';
 import {
   ADULT_SELF_DECLARATION_VERSION,
   PRIVACY_NOTICE_VERSION,
@@ -25,22 +24,13 @@ export {
   TERMS_DOCUMENT_VERSION,
 } from './platform-legal.constants';
 
-/**
- * Política de execução do aceite jurídico.
- *
- * Produção é sempre fail-closed. O único bypass permitido é o ambiente local
- * explicitamente configurado com `enforceCurrentLegalAcceptance: false`.
- * Isso impede que uma Function remota fora de sincronia interrompa todo o
- * desenvolvimento local, sem alterar qualquer registro jurídico no Firestore.
- */
-export const CURRENT_LEGAL_ACCEPTANCE_ENFORCED =
-  environment.production ||
-  environment.features?.enforceCurrentLegalAcceptance !== false;
-
 interface AcceptPlatformTermsPayload {
   expectedUid: string;
   acceptedTerms: true;
   acknowledgedPrivacyNotice: true;
+  version: string;
+  termsDocumentVersion: string;
+  privacyNoticeVersion: string;
   signupAdultDeclarationVersion?: string;
 }
 
@@ -61,50 +51,22 @@ export interface AcceptedPlatformTermsResult {
   signupAdultDeclarationRecorded?: true;
 }
 
-/**
- * Validação estrita do registro jurídico persistido.
- *
- * Não considera bypass de ambiente. Deve ser usada para status jurídico,
- * auditoria e qualquer UI que precise refletir exatamente o que está gravado.
- */
 export function isCurrentTermsRecordAccepted(
   record: IUserTermsAcceptance | null | undefined
 ): boolean {
-  if (record == null || record.accepted !== true) {
-    return false;
-  }
-
-  const version = String(record.version ?? '').trim();
-
-  if (!version || version !== TERMS_ACCEPTANCE_VERSION) {
-    return false;
-  }
-
-  return record.acknowledgedPrivacyNotice === true;
+  return record?.accepted === true &&
+    record.acknowledgedPrivacyNotice === true &&
+    record.version === TERMS_ACCEPTANCE_VERSION &&
+    record.termsDocumentVersion === TERMS_DOCUMENT_VERSION &&
+    record.privacyNoticeVersion === PRIVACY_NOTICE_VERSION;
 }
 
-/**
- * API histórica de gating da aplicação.
- *
- * SUPRESSÃO EXPLÍCITA EM DESENVOLVIMENTO:
- * quando `CURRENT_LEGAL_ACCEPTANCE_ENFORCED === false`, somente a barreira de
- * navegação e as chamadas automáticas de reaceite são suprimidas. Nenhum dado
- * jurídico persistido é criado ou alterado por essa decisão de ambiente.
- */
-export function hasAcceptedCurrentTerms(
-  record: IUserTermsAcceptance | null | undefined
-): boolean {
-  return !CURRENT_LEGAL_ACCEPTANCE_ENFORCED || isCurrentTermsRecordAccepted(record);
-}
+export const hasAcceptedCurrentTerms = isCurrentTermsRecordAccepted;
+export const isCurrentLegalAcceptanceSatisfied = isCurrentTermsRecordAccepted;
 
-/**
- * Alias semântico para consumidores que deixam explícito tratar-se de política
- * de acesso, e não de validação do registro persistido.
- */
-export function isCurrentLegalAcceptanceSatisfied(
-  record: IUserTermsAcceptance | null | undefined
-): boolean {
-  return hasAcceptedCurrentTerms(record);
+export function isTermsVersionMismatch(error: unknown): boolean {
+  return (error as { details?: { reason?: unknown } } | null)?.details?.reason ===
+    'terms/version-mismatch';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -123,7 +85,6 @@ export class TermsAcceptanceService {
   >(this.functions, 'acceptPlatformTerms');
 
   rememberPendingSignupAcceptance(uid: string): void {
-    if (!CURRENT_LEGAL_ACCEPTANCE_ENFORCED) return;
     this.assertActiveSession(uid);
     this.localDraft.save(`registration-acceptance:${uid}`, {
       uid,
@@ -136,7 +97,7 @@ export class TermsAcceptanceService {
 
   hasPendingSignupAcceptance(uid: string): boolean {
     const user = this.session.currentAuthUser;
-    if (!CURRENT_LEGAL_ACCEPTANCE_ENFORCED || this.session.isTerminatingSnapshot ||
+    if (this.session.isTerminatingSnapshot ||
         user?.uid !== uid || !user.emailVerified) return false;
     const draft = this.localDraft.load(`registration-acceptance:${uid}`);
     return draft?.['uid'] === uid && draft['version'] === TERMS_ACCEPTANCE_VERSION &&
@@ -188,38 +149,13 @@ export class TermsAcceptanceService {
       return throwError(() => new Error('UID inválido.'));
     }
 
-    /**
-     * No dev-real com bypass explícito, o aceite continua fora do caminho
-     * crítico e não persiste. Em dev-emu a exigência é verdadeira: clicar
-     * em aceitar executa o callable emulado e grava o registro auditável.
-     * Produção mantém validação obrigatória e fail-closed.
-     */
-    if (!CURRENT_LEGAL_ACCEPTANCE_ENFORCED) {
-      const now = Date.now();
-      const record: IUserTermsAcceptance = {
-        accepted: true,
-        date: now,
-        version: TERMS_ACCEPTANCE_VERSION,
-        termsDocumentVersion: TERMS_DOCUMENT_VERSION,
-        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
-        acknowledgedPrivacyNotice: true,
-        acceptanceContext: 'initial',
-        previousVersion: null,
-        acceptedAt: now,
-        updatedAt: now,
-        source: 'web',
-      };
-
-      return of({
-        uid: safeUid,
-        record,
-      });
-    }
-
     const payload: AcceptPlatformTermsPayload = {
       expectedUid: safeUid,
       acceptedTerms: true,
       acknowledgedPrivacyNotice: true,
+      version: TERMS_ACCEPTANCE_VERSION,
+      termsDocumentVersion: TERMS_DOCUMENT_VERSION,
+      privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
       ...(signupAdultDeclaration
         ? { signupAdultDeclarationVersion: ADULT_SELF_DECLARATION_VERSION }
         : {}),
@@ -276,7 +212,11 @@ export class TermsAcceptanceService {
         };
       }),
       catchError((error) => {
-        this.reportError(error, 'acceptForUser', { uid: safeUid });
+        if (isTermsVersionMismatch(error)) {
+          this.clearPendingSignupAcceptance(safeUid);
+        } else {
+          this.reportError(error, 'acceptForUser', { uid: safeUid });
+        }
         return throwError(() => error);
       })
     );

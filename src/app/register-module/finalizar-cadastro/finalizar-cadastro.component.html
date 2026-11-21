@@ -60,6 +60,13 @@
       </p>
     }
 
+    @if (termsReviewRequired) {
+      <a class="app-action app-action--primary" routerLink="/register/aceitar-termos"
+        [queryParams]="{ redirectTo: getRedirectToAfterCompletion() }">
+        Revisar documentos
+      </a>
+    }
+
     @if (isLoading) {
       <p role="status">Carregando os dados do seu perfil…</p>
     } @else if (profileDataUnavailable) {

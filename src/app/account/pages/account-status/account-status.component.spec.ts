@@ -21,6 +21,7 @@ function user(overrides: Partial<IUserDados> = {}): IUserDados {
     descricao: '',
     isSubscriber: false,
     accountStatus: 'self_suspended',
+    profileCompleted: true,
     ...overrides,
   } as IUserDados;
 }

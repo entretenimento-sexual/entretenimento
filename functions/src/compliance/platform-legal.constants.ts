@@ -5,6 +5,20 @@ export const PRIVACY_NOTICE_VERSION = '2026-09-29.1';
 export const PLATFORM_LEGAL_EFFECTIVE_DATE_ISO = '2026-09-29';
 export const PLATFORM_LEGAL_REACCEPT_REQUIRED = true;
 
+export function matchesCurrentLegalVersions(record: Record<string, unknown>): boolean {
+  return record.version === TERMS_ACCEPTANCE_VERSION &&
+    record.termsDocumentVersion === TERMS_DOCUMENT_VERSION &&
+    record.privacyNoticeVersion === PRIVACY_NOTICE_VERSION;
+}
+
+export function hasAcceptedCurrentTerms(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return record.accepted === true &&
+    record.acknowledgedPrivacyNotice === true &&
+    matchesCurrentLegalVersions(record);
+}
+
 export const PLATFORM_LEGAL_CHANGE_SUMMARY = [
   'proteção etária e verificação de maioridade para acesso a conteúdo adulto',
   'separação entre suspeita, apuração e infração confirmada',

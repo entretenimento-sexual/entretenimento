@@ -25,7 +25,7 @@ try {
       accountStatus: 'active', emailVerified: true,
       publicVisibility: 'hidden', interactionBlocked: true,
       acceptedTerms: {
-        accepted: true, version: 'v3', acknowledgedPrivacyNotice: true,
+        accepted: true, version: 'v3', termsDocumentVersion: '2026-09-29.1', privacyNoticeVersion: '2026-09-29.1', acknowledgedPrivacyNotice: true,
       },
     });
   });

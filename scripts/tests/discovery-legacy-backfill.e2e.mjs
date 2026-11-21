@@ -50,7 +50,7 @@ const ownerData = uid => ({ uid, role:'free', tier:'free', accountStatus:'active
   emailVerified:true, profileCompleted:true, publicVisibility:'visible',
   interactionBlocked:false, loginAllowed:true, suspended:false,
   gender:'mulher', declaredIdentityCode:'mulher', identityCatalogVersion:1,
-  acceptedTerms:{ accepted:true, version:'v3', acknowledgedPrivacyNotice:true },
+  acceptedTerms:{ accepted:true, version:'v3', termsDocumentVersion:'2026-09-29.1', privacyNoticeVersion:'2026-09-29.1', acknowledgedPrivacyNotice:true },
   initialAdultConsentRequired:true, adultConsent:{ accepted:true, version:'v1' },
   ageReverification:{ status:'NONE' } });
 const publicData = uid => ({ uid, nickname:'Perfil-' + uid, nicknameNormalized:'perfil-' + uid,

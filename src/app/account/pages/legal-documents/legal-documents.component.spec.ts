@@ -13,6 +13,8 @@ class MockCurrentUserStoreService {
     acceptedTerms: {
       accepted: true,
       version: TERMS_ACCEPTANCE_VERSION,
+      termsDocumentVersion: '2026-09-29.1',
+      privacyNoticeVersion: '2026-09-29.1',
       acknowledgedPrivacyNotice: true,
       acceptedAt: 1785530197000,
     },

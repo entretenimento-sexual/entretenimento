@@ -46,12 +46,15 @@ async function seedUser(options: {
     await setDoc(doc(db, 'users', UID), {
       uid: UID,
       accountStatus: 'active',
+      profileCompleted: true,
       suspended: false,
       interactionBlocked: false,
       loginAllowed: true,
       acceptedTerms: {
         accepted: true,
         version: 'v3',
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       },
       initialAdultConsentRequired: false,

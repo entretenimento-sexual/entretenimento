@@ -35,6 +35,7 @@ async function seedUser(uid: string, role: 'free' | 'basic' | 'premium' | 'vip')
       subscriptionStartedAt: active ? Timestamp.fromMillis(now - 60_000) : null,
       subscriptionEndsAt: active ? Timestamp.fromMillis(now + 3_600_000) : null,
       accountStatus: 'active',
+      profileCompleted: true,
       suspended: false,
       interactionBlocked: false,
       accountLocked: false,
@@ -42,6 +43,8 @@ async function seedUser(uid: string, role: 'free' | 'basic' | 'premium' | 'vip')
       acceptedTerms: {
         accepted: true,
         version: 'v3',
+        termsDocumentVersion: '2026-09-29.1',
+        privacyNoticeVersion: '2026-09-29.1',
         acknowledgedPrivacyNotice: true,
       },
       adultConsent: { accepted: true, version: 'v1' },

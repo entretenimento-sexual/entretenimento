@@ -74,6 +74,8 @@ function eligibleUserDocument(uid, email, nickname) {
     acceptedTerms: {
       accepted: true,
       version: 'v3',
+      termsDocumentVersion: '2026-09-29.1',
+      privacyNoticeVersion: '2026-09-29.1',
       acknowledgedPrivacyNotice: true,
       acceptedAt: now,
     },

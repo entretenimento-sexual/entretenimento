@@ -140,7 +140,8 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     reportPlaybackError: ReturnType<typeof vi.fn>;
     viewer$: BehaviorSubject<{
       uid: string;
-      accountStatus?: 'active' | 'moderation_suspended';
+      accountStatus: 'active' | 'moderation_suspended';
+      profileCompleted?: boolean;
     } | null>;
   }> {
     const hydratePublicVideoUrls$ = vi.fn(input.hydrate);
@@ -151,9 +152,12 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     const reportPlaybackError = vi.fn();
     const viewer$ = new BehaviorSubject<{
       uid: string;
-      accountStatus?: 'active' | 'moderation_suspended';
+      accountStatus: 'active' | 'moderation_suspended';
+      profileCompleted?: boolean;
     } | null>({
       uid: 'viewer-1',
+      accountStatus: 'active',
+      profileCompleted: true,
     });
     const data: IPublicVideoViewerData = {
       ownerUid: 'owner-1',
@@ -598,7 +602,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     ) as HTMLVideoElement;
     expect(player.getAttribute('src')).toBe(firstPlayback.url);
 
-    context.viewer$.next({ uid: 'viewer-2' });
+    context.viewer$.next({ uid: 'viewer-2', accountStatus: 'active', profileCompleted: true });
     fixture!.detectChanges();
 
     expect(context.invalidatePublicVideoAccess).toHaveBeenCalledWith(
@@ -755,7 +759,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     });
 
     expect(original.observed).toBe(true);
-    context.viewer$.next({ uid: 'viewer-2' });
+    context.viewer$.next({ uid: 'viewer-2', accountStatus: 'active', profileCompleted: true });
     fixture!.detectChanges();
     await flushMicrotasks();
     fixture!.detectChanges();
@@ -886,7 +890,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
     expect(context.component.current?.url).toBeNull();
 
-    context.viewer$.next({ uid: 'viewer-1', accountStatus: 'active' });
+    context.viewer$.next({ uid: 'viewer-1', accountStatus: 'active', profileCompleted: true });
     await flushMicrotasks();
     fixture!.detectChanges();
     expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(2);
@@ -930,7 +934,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     });
     expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
 
-    context.viewer$.next({ uid: 'viewer-2' });
+    context.viewer$.next({ uid: 'viewer-2', accountStatus: 'active', profileCompleted: true });
     context.viewer$.next(null);
     fixture!.detectChanges();
     await flushMicrotasks();
@@ -953,8 +957,8 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
       }]),
     });
 
-    context.viewer$.next({ uid: 'viewer-2' });
-    context.viewer$.next({ uid: 'viewer-3' });
+    context.viewer$.next({ uid: 'viewer-2', accountStatus: 'active', profileCompleted: true });
+    context.viewer$.next({ uid: 'viewer-3', accountStatus: 'active', profileCompleted: true });
     await flushMicrotasks();
     fixture!.detectChanges();
 

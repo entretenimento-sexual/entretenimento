@@ -78,13 +78,6 @@ export const environment: AppEnvironment = {
       '/dashboard/featured-profiles',
     ],
 
-    /**
-     * E2E emulado deve exercer o mesmo contrato jurídico do backend:
-     * versões vigentes e aceite persistido pela Cloud Function emulada.
-     * O dev-real mantém sua política independente (sem modificação aqui).
-     */
-    enforceCurrentLegalAcceptance: true,
-
     subscriberExperiencesPreview: true,
     communitiesEnabled: true,
     communityPreview: true,

@@ -92,13 +92,15 @@ service cloud.firestore {
         && request.time < automationHoldExpiresAt;
 
       return suspended != true
-        && mapFieldOrNull(user, "profileCompleted") != false
+        && mapFieldOrNull(user, "profileCompleted") == true
         && mapFieldOrNull(user, "ageReverificationRestrictedAt") == null
+        && mapFieldOrNull(user, "deletionRequestedAt") == null
+        && mapFieldOrNull(user, "deletedAt") == null
         && interactionBlocked != true
         && accountLocked != true
         && loginAllowed != false
         && !automationHoldActive
-        && (accountStatus == null || accountStatus == "active");
+        && accountStatus == "active";
     }
 
     function adultMediaHasCurrentTerms(user) {
@@ -107,10 +109,14 @@ service cloud.firestore {
         && acceptedTerms.keys().hasAll([
           "accepted",
           "version",
+          "termsDocumentVersion",
+          "privacyNoticeVersion",
           "acknowledgedPrivacyNotice"
         ])
         && acceptedTerms.accepted == true
         && acceptedTerms.version == "v3"
+        && acceptedTerms.termsDocumentVersion == "2026-09-29.1"
+        && acceptedTerms.privacyNoticeVersion == "2026-09-29.1"
         && acceptedTerms.acknowledgedPrivacyNotice == true;
     }
 

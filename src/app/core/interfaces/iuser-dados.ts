@@ -167,6 +167,7 @@ export interface IUserDados {
   registrationDate?: number | null;
   registrationCompletedAt?: number | null;
   registrationFlowVersion?: string | null;
+  registrationSeedSource?: 'auth-trigger' | 'registration-recovery' | null;
 
   emailVerified?: boolean;
 
