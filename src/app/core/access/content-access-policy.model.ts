@@ -26,6 +26,7 @@ export type ContentAccessDenialReason =
   | 'account_restricted'
   | 'adult_access_required'
   | 'profile_incomplete'
+  | 'terms_required'
   | 'profile_field_missing'
   | 'role_insufficient'
   | 'subscription_inactive'
@@ -50,6 +51,9 @@ export interface ContentAccessPolicy {
 
   /** Exige perfil marcado como concluído. */
   requiresCompletedProfile?: boolean;
+
+  /** Exige aceite dos Termos e ciência do Aviso de Privacidade vigentes. */
+  requiresCurrentLegalAcceptance?: boolean;
 
   /**
    * Exige elegibilidade adulta e ausência de restrição etária.

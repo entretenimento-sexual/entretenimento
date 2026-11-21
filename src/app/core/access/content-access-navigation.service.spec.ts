@@ -105,7 +105,7 @@ describe('resolveContentAccessNavigationTarget', () => {
       )
     ).toEqual({
       commands: ['/register/aceitar-termos'],
-      queryParams: { returnUrl: '/dashboard/comunidades' },
+      queryParams: { redirectTo: '/dashboard/comunidades' },
     });
 
     expect(

@@ -24,6 +24,7 @@ export const EXCLUSIVE_CONNECTIONS_REQUIRED_PROFILE_FIELDS = [
 export const EXCLUSIVE_CONNECTIONS_PROFILE_ACCESS_POLICY:
   Readonly<ContentAccessPolicy> = Object.freeze({
     requiresCompletedProfile: true,
+    requiresCurrentLegalAcceptance: true,
     requiresAdultAccess: true,
     blockRestrictedAccounts: true,
     requiredProfileFields: EXCLUSIVE_CONNECTIONS_REQUIRED_PROFILE_FIELDS,

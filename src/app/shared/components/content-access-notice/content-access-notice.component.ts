@@ -84,6 +84,15 @@ export function buildContentAccessNoticeViewModel(
         ariaLabel: 'Perfil incompleto para esta experiência.',
       };
 
+    case 'terms_required':
+      return {
+        message: 'Revise os Termos de Uso e o Aviso de Privacidade para continuar.',
+        actionLabel: 'Revisar documentos',
+        icon: 'fa-file-lines',
+        actionIcon: 'fa-arrow-right',
+        ariaLabel: 'Revise os documentos vigentes para liberar o acesso.',
+      };
+
     case 'role_insufficient': {
       const roleLabel = decision.minimumRole
         ? ROLE_LABELS[decision.minimumRole]

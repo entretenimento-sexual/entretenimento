@@ -5,6 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IUserDados } from '../../../interfaces/iuser-dados';
 import { PlatformSubscriptionAccessService } from '../../subscriptions/platform-subscription-access.service';
 import type { PlatformSubscriptionAccessState } from '../../subscriptions/platform-subscription-access.model';
+import {
+  PRIVACY_NOTICE_VERSION,
+  TERMS_ACCEPTANCE_VERSION,
+  TERMS_DOCUMENT_VERSION,
+} from '../../compliance/platform-legal.constants';
 import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 import { AccessControlService } from './access-control.service';
@@ -243,6 +248,73 @@ describe('AccessControlService canonical subscription roles', () => {
 
     expect(states).toEqual([false, true]);
     subscription.unsubscribe();
+  });
+
+  it.each(['version', 'termsDocumentVersion', 'privacyNoticeVersion'] as const)(
+    'pausa e retoma os recursos sociais na mesma sessão ao atualizar %s',
+    (field) => {
+      const user = {
+        ...createUser(),
+        acceptedTerms: {
+          accepted: true,
+          date: 1,
+          version: TERMS_ACCEPTANCE_VERSION,
+          termsDocumentVersion: TERMS_DOCUMENT_VERSION,
+          privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+          acknowledgedPrivacyNotice: true,
+        },
+      };
+      user$.next(user);
+      const service = TestBed.inject(AccessControlService);
+      const gates = [
+        service.canUseAdultSocial$,
+        service.canRunPresence$,
+        service.canRunChatRealtime$,
+        service.canListenRealtime$,
+        service.canRunDiscoveryRealtime$,
+      ].map(gate => {
+        const values: boolean[] = [];
+        const subscription = gate.subscribe(value => values.push(value));
+        return { values, subscription };
+      });
+
+      user$.next({
+        ...user,
+        acceptedTerms: { ...user.acceptedTerms, [field]: 'anterior' },
+      });
+      user$.next(user);
+
+      for (const { values, subscription } of gates) {
+        subscription.unsubscribe();
+        expect(values).toEqual([true, false, true]);
+      }
+    }
+  );
+
+  it('mantém o acesso social fechado até hidratar o perfil da sessão atual', () => {
+    const user = {
+      ...createUser(),
+      acceptedTerms: {
+        accepted: true,
+        date: 1,
+        version: TERMS_ACCEPTANCE_VERSION,
+        termsDocumentVersion: TERMS_DOCUMENT_VERSION,
+        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+        acknowledgedPrivacyNotice: true,
+      },
+    };
+    user$.next(user);
+    const values: boolean[] = [];
+    const service = TestBed.inject(AccessControlService);
+    const subscription = service.canUseAdultSocial$.subscribe(value => values.push(value));
+
+    authUser$.next({ uid: 'outra-conta', emailVerified: true });
+    user$.next({ ...user, uid: 'outra-conta', profileCompleted: false });
+    expect(values).toEqual([true, false]);
+
+    user$.next({ ...user, uid: 'outra-conta' });
+    subscription.unsubscribe();
+    expect(values).toEqual([true, false, true]);
   });
 
   it('não reinterpreta autodeclaração em uma conta já admitida e ativa', async () => {

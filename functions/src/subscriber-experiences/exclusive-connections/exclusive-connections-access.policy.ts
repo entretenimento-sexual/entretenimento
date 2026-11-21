@@ -7,12 +7,14 @@
 // -----------------------------------------------------------------------------
 
 import { HttpsError } from 'firebase-functions/v2/https';
+import { hasAcceptedCurrentTerms } from '../../compliance/platform-legal.constants';
 
 export type ExclusiveConnectionsEligibilityReason =
   | 'profile_missing'
   | 'account_restricted'
   | 'adult_access_required'
   | 'profile_incomplete'
+  | 'terms_required'
   | 'profile_field_missing';
 
 export interface ExclusiveConnectionsEligibilityDecision {
@@ -102,6 +104,10 @@ export function evaluateExclusiveConnectionsEligibility(
     return { allowed: false, reason: 'profile_incomplete' };
   }
 
+  if (!hasAcceptedCurrentTerms(user['acceptedTerms'])) {
+    return { allowed: false, reason: 'terms_required' };
+  }
+
   if (REQUIRED_PROFILE_FIELDS.some((field) => !hasTextField(user, field))) {
     return { allowed: false, reason: 'profile_field_missing' };
   }
@@ -136,6 +142,13 @@ export function assertExclusiveConnectionsEligibility(
     throw new HttpsError(
       'failed-precondition',
       'Acesso adulto indisponível para esta conta.'
+    );
+
+  case 'terms_required':
+    throw new HttpsError(
+      'failed-precondition',
+      'Revise os Termos de Uso e o Aviso de Privacidade vigentes para continuar.',
+      { reason: 'terms_required', recommendedAction: 'accept_terms' }
     );
 
   case 'profile_incomplete':

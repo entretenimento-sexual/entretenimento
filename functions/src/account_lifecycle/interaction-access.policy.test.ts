@@ -92,18 +92,21 @@ describe('interaction access policy', () => {
   });
 
   it('bloqueia interação sem termos atuais', () => {
-    assert.throws(() =>
-      assertPlatformAccountAccessData({
+    for (const overrides of [
+      { accepted: false },
+      { version: 'anterior' },
+      { termsDocumentVersion: 'anterior' },
+      { privacyNoticeVersion: 'anterior' },
+      { acknowledgedPrivacyNotice: false },
+    ]) {
+      assert.throws(() => assertPlatformAccountAccessData({
         ...validUser,
-        acceptedTerms: {
-          accepted: false,
-          version: 'v3',
-          termsDocumentVersion: '2026-09-29.1',
-          privacyNoticeVersion: '2026-09-29.1',
-          acknowledgedPrivacyNotice: true,
-        },
-      })
-    );
+        acceptedTerms: { ...validUser.acceptedTerms, ...overrides },
+      }), {
+        code: 'failed-precondition',
+        details: { reason: 'terms_required', recommendedAction: 'accept_terms' },
+      });
+    }
   });
 
   it('não usa marcador histórico como gate de produto', () => {

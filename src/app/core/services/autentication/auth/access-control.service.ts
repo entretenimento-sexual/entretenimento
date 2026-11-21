@@ -49,6 +49,7 @@ import { AuthAppBlockService } from './auth-app-block.service';
 import { AuthRouteContextService } from './auth-route-context.service';
 import {
   isRuntimeAccountLifecycleBlocked,
+  normalizeUserAccountLifecycleStatus,
   resolveRuntimeAccountLifecycleStatus,
   type RuntimeAccountLifecycleStatus,
 } from './account-lifecycle.policy';
@@ -56,7 +57,7 @@ import {
 import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
-import { TERMS_ACCEPTANCE_VERSION } from '@core/services/compliance/platform-legal.constants';
+import { isCurrentLegalAcceptanceSatisfied } from '@core/services/compliance/terms-acceptance.service';
 
 export type UserRole = IUserDados['role'];
 
@@ -542,58 +543,41 @@ export class AccessControlService {
     catchError(this.handleStreamError('canRunApp$', false))
   );
 
-  /**
-   * Espelha o hold temporário de moderação do backend e se autoexpira pelo
-   * relógio, evitando chamadas que seriam recusadas sem exigir reload.
-   */
-  readonly moderationInteractionAllowed$: Observable<boolean> =
-    this.appUser$.pipe(
-      switchMap((user) => this.observeModerationInteractionWindow$(user)),
-      distinctUntilChanged(),
-      shareReplay({ bufferSize: 1, refCount: true }),
-      catchError(
-        this.handleStreamError('moderationInteractionAllowed$', false)
-      )
-    );
+  private readonly accountInteractionWindow$ = this.appUser$.pipe(
+    switchMap((user) => this.observeModerationInteractionWindow$(user).pipe(
+      map((allowed) => ({ user, allowed }))
+    )),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
+  /** A janela de moderação expira em execução, inclusive sem atualização do perfil. */
+  readonly moderationInteractionAllowed$: Observable<boolean> =
+    this.accountInteractionWindow$.pipe(
+      map(({ allowed }) => allowed),
+      distinctUntilChanged(),
+      catchError(this.handleStreamError('moderationInteractionAllowed$', false))
+    );
 
   /**
    * Gate canônico de UX/runtime para a experiência social adulta.
    *
-   * Não substitui Functions nem Firestore Rules. Ele apenas evita iniciar
-   * listeners e writes que a autoridade backend já recusaria.
+   * Lifecycle, aceite e moderação são avaliados no mesmo snapshot do perfil.
    */
   readonly canUseAdultSocial$: Observable<boolean> = combineLatest([
-    this.isAuthenticated$,
-    this.isBlocked$,
-    this.appUser$,
-    this.moderationInteractionAllowed$,
+    this.accountInteractionWindow$,
+    this.ready$,
+    this.authUid$,
+    this.blockedReason$,
   ]).pipe(
-    map(([
-      isAuthenticated,
-      blocked,
-      user,
-      moderationAllowed,
-    ]) => {
-      if (
-        isAuthenticated !== true ||
-        blocked === true ||
-        !user ||
-        moderationAllowed !== true
-      ) {
-        return false;
-      }
-
-      const terms = user.acceptedTerms;
-
-
-      const termsOk =
-        terms?.accepted === true &&
-        terms.version === TERMS_ACCEPTANCE_VERSION &&
-        terms.acknowledgedPrivacyNotice === true;
-
-      return termsOk;
-    }),
+    map(([{ user, allowed }, ready, uid, blockedReason]) =>
+      ready === true &&
+      !!uid &&
+      !blockedReason &&
+      allowed &&
+      user?.uid === uid &&
+      normalizeUserAccountLifecycleStatus(user) === 'active' &&
+      isCurrentLegalAcceptanceSatisfied(user.acceptedTerms)
+    ),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('canUseAdultSocial$', false))

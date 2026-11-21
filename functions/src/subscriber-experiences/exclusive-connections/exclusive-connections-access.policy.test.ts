@@ -1,9 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {
+  PRIVACY_NOTICE_VERSION,
+  TERMS_ACCEPTANCE_VERSION,
+  TERMS_DOCUMENT_VERSION,
+} from '../../compliance/platform-legal.constants';
 
 import {
+  assertExclusiveConnectionsEligibility,
   evaluateExclusiveConnectionsEligibility,
 } from './exclusive-connections-access.policy';
+
+const currentTerms = {
+  accepted: true,
+  version: TERMS_ACCEPTANCE_VERSION,
+  termsDocumentVersion: TERMS_DOCUMENT_VERSION,
+  privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+  acknowledgedPrivacyNotice: true,
+};
 
 function createUser(overrides: Record<string, unknown> = {}) {
   return {
@@ -13,6 +27,7 @@ function createUser(overrides: Record<string, unknown> = {}) {
     interactionBlocked: false,
     accountLocked: false,
     loginAllowed: true,
+    acceptedTerms: currentTerms,
     adultConsent: { accepted: true },
     initialAdultConsentRequired: true,
     ageReverification: { status: 'VERIFIED', result: 'ADULT' },
@@ -102,7 +117,7 @@ test('consentimento v1 recusado em conta histórica não substitui elegibilidade
   );
 });
 
-test('mantém compatibilidade com conta legada sem aceite obrigatório explícito', () => {
+test('permite conta com Termos vigentes sem consentimento adulto histórico', () => {
   const user = createUser({
     initialAdultConsentRequired: undefined,
     adultConsent: undefined,
@@ -112,4 +127,22 @@ test('mantém compatibilidade com conta legada sem aceite obrigatório explícit
     evaluateExclusiveConnectionsEligibility(user, 'user-1'),
     { allowed: true, reason: null }
   );
+});
+
+test('exige os documentos vigentes para Conexões Exclusivas', () => {
+  for (const acceptedTerms of [
+    undefined,
+    { ...currentTerms, termsDocumentVersion: 'anterior' },
+    { ...currentTerms, privacyNoticeVersion: 'anterior' },
+  ]) {
+    const user = createUser({ acceptedTerms });
+    assert.deepEqual(
+      evaluateExclusiveConnectionsEligibility(user, 'user-1'),
+      { allowed: false, reason: 'terms_required' }
+    );
+    assert.throws(() => assertExclusiveConnectionsEligibility(user, 'user-1'), {
+      code: 'failed-precondition',
+      details: { reason: 'terms_required', recommendedAction: 'accept_terms' },
+    });
+  }
 });

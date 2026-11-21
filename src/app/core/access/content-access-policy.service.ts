@@ -19,6 +19,7 @@ import {
   UserTierRole,
 } from '../interfaces/iuser-dados';
 import { CurrentUserStoreService } from '../services/autentication/auth/current-user-store.service';
+import { isCurrentLegalAcceptanceSatisfied } from '../services/compliance/terms-acceptance.service';
 import { PlatformSubscriptionAccessService } from '../services/subscriptions/platform-subscription-access.service';
 import type { PlatformSubscriptionAccessState } from '../services/subscriptions/platform-subscription-access.model';
 import {
@@ -213,6 +214,10 @@ export function evaluateContentAccessPolicy(
 
   if (policy.requiresCompletedProfile && user.profileCompleted !== true) {
     return denied('profile_incomplete', 'complete_profile', policy);
+  }
+
+  if (policy.requiresCurrentLegalAcceptance && !isCurrentLegalAcceptanceSatisfied(user.acceptedTerms)) {
+    return denied('terms_required', 'accept_current_terms', policy);
   }
 
   const missingProfileFields = findMissingProfileFields(

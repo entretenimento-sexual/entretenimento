@@ -74,7 +74,8 @@ export function resolveContentAccessNavigationTarget(
     returnUrl &&
     normalizePathForComparison(returnUrl) !== targetPath
   ) {
-    queryParams['returnUrl'] = returnUrl;
+    const returnParam = action === 'accept_current_terms' ? 'redirectTo' : 'returnUrl';
+    queryParams[returnParam] = returnUrl;
   }
 
   if (

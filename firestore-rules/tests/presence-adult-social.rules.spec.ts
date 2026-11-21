@@ -26,6 +26,13 @@ const PROJECT_ID = 'demo-entretenimento-rules';
 const FIRESTORE_HOST = '127.0.0.1';
 const FIRESTORE_PORT = 8180;
 const UID = 'presence-adult-user';
+const CURRENT_TERMS = {
+  accepted: true,
+  version: 'v3',
+  termsDocumentVersion: '2026-09-29.1',
+  privacyNoticeVersion: '2026-09-29.1',
+  acknowledgedPrivacyNotice: true,
+};
 
 let testEnv: RulesTestEnvironment;
 
@@ -60,13 +67,7 @@ describe('Firestore Rules / presence adult social boundary', () => {
         suspended: false,
         interactionBlocked: false,
         loginAllowed: true,
-        acceptedTerms: {
-          accepted: true,
-          version: 'v3',
-          termsDocumentVersion: '2026-09-29.1',
-          privacyNoticeVersion: '2026-09-29.1',
-          acknowledgedPrivacyNotice: true,
-        },
+        acceptedTerms: CURRENT_TERMS,
         adultConsent: {
           accepted: true,
           version: 'v1',
@@ -116,6 +117,26 @@ describe('Firestore Rules / presence adult social boundary', () => {
       })
     );
   });
+
+  it.each(['version', 'termsDocumentVersion', 'privacyNoticeVersion'] as const)(
+    'só volta a aceitar heartbeat depois de atualizar %s',
+    async (field) => {
+      const setAcceptance = (acceptedTerms: typeof CURRENT_TERMS) =>
+        testEnv.withSecurityRulesDisabled(async (context) => {
+          await updateDoc(doc(context.firestore(), 'users', UID), { acceptedTerms });
+        });
+      const db = testEnv.authenticatedContext(UID).firestore();
+      const heartbeat = () => updateDoc(doc(db, 'presence', UID), {
+        lastSeen: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      await setAcceptance({ ...CURRENT_TERMS, [field]: 'anterior' });
+      await assertFails(heartbeat());
+      await setAcceptance(CURRENT_TERMS);
+      await assertSucceeds(heartbeat());
+    }
+  );
 
   it('permite presença para conta admitida com termos vigentes sem adultConsent v1', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {

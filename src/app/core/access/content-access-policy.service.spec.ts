@@ -4,6 +4,12 @@ import { describe, expect, it } from 'vitest';
 
 import { IUserDados } from '../interfaces/iuser-dados';
 import {
+  PRIVACY_NOTICE_VERSION,
+  TERMS_ACCEPTANCE_VERSION,
+  TERMS_DOCUMENT_VERSION,
+} from '../services/compliance/platform-legal.constants';
+import { EXCLUSIVE_CONNECTIONS_PROFILE_ACCESS_POLICY } from '../../subscriber-experiences/exclusive-connections/exclusive-connections-access.policy';
+import {
   createSubscriberContentAccessPolicy,
   PUBLIC_CONTENT_ACCESS_POLICY,
 } from './content-access-policy.model';
@@ -91,6 +97,24 @@ describe('ContentAccessPolicyService', () => {
     );
 
     expect(decision.reason).toBe('adult_access_required');
+  });
+
+  it('orienta reaceite para acessar Conexões Exclusivas com aviso anterior', () => {
+    const policy = EXCLUSIVE_CONNECTIONS_PROFILE_ACCESS_POLICY;
+    const acceptedTerms = {
+      accepted: true,
+      date: NOW,
+      version: TERMS_ACCEPTANCE_VERSION,
+      termsDocumentVersion: TERMS_DOCUMENT_VERSION,
+      privacyNoticeVersion: 'anterior',
+      acknowledgedPrivacyNotice: true,
+    };
+
+    expect(evaluateContentAccessPolicy(createUser({ acceptedTerms }), policy, NOW))
+      .toMatchObject({ allowed: false, reason: 'terms_required', recommendedAction: 'accept_current_terms' });
+    expect(evaluateContentAccessPolicy(createUser({
+      acceptedTerms: { ...acceptedTerms, privacyNoticeVersion: PRIVACY_NOTICE_VERSION },
+    }), policy, NOW).allowed).toBe(true);
   });
 
   it('informa campos de perfil ausentes', () => {
