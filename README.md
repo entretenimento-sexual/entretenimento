@@ -14,6 +14,9 @@ Antes de qualquer deploy público, revisar o
 e o [runbook completo](./docs/operations/registration-nickname-cutover-runbook.md).
 Esses documentos não autorizam deploy, mudança de IAM ou alteração de Rules.
 
+Para homologar o cadastro em `entretenimento-staging`, consulte
+[App Check e Web Push no checklist de pré-deploy](./docs/operations/production-release-deferred-audit-checklist.md#app-check-e-web-push-no-ensaio-da-release).
+
 ## Development server
 
 Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.

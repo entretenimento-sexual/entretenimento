@@ -15,3 +15,11 @@
 Fluxo: `git branch --show-current` deve retornar `main`; conferir `git status --short`; usar `git pull --ff-only origin main` quando seguro; editar apenas o escopo combinado; testar; realizar commit direto na `main` e verificar o CI. **Não criar branch, não fazer merge e não criar PR.**
 
 Estas instruções têm prioridade operacional sobre orientações históricas de branches ou PRs em outros documentos do repositório. Se houver conflito entre arquivos Markdown, prevalece esta política atual de trabalho na `main`.
+
+## Pré-deploy de staging
+
+Para App Check, reCAPTCHA Enterprise (Fraud Defense) ou Web Push de
+`entretenimento-staging`, consulte primeiro a decisão em
+[App Check e Web Push no ensaio da release](./docs/operations/production-release-deferred-audit-checklist.md#app-check-e-web-push-no-ensaio-da-release).
+A ativação e a homologação hospedada foram adiadas para o pré-deploy por
+possível custo. No desenvolvimento, use `dev-emu`.

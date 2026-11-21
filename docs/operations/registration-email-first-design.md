@@ -93,6 +93,9 @@ Referências oficiais:
 
 ### Ensaio de homologação do e-mail
 
+Ao retomar a homologação hospedada no pré-deploy, consulte a
+[decisão sobre App Check e Web Push](./production-release-deferred-audit-checklist.md#app-check-e-web-push-no-ensaio-da-release).
+
 Use o projeto isolado `entretenimento-staging` e uma origem HTTPS cadastrada em **Authentication → Authorized domains**. Configure App Check para esse app Web de staging e o template de verificação para apontar ao handler hospedado em `/post-verification/action`. O `continueUrl` do SDK é o retorno ao cadastro e está separado da URL do handler.
 
 No PowerShell, confira o App Check e a compilação de staging com `npm.cmd run appcheck:staging:check` e `npm.cmd run build:staging`. Depois de disponibilizar o build no ambiente isolado, use caixas de e-mail de teste para registrar os resultados de entrega, visita à página sem consumo do código, confirmação com clique, outro dispositivo, outra conta ativa, código expirado e tentativa de reutilização. Registre o resultado de cada caso sem colar o código do link ou o endereço pessoal nos logs. Para testar o fluxo vigente enquanto o provisionamento verificado está pendente, use contas de teste previamente preparadas no projeto isolado. A confirmação de e-mail e o login por link são certificações distintas.
