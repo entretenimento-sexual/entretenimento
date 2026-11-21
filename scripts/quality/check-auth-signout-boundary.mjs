@@ -149,10 +149,6 @@ if (!fs.existsSync(authActionsPath) || !fs.existsSync(storeModulePath)) {
     credentialViolations.push('AuthEffects legado voltou a ser carregado');
   }
 }
-if (credentialViolations.length) {
-  for (const issue of credentialViolations) console.error('[auth-boundary] ' + issue);
-}
-
 // Rules também não podem usar a claim admin como única autoridade.
 const firestoreHelpers = fs.readFileSync(
   path.join(root, 'firestore-rules/_helpers.rules'), 'utf8'
@@ -223,16 +219,19 @@ const staffSecurity = fs.readFileSync(
   path.join(root, 'functions/src/account_lifecycle/_shared.ts'), 'utf8'
 );
 const staffBoundary = staffSecurity.slice(
-  staffSecurity.indexOf('export async function assertStaffAuthorization'),
+  staffSecurity.indexOf('export function isActiveStaffAccount'),
   staffSecurity.indexOf('export function createLifecycleAudit')
 );
 if (
-  !staffBoundary.includes("db.collection('users').doc(uid).get()") ||
-  !staffBoundary.includes('assertStaffAuthorizationWithReader(params, async (uid)') ||
-  !staffSecurity.includes('currentStaffPermissionAllows(actor, requiredPermission)') ||
-  staffBoundary.includes('const fromClaims =') ||
+  !staffBoundary.includes("db.collection('users').doc(uid)") ||
+  !staffBoundary.includes('transaction ? transaction.get(ref) : ref.get()') ||
+  !staffBoundary.includes('assertStaffAuthorizationWithReader(params, (uid) => readCurrentStaffAccount(uid, transaction))') ||
+  !staffBoundary.includes('currentStaffPermissionAllows(await readActor(actorUid), requiredPermission)') ||
+  !staffBoundary.includes('isActiveStaffAccount(user)') ||
+  !staffBoundary.includes('collectRolesAndPermissions(user)') ||
+  /\b(?:authToken|fromClaims)\b/.test(staffBoundary) ||
   !staffSecurity.includes("source.role ?? ''") ||
-  !staffSecurity.includes("user['accountStatus']")
+  !staffBoundary.includes("user['accountStatus']")
 ) {
   credentialViolations.push('Autorização staff deve revalidar documento canônico e lifecycle, nunca aceitar somente JWT.');
 }
@@ -256,6 +255,7 @@ if (signOutViolations.length > 0 || parallelLogoutViolations.length > 0 || crede
     }
   }
 
+  for (const issue of credentialViolations) console.error('[auth-boundary] ' + issue);
   console.error(
     '[auth-boundary] Use AuthFacade.logout$()/logoutNow() ou LogoutService. '
       + 'Somente logout.service.ts pode importar/chamar Firebase signOut; '
