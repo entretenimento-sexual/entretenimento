@@ -183,6 +183,7 @@ export class AuthSessionService {
   readonly readyAuthUser$: Observable<User | null> = of(this.visualAuthUser);
   readonly readyUid$: Observable<string | null> = of(VISUAL_USER.uid);
   readonly isTerminating$: Observable<boolean> = of(false);
+  readonly terminationVersionSnapshot = 0;
 
   beginTermination(): void {}
 
@@ -196,7 +197,11 @@ export class AuthSessionService {
     return Promise.resolve();
   }
 
-  refreshCurrentUser$(): Observable<User | null> {
+  recordReloadFailure(_user: User, _previousTermination: number, _error: unknown): boolean {
+    return false;
+  }
+
+  refreshCurrentUser$(_options?: { requireFresh?: boolean }): Observable<User | null> {
     return of(this.visualAuthUser);
   }
 

@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import {
   distinctUntilChanged,
   filter,
@@ -36,6 +36,16 @@ import {
 })
 export class AppComponent {
   title = 'entretenimento';
+
+  readonly sessionExitPending$ = of(null);
+  readonly voluntaryLogoutStatus$ = of(null);
+  readonly sessionExitLoginFailed$ = of(false);
+
+  retrySessionExitLogin(): void {}
+
+  retryVoluntaryLogout(): void {}
+
+  reloadAfterPendingLogout(): void {}
 
   readonly showFooter$: Observable<boolean> = this.router.events.pipe(
     filter((event): event is NavigationEnd => event instanceof NavigationEnd),
