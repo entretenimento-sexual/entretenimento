@@ -13,7 +13,6 @@ import { initializeApp as initializeAdminApp, deleteApp as deleteAdminApp } from
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import legal from '../../functions/lib/compliance/platform-legal.constants.js';
-import abandonment from '../../functions/lib/registration/registration-abandonment.service.js';
 
 const currentVersions = {
   version: legal.TERMS_ACCEPTANCE_VERSION,
@@ -209,9 +208,15 @@ async function verifyDraftCleanupDryRun(expiredDraftId) {
   assert.equal(emailMarker.reviewAfterMs - emailMarker.flaggedAtMs, 7 * 86_400_000);
   await adminAuth.updateUser(emailRef.id, { emailVerified: true });
   await profileRef.update({ billingHold: true });
-  const advanced = await abandonment.sweepRegistrationAbandonment(db, adminAuth, {
-    apply: true, nowMs: emailMarker.reviewAfterMs + 1_000,
-  });
+  await Promise.all(accountRefs.filter(ref => ref.id !== emailRef.id && ref.id !== profileRef.id).map(async ref => {
+    const marker = (await ref.get()).get('registrationAbandonment');
+    if (!marker) return;
+    const flaggedAtMs = Date.now() - 8 * 86_400_000;
+    await ref.update({ registrationAbandonment: {
+      ...marker, flaggedAtMs, reviewAfterMs: flaggedAtMs + 7 * 86_400_000,
+    } });
+  }));
+  const advanced = JSON.parse((await runNode(process.execPath, [script, '--apply'], { env })).stdout);
   assert.equal(advanced.changes.cleared, 2);
   assert.equal(advanced.changes.readyForReview, 3);
   assert.equal((await emailRef.get()).get('registrationAbandonment'), undefined);

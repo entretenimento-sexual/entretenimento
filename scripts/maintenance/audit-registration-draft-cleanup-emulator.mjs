@@ -1,7 +1,11 @@
-import { deleteApp, initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
+import { createRequire } from 'node:module';
 import abandonment from '../../functions/lib/registration/registration-abandonment.service.js';
+
+// Compartilha o SDK das Functions, inclusive os tipos FieldPath e FieldValue.
+const require = createRequire(new URL('../../functions/package.json', import.meta.url));
+const { deleteApp, initializeApp } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 
 const args = process.argv.slice(2);
 const mode = args[0] ?? '--dry-run';
@@ -51,8 +55,10 @@ try {
     ...report,
     ...(apply ? { changes } : {}),
   }, null, 2));
-} catch {
-  console.error('Falha na triagem. Confira os emuladores e execute novamente. Cada alteração pode ser repetida.');
+} catch (error) {
+  const code = typeof error?.code === 'number' || /^[\w/-]{1,80}$/.test(error?.code ?? '')
+    ? error.code : 'unknown';
+  console.error(`Falha na triagem (${code}). Confira os emuladores e execute novamente.`);
   process.exitCode = 1;
 } finally {
   await deleteApp(app);
