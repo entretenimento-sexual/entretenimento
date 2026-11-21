@@ -9,7 +9,11 @@ export const ACCOUNT_LIFECYCLE_REGION = FUNCTIONS_REGION;
 export const MAX_LIFECYCLE_REASON_LENGTH = 500;
 export const RECENT_AUTH_MAX_AGE_SECONDS = 10 * 60;
 
-export type StaffPermission = 'users:suspend' | 'users:delete';
+export type StaffPermission =
+  | 'users:suspend'
+  | 'users:delete'
+  | 'users:deletion-operations'
+  | 'platform:admin';
 
 export type AccountStatus =
   | 'active'
@@ -269,80 +273,85 @@ function collectRolesAndPermissions(
   };
 }
 
-function hasElevatedRole(roles: string[]): boolean {
-  return (
-    roles.includes('superadmin') ||
-    roles.includes('admin') ||
-    roles.includes('moderator')
-  );
+export function isActiveStaffAccount(user: Record<string, unknown> | null): user is Record<string, unknown> {
+  return user !== null
+    && user['suspended'] !== true
+    && user['accountLocked'] !== true
+    && user['interactionBlocked'] !== true
+    && user['loginAllowed'] !== false
+    && user['deletionRequestedAt'] == null
+    && user['ageReverificationRestrictedAt'] == null
+    && (user['accountStatus'] == null || user['accountStatus'] === 'active');
 }
 
-function hasRequiredPermission(
-  permissions: string[],
-  requiredPermission: StaffPermission
-): boolean {
-  return (
-    permissions.includes(requiredPermission) ||
-    permissions.includes('users:lifecycle')
-  );
-}
-
-/**
- * Decisão de autorização independente de claims potencialmente desatualizadas.
- * O caller precisa fornecer o snapshot atual do documento users/{uid}.
- */
+/** A autoridade é determinada pelo documento atual do operador. */
 export function currentStaffPermissionAllows(
   user: Record<string, unknown> | null,
   requiredPermission: StaffPermission
 ): boolean {
-  if (!user) return false;
-  if (
-    user['suspended'] === true ||
-    user['accountLocked'] === true ||
-    user['interactionBlocked'] === true ||
-    user['loginAllowed'] === false ||
-    (user['accountStatus'] != null && user['accountStatus'] !== 'active')
-  ) return false;
-  const current = collectRolesAndPermissions(user);
-  return hasElevatedRole(current.roles)
-    || hasRequiredPermission(current.permissions, requiredPermission);
+  if (!isActiveStaffAccount(user)) return false;
+  const { roles, permissions } = collectRolesAndPermissions(user);
+  const administrator = roles.includes('admin') || roles.includes('superadmin');
+  if (requiredPermission === 'platform:admin') return administrator;
+  if (requiredPermission === 'users:deletion-operations') {
+    return administrator || permissions.includes('users:delete')
+      || permissions.includes('users:lifecycle');
+  }
+  return administrator || roles.includes('moderator')
+    || permissions.includes(requiredPermission) || permissions.includes('users:lifecycle');
 }
 
-// Leitor injetável para ensaiar a mesma fronteira assíncrona sem credenciais reais.
+type StaffAuthorization = {
+  actorUid: string | null;
+  requiredPermission: StaffPermission;
+};
 type StaffActorReader = (uid: string) => Promise<Record<string, unknown> | null>;
 
-export async function assertStaffAuthorizationWithReader(params: {
-  actorUid: string | null;
-  authToken: Record<string, unknown> | undefined;
-  requiredPermission: StaffPermission;
-}, readActor: StaffActorReader): Promise<void> {
-  const { actorUid, requiredPermission } = params;
+export async function assertStaffAuthorizationWithReader(
+  { actorUid, requiredPermission }: StaffAuthorization,
+  readActor: StaffActorReader
+): Promise<void> {
   if (!actorUid) {
-    throw new HttpsError('unauthenticated', 'Moderador não autenticado.');
+    throw new HttpsError('unauthenticated', 'Operador não autenticado.');
   }
-  // Nunca usa claims para promoção: o leitor consulta o estado atual em cada ação.
-  const actor = await readActor(actorUid);
-  if (!actor) {
-    throw new HttpsError('permission-denied', 'Conta do operador não encontrada.');
+
+  if (!currentStaffPermissionAllows(await readActor(actorUid), requiredPermission)) {
+    throw new HttpsError('permission-denied', 'Usuário sem permissão suficiente para esta ação.');
   }
-  if (currentStaffPermissionAllows(actor, requiredPermission)) return;
-  throw new HttpsError(
-    'permission-denied',
-    'Usuário sem permissão suficiente para esta ação.'
-  );
 }
 
-export async function assertStaffAuthorization(params: {
-  actorUid: string | null;
-  authToken: Record<string, unknown> | undefined;
-  requiredPermission: StaffPermission;
-}): Promise<void> {
-  return assertStaffAuthorizationWithReader(params, async (uid) => {
-    const actorSnap = await db.collection('users').doc(uid).get();
-    return actorSnap.exists
-      ? (actorSnap.data() ?? {}) as Record<string, unknown>
-      : null;
-  });
+export async function readCurrentStaffAccount(
+  uid: string,
+  transaction?: FirebaseFirestore.Transaction
+): Promise<Record<string, unknown> | null> {
+  const ref = db.collection('users').doc(uid);
+  const snapshot = await (transaction ? transaction.get(ref) : ref.get());
+  return snapshot.data() ?? null;
+}
+
+export async function assertStaffAuthorization(
+  params: StaffAuthorization,
+  transaction?: FirebaseFirestore.Transaction
+): Promise<void> {
+  return assertStaffAuthorizationWithReader(params, (uid) => readCurrentStaffAccount(uid, transaction));
+}
+
+export async function assertPlatformAdministrator(
+  uid: string | undefined,
+  transaction?: FirebaseFirestore.Transaction
+): Promise<string> {
+  const actorUid = uid?.trim();
+  if (!actorUid) throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
+
+  await assertStaffAuthorization({ actorUid, requiredPermission: 'platform:admin' }, transaction);
+  return actorUid;
+}
+
+export async function hasCurrentPlatformAdministrator(
+  uid: string,
+  transaction?: FirebaseFirestore.Transaction
+): Promise<boolean> {
+  return currentStaffPermissionAllows(await readCurrentStaffAccount(uid, transaction), 'platform:admin');
 }
 
 export function createLifecycleAudit(

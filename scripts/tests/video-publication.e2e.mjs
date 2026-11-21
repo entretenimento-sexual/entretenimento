@@ -702,8 +702,9 @@ async function run() {
     assert.equal(preventiveReport?.reason, 'preventive_media_review');
     assert.equal(preventiveReport?.contentQuarantined, true);
 
-    // A decisão humana é simulada por um usuário com claim administrativo
-    // somente dentro do Auth Emulator. O acesso normal volta logo depois.
+    // A decisão administrativa usa um papel vigente no Firestore emulado.
+    const ownerAccountRef = adminDb.doc('users/' + ownerUid);
+    await ownerAccountRef.update({ staffRoles: ['admin'] });
     await adminAuth.setCustomUserClaims(ownerUid, { admin: true });
     await authenticatedUser.getIdToken(true);
     const reviewVideoContentReport = httpsCallable(
@@ -714,6 +715,7 @@ async function run() {
       decision: 'KEEP',
       resolution: 'Vídeo verificado no fluxo preventivo do teste E2E.',
     });
+    await ownerAccountRef.update({ staffRoles: [] });
     await adminAuth.setCustomUserClaims(ownerUid, {});
     await authenticatedUser.getIdToken(true);
 

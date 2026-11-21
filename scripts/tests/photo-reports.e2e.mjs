@@ -179,6 +179,9 @@ async function run() {
 
     await Promise.all([
       adminAuth.setCustomUserClaims(moderatorUid, { admin: true }),
+      adminDb.doc('users/' + moderatorUid).set({
+        staffRoles: ['admin'], accountStatus: 'active',
+      }, { merge: true }),
       seedPublicMediaCompliance(adminDb, [ownerUid, visitorAUid, visitorBUid]),
     ]);
     await credentials[3].user.getIdToken(true);

@@ -10,7 +10,11 @@
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { assertRecentAuthentication } from '../account_lifecycle/_shared';
+import {
+  assertRecentAuthentication,
+  isActiveStaffAccount,
+  readCurrentStaffAccount,
+} from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
@@ -77,19 +81,8 @@ async function assertAuthorized(
     );
   }
 
-  if (hasCommunityOperationsPermission(authToken, 'community:ranking')) {
-    return actorUid;
-  }
-
-  const actorSnapshot = await db.collection('users').doc(actorUid).get();
-  if (
-    hasCommunityOperationsPermission(
-      actorSnapshot.exists ? actorSnapshot.data() : null,
-      'community:ranking'
-    )
-  ) {
-    return actorUid;
-  }
+  const actor = await readCurrentStaffAccount(actorUid);
+  if (isActiveStaffAccount(actor) && hasCommunityOperationsPermission(actor, 'community:ranking')) return actorUid;
 
   throw new HttpsError(
     'permission-denied',

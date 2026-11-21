@@ -30,14 +30,37 @@ const admin = initializeAdminApp({ projectId: PROJECT_ID }, `admin-revocation-se
 const adminAuth = getAdminAuth(admin);
 const db = getFirestore(admin);
 let uid = '';
-const callable = httpsCallable(functions, 'moderateSuspendAccount');
-const operation = { targetUid: 'not-a-real-user', reason: 'Test only' };
+const accountModeration = httpsCallable(functions, 'moderateSuspendAccount');
+const accountOperation = { targetUid: 'not-a-real-user', reason: 'Test only' };
+const reviewOperation = {
+  reportId: 'missing-report-' + runId,
+  decision: 'KEEP',
+  resolution: 'Cenário sintético de autorização',
+};
+const staffOperations = [
+  ['reviewPhotoContentReport', reviewOperation],
+  ['reviewVideoContentReport', reviewOperation],
+  ['reviewMediaModerationContest', { ...reviewOperation, decision: 'UPHOLD' }],
+  ['reviewCommunityFeedPostReport', reviewOperation],
+  ['reviewCommunityFeedCommentReport', reviewOperation],
+  ['reviewCommunityFeedCommentReplyReport', reviewOperation],
+].map(([name, data]) => ({ name, callable: httpsCallable(functions, name), data }));
 
-async function expectCallableCode(code) {
-  await assert.rejects(callable(operation), (error) => {
-    assert.equal(error.code, code);
+async function expectCallableCode(callable, data, code, operationName) {
+  await assert.rejects(callable(data), (error) => {
+    assert.equal(error.code, code, operationName);
     return true;
   });
+}
+
+async function expectPlatformReviewCode(code) {
+  for (const { name, callable, data } of staffOperations) {
+    await expectCallableCode(callable, data, code, name);
+  }
+}
+
+async function expectAccountCode(code) {
+  await expectCallableCode(accountModeration, accountOperation, code, 'moderateSuspendAccount');
 }
 
 try {
@@ -53,14 +76,29 @@ try {
   });
   // Forçar apenas uma vez, antes da revogação; manter o JWT idêntico depois.
   const jwtBefore = await credential.user.getIdToken(true);
-  // Conta admin autorizada ultrapassa a autorização; alvo fictício provoca not-found.
-  await expectCallableCode('functions/not-found');
-  await db.doc(`users/${uid}`).update({ role: 'free', admin: false });
+  // Os dados fictícios não geram mutação mesmo quando a autorização passa.
+  await expectAccountCode('functions/not-found');
+  await expectPlatformReviewCode('functions/not-found');
+
+  await db.doc('users/' + uid).update({ role: 'free', admin: false });
   assert.equal(await credential.user.getIdToken(), jwtBefore, 'JWT mudou após revogação');
-  await expectCallableCode('functions/permission-denied');
-  await db.doc(`users/${uid}`).update({ role: 'admin' });
-  await expectCallableCode('functions/not-found');
-  console.log('[authz-e2e] OK: Callable real negou JWT antigo e retomou após restauração.');
+  await expectAccountCode('functions/permission-denied');
+  await expectPlatformReviewCode('functions/permission-denied');
+
+  await db.doc('users/' + uid).update({ permissions: ['users:suspend'] });
+  await expectAccountCode('functions/not-found');
+  await expectPlatformReviewCode('functions/permission-denied');
+
+  await db.doc('users/' + uid).update({ role: 'admin', accountLocked: true });
+  await expectAccountCode('functions/permission-denied');
+  await expectPlatformReviewCode('functions/permission-denied');
+
+  await db.doc('users/' + uid).update({ accountLocked: false });
+  await expectAccountCode('functions/not-found');
+  await expectPlatformReviewCode('functions/not-found');
+  assert.equal(await credential.user.getIdToken(), jwtBefore, 'JWT mudou durante o teste');
+  console.log('[authz-e2e] OK: contas, mídia e mural respeitam revogação, escopo e bloqueio com o mesmo JWT.');
+
 } finally {
   if (uid) {
     await db.doc(`users/${uid}`).delete();

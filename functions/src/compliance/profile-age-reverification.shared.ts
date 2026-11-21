@@ -102,7 +102,6 @@ export async function assertComplianceModerator(
 
   await assertStaffAuthorization({
     actorUid: actorUid || null,
-    authToken: auth?.token ?? {},
     requiredPermission: 'users:suspend',
   });
 

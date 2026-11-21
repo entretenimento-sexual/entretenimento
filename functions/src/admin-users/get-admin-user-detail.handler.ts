@@ -32,7 +32,6 @@ export const getAdminUserDetail = onCall<unknown>(
     // Recheck current staff state, never trust old role claims.
     await assertStaffAuthorization({
       actorUid: request.auth?.uid ?? null,
-      authToken: request.auth?.token ?? {},
       requiredPermission: 'users:suspend',
     });
 

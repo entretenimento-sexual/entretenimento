@@ -1,3 +1,4 @@
+import { assertPlatformAdministrator } from '../../account_lifecycle/_shared';
 import { randomUUID } from 'node:crypto';
 
 import { isOwnerDeletingForVideoMutationInTransaction }
@@ -223,34 +224,6 @@ function normalizeLimit(value: unknown): number {
   }
 
   return Math.max(1, Math.min(MAX_LIST_LIMIT, Math.trunc(numberValue)));
-}
-
-function assertAdmin(requestAuth: unknown): string {
-  const authData = requestAuth as {
-    uid?: unknown;
-    token?: unknown;
-  } | null | undefined;
-  const adminUid = cleanId(authData?.uid);
-  const token = typeof authData?.token === 'object' && authData.token !== null
-    ? authData.token as Record<string, unknown>
-    : {};
-  const roles = Array.isArray(token['roles']) ? token['roles'] : [];
-  const allowed = token['admin'] === true ||
-    token['role'] === 'admin' ||
-    roles.includes('admin');
-
-  if (!adminUid) {
-    throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
-  }
-
-  if (!allowed) {
-    throw new HttpsError(
-      'permission-denied',
-      'Apenas administradores podem recuperar o processamento de vídeos.'
-    );
-  }
-
-  return adminUid;
 }
 
 function isStale(
@@ -985,7 +958,7 @@ export const listVideoProcessingRecoveryJobs = onCall<ListRecoveryJobsRequest>(
   },
   async (request): Promise<ListRecoveryJobsResponse> => {
     assertCallableAppCheck(request.app);
-    const adminUid = assertAdmin(request.auth);
+    const adminUid = await assertPlatformAdministrator(request.auth?.uid);
     const checkedAt = Date.now();
     const limit = normalizeLimit(request.data?.limit);
     await consumeBackendRateLimitQuota({
@@ -1012,7 +985,7 @@ export const recoverVideoProcessingJob = onCall<RecoverVideoProcessingRequest>(
   },
   async (request): Promise<RecoverVideoProcessingResponse> => {
     assertCallableAppCheck(request.app);
-    const adminUid = assertAdmin(request.auth);
+    const adminUid = await assertPlatformAdministrator(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
     const action = normalizeAction(request.data?.action);

@@ -9,7 +9,7 @@
 import type { DocumentReference } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { assertRecentAuthentication } from '../account_lifecycle/_shared';
+import { assertPlatformAdministrator, assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, FieldValue } from '../firebaseApp';
@@ -72,28 +72,6 @@ function assertAuthenticatedUid(
     );
   }
   return uid;
-}
-
-function assertAdmin(
-  auth: { uid?: string; token?: Record<string, unknown> } | undefined
-): string {
-  const adminUid = cleanId(auth?.uid);
-  const token = auth?.token ?? {};
-  const roles = Array.isArray(token['roles']) ? token['roles'] : [];
-  const allowed = token['admin'] === true
-    || token['role'] === 'admin'
-    || roles.includes('admin');
-
-  if (!adminUid) {
-    throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
-  }
-  if (!allowed) {
-    throw new HttpsError(
-      'permission-denied',
-      'Apenas administradores podem revisar vínculos oficiais.'
-    );
-  }
-  return adminUid;
 }
 
 function normalizePositiveInteger(value: unknown, fallback: number): number {
@@ -454,8 +432,10 @@ export const reviewCommunityOfficialClaim =
     }> => {
       assertRuntime();
       assertCommunityCallableAppCheck(request.app);
-      const adminUid = assertAdmin(request.auth);
+      const adminUid = cleanId(request.auth?.uid);
+      if (!adminUid) throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
       assertRecentAuthentication(request.auth?.token);
+      await assertPlatformAdministrator(adminUid);
       const now = Date.now();
       const command = normalizeReviewCommunityOfficialClaimRequest(
         request.data,
@@ -482,6 +462,7 @@ export const reviewCommunityOfficialClaim =
       const auditRef = db.collection('community_official_claim_audit').doc();
 
       return db.runTransaction(async (transaction) => {
+        await assertPlatformAdministrator(adminUid, transaction);
         const [claimSnapshot, associationSnapshot] = await Promise.all([
           transaction.get(claimRef),
           transaction.get(associationRef),

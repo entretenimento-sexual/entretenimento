@@ -42,7 +42,6 @@ export const issueSuspectedViolationNotice = onCall<
     assertRecentAuthentication(authToken);
     await assertStaffAuthorization({
       actorUid: actorUid || null,
-      authToken,
       requiredPermission: 'users:suspend',
     });
 

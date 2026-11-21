@@ -1,3 +1,4 @@
+import { assertPlatformAdministrator } from '../../account_lifecycle/_shared';
 import { isVideoModerationIdentityCurrent } from './video-moderation-identity-fence';
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -200,34 +201,6 @@ const VIDEO_REPORT_REVIEW_RATE_LIMIT = Object.freeze({
   sustainedMax: 120,
 });
 
-function assertAdmin(requestAuth: unknown): string {
-  const authData = requestAuth as {
-    uid?: unknown;
-    token?: unknown;
-  } | null | undefined;
-  const adminUid = cleanId(authData?.uid);
-  const token = typeof authData?.token === 'object' && authData.token !== null
-    ? authData.token as Record<string, unknown>
-    : {};
-  const roles = Array.isArray(token['roles']) ? token['roles'] : [];
-  const allowed = token['admin'] === true ||
-    token['role'] === 'admin' ||
-    roles.includes('admin');
-
-  if (!adminUid) {
-    throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
-  }
-
-  if (!allowed) {
-    throw new HttpsError(
-      'permission-denied',
-      'Apenas administradores podem revisar denúncias de vídeo.'
-    );
-  }
-
-  return adminUid;
-}
-
 function targetCounterPatch(
   target: {
     reportsCount?: unknown;
@@ -290,7 +263,7 @@ export const reviewVideoContentReport = onCall<
   async (request) => {
     assertPublicMediaCallableAppCheck(request.app);
 
-    const adminUid = assertAdmin(request.auth);
+    const adminUid = await assertPlatformAdministrator(request.auth?.uid);
 
     await consumeBackendRateLimitQuota({
       action: 'video-report-review',
@@ -328,6 +301,7 @@ export const reviewVideoContentReport = onCall<
 
     const result = await db.runTransaction<TransactionResult>(
       async (transaction) => {
+        await assertPlatformAdministrator(adminUid, transaction);
         const reportSnap = await transaction.get(reportRef);
 
         if (!reportSnap.exists) {

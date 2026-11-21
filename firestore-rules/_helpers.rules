@@ -270,6 +270,8 @@ service cloud.firestore {
       let actor = hasClaim("admin") && exists(actorPath)
         ? get(actorPath).data
         : null;
+      let roles = actor is map ? mapFieldOrNull(actor, "roles") : null;
+      let staffRoles = actor is map ? mapFieldOrNull(actor, "staffRoles") : null;
       return actor is map
         && (mapFieldOrNull(actor, "accountStatus") == null
           || mapFieldOrNull(actor, "accountStatus") == "active")
@@ -277,10 +279,14 @@ service cloud.firestore {
         && mapFieldOrNull(actor, "accountLocked") != true
         && mapFieldOrNull(actor, "interactionBlocked") != true
         && mapFieldOrNull(actor, "loginAllowed") != false
+        && mapFieldOrNull(actor, "deletionRequestedAt") == null
+        && mapFieldOrNull(actor, "ageReverificationRestrictedAt") == null
         && (
           mapFieldOrNull(actor, "role") == "admin"
           || mapFieldOrNull(actor, "admin") == true
           || mapFieldOrNull(actor, "superadmin") == true
+          || (roles is list && roles.hasAny(["admin", "superadmin"]))
+          || (staffRoles is list && staffRoles.hasAny(["admin", "superadmin"]))
         );
     }
 

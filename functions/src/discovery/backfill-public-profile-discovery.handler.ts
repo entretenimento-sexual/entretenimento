@@ -14,6 +14,7 @@
 // dry-run paginado -> revisão dos totais -> execução paginada após deploy.
 // -----------------------------------------------------------------------------
 
+import { isActiveStaffAccount, readCurrentStaffAccount } from '../account_lifecycle/_shared';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FieldPath } from 'firebase-admin/firestore';
 import { db } from '../firebaseApp';
@@ -84,19 +85,14 @@ function hasElevatedAccess(source: Record<string, unknown>): boolean {
 }
 
 async function assertBackfillAuthorization(
-  actorUid: string | null,
-  authToken: Record<string, unknown> | undefined
+  actorUid: string | null
 ): Promise<void> {
   if (!actorUid) {
     throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
   }
 
-  if (hasElevatedAccess(authToken ?? {})) return;
-
-  const actorSnap = await db.collection('users').doc(actorUid).get();
-  if (hasElevatedAccess((actorSnap.data() ?? {}) as Record<string, unknown>)) {
-    return;
-  }
+  const actor = await readCurrentStaffAccount(actorUid);
+  if (isActiveStaffAccount(actor) && hasElevatedAccess(actor)) return;
 
   throw new HttpsError(
     'permission-denied',
@@ -111,10 +107,7 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
   },
   async (request): Promise<BackfillPublicProfileDiscoveryResult> => {
     const actorUid = request.auth?.uid ?? null;
-    await assertBackfillAuthorization(
-      actorUid,
-      (request.auth?.token ?? {}) as Record<string, unknown>
-    );
+    await assertBackfillAuthorization(actorUid);
 
     // Reject attempted writes instead of silently claiming a successful backfill.
     if (request.data?.dryRun === false) {

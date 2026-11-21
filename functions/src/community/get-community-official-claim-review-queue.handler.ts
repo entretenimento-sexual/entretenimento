@@ -7,6 +7,7 @@
 // opacas já persistidas no claim privado são retornadas para a equipe autorizada.
 // -----------------------------------------------------------------------------
 
+import { assertPlatformAdministrator } from '../account_lifecycle/_shared';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
@@ -68,30 +69,6 @@ function cleanId(value: unknown): string | null {
 function cleanEpoch(value: unknown): number | null {
   const normalized = Math.trunc(Number(value));
   return Number.isFinite(normalized) && normalized > 0 ? normalized : null;
-}
-
-function assertAdmin(
-  auth: { uid?: string; token?: Record<string, unknown> } | undefined
-): string {
-  const adminUid = cleanId(auth?.uid);
-  const token = auth?.token ?? {};
-  const roles = Array.isArray(token['roles']) ? token['roles'] : [];
-  const allowed = token['admin'] === true
-    || token['role'] === 'admin'
-    || roles.includes('admin');
-
-  if (!adminUid) {
-    throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
-  }
-
-  if (!allowed) {
-    throw new HttpsError(
-      'permission-denied',
-      'Apenas administradores podem acessar esta fila.'
-    );
-  }
-
-  return adminUid;
 }
 
 function normalizeTarget(raw: unknown): CommunityOfficialClaimReviewQueueItem['target'] | null {
@@ -217,7 +194,7 @@ export const getCommunityOfficialClaimReviewQueue = onCall(
   async (request): Promise<{ items: CommunityOfficialClaimReviewQueueItem[] }> => {
     assertRuntime();
     assertCommunityCallableAppCheck(request.app);
-    const adminUid = assertAdmin(request.auth);
+    const adminUid = await assertPlatformAdministrator(request.auth?.uid);
 
     await consumeCommunityRateLimit({
       action: 'content_moderation',

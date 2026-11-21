@@ -27,7 +27,7 @@ async function loadReviewCallable() {
   return { reviewCommunityOfficialClaim, db };
 }
 
-function installFirestoreProbe(db: unknown): {
+function installFirestoreProbe(db: unknown, actor?: Record<string, unknown>): {
   readonly operations: string[];
   restore(): void;
 } {
@@ -36,9 +36,11 @@ function installFirestoreProbe(db: unknown): {
   const originalRunTransaction = firestore.runTransaction;
   const operations: string[] = [];
 
-  firestore.collection = (path: string): never => {
-    operations.push(`collection:${path}`);
-    throw new Error('Firestore não deve ser acessado antes da autenticação recente.');
+  firestore.collection = (path: string) => {
+    operations.push('collection:' + path);
+    assert.equal(path, 'users');
+    assert.ok(actor, 'Firestore não deve ser acessado antes da autenticação recente.');
+    return { doc: () => ({ get: async () => ({ data: () => actor }) }) };
   };
   firestore.runTransaction = async (): Promise<never> => {
     operations.push('runTransaction');
@@ -123,7 +125,7 @@ for (const scenario of [
 
 test('reviewCommunityOfficialClaim aceita auth_time recente e alcança a validação do comando', async () => {
   const { db } = await loadReviewCallable();
-  const probe = installFirestoreProbe(db);
+  const probe = installFirestoreProbe(db, { role: 'admin', accountStatus: 'active' });
 
   try {
     await assert.rejects(
@@ -136,25 +138,25 @@ test('reviewCommunityOfficialClaim aceita auth_time recente e alcança a valida�
       }),
       (error: unknown) => assertCallableError(error, 'invalid-argument')
     );
-    assert.deepEqual(probe.operations, []);
+    assert.deepEqual(probe.operations, ['collection:users']);
   } finally {
     probe.restore();
   }
 });
 
-test('reviewCommunityOfficialClaim preserva autorização administrativa antes de recent-auth', async () => {
+test('reviewCommunityOfficialClaim nega acesso após revogação mesmo com claim administrativa antiga', async () => {
   const { db } = await loadReviewCallable();
-  const probe = installFirestoreProbe(db);
+  const probe = installFirestoreProbe(db, { role: 'free', accountStatus: 'active' });
 
   try {
     await assert.rejects(
       runReview({
         uid: 'user-1',
-        token: { auth_time: Math.floor(Date.now() / 1_000) - 30 },
+        token: { admin: true, auth_time: Math.floor(Date.now() / 1_000) - 30 },
       }),
       (error: unknown) => assertCallableError(error, 'permission-denied')
     );
-    assert.deepEqual(probe.operations, []);
+    assert.deepEqual(probe.operations, ['collection:users']);
   } finally {
     probe.restore();
   }

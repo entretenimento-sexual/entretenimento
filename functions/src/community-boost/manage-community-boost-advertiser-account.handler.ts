@@ -9,7 +9,7 @@
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { assertRecentAuthentication } from '../account_lifecycle/_shared';
+import { assertPlatformAdministrator, assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
@@ -46,30 +46,6 @@ function positiveInteger(value: unknown): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function assertAdmin(
-  auth: { uid?: string; token?: Record<string, unknown> } | undefined
-): string {
-  const uid = cleanId(auth?.uid);
-  const token = auth?.token ?? {};
-  const roles = Array.isArray(token['roles']) ? token['roles'] : [];
-  const admin =
-    token['admin'] === true
-    || token['role'] === 'admin'
-    || roles.includes('admin');
-
-  if (!uid) {
-    throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
-  }
-  if (!admin) {
-    throw new HttpsError(
-      'permission-denied',
-      'A elegibilidade de Community Boost exige acesso administrativo.'
-    );
-  }
-
-  return uid;
-}
-
 export const manageCommunityBoostAdvertiserAccount =
   onCall<ManageCommunityBoostAdvertiserAccountRequest>(
     {
@@ -78,7 +54,7 @@ export const manageCommunityBoostAdvertiserAccount =
     },
     async (request) => {
       assertCallableAppCheck(request.app);
-      const adminUid = assertAdmin(request.auth);
+      const adminUid = await assertPlatformAdministrator(request.auth?.uid);
       assertRecentAuthentication(request.auth?.token);
 
       const operationId = cleanOperationId(request.data?.operationId);
@@ -117,6 +93,7 @@ export const manageCommunityBoostAdvertiserAccount =
         .doc(`advertiser:${adminUid}:${operationId}`);
 
       return db.runTransaction(async (transaction) => {
+        await assertPlatformAdministrator(adminUid, transaction);
         const [accountSnapshot, requestSnapshot] = await Promise.all([
           transaction.get(accountRef),
           transaction.get(requestRef),

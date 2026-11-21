@@ -8,10 +8,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { db } from '../firebaseApp';
-import { ACCOUNT_LIFECYCLE_REGION } from './_shared';
-import {
-  hasAccountDeletionOperationsPermission,
-} from './account-deletion-operations.authorization';
+import { assertStaffAuthorization, ACCOUNT_LIFECYCLE_REGION } from './_shared';
 import {
   cursorForAccountDeletionOperation,
   mapAccountDeletionOperation,
@@ -46,12 +43,10 @@ const CURSOR_COLLISION_BUFFER = 250;
 export const getAccountDeletionOperations = onCall<unknown>(
   { region: ACCOUNT_LIFECYCLE_REGION },
   async (request): Promise<AccountDeletionOperationsResponse> => {
-    const actorUid = request.auth?.uid ?? null;
-    const authToken = request.auth?.token as
-      | Record<string, unknown>
-      | undefined;
-
-    await assertAccountDeletionOperationsAccess(actorUid, authToken);
+    await assertStaffAuthorization({
+      actorUid: request.auth?.uid ?? null,
+      requiredPermission: 'users:deletion-operations',
+    });
 
     const input = normalizeAccountDeletionOperationsRequest(request.data);
     const collection = db.collection(COLLECTION);
@@ -111,30 +106,6 @@ export const getAccountDeletionOperations = onCall<unknown>(
     };
   }
 );
-
-async function assertAccountDeletionOperationsAccess(
-  actorUid: string | null,
-  authToken: Record<string, unknown> | undefined
-): Promise<void> {
-  if (!actorUid) {
-    throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
-  }
-
-  if (hasAccountDeletionOperationsPermission(authToken)) return;
-
-  const actorSnapshot = await db.collection('users').doc(actorUid).get();
-  if (
-    actorSnapshot.exists &&
-    hasAccountDeletionOperationsPermission(actorSnapshot.data())
-  ) {
-    return;
-  }
-
-  throw new HttpsError(
-    'permission-denied',
-    'Usuário sem permissão para consultar operações de exclusão.'
-  );
-}
 
 function resolveDocumentsAfterCursor(
   documents: readonly FirebaseFirestore.QueryDocumentSnapshot[],

@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  hasAccountDeletionOperationsPermission,
-} from './account-deletion-operations.authorization';
+import { currentStaffPermissionAllows } from './_shared';
+
+function hasAccountDeletionOperationsPermission(user: Record<string, unknown> | null): boolean {
+  return currentStaffPermissionAllows(user, 'users:deletion-operations');
+}
 
 test('allows admin and superadmin roles', () => {
   assert.equal(

@@ -11,6 +11,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
 import {
   UserDoc,
+  assertStaffAuthorization,
   buildPublicProfileSeed,
   createLifecycleAudit,
   getNicknameIndexDocId,
@@ -41,6 +42,12 @@ export async function restoreModerationSuspension(input: {
 
   return db.runTransaction(
     async (tx: FirebaseFirestore.Transaction): Promise<ModerationUnsuspensionResult> => {
+      if (input.source === 'moderator') {
+        await assertStaffAuthorization({
+          actorUid: input.actorUid,
+          requiredPermission: 'users:suspend',
+        }, tx);
+      }
       const userRef = db.collection('users').doc(input.targetUid);
       const publicProfileRef = db
         .collection('public_profiles')

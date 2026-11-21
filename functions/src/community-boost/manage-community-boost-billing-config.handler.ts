@@ -8,7 +8,7 @@
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { assertRecentAuthentication } from '../account_lifecycle/_shared';
+import { assertPlatformAdministrator, assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
@@ -40,30 +40,6 @@ function positiveInteger(value: unknown): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function assertAdmin(
-  auth: { uid?: string; token?: Record<string, unknown> } | undefined
-): string {
-  const uid = String(auth?.uid ?? '').trim();
-  const token = auth?.token ?? {};
-  const roles = Array.isArray(token['roles']) ? token['roles'] : [];
-  const admin =
-    token['admin'] === true
-    || token['role'] === 'admin'
-    || roles.includes('admin');
-
-  if (!uid) {
-    throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
-  }
-  if (!admin) {
-    throw new HttpsError(
-      'permission-denied',
-      'A configuração de Community Boost exige acesso administrativo.'
-    );
-  }
-
-  return uid;
-}
-
 export const manageCommunityBoostBillingConfig =
   onCall<ManageCommunityBoostBillingConfigRequest>(
     {
@@ -72,7 +48,7 @@ export const manageCommunityBoostBillingConfig =
     },
     async (request) => {
       assertCallableAppCheck(request.app);
-      const adminUid = assertAdmin(request.auth);
+      const adminUid = await assertPlatformAdministrator(request.auth?.uid);
       assertRecentAuthentication(request.auth?.token);
       const operationId = cleanOperationId(request.data?.operationId);
       const active = request.data?.active === true;
@@ -105,6 +81,7 @@ export const manageCommunityBoostBillingConfig =
         .doc(`billing-config:${adminUid}:${operationId}`);
 
       return db.runTransaction(async (transaction) => {
+        await assertPlatformAdministrator(adminUid, transaction);
         const [configSnapshot, requestSnapshot] = await Promise.all([
           transaction.get(configRef),
           transaction.get(requestRef),

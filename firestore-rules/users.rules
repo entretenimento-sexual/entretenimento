@@ -176,6 +176,10 @@ match /users/{userId} {
       "billingProvider",
 
       "roles",
+      "staffRoles",
+      "admin",
+      "superadmin",
+      "moderator",
       "permissions",
       "entitlements",
 

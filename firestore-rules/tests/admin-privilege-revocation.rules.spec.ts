@@ -57,6 +57,32 @@ describe('revogação de privilégios administrativos (Firestore Rules)', () => 
     await assertSucceeds(getDoc(audit));
   });
 
+  it('impede o titular de promover a própria conta por qualquer campo de staff', async () => {
+    await setLiveAccount({ accountStatus: 'active', role: 'free' });
+    const db = env.authenticatedContext(ACTOR, { admin: true }).firestore();
+    const actor = doc(db, 'users', ACTOR);
+    for (const patch of [
+      { role: 'admin' },
+      { roles: ['admin'] },
+      { staffRoles: ['admin'] },
+      { admin: true },
+      { superadmin: true },
+      { moderator: true },
+      { permissions: ['users:suspend'] },
+    ]) {
+      await assertFails(updateDoc(actor, patch));
+    }
+  });
+
+  it('revoga um papel de staff no documento mesmo mantendo a claim administrativa', async () => {
+    const db = env.authenticatedContext(ACTOR, { admin: true }).firestore();
+    const audit = doc(db, 'admin_logs', 'revocation-test');
+    await setLiveAccount({ accountStatus: 'active', role: 'free', staffRoles: ['admin'] });
+    await assertSucceeds(getDoc(audit));
+    await setLiveAccount({ accountStatus: 'active', role: 'free', staffRoles: [] });
+    await assertFails(getDoc(audit));
+  });
+
   it('nega claim administrativa sem papel atual', async () => {
     await setLiveAccount({ accountStatus: 'active', role: 'free' });
     const db = env.authenticatedContext(ACTOR, { admin: true }).firestore();

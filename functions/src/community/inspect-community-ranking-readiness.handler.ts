@@ -8,6 +8,7 @@
 // A exposição é diagnosticada somente para a ordenação efetivamente servida.
 // -----------------------------------------------------------------------------
 
+import { isActiveStaffAccount, readCurrentStaffAccount } from '../account_lifecycle/_shared';
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -174,19 +175,8 @@ async function assertAuthorized(
     );
   }
 
-  if (hasCommunityOperationsPermission(authToken, 'community:ranking')) {
-    return;
-  }
-
-  const actorSnapshot = await db.collection('users').doc(actorUid).get();
-  if (
-    hasCommunityOperationsPermission(
-      actorSnapshot.exists ? actorSnapshot.data() : null,
-      'community:ranking'
-    )
-  ) {
-    return;
-  }
+  const actor = await readCurrentStaffAccount(actorUid);
+  if (isActiveStaffAccount(actor) && hasCommunityOperationsPermission(actor, 'community:ranking')) return;
 
   throw new HttpsError(
     'permission-denied',

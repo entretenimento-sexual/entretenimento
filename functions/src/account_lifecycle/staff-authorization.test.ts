@@ -22,6 +22,19 @@ test('permissão granular é válida e sua revogação tem efeito imediato', () 
   assert.equal(currentStaffPermissionAllows(null, permission), false);
 });
 
+test('permissão de contas não concede revisão administrativa da plataforma', () => {
+  for (const user of [
+    { permissions: ['users:suspend'] },
+    { roles: ['moderator'] },
+    { permissions: ['users:lifecycle'] },
+  ]) {
+    assert.equal(currentStaffPermissionAllows(user, 'users:suspend'), true);
+    assert.equal(currentStaffPermissionAllows(user, 'platform:admin'), false);
+  }
+  assert.equal(currentStaffPermissionAllows({ staffRoles: ['admin'] }, 'platform:admin'), true);
+  assert.equal(currentStaffPermissionAllows({ role: 'admin' }, 'platform:admin'), true);
+});
+
 test('lifecycle bloqueado prevalece sobre privilégios elevados', () => {
   for (const state of [
     { suspended: true },
@@ -42,7 +55,6 @@ test('restauração de privilégio volta a autorizar sem mudar a decisão sobre 
 });
 
 test('autorização assíncrona reconsulta cada requisição e nega JWT antigo', async () => {
-  const sameJwt = { admin: true, roles: ['admin'] };
   let actor: Record<string, unknown> | null = { accountStatus: 'active', role: 'admin' };
   let reads = 0;
   const readActor = async (uid: string) => {
@@ -50,7 +62,7 @@ test('autorização assíncrona reconsulta cada requisição e nega JWT antigo',
     reads += 1;
     return actor;
   };
-  const params = { actorUid: 'operator-a', authToken: sameJwt, requiredPermission: permission };
+  const params = { actorUid: 'operator-a', requiredPermission: permission };
   await assertStaffAuthorizationWithReader(params, readActor);
   actor = { accountStatus: 'active', role: 'free' };
   await assert.rejects(
@@ -66,13 +78,13 @@ test('documento ausente e operador anônimo falham fechados', async () => {
   const readMissing = async () => null;
   await assert.rejects(
     assertStaffAuthorizationWithReader({
-      actorUid: 'missing', authToken: { admin: true }, requiredPermission: permission,
+      actorUid: 'missing', requiredPermission: permission,
     }, readMissing),
     (error: unknown) => error instanceof HttpsError && error.code === 'permission-denied'
   );
   await assert.rejects(
     assertStaffAuthorizationWithReader({
-      actorUid: null, authToken: { admin: true }, requiredPermission: permission,
+      actorUid: null, requiredPermission: permission,
     }, async () => { throw new Error('Não deve consultar sem UID'); }),
     (error: unknown) => error instanceof HttpsError && error.code === 'unauthenticated'
   );

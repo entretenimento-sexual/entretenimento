@@ -23,7 +23,6 @@ export const getAdminUsersPage = onCall<unknown>(
 
     await assertStaffAuthorization({
       actorUid: request.auth?.uid ?? null,
-      authToken: request.auth?.token ?? {},
       requiredPermission: 'users:suspend'
     });
 

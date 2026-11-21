@@ -192,7 +192,6 @@ export const reviewProfileIdentityChange = onCall<{
     const actor = assertSignedIn(request.auth?.uid);
     await assertStaffAuthorization({
       actorUid: actor,
-      authToken: request.auth?.token ?? {},
       requiredPermission: 'users:suspend',
     });
 

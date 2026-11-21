@@ -5,7 +5,7 @@
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { assertRecentAuthentication } from '../account_lifecycle/_shared';
+import { hasCurrentPlatformAdministrator, assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { assertPlatformAccountAccessData } from '../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
@@ -68,7 +68,7 @@ function cleanRequestId(value: unknown): string | null {
 
 function assertActor(
   auth: { uid?: string; token?: Record<string, unknown> } | undefined
-): { uid: string; admin: boolean } {
+): { uid: string } {
   const uid = String(auth?.uid ?? '').trim();
   if (!uid) throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
   if (auth?.token?.['email_verified'] !== true) {
@@ -78,15 +78,7 @@ function assertActor(
     );
   }
 
-  const token = auth.token ?? {};
-  const roles = Array.isArray(token['roles']) ? token['roles'] : [];
-  return {
-    uid,
-    admin:
-      token['admin'] === true
-      || token['role'] === 'admin'
-      || roles.includes('admin'),
-  };
+  return { uid };
 }
 
 function normalizeAction(value: unknown): CommunityBoostCampaignAction | null {
@@ -338,7 +330,7 @@ export const manageCommunityBoostCampaign =
             membershipSnapshot.exists ? membershipSnapshot.data() : null,
             discoverySnapshot.data(),
             actor.uid,
-            actor.admin
+            await hasCurrentPlatformAdministrator(actor.uid, transaction)
           );
           const billingConfig = normalizeCommunityBoostBillingConfig(
             billingConfigSnapshot.exists ? billingConfigSnapshot.data() : null
@@ -600,7 +592,7 @@ export const manageCommunityBoostCampaign =
           throw new HttpsError('not-found', 'Campanha não encontrada.');
         }
 
-        if (!actor.admin && campaign.advertiserUid !== actor.uid) {
+        if (campaign.advertiserUid !== actor.uid && !await hasCurrentPlatformAdministrator(actor.uid, transaction)) {
           throw new HttpsError(
             'permission-denied',
             'Você não pode gerenciar esta campanha.',

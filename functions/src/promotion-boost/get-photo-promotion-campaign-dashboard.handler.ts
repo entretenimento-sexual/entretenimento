@@ -1,4 +1,5 @@
 // functions/src/promotion-boost/get-photo-promotion-campaign-dashboard.handler.ts
+import { hasCurrentPlatformAdministrator } from '../account_lifecycle/_shared';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
@@ -8,11 +9,6 @@ import { normalizePromotionBoostCampaign } from './promotion-boost.policy';
 
 interface Request { readonly campaignId?: unknown; }
 const SAFE_ID = /^[A-Za-z0-9:_-]{1,128}$/;
-
-function isAdmin(token: Record<string, unknown> | undefined): boolean {
-  const roles = Array.isArray(token?.['roles']) ? token?.['roles'] : [];
-  return token?.['admin'] === true || token?.['role'] === 'admin' || roles.includes('admin');
-}
 
 export const getPhotoPromotionCampaignDashboard = onCall<Request>(
   { region: FUNCTIONS_REGION, enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK },
@@ -34,7 +30,7 @@ export const getPhotoPromotionCampaignDashboard = onCall<Request>(
     if (!campaign || campaign.targetType !== 'photo') {
       throw new HttpsError('not-found', 'Campanha não encontrada.');
     }
-    if (campaign.advertiserUid !== uid && !isAdmin(request.auth?.token)) {
+    if (campaign.advertiserUid !== uid && !await hasCurrentPlatformAdministrator(uid)) {
       throw new HttpsError('permission-denied', 'Você não pode consultar esta campanha.');
     }
 

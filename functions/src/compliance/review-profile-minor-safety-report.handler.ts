@@ -55,7 +55,6 @@ export const reviewProfileMinorSafetyReport = onCall<
 
     await assertStaffAuthorization({
       actorUid: adminUid || null,
-      authToken: (request.auth?.token ?? {}) as Record<string, unknown>,
       requiredPermission: 'users:suspend',
     });
 

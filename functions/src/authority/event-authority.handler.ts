@@ -11,7 +11,7 @@
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { assertRecentAuthentication } from '../account_lifecycle/_shared';
+import { assertPlatformAdministrator, assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import {
   REQUIRE_CALLABLE_APP_CHECK,
@@ -93,37 +93,6 @@ function cleanEpoch(value: unknown): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function assertAuthorityOperator(
-  auth: { uid?: string; token?: Record<string, unknown> } | undefined
-): string {
-  const operatorUid = cleanId(auth?.uid);
-  const token = auth?.token ?? {};
-  const roles = Array.isArray(token['roles'])
-    ? token['roles'].map((role) => String(role ?? '').trim().toLowerCase())
-    : [];
-  const allowed =
-    token['superadmin'] === true
-    || token['admin'] === true
-    || token['role'] === 'admin'
-    || roles.includes('superadmin')
-    || roles.includes('admin');
-
-  if (!operatorUid) {
-    throw new HttpsError(
-      'unauthenticated',
-      'Operador de autoridade não autenticado.'
-    );
-  }
-  if (!allowed) {
-    throw new HttpsError(
-      'permission-denied',
-      'Somente a administração pode emitir ou revogar autoridade de Evento.'
-    );
-  }
-
-  return operatorUid;
-}
-
 export const issueEventAuthority = onCall<IssueEventAuthorityRequest>(
   {
     region: FUNCTIONS_REGION,
@@ -131,7 +100,7 @@ export const issueEventAuthority = onCall<IssueEventAuthorityRequest>(
   },
   async (request): Promise<EventAuthorityLifecycleResult> => {
     assertCallableAppCheck(request.app);
-    const operatorUid = assertAuthorityOperator(request.auth);
+    const operatorUid = await assertPlatformAdministrator(request.auth?.uid);
     assertRecentAuthentication(request.auth?.token);
 
     const operationId = cleanOperationId(request.data?.operationId);
@@ -204,7 +173,7 @@ export const revokeEventAuthority = onCall<RevokeEventAuthorityRequest>(
   },
   async (request): Promise<EventAuthorityLifecycleResult> => {
     assertCallableAppCheck(request.app);
-    const operatorUid = assertAuthorityOperator(request.auth);
+    const operatorUid = await assertPlatformAdministrator(request.auth?.uid);
     assertRecentAuthentication(request.auth?.token);
 
     const operationId = cleanOperationId(request.data?.operationId);

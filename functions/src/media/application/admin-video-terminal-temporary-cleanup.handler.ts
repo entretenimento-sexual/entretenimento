@@ -1,3 +1,4 @@
+import { assertPlatformAdministrator } from '../../account_lifecycle/_shared';
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FieldPath } from 'firebase-admin/firestore';
@@ -52,20 +53,6 @@ const RATE_LIMIT = Object.freeze({
   sustainedWindowMs: 10 * 60_000, sustainedMax: 30,
 });
 
-function adminUid(auth: unknown): string {
-  const data = auth as { uid?: unknown; token?: Record<string, unknown> } | null;
-  const uid = String(data?.uid ?? '');
-  if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid)) {
-    throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
-  }
-  const token = data?.token ?? {};
-  const roles = Array.isArray(token['roles']) ? token['roles'] : [];
-  if (token['admin'] !== true && token['role'] !== 'admin' && !roles.includes('admin')) {
-    throw new HttpsError('permission-denied', 'Acesso exclusivo à administração.');
-  }
-  return uid;
-}
-
 function safeFailureCode(error: string | null): string | null {
   return String(error ?? '').match(/^[A-Z][A-Z0-9_]{2,79}/)?.[0] ?? null;
 }
@@ -74,7 +61,7 @@ export const listVideoTerminalTemporaryCleanupReviews = onCall<{ limit?: number;
   { region: FUNCTIONS_REGION, enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK },
   async (request): Promise<CleanupReviewList> => {
     assertCallableAppCheck(request.app);
-    const uid = adminUid(request.auth);
+    const uid = await assertPlatformAdministrator(request.auth?.uid);
     await consumeBackendRateLimitQuota({
       action: 'admin-video-terminal-cleanup-list',
       subject: uid, config: RATE_LIMIT,
@@ -133,7 +120,7 @@ export const recheckVideoTerminalTemporaryCleanup = onCall<CleanupReviewCommand>
   { region: FUNCTIONS_REGION, enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK },
   async request => {
     assertCallableAppCheck(request.app);
-    const uid = adminUid(request.auth);
+    const uid = await assertPlatformAdministrator(request.auth?.uid);
     const queueId = String(request.data?.queueId ?? '');
     const processingVersion = String(request.data?.processingVersion ?? '');
     const operationId = String(request.data?.operationId ?? '');

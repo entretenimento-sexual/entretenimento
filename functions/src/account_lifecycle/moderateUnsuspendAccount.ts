@@ -46,7 +46,6 @@ export const moderateUnsuspendAccount = onCall<ModerateUnsuspendAccountRequest>(
     assertRecentAuthentication(authToken);
     await assertStaffAuthorization({
       actorUid,
-      authToken,
       requiredPermission: 'users:suspend',
     });
 

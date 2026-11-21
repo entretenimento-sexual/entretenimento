@@ -18,9 +18,9 @@
 import { FieldPath } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { onCall } from 'firebase-functions/v2/https';
 
-import { assertRecentAuthentication } from '../../account_lifecycle/_shared';
+import { assertPlatformAdministrator, assertRecentAuthentication } from '../../account_lifecycle/_shared';
 import {
   buildEventAuthorityRecordId,
 } from '../../authority/event-authority.policy';
@@ -509,24 +509,7 @@ export const backfillExistingOfficialMediaContexts = onCall(
   }> => {
     assertCallableAppCheck(request.app);
 
-    const adminUid = String(request.auth?.uid ?? '').trim();
-    const token = (request.auth?.token ?? {}) as Record<string, unknown>;
-    const roles = Array.isArray(token['roles']) ? token['roles'] : [];
-    const isAdmin =
-      token['admin'] === true
-      || token['role'] === 'admin'
-      || roles.includes('admin');
-
-    if (!adminUid) {
-      throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
-    }
-
-    if (!isAdmin) {
-      throw new HttpsError(
-        'permission-denied',
-        'Apenas administradores podem reconciliar Official Media Context.'
-      );
-    }
+    const adminUid = await assertPlatformAdministrator(request.auth?.uid);
 
     assertRecentAuthentication(
       request.auth?.token as Record<string, unknown> | undefined

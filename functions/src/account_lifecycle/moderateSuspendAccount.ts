@@ -86,7 +86,6 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
     assertRecentAuthentication(authToken);
     await assertStaffAuthorization({
       actorUid,
-      authToken,
       requiredPermission: 'users:suspend',
     });
 
@@ -113,6 +112,7 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
     }
 
     await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+      await assertStaffAuthorization({ actorUid, requiredPermission: 'users:suspend' }, tx);
       const userRef = db.collection('users').doc(targetUid);
       const publicProfileRef = db.collection('public_profiles').doc(targetUid);
       const notificationRef = db

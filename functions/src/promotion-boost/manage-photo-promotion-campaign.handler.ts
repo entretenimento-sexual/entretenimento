@@ -1,7 +1,7 @@
 // functions/src/promotion-boost/manage-photo-promotion-campaign.handler.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { assertRecentAuthentication } from '../account_lifecycle/_shared';
+import { hasCurrentPlatformAdministrator, assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { assertPlatformAccountAccessData } from '../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
@@ -68,12 +68,7 @@ function actorFromAuth(auth: { uid?: string; token?: Record<string, unknown> } |
   if (auth?.token?.['email_verified'] !== true) {
     throw new HttpsError('failed-precondition', 'Verifique seu e-mail para continuar.');
   }
-  const token = auth.token ?? {};
-  const roles = Array.isArray(token['roles']) ? token['roles'] : [];
-  return {
-    uid,
-    admin: token['admin'] === true || token['role'] === 'admin' || roles.includes('admin'),
-  };
+  return { uid };
 }
 
 function assertPhotoEligible(
@@ -375,7 +370,7 @@ export const managePhotoPromotionCampaign = onCall<Request>(
       if (!campaign || campaign.targetType !== 'photo') {
         throw new HttpsError('not-found', 'Campanha não encontrada.');
       }
-      if (!actor.admin && campaign.advertiserUid !== actor.uid) {
+      if (campaign.advertiserUid !== actor.uid && !await hasCurrentPlatformAdministrator(actor.uid, transaction)) {
         throw new HttpsError('permission-denied', 'Você não pode gerenciar esta campanha.');
       }
 

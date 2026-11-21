@@ -6,6 +6,7 @@
 // A mídia física só é liberada após o último report bloqueante ser encerrado.
 // -----------------------------------------------------------------------------
 
+import { assertPlatformAdministrator } from '../account_lifecycle/_shared';
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -83,30 +84,6 @@ function normalizeCount(value: unknown): number {
   return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
 }
 
-function assertAdmin(requestAuth: unknown): string {
-  const auth = (requestAuth ?? {}) as {
-    uid?: unknown;
-    token?: Record<string, unknown>;
-  };
-  const adminUid = cleanId(auth.uid);
-  const token = auth.token ?? {};
-  const roles = Array.isArray(token['roles']) ? token['roles'] : [];
-  const allowed = token['admin'] === true
-    || token['role'] === 'admin'
-    || roles.includes('admin');
-
-  if (!adminUid) {
-    throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
-  }
-  if (!allowed) {
-    throw new HttpsError(
-      'permission-denied',
-      'Apenas administradores podem revisar denúncias do Mural.'
-    );
-  }
-  return adminUid;
-}
-
 export const reviewCommunityFeedPostReport = onCall<
   ReviewCommunityFeedPostReportRequest
 >(
@@ -121,7 +98,7 @@ export const reviewCommunityFeedPostReport = onCall<
   }> => {
     assertRuntime();
     assertCommunityCallableAppCheck(request.app);
-    const adminUid = assertAdmin(request.auth);
+    const adminUid = await assertPlatformAdministrator(request.auth?.uid);
     const reportId = cleanId(request.data?.reportId);
     const decision = cleanDecision(request.data?.decision);
     const resolution = cleanResolution(request.data?.resolution);
@@ -136,6 +113,7 @@ export const reviewCommunityFeedPostReport = onCall<
     });
 
     const transactionResult = await db.runTransaction(async (transaction): Promise<ReviewTransactionResult> => {
+      await assertPlatformAdministrator(adminUid, transaction);
       const reportRef = db.collection('moderation_reports').doc(reportId);
       const reportSnapshot = await transaction.get(reportRef);
       if (!reportSnapshot.exists) {

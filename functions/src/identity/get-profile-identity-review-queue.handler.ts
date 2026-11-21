@@ -21,7 +21,6 @@ export const getProfileIdentityReviewQueue = onCall<{ cursor?: unknown }>(
     assertCallableAppCheck(request.app);
     await assertStaffAuthorization({
       actorUid: request.auth?.uid ?? null,
-      authToken: request.auth?.token ?? {},
       requiredPermission: 'users:suspend',
     });
     const rawCursor = request.data?.cursor;

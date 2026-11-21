@@ -2,6 +2,7 @@
 // REVIEW COMMUNITY FEED COMMENT REPORT
 // -----------------------------------------------------------------------------
 
+import { assertPlatformAdministrator } from '../account_lifecycle/_shared';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
@@ -61,30 +62,6 @@ function normalizeCount(value: unknown): number {
   return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
 }
 
-function assertAdmin(requestAuth: unknown): string {
-  const auth = (requestAuth ?? {}) as {
-    uid?: unknown;
-    token?: Record<string, unknown>;
-  };
-  const adminUid = cleanId(auth.uid);
-  const token = auth.token ?? {};
-  const roles = Array.isArray(token['roles']) ? token['roles'] : [];
-  if (!adminUid) {
-    throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
-  }
-  if (
-    token['admin'] !== true
-    && token['role'] !== 'admin'
-    && !roles.includes('admin')
-  ) {
-    throw new HttpsError(
-      'permission-denied',
-      'Apenas administradores podem revisar comentários denunciados.'
-    );
-  }
-  return adminUid;
-}
-
 export const reviewCommunityFeedCommentReport = onCall<
   ReviewCommunityFeedCommentReportRequest
 >(
@@ -99,7 +76,7 @@ export const reviewCommunityFeedCommentReport = onCall<
   }> => {
     assertRuntime();
     assertCommunityCallableAppCheck(request.app);
-    const adminUid = assertAdmin(request.auth);
+    const adminUid = await assertPlatformAdministrator(request.auth?.uid);
     const reportId = cleanId(request.data?.reportId);
     const decision = cleanDecision(request.data?.decision);
     const resolution = cleanResolution(request.data?.resolution);
@@ -113,6 +90,7 @@ export const reviewCommunityFeedCommentReport = onCall<
     });
 
     const automationTarget = await db.runTransaction(async (transaction) => {
+      await assertPlatformAdministrator(adminUid, transaction);
       const reportRef = db.collection('moderation_reports').doc(reportId);
       const reportSnapshot = await transaction.get(reportRef);
       if (!reportSnapshot.exists) {

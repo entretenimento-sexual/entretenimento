@@ -11,7 +11,7 @@
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { assertRecentAuthentication } from '../account_lifecycle/_shared';
+import { assertPlatformAdministrator, assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
@@ -68,33 +68,6 @@ function cleanId(value: unknown): string | null {
 function cleanOperationId(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
   return SAFE_OPERATION_ID_PATTERN.test(normalized) ? normalized : null;
-}
-
-function assertAdmin(auth: unknown): string {
-  const authData = auth as {
-    uid?: unknown;
-    token?: Record<string, unknown>;
-  } | null | undefined;
-  const adminUid = cleanId(authData?.uid);
-  const token = authData?.token ?? {};
-  const roles = Array.isArray(token['roles']) ? token['roles'] : [];
-  const allowed =
-    token['admin'] === true
-    || token['role'] === 'admin'
-    || roles.includes('admin');
-
-  if (!adminUid) {
-    throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
-  }
-
-  if (!allowed) {
-    throw new HttpsError(
-      'permission-denied',
-      'Apenas administradores podem alterar entitlement Business/Official.'
-    );
-  }
-
-  return adminUid;
 }
 
 function normalizeCapabilities(
@@ -208,7 +181,7 @@ export const manageBusinessOfficialEntitlement =
     },
     async (request): Promise<ManageBusinessOfficialEntitlementResponse> => {
       assertCallableAppCheck(request.app);
-      const adminUid = assertAdmin(request.auth);
+      const adminUid = await assertPlatformAdministrator(request.auth?.uid);
       assertRecentAuthentication(
         request.auth?.token as Record<string, unknown> | undefined
       );
@@ -239,6 +212,7 @@ export const manageBusinessOfficialEntitlement =
         .doc(`${adminUid}:${command.operationId}`);
 
       return db.runTransaction(async (transaction) => {
+        await assertPlatformAdministrator(adminUid, transaction);
         const [requestSnapshot, entitlementSnapshot] = await Promise.all([
           transaction.get(requestRef),
           transaction.get(entitlementRef),

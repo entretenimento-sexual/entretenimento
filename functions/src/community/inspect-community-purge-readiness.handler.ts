@@ -6,11 +6,11 @@
 // Não executa exclusão nem altera lifecycle/configuração.
 // -----------------------------------------------------------------------------
 
+import { isActiveStaffAccount, readCurrentStaffAccount } from '../account_lifecycle/_shared';
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import { db } from '../firebaseApp';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
@@ -57,10 +57,8 @@ async function assertAuthorized(
     );
   }
 
-  if (hasCommunityPurgeOperationsPermission(authToken)) return;
-
-  const actorSnapshot = await db.collection('users').doc(actorUid).get();
-  if (hasCommunityPurgeOperationsPermission(actorSnapshot.data())) return;
+  const actor = await readCurrentStaffAccount(actorUid);
+  if (isActiveStaffAccount(actor) && hasCommunityPurgeOperationsPermission(actor)) return;
 
   throw new HttpsError(
     'permission-denied',

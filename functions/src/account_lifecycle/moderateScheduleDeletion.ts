@@ -78,7 +78,6 @@ export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
     assertRecentAuthentication(authToken);
     await assertStaffAuthorization({
       actorUid,
-      authToken,
       requiredPermission: 'users:delete',
     });
 
@@ -109,6 +108,7 @@ export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
 
     const schedule = await db.runTransaction(
       async (tx: FirebaseFirestore.Transaction) => {
+        await assertStaffAuthorization({ actorUid, requiredPermission: 'users:delete' }, tx);
         const userRef = db.collection('users').doc(targetUid);
         const publicProfileRef = db.collection('public_profiles').doc(targetUid);
 
