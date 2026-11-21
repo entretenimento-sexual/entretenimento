@@ -78,16 +78,21 @@ export class CompatibleProfileCandidatesService {
     combineLatest([
       this.accessControl.authUid$,
       this.accessControl.canRunApp$,
+      this.currentUserStore.user$,
     ]).pipe(
-      map(([uid, canRunApp]) => {
+      map(([uid, canRunApp, currentUser]) => {
         const viewerUid = this.toNullableText(uid);
 
         if (!viewerUid || !canRunApp) {
           return null;
         }
 
+        const preferencesRevision = currentUser?.uid === viewerUid
+          ? currentUser.discoveryPreferencesUpdatedAt ?? currentUser.discoveryPreferences?.updatedAt
+          : undefined;
         return {
           viewerUid,
+          ...(preferencesRevision ? { preferencesRevision } : {}),
           mode: 'compatible' as const,
           pageSize: COMPATIBLE_CANDIDATE_PAGE_SIZE,
         };

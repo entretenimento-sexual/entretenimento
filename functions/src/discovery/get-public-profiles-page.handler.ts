@@ -567,7 +567,7 @@ export function selectVisibleDiscoveryBatch(
     card: Record<string, unknown>;
     position: { uid: string; updatedAtMs: number };
   }[],
-  visibleUids: ReadonlySet<unknown>,
+  visibleByUid: ReadonlyMap<unknown, Record<string, unknown>>,
   capacity: number
 ): {
   items: Record<string, unknown>[];
@@ -575,8 +575,9 @@ export function selectVisibleDiscoveryBatch(
 } {
   const items: Record<string, unknown>[] = [];
   for (const entry of candidates) {
-    if (!visibleUids.has(entry.card['uid'])) continue;
-    items.push(entry.card);
+    const visibleCard = visibleByUid.get(entry.card['uid']);
+    if (!visibleCard) continue;
+    items.push(visibleCard);
     if (items.length >= capacity) {
       return { items, filledAt: entry.position };
     }
@@ -902,13 +903,13 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
       }, viewerUid);
       const visibleByUid = new Map(visibleBatch.items.map((item) => [item['uid'], item]));
       const selected = selectVisibleDiscoveryBatch(
-        candidates, new Set(visibleByUid.keys()), pageSize - items.length
+        candidates, visibleByUid, pageSize - items.length
       );
       items.push(...selected.items);
       if (considerIntimateInterests) {
         for (const item of selected.items) {
           const uid = cleanUid(item['uid']);
-          if (uid && uid !== viewerUid && visibleByUid.get(uid)?.['viewerCompatibilityAllowed'] === true) {
+          if (uid && uid !== viewerUid && item['viewerCompatibilityAllowed'] === true) {
             suggestionCandidates.push(uid);
           }
         }

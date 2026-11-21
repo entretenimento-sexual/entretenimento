@@ -41,9 +41,24 @@ export type ProfileCompatibilityReason =
   | 'inferred_orientation_match'
   | 'partial_match';
 
+interface DiscoveryProfileTypePreferences {
+  genderInterests?: readonly string[];
+  acceptsCouples?: boolean;
+  acceptsSingles?: boolean;
+  acceptsTransProfiles?: boolean | null;
+}
+
+export type DiscoveryProfileTypeRejection =
+  | 'couples_disabled'
+  | 'singles_disabled'
+  | 'trans_profiles_disabled'
+  | 'profile_type_not_selected';
+
 export interface ProfileCompatibilityLike {
   uid?: string | null;
 
+  identityCode?: string | null;
+  declaredIdentityCode?: string | null;
   gender?: string | null;
   genero?: string | null;
   orientation?: string | null;
@@ -73,6 +88,7 @@ export interface ProfileCompatibilityLike {
   partner1Orientacao?: string | null;
   partner2Orientacao?: string | null;
 
+  discoveryPreferences?: DiscoveryProfileTypePreferences | null;
   preferences?: readonly string[] | string | null;
   preferencias?: readonly string[] | string | null;
   interestedInGenders?: readonly string[] | string | null;
@@ -100,6 +116,7 @@ interface NormalizedInterest {
   readonly genders: readonly NormalizedDiscoveryGender[] | null;
   readonly orientations: readonly NormalizedDiscoveryOrientation[] | null;
   readonly explicit: boolean;
+  readonly usesSelectedTypes?: boolean;
 }
 
 interface NormalizedProfileMember {
@@ -111,6 +128,7 @@ interface NormalizedProfileIdentity {
   readonly gender: NormalizedDiscoveryGender;
   readonly orientation: NormalizedDiscoveryOrientation;
   readonly coupleVariant: DiscoveryCoupleVariant | null;
+  readonly specificInterest: string | null;
   readonly members: readonly NormalizedProfileMember[];
 }
 
@@ -193,10 +211,6 @@ function firstPresent(
   }
 
   return null;
-}
-
-function getGenderValue(profile: ProfileCompatibilityLike | null | undefined): unknown {
-  return firstPresent(profile, ['normalizedGender', 'gender', 'genero']);
 }
 
 function getRawGenderValue(profile: ProfileCompatibilityLike | null | undefined): unknown {
@@ -616,8 +630,10 @@ function normalizeOrientationList(
 function resolveCoupleVariant(
   profile: ProfileCompatibilityLike | null | undefined
 ): DiscoveryCoupleVariant | null {
-  return normalizeDiscoveryCoupleVariant(getCoupleVariantValue(profile)) ??
-    normalizeDiscoveryCoupleVariant(getRawGenderValue(profile));
+  const declaredCode = firstPresent(profile, ['declaredIdentityCode', 'identityCode']);
+  return normalizeDiscoveryCoupleVariant(declaredCode)
+    ?? normalizeDiscoveryCoupleVariant(getCoupleVariantValue(profile))
+    ?? normalizeDiscoveryCoupleVariant(getRawGenderValue(profile));
 }
 
 function memberGenderFromVariant(
@@ -678,18 +694,106 @@ function resolveCoupleMembers(
   ];
 }
 
+// Preserve explicit legacy labels before falling back to the broad discovery group.
+const SPECIFIC_IDENTITY_INTERESTS: ReadonlyMap<string, string> = new Map([
+  ['intersexo', 'intersex'],
+  ['intersex', 'intersex'],
+  ['drag-queen', 'drag_queen'],
+  ['dragqueen', 'drag_queen'],
+  ['drag-king', 'drag_king'],
+  ['dragking', 'drag_king'],
+  ['genero-fluido', 'genderfluid'],
+  ['genderfluid', 'genderfluid'],
+  ['fluxo-de-genero', 'genderfluid'],
+  ['agenero', 'agender'],
+  ['agender', 'agender'],
+  ['genero-queer', 'genderqueer'],
+  ['genderqueer', 'genderqueer'],
+  ['androgino', 'androgynous'],
+  ['androgina', 'androgynous'],
+  ['androgynous', 'androgynous'],
+]);
+
+const DISCOVERY_INTEREST_BY_GENDER: Readonly<Partial<Record<NormalizedDiscoveryGender, string>>> = {
+  man: 'men',
+  woman: 'women',
+  travesti: 'travestis',
+  trans_woman: 'trans_people',
+  trans_man: 'trans_people',
+  transgender: 'trans_people',
+  crossdresser: 'crossdressers',
+  nonbinary: 'non_binary',
+};
+
+const DISCOVERY_INTEREST_BY_COUPLE: Readonly<Record<DiscoveryCoupleVariant, string>> = {
+  male_male: 'couple_mm',
+  male_female: 'couple_mf',
+  female_female: 'couple_ff',
+};
+
+function resolveProfileType(
+  profile: ProfileCompatibilityLike | null | undefined
+): Pick<NormalizedProfileIdentity, 'gender' | 'specificInterest' | 'coupleVariant'> {
+  for (const value of [
+    profile?.declaredIdentityCode, profile?.identityCode,
+    profile?.gender, profile?.genero, profile?.normalizedGender,
+  ]) {
+    const token = normalizeToken(value).replace(/\s+/g, '-');
+    const specificInterest = SPECIFIC_IDENTITY_INTERESTS.get(token);
+    if (specificInterest) return { gender: 'nonbinary', specificInterest, coupleVariant: null };
+
+    const gender = normalizeDiscoveryGender(token);
+    if (gender === 'unknown') continue;
+    const coupleVariant = gender === 'couple' ? resolveCoupleVariant(profile) : null;
+    return { gender, specificInterest: null, coupleVariant };
+  }
+
+  return { gender: 'unknown', specificInterest: null, coupleVariant: null };
+}
+
+function selectedProfileTypes(preferences: DiscoveryProfileTypePreferences | null | undefined): readonly string[] {
+  return Array.isArray(preferences?.genderInterests) ? preferences.genderInterests : [];
+}
+
+function getProfileTypeRejection(
+  preferences: DiscoveryProfileTypePreferences | null | undefined,
+  targetType: ReturnType<typeof resolveProfileType>
+): DiscoveryProfileTypeRejection | null {
+  const { gender, specificInterest, coupleVariant } = targetType;
+  if (gender === 'couple' && preferences?.acceptsCouples === false) return 'couples_disabled';
+  if (gender !== 'couple' && preferences?.acceptsSingles === false) return 'singles_disabled';
+
+  const interest = coupleVariant
+    ? DISCOVERY_INTEREST_BY_COUPLE[coupleVariant]
+    : specificInterest ?? DISCOVERY_INTEREST_BY_GENDER[gender];
+  if (preferences?.acceptsTransProfiles === false &&
+    (interest === 'trans_people' || interest === 'travestis')) {
+    return 'trans_profiles_disabled';
+  }
+
+  const selected = selectedProfileTypes(preferences);
+  return selected.length && (!interest || !selected.includes(interest))
+    ? 'profile_type_not_selected'
+    : null;
+}
+
+export function getDiscoveryProfileTypeRejection(
+  preferences: DiscoveryProfileTypePreferences | null | undefined,
+  candidate: ProfileCompatibilityLike | null | undefined
+): DiscoveryProfileTypeRejection | null {
+  return getProfileTypeRejection(preferences, resolveProfileType(candidate));
+}
+
 function resolveProfileIdentity(
   profile: ProfileCompatibilityLike | null | undefined
 ): NormalizedProfileIdentity {
-  const gender = normalizeDiscoveryGender(getGenderValue(profile));
+  const type = resolveProfileType(profile);
   const orientation = normalizeDiscoveryOrientation(getOrientationValue(profile));
-  const coupleVariant = gender === 'couple' ? resolveCoupleVariant(profile) : null;
 
   return {
-    gender,
+    ...type,
     orientation,
-    coupleVariant,
-    members: resolveCoupleMembers(profile, coupleVariant, orientation),
+    members: resolveCoupleMembers(profile, type.coupleVariant, orientation),
   };
 }
 
@@ -803,9 +907,13 @@ function resolveInterest(
   profile: ProfileCompatibilityLike | null | undefined,
   identity: NormalizedProfileIdentity = resolveProfileIdentity(profile)
 ): NormalizedInterest {
-  const explicitGenders = normalizeGenderList(getInterestedGenderValue(profile));
   const explicitOrientations = normalizeOrientationList(getInterestedOrientationValue(profile));
+  if (selectedProfileTypes(profile?.discoveryPreferences).length > 0) {
+    // A seleção detalhada substitui a projeção ampla e a inferência pela orientação.
+    return { genders: null, orientations: explicitOrientations, explicit: true, usesSelectedTypes: true };
+  }
 
+  const explicitGenders = normalizeGenderList(getInterestedGenderValue(profile));
   const preferences = getPreferenceValue(profile);
   const preferenceGenders = normalizeGenderList(preferences);
   const preferenceOrientations = normalizeOrientationList(preferences);
@@ -911,6 +1019,11 @@ function acceptsProfileTarget(
   interest: NormalizedInterest,
   target: NormalizedProfileIdentity
 ): boolean | null {
+  if (interest.usesSelectedTypes) {
+    // O tipo do perfil já foi validado, inclusive a composição dos casais.
+    return orientationAccepted(interest, target.orientation) !== false;
+  }
+
   const direct = acceptsSingleTarget(interest, target.gender, target.orientation);
 
   if (target.gender !== 'couple' || target.members.length === 0) {
@@ -982,8 +1095,14 @@ export function evaluateProfileCompatibility(
   const viewerIdentity = resolveProfileIdentity(viewer);
   const candidateIdentity = resolveProfileIdentity(candidate);
 
+  const viewerPreferences = viewer?.discoveryPreferences;
+  const candidatePreferences = candidate?.discoveryPreferences;
+  const viewerTypeRejection = getProfileTypeRejection(viewerPreferences, candidateIdentity);
+  const candidateTypeRejection = getProfileTypeRejection(candidatePreferences, viewerIdentity);
+
   const viewerInterest = resolveInterest(viewer, viewerIdentity);
   const candidateInterest = resolveInterest(candidate, candidateIdentity);
+  const hasSelectedTypes = viewerInterest.usesSelectedTypes || candidateInterest.usesSelectedTypes;
 
   const base = {
     viewerGender: viewerIdentity.gender,
@@ -994,7 +1113,15 @@ export function evaluateProfileCompatibility(
     candidateUsedExplicitPreference: candidateInterest.explicit,
   };
 
-  if (!hasActionableIdentity(viewerIdentity)) {
+  // Aplicar o filtro explícito nos dois sentidos, mesmo sem orientação declarada.
+  if (viewerTypeRejection || candidateTypeRejection) {
+    const reason = viewerTypeRejection && candidateTypeRejection
+      ? 'mutual_mismatch'
+      : viewerTypeRejection ? 'viewer_not_interested' : 'candidate_not_interested';
+    return { ...base, compatible: false, score: 0, reason };
+  }
+
+  if (!hasSelectedTypes && !hasActionableIdentity(viewerIdentity)) {
     return {
       ...base,
       compatible: true,
@@ -1003,17 +1130,10 @@ export function evaluateProfileCompatibility(
     };
   }
 
-  const viewerAcceptsCandidate = acceptsProfileTarget(
-    viewerInterest,
-    candidateIdentity
-  );
+  const viewerAcceptsCandidate = acceptsProfileTarget(viewerInterest, candidateIdentity);
+  const candidateAcceptsViewer = acceptsProfileTarget(candidateInterest, viewerIdentity);
 
-  const candidateAcceptsViewer = acceptsProfileTarget(
-    candidateInterest,
-    viewerIdentity
-  );
-
-  if (!hasActionableIdentity(candidateIdentity)) {
+  if (!hasSelectedTypes && !hasActionableIdentity(candidateIdentity)) {
     if (viewerAcceptsCandidate === false) {
       return {
         ...base,

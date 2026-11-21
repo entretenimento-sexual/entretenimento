@@ -156,7 +156,10 @@ describe('Firestore Rules / preference subscription tiers', () => {
     const ownProfile = doc(authenticatedDb('free-user'), ...path);
     await assertSucceeds(setDoc(ownProfile, profilePayload('free-user')));
     await assertSucceeds(updateDoc(ownProfile, {
-      'softRules.intimateInterests': { shibari: 'explore', foot_fetish: 'familiar' },
+      'softRules.intimateInterests': {
+        shibari: 'explore', foot_fetish: 'familiar', high_intensity: 'explore',
+        impact_play: 'explore', discipline_protocols: 'familiar', sensory_deprivation: 'explore',
+      },
     }));
     await assertSucceeds(getDoc(ownProfile));
     await assertFails(getDoc(doc(authenticatedDb('vip-user'), ...path)));

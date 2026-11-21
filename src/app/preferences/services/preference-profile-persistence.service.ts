@@ -4,8 +4,7 @@
 // -----------------------------------------------------------------------------
 // Perfil, intenção opcional e projeção privada são gravados no mesmo batch.
 // Somente após confirmação do Firestore o estado reativo local é atualizado.
-// O feed paginado contém perfis públicos brutos, portanto permanece válido e é
-// reavaliado imediatamente com a nova política do usuário.
+// A revisão publicada também recarrega os resultados de compatibilidade do feed.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';

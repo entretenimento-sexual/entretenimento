@@ -32,7 +32,7 @@ export interface ProfileIdentityCatalog {
   readonly options: readonly ProfileIdentityOption[];
 }
 
-export const PROFILE_IDENTITY_CATALOG_VERSION = 1;
+export const PROFILE_IDENTITY_CATALOG_VERSION = 2;
 
 export const PROFILE_IDENTITY_OPTIONS: readonly ProfileIdentityOption[] = Object.freeze(
 [
@@ -115,6 +115,86 @@ export const PROFILE_IDENTITY_OPTIONS: readonly ProfileIdentityOption[] = Object
       "enabled": true,
       "selectable": true,
       "sortOrder": 80
+    },
+    {
+      "code": "nao-binario",
+      "label": "Não binário",
+      "shortLabel": "Não binário",
+      "discoveryGroup": "nonbinary",
+      "couple": false,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 90
+    },
+    {
+      "code": "intersexo",
+      "label": "Intersexo",
+      "shortLabel": "Intersexo",
+      "discoveryGroup": "nonbinary",
+      "couple": false,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 100
+    },
+    {
+      "code": "drag-queen",
+      "label": "Drag Queen",
+      "shortLabel": "Drag Queen",
+      "discoveryGroup": "nonbinary",
+      "couple": false,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 110
+    },
+    {
+      "code": "drag-king",
+      "label": "Drag King",
+      "shortLabel": "Drag King",
+      "discoveryGroup": "nonbinary",
+      "couple": false,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 120
+    },
+    {
+      "code": "genero-fluido",
+      "label": "Gênero fluido",
+      "shortLabel": "Gênero fluido",
+      "discoveryGroup": "nonbinary",
+      "couple": false,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 130
+    },
+    {
+      "code": "agenero",
+      "label": "Agênero",
+      "shortLabel": "Agênero",
+      "discoveryGroup": "nonbinary",
+      "couple": false,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 140
+    },
+    {
+      "code": "genero-queer",
+      "label": "Gênero queer",
+      "shortLabel": "Gênero queer",
+      "discoveryGroup": "nonbinary",
+      "couple": false,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 150
+    },
+    {
+      "code": "androgino",
+      "label": "Andrógino",
+      "shortLabel": "Andrógino",
+      "discoveryGroup": "nonbinary",
+      "couple": false,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 160
     }
   ]
 );

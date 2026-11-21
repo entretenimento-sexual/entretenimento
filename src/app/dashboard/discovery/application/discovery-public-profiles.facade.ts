@@ -127,18 +127,25 @@ export class DiscoveryPublicProfilesFacade {
   private readonly blockedRefreshSubject = new BehaviorSubject(0);
 
   /**
-   * O cache contém apenas perfis públicos brutos. As preferências do viewer são
-   * reaplicadas reativamente na composição do estado e não alteram a chave da
-   * consulta paginada.
+   * Cada revisão salva recarrega a decisão de compatibilidade do servidor.
    */
   private readonly request$: Observable<DiscoveryFeedRequest | null> = combineLatest([
     this.accessControl.authUid$,
     this.accessControl.canRunApp$,
+    this.currentUserStore.user$,
   ]).pipe(
-    map(([uid, canRunApp]) => {
+    map(([uid, canRunApp, currentUser]) => {
       const viewerUid = this.toNullableText(uid);
+      const preferencesRevision = currentUser?.uid === viewerUid
+        ? currentUser.discoveryPreferencesUpdatedAt ?? currentUser.discoveryPreferences?.updatedAt
+        : undefined;
       return viewerUid && canRunApp
-        ? { viewerUid, mode: 'all' as const, pageSize: DEFAULT_DISCOVERY_PAGE_SIZE }
+        ? {
+          viewerUid,
+          mode: 'all' as const,
+          pageSize: DEFAULT_DISCOVERY_PAGE_SIZE,
+          ...(preferencesRevision ? { preferencesRevision } : {}),
+        }
         : null;
     }),
     distinctUntilChanged((a, b) => this.requestKey(a) === this.requestKey(b)),

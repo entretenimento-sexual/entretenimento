@@ -1,7 +1,8 @@
 // Mesmo vocabulário aceito por validIntimateInterests nas Firestore Rules.
 const INTEREST_KEYS = new Set([
   'vanilla', 'tantra', 'sensual_massage', 'bdsm', 'dom_sub', 'switching',
-  'high_intensity', 'bondage', 'shibari', 'sensory_play', 'textures',
+  'high_intensity', 'impact_play', 'discipline_protocols', 'sensory_deprivation',
+  'bondage', 'shibari', 'sensory_play', 'textures',
   'eye_masks', 'roleplay', 'dirty_talk', 'voyeurism', 'exhibitionism',
   'foot_fetish', 'latex_leather', 'swing', 'menage', 'group_sex',
 ]);

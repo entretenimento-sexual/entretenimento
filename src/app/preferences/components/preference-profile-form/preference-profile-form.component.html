@@ -98,14 +98,16 @@
             </summary>
             <div class="intimate-interests__options app-disclosure__content app-responsive-grid">
               @for (option of group.options; track option.key) {
-                <div class="intimate-interests__option app-field" [class.intimate-interests__option--selected]="form.controls.intimateInterests.controls[option.key].value">
-                  <label [for]="'intimate-interest-' + option.key">{{ option.label }}</label>
-                  <select class="app-control" [id]="'intimate-interest-' + option.key" [formControlName]="option.key">
-                    <option value="">Sem seleção</option>
-                    <option value="explore">Quero explorar</option>
-                    <option value="familiar">Já faz parte da minha vida</option>
-                  </select>
-                </div>
+                @if (option.key !== 'high_intensity' || profile()?.softRules?.intimateInterests?.high_intensity) {
+                  <div class="intimate-interests__option app-field" [class.intimate-interests__option--selected]="form.controls.intimateInterests.controls[option.key].value">
+                    <label [for]="'intimate-interest-' + option.key">{{ option.label }}</label>
+                    <select class="app-control" [id]="'intimate-interest-' + option.key" [formControlName]="option.key">
+                      <option value="">Sem seleção</option>
+                      <option value="explore">Quero explorar</option>
+                      <option value="familiar">Já faz parte da minha vida</option>
+                    </select>
+                  </div>
+                }
               }
             </div>
           </details>

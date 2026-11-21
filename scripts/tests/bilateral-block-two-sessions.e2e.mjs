@@ -15,7 +15,7 @@ import {
 } from 'firebase/functions';
 import {
   getFirestore as getClientFirestore, connectFirestoreEmulator,
-  collection, doc, getDoc, onSnapshot, query, setDoc, updateDoc, where,
+  collection, doc, getDoc, onSnapshot, query, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 import {
   initializeApp as initializeAdminApp, deleteApp as deleteAdminApp,
@@ -25,6 +25,7 @@ import { getStorage as getAdminStorage } from 'firebase-admin/storage';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 import { revokeAvatarTokens } from '../dev/revoke-legacy-avatar-tokens.mjs';
 import { seedPublicMediaCompliance } from './media-e2e-compliance-fixture.mjs';
+import { buildPreferenceDiscoveryProjection } from '../../src/app/preferences/utils/preference-discovery-projection.util.ts';
 
 const sharp = createRequire(new URL('../../functions/package.json', import.meta.url))('sharp');
 const PROJECT = 'demo-entretenimento-media-e2e';
@@ -275,8 +276,8 @@ try {
     db.doc('public_profiles/' + neutralUid).set({
       ...profile(neutralUid), updatedAt: new Date(Date.now() + 10_000),
     }),
-    updateDoc(aPreferences, { 'softRules.intimateInterests': { shibari: 'explore' } }),
-    updateDoc(bPreferences, { 'softRules.intimateInterests': { shibari: 'familiar' } }),
+    updateDoc(aPreferences, { 'softRules.intimateInterests': { impact_play: 'explore' } }),
+    updateDoc(bPreferences, { 'softRules.intimateInterests': { impact_play: 'familiar' } }),
   ]);
   const listWithSuggestions = async () => (await aDiscovery({
     suggestByIntimateInterests: true, pageSize: 24,
@@ -289,12 +290,40 @@ try {
   const listed = suggested.items.map(({ uid }) => uid);
   assert.ok(listed.indexOf(neutralUid) >= 0 && listed.indexOf(neutralUid) < listed.indexOf(bUid));
   assert.deepEqual(suggested.suggestedOrder, [bUid, neutralUid]);
-  assert.equal(JSON.stringify(suggested).includes('shibari'), false);
+  assert.equal(JSON.stringify(suggested).includes('impact_play'), false);
   assert.equal(JSON.stringify(suggested).includes('useIntimateInterestsInSuggestions'), false);
   assert.equal((await aDiscovery({ uids: [bUid, neutralUid], suggestByIntimateInterests: true })).data.suggestedOrder, undefined);
   await updateDoc(bPreferences, { 'visibility.useIntimateInterestsInSuggestions': false });
   assert.equal((await listWithSuggestions()).suggestedOrder, undefined);
   console.log('[bilateral-two-sessions:e2e] PASS private discovery suggestions and consent revocation');
+
+  async function saveProfileType(client, uid, genderInterest) {
+    const saved = paceProfile(uid, 'talk_first');
+    saved.hardRules.acceptedGenders = [genderInterest];
+    const projection = buildPreferenceDiscoveryProjection(saved);
+    const batch = writeBatch(client.firestore);
+    batch.set(doc(client.firestore, 'users', uid, 'preferences', 'profile'), saved);
+    batch.set(doc(client.firestore, 'users', uid), {
+      ...projection,
+      discoveryPreferencesUpdatedAt: saved.updatedAt,
+    }, { merge: true });
+    await batch.commit();
+  }
+
+  await saveProfileType(b, bUid, 'drag_king');
+  const backwards = (await bDiscovery({ uids: [aUid] })).data;
+  for (const [response, uid] of [
+    [await listWithSuggestions(), bUid],
+    [(await aDiscovery({ uids: [bUid] })).data, bUid],
+    [backwards, aUid],
+  ]) {
+    const target = response.items.find((item) => item.uid === uid);
+    assert.equal(target?.viewerCompatibilityAllowed, false);
+    assert.equal(target?.viewerCompatibilityReason, 'incompatible');
+    assert.equal(Object.hasOwn(target, 'discoveryPreferences'), false);
+    assert.equal(Object.hasOwn(target, 'interestedInGenders'), false);
+  }
+  console.log('[bilateral-two-sessions:e2e] PASS exact reciprocal preference in both directions');
 
   await reconcile({ peerUid: bUid });
   const firstMessage = (await bSend({
@@ -390,6 +419,54 @@ try {
   await db.doc('users/' + aUid).set({ publicVisibility: 'visible', suspended: true }, { merge: true });
   await expectDenied(() => readAvatar(b, aUid), 'functions/not-found');
   console.log('[bilateral-two-sessions:e2e] PASS avatars, auth isolation, Firestore Rules, discovery, chat, private projections and unblock.');
+
+  const profileTypes = new Map([
+    ['men', 'homem'], ['women', 'mulher'], ['travestis', 'travesti'],
+    ['trans_people', 'transexual'], ['crossdressers', 'crossdressers'],
+    ['couple_mm', 'casal-ele-ele'], ['couple_mf', 'casal-ele-ela'], ['couple_ff', 'casal-ela-ela'],
+    ['non_binary', 'nao-binario'], ['intersex', 'intersexo'], ['drag_queen', 'drag-queen'],
+    ['drag_king', 'drag-king'], ['genderfluid', 'genero-fluido'], ['agender', 'agenero'],
+    ['genderqueer', 'genero-queer'], ['androgynous', 'androgino'],
+  ]);
+  const matrixViewer = makeClient('profile-types');
+  const matrixViewerUid = 'profile-types-viewer-' + id;
+  const candidates = new Map([...profileTypes.keys()].map((key) => [key, `profile-type-${key}-${id}`]));
+  const candidateUids = new Set(candidates.values());
+  await adminAuth.createUser({
+    uid: matrixViewerUid, email: matrixViewerUid + '@example.test', password, emailVerified: true,
+  });
+  await seedPublicMediaCompliance(db, [matrixViewerUid, ...candidateUids]);
+  await db.doc('users/' + matrixViewerUid).set({
+    gender: 'mulher', emailVerified: true, loginAllowed: true,
+  }, { merge: true });
+
+  await Promise.all([...profileTypes].map(async ([key, code]) => {
+    const uid = candidates.get(key);
+    const nickname = 'Perfil ' + key;
+    await db.doc('public_profiles/' + uid).set({ ...profile(uid), nickname });
+    await db.doc('users/' + uid).set({
+      gender: code, declaredIdentityCode: code, nickname, nicknameNormalized: nickname.toLowerCase(),
+    }, { merge: true });
+  }));
+  await until('projeções públicas dos tipos de perfil', async () => {
+    const snapshots = await db.getAll(...[...candidateUids].map((uid) => db.doc('public_profiles/' + uid)));
+    return snapshots.filter((entry) => entry.exists && entry.data().identityLabel).length;
+  }, (count) => count === candidates.size);
+
+  await signInWithEmailAndPassword(matrixViewer.auth, matrixViewerUid + '@example.test', password);
+  const discoverTypes = httpsCallable(matrixViewer.functions, 'getPublicProfilesPage');
+  for (const key of profileTypes.keys()) {
+    await saveProfileType(matrixViewer, matrixViewerUid, key);
+    const { items } = (await discoverTypes({ pageSize: 24 })).data;
+    const cards = items.filter(({ uid }) => candidateUids.has(uid));
+    assert.equal(cards.length, candidateUids.size, key);
+    assert.deepEqual(
+      cards.filter(({ viewerCompatibilityAllowed }) => viewerCompatibilityAllowed).map(({ uid }) => uid),
+      [candidates.get(key)],
+      key
+    );
+  }
+  console.log('[bilateral-two-sessions:e2e] PASS all 16 exact profile choices, including three couple compositions.');
 } finally {
   for (const stop of unsubscribe) stop();
   await Promise.allSettled(apps.map((app) => deleteApp(app)));

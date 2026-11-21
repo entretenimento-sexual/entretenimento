@@ -78,7 +78,8 @@ export class PublicProfileReadBoundaryService {
   >(this.functions, 'getPublicProfilesPage');
 
   read$(
-    request: PublicProfileReadRequest
+    request: PublicProfileReadRequest,
+    preferencesRevision?: number
   ): Observable<PublicProfileReadResponse> {
     return defer(() => {
       const viewerUid = this.auth.currentUser?.uid?.trim() ?? '';
@@ -97,7 +98,7 @@ export class PublicProfileReadBoundaryService {
       }
 
       const key = viewerUid
-        ? JSON.stringify([viewerUid, request])
+        ? JSON.stringify([viewerUid, request, preferencesRevision])
         : null;
       const pending = key
         ? this.pendingByViewerAndRequest.get(key)

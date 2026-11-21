@@ -136,7 +136,7 @@ export class DiscoveryPublicProfilesRepository {
       pageSize: request.pageSize,
       cursor,
       ...(request.mode === 'all' ? { suggestByIntimateInterests: true } : {}),
-    }).pipe(
+    }, request.preferencesRevision).pipe(
       map((payload) => {
         const items = (payload.items ?? [])
           .map((raw) => mapPublicProfileCard(raw))

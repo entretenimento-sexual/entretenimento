@@ -83,6 +83,7 @@ describe('DiscoveryPublicProfilesFacade', () => {
     ),
   };
 
+  const currentUser$ = new BehaviorSubject(viewer);
   const ownBlockedUids$ = new BehaviorSubject<readonly string[]>([]);
   const friendshipMock = {
     watchBlockedUids: vi.fn(() => ownBlockedUids$.asObservable()),
@@ -102,6 +103,7 @@ describe('DiscoveryPublicProfilesFacade', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    currentUser$.next(viewer);
     ownBlockedUids$.next([]);
     friendshipMock.watchBlockedUids.mockReturnValue(ownBlockedUids$.asObservable());
     repoMock.invalidateViewerCache$.mockReturnValue(of(void 0));
@@ -130,7 +132,7 @@ describe('DiscoveryPublicProfilesFacade', () => {
         },
         {
           provide: CurrentUserStoreService,
-          useValue: { user$: of(viewer) },
+          useValue: { user$: currentUser$ },
         },
         {
           provide: UserPresenceQueryService,
@@ -168,6 +170,21 @@ describe('DiscoveryPublicProfilesFacade', () => {
     });
   });
 
+
+  it('recarrega a compatibilidade quando a revisão salva do visitante muda', () => {
+    TestBed.inject(DiscoveryPublicProfilesFacade);
+    storeMock.dispatch.mockClear();
+
+    currentUser$.next({ ...viewer, nickname: 'outro apelido' });
+    expect(storeMock.dispatch).not.toHaveBeenCalled();
+
+    currentUser$.next({ ...viewer, discoveryPreferencesUpdatedAt: 123 });
+    expect(storeMock.dispatch).toHaveBeenCalledExactlyOnceWith(
+      DiscoveryActions.loadDiscoveryFirstPage({
+        request: { viewerUid: 'viewer', mode: 'all', pageSize: 24, preferencesRevision: 123 },
+      })
+    );
+  });
 
   it('oculta imediatamente card bloqueado e invalida NgRx + cache somente do viewer', async () => {
     storeMock.select.mockReturnValue(of({

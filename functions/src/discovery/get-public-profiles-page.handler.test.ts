@@ -43,6 +43,18 @@ describe('get-public-profiles-page boundary', () => {
     assert.equal(buildIntimateInterestOrder(optedInIntimateInterests({}), uids, candidates), undefined);
   });
 
+  it('mantém a escolha anterior de alta intensidade sem inferir afinidade por opções específicas', () => {
+    const selected = (key: string) => optedInIntimateInterests({
+      visibility: { useIntimateInterestsInSuggestions: true },
+      softRules: { intimateInterests: { [key]: 'explore' } },
+    });
+    assert.deepEqual([...selected('high_intensity')], ['high_intensity']);
+    for (const key of ['impact_play', 'discipline_protocols', 'sensory_deprivation']) {
+      assert.deepEqual([...selected(key)], [key]);
+      assert.equal(selected('high_intensity').has(key), false);
+    }
+  });
+
   it('serializa perfil público sem depender de assurance etário', () => {
     const serialized = serializePublicProfileForDiscovery(
       'profile-1',
@@ -153,7 +165,7 @@ describe('get-public-profiles-page boundary', () => {
 
     owners.set('owner', {
       ...privateOwner,
-      interestedInGenders: ['woman'], // Proprietária não procura homens.
+      discoveryPreferences: { genderInterests: ['women'] }, // A projeção ampla legada ainda aponta para homens.
     });
     const [denied] = attachViewerCompatibilityToPublicCards(
       [publicCard], 'viewer', viewer, owners
@@ -251,15 +263,18 @@ describe('get-public-profiles-page boundary', () => {
       card: { uid: `owner-${index + 1}` },
       position: { uid: `owner-${index + 1}`, updatedAtMs: NOW - index },
     }));
-    const visibleUids = new Set(['owner-3', 'owner-5', 'owner-7', 'owner-8']);
-    const first = selectVisibleDiscoveryBatch(candidates, visibleUids, 2);
+    const visibleByUid = new Map(['owner-3', 'owner-5', 'owner-7', 'owner-8'].map((uid) =>
+      [uid, { uid, viewerCompatibilityAllowed: uid !== 'owner-3' }]
+    ));
+    const first = selectVisibleDiscoveryBatch(candidates, visibleByUid, 2);
     assert.deepEqual(first.items.map((item) => item['uid']), ['owner-3', 'owner-5']);
+    assert.deepEqual(first.items.map((item) => item['viewerCompatibilityAllowed']), [false, true]);
     assert.deepEqual(first.filledAt, candidates[4].position);
     const remaining = candidates.slice(5);
-    const next = selectVisibleDiscoveryBatch(remaining, visibleUids, 2);
+    const next = selectVisibleDiscoveryBatch(remaining, visibleByUid, 2);
     assert.deepEqual(next.items.map((item) => item['uid']), ['owner-7', 'owner-8']);
     assert.deepEqual(next.filledAt, candidates[7].position);
-    const partial = selectVisibleDiscoveryBatch(candidates, new Set(['owner-8']), 2);
+    const partial = selectVisibleDiscoveryBatch(candidates, new Map([['owner-8', { uid: 'owner-8' }]]), 2);
     assert.equal(partial.filledAt, null);
     assert.deepEqual(partial.items.map((item) => item['uid']), ['owner-8']);
   });

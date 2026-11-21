@@ -15,7 +15,16 @@ export const INTIMATE_INTEREST_GROUPS = [
       { key: 'bdsm', label: 'BDSM' },
       { key: 'dom_sub', label: 'Dominação e submissão' },
       { key: 'switching', label: 'Alternar papéis' },
-      { key: 'high_intensity', label: 'Dinâmicas de alta intensidade' },
+    ],
+  },
+  {
+    key: 'high_intensity',
+    label: 'Dinâmicas de alta intensidade',
+    options: [
+      { key: 'impact_play', label: 'Jogos de impacto' },
+      { key: 'discipline_protocols', label: 'Disciplina e protocolos' },
+      { key: 'sensory_deprivation', label: 'Privação sensorial' },
+      { key: 'high_intensity', label: 'Interesse geral (seleção anterior)' },
     ],
   },
   {

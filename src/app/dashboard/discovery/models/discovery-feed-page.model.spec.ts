@@ -37,7 +37,7 @@ describe('discovery-feed-page.model', () => {
     })).toBeNull();
   });
 
-  it('deve produzir chave distinta por usuário, modo e tamanho', () => {
+  it('deve produzir chave distinta por usuário, modo, tamanho e revisão das preferências', () => {
     const base = buildDiscoveryFeedQueryKey({
       viewerUid: 'viewer-a',
       mode: 'all',
@@ -60,6 +60,13 @@ describe('discovery-feed-page.model', () => {
       viewerUid: 'viewer-a',
       mode: 'all',
       pageSize: 12,
+    })).not.toBe(base);
+
+    expect(buildDiscoveryFeedQueryKey({
+      viewerUid: 'viewer-a',
+      mode: 'all',
+      pageSize: 24,
+      preferencesRevision: 123,
     })).not.toBe(base);
   });
 

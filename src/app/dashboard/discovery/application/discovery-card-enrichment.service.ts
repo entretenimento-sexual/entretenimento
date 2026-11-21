@@ -378,6 +378,7 @@ export class DiscoveryCardEnrichmentService {
       nicknameNormalized: this.toNullableText(source['nicknameNormalized']) ?? nickname.toLowerCase(),
       photoURL: this.toNullableText(source['photoURL']) ?? this.toNullableText(source['photoUrl']) ?? this.toNullableText(source['avatarUrl']),
       gender: this.toNullableText(source['gender']) ?? this.toNullableText(source['genero']),
+      identityCode: this.toNullableText(source['identityCode']),
       orientation: this.toNullableText(source['orientation']) ?? this.toNullableText(source['sexualOrientation']) ?? this.toNullableText(source['orientacao']),
       age: this.toNullableNumber(source['age'] ?? source['idade']),
       normalizedGender: this.toNullableText(source['normalizedGender']),

@@ -83,6 +83,33 @@ describe('evaluateProfileCompatibility', () => {
     });
   });
 
+  it('respeita a composição escolhida nos dois sentidos, mesmo sem orientação', () => {
+    const viewer = profile('viewer', 'homem', 'unknown', {
+      interestedInGenders: ['couple'],
+      discoveryPreferences: { genderInterests: ['couple_mm'] },
+    });
+    const candidate = profile('candidate', 'couple', 'unknown', {
+      declaredIdentityCode: 'casal-ele-ele',
+      interestedInGenders: ['man'],
+      discoveryPreferences: { genderInterests: ['men'] },
+    });
+    const otherCouple = { ...candidate, declaredIdentityCode: 'casal-ele-ela' };
+
+    expect(evaluateProfileCompatibility(viewer, candidate).compatible).toBe(true);
+    expect(evaluateProfileCompatibility(candidate, viewer).compatible).toBe(true);
+    expect(evaluateProfileCompatibility(viewer, otherCouple).reason).toBe('viewer_not_interested');
+    expect(evaluateProfileCompatibility(otherCouple, viewer).reason).toBe('candidate_not_interested');
+  });
+
+  it('aplica restrições da outra conta sem depender da orientação de quem consulta', () => {
+    const viewer = profile('viewer', 'homem', 'unknown');
+    const candidate = profile('candidate', 'mulher', 'unknown', {
+      discoveryPreferences: { acceptsSingles: false },
+    });
+
+    expect(evaluateProfileCompatibility(viewer, candidate).reason).toBe('candidate_not_interested');
+  });
+
   it('deve priorizar preferências explícitas sobre inferência da orientação', () => {
     const viewer = profile('viewer-explicit', 'man', 'homosexual', {
       interestedInGenders: ['woman'],

@@ -132,6 +132,40 @@ describe('PreferenceProfileFormComponent', () => {
     }));
   });
 
+  it('oferece escolhas detalhadas e mantém o interesse geral somente para quem o salvou', () => {
+    const fixture = TestBed.createComponent(PreferenceProfileFormComponent);
+    const profile = createEmptyPreferenceProfile('u1');
+    fixture.componentRef.setInput('profile', profile);
+    fixture.componentRef.setInput('capabilities', capabilities);
+    fixture.detectChanges();
+
+    const view = fixture.nativeElement as HTMLElement;
+    const select = (key: string) => view.querySelector<HTMLSelectElement>('#intimate-interest-' + key);
+    expect(select('high_intensity')).toBeNull();
+    for (const key of ['impact_play', 'discipline_protocols', 'sensory_deprivation']) {
+      expect(select(key)?.value).toBe('');
+    }
+
+    fixture.componentRef.setInput('profile', {
+      ...profile,
+      softRules: { ...profile.softRules, intimateInterests: { high_intensity: 'familiar' } },
+    });
+    fixture.detectChanges();
+    expect(select('high_intensity')?.value).toBe('familiar');
+    expect(select('impact_play')?.value).toBe('');
+
+    const save = vi.fn();
+    fixture.componentInstance.saveProfile.subscribe(save);
+    select('impact_play')!.value = 'explore';
+    select('impact_play')!.dispatchEvent(new Event('change'));
+    fixture.componentInstance.submit();
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({
+      softRules: expect.objectContaining({
+        intimateInterests: { high_intensity: 'familiar', impact_play: 'explore' },
+      }),
+    }));
+  });
+
   it('mostra opções complementares quando ritmo e distância foram escolhidos', () => {
     const fixture = TestBed.createComponent(PreferenceProfileFormComponent);
     fixture.componentRef.setInput('profile', createEmptyPreferenceProfile('u1'));

@@ -100,6 +100,49 @@ describe('discovery preference policy', () => {
     expect(result.map((candidate) => candidate.uid)).toEqual(['woman']);
   });
 
+  it.each([
+    ['non_binary', 'Não binário'],
+    ['intersex', 'Intersexo'],
+    ['drag_queen', 'Drag Queen'],
+    ['drag_king', 'Drag King'],
+    ['genderfluid', 'Gênero fluido'],
+    ['agender', 'Agênero'],
+    ['genderqueer', 'Gênero queer'],
+    ['androgynous', 'Andrógino'],
+  ] as const)('diferencia %s mesmo com o mesmo agrupamento legado', (interest, gender) => {
+    const viewer = user('viewer', {
+      interestedInGenders: ['nonbinary'],
+      discoveryPreferences: preferences({ genderInterests: [interest] }),
+    });
+    const distinctGender = interest === 'non_binary' ? 'Intersexo' : 'Não binário';
+
+    expect(evaluateDiscoveryCandidatePreference(viewer, user('matching', {
+      gender,
+      normalizedGender: 'nonbinary',
+    })).accepted).toBe(true);
+    expect(evaluateDiscoveryCandidatePreference(viewer, user('distinct', {
+      gender: distinctGender,
+      normalizedGender: 'nonbinary',
+    })).reason).toBe('profile_type_not_selected');
+  });
+
+  it.each([
+    ['couple_mm', 'casal-ele-ele'],
+    ['couple_mf', 'casal-ele-ela'],
+    ['couple_ff', 'casal-ela-ela'],
+  ] as const)('reconhece a composição %s pelo código publicado', (interest, identityCode) => {
+    const viewer = user('viewer', {
+      discoveryPreferences: preferences({ genderInterests: [interest] }),
+    });
+    expect(evaluateDiscoveryCandidatePreference(viewer, user('declared', {
+      gender: 'couple',
+      identityCode,
+    })).accepted).toBe(true);
+    expect(evaluateDiscoveryCandidatePreference(viewer, user('generic', {
+      gender: 'couple',
+    })).reason).toBe('profile_type_not_selected');
+  });
+
   it('aplica faixa etária e falha fechado quando idade pública falta', () => {
     const viewer = user('viewer', {
       discoveryPreferences: preferences({ ageRange: { min: 25, max: 40 } }),

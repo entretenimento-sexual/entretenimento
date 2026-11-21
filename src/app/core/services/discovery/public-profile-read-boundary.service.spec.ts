@@ -70,6 +70,23 @@ describe('PublicProfileReadBoundaryService: proteção de quota por sessão', ()
     expect(callable).toHaveBeenCalledTimes(2);
   });
 
+  it('faz nova consulta quando as preferências mudam com uma leitura em andamento', async () => {
+    let completePrevious!: (value: { data: PublicProfileReadResponse }) => void;
+    callable.mockImplementationOnce(() => new Promise((resolve) => {
+      completePrevious = resolve;
+    }));
+    callable.mockResolvedValueOnce({ data: page('new-result') });
+
+    const request = { mode: 'all' as const, pageSize: 24 };
+    const previous = firstValueFrom(service.read$(request, 100));
+    const current = firstValueFrom(service.read$(request, 101));
+    expect(callable.mock.calls).toEqual([[request], [request]]);
+    await expect(current).resolves.toEqual(page('new-result'));
+
+    completePrevious({ data: page('old-result') });
+    await expect(previous).resolves.toEqual(page('old-result'));
+  });
+
   it('mantém deduplicação em voo quando o componente é destruído e remontado', async () => {
     let complete!: (value: { data: PublicProfileReadResponse }) => void;
     callable.mockImplementation(() => new Promise((resolve) => {

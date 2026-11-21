@@ -10,26 +10,19 @@
 // -----------------------------------------------------------------------------
 
 import type { IUserDados } from '../../interfaces/iuser-dados';
-import type {
-  IUserDiscoveryPreferences,
-  UserDiscoveryGenderInterest,
-} from '../../interfaces/preferences/user-discovery-preferences.interface';
+import type { IUserDiscoveryPreferences } from '../../interfaces/preferences/user-discovery-preferences.interface';
 import {
   evaluatePlatformSubscriptionProjection,
   hasMinimumPlatformSubscriptionRole,
 } from '../../services/subscriptions/platform-subscription-access.model';
 import {
   evaluateProfileCompatibility,
-  normalizeDiscoveryCoupleVariant,
-  normalizeDiscoveryGender,
+  getDiscoveryProfileTypeRejection,
+  type DiscoveryProfileTypeRejection,
 } from './profile-compatibility.util';
-import type { NormalizedDiscoveryGender } from './profile-compatibility.util';
 
 export type DiscoveryPreferenceRejectionReason =
-  | 'couples_disabled'
-  | 'singles_disabled'
-  | 'trans_profiles_disabled'
-  | 'profile_type_not_selected'
+  | DiscoveryProfileTypeRejection
   | 'age_missing'
   | 'age_out_of_range'
   | 'location_required'
@@ -56,12 +49,6 @@ export interface DiscoveryPreferenceFilterResult {
 }
 
 const NEUTRAL_SCORE = 0.5;
-const TRANS_GENDERS = new Set<NormalizedDiscoveryGender>([
-  'trans_woman',
-  'trans_man',
-  'travesti',
-  'transgender',
-]);
 
 export function filterDiscoveryCandidatesByViewerPreferences(
   candidates: readonly IUserDados[],
@@ -81,23 +68,8 @@ export function evaluateDiscoveryCandidatePreference(
   const preferences = normalizePreferences(viewer.discoveryPreferences);
   if (!preferences) return evaluateReciprocity(viewer, candidate, acceptedResult());
 
-  const candidateGender = resolveCandidateGender(candidate);
-  const isCouple = candidateGender === 'couple';
-
-  if (isCouple && !preferences.acceptsCouples) return rejected('couples_disabled');
-  if (!isCouple && !preferences.acceptsSingles) return rejected('singles_disabled');
-
-  if (
-    preferences.acceptsTransProfiles === false &&
-    isTransProfile(candidate, candidateGender)
-  ) return rejected('trans_profiles_disabled');
-
-  if (
-    preferences.genderInterests.length > 0 &&
-    !preferences.genderInterests.some((interest) =>
-      candidateMatchesInterest(candidate, candidateGender, interest)
-    )
-  ) return rejected('profile_type_not_selected');
+  const profileTypeRejection = getDiscoveryProfileTypeRejection(preferences, candidate);
+  if (profileTypeRejection) return rejected(profileTypeRejection);
 
   const ageResult = evaluateAge(preferences, candidate);
   if (ageResult) return rejected(ageResult);
@@ -278,58 +250,6 @@ function resolveAdvancedAccess(viewer: IUserDados): { basic: boolean; premium: b
   };
 }
 
-function resolveCandidateGender(candidate: IUserDados): NormalizedDiscoveryGender {
-  return normalizeDiscoveryGender(candidate.normalizedGender ?? candidate.gender ?? null);
-}
-
-function candidateMatchesInterest(
-  candidate: IUserDados,
-  candidateGender: NormalizedDiscoveryGender,
-  interest: UserDiscoveryGenderInterest
-): boolean {
-  const raw = collectIdentityText(candidate);
-  switch (interest) {
-    case 'men': return candidateGender === 'man';
-    case 'women': return candidateGender === 'woman';
-    case 'couple_mm': return matchesCoupleVariant(candidate, 'male_male');
-    case 'couple_mf': return matchesCoupleVariant(candidate, 'male_female');
-    case 'couple_ff': return matchesCoupleVariant(candidate, 'female_female');
-    case 'travestis': return candidateGender === 'travesti' || hasAnyToken(raw, ['travesti']);
-    case 'trans_people': return ['trans_woman', 'trans_man', 'transgender'].includes(candidateGender)
-      || hasAnyToken(raw, ['mulher-trans', 'homem-trans', 'transexual', 'transgenero', 'transgender']);
-    case 'crossdressers': return candidateGender === 'crossdresser' || hasAnyToken(raw, ['crossdresser']);
-    case 'non_binary': return candidateGender === 'nonbinary' || hasAnyToken(raw, ['nao-binario', 'nonbinary']);
-    case 'intersex': return hasAnyToken(raw, ['intersexo', 'intersex']);
-    case 'drag_queen': return hasAnyToken(raw, ['drag-queen', 'dragqueen']);
-    case 'drag_king': return hasAnyToken(raw, ['drag-king', 'dragking']);
-    case 'genderfluid': return hasAnyToken(raw, ['genero-fluido', 'genderfluid', 'fluxo-de-genero']);
-    case 'agender': return hasAnyToken(raw, ['agenero', 'agender']);
-    case 'genderqueer': return hasAnyToken(raw, ['genero-queer', 'genderqueer']);
-    case 'androgynous': return hasAnyToken(raw, ['androgino', 'androgina', 'androgynous']);
-    default: return false;
-  }
-}
-
-function matchesCoupleVariant(
-  candidate: IUserDados,
-  expected: 'male_male' | 'male_female' | 'female_female'
-): boolean {
-  const source = candidate as IUserDados & Record<string, unknown>;
-  const variant = normalizeDiscoveryCoupleVariant(source['coupleVariant'])
-    ?? normalizeDiscoveryCoupleVariant(source['casalVariant'])
-    ?? normalizeDiscoveryCoupleVariant(source['tipoCasal'])
-    ?? normalizeDiscoveryCoupleVariant(candidate.gender);
-  return resolveCandidateGender(candidate) === 'couple' && variant === expected;
-}
-
-function isTransProfile(candidate: IUserDados, gender: NormalizedDiscoveryGender): boolean {
-  return TRANS_GENDERS.has(gender)
-    || hasAnyToken(collectIdentityText(candidate), [
-      'transgenero', 'transgender', 'transexual', 'transsexual',
-      'mulher-trans', 'homem-trans', 'travesti',
-    ]);
-}
-
 function hasExplicitCompatibilityInterest(
   viewer: IUserDados,
   preferences: IUserDiscoveryPreferences | null
@@ -367,22 +287,4 @@ function uniqueTokens(values: readonly unknown[]): string[] {
 
 function finiteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-function collectIdentityText(candidate: IUserDados): string {
-  const source = candidate as IUserDados & Record<string, unknown>;
-  return [source['normalizedGender'], source['gender'], source['genero'], source['coupleVariant'], source['casalVariant'], source['tipoCasal']]
-    .filter((value): value is string => typeof value === 'string')
-    .map(normalizeToken)
-    .join(' ');
-}
-
-function hasAnyToken(source: string, tokens: readonly string[]): boolean {
-  return tokens.some((token) => source.includes(normalizeToken(token)));
-}
-
-function normalizeToken(value: string): string {
-  return value.trim().toLowerCase().normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[\s_]+/g, '-');
 }

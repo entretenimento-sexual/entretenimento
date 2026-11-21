@@ -5,7 +5,7 @@
 // Regras:
 // - nenhum QueryDocumentSnapshot/Timestamp entra no NgRx;
 // - cursor usa epoch + uid para paginação determinística;
-// - chave de consulta inclui usuário, modo e tamanho da página;
+// - chave de consulta inclui usuário, modo, tamanho da página e revisão das preferências;
 // - chave de cache inclui também o cursor da página;
 // - o prefixo pertence à política sensível já removida no logout.
 // -----------------------------------------------------------------------------
@@ -25,6 +25,7 @@ export interface DiscoveryFeedRequest {
   readonly viewerUid: string;
   readonly mode: PagedDiscoveryMode;
   readonly pageSize: number;
+  readonly preferencesRevision?: number;
 }
 
 export interface DiscoveryFeedPage {
@@ -47,7 +48,7 @@ export const DEFAULT_DISCOVERY_PAGE_SIZE = 24;
 export const MIN_DISCOVERY_PAGE_SIZE = 6;
 export const MAX_DISCOVERY_PAGE_SIZE = 48;
 
-const DISCOVERY_CACHE_PREFIX = 'discovery:public_profiles:uids:v5';
+const DISCOVERY_CACHE_PREFIX = 'discovery:public_profiles:uids:v6';
 
 export function normalizeDiscoveryViewerUid(value: unknown): string {
   const uid = String(value ?? '').trim();
@@ -76,10 +77,13 @@ export function normalizeDiscoveryRequest(
     return null;
   }
 
+  const revision = request?.preferencesRevision;
   return {
     viewerUid,
     mode,
     pageSize: normalizeDiscoveryPageSize(request?.pageSize),
+    ...(typeof revision === 'number' && Number.isSafeInteger(revision) && revision > 0
+      ? { preferencesRevision: revision } : {}),
   };
 }
 
@@ -125,6 +129,7 @@ export function buildDiscoveryFeedQueryKey(
     `viewer=${normalized.viewerUid}`,
     `mode=${normalized.mode}`,
     `size=${normalized.pageSize}`,
+    `preferences=${normalized.preferencesRevision ?? 0}`,
   ].join('|');
 }
 

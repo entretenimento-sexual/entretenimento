@@ -3,9 +3,8 @@
 // PROJEÇÃO DO PERFIL DE PREFERÊNCIAS PARA DISCOVERY
 // -----------------------------------------------------------------------------
 // Mantém dois níveis:
-// - discoveryPreferences: política privada completa usada pelo filtro local;
-// - interestedInGenders: categorias canônicas amplas usadas pelo motor recíproco
-//   e pela projeção pública produzida no backend.
+// - discoveryPreferences: política privada com a seleção exata usada nos dois lados do Discovery;
+// - interestedInGenders: projeção ampla para leitores legados.
 // -----------------------------------------------------------------------------
 
 import type {

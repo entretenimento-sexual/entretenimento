@@ -55,6 +55,24 @@ describe('DiscoveryCardEnrichmentService preference pipeline', () => {
     expect(result.profiles[0]).not.toHaveProperty('interestedInOrientations');
   });
 
+  it('usa o código de identidade publicado para filtrar a composição do casal', () => {
+    const viewer = user('viewer', {
+      discoveryPreferences: preferences({ genderInterests: ['couple_mm'] }),
+    });
+    const result = service.buildCardsResult({
+      profiles: [
+        candidate('wanted', { gender: 'couple', identityCode: 'casal-ele-ele' }),
+        candidate('other', { gender: 'couple', identityCode: 'casal-ele-ela' }),
+      ],
+      currentUser: viewer,
+      mode: 'all',
+      applyVisibility: false,
+    });
+
+    expect(result.profiles.map((profile) => profile.uid)).toEqual(['wanted']);
+    expect(result.rejected[0]).toMatchObject({ uid: 'other', reason: 'profile_type_not_selected' });
+  });
+
   it('prioriza a localização de runtime sobre coordenadas persistidas do viewer', () => {
     const viewer = user('viewer', {
       latitude: -10,
