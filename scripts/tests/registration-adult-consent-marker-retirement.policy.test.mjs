@@ -11,25 +11,23 @@ const body = (source, fn) => source.match(
 )?.[1] ?? '';
 
 const rules = read('firestore-rules/users.rules');
-const create = body(rules, 'createRequiredDefaultsOk');
 const protectedChanges = body(rules, 'selfChangingSensitiveKeys');
 
-test('cadastro novo exige os defaults privados e os termos iniciais, sem campo legado', () => {
-  assert.ok(create);
-  const required = create.match(/data\.keys\(\)\.hasAll\(\[([\s\S]*?)\]\)/)?.[1] ?? '';
-  for (const field of ['uid', 'registrationFlowVersion', 'registrationCompletedAt', 'profileCompleted', 'acceptedTerms']) {
-    assert.ok(required.includes(`"${field}"`), `ausente campo obrigatório ${field}`);
+test('cadastro novo é criado pelo backend com defaults privados', () => {
+  const seed = read('functions/src/auth/user-registration-seed.ts');
+  for (const field of [
+    "registrationFlowVersion: REGISTRATION_FLOW_VERSION",
+    "registrationCompletedAt: null",
+    "profileCompleted: false",
+    "publicVisibility: 'hidden'",
+    "interactionBlocked: true",
+  ]) {
+    assert.ok(seed.includes(field), field);
   }
-  assert.ok(!required.includes('initialAdultConsentRequired'));
-  assert.match(create, /initialTermsDefaultsOk\(data\)/);
-  assert.match(create, /data\.profileCompleted == false/);
 });
 
-test('Rules proíbem o marcador e adultConsent na criação client-side', () => {
-  const forbidden = create.match(/!data\.keys\(\)\.hasAny\(\[([\s\S]*?)\]\)/)?.[1] ?? '';
-  assert.ok(forbidden.includes('"initialAdultConsentRequired"'));
-  assert.ok(forbidden.includes('"adultConsent"'));
-  assert.ok(!create.includes('data.initialAdultConsentRequired'));
+test('Rules impedem qualquer criação direta do documento privado', () => {
+  assert.match(rules, /allow create: if false;/);
 });
 
 test('contas históricas mantêm campos legados protegidos contra mutações', () => {

@@ -179,11 +179,11 @@ describe('Firestore Rules / public profile eligibility', () => {
     await testEnv.cleanup();
   });
 
-  it('permite criar a projeção para conta plenamente elegível', async () => {
+  it('nega criar a projeção pelo cliente mesmo com conta plenamente elegível', async () => {
     await seedUser();
     const db = authenticatedDb();
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(db, 'public_profiles', UID), publicProfile())
     );
   });
@@ -223,12 +223,13 @@ describe('Firestore Rules / public profile eligibility', () => {
     }));
   });
 
-  it('permite projeção sem revalidar assurance etário depois que a conta está ativa', async () => {
+  it('permite editar a projeção sem revalidar assurance etário depois que a conta está ativa', async () => {
     await seedUser({}, false);
+    await seedPublicProfile();
     const db = authenticatedDb();
 
     await assertSucceeds(
-      setDoc(doc(db, 'public_profiles', UID), publicProfile())
+      updateDoc(doc(db, 'public_profiles', UID), { municipio: 'Niterói', updatedAt: serverTimestamp() })
     );
   });
 
@@ -276,22 +277,25 @@ describe('Firestore Rules / public profile eligibility', () => {
     );
   });
 
-  it('permite projeção pública sem campo de consentimento legado', async () => {
+  it('permite editar a projeção pública sem campo de consentimento legado', async () => {
     await seedUser();
+    await seedPublicProfile();
     const db = authenticatedDb();
-    await assertSucceeds(setDoc(doc(db, 'public_profiles', UID), publicProfile()));
+    await assertSucceeds(updateDoc(doc(db, 'public_profiles', UID), { municipio: 'Niterói', updatedAt: serverTimestamp() }));
   });
 
-  it('não bloqueia projeção por recusa do consentimento legado', async () => {
+  it('permite editar a projeção com recusa do consentimento legado', async () => {
     await seedUser({ initialAdultConsentRequired: true, adultConsent: { accepted: false, version: 'v1' } });
+    await seedPublicProfile();
     const db = authenticatedDb();
-    await assertSucceeds(setDoc(doc(db, 'public_profiles', UID), publicProfile()));
+    await assertSucceeds(updateDoc(doc(db, 'public_profiles', UID), { municipio: 'Niterói', updatedAt: serverTimestamp() }));
   });
 
-  it('não exige consentimento legado aceito para a projeção', async () => {
+  it('permite editar a projeção com aceite de consentimento legado', async () => {
     await seedUser({ initialAdultConsentRequired: true, adultConsent: { accepted: true, version: 'v1' } });
+    await seedPublicProfile();
     const db = authenticatedDb();
-    await assertSucceeds(setDoc(doc(db, 'public_profiles', UID), publicProfile()));
+    await assertSucceeds(updateDoc(doc(db, 'public_profiles', UID), { municipio: 'Niterói', updatedAt: serverTimestamp() }));
   });
 
   it('nega projeção para perfil incompleto', async () => {

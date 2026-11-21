@@ -4,7 +4,7 @@
 // - ordinary profile fields remain self-editable;
 // - auth, privilege, billing, lifecycle and compliance fields are protected;
 // - discovery preference projections are private, bounded and schema-validated;
-// - only backend code can complete registration or change account visibility;
+// - only the backend can create accounts, complete registration or change account visibility;
 // - new accounts are private and interaction-blocked until completion;
 // - accepted terms start false and can only become true through trusted backend.
 // - profileId is generated and maintained only by trusted backend code.
@@ -15,10 +15,6 @@ match /users/{userId} {
 
   function isAdminActor() {
     return isAdmin();
-  }
-
-  function hasField(field) {
-    return request.resource.data.keys().hasAny([field]);
   }
 
   function affectedUserKeys() {
@@ -110,11 +106,6 @@ match /users/{userId} {
       && data.discoveryPreferencesUpdatedAt is number;
   }
 
-  function discoveryProjectionSafeOnCreate(data) {
-    return !data.keys().hasAny(discoveryProjectionKeys())
-      || validDiscoveryProjectionPayload(data);
-  }
-
   function selfUpdatingDiscoveryProjection(changedKeys) {
     return isSelf(userId)
       && changedKeys.hasAny(discoveryProjectionKeys())
@@ -126,11 +117,6 @@ match /users/{userId} {
     return signedIn()
       && request.auth.token.keys().hasAny(["email_verified"])
       && request.auth.token.email_verified == true;
-  }
-
-  function emailVerifiedMatchesToken() {
-    return !hasField("emailVerified")
-      || request.resource.data.emailVerified == authEmailVerified();
   }
 
   function emailVerifiedSafeOnUpdate(changedKeys) {
@@ -240,96 +226,6 @@ match /users/{userId} {
       && request.resource.data.moderatedAt == request.time;
   }
 
-  function initialTermsDefaultsOk(data) {
-    return data.acceptedTerms is map
-      && data.acceptedTerms.keys().hasAny(["accepted"])
-      && data.acceptedTerms.accepted == false;
-  }
-
-  function createRequiredDefaultsOk(data) {
-    return data.keys().hasAll([
-        "uid",
-        "registrationFlowVersion",
-        "registrationCompletedAt",
-        "profileCompleted",
-        "acceptedTerms"
-      ])
-      && data.uid == uid()
-      && !data.keys().hasAny([
-        "profileId",
-        "socialConnectionsEstablishedAt",
-        "adultConsent",
-        "initialAdultConsentRequired",
-        "ageEligibility",
-        "ageVerification",
-        "ageReverification",
-        "ageReverificationRestrictedAt"
-      ])
-      && data.registrationCompletedAt == null
-      && data.profileCompleted == false
-      && initialTermsDefaultsOk(data);
-  }
-
-  function createBillingDefaultsOk(data) {
-    return data.get("role", "free") == "free"
-      && data.get("tier", "free") == "free"
-      && data.get("billingProjectionVersion", 0) == 0
-      && data.get("isSubscriber", false) == false
-      && data.get("monthlyPayer", false) == false
-      && data.get("subscriptionStatus", "inactive") == "inactive"
-      && data.get("subscriptionScope", null) == null
-      && data.get("subscriptionStartedAt", null) == null
-      && data.get("subscriptionEndsAt", null) == null
-      && data.get("subscriptionExpires", null) == null
-      && data.get("lastBillingCheckoutSessionId", null) == null
-      && data.get("lastBillingTransactionId", null) == null
-      && data.get("billingUpdatedAt", null) == null;
-  }
-
-  function createPrivilegeDefaultsOk(data) {
-    return data.get("roles", ["user"]) == ["user"]
-      && data.get("permissions", []) == []
-      && data.get("entitlements", []) == [];
-  }
-
-  function createLifecycleDefaultsOk(data) {
-    return data.get("accountLocked", false) == false
-      && data.get("accountStatus", "active") == "active"
-      && data.get("loginAllowed", true) == true
-      && data.get("suspended", false) == false
-      && data.get("suspensionReason", null) == null
-      && data.get("suspensionSource", null) == null
-      && data.get("suspensionEndsAt", null) == null
-      && data.get("deletionRequestedAt", null) == null
-      && data.get("deletionRequestedBy", null) == null
-      && data.get("deletionUndoUntil", null) == null
-      && data.get("purgeAfter", null) == null;
-  }
-
-  function commonCreateDefaultsOk(data) {
-    return createRequiredDefaultsOk(data)
-      && createBillingDefaultsOk(data)
-      && createPrivilegeDefaultsOk(data)
-      && createLifecycleDefaultsOk(data);
-  }
-
-  function createVisibilityDefaultsOk(data) {
-    return data.registrationFlowVersion == "v2"
-      ? (data.get("publicVisibility", "visible") == "visible"
-        && data.get("interactionBlocked", false) == false)
-      : (data.registrationFlowVersion == "v3-private-by-default"
-        && data.keys().hasAll(["publicVisibility", "interactionBlocked"])
-        && data.publicVisibility == "hidden"
-        && data.interactionBlocked == true);
-  }
-
-  function createDefaultsOk() {
-    let data = request.resource.data;
-    return commonCreateDefaultsOk(data)
-      && createVisibilityDefaultsOk(data)
-      && discoveryProjectionSafeOnCreate(data);
-  }
-
   function ordinarySelfUpdateAllowed(changedKeys) {
     return isSelf(userId)
       && !changedKeys.hasAny(discoveryProjectionKeys())
@@ -376,11 +272,7 @@ match /users/{userId} {
   allow get: if isSelf(userId);
   allow list: if false;
 
-  allow create: if resource == null
-    && isSelf(userId)
-    && request.resource.data.get("email", null) == request.auth.token.get("email", null)
-    && emailVerifiedMatchesToken()
-    && createDefaultsOk();
+  allow create: if false;
 
   allow update: if resource != null
     && validUserUpdate();

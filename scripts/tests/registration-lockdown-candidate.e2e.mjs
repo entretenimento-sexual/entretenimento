@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 // Tests planned STRICT Rules without deploying them or editing firestore.rules.
 // Runs inside the existing demo emulators only.
 import assert from 'node:assert/strict';
@@ -7,21 +8,11 @@ import {
 import {
   doc, getDoc, serverTimestamp, setDoc, updateDoc, writeBatch,
 } from 'firebase/firestore';
-import { buildRegistrationLockdownCandidate } from '../maintenance/build-registration-lockdown-candidate.mjs';
 
 const PROJECT = 'demo-entretenimento-lockdown';
 assert.equal(process.env.FIRESTORE_EMULATOR_HOST, '127.0.0.1:18080');
 
-const rules = buildRegistrationLockdownCandidate();
-for (const expected of [
-  'return !changedKeys.hasAny(registrationKeys)',
-  '// Seeds privados são criados apenas pelo backend nesta candidata.',
-  'allow create: if false && resource == null',
-  'allow create: if isEmailDoc() && common()',
-  'allow get: if (false && isNicknameDoc()',
-]) {
-  assert.ok(rules.includes(expected), 'Missing lockdown guard: ' + expected);
-}
+const rules = readFileSync(new URL('../../firestore.rules', import.meta.url), 'utf8');
 
 const testEnv = await initializeTestEnvironment({
   projectId: PROJECT, firestore: { host: '127.0.0.1', port: 18080, rules },
@@ -84,12 +75,12 @@ try {
     createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
   await assertFails(batch.commit());
-  console.log('[lockdown:candidate] PASS direct and atomic legacy registration denied');
+  console.log('[registration-rules:e2e] PASS direct and atomic legacy registration denied');
 
   await assertSucceeds(updateDoc(owner, { descricao: 'Descrição legítima' }));
   assert.equal((await getDoc(owner)).data().descricao, 'Descrição legítima');
   await assertFails(getDoc(doc(db, 'nickname_reservations', 'perfil_fixo')));
-  console.log('[lockdown:candidate] PASS ordinary profile edits, private reservation');
+  console.log('[registration-rules:e2e] PASS ordinary profile edits, private reservation');
 } finally {
   await testEnv.cleanup();
 }

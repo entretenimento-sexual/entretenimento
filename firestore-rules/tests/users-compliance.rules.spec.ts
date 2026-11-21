@@ -103,10 +103,10 @@ describe('Firestore Rules / users compliance', () => {
     await testEnv.cleanup();
   });
 
-  it('permite criar conta nova sem marcador de consentimento legado', async () => {
+  it('nega a criação de conta pelo cliente mesmo sem marcador de consentimento legado', async () => {
     const db = authenticatedDb();
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(db, 'users', USER_UID), validUserSeed())
     );
   });
@@ -217,7 +217,13 @@ describe('Firestore Rules / users compliance', () => {
 
   it('permite editar um campo comum na conta nova sem o marcador', async () => {
     const db = authenticatedDb();
-    await assertSucceeds(setDoc(doc(db, 'users', USER_UID), validUserSeed()));
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users', USER_UID), validUserSeed({
+        registrationFlowVersion: 'v3-private-by-default',
+        publicVisibility: 'hidden',
+        interactionBlocked: true,
+      }));
+    });
     await assertSucceeds(updateDoc(doc(db, 'users', USER_UID), {
       descricao: 'Descrição permitida após bootstrap privado.',
     }));

@@ -5,7 +5,6 @@
     // entretenimento\firestore-rules\public_index.rules
     // =======================================================================
 match /public_index/{docId} {
-  function isNicknameDoc() { return docId.matches('^nickname:.+'); }
   function isEmailDoc() { return docId.matches('^email:.+'); }
 
   function hasRequiredRequestFields() {
@@ -18,68 +17,22 @@ match /public_index/{docId} {
     ]);
   }
 
-  function publicNicknameIndexData(data) {
-    return data.keys().hasOnly([
-      "uid", "type", "value", "createdAt", "lastChangedAt", "updatedAt"
-    ])
-      && data.get("uid", "") is string
-      && data.get("uid", "").matches("^[A-Za-z0-9_-]{1,128}$")
-      && data.get("type", "") == "nickname"
-      && data.get("value", "") is string
-      && data.get("value", "").matches("^[a-z0-9._-]{3,40}$")
-      && docId == "nickname:" + data.value
-      && (!data.keys().hasAny(["createdAt"]) || data.createdAt is timestamp)
-      && (!data.keys().hasAny(["lastChangedAt"]) || data.lastChangedAt is timestamp)
-      && (!data.keys().hasAny(["updatedAt"]) || data.updatedAt is timestamp);
-  }
-
-  function publishedNicknameIndex(data) {
-    let owner = get(/databases/$(database)/documents/users/$(data.uid)).data;
-    let profile = get(/databases/$(database)/documents/public_profiles/$(data.uid)).data;
-    return owner is map
-      && owner.get("uid", "") == data.uid
-      && owner.get("profileCompleted", false) == true
-      && owner.get("accountStatus", "") == "active"
-      && owner.get("publicVisibility", "") == "visible"
-      && owner.get("interactionBlocked", true) == false
-      && owner.get("accountLocked", false) != true
-      && owner.get("suspended", false) != true
-      && owner.get("loginAllowed", true) != false
-      && owner.get("deletionRequestedAt", null) == null
-      && profile is map
-      && profile.get("uid", "") == data.uid
-      && profile.get("nicknameNormalized", "") == data.value;
-  }
-
-  allow get: if (isNicknameDoc()
-      && resource != null
-      && publicNicknameIndexData(resource.data)
-      && publishedNicknameIndex(resource.data))
-    || (
-      signedIn()
-      && isEmailDoc()
-      && resource.data.keys().hasAny(["uid"])
-      && resource.data.uid == uid()
-    );
+  // O frontend consulta disponibilidade pela Function, sem ler a titularidade.
+  allow get: if signedIn()
+    && isEmailDoc()
+    && resource.data.keys().hasAny(["uid"])
+    && resource.data.uid == uid();
 
   allow list: if false;
 
-  function validDocId() { return isNicknameDoc() || isEmailDoc(); }
-
-  function common() {
-    return signedIn()
-      && validDocId()
-      && hasRequiredRequestFields()
-      && request.resource.data.uid == uid()
-      && request.resource.data.type in ["nickname","email"]
-      && request.resource.data.type == (isNicknameDoc() ? "nickname" : "email")
-      && request.resource.data.value is string
-      // ✅ serverTimestamp obrigatório
-      && request.resource.data.createdAt == request.time
-      && request.resource.data.lastChangedAt == request.time;
-  }
-
-  allow create: if isEmailDoc() && common()
+  allow create: if signedIn()
+    && isEmailDoc()
+    && hasRequiredRequestFields()
+    && request.resource.data.uid == uid()
+    && request.resource.data.type == "email"
+    && request.resource.data.value is string
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.lastChangedAt == request.time
     && !exists(/databases/$(database)/documents/public_index/$(docId));
 
   allow update: if signedIn()

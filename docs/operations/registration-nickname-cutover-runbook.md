@@ -7,16 +7,15 @@ pré-flight, não autorização nem comando de deploy.
 
 - Cadastro Angular novo usa reserveRegistrationNickname e
   completeRegistrationProfile. Foi validado por E2E em emulador.
-- A candidata de Firestore Rules impede o cliente de criar `users/{uid}`,
-  concluir o cadastro ou criar a primeira projeção pública. A candidata fica
-  separada da regra ativa.
+- As regras versionadas reservam ao backend a criação do documento privado,
+  a conclusão do cadastro e a primeira projeção pública. O E2E valida as
+  mesmas regras geradas pelo projeto.
 - Usuários e índices legados ainda não foram auditados integralmente
   no ambiente real.
 - Clientes antigos ainda podem tentar concluir por operações diretas
   no Firestore. O CI testa só o código atual, não sessões antigas.
-- As Rules de desenvolvimento limitam a leitura direta do índice de
-  nickname a perfis publicados e elegíveis. A disponibilidade do cadastro
-  é informada pela callable sem retornar documentos do índice.
+- A leitura direta do índice de apelidos é bloqueada nas regras versionadas.
+  A consulta de disponibilidade usa a Function.
 
 ## Unicidade pelo apelido principal em desenvolvimento
 
@@ -84,13 +83,9 @@ alteração de produção é executada por esses scripts.
 
 ## Onde atuar na hora da implantação
 
-A conclusão do cadastro é exclusiva da Function
-completeRegistrationProfile nas Rules versionadas de users.rules.
-O gerador build-registration-lockdown-candidate.mjs usa essas Rules e
-ensaia restrições adicionais de criação do documento inicial, criação da
-projeção pública e leitura do índice. Para o rollout, revisar os fragmentos
-users.rules, public_profiles_next.rules e public_index.rules após comprovar
-os critérios acima.
+As regras de cadastro estão em users.rules, public_profiles_next.rules e
+public_index.rules. O E2E em emulador usa as regras desses fragmentos.
+Revisar o rollout após comprovar os critérios acima.
 Nunca editar diretamente o arquivo firestore.rules gerado.
 Não fazer deploy incidental, branch, PR ou merge.
 
@@ -112,12 +107,6 @@ da reserva. A resposta contém apenas o estado do apelido. A interface
 exige `available` para exibir o visto verde. A reserva autenticada
 transacional é a confirmação definitiva.
 
-
-A candidata de Rules também bloqueia `get` client-side em
-`public_index/nickname:*` para anônimos e autenticados. O E2E
-verifica ausência de leitura direta e resposta sem dados do titular. A Rule ativa permanece com acesso legado até
-que o endpoint e o cliente estejam implantados, e a telemetria
-comprove compatibilidade; **não promover isoladamente**.
 
 A consulta prévia oferece somente status agregado; não usar
 essa API para enumerar identidades. Reavaliar proteção contra

@@ -76,16 +76,6 @@ match /public_profiles/{userId} {
       && nullableString(data.get("photoURL", null));
   }
 
-  function privateUserEligibleAfter() {
-    let user = getAfter(privateUserPath()).data;
-    return user is map
-      && user.emailVerified == true
-      && user.profileCompleted == true
-      && user.publicVisibility == "visible"
-      && user.interactionBlocked == false
-      && adultMediaHasCurrentTerms(user);
-  }
-
   function privateUserEligibleCurrent() {
     let user = get(privateUserPath()).data;
     return user is map
@@ -94,47 +84,6 @@ match /public_profiles/{userId} {
       && user.publicVisibility == "visible"
       && user.interactionBlocked == false
       && adultMediaHasCurrentTerms(user);
-  }
-
-  // Cliente não pode escolher apelido distinto na projeção após concluir cadastro.
-  function nicknameMatchesPrivateAfter() {
-    let owner = getAfter(privateUserPath()).data;
-    return owner is map
-      && owner.get("nickname", null) is string
-      && request.resource.data.nickname == owner.get("nickname", null);
-  }
-
-  function createKeysValid() {
-    return request.resource.data.keys().hasOnly([
-      "uid",
-      "nickname",
-      "nicknameNormalized",
-      "avatarUrl",
-      "photoURL",
-      "municipio",
-      "estado",
-      "gender",
-      "identityCode",
-      "identityCatalogVersion",
-      "orientation",
-      "role",
-      "createdAt",
-      "updatedAt"
-    ])
-      && request.resource.data.keys().hasAll([
-        "uid",
-        "nickname",
-        "nicknameNormalized",
-        "municipio",
-        "estado",
-        "gender",
-        "identityCode",
-        "identityCatalogVersion",
-        "orientation",
-        "role",
-        "createdAt",
-        "updatedAt"
-      ]);
   }
 
   function updateKeysValid() {
@@ -150,18 +99,6 @@ match /public_profiles/{userId} {
       "orientation",
       "updatedAt"
     ]);
-  }
-
-  function identityMatchesPrivateDeclarationAfter() {
-    let user = getAfter(privateUserPath()).data;
-    let declaredCode = user.get(
-      "declaredIdentityCode",
-      user.get("gender", "")
-    );
-    let catalogVersion = user.get("identityCatalogVersion", 1);
-    return request.resource.data.identityCode == declaredCode
-      && request.resource.data.gender == user.get("gender", declaredCode)
-      && request.resource.data.identityCatalogVersion == catalogVersion;
   }
 
   function identityMatchesPrivateDeclarationCurrent() {
@@ -201,18 +138,7 @@ match /public_profiles/{userId} {
       && request.resource.data.updatedAt == request.time;
   }
 
-  allow create: if resource == null
-    && isSelf(userId)
-    && createKeysValid()
-    && request.resource.data.uid == uid()
-    && request.resource.data.role == "free"
-    && request.resource.data.createdAt == request.time
-    && request.resource.data.updatedAt == request.time
-    && identityMatchesPrivateDeclarationAfter()
-    && nicknameMatchesPrivateAfter()
-    && orientationMatchesPrivateAfter()
-    && publicProfileTextFieldsValid(request.resource.data)
-    && privateUserEligibleAfter();
+  allow create: if false;
 
   allow update: if resource != null
     && isSelf(userId)

@@ -96,12 +96,13 @@ describe('Firestore Rules / autoridade da reserva de nickname', () => {
     ));
   });
 
-  it('permite consultar o índice publicado e protege nomes ocultos ou ausentes', async () => {
+  it('nega leitura do índice mesmo com projeção publicada, para convidados e para o titular', async () => {
     await seed();
     await seedIndex();
     const guest = environment.unauthenticatedContext().firestore();
     const index = doc(guest, 'public_index', 'nickname:perfil_estavel');
-    await assertSucceeds(getDoc(index));
+    await assertFails(getDoc(index));
+    await assertFails(getDoc(doc(ownerDb(), 'public_index', 'nickname:perfil_estavel')));
     await seed('hidden');
     await assertFails(getDoc(index));
     await assertFails(getDoc(doc(guest, 'public_index', 'nickname:apelido_ausente')));

@@ -153,12 +153,10 @@ describe('Firestore Rules / registration and profile completion', () => {
     await testEnv.cleanup();
   });
 
-  it('permite criar a conta v3 privada e bloqueada para interação', async () => {
+  it('nega a criação direta mesmo de uma conta privada e bloqueada para interação', async () => {
     const db = authenticatedDb(false);
 
-    await assertSucceeds(
-      setDoc(doc(db, 'users', UID), privateRegistrationSeed())
-    );
+    await assertFails(setDoc(doc(db, 'users', UID), privateRegistrationSeed()));
   });
 
   it('nega bootstrap privado com e-mail ausente ou diferente da conta autenticada', async () => {
@@ -167,10 +165,10 @@ describe('Firestore Rules / registration and profile completion', () => {
     await assertFails(setDoc(user, { ...privateRegistrationSeed(), email: 'outra@example.test' }));
   });
 
-  it('permite o bootstrap privado sem a claim email_verified inicial', async () => {
+  it('nega o bootstrap privado pelo cliente antes da claim email_verified', async () => {
     const db = authenticatedDbWithoutEmailClaim();
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(
         doc(db, 'users', UID),
         privateRegistrationSeed(),
@@ -192,14 +190,9 @@ describe('Firestore Rules / registration and profile completion', () => {
 
   it('nega reservar nickname público antes do onboarding adulto completo', async () => {
     const db = authenticatedDbWithoutEmailClaim();
-
-    await assertSucceeds(
-      setDoc(
-        doc(db, 'users', UID),
-        privateRegistrationSeed(),
-        { merge: true }
-      )
-    );
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users', UID), privateRegistrationSeed());
+    });
 
     await assertFails(
       setDoc(doc(db, 'public_index', 'nickname:pessoa_segura'), {

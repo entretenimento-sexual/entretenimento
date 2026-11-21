@@ -8,7 +8,7 @@
 // - o cadastro inicial NÃO cria public_profiles/{uid};
 // - a projeção pública nasce atomicamente apenas em ProfileCompletionWriteService;
 // - o perfil não fica consultável antes de e-mail/termos/consentimento/onboarding;
-// - a reserva de nickname permanece no public_index durante esta migração.
+// - a Function de reserva controla a titularidade do apelido no índice.
 // =============================================================================
 import { EnvironmentInjector, Injectable, Optional, runInInjectionContext } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';

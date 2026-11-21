@@ -198,10 +198,8 @@ de consentimento nem exposição implícita de textos privados.
 
 ### Reserva backend-only: fronteira explícita
 
-`public_index/nickname:{key}` aceita escrita de nickname apenas pelo
-backend. A leitura direta só é autorizada para índice com projeção publicada
-e titular elegível. A consulta do cadastro devolve somente disponibilidade
-provisória.
+A leitura e a escrita de `public_index/nickname:{key}` são exclusivas do
+backend. A consulta do cadastro devolve somente disponibilidade provisória.
 
 ### Inventário de índices anteriores
 
@@ -224,26 +222,15 @@ autoridade da plataforma, mas detalhes de vida sexual e preferências
 íntimas não devem ser publicados automaticamente por a conta ser free.
 
 
-## Cutover candidate de Firestore Rules — emulador, não produção
+## Autoridade do cadastro nas regras versionadas
 
-Ferramenta: scripts/maintenance/build-registration-lockdown-candidate.mjs.
-Lê os fragmentos do manifesto canônico e produz **somente em memória**
-uma versão estrita, sem alterar firestore.rules, deploy ou banco de dados.
+A criação do documento inicial e da primeira projeção pública cabe ao
+backend. A Function `completeRegistrationProfile` conclui o cadastro e
+publica o perfil. A edição ordinária continua disponível ao titular.
 
-Os fragmentos versionados já reservam a conclusão em users/{uid} à
-Function completeRegistrationProfile e preservam a edição ordinária. A
-candidata herda essa regra e ensaia três restrições adicionais:
-
-- users/{uid}: criação do documento inicial pelo cliente.
-- public_profiles/{uid}: criação da projeção pelo cliente.
-- public_index/nickname:*: leitura direta pelo cliente. A escrita de nickname
-  já é exclusiva do backend. O índice de e-mail mantém seu contrato.
-
-O E2E de emulador registra tentativas de concluir cadastro, criar projeção
-e indexar nickname diretamente: todas devem ser negadas. Também prova que
-a descrição ordinária ainda pode ser alterada e que a reserva privada não
-fica legível. O gerador falha se qualquer âncora mudar, impedindo testes
-enganosos sobre Rules diferentes das esperadas.
+O E2E usa as regras geradas pelo projeto e verifica que o cliente não pode
+criar os documentos iniciais, concluir o cadastro diretamente ou acessar
+o índice de apelidos. Ele também verifica a edição ordinária do perfil.
 
 **Critério de ativação em produção:** Functions de cadastro implantadas,
 clientes antigos tratados com versão mínima compatível, dry-run integral

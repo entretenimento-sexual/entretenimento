@@ -4,8 +4,6 @@
 // - Firebase Auth: criação única por tentativa e retomada após falhas parciais
 // - Firestore bootstrap: RegistrationBootstrapService
 // - Terms acceptance: backend audit through TermsAcceptanceService
-// - public_index.rules: createdAt/lastChangedAt MUST be serverTimestamp() => request.time
-// - public_profiles.rules: strict allowedKeys + createdAt/updatedAt MUST be serverTimestamp() => request.time
 // - No avatar/photoURL at signup
 // - Clean debug (traceId) controlled by environment.enableDebugTools
 // =============================================================================
@@ -51,8 +49,6 @@ export class RegisterService {
   private readonly NET_TIMEOUT_MS = 12_000;
   private pendingCreation: Promise<UserCredential> | null = null;
   private readonly HOT_KEY_CURRENT_USER_UID = 'currentUserUid';
-
-  // public_profiles.rules (nicknameNormalized):
 
   constructor(
     private readonly emailVerificationService: EmailVerificationService,

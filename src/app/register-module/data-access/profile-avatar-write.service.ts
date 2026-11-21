@@ -39,26 +39,24 @@ export class ProfileAvatarWriteService {
     );
 
     return this.ctx.deferPromise$(async () => {
-      const batch = writeBatch(this.db as any);
+      const batch = writeBatch(this.db);
 
-      batch.set(
-        userRef as any,
+      batch.update(
+        userRef,
         {
           photoURL: safePhotoURL,
-        },
-        { merge: true }
+        }
       );
 
-      batch.set(
-        publicProfileRef as any,
+      batch.update(
+        publicProfileRef,
         {
           // `avatarUrl` é o contrato público canônico. `photoURL` permanece
           // sincronizado como alias temporário para consumidores legados.
           avatarUrl: safePhotoURL,
           photoURL: safePhotoURL,
           updatedAt: serverTimestamp(),
-        },
-        { merge: true }
+        }
       );
 
       await batch.commit();

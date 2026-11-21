@@ -141,27 +141,15 @@ requireAll(
 // Novo cadastro nunca deve recriar o marcador de consentimento adulto v1.
 // O campo histórico continua protegido contra alterações do próprio usuário.
 const usersRulesSource = codeOnly(read('firestore-rules/users.rules'));
-const userCreateDefaults = usersRulesSource.match(
-  /function createRequiredDefaultsOk\(data\)\s*\{([\s\S]*?)\n\s*\}/
-)?.[1] ?? '';
-const requiredUserCreateKeys = userCreateDefaults.match(
-  /data\.keys\(\)\.hasAll\(\[([\s\S]*?)\]\)/
-)?.[1] ?? '';
-const forbiddenUserCreateKeys = userCreateDefaults.match(
-  /!data\.keys\(\)\.hasAny\(\[([\s\S]*?)\]\)/
-)?.[1] ?? '';
 const selfChangingSensitiveUserKeys = usersRulesSource.match(
   /function selfChangingSensitiveKeys\(changedKeys\)\s*\{([\s\S]*?)\n\s*\}/
 )?.[1] ?? '';
 if (
-  !userCreateDefaults ||
-  requiredUserCreateKeys.includes('"initialAdultConsentRequired"') ||
-  !forbiddenUserCreateKeys.includes('"initialAdultConsentRequired"') ||
-  userCreateDefaults.includes('data.initialAdultConsentRequired') ||
+  !/allow\s+create\s*:\s*if\s+false\s*;/.test(usersRulesSource) ||
   !selfChangingSensitiveUserKeys.includes('"initialAdultConsentRequired"') ||
   !selfChangingSensitiveUserKeys.includes('"adultConsent"')
 ) {
-  violations.push('firestore-rules/users.rules (marcador adulto legado deve ser proibido apenas na criação e protegido em registros históricos)');
+  violations.push('firestore-rules/users.rules (criação de conta deve ser exclusiva do backend e os campos históricos devem permanecer protegidos)');
 }
 
 forbidAll(
