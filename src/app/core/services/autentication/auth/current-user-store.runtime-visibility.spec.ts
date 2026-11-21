@@ -37,7 +37,6 @@ describe('normalizeCurrentUserRuntimeVisibility', () => {
     ).toEqual(
       expect.objectContaining({
         profileCompleted: false,
-        registrationFlowVersion: 'v3-private-by-default',
         publicVisibility: 'hidden',
         interactionBlocked: false,
       })
@@ -82,6 +81,7 @@ describe('normalizeCurrentUserRuntimeVisibility', () => {
     const current = user({
       profileCompleted: false,
       registrationFlowVersion: 'v3-private-by-default',
+      loginAllowed: true,
       publicVisibility: 'hidden',
       interactionBlocked: true,
     });
