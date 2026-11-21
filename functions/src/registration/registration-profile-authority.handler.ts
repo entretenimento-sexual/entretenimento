@@ -192,6 +192,9 @@ export const reserveRegistrationNickname = onCall<{ nickname?: unknown; expected
           ...buildRegistrationAuthProjection(authUser),
           nickname: nickname.display,
           nicknameNormalized: nickname.key,
+          ...(ownership.indexExists ? {} : {
+            registrationAbandonment: FieldValue.delete(),
+          }),
           ...(!Array.isArray(user['nicknameHistory']) || user['nicknameHistory'].length === 0
             ? { nicknameHistory: [{ nickname: nickname.key, date: Timestamp.now() }] }
             : {}),
@@ -338,6 +341,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
         ...buildRegistrationAuthProjection(authUser),
         profileCompleted: true, publicVisibility: 'visible',
         interactionBlocked: false, registrationCompletedAt: now,
+        registrationAbandonment: FieldValue.delete(),
         updatedAt: now, updatedAtMs: nowMs,
       });
 

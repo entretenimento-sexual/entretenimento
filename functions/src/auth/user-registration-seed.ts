@@ -1,6 +1,6 @@
 import type { UserRecord } from 'firebase-admin/auth';
 
-import { FieldValue } from '../firebaseApp';
+import { FieldValue } from 'firebase-admin/firestore';
 import { generatePublicProfileId } from '../identity/public-profile-id';
 
 export const INITIAL_TERMS_VERSION = 'v1';

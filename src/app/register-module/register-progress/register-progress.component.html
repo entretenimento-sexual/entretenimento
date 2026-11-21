@@ -30,4 +30,15 @@
   @if (upcomingAction(); as action) {
     <p class="next">{{ compact() ? 'A seguir' : 'Próxima etapa' }} <strong>{{ action }}</strong></p>
   }
+
+  @if (abandonment(); as review) {
+    <p class="next" role="status">
+      @if (review.status === 'resume_window') {
+        Seu cadastro ficou pendente. Retome até {{ review.reviewAfterMs | date:'dd/MM/yyyy HH:mm':'-0300' }}
+        (horário de Brasília), antes da revisão por inatividade.
+      } @else {
+        Seu cadastro ficou pendente e entrou em revisão por inatividade. Você ainda pode continuar nesta etapa.
+      }
+    </p>
+  }
 </section>

@@ -18,7 +18,7 @@
   </section>
 
   @if (!sessionInvalid && !profileCompleted) {
-    <app-register-progress step="emailVerification" [completed]="emailVerified" />
+    <app-register-progress [ownerUid]="latestVm?.uid" step="emailVerification" [completed]="emailVerified" />
   }
 
   <div

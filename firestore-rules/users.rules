@@ -152,6 +152,7 @@ match /users/{userId} {
       "registrationSeedSource",
       "initialAdultConsentRequired",
       "registrationCompletedAt",
+      "registrationAbandonment",
       "profileCompleted",
       "ageEligibility",
       "ageVerification",

@@ -200,6 +200,7 @@ const expectedDeploymentExports = [
   'publishVideo',
   'publishVideoWhenReady',
   'purgeDeletedAccounts',
+  'sweepIncompleteRegistrations',
   'queueHighRiskModerationLegalReview',
   'queuePrivateVideoProcessing',
   'rateVideo',

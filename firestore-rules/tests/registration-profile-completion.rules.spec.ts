@@ -231,6 +231,13 @@ describe('Firestore Rules / registration and profile completion', () => {
     );
   });
 
+  it('reserva o estado da triagem de abandono ao backend', async () => {
+    await seedReadyPrivateUser();
+    await assertFails(updateDoc(doc(authenticatedDb(true), 'users', UID), {
+      registrationAbandonment: { status: 'review_ready', reviewAfterMs: 1 },
+    }));
+  });
+
   it('impede renomear nickname ou histórico após o cadastro sem bloquear descrição', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), 'users', UID), {

@@ -166,6 +166,11 @@ export interface IUserDados {
   createdAt?: number | null;
   registrationDate?: number | null;
   registrationCompletedAt?: number | null;
+  registrationAbandonment?: {
+    status: 'resume_window' | 'review_ready';
+    activityAtMs: number;
+    reviewAfterMs: number;
+  };
   registrationFlowVersion?: string | null;
   registrationSeedSource?: 'auth-trigger' | 'registration-recovery' | null;
 

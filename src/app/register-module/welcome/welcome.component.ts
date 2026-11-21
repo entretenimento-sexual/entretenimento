@@ -70,7 +70,7 @@ export class WelcomeComponent implements OnInit {
   termsPending = false;
   declarationPending = false;
 
-  private latestVm: RegisterFlowVm | null = null;
+  protected latestVm: RegisterFlowVm | null = null;
   redirecting = false;
   private pollingSub: Subscription | null = null;
   private pollTries = 0;

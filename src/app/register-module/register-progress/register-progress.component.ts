@@ -2,9 +2,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { DatePipe } from '@angular/common';
 
+import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { isEmailLinkPreviewUid } from '@core/services/autentication/register/email-link-registration.service';
 import type { RegisterFlowStep } from '../data-access/register-flow.model';
 
@@ -28,6 +32,7 @@ type ProgressStep = (typeof STAGES | typeof EMAIL_LINK_STAGES)[number]['step'];
 @Component({
   selector: 'app-register-progress',
   standalone: true,
+  imports: [DatePipe],
   templateUrl: './register-progress.component.html',
   styleUrl: './register-progress.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -40,6 +45,15 @@ export class RegisterProgressComponent {
   readonly compact = input(false);
   readonly emailLinkFlow = input(false);
   readonly ownerUid = input<string | null | undefined>(null);
+  private readonly currentUserStore = inject(CurrentUserStoreService, { optional: true });
+  private readonly currentUser = this.currentUserStore ? toSignal(this.currentUserStore.user$) : null;
+  protected readonly abandonment = computed(() => {
+    const user = this.currentUser?.();
+    const review = user?.registrationAbandonment;
+    if (!user || !this.ownerUid() || user.uid !== this.ownerUid() || user.profileCompleted !== false ||
+        this.completed() || !review || !Number.isSafeInteger(review.reviewAfterMs)) return null;
+    return review;
+  });
 
   protected readonly showsPasswordStep = computed(() => {
     const uid = this.ownerUid();

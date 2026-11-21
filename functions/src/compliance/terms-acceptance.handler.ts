@@ -170,6 +170,7 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
         userRef,
         {
           uid,
+          registrationAbandonment: FieldValue.delete(),
           acceptedTerms: {
             accepted: true,
             version: TERMS_ACCEPTANCE_VERSION,

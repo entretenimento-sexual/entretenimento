@@ -9,15 +9,15 @@ import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.
 import { requiresTrustedAdultVerification } from '../compliance/adult-self-declaration-evidence';
 import { ADULT_SELF_DECLARATION_VERSION } from '../compliance/platform-legal.constants';
 import { normalizeRegistrationNicknameClaim } from './nickname-reservation.policy';
+import { REGISTRATION_EMAIL_LINK_DRAFTS, REGISTRATION_EMAIL_LINK_UID_PREFIX } from './registration-abandonment.policy';
 
 const emailLinkPreviewAllowed = isFunctionsEmulatorRuntime() && !requiresTrustedAdultVerification;
-const PREVIEW_UID_PREFIX = 'email-link-preview-';
-// Prazo de uso do rascunho antes da confirmação. A leitura valida expiresAtMs;
-// a remoção ocorre na transação que vincula o rascunho à conta.
+const PREVIEW_UID_PREFIX = REGISTRATION_EMAIL_LINK_UID_PREFIX;
+// A vinculação e a triagem revalidam a expiração dentro de suas transações.
 const DRAFT_LIFETIME_MS = 30 * 60_000;
 const DRAFT_ID_PATTERN = /^[a-f0-9-]{36}$/;
 const LINK_CODE_PATTERN = /^[A-Za-z0-9_-]{1,256}$/;
-const drafts = () => db.collection('registration_email_link_drafts');
+const drafts = () => db.collection(REGISTRATION_EMAIL_LINK_DRAFTS);
 
 type BlockedLinkState = 'sign-in' | 'unavailable' | 'draft-expired';
 type LinkLookup = { state: BlockedLinkState } | {

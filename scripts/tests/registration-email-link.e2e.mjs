@@ -13,6 +13,7 @@ import { initializeApp as initializeAdminApp, deleteApp as deleteAdminApp } from
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import legal from '../../functions/lib/compliance/platform-legal.constants.js';
+import abandonment from '../../functions/lib/registration/registration-abandonment.service.js';
 
 const currentVersions = {
   version: legal.TERMS_ACCEPTANCE_VERSION,
@@ -101,9 +102,11 @@ async function seedRetentionCases() {
     { key: 'email', days: 8, emailVerified: false },
     { key: 'password', days: 8, emailVerified: true, preview: true },
     { key: 'terms', days: 32, emailVerified: true },
+    { key: 'stale-terms', days: 35, emailVerified: true, terms: true, stale: true },
     { key: 'recent', days: 2, emailVerified: true },
     { key: 'profile', days: 92, emailVerified: true, terms: true },
     { key: 'hold', days: 92, emailVerified: true, terms: true, legalHold: true },
+    { key: 'financial', days: 92, emailVerified: true, terms: true, financial: true },
   ].map(fixture => ({
     ...fixture,
     uid: `${fixture.preview ? 'email-link-preview-' : ''}retention-${fixture.key}-${run}`,
@@ -118,17 +121,26 @@ async function seedRetentionCases() {
   })));
   assert.equal(imported.failureCount, 0);
 
-  await Promise.all(fixtures.map(({ uid, createdAt, terms, legalHold }) => db.doc(`users/${uid}`).set({
+  await Promise.all(fixtures.map(({ uid, createdAt, terms, stale, legalHold }) => db.doc(`users/${uid}`).set({
     uid, createdAt, accountStatus: 'active', profileCompleted: false,
     publicVisibility: 'hidden', interactionBlocked: true, loginAllowed: true,
     registrationFlowVersion: 'v3-private-by-default',
-    acceptedTerms: { accepted: terms === true, ...(terms ? { acceptedAt: createdAt } : {}) },
+    acceptedTerms: {
+      accepted: terms === true,
+      ...(terms ? {
+        ...currentVersions, acknowledgedPrivacyNotice: true, acceptedAt: createdAt,
+        ...(stale ? { privacyNoticeVersion: 'old' } : {}),
+      } : {}),
+    },
     ...(legalHold ? { legalHold } : {}),
   })));
+  await db.collection('payment_transactions').doc().create({
+    buyerUid: fixtures.find(fixture => fixture.financial).uid,
+  });
   return fixtures.map(({ uid }) => uid);
 }
 
-async function verifyDraftCleanupDryRun() {
+async function verifyDraftCleanupDryRun(expiredDraftId) {
   const collection = db.collection('registration_email_link_drafts');
   const validDraft = collection.doc(randomUUID());
   const malformedDraft = collection.doc(randomUUID());
@@ -163,14 +175,17 @@ async function verifyDraftCleanupDryRun() {
   const audit = await runNode(process.execPath, [script, '--dry-run'], { env });
   const { accounts } = JSON.parse(audit.stdout);
   for (const stage of ['emailPending', 'passwordPending', 'termsPending', 'profilePending']) {
-    assert.equal(accounts.stages[stage].candidates, beforeAccounts.stages[stage].candidates + 1, stage);
+    const expected = stage === 'termsPending' ? 2 : 1;
+    assert.equal(accounts.stages[stage].candidates, beforeAccounts.stages[stage].candidates + expected, stage);
   }
   assert.equal(accounts.stages.termsPending.active, beforeAccounts.stages.termsPending.active + 1);
-  assert.equal(accounts.protected, beforeAccounts.protected + 1);
+  assert.equal(accounts.protected, beforeAccounts.protected + 2);
   assert.deepEqual(await readAccounts(), beforeUsers);
   for (const uid of accountUids) assert.equal((await adminAuth.getUser(uid)).uid, uid);
   assert.ok(accountUids.every(uid => !audit.stdout.includes(uid)));
-  await assert.rejects(runNode(process.execPath, [script, '--apply'], { env }), { code: 1 });
+  await assert.rejects(runNode(process.execPath, [script, '--apply'], {
+    env: { ...env, FIREBASE_PROJECT_ID: 'entretenimento-sexual' },
+  }), { code: 1 });
   await assert.rejects(runNode(process.execPath, [script], {
     env: { ...env, FIRESTORE_EMULATOR_HOST: '192.0.2.10:8080' },
   }), { code: 1 });
@@ -178,7 +193,32 @@ async function verifyDraftCleanupDryRun() {
     env: { ...env, FIREBASE_AUTH_EMULATOR_HOST: '192.0.2.10:9099' },
   }), { code: 1 });
   assert.deepEqual(await readDocuments(), before);
-  console.log('[email-link:e2e] PASS draft cleanup dry-run counts candidates and preserves receipts and drafts');
+  const applied = JSON.parse((await runNode(process.execPath, [script, '--apply'], { env })).stdout);
+  assert.equal(applied.changes.deletedDrafts, 1);
+  assert.equal(applied.changes.opened, 5);
+  const after = await readDocuments();
+  assert.deepEqual(after, before.filter(([id]) => id !== expiredDraftId));
+  const retry = JSON.parse((await runNode(process.execPath, [script, '--apply'], { env })).stdout);
+  assert.deepEqual(retry.changes, { opened: 0, readyForReview: 0, cleared: 0, deletedDrafts: 0 });
+
+  const emailRef = accountRefs.find(ref => ref.id.startsWith('retention-email-'));
+  const profileRef = accountRefs.find(ref => ref.id.startsWith('retention-profile-'));
+  assert.ok(emailRef && profileRef);
+  const emailMarker = (await emailRef.get()).get('registrationAbandonment');
+  assert.equal(emailMarker.status, 'resume_window');
+  assert.equal(emailMarker.reviewAfterMs - emailMarker.flaggedAtMs, 7 * 86_400_000);
+  await adminAuth.updateUser(emailRef.id, { emailVerified: true });
+  await profileRef.update({ billingHold: true });
+  const advanced = await abandonment.sweepRegistrationAbandonment(db, adminAuth, {
+    apply: true, nowMs: emailMarker.reviewAfterMs + 1_000,
+  });
+  assert.equal(advanced.changes.cleared, 2);
+  assert.equal(advanced.changes.readyForReview, 3);
+  assert.equal((await emailRef.get()).get('registrationAbandonment'), undefined);
+  assert.equal((await profileRef.get()).get('registrationAbandonment'), undefined);
+  for (const uid of accountUids) assert.equal((await adminAuth.getUser(uid)).uid, uid);
+  assert.deepEqual(await readAccounts(), beforeUsers);
+  console.log('[email-link:e2e] PASS retention marks, rechecks and retries while preserving accounts and receipts');
 }
 
 try {
@@ -215,7 +255,7 @@ try {
   assert.equal(first.data.email, email, 'The emulator must resolve the recipient from the link');
   const credential = await signInWithEmailLink(consumer.auth, first.data.email, oobLink);
   assert.equal(credential.user.uid, uid);
-  await verifyDraftCleanupDryRun();
+  await verifyDraftCleanupDryRun(expiredDraft.data.draftId);
   await verifyProductionEmailAction();
   const expectedUid = { expectedUid: uid };
   const state = (expectedUid) => consumer.call('getEmailLinkRegistrationState', { expectedUid });

@@ -64,7 +64,7 @@ export class EmailLinkRegistrationPageComponent {
   protected readonly showPassword = signal(false);
   protected readonly showConfirmPassword = signal(false);
   private readonly heading = viewChild<ElementRef<HTMLHeadingElement>>('heading');
-  private ownerUid: string | null = null;
+  protected ownerUid: string | null = null;
   private skipNickname = false;
 
   constructor() {

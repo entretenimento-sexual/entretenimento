@@ -37,36 +37,36 @@ Emuladores, staging e produção exigem o aceite dos Termos e a ciência do Avis
 
 O acesso ao produto exige conta ativa, perfil explicitamente concluído e aceite dos documentos vigentes. O cadastro pendente mantém acesso a suas etapas de retomada. Atualize frontend, Functions e Rules como partes da mesma entrega em cada ambiente. O ensaio remoto também depende da configuração de App Check do respectivo projeto.
 
-## Retenção proposta e simulação de abandono
+## Triagem de abandono
 
-Os prazos abaixo são limites de inatividade para triagem. Recontam a partir da atividade válida mais recente. Expiração de link e inatividade da conta são relógios independentes.
+O backend usa a mesma política no emulador, staging e produção. Fechar o navegador não inicia a triagem. Ela considera o último marco confiável entre criação da conta, entrada no Auth, aceite, reserva inicial de apelido e decisão de maioridade. Renovação automática do token fica fora. Expiração de link e inatividade da conta são relógios independentes.
 
-Fechar o navegador não inicia uma exclusão. O `dev-emu` permite simular a classificação abaixo com Auth e Firestore locais. O script não aceita destinos remotos. O build `development` padrão usa a configuração Firebase remota, e `staging` aponta para `entretenimento-staging`. O repositório não ativa uma rotina de exclusão por abandono nesses ambientes. A passagem do prazo classifica candidatos, sem apagar dados.
-
-| Estado | Janela | Resultado da triagem |
+| Estado | Inatividade | Providência |
 |---|---|---|
-| E-mail ainda no formulário | 30 minutos | Expiração do rascunho da aba |
-| Link com rascunho pré-Auth | 30 minutos | Identificar o rascunho vencido, preservando recibos por UID |
-| Conta criada e e-mail pendente | 7 dias | Candidata após o prazo. Um novo pedido de link permite retomar durante a janela |
-| E-mail confirmado na prévia e senha pendente | 7 dias | Candidata após o prazo. A sessão ou novo link válido permite retomar |
-| E-mail confirmado e Termos pendentes | 30 dias | Candidata após o prazo. Entrada com a credencial da conta retoma os Termos |
-| Termos aceitos e maioridade ou perfil pendentes | 90 dias | Candidata após o prazo. A primeira etapa pendente abre ao entrar |
-| Revisão de maioridade, menoridade apurada, suspensão, exclusão, hold, assinatura ou projeção pública | Revisão separada | Excluir da limpeza por abandono |
-| Recibo por UID, documento legado, ausência de Auth compatível ou de datas confiáveis | Revisão separada | Preservar para reconciliação |
+| E-mail ainda no formulário | 30 minutos | O rascunho da aba expira. É possível preencher o e-mail de novo. |
+| Rascunho de link anterior ao Auth | 30 minutos | A rotina remove o rascunho expirado após relê-lo em transação. Recibos vinculados ao cadastro são preservados. |
+| E-mail pendente ou e-mail confirmado com senha pendente | 7 dias | Abre a janela de retomada de 7 dias. |
+| Termos pendentes ou aceite desatualizado | 30 dias | Abre a mesma janela de retomada. |
+| Termos vigentes e maioridade ou Perfil pendentes | 90 dias | Abre a mesma janela de retomada. O rascunho local de Perfil dura 24 horas. |
+| Revisão etária, menoridade apurada, suspensão, exclusão em andamento, retenção, vínculo financeiro ou projeção pública | Revisão separada | Fora da triagem automática de abandono. |
+| Cadastro concluído, conta só no Auth, documento legado ou datas inconclusivas | Política da conta ou reconciliação | Fora do conjunto automático. |
 
-A simulação usa os documentos privados explicitamente incompletos, confirma a conta no Auth, considera as evidências de idade e a projeção pública, e calcula a inatividade a partir das datas confiáveis de criação, sessão, aceite ou decisão etária. Um UID existente só no Auth fica fora do conjunto automático. A conta concluída segue a política normal de conta. O rascunho de edição local do perfil tem prazo de 24 horas e guarda somente os campos permitidos.
+Na janela, o cadastro mostra a data da revisão no horário de Brasília. Ao final da janela, o cadastro recebe a marca `review_ready` e ainda pode ser retomado. A rotina relê o Auth e consulta os vínculos antes de alterar o marcador. Alterações concorrentes no Firestore são reavaliadas em transação. A conclusão limpa a marca na mesma transação. A rotina conserva a conta, os recibos e o apelido.
 
-Com **Auth e Firestore Emulator** ativos, execute na raiz do repositório.
+### Emulador
+
+Compile as Functions e execute na raiz do repositório com Auth e Firestore Emulator ativos.
 
 ```sh
+npm run functions:build
 node scripts/maintenance/audit-registration-draft-cleanup-emulator.mjs --dry-run
 ```
 
-O relatório reúne contagens de rascunhos temporários vencidos (`expiredDrafts`), válidos (`validDrafts`), recibos de contas (`accountReceipts`) e registros que ficaram fora da classificação (`unclassified`). Ele usa `expiresAtMs` com uma referência de horário fixa. A consulta é somente leitura e o resultado contém só contagens e metadados da execução. Recibos por UID preservam os dados já vinculados ao cadastro.
+O relatório mostra contagens por etapa, casos protegidos, documentos sem classificação e rascunhos. O modo `--apply` abre ou atualiza a janela e remove os rascunhos expirados. Para aplicar manualmente, informe `FIREBASE_PROJECT_ID` com um projeto sintético `demo-*` e os endereços locais explícitos em `FIREBASE_AUTH_EMULATOR_HOST` e `FIRESTORE_EMULATOR_HOST`.
 
-O objeto `accounts` separa contas na janela, candidatas, protegidas e sem classificação segura. O comando só aceita endereços locais. Por padrão usa o projeto `entretenimento-sexual`, Auth em `127.0.0.1:9099` e Firestore em `127.0.0.1:8080`. Para um emulador isolado, configure `FIREBASE_AUTH_EMULATOR_HOST`, `FIRESTORE_EMULATOR_HOST` e `FIREBASE_PROJECT_ID`.
+### Staging e produção
 
-Uma futura rotina de limpeza deve operar em lotes, permitir aviso e janela de retomada, conferir novamente o estado e os vínculos imediatamente antes da operação e proteger evidências com obrigação de retenção. Deve coordenar Auth, documento privado, apelido, projeções e recibos, com retomada idempotente após falha parcial. O relatório atual é somente leitura.
+A Function agendada `sweepIncompleteRegistrations` roda no minuto 17 de cada hora após a implantação. Cada execução processa até 100 documentos de cada consulta e guarda o cursor para continuar no próximo ciclo. O log apresenta somente totais da página. Para revisar candidatos no Firestore do respectivo ambiente, consulte `users` com `registrationAbandonment.status == review_ready` e confira novamente a etapa e os vínculos da conta. Exclusão de contas e liberação de apelidos exigem operação separada.
 
 ## Regra de liberação do novo cadastro
 

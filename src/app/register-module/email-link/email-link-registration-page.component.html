@@ -7,7 +7,7 @@
   <div class="auth-container email-link-layout">
     <section class="form-container" aria-labelledby="email-link-heading" [attr.aria-busy]="busy()">
       @if (mode === 'password' || linkState() === 'confirm') {
-        <app-register-progress [step]="mode === 'confirm' ? 'ageVerification' : 'passwordSetup'"
+        <app-register-progress [ownerUid]="ownerUid" [step]="mode === 'confirm' ? 'ageVerification' : 'passwordSetup'"
           [emailLinkFlow]="true" [compact]="true" />
       }
 

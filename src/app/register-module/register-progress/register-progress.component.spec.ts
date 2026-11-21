@@ -1,9 +1,40 @@
 import { TestBed } from '@angular/core/testing';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { BehaviorSubject } from 'rxjs';
+import type { IUserDados } from '@core/interfaces/iuser-dados';
+import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 
 import { RegisterProgressComponent } from './register-progress.component';
 
 describe('RegisterProgressComponent', () => {
+  let user$: BehaviorSubject<Partial<IUserDados> | null>;
+  beforeEach(() => {
+    user$ = new BehaviorSubject<Partial<IUserDados> | null>(null);
+    TestBed.configureTestingModule({ providers: [{ provide: CurrentUserStoreService, useValue: { user$ } }] });
+  });
+
+  it('atualiza o aviso de inatividade apenas para a conta da etapa', () => {
+    const fixture = TestBed.createComponent(RegisterProgressComponent);
+    fixture.componentRef.setInput('step', 'termsAcceptance');
+    fixture.componentRef.setInput('ownerUid', 'owner');
+    const review = { activityAtMs: 1, reviewAfterMs: Date.UTC(2026, 10, 25, 15) };
+    user$.next({
+      uid: 'owner', profileCompleted: false,
+      registrationAbandonment: { ...review, status: 'resume_window' },
+    });
+    fixture.detectChanges();
+    const view: HTMLElement = fixture.nativeElement;
+    expect(view.querySelector('[role="status"]')?.textContent).toContain('25/11/2026 12:00');
+    user$.next({
+      uid: 'owner', profileCompleted: false,
+      registrationAbandonment: { ...review, status: 'review_ready' },
+    });
+    fixture.detectChanges();
+    expect(view.querySelector('[role="status"]')?.textContent).toContain('Você ainda pode continuar');
+    user$.next({ ...user$.value, uid: 'other' });
+    fixture.detectChanges();
+    expect(view.querySelector('[role="status"]')).toBeNull();
+  });
   it.each([
     ['signup', 1, 'Conta', 'Confirmar seu e-mail'],
     ['emailVerification', 2, 'E-mail', 'Revisar e aceitar os termos'],
