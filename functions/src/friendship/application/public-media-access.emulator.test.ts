@@ -35,7 +35,7 @@ function pair() {
 
 async function seedUsers(a: string, b: string) {
   const account = (uid: string) => ({
-    uid, accountStatus: 'active', loginAllowed: true,
+    uid, accountStatus: 'active', loginAllowed: true, profileCompleted: true,
     acceptedTerms: {
       accepted: true, version: TERMS_ACCEPTANCE_VERSION,
       termsDocumentVersion: '2026-09-29.1',
