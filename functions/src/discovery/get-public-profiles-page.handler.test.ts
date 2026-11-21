@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { buildIntimateInterestOrder, optedInIntimateInterests } from './intimate-interest-order';
 
 import {
   discoveryReadRateLimitCost,
@@ -23,6 +24,25 @@ function profile(overrides: Record<string, unknown> = {}) {
 }
 
 describe('get-public-profiles-page boundary', () => {
+  it('prioriza interesse em comum com adesão bilateral e ignora códigos desconhecidos', () => {
+    const preferences = (optedIn: boolean, interests: Record<string, string>) => ({
+      visibility: { useIntimateInterestsInSuggestions: optedIn },
+      softRules: { intimateInterests: interests },
+    });
+    const viewer = optedInIntimateInterests(preferences(true, { shibari: 'explore', unexpected: 'familiar' }));
+    const candidates = new Map([
+      ['opted-out', preferences(false, { shibari: 'familiar' })],
+      ['no-overlap', preferences(true, { tantra: 'familiar', unexpected: 'familiar' })],
+      ['match', preferences(true, { shibari: 'familiar' })],
+    ]);
+    const uids = [...candidates.keys()];
+    assert.deepEqual(buildIntimateInterestOrder(viewer, uids, candidates),
+      ['match', 'opted-out', 'no-overlap']);
+    candidates.set('match', preferences(false, { shibari: 'familiar' }));
+    assert.equal(buildIntimateInterestOrder(viewer, uids, candidates), undefined);
+    assert.equal(buildIntimateInterestOrder(optedInIntimateInterests({}), uids, candidates), undefined);
+  });
+
   it('serializa perfil público sem depender de assurance etário', () => {
     const serialized = serializePublicProfileForDiscovery(
       'profile-1',

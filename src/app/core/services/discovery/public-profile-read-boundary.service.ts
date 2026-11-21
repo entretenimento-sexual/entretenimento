@@ -46,6 +46,7 @@ export interface PublicProfileReadRequest {
   readonly uids?: readonly string[];
   readonly filters?: PublicProfileReadFilters | null;
   readonly nearby?: PublicProfileNearbyRequest | null;
+  readonly suggestByIntimateInterests?: boolean;
 }
 
 export interface PublicProfileReadResponse {
@@ -54,6 +55,7 @@ export interface PublicProfileReadResponse {
   readonly reachedEnd: boolean;
   readonly fetchedAt: number;
   readonly scanned: number;
+  readonly suggestedOrder?: readonly string[];
 }
 
 @Injectable({ providedIn: 'root' })

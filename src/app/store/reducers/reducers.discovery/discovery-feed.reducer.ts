@@ -66,6 +66,7 @@ export const discoveryFeedReducer = createReducer(
             loadingMore: false,
             refreshing: hasItems,
             error: null,
+            suggestedOrders: undefined,
           },
         },
       };
@@ -95,6 +96,10 @@ export const discoveryFeedReducer = createReducer(
       const queryKey = buildDiscoveryFeedQueryKey(request);
       const current = getSlice(state, queryKey);
       const fromCache = page.source === 'cache';
+      const previousOrders = append ? current.suggestedOrders : undefined;
+      const suggestedOrders = !fromCache && page.suggestedOrder
+        ? [...(previousOrders ?? []), page.suggestedOrder]
+        : previousOrders;
 
       return {
         ...state,
@@ -103,6 +108,7 @@ export const discoveryFeedReducer = createReducer(
           [queryKey]: {
             ...current,
             items: mergeProfiles(current.items, page.items, append),
+            suggestedOrders,
             nextCursor: page.nextCursor,
             reachedEnd: page.reachedEnd,
             loadingInitial: false,

@@ -48,6 +48,7 @@ export function createEmptyPreferenceProfile(userId: string): PreferenceProfile 
     visibility: {
       showPreferenceBadges: true,
       showSeekingPublicly: false,
+      useIntimateInterestsInSuggestions: false,
       showIntentPublicly: false,
       discoveryMode: 'standard',
     },
@@ -128,6 +129,7 @@ export function normalizePreferenceProfile(
       showPreferenceBadges:
         source.visibility?.showPreferenceBadges !== false,
       showSeekingPublicly: source.visibility?.showSeekingPublicly === true,
+      useIntimateInterestsInSuggestions: source.visibility?.useIntimateInterestsInSuggestions === true,
       shareConversationPace: conversationPace !== null &&
         source.visibility?.shareConversationPace === true,
       showIntentPublicly: source.visibility?.showIntentPublicly === true,

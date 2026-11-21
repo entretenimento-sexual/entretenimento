@@ -61,6 +61,7 @@ export interface PreferenceVisibilitySettings {
   /** Consentimento distinto para publicar os perfis que deseja conhecer. */
   showSeekingPublicly?: boolean;
   shareConversationPace?: boolean;
+  useIntimateInterestsInSuggestions?: boolean;
   showIntentPublicly: boolean;
   discoveryMode: DiscoveryMode;
 }

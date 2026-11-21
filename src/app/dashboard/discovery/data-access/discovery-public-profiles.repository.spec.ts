@@ -18,7 +18,11 @@ describe('DiscoveryPublicProfilesRepository / sessão e SWR', () => {
       deleteByPrefix$: vi.fn(() => of(void 0)),
     };
     const backend = {
-      read$: vi.fn(() => of({ items: [], nextCursor: null, reachedEnd: true, fetchedAt: 2 })),
+      read$: vi.fn(() => of({
+        items: [{ uid: 'one', nickname: 'One' }, { uid: 'two', nickname: 'Two' }],
+        suggestedOrder: ['two', 'unknown', 'one'],
+        nextCursor: null, reachedEnd: true, fetchedAt: 2,
+      })),
     };
     TestBed.configureTestingModule({ providers: [
       DiscoveryPublicProfilesRepository,
@@ -32,6 +36,13 @@ describe('DiscoveryPublicProfilesRepository / sessão e SWR', () => {
     expect(cache.get).not.toHaveBeenCalled();
     expect(output).toHaveLength(1);
     expect(output[0].source).toBe('server');
+    expect(output[0].suggestedOrder).toEqual(['two', 'one']);
+    expect(cache.set).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.not.objectContaining({ suggestedOrder: expect.anything() }),
+      expect.any(Number),
+      { persist: true }
+    );
 
     repository.invalidateViewerCache$('user-a').subscribe();
     expect(cache.deleteByPrefix$).toHaveBeenCalledWith(

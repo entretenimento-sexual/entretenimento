@@ -12,6 +12,8 @@ export interface DiscoveryFeedSlice {
   readonly refreshing: boolean;
   readonly error: string | null;
   readonly lastLoadedAt: number | null;
+  /** Ordens da sessão, excluídas do cache persistente. */
+  readonly suggestedOrders?: readonly (readonly string[])[];
 }
 
 export interface DiscoveryFeedState {

@@ -33,6 +33,7 @@ export interface DiscoveryFeedPage {
   readonly reachedEnd: boolean;
   readonly source: DiscoveryPageSource;
   readonly fetchedAt: number;
+  readonly suggestedOrder?: readonly string[];
 }
 
 export interface CachedDiscoveryFeedPage {

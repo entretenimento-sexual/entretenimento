@@ -105,9 +105,11 @@ describe('PreferenceProfileFormComponent', () => {
 
     const shibari = view.querySelector<HTMLSelectElement>('#intimate-interest-shibari')!;
     const bdsm = view.querySelector<HTMLSelectElement>('#intimate-interest-bdsm')!;
+    const optIn = view.querySelector<HTMLInputElement>('[formControlName="useIntimateInterestsInSuggestions"]')!;
     expect(shibari.value).toBe('familiar');
     expect(bdsm.value).toBe('');
     expect(bdsm.disabled).toBe(false);
+    expect(optIn.checked).toBe(false);
     expect(view.querySelector('.intimate-interests > summary')?.textContent).toContain('1 interesse');
 
     bdsm.value = 'explore';
@@ -117,6 +119,7 @@ describe('PreferenceProfileFormComponent', () => {
 
     shibari.value = '';
     shibari.dispatchEvent(new Event('change'));
+    optIn.click();
     fixture.detectChanges();
     fixture.componentInstance.submit();
 
@@ -125,6 +128,7 @@ describe('PreferenceProfileFormComponent', () => {
         sexualPractices: ['bdsm'],
         intimateInterests: { bdsm: 'explore' },
       }),
+      visibility: expect.objectContaining({ useIntimateInterestsInSuggestions: true }),
     }));
   });
 
@@ -190,6 +194,7 @@ describe('PreferenceProfileFormComponent', () => {
     expect(mapped.visibility).toEqual({
       ...profile.visibility,
       shareConversationPace: false,
+      useIntimateInterestsInSuggestions: false,
       showSeekingPublicly: false,
     });
 

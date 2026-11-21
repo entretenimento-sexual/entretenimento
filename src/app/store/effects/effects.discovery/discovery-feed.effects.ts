@@ -90,6 +90,10 @@ export class DiscoveryFeedEffects {
       exhaustMap(([[{ request }, slice]]) =>
         this.repository.loadPage$(request, slice.nextCursor).pipe(
           takeUntil(this.actions$.pipe(ofType(DiscoveryActions.clearDiscoveryFeeds))),
+          takeUntil(this.actions$.pipe(
+            ofType(DiscoveryActions.loadDiscoveryFirstPage, DiscoveryActions.refreshDiscoveryFeed),
+            filter((action) => buildDiscoveryFeedQueryKey(action.request) === buildDiscoveryFeedQueryKey(request))
+          )),
           takeUntil(this.access.authUid$.pipe(filter(uid => uid !== request.viewerUid))),
           map((page) =>
             DiscoveryActions.loadDiscoveryPageSuccess({

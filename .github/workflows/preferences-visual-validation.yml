@@ -160,9 +160,12 @@ jobs:
             run_checked "$OUT/free/${size}-intimate-interests.metrics.log" "async (page) => {
               const section = page.locator('.intimate-interests');
               await section.locator(':scope > summary').click();
+              const optIn = section.getByRole('checkbox', { name: 'Usar meus interesses nas sugestões' });
+              if (await optIn.isChecked()) throw new Error('Private suggestions must start off');
               await section.getByText('Dinâmicas de poder', { exact: true }).click();
               const interest = section.getByLabel('BDSM', { exact: true });
               await interest.selectOption('explore');
+              await optIn.check();
               await page.waitForFunction(() =>
                 document.querySelector('.intimate-interests > summary')?.textContent?.includes('1 interesse'));
               const metrics = await interest.evaluate((control) => ({

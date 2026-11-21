@@ -378,6 +378,7 @@ export class DiscoveryPublicProfilesFacade {
         fallbackLocation: runtimeViewerLocation,
         onlinePresenceByUid,
         applyVisibility: true,
+        suggestedOrders: slice.suggestedOrders,
       });
       const filteredByPreferences = this.wasFilteredByPreferences(result);
       const profiles = result.profiles

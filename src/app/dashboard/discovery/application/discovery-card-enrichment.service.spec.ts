@@ -106,6 +106,24 @@ describe('DiscoveryCardEnrichmentService preference pipeline', () => {
     ]);
   });
 
+  it('aplica a ordem sugerida entre perfis comparáveis somente após os filtros', () => {
+    const viewer = user('viewer', {
+      discoveryPreferences: preferences({ ageRange: { min: 25, max: 40 } }),
+    });
+    const profiles = [candidate('one', { age: 30 }), candidate('two', { age: 30 }), candidate('young', { age: 20 })];
+    const input = { profiles, currentUser: viewer, mode: 'all' as const, applyVisibility: false };
+    const baseline = service.buildCards(input).map(({ uid }) => uid);
+    const recommended = [...baseline].reverse();
+    const result = service.buildCards({
+      ...input,
+      suggestedOrders: [['young', ...recommended]],
+    });
+
+    expect(baseline).toHaveLength(2);
+    expect(result.map(({ uid }) => uid)).toEqual(recommended);
+    expect(service.buildCards(input).map(({ uid }) => uid)).toEqual(baseline);
+  });
+
   it('Básico mantém todos e ordena por prática preferida', () => {
     const viewer = subscribedUser('viewer', 'basic', {
       discoveryPreferences: preferences({

@@ -265,6 +265,37 @@ try {
   assert.deepEqual((await getStarter({ chatId })).data, { pace: null });
   await updateDoc(bPreferences, { 'visibility.shareConversationPace': true });
   console.log('[bilateral-two-sessions:e2e] PASS private pace, mutual suggestion and consent revocation');
+
+  const neutralUid = 'bilateral-neutral-' + id;
+  await seedPublicMediaCompliance(db, [neutralUid]);
+  await Promise.all([
+    ...[aUid, bUid, neutralUid].map((uid) => db.doc('users/' + uid).set({
+      identityCode: 'mulher', orientation: 'bissexual',
+    }, { merge: true })),
+    db.doc('public_profiles/' + neutralUid).set({
+      ...profile(neutralUid), updatedAt: new Date(Date.now() + 10_000),
+    }),
+    updateDoc(aPreferences, { 'softRules.intimateInterests': { shibari: 'explore' } }),
+    updateDoc(bPreferences, { 'softRules.intimateInterests': { shibari: 'familiar' } }),
+  ]);
+  const listWithSuggestions = async () => (await aDiscovery({
+    suggestByIntimateInterests: true, pageSize: 24,
+  })).data;
+  assert.equal((await listWithSuggestions()).suggestedOrder, undefined);
+  await updateDoc(aPreferences, { 'visibility.useIntimateInterestsInSuggestions': true });
+  assert.equal((await listWithSuggestions()).suggestedOrder, undefined);
+  await updateDoc(bPreferences, { 'visibility.useIntimateInterestsInSuggestions': true });
+  const suggested = await listWithSuggestions();
+  const listed = suggested.items.map(({ uid }) => uid);
+  assert.ok(listed.indexOf(neutralUid) >= 0 && listed.indexOf(neutralUid) < listed.indexOf(bUid));
+  assert.deepEqual(suggested.suggestedOrder, [bUid, neutralUid]);
+  assert.equal(JSON.stringify(suggested).includes('shibari'), false);
+  assert.equal(JSON.stringify(suggested).includes('useIntimateInterestsInSuggestions'), false);
+  assert.equal((await aDiscovery({ uids: [bUid, neutralUid], suggestByIntimateInterests: true })).data.suggestedOrder, undefined);
+  await updateDoc(bPreferences, { 'visibility.useIntimateInterestsInSuggestions': false });
+  assert.equal((await listWithSuggestions()).suggestedOrder, undefined);
+  console.log('[bilateral-two-sessions:e2e] PASS private discovery suggestions and consent revocation');
+
   await reconcile({ peerUid: bUid });
   const firstMessage = (await bSend({
     chatId, content: 'Mensagem antes do bloqueio',

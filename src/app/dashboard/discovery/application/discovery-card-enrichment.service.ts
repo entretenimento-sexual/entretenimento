@@ -22,6 +22,7 @@ import {
 import {
   scoreDiscoveryProfiles,
   DiscoveryScoreBreakdown,
+  type ScoredDiscoveryProfile,
 } from 'src/app/core/utils/discovery/discovery-profile-score.utils';
 import { compareDiscoverableProfilesStable } from 'src/app/core/utils/discovery/discovery-profile-sort.utils';
 import {
@@ -50,6 +51,7 @@ export interface DiscoveryCardEnrichmentInput {
   fallbackLocation?: SafeGeoCoordinates | null;
   onlinePresenceByUid?: Map<string, IUserDados> | null;
   applyVisibility?: boolean;
+  suggestedOrders?: readonly (readonly string[])[];
 }
 
 type DiscoveryCardRejectionReason =
@@ -62,6 +64,9 @@ type DiscoveryCardRejectionReason =
 type EvaluatedCard = PublicProfileCard & {
   preferenceRejectionReason?: DiscoveryPreferenceRejectionReason | null;
 };
+
+// O score atual de Pessoas tem escala de 0 a aproximadamente 100.
+const MAX_SUGGESTION_SCORE_DEVIATION = 2;
 
 export interface DiscoveryCardRejectedItem {
   uid: string | null;
@@ -186,7 +191,8 @@ export class DiscoveryCardEnrichmentService {
       return compareDiscoverableProfilesStable(a.profile, b.profile);
     });
 
-    const profiles = scored.map(({ profile }) => this.stripInternalFields(profile));
+    const profiles = this.applySuggestedOrders(scored, input.suggestedOrders)
+      .map(({ profile }) => this.stripInternalFields(profile));
     const scores = scored.map((item) => ({
       uid: item.profile.uid,
       nickname: item.profile.nickname ?? null,
@@ -208,6 +214,33 @@ export class DiscoveryCardEnrichmentService {
     };
 
     this.debugCompatibleMode(mode, candidates, result);
+    return result;
+  }
+
+  private applySuggestedOrders(
+    scored: ScoredDiscoveryProfile<EvaluatedCard>[],
+    orders: readonly (readonly string[])[] = []
+  ): ScoredDiscoveryProfile<EvaluatedCard>[] {
+    if (!orders.length) return scored;
+
+    const result = [...scored];
+    for (const order of orders) {
+      const priority = new Map(order.map((uid, index) => [uid, index]));
+      const slots = result.flatMap(({ profile }, index) => priority.has(profile.uid) ? [index] : []);
+      for (let start = 0; start < slots.length;) {
+        const firstScore = result[slots[start]].score.total;
+        let end = start + 1;
+        while (end < slots.length
+          && firstScore - result[slots[end]].score.total <= MAX_SUGGESTION_SCORE_DEVIATION) {
+          end += 1;
+        }
+        const comparableSlots = slots.slice(start, end);
+        const group = comparableSlots.map((slot) => result[slot]);
+        group.sort((a, b) => priority.get(a.profile.uid)! - priority.get(b.profile.uid)!);
+        comparableSlots.forEach((slot, index) => { result[slot] = group[index]; });
+        start = end;
+      }
+    }
     return result;
   }
 

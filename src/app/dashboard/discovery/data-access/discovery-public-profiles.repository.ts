@@ -135,18 +135,24 @@ export class DiscoveryPublicProfilesRepository {
       mode: request.mode,
       pageSize: request.pageSize,
       cursor,
+      ...(request.mode === 'all' ? { suggestByIntimateInterests: true } : {}),
     }).pipe(
       map((payload) => {
         const items = (payload.items ?? [])
           .map((raw) => mapPublicProfileCard(raw))
           .filter((item): item is PublicProfileCard => item !== null);
         const nextCursor = normalizeDiscoveryCursor(payload.nextCursor);
+        const availableUids = new Set(items.map(({ uid }) => uid));
+        const suggestedOrder = Array.isArray(payload.suggestedOrder)
+          ? [...new Set(payload.suggestedOrder)].filter((uid) => availableUids.has(uid))
+          : [];
 
         return {
           items,
           nextCursor,
           reachedEnd: payload.reachedEnd === true || nextCursor === null,
           source: 'server' as const,
+          ...(suggestedOrder.length > 1 ? { suggestedOrder } : {}),
           fetchedAt:
             Number.isFinite(payload.fetchedAt) && payload.fetchedAt > 0
               ? Math.trunc(payload.fetchedAt)

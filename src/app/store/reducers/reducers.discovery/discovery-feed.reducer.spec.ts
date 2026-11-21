@@ -89,6 +89,25 @@ describe('discoveryFeedReducer', () => {
     expect(state.byQuery[queryKey]?.lastLoadedAt).toBe(1_700_000_100_000);
   });
 
+  it('descarta a ordenação por interesses ao iniciar nova consulta', () => {
+    const loaded = discoveryFeedReducer(initialDiscoveryFeedState, DiscoveryActions.loadDiscoveryPageSuccess({
+      request,
+      append: false,
+      page: {
+        items: [firstProfile, secondProfile],
+        suggestedOrder: [secondProfile.uid, firstProfile.uid],
+        nextCursor: null,
+        reachedEnd: true,
+        source: 'server',
+        fetchedAt: 1,
+      },
+    }));
+    expect(loaded.byQuery[queryKey]?.suggestedOrders).toEqual([[secondProfile.uid, firstProfile.uid]]);
+    const refreshing = discoveryFeedReducer(loaded, DiscoveryActions.refreshDiscoveryFeed({ request }));
+    expect(refreshing.byQuery[queryKey]?.suggestedOrders).toBeUndefined();
+    expect(refreshing.byQuery[queryKey]?.items).toEqual([firstProfile, secondProfile]);
+  });
+
   it('deve anexar nova página sem duplicar uid e atualizar item existente', () => {
     const firstState = discoveryFeedReducer(
       initialDiscoveryFeedState,

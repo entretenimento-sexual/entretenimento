@@ -50,6 +50,7 @@ export function buildPreferenceProfileForm(fb: FormBuilder) {
       showSeekingPublicly: fb.nonNullable.control(false),
       conversationPace: fb.nonNullable.control<ConversationPace | ''>(''),
       shareConversationPace: fb.nonNullable.control(false),
+      useIntimateInterestsInSuggestions: fb.nonNullable.control(false),
       intimateInterests: fb.record(Object.fromEntries(
         INTIMATE_INTEREST_OPTIONS.map(({ key }) => [
           key,
@@ -84,6 +85,7 @@ export function mapPreferenceProfileToFormValue(profile: PreferenceProfile): Raw
     showSeekingPublicly: profile.visibility?.showSeekingPublicly === true,
     conversationPace: profile.conversationPace ?? '',
     shareConversationPace: profile.visibility?.shareConversationPace === true,
+    useIntimateInterestsInSuggestions: profile.visibility?.useIntimateInterestsInSuggestions === true,
     intimateInterests: Object.fromEntries(
       INTIMATE_INTEREST_OPTIONS.map(({ key }) => [key, intimateInterests[key] ?? ''])
     ),
@@ -149,6 +151,8 @@ export function mapFormValueToPreferenceProfile(
       ...current.visibility,
       showSeekingPublicly: raw['showSeekingPublicly'] === true,
       shareConversationPace: conversationPace !== null && raw['shareConversationPace'] === true,
+      useIntimateInterestsInSuggestions:
+        (raw['useIntimateInterestsInSuggestions'] ?? current.visibility.useIntimateInterestsInSuggestions) === true,
     },
     updatedAt: Date.now(),
   };

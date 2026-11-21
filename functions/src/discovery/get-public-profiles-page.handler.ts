@@ -9,12 +9,14 @@
 
 import { FieldPath, Timestamp } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { warn } from 'firebase-functions/logger';
 
 import {
   assertInteractionAccess,
 } from '../account_lifecycle/interaction-access.policy';
 import { evaluateCanonicalOwnerLifecycle } from '../account_lifecycle/public-owner-exposure.policy';
 import { evaluateProfileCompatibility } from './profile-compatibility.server';
+import { buildIntimateInterestOrder, optedInIntimateInterests } from './intimate-interest-order';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
@@ -61,6 +63,7 @@ interface DiscoveryPageRequest {
   uids?: unknown;
   filters?: DiscoveryFiltersInput | null;
   nearby?: DiscoveryNearbyInput | null;
+  suggestByIntimateInterests?: unknown;
 }
 
 interface DiscoveryPageCursor {
@@ -94,6 +97,7 @@ interface DiscoveryPageResponse {
   reachedEnd: boolean;
   fetchedAt: number;
   scanned: number;
+  suggestedOrder?: string[];
 }
 
 const MIN_PAGE_SIZE = 1;
@@ -580,6 +584,24 @@ export function selectVisibleDiscoveryBatch(
   return { items, filledAt: null };
 }
 
+async function getIntimateInterestOrder(
+  viewerUid: string,
+  candidates: readonly string[]
+): Promise<string[] | undefined> {
+  if (candidates.length < 2) return undefined;
+
+  const viewer = await db.doc(`users/${viewerUid}/preferences/profile`).get();
+  const viewerInterests = optedInIntimateInterests(viewer.data());
+  if (!viewerInterests.size) return undefined;
+
+  // A leitura se limita aos candidatos já liberados desta página (até 120).
+  const snapshots = await db.getAll(
+    ...candidates.map((uid) => db.doc(`users/${uid}/preferences/profile`))
+  );
+  const profiles = new Map(candidates.map((uid, index) => [uid, snapshots[index].data()]));
+  return buildIntimateInterestOrder(viewerInterests, candidates, profiles);
+}
+
 async function getNearbyProfiles(
   nearby: DiscoveryNearby,
   pageSize: number,
@@ -809,6 +831,10 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
     let scanned = 0;
     let reachedEnd = false;
     const items: Record<string, unknown>[] = [];
+    const considerIntimateInterests = mode === 'all'
+      && request.data?.suggestByIntimateInterests === true
+      && Object.values(filters).every((value) => value === null);
+    const suggestionCandidates: string[] = [];
 
     while (
       items.length < pageSize
@@ -874,11 +900,19 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
         nextCursor: null, reachedEnd: true,
         fetchedAt: nowMs, scanned,
       }, viewerUid);
-      const allowedUids = new Set(visibleBatch.items.map((item) => item['uid']));
+      const visibleByUid = new Map(visibleBatch.items.map((item) => [item['uid'], item]));
       const selected = selectVisibleDiscoveryBatch(
-        candidates, allowedUids, pageSize - items.length
+        candidates, new Set(visibleByUid.keys()), pageSize - items.length
       );
       items.push(...selected.items);
+      if (considerIntimateInterests) {
+        for (const item of selected.items) {
+          const uid = cleanUid(item['uid']);
+          if (uid && uid !== viewerUid && visibleByUid.get(uid)?.['viewerCompatibilityAllowed'] === true) {
+            suggestionCandidates.push(uid);
+          }
+        }
+      }
       const pageFull = selected.filledAt !== null;
       cursor = selected.filledAt ?? batchCursor;
       if (!pageFull && snapshot.size < currentBatchSize) {
@@ -886,8 +920,15 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
       }
     }
 
+    const suggestedOrder = await getIntimateInterestOrder(viewerUid, suggestionCandidates)
+      .catch(() => {
+        warn('[discovery] Falha ao consultar afinidade opcional.');
+        return undefined;
+      });
+
     return {
       items,
+      ...(suggestedOrder ? { suggestedOrder } : {}),
       nextCursor: reachedEnd ? null : cursor,
       reachedEnd,
       fetchedAt: nowMs,

@@ -82,12 +82,12 @@
       </strong>
       <span class="app-disclosure__state">{{ intimateInterestSummary() || 'Opcional' }}</span>
     </summary>
-    <div class="preference-group__content app-disclosure__content" formGroupName="intimateInterests">
+    <div class="preference-group__content app-disclosure__content">
       <p class="intimate-interests__privacy field-help">
         <i class="fa-solid fa-lock" aria-hidden="true"></i>
         <span>Escolha o que você quer explorar ou o que já faz parte da sua vida. Suas respostas ficam privadas.</span>
       </p>
-      <div class="intimate-interests__groups">
+      <div class="intimate-interests__groups" formGroupName="intimateInterests">
         @for (group of intimateInterestGroups; track group.key) {
           <details class="intimate-interests__group app-disclosure">
             <summary class="app-disclosure__summary">
@@ -110,6 +110,16 @@
             </div>
           </details>
         }
+      </div>
+      <div class="seeking-visibility">
+        <label class="app-choice">
+          <input type="checkbox" formControlName="useIntimateInterestsInSuggestions"
+            aria-describedby="intimateSuggestionsHelp" />
+          <span>Usar meus interesses nas sugestões</span>
+        </label>
+        <p id="intimateSuggestionsHelp" class="field-help">
+          Em Pessoas, interesses em comum ajudam a ordenar perfis quando ambos autorizam.
+        </p>
       </div>
     </div>
   </details>
