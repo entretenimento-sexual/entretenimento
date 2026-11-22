@@ -550,13 +550,23 @@ export function normalizeProfileDiscoveryFields(
   };
 }
 
+type PublicProfileDiscoverySource = ProfileDiscoverySource & { showOrientationPublicly?: unknown };
+
+export function resolvePublicProfileOrientation(
+  source: PublicProfileDiscoverySource
+): string | null {
+  if (source.showOrientationPublicly !== true || typeof source.orientation !== 'string') {
+    return null;
+  }
+  return source.orientation.trim() || null;
+}
+
 export function normalizePublicProfileDiscoveryFields(
-  source: ProfileDiscoverySource & { showOrientationPublicly?: unknown }
+  source: PublicProfileDiscoverySource
 ): CanonicalProfileDiscoveryFields {
-  if (source.showOrientationPublicly !== false) return normalizeProfileDiscoveryFields(source);
   return normalizeProfileDiscoveryFields({
     ...source,
-    orientation: undefined,
+    orientation: resolvePublicProfileOrientation(source),
     sexualOrientation: undefined,
     orientacao: undefined,
     orientacaoSexual: undefined,

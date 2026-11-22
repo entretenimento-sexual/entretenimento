@@ -4,6 +4,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { hasAcceptedCurrentTerms } from '../compliance/platform-legal.constants';
+import { resolvePublicProfileOrientation } from '../discovery/profile-discovery-normalization';
 import { isNicknameIndexKey, resolveNicknameNormalized } from '../public_index/nickname-key.policy';
 
 export const ACCOUNT_LIFECYCLE_REGION = FUNCTIONS_REGION;
@@ -219,7 +220,7 @@ export function buildPublicProfileSeed(
     municipio: user.municipio ?? null,
     estado: user.estado ?? null,
     gender: user.gender ?? null,
-    orientation: user.showOrientationPublicly === false ? null : user.orientation ?? null,
+    orientation: resolvePublicProfileOrientation(user),
     role: 'free',
     createdAt: now,
     updatedAt: now,

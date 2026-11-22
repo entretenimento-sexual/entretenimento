@@ -18,6 +18,12 @@ import {
   publicPreferenceProjectionMatches,
 } from './public-preference-projection';
 
+import {
+  normalizeProfileDiscoveryFields,
+  normalizePublicProfileDiscoveryFields,
+  resolvePublicProfileOrientation,
+} from './profile-discovery-normalization';
+
 const CANONICAL = {
   normalizedGender: 'woman' as const,
   normalizedOrientation: 'bisexual' as const,
@@ -27,6 +33,25 @@ const CANONICAL = {
 };
 
 const PUBLIC_PROFILE_ID = 'profile-123e4567-e89b-42d3-a456-426614174000';
+
+test('a projeção pública exige autorização booleana e usa somente a orientação canônica', () => {
+  const profile = { gender: 'mulher', orientation: 'bissexual', orientacao: 'pansexual' };
+  for (const consent of [undefined, null, false, 'true']) {
+    const source = { ...profile, showOrientationPublicly: consent };
+    assert.equal(resolvePublicProfileOrientation(source), null);
+    assert.equal(normalizePublicProfileDiscoveryFields(source).normalizedOrientation, 'unknown');
+    assert.equal(normalizePublicProfileDiscoveryFields(source).compatibilityReady, false);
+    assert.equal(normalizeProfileDiscoveryFields(source).normalizedOrientation, 'bisexual');
+  }
+
+  const optedIn = { ...profile, showOrientationPublicly: true };
+  assert.equal(resolvePublicProfileOrientation(optedIn), 'bissexual');
+  assert.equal(normalizePublicProfileDiscoveryFields(optedIn).normalizedOrientation, 'bisexual');
+  assert.equal(
+    normalizePublicProfileDiscoveryFields({ ...optedIn, orientation: null }).normalizedOrientation,
+    'unknown'
+  );
+});
 
 test('ignora billing quando discovery já está sincronizado', () => {
   assert.equal(publicProfileDiscoveryProjectionMatches({

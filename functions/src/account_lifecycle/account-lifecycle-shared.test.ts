@@ -178,6 +178,18 @@ describe('account lifecycle shared guards', () => {
     assert.equal(resolveNicknameNormalized({ nickname: '  .Nome-  ' }), '.nome-');
   });
 
+  it('republica a orientação na restauração somente com autorização explícita', () => {
+    const user = eligibleUser({ orientation: 'bissexual' });
+    assert.equal(buildPublicProfileSeed(user, 'user-1', 123).orientation, null);
+    assert.equal(buildPublicProfileSeed({
+      ...user, showOrientationPublicly: false,
+    }, 'user-1', 123).orientation, null);
+    assert.equal(buildPublicProfileSeed({
+      ...user, showOrientationPublicly: true,
+    }, 'user-1', 123).orientation, user.orientation);
+    assert.equal(user.orientation, 'bissexual');
+  });
+
   it('não projeta papel financeiro no perfil público', () => {
     const seed = buildPublicProfileSeed(
       eligibleUser({ role: 'vip' }),

@@ -181,6 +181,35 @@ describe('Firestore Rules / public profile eligibility', () => {
     await testEnv.cleanup();
   });
 
+  it.each([undefined, null, false])(
+    'nega republicar orientação sem autorização explícita (%s)',
+    async (consent) => {
+      await seedUser({
+        orientation: 'bissexual',
+        ...(consent === undefined ? {} : { showOrientationPublicly: consent }),
+      });
+      await seedPublicProfile({ orientation: null });
+      await assertFails(updateDoc(doc(authenticatedDb(), 'public_profiles', UID), {
+        orientation: 'bissexual', updatedAt: serverTimestamp(),
+      }));
+    }
+  );
+
+  it('permite somente o valor autorizado e a remoção da orientação pública', async () => {
+    await seedUser({ orientation: 'bissexual', showOrientationPublicly: true });
+    await seedPublicProfile({ orientation: null });
+    const profile = doc(authenticatedDb(), 'public_profiles', UID);
+    await assertFails(updateDoc(profile, {
+      orientation: 'pansexual', updatedAt: serverTimestamp(),
+    }));
+    await assertSucceeds(updateDoc(profile, {
+      orientation: 'bissexual', updatedAt: serverTimestamp(),
+    }));
+    await assertSucceeds(updateDoc(profile, {
+      orientation: null, updatedAt: serverTimestamp(),
+    }));
+  });
+
   it('nega criar a projeção pelo cliente mesmo com conta plenamente elegível', async () => {
     await seedUser();
     const db = authenticatedDb();

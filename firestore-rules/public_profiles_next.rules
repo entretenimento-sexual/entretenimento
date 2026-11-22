@@ -127,7 +127,8 @@ match /public_profiles/{userId} {
     let user = getAfter(privateUserPath()).data;
     let consent = user.get("showOrientationPublicly", null);
     let projected = request.resource.data.get("orientation", null);
-    return consent == null || projected == null
+    return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["orientation"])
+      || projected == null
       || (consent == true && projected == user.get("orientation", null));
   }
 

@@ -11,7 +11,10 @@ import {
 } from '../identity/public-profile-id';
 import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
 
-import { normalizePublicProfileDiscoveryFields } from './profile-discovery-normalization';
+import {
+  normalizePublicProfileDiscoveryFields,
+  resolvePublicProfileOrientation,
+} from './profile-discovery-normalization';
 import {
   buildPublicPreferenceProjection,
   publicPreferenceProjectionMatches,
@@ -122,9 +125,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
       const publicAvatar = buildPublicAvatarProjection(user);
       const publicDescription = buildPublicDescriptionProjection(user);
       const currentPublic = publicProfileSnapshot.data() ?? {};
-      const publicOrientation = user['showOrientationPublicly'] === true
-        ? user['orientation'] || null
-        : user['showOrientationPublicly'] === false ? null : currentPublic['orientation'] ?? null;
+      const publicOrientation = resolvePublicProfileOrientation(user);
 
       if (
         !publicProfileHasPrivateEmailFields(currentPublic) &&
