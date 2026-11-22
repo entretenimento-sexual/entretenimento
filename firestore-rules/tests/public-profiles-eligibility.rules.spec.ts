@@ -13,11 +13,13 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   serverTimestamp,
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import {
   afterAll,
@@ -550,6 +552,55 @@ describe('Firestore Rules / public profile eligibility', () => {
         updatedAt: serverTimestamp(),
       })
     );
+  });
+
+  it('notifica o visitante que observa a projeção pública ao suspender a conta', async () => {
+    await seedUser();
+    await seedVisitor();
+    await seedPublicProfile();
+    const videoId = 'playing-video';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'public_profiles', UID, 'public_videos', videoId), {
+        visibility: 'PUBLIC',
+        moderationStatus: 'APPROVED',
+      });
+    });
+
+    const profile = doc(visitorDb(), 'public_profiles', UID);
+    const available: boolean[] = [];
+    const unsubscribe = onSnapshot(profile, { includeMetadataChanges: true }, {
+      next: (snapshot) => {
+        if (!snapshot.metadata.fromCache) available.push(snapshot.exists());
+      },
+      error: () => available.push(false),
+    });
+
+    try {
+      await expect.poll(() => available).toEqual([true]);
+
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const db = context.firestore();
+        const batch = writeBatch(db);
+        batch.update(doc(db, 'users', UID), {
+          accountStatus: 'self_suspended',
+          suspended: true,
+          publicVisibility: 'hidden',
+          interactionBlocked: true,
+        });
+        batch.delete(doc(db, 'public_profiles', UID));
+        await batch.commit();
+      });
+
+      await expect.poll(() => available).toEqual([true, false]);
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const video = await getDoc(doc(
+          context.firestore(), 'public_profiles', UID, 'public_videos', videoId
+        ));
+        expect(video.exists()).toBe(true);
+      });
+    } finally {
+      unsubscribe();
+    }
   });
 
   it('nega GET de perfil legado com email a terceiros', async () => {

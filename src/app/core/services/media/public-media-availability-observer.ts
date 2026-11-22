@@ -44,21 +44,16 @@ export function watchPublicMediaAvailability$(
 }
 
 /**
- * Known denial on either independent source must revoke immediately, without
- * waiting for the other source's legacy reconciliation. When either source
- * is initially unknown, do not treat that uncertainty as an explicit denial.
+ * A known denial revokes immediately, including while another source is
+ * still resolving. Unknown sources cannot grant access by themselves.
  */
 export function combinePublicVideoExposure$(
-  published$: Observable<boolean>,
-  bilateral$: Observable<boolean>
+  ...sources: [Observable<boolean>, Observable<boolean>, ...Observable<boolean>[]]
 ): Observable<boolean> {
-  return combineLatest([
-    published$.pipe(startWith(null)),
-    bilateral$.pipe(startWith(null)),
-  ]).pipe(
-    map(([published, bilateral]) => {
-      if (published === false || bilateral === false) return false;
-      if (published === true && bilateral === true) return true;
+  return combineLatest(sources.map((source$) => source$.pipe(startWith(null)))).pipe(
+    map((availability) => {
+      if (availability.includes(false)) return false;
+      if (availability.every((allowed) => allowed === true)) return true;
       return null;
     }),
     filter((allowed): allowed is boolean => allowed !== null),

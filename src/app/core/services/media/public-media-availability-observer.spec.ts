@@ -100,6 +100,20 @@ describe('public media projection observer', () => {
 });
 
 describe('combined public video exposure', () => {
+  it('revoga se o perfil do autor desaparecer com o vídeo e o par ainda permitidos', () => {
+    const ownerProfile$ = new Subject<boolean>();
+    const emitted: boolean[] = [];
+    const subscription = combinePublicVideoExposure$(
+      of(true), of(true), ownerProfile$
+    ).subscribe((allowed) => emitted.push(allowed));
+
+    expect(emitted).toEqual([]);
+    ownerProfile$.next(true);
+    ownerProfile$.next(false);
+    expect(emitted).toEqual([true, false]);
+    subscription.unsubscribe();
+  });
+
   it('revoga por negação pública mesmo com reconciliação bilateral pendente', () => {
     const published$ = new Subject<boolean>();
     const bilateral$ = new Subject<boolean>();
