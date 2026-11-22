@@ -18,7 +18,12 @@ run('Push device registry', () => {
   const token = 'synthetic-fcm-' + randomUUID();
   const ownerRef = db.doc(`push_token_owners/${buildPushTokenDocumentId(token)}`);
   const deviceRef = db.doc(`users/${first}/push_devices/${buildPushInstallationDocumentId(installationId)}`);
-  const register = (authenticatedUid: string, expectedUid: string, registrationId: string, deliveryBindingId?: string) =>
+  const register = (
+    authenticatedUid: string,
+    expectedUid: string,
+    registrationId: string,
+    deliveryBindingId?: string
+  ) =>
     registerPushDevice.run({
       auth: { uid: authenticatedUid, token: {} },
       data: { expectedUid, registrationId, installationId, token, platform: 'web', deliveryBindingId },

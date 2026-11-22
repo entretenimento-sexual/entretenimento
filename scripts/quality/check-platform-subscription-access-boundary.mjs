@@ -139,7 +139,7 @@ const userEffects = read(
   'src/app/store/effects/effects.user/user.effects.ts'
 );
 for (const fragment of [
-  'this.firestoreUserQuery.getUser(uid)',
+  'this.firestoreUserQuery.getUser(uid, true)',
   'this.currentUserStore.set(safeUser)',
   'observeUserChanges$',
 ]) {
