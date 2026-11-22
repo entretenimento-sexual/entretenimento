@@ -1,7 +1,7 @@
 // src/app/register-module/auth-verification-handler/auth-verification-handler.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
-import { NgZone } from '@angular/core';
+import { provideZonelessChangeDetection } from '@angular/core';
 import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
@@ -110,6 +110,7 @@ describe('AuthVerificationHandlerComponent', () => {
     await TestBed.configureTestingModule({
       imports: [AuthVerificationHandlerComponent],
       providers: [
+        provideZonelessChangeDetection(),
         {
           provide: ActivatedRoute,
           useValue: {
@@ -117,10 +118,6 @@ describe('AuthVerificationHandlerComponent', () => {
           },
         },
         { provide: Router, useValue: routerMock },
-        {
-          provide: NgZone,
-          useValue: new NgZone({ enableLongStackTrace: false }),
-        },
         { provide: EmailVerificationService, useValue: emailVerificationMock },
         { provide: AuthSessionService, useValue: session },
         { provide: LogoutService, useValue: logout },
@@ -198,6 +195,25 @@ describe('AuthVerificationHandlerComponent', () => {
     expect(component.actionSucceeded).toBe(true);
     expect(component.message).toBe('E-mail verificado com sucesso.');
     expect(routerMock.navigate).not.toHaveBeenCalled();
+  });
+
+  it('anuncia a confirmação assíncrona de e-mail e oferece o login', async () => {
+    const verification = new Subject<{ ok: true; reason: 'not-logged-in' }>();
+    emailVerificationMock.handleEmailVerification.mockReturnValue(verification);
+    queryParamsSubject.next({ mode: 'verifyEmail', oobCode: 'verify-code' });
+    await fixture.whenStable();
+
+    const page: HTMLElement = fixture.nativeElement;
+    page.querySelector<HTMLButtonElement>('button')!.click();
+    await fixture.whenStable();
+    expect(page.querySelector('[aria-busy="true"]')).not.toBeNull();
+
+    verification.next({ ok: true, reason: 'not-logged-in' });
+    await fixture.whenStable();
+
+    expect(page.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(page.querySelector('[role="status"]')?.textContent).toContain('Seu e-mail foi verificado.');
+    expect(page.querySelector('button')?.textContent?.trim()).toBe('Ir para o login');
   });
 
   it('orienta entrar na conta do link antes de solicitar outro quando expirado', () => {
@@ -341,18 +357,34 @@ describe('AuthVerificationHandlerComponent', () => {
     expect(component.passwordResetValidationRetryAvailable).toBe(false);
   });
 
-  it('redefine a senha depois da validação prévia', async () => {
+  it('exibe o formulário após validação assíncrona e confirma a redefinição na tela', async () => {
+    const validation = new Subject<{ ok: true; reason: 'valid'; message: string }>();
+    const reset = new Subject<void>();
+    passwordResetValidationMock.validate$.mockReturnValue(validation);
+    loginServiceMock.confirmPasswordReset$.mockReturnValue(reset);
     queryParamsSubject.next({
       mode: 'resetPassword',
       oobCode: 'reset-code',
     });
-    fixture.detectChanges();
+    await fixture.whenStable();
 
-    loginServiceMock.confirmPasswordReset$.mockReturnValue(of(void 0));
+    const page: HTMLElement = fixture.nativeElement;
+    expect(page.querySelector('form')).toBeNull();
+    expect(page.querySelector('[aria-busy="true"]')).not.toBeNull();
+
+    validation.next({ ok: true, reason: 'valid', message: 'Link válido.' });
+    await fixture.whenStable();
+    expect(page.querySelector('#newPassword')).not.toBeNull();
+    expect(page.querySelector('[aria-busy="true"]')).toBeNull();
+
+    routerMock.navigate.mockResolvedValueOnce(false);
     component.newPassword = 'SenhaSegura123';
     component.confirmPassword = 'SenhaSegura123';
 
-    await component.resetPassword();
+    const submission = component.resetPassword();
+    reset.next();
+    await submission;
+    await fixture.whenStable();
 
     expect(loginServiceMock.confirmPasswordReset$).toHaveBeenCalledWith(
       'reset-code',
@@ -361,9 +393,44 @@ describe('AuthVerificationHandlerComponent', () => {
     expect(component.passwordResetOk).toBe(true);
     expect(component.passwordResetCompleted).toBe(true);
     expect(component.actionSucceeded).toBe(true);
-    expect(component.message).toBe(
-      'Senha redefinida com sucesso. Redirecionando para o login...'
+    expect(page.querySelector('[role="status"]')?.textContent).toContain('Senha redefinida com sucesso.');
+    expect(page.querySelector('form')).toBeNull();
+    expect(component.newPassword).toBe('');
+    expect(component.confirmPassword).toBe('');
+    expect(routerMock.navigate).not.toHaveBeenCalled();
+
+    page.querySelector<HTMLButtonElement>('button')!.click();
+    await fixture.whenStable();
+    expect(page.querySelector('[role="alert"]')?.textContent).toContain('Tente novamente.');
+    expect(page.querySelector('[role="status"]')?.textContent).toContain('Senha redefinida com sucesso.');
+
+    page.querySelector<HTMLButtonElement>('button')!.click();
+    await fixture.whenStable();
+    expect(routerMock.navigate).toHaveBeenCalledTimes(2);
+    expect(routerMock.navigate).toHaveBeenLastCalledWith(
+      ['/login'], expect.objectContaining({ replaceUrl: true })
     );
+    expect(page.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('ignora o retorno da redefinição quando outro link é aberto', async () => {
+    const reset = new Subject<void>();
+    loginServiceMock.confirmPasswordReset$.mockReturnValue(reset);
+    queryParamsSubject.next({ mode: 'resetPassword', oobCode: 'reset-code' });
+    await fixture.whenStable();
+
+    component.newPassword = 'SenhaSegura123';
+    component.confirmPassword = 'SenhaSegura123';
+    const submission = component.resetPassword();
+    queryParamsSubject.next({ mode: 'verifyEmail', oobCode: 'next-code' });
+    reset.next();
+    await submission;
+    await fixture.whenStable();
+
+    const page: HTMLElement = fixture.nativeElement;
+    expect(page.querySelector('h1')?.textContent).toBe('Confirme seu e-mail');
+    expect(page.querySelector('[role="status"]')).toBeNull();
+    expect(routerMock.navigate).not.toHaveBeenCalled();
   });
 
   it('informa erro quando as senhas não coincidirem', async () => {

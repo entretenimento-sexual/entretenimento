@@ -14,7 +14,14 @@
 // - fazer upload de avatar;
 // - decidir onboarding.
 // -----------------------------------------------------------------------------
-import { Component, OnDestroy, OnInit, NgZone } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  OnDestroy,
+  OnInit,
+  inject,
+} from '@angular/core';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -43,6 +50,7 @@ import {
   map,
   take,
   takeUntil,
+  tap,
   timeout,
 } from 'rxjs/operators';
 
@@ -53,6 +61,7 @@ type HandlerMode = 'verifyEmail' | 'resetPassword' | '';
   templateUrl: './auth-verification-handler.component.html',
   styleUrls: ['./auth-verification-handler.component.css'],
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     FormsModule,
@@ -61,11 +70,13 @@ type HandlerMode = 'verifyEmail' | 'resetPassword' | '';
   ],
 })
 export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
+  private readonly changeDetector = inject(ChangeDetectorRef);
   public isLoading = true;
 
   public mode: HandlerMode = '';
   public oobCode = '';
   public message = '';
+  public navigationError = '';
 
   public verifyOk = false;
   public canConfirmVerification = false;
@@ -93,7 +104,6 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   constructor(
     private readonly route: ActivatedRoute,
     private readonly router: Router,
-    private readonly ngZone: NgZone,
 
     private readonly emailVerificationService: EmailVerificationService,
     private readonly passwordResetCodeValidation: PasswordResetCodeValidationService,
@@ -133,7 +143,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
         if (!this.mode) {
           this.message = 'Ação desconhecida.';
-          this.isLoading = false;
+          this.setLoading(false);
           return;
         }
 
@@ -142,13 +152,13 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
           this.passwordResetUnavailable = this.mode === 'resetPassword';
           this.shouldShowRecoveryLink = this.mode === 'resetPassword';
           this.showGoToLoginCTA = this.mode === 'verifyEmail';
-          this.isLoading = false;
+          this.setLoading(false);
           return;
         }
 
         if (this.mode === 'verifyEmail') {
-          this.isLoading = false;
           this.canConfirmVerification = true;
+          this.setLoading(false);
           return;
         }
 
@@ -159,7 +169,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
         }
 
         this.message = 'Ação desconhecida.';
-        this.isLoading = false;
+        this.setLoading(false);
       });
   }
 
@@ -177,7 +187,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   }
 
   private processVerifyEmail(): void {
-    this.isLoading = true;
+    this.setLoading(true);
     this.emailVerificationService.handleEmailVerification()
       .pipe(
         take(1),
@@ -196,7 +206,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   }
 
   private applyVerificationResult(result: VerifyEmailResult): void {
-    this.isLoading = false;
+    this.setLoading(false);
     this.verifyOk = result.ok;
     const activeUser = this.session.currentAuthUser;
     this.verifiedUser = activeUser && activeUser.uid === result.verifiedUid ? activeUser : null;
@@ -243,11 +253,11 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.isLoading = true;
+    this.setLoading(true);
     this.logout.logout$().pipe(
       take(1),
       catchError(() => EMPTY),
-      finalize(() => { this.isLoading = false; }),
+      finalize(() => this.setLoading(false)),
       takeUntil(this.actionChanged),
       takeUntil(this.ngUnsubscribe)
     ).subscribe();
@@ -258,7 +268,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.isLoading = true;
+    this.setLoading(true);
     this.message = '';
     this.passwordResetCodeValidated = false;
     this.passwordResetUnavailable = false;
@@ -295,7 +305,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   private applyPasswordResetCodeValidation(
     result: PasswordResetCodeValidationResult
   ): void {
-    this.isLoading = false;
+    this.setLoading(false);
     this.passwordResetCodeValidated = result.ok;
     this.passwordResetUnavailable = !result.ok;
     this.passwordResetTargetEmail = result.ok ? result.email ?? '' : '';
@@ -344,7 +354,8 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
   private navigateAfterVerification(commands: string[], queryParams?: Record<string, string>): void {
     if (this.isLoading) return;
-    this.isLoading = true;
+    this.navigationError = '';
+    this.setLoading(true);
 
     defer(() => this.router.navigate(commands, { queryParams, replaceUrl: true })).pipe(
       timeout({ first: 15_000 }),
@@ -352,13 +363,13 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
         if (!navigated) throw new Error('A navegação foi interrompida.');
       }),
       catchError((error: unknown) => {
-        this.message = 'Não foi possível abrir a próxima tela. Tente novamente.';
+        this.navigationError = 'Não foi possível abrir a próxima tela. Tente novamente.';
         this.globalErrorHandlerService.handleError(Object.assign(
           new Error('Falha ao abrir a próxima etapa da verificação.'), { cause: error, silent: true }
         ));
         return EMPTY;
       }),
-      finalize(() => { this.isLoading = false; }),
+      finalize(() => this.setLoading(false)),
       takeUntil(this.actionChanged),
       takeUntil(this.ngUnsubscribe)
     ).subscribe();
@@ -373,6 +384,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   async resetPassword(): Promise<void> {
     if (
       this.mode !== 'resetPassword' ||
+      this.isLoading ||
       !this.passwordResetCodeValidated ||
       this.passwordResetCompleted ||
       this.passwordResetUnavailable
@@ -380,51 +392,42 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.isLoading = true;
-    this.shouldShowRecoveryLink = false;
-    this.passwordResetOk = false;
-
     if (this.newPassword !== this.confirmPassword) {
       this.message = 'As senhas não coincidem.';
-      this.isLoading = false;
+      this.changeDetector.markForCheck();
       return;
     }
 
     if (!ValidatorService.isValidPassword(this.newPassword, 8)) {
       this.message =
         'Use ao menos 8 caracteres, com letra maiúscula, minúscula e número.';
-      this.isLoading = false;
+      this.changeDetector.markForCheck();
       return;
     }
 
-    try {
-      await firstValueFrom(
-        this.loginService.confirmPasswordReset$(
-          this.oobCode,
-          this.newPassword
-        )
-      );
+    this.shouldShowRecoveryLink = false;
+    this.setLoading(true);
 
-      this.passwordResetOk = true;
-      this.passwordResetCompleted = true;
-      this.passwordResetUnavailable = false;
-      this.passwordResetCodeValidated = false;
-      this.passwordResetValidationRetryAvailable = false;
-      this.message =
-        'Senha redefinida com sucesso. Redirecionando para o login...';
-      this.newPassword = '';
-      this.confirmPassword = '';
-
-      this.ngZone.run(() => {
-        setTimeout(() => {
-          this.router.navigate(['/login']).catch(() => {});
-        }, 1500);
-      });
-    } catch (error: unknown) {
-      this.handlePasswordResetError(error);
-    } finally {
-      this.isLoading = false;
-    }
+    await firstValueFrom(
+      defer(() => this.loginService.confirmPasswordReset$(this.oobCode, this.newPassword)).pipe(
+        tap(() => {
+          this.passwordResetOk = true;
+          this.passwordResetCompleted = true;
+          this.passwordResetCodeValidated = false;
+          this.message = 'Senha redefinida com sucesso.';
+          this.newPassword = '';
+          this.confirmPassword = '';
+        }),
+        catchError((error: unknown) => {
+          this.handlePasswordResetError(error);
+          return EMPTY;
+        }),
+        takeUntil(this.actionChanged),
+        takeUntil(this.ngUnsubscribe),
+        finalize(() => this.setLoading(false))
+      ),
+      { defaultValue: undefined }
+    );
   }
 
   private handlePasswordResetError(error: unknown): void {
@@ -453,13 +456,10 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.message =
       'Não foi possível redefinir a senha agora. Tente novamente.';
 
-    const operationalError = new Error(
-      '[AuthVerificationHandler] Falha técnica ao redefinir senha.'
-    );
-    (operationalError as any).original = error;
-    (operationalError as any).context = 'password-reset-confirmation';
-    (operationalError as any).skipUserNotification = true;
-    this.globalErrorHandlerService.handleError(operationalError);
+    this.globalErrorHandlerService.handleError(Object.assign(
+      new Error('[AuthVerificationHandler] Falha técnica ao redefinir senha.'),
+      { original: error, context: 'password-reset-confirmation', skipUserNotification: true }
+    ));
   }
 
   togglePasswordVisibility(): void {
@@ -474,9 +474,15 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.emailInputModalService.openModal();
   }
 
+  private setLoading(isLoading: boolean): void {
+    this.isLoading = isLoading;
+    this.changeDetector.markForCheck();
+  }
+
   private resetActionState(): void {
-    this.isLoading = true;
+    this.setLoading(true);
     this.message = '';
+    this.navigationError = '';
     this.verifyOk = false;
     this.canConfirmVerification = false;
     this.canRetryVerification = false;

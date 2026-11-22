@@ -6,6 +6,12 @@
     </div>
   }
 
+  @if (!isLoading && navigationError) {
+    <div class="alert-container">
+      <p class="alert alert-error" role="alert">{{ navigationError }}</p>
+    </div>
+  }
+
   @if (canConfirmVerification) {
     <section class="form-container" aria-labelledby="verify-email-title">
       <h1 id="verify-email-title">Confirme seu e-mail</h1>
@@ -27,7 +33,13 @@
         {{ message }}
       </p>
 
-      @if (mode === 'verifyEmail') {
+      @if (mode === 'resetPassword' && passwordResetCompleted) {
+        <div class="cta-row">
+          <button type="button" class="app-action app-action--primary" (click)="goToLogin()">
+            Ir para o login
+          </button>
+        </div>
+      } @else if (mode === 'verifyEmail') {
         <div class="cta-row">
           @if (verifyOk && !showGoToLoginCTA && !canSwitchAccount) {
             <button type="button" class="app-action app-action--primary" (click)="goToWelcome()">
