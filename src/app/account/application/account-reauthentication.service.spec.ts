@@ -1,9 +1,10 @@
 import { TestBed } from '@angular/core/testing';
 import { Auth } from '@angular/fire/auth';
 import type { User } from 'firebase/auth';
-import { firstValueFrom } from 'rxjs';
+import { BehaviorSubject, Subject, firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 import {
@@ -42,15 +43,30 @@ describe('AccountReauthenticationService', () => {
   };
 
   let service: AccountReauthenticationService;
+  const user$ = new BehaviorSubject<User | null>(null);
+  const session = {
+    authUser$: user$.asObservable(),
+    isTerminatingSnapshot: false,
+    terminationVersionSnapshot: 0,
+  };
+
+  function switchAccount(user: User | null): void {
+    authMock.currentUser = user;
+    user$.next(user);
+  }
+
 
   beforeEach(() => {
     vi.clearAllMocks();
-    authMock.currentUser = null;
+    switchAccount(null);
+    session.isTerminatingSnapshot = false;
+    session.terminationVersionSnapshot = 0;
 
     TestBed.configureTestingModule({
       providers: [
         AccountReauthenticationService,
         { provide: Auth, useValue: authMock },
+        { provide: AuthSessionService, useValue: session },
         {
           provide: ApplicationErrorService,
           useValue: applicationErrorMock,
@@ -149,4 +165,51 @@ describe('AccountReauthenticationService', () => {
       })
     );
   });
+  it('não confirma uma ação aberta antes da troca de conta', async () => {
+    switchAccount({ uid: 'uid-a' } as User);
+    const scope = service.captureSensitiveActionSession();
+    switchAccount({ uid: 'uid-b' } as User);
+    const reauthenticate = vi.spyOn(service, 'reauthenticateForSensitiveAction$');
+    const action = vi.fn(() => of(true));
+
+    await expect(firstValueFrom(service.runSensitiveAction$(scope, null, action)))
+      .rejects.toMatchObject({ code: 'auth/session-changed' });
+    expect(reauthenticate).not.toHaveBeenCalled();
+    expect(action).not.toHaveBeenCalled();
+    expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignora confirmação tardia após troca de conta', async () => {
+    switchAccount({ uid: 'uid-a' } as User);
+    const confirmation = new Subject<void>();
+    vi.spyOn(service, 'reauthenticateForSensitiveAction$').mockReturnValue(confirmation);
+    const action = vi.fn(() => of(true));
+    const result = firstValueFrom(service.runSensitiveAction$(
+      service.captureSensitiveActionSession(), null, action
+    ));
+    const rejected = expect(result).rejects.toMatchObject({ code: 'auth/session-changed' });
+
+    switchAccount({ uid: 'uid-b' } as User);
+    confirmation.next();
+    await rejected;
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  it('envia o UID confirmado e descarta resultado quando a geração da sessão muda', async () => {
+    const user = { uid: 'uid-a' } as User;
+    switchAccount(user);
+    vi.spyOn(service, 'reauthenticateForSensitiveAction$').mockReturnValue(of(void 0));
+    const response = new Subject<boolean>();
+    const action = vi.fn(() => response);
+    const result = firstValueFrom(service.runSensitiveAction$(
+      service.captureSensitiveActionSession(), null, action
+    ));
+    const rejected = expect(result).rejects.toMatchObject({ code: 'auth/session-changed' });
+
+    expect(action).toHaveBeenCalledWith('uid-a');
+    session.terminationVersionSnapshot++;
+    response.next(true);
+    await rejected;
+  });
+
 });

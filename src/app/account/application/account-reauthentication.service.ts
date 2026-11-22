@@ -24,8 +24,9 @@ import {
   type User,
 } from 'firebase/auth';
 import { Observable, defer, throwError } from 'rxjs';
-import { catchError, map, switchMap, timeout } from 'rxjs/operators';
+import { catchError, filter, map, mergeMap, switchMap, takeUntil, timeout } from 'rxjs/operators';
 
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import type { AccountReauthenticationMode } from '../models/account-lifecycle.model';
 
@@ -70,9 +71,24 @@ export function resolveAccountReauthenticationMode(
   return 'unsupported';
 }
 
+export interface AccountActionSession {
+  readonly user: User;
+  readonly terminationVersion: number;
+}
+
+const SESSION_CHANGED_MESSAGE =
+  'A conta ativa mudou. Abra a ação novamente para confirmar com a conta atual.';
+
+export function isAccountActionSessionChanged(error: unknown): boolean {
+  const failure = error as { code?: string; details?: { reason?: string } } | null;
+  return failure?.code === 'auth/session-changed' ||
+    failure?.details?.reason === 'auth/session-changed';
+}
+
 @Injectable({ providedIn: 'root' })
 export class AccountReauthenticationService {
   private readonly auth = inject(Auth);
+  private readonly authSession = inject(AuthSessionService);
   private readonly envInjector = inject(EnvironmentInjector);
   private readonly applicationError = inject(ApplicationErrorService);
 
@@ -82,6 +98,58 @@ export class AccountReauthenticationService {
 
     return resolveAccountReauthenticationMode(
       (user.providerData ?? []).map((provider) => provider.providerId)
+    );
+  }
+
+  captureSensitiveActionSession(): AccountActionSession | null {
+    const user = this.auth.currentUser;
+    return user && !this.authSession.isTerminatingSnapshot
+      ? { user, terminationVersion: this.authSession.terminationVersionSnapshot }
+      : null;
+  }
+
+  runSensitiveAction$<T>(
+    session: AccountActionSession | null,
+    password: string | null | undefined,
+    action: (expectedUid: string) => Observable<T>
+  ): Observable<T> {
+    const changed = () => Object.assign(new Error(SESSION_CHANGED_MESSAGE), {
+      code: 'auth/session-changed',
+    });
+    const isCurrent = () => session !== null && this.auth.currentUser === session.user &&
+      !this.authSession.isTerminatingSnapshot &&
+      this.authSession.terminationVersionSnapshot === session.terminationVersion;
+
+    return defer(() => {
+      if (!session || !isCurrent()) throw changed();
+
+      const sessionChanged$ = this.authSession.authUser$.pipe(
+        filter(() => !isCurrent()),
+        mergeMap(() => throwError(changed))
+      );
+
+      return this.reauthenticateForSensitiveAction$(password).pipe(
+        switchMap(() => {
+          if (!isCurrent()) throw changed();
+          return action(session.user.uid);
+        }),
+        map((result) => {
+          if (!isCurrent()) throw changed();
+          return result;
+        }),
+        takeUntil(sessionChanged$)
+      );
+    }).pipe(
+      catchError((error: unknown) => {
+        if ((error as { code?: string } | null)?.code === 'auth/session-changed') {
+          this.applicationError.report(error, {
+            feature: 'account-lifecycle',
+            operation: 'runSensitiveAction$',
+            fallbackMessage: SESSION_CHANGED_MESSAGE,
+          });
+        }
+        return throwError(() => error);
+      })
     );
   }
 

@@ -4,6 +4,8 @@ import { resolveNicknameNormalized } from '../public_index/nickname-key.policy';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   assertAccountLifecycleMutationSecurity,
+  assertSelfAccountLifecycleUid,
+  type SelfAccountLifecycleRequest,
 } from './account-lifecycle-mutation-security';
 import { db } from '../firebaseApp';
 import {
@@ -23,10 +25,6 @@ import {
   buildAccountLifecycleBillingCancellationPatch,
   reconcileAccountLifecycleBillingCancellation,
 } from './account-lifecycle-billing.service';
-
-interface RequestAccountDeletionRequest {
-  reason?: string | null;
-}
 
 interface AccountLifecycleCommandResult {
   ok: boolean;
@@ -55,7 +53,7 @@ function normalizeRestorableStatus(value: unknown): RestorableAccountStatus {
     : 'active';
 }
 
-export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
+export const requestAccountDeletion = onCall<SelfAccountLifecycleRequest>(
   { region: ACCOUNT_LIFECYCLE_REGION, secrets: [ASAAS_API_KEY] },
   async (request): Promise<AccountLifecycleCommandResult> => {
     const uid = request.auth?.uid ?? null;
@@ -64,6 +62,7 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
+    assertSelfAccountLifecycleUid(uid, request.data?.expectedUid);
     assertRecentAuthentication(
       request.auth?.token as Record<string, unknown> | undefined
     );

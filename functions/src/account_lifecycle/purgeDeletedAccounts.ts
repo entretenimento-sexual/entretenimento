@@ -29,10 +29,13 @@ import {
   buildAccountDeletionRetrySchedule,
   buildPurgeCandidateReference,
   isAccountDeletionLeaseAvailable,
-  isAccountDeletionRetryDue,
   normalizePurgeAttemptCount,
   sanitizePurgeError,
 } from './account-deletion-purge.policy';
+import {
+  isPurgeCandidate,
+  reserveAccountDeletionPurgeBatch,
+} from './account-deletion-purge-queue.firestore';
 import {
   FirestoreAccountDataDeletionFullAdapter,
 } from './account-shared-message-anonymization.firestore';
@@ -49,7 +52,6 @@ import {
 
 const SCHEDULE = 'every 60 minutes';
 const TIME_ZONE = 'America/Sao_Paulo';
-const BATCH_LIMIT = 200;
 
 const CLAIM_COMPLETED_DOMAINS: readonly AccountDataDomain[] = [
   'public_profile',
@@ -75,7 +77,6 @@ type PurgeUserDoc = UserDoc & {
 
 type PurgeCandidate = {
   uid: string;
-  user: PurgeUserDoc;
   emailHash: string | null;
   reference: string;
 };
@@ -109,29 +110,17 @@ export const purgeDeletedAccounts = onSchedule(
           apiKey: ASAAS_API_KEY.value(),
         })
       );
-    const candidatesSnapshot = await db
-      .collection('users')
-      .where('purgeAfter', '<=', now)
-      .limit(BATCH_LIMIT)
-      .get();
+    const batch = await reserveAccountDeletionPurgeBatch(now);
+    if (!batch) return;
 
     let processed = 0;
-    let skipped = 0;
+    let skipped = batch.skipped;
     let retryPending = 0;
     let blockedByPolicy = 0;
     let domainFailures = 0;
 
-    for (const userSnapshot of candidatesSnapshot.docs) {
-      const candidate = toCandidate(
-        userSnapshot.id,
-        userSnapshot.data() as PurgeUserDoc
-      );
-
-      if (!isPurgeCandidate(candidate.user, now)) {
-        skipped += 1;
-        continue;
-      }
-
+    for (const userSnapshot of batch.candidates) {
+      const candidate = toCandidate(userSnapshot.id, userSnapshot.data() as PurgeUserDoc);
       let claim: PurgeClaim | null = null;
 
       try {
@@ -278,7 +267,9 @@ export const purgeDeletedAccounts = onSchedule(
 
     console.log('[purgeDeletedAccounts] summary', {
       executionId,
-      scanned: candidatesSnapshot.size,
+      scanned: batch.scanned,
+      scanResumed: batch.resumed,
+      scanExhausted: batch.exhausted,
       processed,
       skipped,
       retryPending,
@@ -293,26 +284,9 @@ export const purgeDeletedAccounts = onSchedule(
 function toCandidate(uid: string, user: PurgeUserDoc): PurgeCandidate {
   return {
     uid,
-    user,
     emailHash: hashEmail(user.email),
     reference: buildPurgeCandidateReference(uid),
   };
-}
-
-function isPurgeCandidate(user: PurgeUserDoc, now: number): boolean {
-  // A rotina executa exclusões já programadas. Um perfil incompleto apenas
-  // indica que ainda há uma etapa de cadastro a retomar.
-  const status = String(user.accountStatus ?? 'active');
-  const purgeAfter = Number(user.purgeAfter ?? 0);
-
-  return (
-    (status === 'pending_deletion' || status === 'deleted') &&
-    purgeAfter > 0 &&
-    purgeAfter <= now &&
-    user.legalHold !== true &&
-    user.billingHold !== true &&
-    isAccountDeletionRetryDue(user, now)
-  );
 }
 
 function uniqueDomains(

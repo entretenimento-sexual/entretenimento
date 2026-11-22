@@ -3,6 +3,11 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
+import { requestSelfSuspension } from './requestSelfSuspension';
+import { reactivateSelfSuspension } from './reactivateSelfSuspension';
+import { requestAccountDeletion } from './requestAccountDeletion';
+import { cancelAccountDeletion } from './cancelAccountDeletion';
+
 function source(relativePath: string): string {
   return readFileSync(
     path.resolve(process.cwd(), 'src', 'account_lifecycle', relativePath),
@@ -59,5 +64,25 @@ test('staff lifecycle mutations authorize staff before consuming mutation quota'
 
     assert.ok(authorizationIndex >= 0, `${file} must authorize staff`);
     assert.ok(securityIndex > authorizationIndex, `${file} security ordering drift`);
+  }
+});
+
+test('self-service handlers reject missing or different confirmed UIDs before running any mutation', async () => {
+  const actions = [
+    requestSelfSuspension,
+    reactivateSelfSuspension,
+    requestAccountDeletion,
+    cancelAccountDeletion,
+  ];
+  for (const action of actions) {
+    for (const data of [{}, { expectedUid: 'another-account' }]) {
+      await assert.rejects(action.run({
+        auth: { uid: 'active-account', token: {} },
+        data,
+      } as Parameters<typeof action.run>[0]), {
+        code: 'permission-denied',
+        details: { reason: 'auth/session-changed' },
+      });
+    }
   }
 });

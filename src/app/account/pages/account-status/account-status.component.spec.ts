@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, of, switchMap, type Observable } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from '@core/interfaces/iuser-dados';
@@ -10,7 +10,7 @@ import { CurrentUserStoreService } from '@core/services/autentication/auth/curre
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { AccountLifecycleFacade } from '../../application/account-lifecycle.facade';
 import { AccountLifecycleService } from '../../application/account-lifecycle.service';
-import { AccountReauthenticationService } from '../../application/account-reauthentication.service';
+import { AccountReauthenticationService, type AccountActionSession } from '../../application/account-reauthentication.service';
 import { AccountStatusComponent } from './account-status.component';
 
 function user(overrides: Partial<IUserDados> = {}): IUserDados {
@@ -35,7 +35,7 @@ describe('AccountStatusComponent', () => {
   const showInfo = vi.fn();
   const reactivateSelfSuspension$ = vi.fn();
   const cancelAccountDeletion$ = vi.fn();
-  const reauthenticateForSensitiveAction$ = vi.fn(() => of(void 0));
+  const reauthenticateForSensitiveAction$ = vi.fn((_password?: string) => of(void 0));
   let currentUser$: BehaviorSubject<IUserDados | null | undefined>;
 
   beforeEach(async () => {
@@ -105,7 +105,12 @@ describe('AccountStatusComponent', () => {
           provide: AccountReauthenticationService,
           useValue: {
             getCurrentMode: vi.fn(() => 'password'),
-            reauthenticateForSensitiveAction$,
+            captureSensitiveActionSession: vi.fn(),
+            runSensitiveAction$: (
+              _scope: AccountActionSession | null,
+              password: string | undefined,
+              run: (uid: string) => Observable<unknown>
+            ) => reauthenticateForSensitiveAction$(password).pipe(switchMap(() => run('user-1'))),
           },
         },
         {
@@ -145,7 +150,9 @@ describe('AccountStatusComponent', () => {
     expect(reauthenticateForSensitiveAction$).toHaveBeenCalledWith(
       'senha-atual'
     );
-    expect(reactivateSelfSuspension$).toHaveBeenCalledTimes(1);
+    expect(reactivateSelfSuspension$).toHaveBeenCalledExactlyOnceWith('user-1');
+    currentUser$.next(user({ uid: 'outra-conta', accountStatus: 'active' }));
+    expect(navigate).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
     expect(patch).not.toHaveBeenCalled();
 
@@ -242,7 +249,7 @@ describe('AccountStatusComponent', () => {
       password: 'senha-atual',
     });
 
-    expect(cancelAccountDeletion$).toHaveBeenCalledTimes(1);
+    expect(cancelAccountDeletion$).toHaveBeenCalledExactlyOnceWith('user-1');
     expect(navigate).not.toHaveBeenCalled();
     expect(patch).not.toHaveBeenCalled();
 

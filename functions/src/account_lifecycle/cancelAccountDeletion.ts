@@ -7,6 +7,8 @@ import { canPublishNicknameIndex } from '../registration/registration-nickname-a
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   assertAccountLifecycleMutationSecurity,
+  assertSelfAccountLifecycleUid,
+  type SelfAccountLifecycleRequest,
 } from './account-lifecycle-mutation-security';
 import { FieldValue, db } from '../firebaseApp';
 import {
@@ -42,7 +44,7 @@ function normalizeRestoreStatus(value: unknown): RestorableAccountStatus {
     : 'active';
 }
 
-export const cancelAccountDeletion = onCall<Record<string, never>>(
+export const cancelAccountDeletion = onCall<SelfAccountLifecycleRequest>(
   { region: ACCOUNT_LIFECYCLE_REGION },
   async (request): Promise<AccountLifecycleCommandResult> => {
     const uid = request.auth?.uid ?? null;
@@ -51,6 +53,7 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
+    assertSelfAccountLifecycleUid(uid, request.data?.expectedUid);
     assertRecentAuthentication(
       request.auth?.token as Record<string, unknown> | undefined
     );

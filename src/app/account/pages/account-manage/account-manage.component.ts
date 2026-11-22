@@ -8,18 +8,21 @@ import {
   signal,
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { finalize, switchMap } from 'rxjs/operators';
+import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AccountLifecycleService } from '../../application/account-lifecycle.service';
-import { AccountReauthenticationService } from '../../application/account-reauthentication.service';
+import {
+  AccountReauthenticationService,
+  isAccountActionSessionChanged,
+  type AccountActionSession,
+} from '../../application/account-reauthentication.service';
 import {
   AccountLifecycleDialogConfirmEvent,
   AccountLifecycleDialogIntent,
   AccountReauthenticationMode,
 } from '../../models/account-lifecycle.model';
 import { AccountLifecycleDialogComponent } from '../../components/account-lifecycle-dialog/account-lifecycle-dialog.component';
-import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
 @Component({
@@ -33,10 +36,10 @@ import { ErrorNotificationService } from '@core/services/error-handler/error-not
 export class AccountManageComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
-  private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly accountLifecycleService = inject(AccountLifecycleService);
   private readonly accountReauthentication = inject(AccountReauthenticationService);
   private readonly notify = inject(ErrorNotificationService);
+  private dialogSession: AccountActionSession | null = null;
 
   readonly lifecycleDialogIntent = signal<AccountLifecycleDialogIntent | null>(null);
   readonly lifecycleBusyIntent = signal<AccountLifecycleDialogIntent | null>(null);
@@ -73,6 +76,7 @@ export class AccountManageComponent {
   }
 
   private openLifecycleDialog(intent: AccountLifecycleDialogIntent): void {
+    this.dialogSession = this.accountReauthentication.captureSensitiveActionSession();
     this.lifecycleReauthenticationMode.set(
       this.accountReauthentication.getCurrentMode()
     );
@@ -88,33 +92,21 @@ export class AccountManageComponent {
     this.lifecycleBusyIntent.set('self_suspend');
 
     this.accountReauthentication
-      .reauthenticateForSensitiveAction$(password)
+      .runSensitiveAction$(this.dialogSession, password, (uid) =>
+        this.accountLifecycleService.requestSelfSuspension$(uid, reason)
+      )
       .pipe(
-        switchMap(() => this.accountLifecycleService.requestSelfSuspension$(reason)),
         finalize(() => this.lifecycleBusyIntent.set(null)),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
         next: (result) => {
-          this.currentUserStore.patch({
-            accountStatus: 'self_suspended',
-            publicVisibility: 'hidden',
-            interactionBlocked: true,
-            loginAllowed: true,
-            suspended: true,
-            suspensionReason: (reason ?? '').trim() || null,
-            suspensionSource: 'self',
-            suspensionEndsAt: null,
-            statusUpdatedAt: this.normalizeEpoch(result.statusUpdatedAt) ?? Date.now(),
-            statusUpdatedBy: 'self',
-          });
-
           this.lifecycleDialogIntent.set(null);
           this.notify.showSuccess(result.message ?? 'Conta suspensa com sucesso.');
           this.router.navigate(['/conta/status'], { replaceUrl: true });
         },
-        error: () => {
-          // Reautenticação e lifecycle centralizam diagnóstico e feedback.
+        error: (error: unknown) => {
+          if (isAccountActionSessionChanged(error)) this.lifecycleDialogIntent.set(null);
         },
       });
   }
@@ -128,45 +120,22 @@ export class AccountManageComponent {
     this.lifecycleBusyIntent.set('self_delete');
 
     this.accountReauthentication
-      .reauthenticateForSensitiveAction$(password)
+      .runSensitiveAction$(this.dialogSession, password, (uid) =>
+        this.accountLifecycleService.requestAccountDeletion$(uid, reason)
+      )
       .pipe(
-        switchMap(() => this.accountLifecycleService.requestAccountDeletion$(reason)),
         finalize(() => this.lifecycleBusyIntent.set(null)),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
         next: (result) => {
-          const statusUpdatedAt = this.normalizeEpoch(result.statusUpdatedAt) ?? Date.now();
-
-          this.currentUserStore.patch({
-            accountStatus: 'pending_deletion',
-            publicVisibility: 'hidden',
-            interactionBlocked: true,
-            loginAllowed: true,
-            suspended: false,
-            suspensionReason: null,
-            suspensionSource: null,
-            suspensionEndsAt: null,
-            deletionRequestedAt: this.normalizeEpoch(result.deletionRequestedAt) ?? statusUpdatedAt,
-            deletionRequestedBy: 'self',
-            deletionUndoUntil: this.normalizeEpoch(result.deletionUndoUntil),
-            purgeAfter: this.normalizeEpoch(result.purgeAfter),
-            statusUpdatedAt,
-            statusUpdatedBy: 'self',
-          });
-
           this.lifecycleDialogIntent.set(null);
           this.notify.showSuccess(result.message ?? 'Exclusão da conta iniciada.');
           this.router.navigate(['/conta/status'], { replaceUrl: true });
         },
-        error: () => {
-          // Reautenticação e lifecycle centralizam diagnóstico e feedback.
+        error: (error: unknown) => {
+          if (isAccountActionSessionChanged(error)) this.lifecycleDialogIntent.set(null);
         },
       });
-  }
-
-  private normalizeEpoch(value: unknown): number | null {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
   }
 }

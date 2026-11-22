@@ -22,7 +22,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AccountLifecycleFacade } from '../../application/account-lifecycle.facade';
 import { AccountLifecycleService } from '../../application/account-lifecycle.service';
-import { AccountReauthenticationService } from '../../application/account-reauthentication.service';
+import {
+  AccountReauthenticationService,
+  isAccountActionSessionChanged,
+  type AccountActionSession,
+} from '../../application/account-reauthentication.service';
 import {
   AccountLifecycleDialogConfirmEvent,
   AccountLifecycleDialogIntent,
@@ -59,6 +63,7 @@ export class AccountStatusComponent {
   );
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly notify = inject(ErrorNotificationService);
+  private dialogSession: AccountActionSession | null = null;
 
   private readonly authSession = inject(AuthSessionService);
   private readonly appBlock = inject(AuthAppBlockService);
@@ -121,6 +126,7 @@ export class AccountStatusComponent {
   }
 
   private openLifecycleDialog(intent: AccountLifecycleDialogIntent): void {
+    this.dialogSession = this.accountReauthentication.captureSensitiveActionSession();
     this.lifecycleReauthenticationMode.set(
       this.accountReauthentication.getCurrentMode()
     );
@@ -133,16 +139,14 @@ export class AccountStatusComponent {
     this.busyAction.set('reactivate');
 
     this.accountReauthentication
-      .reauthenticateForSensitiveAction$(password)
-      .pipe(
-        switchMap(() =>
-          this.accountLifecycleService.reactivateSelfSuspension$()
-        ),
-        switchMap((result) =>
-          this.waitForLifecycleChange$('self_suspended').pipe(
+      .runSensitiveAction$(this.dialogSession, password, (uid) =>
+        this.accountLifecycleService.reactivateSelfSuspension$(uid).pipe(
+          switchMap((result) => this.waitForLifecycleChange$(uid, 'self_suspended').pipe(
             map((accountStatus) => ({ result, accountStatus }))
-          )
-        ),
+          ))
+        )
+      )
+      .pipe(
         finalize(() => this.busyAction.set(null)),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -170,8 +174,8 @@ export class AccountStatusComponent {
             );
           }
         },
-        error: () => {
-          // Reautenticação e lifecycle centralizam diagnóstico e feedback.
+        error: (error: unknown) => {
+          if (isAccountActionSessionChanged(error)) this.lifecycleDialogIntent.set(null);
         },
       });
   }
@@ -182,16 +186,14 @@ export class AccountStatusComponent {
     this.busyAction.set('cancel_deletion');
 
     this.accountReauthentication
-      .reauthenticateForSensitiveAction$(password)
-      .pipe(
-        switchMap(() =>
-          this.accountLifecycleService.cancelAccountDeletion$()
-        ),
-        switchMap((result) =>
-          this.waitForLifecycleChange$('pending_deletion').pipe(
+      .runSensitiveAction$(this.dialogSession, password, (uid) =>
+        this.accountLifecycleService.cancelAccountDeletion$(uid).pipe(
+          switchMap((result) => this.waitForLifecycleChange$(uid, 'pending_deletion').pipe(
             map((accountStatus) => ({ result, accountStatus }))
-          )
-        ),
+          ))
+        )
+      )
+      .pipe(
         finalize(() => this.busyAction.set(null)),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -219,8 +221,8 @@ export class AccountStatusComponent {
             );
           }
         },
-        error: () => {
-          // Reautenticação e lifecycle centralizam diagnóstico e feedback.
+        error: (error: unknown) => {
+          if (isAccountActionSessionChanged(error)) this.lifecycleDialogIntent.set(null);
         },
       });
   }
@@ -231,9 +233,11 @@ export class AccountStatusComponent {
    * `CurrentUserStoreService.patch()`.
    */
   private waitForLifecycleChange$(
+    expectedUid: string,
     previousStatus: RuntimeAccountLifecycleStatus
   ): Observable<RuntimeAccountLifecycleStatus | null> {
     return this.currentUserStore.user$.pipe(
+      filter((user) => user?.uid === expectedUid),
       map((user) => normalizeUserAccountLifecycleStatus(user)),
       filter(
         (status) => status !== 'unknown' && status !== previousStatus

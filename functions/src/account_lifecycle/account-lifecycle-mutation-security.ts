@@ -7,6 +7,7 @@
 // App Check e rate limit backend de forma canônica.
 // -----------------------------------------------------------------------------
 
+import { HttpsError } from 'firebase-functions/v2/https';
 import {
   assertCallableAppCheck,
 } from '../shared/security/callable-app-check';
@@ -22,6 +23,21 @@ export type AccountLifecycleMutationAction =
   | 'moderation_suspend'
   | 'moderation_unsuspend'
   | 'moderation_schedule_deletion';
+
+export interface SelfAccountLifecycleRequest {
+  expectedUid: string;
+  reason?: string | null;
+}
+
+export function assertSelfAccountLifecycleUid(uid: string, expectedUid: unknown): void {
+  if (expectedUid !== uid) {
+    throw new HttpsError(
+      'permission-denied',
+      'Confirme a ação com a conta ativa antes de continuar.',
+      { reason: 'auth/session-changed' }
+    );
+  }
+}
 
 interface AccountLifecycleMutationSecurityInput {
   action: AccountLifecycleMutationAction;

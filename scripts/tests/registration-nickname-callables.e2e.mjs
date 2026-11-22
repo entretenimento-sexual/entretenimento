@@ -376,7 +376,8 @@ async function run() {
       '../../functions/lib/public_index/onUserCreateIndexNickname.js'
     );
     const publicBeforeSuspend = await publicRef.get();
-    assert.equal((await suspend({})).data.publicVisibility, 'hidden');
+    await assert.rejects(suspend({ expectedUid: otherUid }), { code: 'functions/permission-denied' });
+    assert.equal((await suspend({ expectedUid: uid })).data.publicVisibility, 'hidden');
     const publicWhileHidden = await publicRef.get();
     assert.equal(publicWhileHidden.exists, false);
     assert.equal((await publishedIndex.get()).exists, false);
@@ -387,7 +388,8 @@ async function run() {
     });
     assert.equal((await publishedIndex.get()).exists, false);
 
-    assert.equal((await reactivate({})).data.publicVisibility, 'visible');
+    await assert.rejects(reactivate({ expectedUid: otherUid }), { code: 'functions/permission-denied' });
+    assert.equal((await reactivate({ expectedUid: uid })).data.publicVisibility, 'visible');
     assert.equal((await publicRef.get()).get('nicknameNormalized'), 'perfil');
     assert.equal((await publishedIndex.get()).get('uid'), uid);
     // Repetir a exclusão antiga após a reativação preserva o índice vigente.
@@ -399,17 +401,19 @@ async function run() {
 
     const scheduleDeletion = httpsCallable(owner.functions, 'requestAccountDeletion');
     const cancelDeletion = httpsCallable(owner.functions, 'cancelAccountDeletion');
-    assert.equal((await scheduleDeletion({})).data.accountStatus, 'pending_deletion');
+    await assert.rejects(scheduleDeletion({ expectedUid: otherUid }), { code: 'functions/permission-denied' });
+    assert.equal((await scheduleDeletion({ expectedUid: uid })).data.accountStatus, 'pending_deletion');
     assert.equal((await publishedIndex.get()).exists, false);
-    assert.equal((await cancelDeletion({})).data.publicVisibility, 'visible');
+    await assert.rejects(cancelDeletion({ expectedUid: otherUid }), { code: 'functions/permission-denied' });
+    assert.equal((await cancelDeletion({ expectedUid: uid })).data.publicVisibility, 'visible');
     assert.equal((await publicRef.get()).get('nicknameNormalized'), 'perfil');
     assert.equal((await publishedIndex.get()).get('uid'), uid);
 
     const foreignIndex = { ...(await publishedIndex.get()).data(), uid: otherUid };
     await publishedIndex.set(foreignIndex);
-    await suspend({});
+    await suspend({ expectedUid: uid });
     assert.deepEqual((await publishedIndex.get()).data(), foreignIndex);
-    const conflicted = (await reactivate({})).data;
+    const conflicted = (await reactivate({ expectedUid: uid })).data;
     assert.equal(conflicted.accountStatus, 'active');
     assert.equal(conflicted.publicVisibility, 'hidden');
     assert.match(conflicted.message, /não foi possível confirmar seu apelido/i);

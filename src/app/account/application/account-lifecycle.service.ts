@@ -40,7 +40,8 @@ export interface AccountLifecycleCommandResult {
   message?: string | null;
 }
 
-interface RequestSelfSuspensionPayload {
+interface SelfAccountLifecyclePayload {
+  expectedUid: string;
   reason?: string | null;
 }
 
@@ -52,10 +53,6 @@ interface ModerateSuspendAccountPayload {
 
 interface ModerateUnsuspendAccountPayload {
   targetUid: string;
-}
-
-interface RequestAccountDeletionPayload {
-  reason?: string | null;
 }
 
 interface ModerateScheduleDeletionPayload {
@@ -76,6 +73,7 @@ export class AccountLifecycleService {
   // ---------------------------------------------------------------------------
 
   requestSelfSuspension$(
+    expectedUid: string,
     reason?: string | null
   ): Observable<AccountLifecycleCommandResult> {
     const safeReason = this.normalizeOptionalReason(reason);
@@ -83,11 +81,11 @@ export class AccountLifecycleService {
     if (invalidReason) return invalidReason;
 
     return this.callFunction$<
-      RequestSelfSuspensionPayload,
+      SelfAccountLifecyclePayload,
       AccountLifecycleCommandResult
     >(
       'requestSelfSuspension',
-      { reason: safeReason },
+      { expectedUid, reason: safeReason },
       {
         context: 'AccountLifecycleService.requestSelfSuspension$',
         userMessage: 'Não foi possível suspender a conta agora.',
@@ -95,13 +93,13 @@ export class AccountLifecycleService {
     );
   }
 
-  reactivateSelfSuspension$(): Observable<AccountLifecycleCommandResult> {
+  reactivateSelfSuspension$(expectedUid: string): Observable<AccountLifecycleCommandResult> {
     return this.callFunction$<
-      Record<string, never>,
+      SelfAccountLifecyclePayload,
       AccountLifecycleCommandResult
     >(
       'reactivateSelfSuspension',
-      {},
+      { expectedUid },
       {
         context: 'AccountLifecycleService.reactivateSelfSuspension$',
         userMessage: 'Não foi possível reativar a conta agora.',
@@ -110,6 +108,7 @@ export class AccountLifecycleService {
   }
 
   requestAccountDeletion$(
+    expectedUid: string,
     reason?: string | null
   ): Observable<AccountLifecycleCommandResult> {
     const safeReason = this.normalizeOptionalReason(reason);
@@ -117,11 +116,11 @@ export class AccountLifecycleService {
     if (invalidReason) return invalidReason;
 
     return this.callFunction$<
-      RequestAccountDeletionPayload,
+      SelfAccountLifecyclePayload,
       AccountLifecycleCommandResult
     >(
       'requestAccountDeletion',
-      { reason: safeReason },
+      { expectedUid, reason: safeReason },
       {
         context: 'AccountLifecycleService.requestAccountDeletion$',
         userMessage: 'Não foi possível iniciar a exclusão da conta agora.',
@@ -129,13 +128,13 @@ export class AccountLifecycleService {
     );
   }
 
-  cancelAccountDeletion$(): Observable<AccountLifecycleCommandResult> {
+  cancelAccountDeletion$(expectedUid: string): Observable<AccountLifecycleCommandResult> {
     return this.callFunction$<
-      Record<string, never>,
+      SelfAccountLifecyclePayload,
       AccountLifecycleCommandResult
     >(
       'cancelAccountDeletion',
-      {},
+      { expectedUid },
       {
         context: 'AccountLifecycleService.cancelAccountDeletion$',
         userMessage: 'Não foi possível cancelar a exclusão da conta agora.',
@@ -388,6 +387,11 @@ export class AccountLifecycleService {
     if (!rawReason) return {};
 
     switch (rawReason.toLowerCase()) {
+      case 'auth/session-changed':
+        return {
+          [rawReason]:
+            'A conta ativa mudou. Abra a ação novamente para confirmar com a conta atual.',
+        };
       case 'recent-authentication-required':
         return {
           [rawReason]:

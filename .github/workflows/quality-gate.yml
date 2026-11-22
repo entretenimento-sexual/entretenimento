@@ -338,14 +338,20 @@ jobs:
           set -o pipefail
           npm run build:safe 2>&1 | tee logs/angular-build.log
 
-      - name: Run Firestore Rules tests
+      - name: Run Firestore Rules and account deletion queue tests
         id: firestore_rules
         if: steps.app_install.outcome == 'success'
         continue-on-error: true
         shell: bash
         run: |
-          set -o pipefail
+          set -eo pipefail
           npm run test:rules 2>&1 | tee logs/firestore-rules-tests.log
+          if [ "${{ steps.functions_test.outcome }}" = "success" ]; then
+            node node_modules/firebase-tools/lib/bin/firebase.js emulators:exec \
+              --config firebase.rules-test.json --only firestore --project demo-entretenimento-purge-queue \
+              'node --test functions/lib/account_lifecycle/account-deletion-purge-queue.emulator.test.js' \
+              2>&1 | tee -a logs/firestore-rules-tests.log
+          fi
 
       - name: Run direct chat reconciliation emulator
         id: chat_reconciliation
