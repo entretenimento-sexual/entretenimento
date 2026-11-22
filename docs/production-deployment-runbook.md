@@ -59,6 +59,9 @@ A janela permanece **NO-GO** enquanto qualquer item abaixo estiver pendente.
     privacidade/moderação e jurídico adulto/publicidade para o mesmo SHA de release.
 18. Qualquer mudança posterior com impacto nos escopos auditados invalida a aprovação
     até reavaliação externa ou manifestação formal de não impacto.
+19. O [checklist do domínio internacional](./operations/production-release-deferred-audit-checklist.md#domínio-internacional-e-privacidade-cadastral)
+    comprova privacidade cadastral pública, compatibilidade com os termos dos
+    serviços utilizados e homologação do host definitivo.
 
 ## 3. Preparação da release
 
