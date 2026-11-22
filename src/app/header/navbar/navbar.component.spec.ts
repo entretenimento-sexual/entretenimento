@@ -248,6 +248,8 @@ describe('NavbarComponent', () => {
       .nativeElement as HTMLElement;
 
     expect(accountMenu.textContent).toContain('Meu perfil');
+    const manageAccount = accountMenu.querySelector('a[href="/conta/gerenciar"]');
+    expect(manageAccount?.textContent).toContain('Gerenciar conta');
     expect(accountMenu.textContent).toContain('Planos');
     expect(accountMenu.textContent).toContain('Sair');
     expect(desktopMenu.textContent).not.toContain('Principal');

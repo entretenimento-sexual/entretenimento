@@ -33,16 +33,14 @@ describe('AccountLifecycleDialogComponent', () => {
     const backdrop = fixture.nativeElement.querySelector(
       '.account-lifecycle-dialog-backdrop'
     ) as HTMLElement;
-    const dialog = fixture.nativeElement.querySelector(
-      '[role="dialog"]'
-    ) as HTMLElement;
+    const dialog = fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
 
     expect(backdrop.getAttribute('aria-hidden')).toBeNull();
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     expect(dialog.getAttribute('aria-labelledby')).toBe(
       'account-lifecycle-dialog-title'
     );
-    expect(dialog.tabIndex).toBe(-1);
+    expect(dialog.open).toBe(true);
   });
 
   it('gerencia foco inicial e restauração sem cdkFocusInitial', async () => {
@@ -82,6 +80,21 @@ describe('AccountLifecycleDialogComponent', () => {
       fixture.nativeElement.remove();
       trigger.remove();
     }
+  });
+
+  it('bloqueia o Escape enquanto a confirmação está em andamento', () => {
+    const fixture = create();
+    fixture.componentRef.setInput('busy', true);
+    fixture.detectChanges();
+    const dialog = fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
+    const close = vi.spyOn(fixture.componentInstance.closed, 'emit');
+
+    const cancel = new Event('cancel', { cancelable: true });
+    dialog.dispatchEvent(cancel);
+
+    expect(cancel.defaultPrevented).toBe(true);
+    expect(dialog.open).toBe(true);
+    expect(close).not.toHaveBeenCalled();
   });
 
   it('explica que a exclusão é uma solicitação com prazo de 24 horas', () => {

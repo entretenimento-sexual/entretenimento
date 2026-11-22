@@ -24,6 +24,10 @@ Com os emuladores iniciados, `npm start`, `npm run start:dev` e
 os endpoints locais de `dev-emu`. `ng serve` usa a mesma configuração.
 Se os emuladores estiverem desligados, a aplicação continua apontando para
 localhost. No Windows, `npm run dev:auth:win` inicia o frontend e os emuladores.
+No fluxo Windows, use `http://127.0.0.1:4200/` em todas as abas do mesmo
+perfil do navegador para compartilhar a sessão do aplicativo. O endereço
+`http://localhost:4200/` tem armazenamento e sessão próprios.
+
 Para usar o projeto de homologação `entretenimento-staging`, selecione
 explicitamente `npm run start:staging`.
 

@@ -23,8 +23,8 @@ import {
   reauthenticateWithPopup,
   type User,
 } from 'firebase/auth';
-import { Observable, defer, throwError } from 'rxjs';
-import { catchError, filter, map, mergeMap, switchMap, takeUntil, timeout } from 'rxjs/operators';
+import { Observable, defer, of, throwError } from 'rxjs';
+import { catchError, filter, map, mergeMap, switchMap, take, takeUntil, timeout } from 'rxjs/operators';
 
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
@@ -108,6 +108,17 @@ export class AccountReauthenticationService {
       : null;
   }
 
+  sensitiveActionSessionChanged$(session: AccountActionSession): Observable<void> {
+    return defer(() => this.isCurrentSensitiveSession(session)
+      ? this.authSession.authUser$.pipe(
+        filter(() => !this.isCurrentSensitiveSession(session)),
+        take(1),
+        map(() => undefined)
+      )
+      : of(undefined)
+    );
+  }
+
   runSensitiveAction$<T>(
     session: AccountActionSession | null,
     password: string | null | undefined,
@@ -116,25 +127,20 @@ export class AccountReauthenticationService {
     const changed = () => Object.assign(new Error(SESSION_CHANGED_MESSAGE), {
       code: 'auth/session-changed',
     });
-    const isCurrent = () => session !== null && this.auth.currentUser === session.user &&
-      !this.authSession.isTerminatingSnapshot &&
-      this.authSession.terminationVersionSnapshot === session.terminationVersion;
-
     return defer(() => {
-      if (!session || !isCurrent()) throw changed();
+      if (!session || !this.isCurrentSensitiveSession(session)) throw changed();
 
-      const sessionChanged$ = this.authSession.authUser$.pipe(
-        filter(() => !isCurrent()),
+      const sessionChanged$ = this.sensitiveActionSessionChanged$(session).pipe(
         mergeMap(() => throwError(changed))
       );
 
       return this.reauthenticateForSensitiveAction$(password).pipe(
         switchMap(() => {
-          if (!isCurrent()) throw changed();
+          if (!this.isCurrentSensitiveSession(session)) throw changed();
           return action(session.user.uid);
         }),
         map((result) => {
-          if (!isCurrent()) throw changed();
+          if (!this.isCurrentSensitiveSession(session)) throw changed();
           return result;
         }),
         takeUntil(sessionChanged$)
@@ -151,6 +157,12 @@ export class AccountReauthenticationService {
         return throwError(() => error);
       })
     );
+  }
+
+  private isCurrentSensitiveSession(session: AccountActionSession): boolean {
+    return this.auth.currentUser === session.user &&
+      !this.authSession.isTerminatingSnapshot &&
+      this.authSession.terminationVersionSnapshot === session.terminationVersion;
   }
 
   reauthenticateForSensitiveAction$(

@@ -3,7 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
-  HostListener,
+  OnDestroy,
   afterNextRender,
   computed,
   input,
@@ -12,7 +12,6 @@ import {
   viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { A11yModule } from '@angular/cdk/a11y';
 
 import { ActionStateDirective } from 'src/app/shared/action-state/action-state.directive';
 import {
@@ -24,12 +23,12 @@ import {
 @Component({
   selector: 'app-account-lifecycle-dialog',
   standalone: true,
-  imports: [CommonModule, A11yModule, ActionStateDirective],
+  imports: [CommonModule, ActionStateDirective],
   templateUrl: './account-lifecycle-dialog.component.html',
   styleUrl: './account-lifecycle-dialog.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AccountLifecycleDialogComponent {
+export class AccountLifecycleDialogComponent implements OnDestroy {
   readonly intent = input.required<AccountLifecycleDialogIntent>();
   readonly busy = input<boolean>(false);
   readonly reauthenticationMode = input<AccountReauthenticationMode>(
@@ -47,6 +46,7 @@ export class AccountLifecycleDialogComponent {
   readonly passwordTouched = signal(false);
   readonly showPassword = signal(false);
 
+  private readonly modal = viewChild<ElementRef<HTMLDialogElement>>('modal');
   private readonly dialogContainer =
     viewChild<ElementRef<HTMLElement>>('dialogContainer');
   private readonly initialFocusTarget =
@@ -230,17 +230,25 @@ export class AccountLifecycleDialogComponent {
   });
 
   constructor() {
-    afterNextRender(() => this.focusInitialControl());
+    afterNextRender(() => {
+      const modal = this.modal()?.nativeElement;
+      if (!modal || modal.open) return;
+      if (typeof modal.showModal === 'function') modal.showModal();
+      else modal.open = true;
+      this.focusInitialControl();
+    });
   }
 
-  @HostListener('document:keydown.escape')
-  onEscapeKey(): void {
-    if (this.busy()) return;
+  ngOnDestroy(): void {
+    this.closeModal();
+  }
+
+  onEscapeKey(event: Event): void {
+    event.preventDefault();
     this.onClose();
   }
 
   onBackdropClick(): void {
-    if (this.busy()) return;
     this.onClose();
   }
 
@@ -272,9 +280,11 @@ export class AccountLifecycleDialogComponent {
   }
 
   onClose(): void {
+    if (this.busy()) return;
     const focusTarget = this.previousActiveElement;
     this.previousActiveElement = null;
     this.password.set('');
+    this.closeModal();
     this.closed.emit();
 
     queueMicrotask(() => {
@@ -295,6 +305,13 @@ export class AccountLifecycleDialogComponent {
       reason: this.reason().trim() || null,
       password: this.requiresPassword() ? this.password() : null,
     });
+  }
+
+  private closeModal(): void {
+    const modal = this.modal()?.nativeElement;
+    if (!modal?.open) return;
+    if (typeof modal.close === 'function') modal.close();
+    else modal.open = false;
   }
 
   private focusInitialControl(): void {

@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { Observable, combineLatest, of } from 'rxjs';
+import { EMPTY, Observable, combineLatest, of } from 'rxjs';
 import {
   filter,
   finalize,
@@ -18,7 +18,7 @@ import {
   take,
   timeout,
 } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 
 import { AccountLifecycleFacade } from '../../application/account-lifecycle.facade';
 import { AccountLifecycleService } from '../../application/account-lifecycle.service';
@@ -63,7 +63,7 @@ export class AccountStatusComponent {
   );
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly notify = inject(ErrorNotificationService);
-  private dialogSession: AccountActionSession | null = null;
+  private readonly dialogSession = signal<AccountActionSession | null>(null);
 
   private readonly authSession = inject(AuthSessionService);
   private readonly appBlock = inject(AuthAppBlockService);
@@ -93,6 +93,19 @@ export class AccountStatusComponent {
   );
   readonly isBusy = computed(() => this.busyAction() !== null);
 
+  constructor() {
+    toObservable(this.dialogSession).pipe(
+      switchMap((session) => session
+        ? this.accountReauthentication.sensitiveActionSessionChanged$(session).pipe(map(() => session))
+        : EMPTY),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe((session) => {
+      if (this.dialogSession() !== session || this.isBusy()) return;
+      this.dismissLifecycleDialog();
+      this.notify.showInfo('A confirmação foi fechada porque a conta ativa mudou.');
+    });
+  }
+
   onReactivateSelfSuspension(): void {
     if (this.isBusy()) return;
     this.openLifecycleDialog('reactivate_self_suspend');
@@ -105,7 +118,7 @@ export class AccountStatusComponent {
 
   closeLifecycleDialog(): void {
     if (this.isBusy()) return;
-    this.lifecycleDialogIntent.set(null);
+    this.dismissLifecycleDialog();
   }
 
   onLifecycleDialogConfirmed(
@@ -121,16 +134,23 @@ export class AccountStatusComponent {
         return;
 
       default:
-        this.lifecycleDialogIntent.set(null);
+        this.dismissLifecycleDialog();
     }
   }
 
   private openLifecycleDialog(intent: AccountLifecycleDialogIntent): void {
-    this.dialogSession = this.accountReauthentication.captureSensitiveActionSession();
+    const session = this.accountReauthentication.captureSensitiveActionSession();
+    if (!session) return;
+    this.dialogSession.set(session);
     this.lifecycleReauthenticationMode.set(
       this.accountReauthentication.getCurrentMode()
     );
     this.lifecycleDialogIntent.set(intent);
+  }
+
+  private dismissLifecycleDialog(): void {
+    this.dialogSession.set(null);
+    this.lifecycleDialogIntent.set(null);
   }
 
   private executeReactivateSelfSuspension(password?: string | null): void {
@@ -139,7 +159,7 @@ export class AccountStatusComponent {
     this.busyAction.set('reactivate');
 
     this.accountReauthentication
-      .runSensitiveAction$(this.dialogSession, password, (uid) =>
+      .runSensitiveAction$(this.dialogSession(), password, (uid) =>
         this.accountLifecycleService.reactivateSelfSuspension$(uid).pipe(
           switchMap((result) => this.waitForLifecycleChange$(uid, 'self_suspended').pipe(
             map((accountStatus) => ({ result, accountStatus }))
@@ -152,7 +172,7 @@ export class AccountStatusComponent {
       )
       .subscribe({
         next: ({ result, accountStatus }) => {
-          this.lifecycleDialogIntent.set(null);
+          this.dismissLifecycleDialog();
           this.notify.showSuccess(
             result.message ?? 'Conta reativada com sucesso.'
           );
@@ -175,7 +195,7 @@ export class AccountStatusComponent {
           }
         },
         error: (error: unknown) => {
-          if (isAccountActionSessionChanged(error)) this.lifecycleDialogIntent.set(null);
+          if (isAccountActionSessionChanged(error)) this.dismissLifecycleDialog();
         },
       });
   }
@@ -186,7 +206,7 @@ export class AccountStatusComponent {
     this.busyAction.set('cancel_deletion');
 
     this.accountReauthentication
-      .runSensitiveAction$(this.dialogSession, password, (uid) =>
+      .runSensitiveAction$(this.dialogSession(), password, (uid) =>
         this.accountLifecycleService.cancelAccountDeletion$(uid).pipe(
           switchMap((result) => this.waitForLifecycleChange$(uid, 'pending_deletion').pipe(
             map((accountStatus) => ({ result, accountStatus }))
@@ -199,7 +219,7 @@ export class AccountStatusComponent {
       )
       .subscribe({
         next: ({ result, accountStatus }) => {
-          this.lifecycleDialogIntent.set(null);
+          this.dismissLifecycleDialog();
           this.notify.showSuccess(
             result.message ?? 'Exclusão cancelada com sucesso.'
           );
@@ -222,7 +242,7 @@ export class AccountStatusComponent {
           }
         },
         error: (error: unknown) => {
-          if (isAccountActionSessionChanged(error)) this.lifecycleDialogIntent.set(null);
+          if (isAccountActionSessionChanged(error)) this.dismissLifecycleDialog();
         },
       });
   }

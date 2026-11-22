@@ -1,17 +1,17 @@
 <!-- src/app/account/components/account-lifecycle-dialog/account-lifecycle-dialog.component.html -->
-<div
+<dialog
+  #modal
   class="account-lifecycle-dialog-backdrop"
+  aria-modal="true"
+  aria-labelledby="account-lifecycle-dialog-title"
+  aria-describedby="account-lifecycle-dialog-description"
   (click)="onBackdropClick()"
+  (cancel)="onEscapeKey($event)"
 >
   <section
     #dialogContainer
     class="account-lifecycle-dialog"
-    role="dialog"
     tabindex="-1"
-    aria-modal="true"
-    aria-labelledby="account-lifecycle-dialog-title"
-    aria-describedby="account-lifecycle-dialog-description"
-    cdkTrapFocus
     (click)="onDialogClick($event)"
   >
     <header class="account-lifecycle-dialog__header">
@@ -172,6 +172,7 @@
     <footer class="account-lifecycle-dialog__actions">
       <button
         #initialFocusTarget
+        autofocus
         type="button"
         class="app-action app-action--ghost"
         (click)="onClose()"
@@ -194,4 +195,4 @@
       </button>
     </footer>
   </section>
-</div>
+</dialog>

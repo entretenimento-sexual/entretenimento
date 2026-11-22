@@ -115,6 +115,15 @@
                 </a>
 
                 <a
+                  routerLink="/conta/gerenciar"
+                  routerLinkActive="active"
+                  ariaCurrentWhenActive="page"
+                  (click)="accountMenu.open = false"
+                >
+                  Gerenciar conta
+                </a>
+
+                <a
                   routerLink="/subscription-plan"
                   routerLinkActive="active"
                   (click)="accountMenu.open = false"
@@ -220,6 +229,16 @@
           (click)="closeMobileMenu()"
         >
           Meu perfil
+        </a>
+
+        <a
+          routerLink="/conta/gerenciar"
+          class="navbar-mobile-link"
+          routerLinkActive="active"
+          ariaCurrentWhenActive="page"
+          (click)="closeMobileMenu()"
+        >
+          Gerenciar conta
         </a>
 
         <a

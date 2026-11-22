@@ -8,8 +8,8 @@ import {
   signal,
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { finalize } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { EMPTY, finalize, map, switchMap } from 'rxjs';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 
 import { AccountLifecycleService } from '../../application/account-lifecycle.service';
 import {
@@ -39,13 +39,26 @@ export class AccountManageComponent {
   private readonly accountLifecycleService = inject(AccountLifecycleService);
   private readonly accountReauthentication = inject(AccountReauthenticationService);
   private readonly notify = inject(ErrorNotificationService);
-  private dialogSession: AccountActionSession | null = null;
+  private readonly dialogSession = signal<AccountActionSession | null>(null);
 
   readonly lifecycleDialogIntent = signal<AccountLifecycleDialogIntent | null>(null);
   readonly lifecycleBusyIntent = signal<AccountLifecycleDialogIntent | null>(null);
   readonly lifecycleReauthenticationMode = signal<AccountReauthenticationMode>('unsupported');
 
   readonly isLifecycleBusy = computed(() => this.lifecycleBusyIntent() !== null);
+
+  constructor() {
+    toObservable(this.dialogSession).pipe(
+      switchMap((session) => session
+        ? this.accountReauthentication.sensitiveActionSessionChanged$(session).pipe(map(() => session))
+        : EMPTY),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe((session) => {
+      if (this.dialogSession() !== session || this.isLifecycleBusy()) return;
+      this.dismissLifecycleDialog();
+      this.notify.showInfo('A confirmação foi fechada porque a conta ativa mudou.');
+    });
+  }
 
   openSelfSuspendDialog(): void {
     if (this.isLifecycleBusy()) return;
@@ -59,7 +72,7 @@ export class AccountManageComponent {
 
   closeLifecycleDialog(): void {
     if (this.isLifecycleBusy()) return;
-    this.lifecycleDialogIntent.set(null);
+    this.dismissLifecycleDialog();
   }
 
   onLifecycleDialogConfirmed(event: AccountLifecycleDialogConfirmEvent): void {
@@ -71,16 +84,23 @@ export class AccountManageComponent {
         this.executeSelfDeletion(event.reason, event.password);
         return;
       default:
-        this.lifecycleDialogIntent.set(null);
+        this.dismissLifecycleDialog();
     }
   }
 
   private openLifecycleDialog(intent: AccountLifecycleDialogIntent): void {
-    this.dialogSession = this.accountReauthentication.captureSensitiveActionSession();
+    const session = this.accountReauthentication.captureSensitiveActionSession();
+    if (!session) return;
+    this.dialogSession.set(session);
     this.lifecycleReauthenticationMode.set(
       this.accountReauthentication.getCurrentMode()
     );
     this.lifecycleDialogIntent.set(intent);
+  }
+
+  private dismissLifecycleDialog(): void {
+    this.dialogSession.set(null);
+    this.lifecycleDialogIntent.set(null);
   }
 
   private executeSelfSuspension(
@@ -92,7 +112,7 @@ export class AccountManageComponent {
     this.lifecycleBusyIntent.set('self_suspend');
 
     this.accountReauthentication
-      .runSensitiveAction$(this.dialogSession, password, (uid) =>
+      .runSensitiveAction$(this.dialogSession(), password, (uid) =>
         this.accountLifecycleService.requestSelfSuspension$(uid, reason)
       )
       .pipe(
@@ -101,12 +121,12 @@ export class AccountManageComponent {
       )
       .subscribe({
         next: (result) => {
-          this.lifecycleDialogIntent.set(null);
+          this.dismissLifecycleDialog();
           this.notify.showSuccess(result.message ?? 'Conta suspensa com sucesso.');
           this.router.navigate(['/conta/status'], { replaceUrl: true });
         },
         error: (error: unknown) => {
-          if (isAccountActionSessionChanged(error)) this.lifecycleDialogIntent.set(null);
+          if (isAccountActionSessionChanged(error)) this.dismissLifecycleDialog();
         },
       });
   }
@@ -120,7 +140,7 @@ export class AccountManageComponent {
     this.lifecycleBusyIntent.set('self_delete');
 
     this.accountReauthentication
-      .runSensitiveAction$(this.dialogSession, password, (uid) =>
+      .runSensitiveAction$(this.dialogSession(), password, (uid) =>
         this.accountLifecycleService.requestAccountDeletion$(uid, reason)
       )
       .pipe(
@@ -129,12 +149,12 @@ export class AccountManageComponent {
       )
       .subscribe({
         next: (result) => {
-          this.lifecycleDialogIntent.set(null);
+          this.dismissLifecycleDialog();
           this.notify.showSuccess(result.message ?? 'Exclusão da conta iniciada.');
           this.router.navigate(['/conta/status'], { replaceUrl: true });
         },
         error: (error: unknown) => {
-          if (isAccountActionSessionChanged(error)) this.lifecycleDialogIntent.set(null);
+          if (isAccountActionSessionChanged(error)) this.dismissLifecycleDialog();
         },
       });
   }

@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
-import { BehaviorSubject, of, switchMap, type Observable } from 'rxjs';
+import { Router, provideRouter } from '@angular/router';
+import { BehaviorSubject, Subject, of, switchMap, type Observable } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from '@core/interfaces/iuser-dados';
@@ -36,10 +36,13 @@ describe('AccountStatusComponent', () => {
   const reactivateSelfSuspension$ = vi.fn();
   const cancelAccountDeletion$ = vi.fn();
   const reauthenticateForSensitiveAction$ = vi.fn((_password?: string) => of(void 0));
+  let sessionChanged$: Subject<void>;
+  const scope = { user: { uid: 'user-1' }, terminationVersion: 0 } as AccountActionSession;
   let currentUser$: BehaviorSubject<IUserDados | null | undefined>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    sessionChanged$ = new Subject<void>();
     currentUser$ = new BehaviorSubject<IUserDados | null | undefined>(user());
 
     reactivateSelfSuspension$.mockReturnValue(
@@ -71,10 +74,7 @@ describe('AccountStatusComponent', () => {
       providers: [
         { provide: AuthSessionService, useValue: { uid$: of('user-1') } },
         { provide: LogoutService, useValue: { logout: vi.fn() } },
-        {
-          provide: Router,
-          useValue: { navigate },
-        },
+        provideRouter([]),
         {
           provide: AccountLifecycleFacade,
           useValue: {
@@ -105,7 +105,8 @@ describe('AccountStatusComponent', () => {
           provide: AccountReauthenticationService,
           useValue: {
             getCurrentMode: vi.fn(() => 'password'),
-            captureSensitiveActionSession: vi.fn(),
+            captureSensitiveActionSession: () => scope,
+            sensitiveActionSessionChanged$: () => sessionChanged$,
             runSensitiveAction$: (
               _scope: AccountActionSession | null,
               password: string | undefined,
@@ -126,6 +127,7 @@ describe('AccountStatusComponent', () => {
         },
       ],
     }).compileComponents();
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockImplementation(navigate);
   });
 
   it('abre confirmação antes de reativar a conta', () => {
@@ -136,6 +138,21 @@ describe('AccountStatusComponent', () => {
 
     expect(component.lifecycleDialogIntent()).toBe('reactivate_self_suspend');
     expect(reactivateSelfSuspension$).not.toHaveBeenCalled();
+  });
+
+  it('fecha o diálogo aberto logo que a sessão muda, sem iniciar a ação', async () => {
+    const fixture = TestBed.createComponent(AccountStatusComponent);
+    fixture.componentInstance.onReactivateSelfSuspension();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    sessionChanged$.next();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.lifecycleDialogIntent()).toBeNull();
+    expect(fixture.nativeElement.querySelector('dialog')).toBeNull();
+    expect(reactivateSelfSuspension$).not.toHaveBeenCalled();
+    expect(showInfo).toHaveBeenCalledWith('A confirmação foi fechada porque a conta ativa mudou.');
   });
 
   it('aguarda a hidratação canônica antes de navegar após reativação', () => {
