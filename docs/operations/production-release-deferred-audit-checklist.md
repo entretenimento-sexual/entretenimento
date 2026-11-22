@@ -73,83 +73,104 @@ autorizada do pré-deploy.
 
 **Limite de privacidade.** A Cloudflare retém o cadastro completo e pode
 ocultar campos pessoais na consulta pública, conforme a extensão. A
-documentação informa que estado e país do titular ficam públicos. O Registrar
-exige os nameservers da Cloudflare. Se a visibilidade de estado e país for
-inaceitável, reavaliar registrador, extensão e serviço de privacidade antes
-de pagar. Definir também a titularidade real e os contatos institucionais,
-considerando as informações que a operação deve divulgar em seus próprios
-canais.
+documentação informa que estado e país do titular ficam públicos. O
+proprietário aceita essa exposição geográfica e exige a ocultação de seu
+nome pessoal na consulta pública do domínio. O Registrar exige os
+nameservers da Cloudflare.
 [Ocultação cadastral na Cloudflare](https://developers.cloudflare.com/registrar/account-options/whois-redaction/)
 · [Contrato do Cloudflare Registrar](https://www.cloudflare.com/domain-registration-agreement/)
 · [Modo DNS only](https://developers.cloudflare.com/dns/proxy-status/).
 
-- [ ] **Preparar sem alterar serviços.** Selecionar candidatos de nome em
-  lista privada. Inventariar, em consulta ao código, URLs, marcas e contatos
-  que podem aparecer no login, nos links de e-mail, nos metadados da página e
-  nos canais de suporte. Anotar os campos públicos aceitáveis no RDAP e
-  preparar um roteiro de homologação com contas e mídia sintéticas.
-- [ ] **Escolher o nome e a extensão.** Conferir disponibilidade, conflito de
-  marca e reputação de uso anterior do domínio. Comparar o custo de registro e
-  renovação de registradores acreditados pela ICANN e confirmar que a política
-  do registrador e do registro da extensão admite o uso planejado.
-- [ ] **Confirmar a privacidade antes de pagar.** Solicitar ao registrador a
-  lista de campos que ficarão públicos no RDAP e no WHOIS, quando disponível.
-  Selecionar uma combinação de extensão e registrador que oculte o nome pessoal
-  do titular, endereço, telefone e e-mail pessoais desde o primeiro dia.
-  Conferir se a opção é redação de dados ou serviço de proxy, quem consta como
-  titular e as condições de renovação, transferência e divulgação de dados.
-  Usar dados cadastrais válidos. Avaliar separadamente obrigações de
-  identificação pública da plataforma.
-  [Privacidade e proxy na ICANN](https://www.icann.org/en/contracted-parties/accredited-registrars/privacy-and-proxy-service-providers)
-  · [Consulta pública ICANN Lookup](https://lookup.icann.org/en).
-- [ ] **Validar os termos por serviço.** Registrar quais serviços hospedam ou
-  processam as páginas, perfis, fotos e vídeos de usuários. Revisar o uso
-  adulto previsto nos termos vigentes de DNS/CDN se aplicável,
-  Firebase Hosting, Auth, Functions, Firestore, Storage, App Check e FCM.
-  Descrever ao provedor que o uso envolve armazenamento e entrega de fotos e
-  vídeos sexualmente explícitos enviados por usuários adultos. Registrar
-  confirmação por escrito para o produto escolhido antes de aceitar arquivos
-  reais. Se a permissão do Storage permanecer indefinida, avaliar outro
-  provedor apenas para os arquivos, mantendo o domínio e a autenticação.
-  Validar também aferição de idade, autorização das pessoas retratadas,
-  moderação e retirada de acesso a arquivos e miniaturas.
-  [Termos do Firebase por produto](https://firebase.google.com/terms/)
-  · [Política de uso do Google Cloud](https://cloud.google.com/terms/aup).
-- [ ] **Registrar e conferir a consulta pública.** Após aprovar nome,
-  privacidade, termos e orçamento, comprar com a proteção cadastral ativa.
-  Conferir o RDAP em sessão pública sem login e consultar o WHOIS quando
-  oferecido. Guardar a comprovação sem dados pessoais e repetir a checagem
-  após renovação, transferência ou alteração cadastral. Proteger a conta do
-  registrador com MFA e configurar alertas de renovação.
-- [ ] **Integrar DNS, HTTPS e o Angular.** Definir o host público canônico e
-  testar o redirecionamento de `www` ou do domínio raiz, quando usados.
-  Confirmar propriedade DNS e certificado no Firebase Hosting do projeto
-  correto. Validar arquivos estáticos, recarga de rotas internas, callback de
-  Auth e ausência de conteúdo misto. Separar os hosts e configurações de
-  staging e produção. Conferir origens autorizadas nas restrições de API,
-  CORS e CSP onde aplicáveis. Revisar URLs públicas e mensagens para manter a
-  marca neutra. O domínio próprio não renomeia o projeto Firebase, e o
-  identificador técnico ainda pode aparecer em URLs e requisições do SDK.
-  [Domínio próprio no Firebase Hosting](https://firebase.google.com/docs/hosting/custom-domain/)
-  · [Deploy do Angular](https://angular.dev/tools/cli/deployment).
-- [ ] **Homologar Auth, App Check e Web Push no host final.** Revisar domínios
-  autorizados, `authDomain`, URLs de ação e de retorno para cadastro por link,
-  verificação de e-mail e recuperação de senha. Se o login Google estiver
-  habilitado, validar origem HTTPS, callback OAuth, marca e domínio verificados,
-  página inicial, Termos e aviso de privacidade. Testar login, logout, retomada
-  de cadastro, callables protegidas, upload e leitura protegida de mídia.
-  Configurar o host autorizado na chave do reCAPTCHA e validar tokens do App
-  Check com o provedor de cada ambiente. Validar inscrição e desinscrição de
-  Web Push no novo host, com o service worker e a VAPID do projeto certo,
-  conforme a seção abaixo. Repetir os testes nos hosts autorizados de staging
-  e produção antes da liberação do tráfego público.
-  [Domínio de redirecionamento do login Google](https://firebase.google.com/docs/auth/web/google-signin#customizing-the-redirect-domain-for-google-sign-in)
-  · [Verificação de marca e domínios OAuth](https://developers.google.com/identity/verification/authentication-policy-compliance?hl=pt-br)
-  · [App Check Web com reCAPTCHA v3](https://firebase.google.com/docs/app-check/web/recaptcha-provider?hl=pt-br)
-  · [App Check Web com reCAPTCHA Enterprise](https://firebase.google.com/docs/app-check/web/recaptcha-enterprise-provider?hl=pt-br).
+### Ordem de prioridade e execução
 
-Registrar no GO/NO-GO as evidências de privacidade cadastral, adequação aos
-termos dos serviços e homologação no host público definitivo.
+1. [ ] **Definir o operador e a identificação pública.** Definir o titular
+   real do domínio e quem responde pela plataforma. Identificar quais dados
+   precisam ser divulgados no site, nos Termos, no aviso de privacidade e
+   na contratação on-line, se aplicável. Resolver antes da compra qualquer
+   conflito entre a divulgação exigida e a meta de manter o nome pessoal
+   do proprietário fora das superfícies públicas.
+2. [ ] **Planejar a marca e os contatos institucionais.** Preparar
+   uma lista privada de nomes neutros e definir nome de exibição, identidade
+   visual e descrição do serviço 18+. Definir endereços de função para
+   suporte, privacidade, denúncias e remetentes do cadastro e da recuperação
+   de senha. Atribuir responsáveis e inventariar URLs, marcas e contatos
+   que podem aparecer no app, no Google OAuth e nos e-mails. Preparar o
+   roteiro de homologação com contas e mídia sintéticas.
+3. [ ] **Aprovar o nome e a extensão.** Conferir disponibilidade, conflito de
+   marca e reputação de uso anterior do domínio. Comparar o custo de registro e
+   renovação de registradores acreditados pela ICANN e confirmar que a política
+   do registrador e do registro da extensão admite o uso planejado.
+4. [ ] **Confirmar a privacidade antes de pagar.** Solicitar ao registrador a
+   lista de campos que ficarão públicos no RDAP e no WHOIS, quando disponível.
+   Selecionar uma combinação de extensão e registrador que oculte o nome pessoal
+   do titular, endereço, telefone e e-mail pessoais desde o primeiro dia.
+   Conferir se a opção é redação de dados ou serviço de proxy, quem consta como
+   titular e as condições de renovação, transferência e divulgação de dados.
+   Usar dados cadastrais válidos e confirmar os campos que continuarão públicos.
+   [Privacidade e proxy na ICANN](https://www.icann.org/en/contracted-parties/accredited-registrars/privacy-and-proxy-service-providers)
+   · [Consulta pública ICANN Lookup](https://lookup.icann.org/en).
+5. [ ] **Validar os termos por serviço.** Registrar quais serviços hospedam ou
+   processam as páginas, perfis, fotos e vídeos de usuários. Revisar o uso
+   adulto previsto nos termos vigentes de DNS/CDN se aplicável,
+   Firebase Hosting, Auth, Functions, Firestore, Storage, App Check e FCM.
+   Descrever ao provedor que o uso envolve armazenamento e entrega de fotos e
+   vídeos sexualmente explícitos enviados por usuários adultos. Registrar
+   confirmação por escrito para o produto escolhido antes de aceitar arquivos
+   reais. Se a permissão do Storage permanecer indefinida, avaliar outro
+   provedor apenas para os arquivos, mantendo o domínio e a autenticação.
+   Validar também aferição de idade, autorização das pessoas retratadas,
+   moderação e retirada de acesso a arquivos e miniaturas.
+   [Termos do Firebase por produto](https://firebase.google.com/terms/)
+   · [Política de uso do Google Cloud](https://cloud.google.com/terms/aup).
+6. [ ] **Registrar e conferir a consulta pública.** Após aprovar nome,
+   privacidade, termos e orçamento, comprar com a proteção cadastral ativa.
+   Conferir o RDAP em sessão pública sem login e consultar o WHOIS quando
+   oferecido. Guardar a comprovação sem dados pessoais e repetir a checagem
+   após renovação, transferência ou alteração cadastral. Proteger a conta do
+   registrador com MFA e configurar alertas de renovação.
+7. [ ] **Integrar DNS, HTTPS e o Angular.** Definir o host público canônico e
+   testar o redirecionamento de `www` ou do domínio raiz, quando usados.
+   Confirmar propriedade DNS e certificado no Firebase Hosting do projeto
+   correto. Validar arquivos estáticos, recarga de rotas internas, callback de
+   Auth e ausência de conteúdo misto. Separar os hosts e configurações de
+   staging e produção. Conferir origens autorizadas nas restrições de API,
+   CORS e CSP onde aplicáveis. Revisar URLs públicas e mensagens para manter a
+   marca neutra. O domínio próprio não renomeia o projeto Firebase, e o
+   identificador técnico ainda pode aparecer em URLs e requisições do SDK.
+   [Domínio próprio no Firebase Hosting](https://firebase.google.com/docs/hosting/custom-domain/)
+   · [Deploy do Angular](https://angular.dev/tools/cli/deployment).
+8. [ ] **Implantar a marca e os contatos institucionais.** Validar em staging
+   antes de aplicar na preparação da produção. Aplicar nome, identidade
+   visual e descrição à página inicial, ao app, aos metadados de
+   compartilhamento, ao Google OAuth e aos e-mails transacionais. Publicar
+   os contatos institucionais nos canais correspondentes e nas páginas legais.
+   Configurar remetente e endereço de resposta institucionais, além da
+   autenticação do domínio de e-mail conforme o provedor. Enviar e responder
+   mensagens de teste para confirmar a entrega, o encaminhamento aos
+   responsáveis e os dados de contato exibidos ao destinatário.
+9. [ ] **Homologar o host final e a exposição pública.** Revisar domínios
+   autorizados, `authDomain`, URLs de ação e de retorno para cadastro por link,
+   verificação de e-mail e recuperação de senha. Se o login Google estiver
+   habilitado, validar origem HTTPS, callback OAuth, marca e domínio verificados,
+   página inicial, Termos e aviso de privacidade. Testar login, logout, retomada
+   de cadastro, callables protegidas, upload e leitura protegida de mídia.
+   Configurar o host autorizado na chave do reCAPTCHA e validar tokens do App
+   Check com o provedor de cada ambiente. Validar inscrição e desinscrição de
+   Web Push no novo host, com o service worker e a VAPID do projeto certo,
+   conforme a seção abaixo. Repetir os testes nos hosts autorizados de staging
+   e produção antes da liberação do tráfego público. Em uma sessão sem login,
+   conferir o RDAP, o site, os metadados, a tela do Google, os e-mails de
+   teste e os canais de atendimento. Confirmar que a marca e os contatos
+   institucionais aparecem nos pontos previstos e que os dados pessoais
+   exibidos se limitam ao que foi aprovado na primeira etapa.
+   [Domínio de redirecionamento do login Google](https://firebase.google.com/docs/auth/web/google-signin#customizing-the-redirect-domain-for-google-sign-in)
+   · [Verificação de marca e domínios OAuth](https://developers.google.com/identity/verification/authentication-policy-compliance?hl=pt-br)
+   · [App Check Web com reCAPTCHA v3](https://firebase.google.com/docs/app-check/web/recaptcha-provider?hl=pt-br)
+   · [App Check Web com reCAPTCHA Enterprise](https://firebase.google.com/docs/app-check/web/recaptcha-enterprise-provider?hl=pt-br).
+
+Registrar no GO/NO-GO as evidências de privacidade cadastral, marca e contatos
+institucionais, adequação aos termos dos serviços e homologação no host
+público definitivo.
 
 ## App Check e Web Push no ensaio da release
 
