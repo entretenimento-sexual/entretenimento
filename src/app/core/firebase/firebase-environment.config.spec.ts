@@ -8,7 +8,7 @@ import {
   resolveFirebaseAuthEmulatorStartupMode,
 } from './firebase-environment.config';
 import { environment as emulatorEnvironment } from '../../../environments/environment.dev-emu';
-
+import { environment } from '../../../environments/environment';
 
 describe('firebase-environment.config', () => {
   it('seleciona o ambiente emulado nas entradas padrão de desenvolvimento', () => {
@@ -31,6 +31,15 @@ describe('firebase-environment.config', () => {
     for (const service of ['auth', 'firestore', 'functions', 'storage', 'database'] as const) {
       expect(requireLocalFirebaseEmulatorEndpoint(service, emulatorEnvironment.emulators).host).toBe('127.0.0.1');
     }
+  });
+
+  it('usa um projeto fictício nos testes unitários sem ativar recursos de prévia do emulador', () => {
+    expect(environment.env).toBe('test');
+    expect(environment.firebase.projectId).toBe('demo-entretenimento-unit-tests');
+    expect(environment.useEmulators).toBe(false);
+    expect(environment.features?.emailFirstSignupPreview).toBe(false);
+    expect(environment.features?.communityPreview).toBe(false);
+    expect(environment.features?.subscriberExperiencesPreview).toBe(false);
   });
 
   it('normaliza endpoint válido do emulator', () => {

@@ -1,5 +1,5 @@
 // src/environments/environment.model.ts
-export type EnvName = 'dev-real' | 'dev-emu' | 'staging' | 'prod';
+export type EnvName = 'dev-real' | 'dev-emu' | 'staging' | 'prod' | 'test';
 
 export type EmulatorEndpoint = { host: string; port: number };
 
