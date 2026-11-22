@@ -439,7 +439,9 @@ export class PushNotificationDeviceService implements OnDestroy {
   }
 
   private deleteLocalMessagingToken$(): Observable<void> {
-    if (!this.hasBrowserPushApis()) {
+    // Sem VAPID este ambiente não emite tokens. deleteToken pode tentar
+    // registrar o worker padrão do FCM quando a instância não tem worker.
+    if (!this.resolveVapidKey() || !this.hasBrowserPushApis()) {
       return of(undefined);
     }
 

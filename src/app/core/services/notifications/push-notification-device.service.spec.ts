@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Functions } from '@angular/fire/functions';
-import { firstValueFrom, of } from 'rxjs';
+import { firstValueFrom, of, type Observable } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -9,6 +9,7 @@ import { PushNotificationDeviceService } from 'src/app/core/services/notificatio
 import { environment } from 'src/environments/environment';
 
 describe('PushNotificationDeviceService', () => {
+  const optInStorageKey = 'entretenimento.push.opt-in-uid.v1';
   const requestPermission = vi.fn<() => Promise<NotificationPermission>>();
   const originalWebPush = environment.webPush;
   const originalNotification = Object.getOwnPropertyDescriptor(
@@ -83,15 +84,43 @@ describe('PushNotificationDeviceService', () => {
     expect(requestPermission).not.toHaveBeenCalled();
   });
 
+  it('desativa Web Push sem inicializar o FCM quando não há chave VAPID', async () => {
+    const originalServiceWorker = Object.getOwnPropertyDescriptor(
+      navigator,
+      'serviceWorker'
+    );
+    localStorage.setItem(optInStorageKey, 'test-user');
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: { register: vi.fn() },
+    });
+    try {
+      const service = TestBed.inject(PushNotificationDeviceService);
+      const errors = TestBed.inject(ApplicationErrorService);
+      const supportCheck = vi.spyOn(
+        service as unknown as { firebaseMessagingSupported$(): Observable<boolean> },
+        'firebaseMessagingSupported$'
+      ).mockReturnValue(of(true));
+
+      expect(await firstValueFrom(service.deactivate$())).toBe('inactive');
+      expect(localStorage.getItem(optInStorageKey)).toBeNull();
+      expect(supportCheck).not.toHaveBeenCalled();
+      expect(errors.report).not.toHaveBeenCalled();
+    } finally {
+      if (originalServiceWorker) {
+        Object.defineProperty(navigator, 'serviceWorker', originalServiceWorker);
+      } else {
+        Reflect.deleteProperty(navigator, 'serviceWorker');
+      }
+    }
+  });
+
   it('startup nunca pede permissão mesmo com opt-in persistido', () => {
     environment.webPush = {
       vapidKey: `B${'a'.repeat(86)}`,
       serviceWorkerPath: '/assets/firebase-messaging-sw.js',
     };
-    localStorage.setItem(
-      'entretenimento.push.opt-in-uid.v1',
-      'test-user'
-    );
+    localStorage.setItem(optInStorageKey, 'test-user');
 
     const service = TestBed.inject(PushNotificationDeviceService);
     service.start();
