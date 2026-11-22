@@ -43,6 +43,7 @@ export const accountLifecycleGuard: CanActivateFn = (
     authSession.ready$,
     authSession.authUser$,
     currentUserStore.user$,
+    appBlock.reason$,
   ]).pipe(
     /**
      * Auth precisa estar pronto. Para sessão autenticada, esperamos apenas a

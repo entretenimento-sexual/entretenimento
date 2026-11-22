@@ -54,7 +54,7 @@ const UNVERIFIED: IUserAgeEligibility = Object.freeze({
 
 interface TrustedSessionAgeProjection {
   uid: string;
-  state: IUserAgeEligibility | null;
+  state: IUserAgeEligibility;
   registrationRequiresTrustedVerification: boolean;
 }
 
@@ -137,6 +137,7 @@ export class AgeEligibilityService {
             migrated: boolean;
             restoredFromDeclarationEvidence: boolean;
             ageEligibility: IUserAgeEligibility | null;
+            evaluatedAtMs?: number;
             registrationRequiresTrustedVerification?: boolean;
           }
         >(
@@ -148,20 +149,21 @@ export class AgeEligibilityService {
       return from(callable({})).pipe(
         map(({ data }) => {
           this.assertCurrentSession(uid, generation);
-          const state = this.normalize(data.ageEligibility);
-          const registrationRequiresTrustedVerification = data.registrationRequiresTrustedVerification === true;
-
-          if (state.status !== 'UNVERIFIED' || registrationRequiresTrustedVerification) {
-            this.trustedSessionProjection.next({
-              uid,
-              state: state.status === 'UNVERIFIED' ? null : state,
-              registrationRequiresTrustedVerification,
-            });
-          } else if (this.trustedSessionProjection.value?.uid === uid) {
-            this.trustedSessionProjection.next(null);
-          }
-
+          const projection = this.normalize(data.ageEligibility);
+          // A consulta canônica também pode negar acesso sem retornar uma projeção.
+          const state: IUserAgeEligibility = projection.status !== 'UNVERIFIED' && projection.status === data.status
+            ? projection
+            : {
+              ...UNVERIFIED,
+              status: data.status === 'REVIEW_REQUIRED' ? 'REVIEW_REQUIRED' : 'UNVERIFIED',
+              updatedAtMs: this.safeTime(data.evaluatedAtMs) ?? Date.now(),
+            };
           this.reconciledUid = uid;
+          this.trustedSessionProjection.next({
+            uid,
+            state,
+            registrationRequiresTrustedVerification: data.registrationRequiresTrustedVerification === true,
+          });
           return data.status;
         })
       );

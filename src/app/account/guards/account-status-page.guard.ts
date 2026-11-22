@@ -33,6 +33,7 @@ export const accountStatusPageGuard: CanActivateFn = (_route, state): Observable
     authSession.ready$,
     authSession.authUser$,
     currentUserStore.user$,
+    appBlock.reason$,
   ]).pipe(
     filter(([ready, authUser, appUser]) => {
       if (!ready) return false;

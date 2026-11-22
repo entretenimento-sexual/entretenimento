@@ -42,6 +42,7 @@ interface RefreshMyAgeEligibilityResponse {
   migrated: boolean;
   restoredFromDeclarationEvidence: boolean;
   ageEligibility: AgeEligibilityProjection | null;
+  evaluatedAtMs?: number;
   registrationRequiresTrustedVerification: boolean;
 }
 
@@ -267,6 +268,7 @@ export const refreshMyAgeEligibility = onCall(
           migrated: false,
           restoredFromDeclarationEvidence: false,
           ageEligibility: null,
+          evaluatedAtMs: nowMs,
         };
       }
 
@@ -336,6 +338,7 @@ export const refreshMyAgeEligibility = onCall(
         migrated: false,
         restoredFromDeclarationEvidence: false,
         ageEligibility: null,
+        evaluatedAtMs: nowMs,
       };
     });
     return { ...result, registrationRequiresTrustedVerification: requiresTrustedAdultVerification };

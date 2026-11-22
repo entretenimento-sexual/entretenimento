@@ -3,6 +3,7 @@ import { ActivatedRouteSnapshot, Router, RouterStateSnapshot, UrlTree } from '@a
 import { RouterTestingModule } from '@angular/router/testing';
 import { firstValueFrom, Observable } from 'rxjs';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { AuthAppBlockService } from '@core/services/autentication/auth/auth-app-block.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { RegisterFlowFacade } from './register-flow.facade';
 import type { RegisterFlowVm } from './register-flow.model';
@@ -10,7 +11,7 @@ import { registrationStepGuard } from './registration-step.guard';
 
 describe('registrationStepGuard / adult consent retired', () => {
   let router: Router;
-  let currentVm: RegisterFlowVm;
+  let currentVm: RegisterFlowVm | null;
   const route = { data: {allowedRegisterSteps:['profileCompletion']} } as unknown as ActivatedRouteSnapshot;
   const makeVm=(currentStep:RegisterFlowVm['currentStep'],nextRoute:string):RegisterFlowVm=>({
     authReady:true,uid:'u1',email:'teste@email.com',emailVerified:true,
@@ -26,7 +27,9 @@ describe('registrationStepGuard / adult consent retired', () => {
       providers:[
         { provide: AuthSessionService, useValue: { currentAuthUser: { uid: 'u1' } } },
         {provide:RegisterFlowFacade,useValue:{
-        vm$:new Observable<RegisterFlowVm>(s=>{s.next(currentVm);s.complete();}),
+        vm$:new Observable<RegisterFlowVm>(s=>{
+          if (currentVm) { s.next(currentVm); s.complete(); }
+        }),
       }}],
     });
     router=TestBed.inject(Router);
@@ -36,6 +39,13 @@ describe('registrationStepGuard / adult consent retired', () => {
       ()=>registrationStepGuard(route,{url} as RouterStateSnapshot)
     ) as Observable<boolean|UrlTree>);
   }
+  it('encaminha para status se a conta é bloqueada enquanto a etapa está pendente', async () => {
+    currentVm = null;
+    const pending = runGuard('/register/finalizar-cadastro');
+    TestBed.inject(AuthAppBlockService).set('doc-missing-confirmed', 'u1');
+    const result = await pending as UrlTree;
+    expect(router.serializeUrl(result)).toBe('/conta/status?reason=doc-missing-confirmed');
+  });
   it('permite etapa atual de conclusão de perfil',async()=>{
     await expect(runGuard('/register/finalizar-cadastro')).resolves.toBe(true);
   });

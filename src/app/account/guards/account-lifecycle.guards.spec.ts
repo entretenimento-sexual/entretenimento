@@ -81,14 +81,18 @@ describe('account lifecycle guards', () => {
     );
   }
 
-  it('mantém a conta bloqueada na página de status mesmo com dados ainda pendentes', async () => {
+  it('reage ao bloqueio da sessão enquanto a consulta do perfil está pendente', async () => {
+    vi.useFakeTimers();
+    currentUser$.next(undefined);
+    const lifecycle = runLifecycleGuard('/dashboard/principal');
+    const status = runStatusGuard();
+
     const block = TestBed.inject(AuthAppBlockService);
     block.set('doc-missing-confirmed', 'user-1');
-    currentUser$.next(undefined);
+    await vi.advanceTimersByTimeAsync(AUTH_GUARD_WAIT_MS);
 
-    const result = await runLifecycleGuard('/dashboard/principal');
-    expect(router.serializeUrl(result as UrlTree)).toContain('/conta/status');
-    expect(await runStatusGuard()).toBe(true);
+    expect(router.serializeUrl(await lifecycle as UrlTree)).toContain('/conta/status');
+    expect(await status).toBe(true);
     expect(block.domainBlockFor('user-2')).toBeNull();
   });
 

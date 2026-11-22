@@ -33,7 +33,7 @@ import {
   UrlTree,
 } from '@angular/router';
 
-import { Observable, of } from 'rxjs';
+import { Observable, merge, of } from 'rxjs';
 import {
   catchError,
   filter,
@@ -96,13 +96,9 @@ function buildTargetTree(
 function resolveGuardResult(
   router: Router,
   currentUrl: string,
-  vm: RegisterFlowVm | null,
+  vm: RegisterFlowVm,
   allowedSteps: RegisterFlowStep[]
 ): RegistrationStepGuardResult {
-  if (!vm) {
-    return buildAuthRetryTree(router, currentUrl);
-  }
-
   if (!vm.uid) {
     return buildRedirectTree(router, '/login', currentUrl, { reason: 'session-ended' });
   }
@@ -135,20 +131,25 @@ export const registrationStepGuard: CanActivateFn = (
   const registerFlow = inject(RegisterFlowFacade);
   const session = inject(AuthSessionService);
   const appBlock = inject(AuthAppBlockService);
-  const block = appBlock.domainBlockFor(session.currentAuthUser?.uid);
-  if (block) return of(buildRedirectTree(router, '/conta/status', undefined, { reason: block }));
-
   const allowedSteps = getAllowedSteps(route.data?.['allowedRegisterSteps']);
 
-  return registerFlow.vm$.pipe(
+  const block$ = appBlock.reason$.pipe(
+    map(() => appBlock.domainBlockFor(session.isTerminatingSnapshot ? null : session.currentAuthUser?.uid)),
+    filter((reason) => reason !== null),
+    map((reason) => buildRedirectTree(router, '/conta/status', undefined, { reason }))
+  );
+  const decision$ = registerFlow.vm$.pipe(
     filter((vm) => isRegisterFlowDecisionReady(vm) &&
       vm.uid === (session.isTerminatingSnapshot ? null : session.currentAuthUser?.uid ?? null)),
+    map((vm) => resolveGuardResult(router, state.url, vm, allowedSteps))
+  );
+
+  return merge(block$, decision$).pipe(
     take(1),
     timeout({
       first: REGISTER_FLOW_WAIT_MS,
-      with: () => of(null),
+      with: () => of(buildAuthRetryTree(router, state.url)),
     }),
-    map((vm) => resolveGuardResult(router, state.url, vm, allowedSteps)),
     catchError(() => of(buildAuthRetryTree(router, state.url)))
   );
 };
