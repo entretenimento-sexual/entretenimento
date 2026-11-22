@@ -7,7 +7,7 @@ import {
   shouldAttemptExternalPush,
 } from './push-notification-delivery.policy';
 
-test('limita retenção externa do push a sete dias em todas as plataformas', () => {
+test('entrega Web Push sem fila e mantém sete dias para push nativo', () => {
   assert.equal(PUSH_NOTIFICATION_TTL_SECONDS, 7 * 24 * 60 * 60);
 
   const now = 2_000_000_000_000;
@@ -26,7 +26,7 @@ test('limita retenção externa do push a sete dias em todas as plataformas', ()
     },
     webpush: {
       headers: {
-        TTL: String(PUSH_NOTIFICATION_TTL_SECONDS),
+        TTL: '0',
       },
     },
   });

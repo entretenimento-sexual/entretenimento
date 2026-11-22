@@ -1,3 +1,5 @@
+import { clearPendingLogout, savePendingLogout } from '@core/firebase/pending-logout';
+import { IDBFactory } from 'fake-indexeddb';
 import { TestBed } from '@angular/core/testing';
 import { BehaviorSubject, defaultIfEmpty, firstValueFrom, map, of, type Observable } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -5,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PUSH_NOTIFICATION_SDK, PushNotificationDeviceService } from './push-notification-device.service';
+import { updatePushDeliveryBinding } from './push-delivery-binding';
 import { environment } from 'src/environments/environment';
 
 const fcm = {
@@ -46,6 +49,7 @@ describe('PushNotificationDeviceService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('indexedDB', new IDBFactory());
     localStorage.clear();
     user = { uid: 'test-user' };
     uid$ = new BehaviorSubject<string | null>(user.uid);
@@ -99,6 +103,7 @@ describe('PushNotificationDeviceService', () => {
     vi.unstubAllGlobals();
     environment.webPush = originalWebPush;
     localStorage.clear();
+    clearPendingLogout('test-user');
 
     if (originalNotification) {
       Object.defineProperty(
@@ -253,6 +258,44 @@ describe('PushNotificationDeviceService', () => {
     expect(requestPermission).not.toHaveBeenCalled();
   });
 
+  it('impede a reativação durante a retomada da saída no bootstrap', async () => {
+    configurePush('granted');
+    const service = TestBed.inject(PushNotificationDeviceService);
+    expect(await firstValueFrom(service.activate$())).toBe('active');
+    expect(fcm.register).toHaveBeenCalledOnce();
+
+    savePendingLogout('test-user');
+    service.start();
+    await vi.waitFor(async () => {
+      expect(await updatePushDeliveryBinding((current) => current)).toBeUndefined();
+    });
+    expect(fcm.register).toHaveBeenCalledOnce();
+    expect(localStorage.getItem(optInStorageKey)).toBeNull();
+  });
+
+  it('revoga o vínculo local mesmo se o servidor e o FCM falharem offline', async () => {
+    configurePush('granted');
+    const service = TestBed.inject(PushNotificationDeviceService);
+    expect(await firstValueFrom(service.activate$())).toBe('active');
+    expect(fcm.register.mock.calls[0][0].deliveryBindingId).toBeTruthy();
+    const subscription = { unsubscribe: vi.fn().mockResolvedValue(true) };
+    vi.mocked(navigator.serviceWorker.getRegistration).mockResolvedValue({
+      active: { scriptURL: new URL('/assets/firebase-messaging-sw.js', location.href).href },
+      pushManager: { getSubscription: async () => subscription },
+      getNotifications: async () => [],
+    } as unknown as ServiceWorkerRegistration);
+    fcm.unregister.mockRejectedValueOnce(new Error('offline'));
+    fcm.deleteToken.mockRejectedValueOnce(new Error('offline'));
+
+    expect(await firstValueFrom(service.deactivate$())).toBe('inactive');
+    expect(subscription.unsubscribe).toHaveBeenCalledOnce();
+    expect(await updatePushDeliveryBinding((current) => current)).toBeUndefined();
+
+    expect(await firstValueFrom(service.activate$())).toBe('active');
+    expect(fcm.register.mock.calls[1][0].deliveryBindingId)
+      .not.toBe(fcm.register.mock.calls[0][0].deliveryBindingId);
+  });
+
   it('desativa o token local ao assumir outra conta sem reaproveitar o opt-in anterior', async () => {
     configurePush('granted');
     const service = TestBed.inject(PushNotificationDeviceService);
@@ -267,5 +310,6 @@ describe('PushNotificationDeviceService', () => {
     expect(await firstValueFrom(service.state$)).toBe('inactive');
     expect(localStorage.getItem(optInStorageKey)).toBeNull();
     expect(fcm.register).toHaveBeenCalledOnce();
+    expect(await updatePushDeliveryBinding((current) => current)).toBeUndefined();
   });
 });

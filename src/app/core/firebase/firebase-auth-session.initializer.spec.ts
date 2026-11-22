@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Auth } from '@angular/fire/auth';
 import { authRestoreInitializer } from './firebase-auth-session.initializer';
+import { readPendingLogout, savePendingLogout } from './pending-logout';
 import { environment } from '../../../environments/environment';
 import {
   FIREBASE_AUTH_EMULATOR_PERSISTENCE_STORAGE_KEY,
@@ -24,7 +25,7 @@ function fakeStorage(): Storage {
   };
 }
 
-function harness(reload: () => Promise<void>) {
+function harness(reload: () => Promise<void>, resumeLogout?: () => Promise<void>) {
   const user = { uid: 'user-a', emailVerified: true, reload: vi.fn(reload) };
   const auth = { currentUser: user as typeof user | null, authStateReady: vi.fn().mockResolvedValue(undefined) };
   const appBlock = new AuthAppBlockService();
@@ -35,7 +36,7 @@ function harness(reload: () => Promise<void>) {
     { log: vi.fn() } as unknown as PrivacyDebugLoggerService, appBlock);
   const run = authRestoreInitializer(auth as unknown as Auth,
     globalErrorHandler as unknown as GlobalErrorHandlerService,
-    appBlock, session);
+    appBlock, session, resumeLogout);
   return { run, user, auth, appBlock, globalErrorHandler, session };
 }
 
@@ -49,6 +50,7 @@ const originalEnvironment = {
 
 beforeEach(() => {
   vi.stubGlobal('localStorage', fakeStorage());
+  vi.stubGlobal('sessionStorage', fakeStorage());
   environment.production = false;
   environment.useEmulators = false;
   environment.emulators = undefined;
@@ -64,6 +66,27 @@ afterEach(() => {
 });
 
 describe('authRestoreInitializer policy', () => {
+  it('retoma a saída solicitada no reload antes de revalidar a sessão', async () => {
+    savePendingLogout('user-a');
+    const resume = vi.fn().mockResolvedValue(undefined);
+    const t = harness(() => Promise.resolve(), resume);
+    await t.run();
+
+    expect(resume).toHaveBeenCalledOnce();
+    expect(t.user.reload).not.toHaveBeenCalled();
+  });
+
+  it('descarta a saída antiga quando o navegador já abriu outra conta', async () => {
+    savePendingLogout('old-account');
+    const resume = vi.fn();
+    const t = harness(() => Promise.resolve(), resume);
+    await t.run();
+
+    expect(resume).not.toHaveBeenCalled();
+    expect(t.user.reload).toHaveBeenCalledOnce();
+    expect(readPendingLogout()).toBeNull();
+  });
+
   it('libera a abertura no prazo mesmo se o Firebase ainda estiver restaurando', async () => {
     vi.useFakeTimers();
     let resolveReady!: () => void;

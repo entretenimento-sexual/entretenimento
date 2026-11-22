@@ -19,7 +19,7 @@ for (const [ok, label] of [
   [guard.includes('assertExternalPaymentEgressAllowed'), 'payment guard'],
   [payment.includes('assertExternalPaymentEgressAllowed();'), 'Asaas request boundary'],
   [push.includes('if (isFunctionsEmulatorRuntime())'), 'push guard'],
-  [push.includes('getMessaging().sendEachForMulticast'), 'FCM outbound boundary'],
+  [push.includes('getMessaging().sendEach('), 'FCM outbound boundary'],
   [guard.includes('assertFirebaseEmulatorDependenciesConfigured'), 'required Admin SDK emulator endpoints'],
   [admin.includes('assertFirebaseEmulatorDependenciesConfigured();'), 'Admin SDK startup guard'],
   [guard.includes('assertCloudTasksEmulatorConfigured'), 'Cloud Tasks loopback guard'],
@@ -34,7 +34,7 @@ for (const [ok, label] of [
   if (!ok) throw new Error('[external-egress] Missing guard: ' + label);
 }
 const firstGuard = push.indexOf('if (isFunctionsEmulatorRuntime())');
-const delivery = push.indexOf('getMessaging().sendEachForMulticast');
+const delivery = push.indexOf('getMessaging().sendEach(');
 if (firstGuard >= delivery) {
   throw new Error('[external-egress] FCM guard must precede FCM network delivery');
 }

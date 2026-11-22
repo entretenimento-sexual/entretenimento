@@ -4,7 +4,7 @@
  *
  * A configuração pública do projeto Firebase é recebida na URL de registro
  * para que o mesmo artefato funcione em dev-real, staging e produção.
- * Nenhuma VAPID key, token FCM ou identificador de usuário é enviado ao worker.
+ * O aviso carrega um identificador opaco de vínculo, separado da conta e do token FCM.
  */
 
 /* global firebase, importScripts, self */
@@ -13,6 +13,59 @@
 
 const NOTIFICATION_FALLBACK_ROUTE = '/notificacoes';
 const MAX_NOTIFICATION_ROUTE_LENGTH = 2048;
+const DELIVERY_DATABASE = 'entretenimento-web-push';
+const DELIVERY_STORE = 'delivery';
+const DELIVERY_KEY = 'active';
+
+self.addEventListener('install', (event) => event.waitUntil(self.skipWaiting()));
+
+function readBindingId() {
+  return new Promise((resolve) => {
+    const request = indexedDB.open(DELIVERY_DATABASE, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(DELIVERY_STORE);
+    request.onerror = () => resolve(null);
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction(DELIVERY_STORE, 'readonly');
+      const binding = tx.objectStore(DELIVERY_STORE).get(DELIVERY_KEY);
+      tx.oncomplete = () => {
+        db.close();
+        resolve(binding.result?.id ?? null);
+      };
+      tx.onabort = () => {
+        db.close();
+        resolve(null);
+      };
+    };
+  }).catch(() => null);
+}
+
+async function displayPush(event) {
+  const data = event.data?.json()?.data;
+  const id = data?.webPushBinding;
+  if (typeof id !== 'string' || !id || !data.title || !data.body) return;
+
+  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  if (clients.some((client) => client.visibilityState === 'visible')) return;
+  if (await readBindingId() !== id) return;
+
+  await self.registration.showNotification(data.title, {
+    body: data.body,
+    data: { route: normalizeNotificationRoute(data.route), webPushBinding: id },
+  });
+  // Um logout pode ter confirmado enquanto showNotification aguardava o browser.
+  if (await readBindingId() !== id) {
+    for (const notification of await self.registration.getNotifications()) {
+      if (notification.data?.webPushBinding === id) notification.close();
+    }
+  }
+}
+
+// Intercepta também payloads antigos que o SDK exibiria automaticamente.
+self.addEventListener('push', (event) => {
+  event.stopImmediatePropagation();
+  event.waitUntil(displayPush(event).catch(() => undefined));
+});
 
 function hasControlCharacters(value) {
   return Array.from(value).some((character) => {
@@ -112,7 +165,11 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const route = resolveNotificationRoute(event.notification.data);
-  event.waitUntil(focusOrOpenNotificationRoute(route));
+  const binding = event.notification.data?.webPushBinding;
+  event.waitUntil((async () => {
+    if (binding && await readBindingId() !== binding) return;
+    await focusOrOpenNotificationRoute(route);
+  })());
 });
 
 importScripts(
@@ -146,7 +203,6 @@ const configured = requiredKeys.every((key) =>
 if (configured) {
   firebase.initializeApp(firebaseConfig);
 
-  // O backend envia payload "notification". O SDK cuida da exibição em
-  // background; não registramos showNotification manual para evitar duplicata.
+  // Mantém o lifecycle de inscrição do SDK. A exibição passa pelo handler acima.
   firebase.messaging();
 }

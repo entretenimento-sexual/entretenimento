@@ -18,10 +18,10 @@ run('Push device registry', () => {
   const token = 'synthetic-fcm-' + randomUUID();
   const ownerRef = db.doc(`push_token_owners/${buildPushTokenDocumentId(token)}`);
   const deviceRef = db.doc(`users/${first}/push_devices/${buildPushInstallationDocumentId(installationId)}`);
-  const register = (authenticatedUid: string, expectedUid: string, registrationId: string) =>
+  const register = (authenticatedUid: string, expectedUid: string, registrationId: string, deliveryBindingId?: string) =>
     registerPushDevice.run({
       auth: { uid: authenticatedUid, token: {} },
-      data: { expectedUid, registrationId, installationId, token, platform: 'web' },
+      data: { expectedUid, registrationId, installationId, token, platform: 'web', deliveryBindingId },
     } as Parameters<typeof registerPushDevice.run>[0]);
   const unregister = (authenticatedUid: string, expectedUid: string, cancelledRegistrationIds: string[]) =>
     unregisterPushDevice.run({
@@ -57,6 +57,12 @@ run('Push device registry', () => {
     assert.deepEqual(await register(first, first, newRegistration), { ok: true });
     await assert.rejects(register(first, first, oldRegistration), { code: 'aborted' });
     assert.equal((await ownerRef.get()).get('uid'), first);
+
+    const binding = randomUUID();
+    assert.deepEqual(await register(first, first, randomUUID(), binding), { ok: true });
+    assert.equal((await deviceRef.get()).get('deliveryBindingId'), binding);
+    assert.deepEqual(await register(first, first, randomUUID()), { ok: true });
+    assert.equal((await deviceRef.get()).get('deliveryBindingId'), binding);
 
     assert.deepEqual(await register(second, second, randomUUID()), { ok: true });
     await unregister(first, first, [newRegistration]);

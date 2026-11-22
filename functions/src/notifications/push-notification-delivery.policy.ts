@@ -28,8 +28,8 @@ export interface PushNotificationDeliveryOptions {
  * A Central in-app é a fonte durável da notificação. O push externo é apenas
  * um alerta e não deve reaparecer semanas depois de ter sido criado.
  *
- * Mantemos a mesma janela nas três plataformas para que a futura expansão
- * mobile não reintroduza o default de até quatro semanas do FCM.
+ * Na Web a entrega é imediata. A fila do provedor não deve reapresentar
+ * alertas de uma sessão antiga quando o navegador voltar a ficar online.
  */
 export function buildPushNotificationDeliveryOptions(
   nowMs = Date.now()
@@ -48,7 +48,7 @@ export function buildPushNotificationDeliveryOptions(
     },
     webpush: {
       headers: {
-        TTL: String(PUSH_NOTIFICATION_TTL_SECONDS),
+        TTL: '0',
       },
     },
   };

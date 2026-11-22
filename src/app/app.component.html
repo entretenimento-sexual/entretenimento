@@ -41,11 +41,11 @@
         <p role="status" aria-live="polite">
           {{ logoutStatus === 'ending'
             ? 'Encerrando sessão…'
-            : 'Ainda não conseguimos confirmar a saída. Recarregue a página para verificar a sessão.' }}
+            : 'Ainda não conseguimos confirmar a saída. Você pode recarregar a página para retomar o encerramento.' }}
         </p>
         @if (logoutStatus !== 'ending') {
           <button class="app-action app-action--primary" type="button" (click)="reloadAfterPendingLogout()">
-            Recarregar página
+            Recarregar para concluir a saída
           </button>
         }
       }

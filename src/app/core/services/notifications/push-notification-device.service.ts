@@ -53,6 +53,7 @@ import {
 } from 'rxjs/operators';
 
 import { environment } from 'src/environments/environment';
+import { readPendingLogout } from '@core/firebase/pending-logout';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import {
@@ -62,6 +63,8 @@ import {
   MIN_PUSH_FCM_TOKEN_LENGTH,
   normalizePushVapidKey,
 } from 'src/app/core/services/notifications/push-notification-device.policy';
+
+import { createPushDeliveryBinding, updatePushDeliveryBinding } from './push-delivery-binding';
 
 export type PushNotificationDeviceState =
   | 'active'
@@ -79,6 +82,7 @@ export interface PushNotificationDeviceVm {
 interface PushDeviceRegistrationRequest {
   expectedUid: string;
   registrationId: string;
+  deliveryBindingId: string;
   token: string;
   platform: 'web';
   installationId: string;
@@ -169,37 +173,33 @@ export class PushNotificationDeviceService implements OnDestroy {
     if (this.startupSubscription) return;
 
     let previousUid: string | null = null;
-    this.startupSubscription = this.session.readyUid$
-      .pipe(
-        distinctUntilChanged(),
-        switchMap((uid) => {
-          const safeUid = String(uid ?? '').trim();
+    this.startupSubscription = this.session.authUser$.pipe(
+      map(() => this.session.currentAuthUser),
+      distinctUntilChanged(),
+      switchMap((user) => {
+        const outgoingUid = previousUid;
+        const incomingUid = user && readPendingLogout() !== user.uid ? user.uid : null;
+        previousUid = incomingUid;
+        this.setState('inactive');
 
-          if (!safeUid) {
-            this.setState('inactive');
-            if (this.session.currentAuthUser || !previousUid) return EMPTY;
-            const outgoingUid = previousUid;
-            previousUid = null;
-            return this.clearOptInAfterAccountChange$(outgoingUid, null);
-          }
-
-          const outgoingUid = previousUid;
-          previousUid = safeUid;
-          this.setState('inactive');
-          const scope = this.captureSession(safeUid);
-          if (!scope || this.deactivation?.user === scope.user) return EMPTY;
-          return this.clearOptInAfterAccountChange$(outgoingUid, safeUid).pipe(
-            switchMap(() => this.isCurrent(scope) ? this.synchronizeExistingOptInForUid$(scope) : EMPTY),
-            catchError((error) => {
-              if (!this.isCurrent(scope)) return EMPTY;
-              this.setState('error');
-              this.reportError(error, 'startupSync');
-              return of<PushNotificationDeviceState>('error');
-            })
-          );
-        })
-      )
-      .subscribe();
+        return this.clearOptInAfterAccountChange$(outgoingUid, incomingUid).pipe(
+          switchMap(() => {
+            const scope = user && this.captureSession(user.uid);
+            if (!scope || this.deactivation?.user === user) return EMPTY;
+            return this.session.readyUid$.pipe(
+              filter((uid) => uid === scope.user.uid),
+              take(1),
+              switchMap(() => this.synchronizeExistingOptInForUid$(scope)),
+              catchError((error) => {
+                if (!this.isCurrent(scope)) return EMPTY;
+                this.reportError(error, 'startupSync');
+                return of(this.setState('error'));
+              })
+            );
+          })
+        );
+      })
+    ).subscribe();
   }
 
   refresh$(): Observable<PushNotificationDeviceState> {
@@ -317,12 +317,14 @@ export class PushNotificationDeviceService implements OnDestroy {
       const version = ++this.optOutVersion;
       const cleanup$ = defer(() => {
         this.removeOptInSafely(uid);
+        const delivery = this.revokeDelivery$((ownerUid) => ownerUid === uid);
         const installationId = this.readInstallationId();
         const cancelledRegistrationIds = Array.from(this.registrationsInProgress)
           .filter(([, owner]) => owner === uid)
           .map(([registrationId]) => registrationId);
 
         return forkJoin({
+          delivery,
           backend: installationId
             ? this.unregisterBackend$({ installationId, expectedUid: uid, cancelledRegistrationIds }).pipe(
                 timeout({ first: PUSH_CLEANUP_TIMEOUT_MS }),
@@ -342,11 +344,11 @@ export class PushNotificationDeviceService implements OnDestroy {
             })
           ),
         }).pipe(
-          switchMap(({ backend, localToken }) => {
+          switchMap(({ delivery, backend, localToken }) => {
             if (this.session.currentAuthUser !== user || version !== this.optOutVersion) {
               return EMPTY;
             }
-            if (!backend && !localToken) {
+            if (!delivery && !backend && !localToken) {
               return throwError(
                 () =>
                   new Error(
@@ -433,19 +435,27 @@ export class PushNotificationDeviceService implements OnDestroy {
       if (!this.isCurrent(scope)) return EMPTY;
       const installationId = this.ensureInstallationId();
 
-      return this.withLocalMessaging$(async () => {
-        if (!this.isCurrent(scope)) return null;
-        const registration = await navigator.serviceWorker.register(this.buildServiceWorkerUrl(), {
-          updateViaCache: 'none',
-        });
-        if (!this.isCurrent(scope)) return null;
-        const messaging = this.sdk.getMessaging();
-        const token = await this.sdk.getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
-        this.messagingWithWorker = messaging;
-        return token;
-      }).pipe(
-        map((token) => String(token ?? '').trim()),
-        switchMap((token) => {
+      return from(updatePushDeliveryBinding((current) => {
+        if (!this.isCurrent(scope) || (!persistOptIn && !this.hasPersistedOptInForUid(scope.user.uid))) {
+          return undefined;
+        }
+        return current?.uid === scope.user.uid ? current : createPushDeliveryBinding(scope.user.uid);
+      })).pipe(
+        switchMap((binding) => {
+          if (!binding || !this.isCurrent(scope)) return EMPTY;
+          return this.withLocalMessaging$(async () => {
+            if (!this.isCurrent(scope)) return null;
+            const registration = await navigator.serviceWorker.register(this.buildServiceWorkerUrl(), {
+              updateViaCache: 'none',
+            });
+            if (!this.isCurrent(scope)) return null;
+            const messaging = this.sdk.getMessaging();
+            const token = await this.sdk.getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
+            this.messagingWithWorker = messaging;
+            return token;
+          }).pipe(map((token) => ({ binding, token: String(token ?? '').trim() })));
+        }),
+        switchMap(({ binding, token }) => {
           if (!this.isCurrent(scope)) return EMPTY;
           if (token.length < MIN_PUSH_FCM_TOKEN_LENGTH) {
             return throwError(
@@ -456,7 +466,10 @@ export class PushNotificationDeviceService implements OnDestroy {
           const registrationId = createPushInstallationId(globalThis.crypto);
           this.registrationsInProgress.set(registrationId, scope.user.uid);
           return from(Promise.resolve().then(() => (this.isCurrent(scope)
-            ? this.sdk.register({ token, platform: 'web', installationId, registrationId, expectedUid: scope.user.uid })
+            ? this.sdk.register({
+              token, platform: 'web', installationId, registrationId,
+              deliveryBindingId: binding.id, expectedUid: scope.user.uid,
+            })
             : null)
           ).finally(() => this.registrationsInProgress.delete(registrationId)));
         }),
@@ -495,41 +508,81 @@ export class PushNotificationDeviceService implements OnDestroy {
     return this.withLocalMessaging$(async () => {
       const optedInUid = this.requireLocalStorage().getItem(PUSH_OPT_IN_UID_STORAGE_KEY);
       if (optedInUid && optedInUid !== uid) return;
+      const path = this.resolveServiceWorkerPath();
+      const registration = await navigator.serviceWorker.getRegistration(path);
+      if (registration?.active && new URL(registration.active.scriptURL).pathname === path) {
+        const subscription = await registration.pushManager.getSubscription();
+        const currentOwner = this.requireLocalStorage().getItem(PUSH_OPT_IN_UID_STORAGE_KEY);
+        if (currentOwner && currentOwner !== uid) return;
+        if (subscription && !await subscription.unsubscribe()) {
+          throw new Error('O navegador não confirmou a remoção do Web Push.');
+        }
+      }
+
+      // O SDK revoga o token no FCM, o que pode aguardar a reconexão. A
+      // assinatura do navegador é removida primeiro, de forma independente.
       if (this.messagingWithWorker) {
         const removed = await this.sdk.deleteToken(this.messagingWithWorker);
         if (!removed) throw new Error('O navegador não confirmou a remoção do token Web Push.');
         this.messagingWithWorker = null;
-        return;
-      }
-
-      const path = this.resolveServiceWorkerPath();
-      const registration = await navigator.serviceWorker.getRegistration(path);
-      const worker = registration?.active;
-      if (worker && new URL(worker.scriptURL).pathname === path) {
-        const subscription = await registration.pushManager.getSubscription();
-        if (subscription && !await subscription.unsubscribe()) {
-          throw new Error('O navegador não confirmou a remoção do Web Push.');
-        }
       }
     });
   }
 
   private clearOptInAfterAccountChange$(outgoingUid: string | null, incomingUid: string | null): Observable<void> {
     return defer(() => {
-      if (!this.resolveVapidKey() || !this.hasBrowserPushApis()) return of(undefined);
-      const ownerUid = this.requireLocalStorage().getItem(PUSH_OPT_IN_UID_STORAGE_KEY);
+      if (!this.hasBrowserPushApis()) return of(undefined);
+      const ownerUid = this.readStorageSafely(PUSH_OPT_IN_UID_STORAGE_KEY);
       const inactiveUid = ownerUid ?? outgoingUid;
-      if (!inactiveUid || inactiveUid === incomingUid || (!incomingUid && inactiveUid !== outgoingUid)) {
-        return of(undefined);
-      }
+      const revoke = this.revokeDelivery$((uid) => uid !== incomingUid);
+      if (!inactiveUid || inactiveUid === incomingUid) return revoke.pipe(map(() => undefined));
+
       this.removeOptInSafely(inactiveUid);
-      return this.deleteLocalMessagingToken$(inactiveUid);
+      return forkJoin([
+        revoke,
+        this.deleteLocalMessagingToken$(inactiveUid).pipe(timeout({ first: PUSH_CLEANUP_TIMEOUT_MS })),
+      ]).pipe(map(() => undefined));
     }).pipe(
       catchError((error) => {
         this.reportError(error, 'clearOptInAfterAccountChange');
         return of(undefined);
       })
     );
+  }
+
+  private revokeDelivery$(matches: (uid: string) => boolean): Observable<boolean> {
+    if (!this.hasBrowserPushApis() || typeof indexedDB === 'undefined') return of(false);
+
+    return defer(() => {
+      let retiredId: string | undefined;
+      return from(updatePushDeliveryBinding((current) => {
+        if (!current || !matches(current.uid)) return undefined;
+        retiredId = current.id;
+        return null;
+      })).pipe(
+        switchMap(() => retiredId
+          ? from(this.closeDisplayedPushNotifications(retiredId)).pipe(map(() => true))
+          : of(true))
+      );
+    }).pipe(
+      timeout({ first: PUSH_CLEANUP_TIMEOUT_MS }),
+      catchError((error) => {
+        this.reportError(error, 'revokeDelivery');
+        return of(false);
+      })
+    );
+  }
+
+  private async closeDisplayedPushNotifications(bindingId: string): Promise<void> {
+    const path = this.resolveServiceWorkerPath();
+    const registration = await navigator.serviceWorker.getRegistration(path);
+    if (registration?.active && new URL(registration.active.scriptURL).pathname === path) {
+      for (const notification of await registration.getNotifications()) {
+        if (notification.data?.webPushBinding === bindingId || notification.data?.FCM_MSG) {
+          notification.close();
+        }
+      }
+    }
   }
 
   private withLocalMessaging$<T>(work: () => Promise<T>): Observable<T> {
@@ -544,7 +597,7 @@ export class PushNotificationDeviceService implements OnDestroy {
 
   private captureSession(uid = this.session.currentAuthUser?.uid): PushSession | null {
     const user = this.session.currentAuthUser;
-    if (!user || user.uid !== uid || this.session.isTerminatingSnapshot) return null;
+    if (!user || user.uid !== uid || this.session.isTerminatingSnapshot || readPendingLogout() === uid) return null;
     return { user, terminationVersion: this.session.terminationVersionSnapshot, optOutVersion: this.optOutVersion };
   }
 
@@ -643,12 +696,17 @@ export class PushNotificationDeviceService implements OnDestroy {
   }
 
   private readInstallationId(): string | null {
-    const storage = this.requireLocalStorage();
-    const existing = String(
-      storage.getItem(PUSH_INSTALLATION_STORAGE_KEY) ?? ''
-    ).trim();
-
+    const existing = (this.readStorageSafely(PUSH_INSTALLATION_STORAGE_KEY) ?? '').trim();
     return isValidPushInstallationId(existing) ? existing : null;
+  }
+
+  private readStorageSafely(key: string): string | null {
+    try {
+      return this.requireLocalStorage().getItem(key);
+    } catch (error) {
+      this.reportError(error, 'readPushStorage');
+      return null;
+    }
   }
 
   private ensureInstallationId(): string {

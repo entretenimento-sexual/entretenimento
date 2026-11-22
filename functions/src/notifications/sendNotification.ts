@@ -31,6 +31,8 @@ import {
 import {
   buildPushTokenDocumentId,
   isPushTokenOwnedByUid,
+  normalizePushInstallationId,
+  resolvePushDevicePlatform,
   MAX_PUSH_DEVICES_PER_USER,
   PUSH_TOKEN_OWNERS_COLLECTION,
   resolveInvalidPushDeliveryTargets,
@@ -301,20 +303,24 @@ export const sendNotification = onDocumentCreated(
     );
     if (candidateTargets.length === 0) return;
 
-    let targets = candidateTargets;
+    const devicesById = new Map(devicesSnapshot.docs.map((device) => [device.id, device.data()]));
+    let targets: Array<(typeof candidateTargets)[number] & { webPushBinding: string | null }>;
     try {
       const ownerRefs = candidateTargets.map((target) =>
         db.collection(PUSH_TOKEN_OWNERS_COLLECTION)
           .doc(buildPushTokenDocumentId(target.token))
       );
       const ownerSnapshots = await db.getAll(...ownerRefs);
-      targets = candidateTargets.filter((_target, index) => {
-        const ownerSnapshot = ownerSnapshots[index];
-        return shouldDeliverPushTokenToRecipient(
-          ownerSnapshot?.exists ?? false,
-          ownerSnapshot?.exists ? ownerSnapshot.data() : undefined,
-          recipientId
-        );
+      targets = candidateTargets.flatMap((target, index) => {
+        const owner = ownerSnapshots[index]?.data();
+        if (!owner || !shouldDeliverPushTokenToRecipient(true, owner, recipientId) ||
+            !target.registryDocumentIds.includes(owner.deviceId)) return [];
+        const device = devicesById.get(owner.deviceId);
+        const platform = resolvePushDevicePlatform(device?.platform);
+        if (!platform) return [];
+        const webPushBinding = platform === 'web' ? normalizePushInstallationId(device?.deliveryBindingId) : null;
+        if (platform === 'web' && !webPushBinding) return [];
+        return [{ ...target, webPushBinding }];
       });
     } catch (error) {
       console.error('[sendNotification] falha ao validar ownership de token', {
@@ -372,12 +378,20 @@ export const sendNotification = onDocumentCreated(
 
     const pushContent = buildPrivatePushContent();
     const deliveryOptions = buildPushNotificationDeliveryOptions();
-    const response = await getMessaging().sendEachForMulticast({
-      tokens: targets.map((target) => target.token),
-      notification: pushContent,
-      ...deliveryOptions,
-      ...(navigationData ? {data: navigationData} : {}),
-    });
+    const response = await getMessaging().sendEach(targets.map(({ token, webPushBinding }) =>
+      webPushBinding
+        ? {
+          token,
+          webpush: deliveryOptions.webpush,
+          data: { ...navigationData, ...pushContent, webPushBinding },
+        }
+        : {
+          token,
+          notification: pushContent,
+          ...deliveryOptions,
+          ...(navigationData ? { data: navigationData } : {}),
+        }
+    ));
     const responseErrorCodes = response.responses.map((result) =>
       result.success ? null : toSafeErrorCode(result.error)
     );

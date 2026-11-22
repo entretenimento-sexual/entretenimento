@@ -26,7 +26,16 @@ interface FakeNotificationClickEvent {
 
 type NotificationClickListener = (event: FakeNotificationClickEvent) => void;
 
+interface FakePushEvent {
+  data: { json: () => unknown };
+  stopImmediatePropagation: () => void;
+  waitUntil: (promise: Promise<unknown>) => void;
+}
+
 interface WorkerHarness {
+  dispatchPush: (data: unknown) => Promise<void>;
+  setBinding: (id: string | null) => Promise<void>;
+  shown: string[];
   dispatchClick: (data: unknown) => Promise<{
     closed: number;
     stopped: number;
@@ -46,6 +55,31 @@ function createWorkerHarness(windowClients: FakeWindowClient[]): WorkerHarness {
   const workerSource = readFileSync(workerPath, 'utf8');
   const listeners = new Map<string, NotificationClickListener>();
   const openedUrls: string[] = [];
+  const shown: string[] = [];
+  const pushListeners = new Map<string, (event: FakePushEvent) => void>();
+  let bindingId: string | null = null;
+  const indexedDB = {
+    open: () => {
+      const request = {
+        onsuccess: () => undefined,
+        result: {
+          close: () => undefined,
+          transaction: () => {
+            const transaction = {
+              oncomplete: () => undefined,
+              objectStore: () => ({
+                get: () => ({ result: bindingId ? { id: bindingId } : undefined }),
+              }),
+            };
+            queueMicrotask(() => transaction.oncomplete());
+            return transaction;
+          },
+        },
+      };
+      queueMicrotask(() => request.onsuccess());
+      return request;
+    },
+  };
   const workerSelf = {
     location: new URL(WORKER_URL),
     clients: {
@@ -55,8 +89,13 @@ function createWorkerHarness(windowClients: FakeWindowClient[]): WorkerHarness {
         return {url};
       },
     },
-    addEventListener: (type: string, listener: NotificationClickListener) => {
-      listeners.set(type, listener);
+    registration: {
+      showNotification: async (title: string) => { shown.push(title); },
+      getNotifications: async () => [],
+    },
+    addEventListener: (type: string, listener: unknown) => {
+      if (type === 'push') pushListeners.set(type, listener as (event: FakePushEvent) => void);
+      if (type === 'notificationclick') listeners.set(type, listener as NotificationClickListener);
     },
   };
 
@@ -67,6 +106,7 @@ function createWorkerHarness(windowClients: FakeWindowClient[]): WorkerHarness {
       URL,
       URLSearchParams,
       console,
+      indexedDB,
       importScripts: () => {
         assert.equal(
           listeners.has('notificationclick'),
@@ -84,6 +124,22 @@ function createWorkerHarness(windowClients: FakeWindowClient[]): WorkerHarness {
 
   return {
     openedUrls,
+    shown,
+    setBinding: async (id) => { bindingId = id; },
+    dispatchPush: async (data) => {
+      const listener = pushListeners.get('push');
+      assert.ok(listener);
+      let pending: Promise<unknown> | null = null;
+      let stopped = false;
+      listener({
+        data: { json: () => data },
+        stopImmediatePropagation: () => { stopped = true; },
+        waitUntil: (promise) => { pending = promise; },
+      });
+      assert.ok(stopped, 'worker deve impedir exibição automática pelo SDK');
+      assert.ok(pending);
+      await pending;
+    },
     dispatchClick: async (data: unknown) => {
       const listener = listeners.get('notificationclick');
       assert.ok(listener, 'worker deve registrar notificationclick');
@@ -237,4 +293,28 @@ test('worker abre a Central quando não existe rota nem aba reutilizável', asyn
   assert.deepEqual(harness.openedUrls, [
     'https://app.example/notificacoes',
   ]);
+});
+
+test('worker descarta push legado e push da sessão anterior após revogação ou troca', async () => {
+  const harness = createWorkerHarness([]);
+  const payload = (webPushBinding: string) => ({
+    data: { webPushBinding, title: 'Entretenimento', body: 'Nova notificação.' },
+  });
+
+  await harness.setBinding('account-a-binding');
+  await harness.dispatchPush(payload('account-a-binding'));
+  assert.deepEqual(harness.shown, ['Entretenimento']);
+
+  await harness.setBinding(null);
+  await harness.dispatchPush(payload('account-a-binding'));
+
+  await harness.setBinding('account-b-binding');
+  await harness.dispatchPush({ notification: { title: 'Aviso de versão anterior' } });
+  await harness.dispatchPush(payload('account-a-binding'));
+  await harness.dispatchClick({ webPushBinding: 'account-a-binding' });
+  assert.deepEqual(harness.shown, ['Entretenimento']);
+  assert.deepEqual(harness.openedUrls, []);
+
+  await harness.dispatchPush(payload('account-b-binding'));
+  assert.deepEqual(harness.shown, ['Entretenimento', 'Entretenimento']);
 });

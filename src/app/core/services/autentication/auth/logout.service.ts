@@ -18,7 +18,7 @@ import { ChildrenOutletContexts, NavigationEnd, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { Auth, signOut } from '@angular/fire/auth';
 
-import { BehaviorSubject, EMPTY, Observable, combineLatest, defer, from, merge, of, throwError, timer } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, combineLatest, defer, forkJoin, from, merge, of, throwError, timer } from 'rxjs';
 import {
   catchError,
   defaultIfEmpty,
@@ -49,6 +49,7 @@ import {
 
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { inRegistrationFlow as isRegFlow, type TerminateReason } from './auth.types';
+import { clearPendingLogout, savePendingLogout } from '@core/firebase/pending-logout';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 type SignOutMode = 'strict' | 'best-effort';
@@ -133,6 +134,11 @@ export class LogoutService {
           started = true;
           this.logoutFeedback.next({ phase: 'ending', user });
           this.authSession.beginTermination();
+          try {
+            savePendingLogout(user.uid);
+          } catch (error: unknown) {
+            this.reportSilent(error, { phase: 'persistVoluntaryLogout' });
+          }
           const warning = timer(LOGOUT_FEEDBACK_TIMEOUT_MS).subscribe(() => {
             this.logoutFeedback.next({ phase: 'delayed', user });
             this.reportSilent(new Error('A confirmação de saída ainda está pendente.'), {
@@ -142,8 +148,9 @@ export class LogoutService {
           });
 
           return this.stopGeolocationBestEffort$().pipe(
-            switchMap(() => this.auth.currentUser === user ? this.stopPresenceBestEffort$() : EMPTY),
-            switchMap(() => this.auth.currentUser === user ? this.deactivatePushBestEffort$() : EMPTY),
+            switchMap(() => this.auth.currentUser === user
+              ? forkJoin([this.stopPresenceBestEffort$(), this.deactivatePushBestEffort$()])
+              : EMPTY),
             switchMap(() => this.auth.currentUser === user ? this.executeSignOut$('strict') : EMPTY),
             tap({ next: () => warning.unsubscribe(), error: () => warning.unsubscribe() }),
             switchMap(() => this.auth.currentUser === user
@@ -151,6 +158,7 @@ export class LogoutService {
               : of(void 0)),
             catchError((error: unknown) => this.handleVoluntarySignOutFailure$(error, pushState, user)),
             switchMap(() => {
+              clearPendingLogout(user.uid);
               // Uma conta que entrou durante a operação segue no contexto dela.
               if (this.auth.currentUser) return EMPTY;
               this.sessionExit.markSignedOut();
@@ -178,6 +186,8 @@ export class LogoutService {
         if (this.terminationInFlight$ === shared$) this.terminationInFlight$ = null;
         const phase = this.logoutFeedback.value?.phase;
         if (!started || phase === 'unconfirmed') return;
+        const outgoing = this.logoutFeedback.value?.user;
+        if (outgoing && this.auth.currentUser && this.auth.currentUser !== outgoing) clearPendingLogout(outgoing.uid);
         if (this.authSession.isTerminatingSnapshot) this.authSession.endTermination();
         if (phase !== 'failed') this.logoutFeedback.next(null);
       }),
@@ -200,26 +210,40 @@ export class LogoutService {
     if (feedback?.phase === 'failed' && this.auth.currentUser === feedback.user) this.logout();
   }
 
-  /**
-   * Invalidação restrita ao bootstrap do Firebase Auth.
-   *
-   * Não executa navegação, Presence, geolocalização ou callable de Web Push:
-   * esses side-effects não devem ser inicializados apenas para remover uma
-   * sessão restaurada inválida/ghost antes do bootstrap da aplicação terminar.
-   *
-   * A chamada bruta ao Firebase `signOut` continua encapsulada neste serviço e
-   * a limpeza local sensível é preservada para impedir vazamento entre contas.
-   */
+  /** Retoma somente a saída já solicitada para a conta restaurada. */
   invalidateRestoredSessionForBootstrap$(): Observable<void> {
-    return this.executeSignOut$('strict').pipe(
-      switchMap(() => this.clearLocalSessionDataBestEffort$()),
-      catchError((err) => {
-        this.reportSilent(err, {
-          phase: 'invalidateRestoredSessionForBootstrap$',
-        });
-        return throwError(() => err);
-      })
-    );
+    return defer(() => {
+      const user = this.auth.currentUser;
+      if (!user) return of(void 0);
+
+      this.authSession.beginTermination();
+      this.logoutFeedback.next({ phase: 'delayed', user });
+      return this.deactivatePushBestEffort$().pipe(
+        switchMap(() => this.auth.currentUser === user ? this.executeSignOut$('strict') : of(void 0)),
+        switchMap(() => {
+          if (this.auth.currentUser === user) {
+            throw new Error('Firebase não confirmou a saída restaurada.');
+          }
+          clearPendingLogout(user.uid);
+          return this.auth.currentUser ? of(void 0) : this.clearLocalSessionDataBestEffort$(true);
+        }),
+        tap(() => {
+          this.authSession.endTermination();
+          this.logoutFeedback.next(null);
+        }),
+        catchError((error: unknown) => {
+          if (this.auth.currentUser && this.auth.currentUser !== user) {
+            clearPendingLogout(user.uid);
+            this.authSession.endTermination();
+            this.logoutFeedback.next(null);
+            return of(void 0);
+          }
+          this.logoutFeedback.next({ phase: 'unconfirmed', user });
+          this.reportSilent(error, { phase: 'invalidateRestoredSessionForBootstrap$' });
+          return of(void 0);
+        })
+      );
+    });
   }
 
   /**
@@ -261,16 +285,21 @@ export class LogoutService {
     }
 
     let shared$: Observable<void>;
+    let user: Auth['currentUser'];
 
     shared$ = defer(() => {
+      user = this.auth.currentUser;
       this.authSession.beginTermination();
       return this.stopGeolocationBestEffort$();
     }).pipe(
-      switchMap(() => this.stopPresenceBestEffort$()),
-      switchMap(() => this.deactivatePushBestEffort$()),
-      switchMap(() => this.executeSignOut$('best-effort')),
-      switchMap(() => this.clearLocalSessionDataBestEffort$()),
-      switchMap(() => this.navigateToWelcomeBestEffort$(reason)),
+      switchMap(() => forkJoin([this.stopPresenceBestEffort$(), this.deactivatePushBestEffort$()])),
+      switchMap(() => this.auth.currentUser === user ? this.executeSignOut$('best-effort') : of(void 0)),
+      switchMap(() => !this.auth.currentUser || this.auth.currentUser === user
+        ? this.clearLocalSessionDataBestEffort$()
+        : EMPTY),
+      switchMap(() => !this.auth.currentUser || this.auth.currentUser === user
+        ? this.navigateToWelcomeBestEffort$(reason)
+        : EMPTY),
       catchError((err) => {
         this.reportSilent(err, { phase: 'hardSignOutToWelcome$', reason });
         return of(void 0);
@@ -280,7 +309,7 @@ export class LogoutService {
           this.terminationInFlight$ = null;
         }
 
-        if (!this.auth.currentUser) {
+        if (!this.auth.currentUser || this.auth.currentUser !== user) {
           this.authSession.endTermination();
         } else {
           this.dbg('hard signout permaneceu fail-closed', {
@@ -325,6 +354,7 @@ export class LogoutService {
       this.reportSilent(err, { phase: 'confirmVoluntarySignOut' });
       return throwError(() => err);
     }
+    clearPendingLogout(user.uid);
     if (active !== user) return EMPTY;
 
     this.authSession.endTermination();

@@ -144,7 +144,7 @@ describe('AppComponent', () => {
     expect(status.textContent).toContain('Ainda não conseguimos confirmar a saída');
     expect(root.querySelector<HTMLElement>('#route-content [hidden]')?.inert).toBe(true);
     const button = root.querySelector<HTMLButtonElement>('.logout-status button')!;
-    expect(button.textContent).toContain('Recarregar página');
+    expect(button.textContent).toContain('Recarregar para concluir a saída');
     button.click();
     expect(reload).toHaveBeenCalledOnce();
     expect(logoutStub.retryVoluntaryLogout).not.toHaveBeenCalled();

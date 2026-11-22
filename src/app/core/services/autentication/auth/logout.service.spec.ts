@@ -12,6 +12,7 @@ import {
 } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { readPendingLogout, savePendingLogout } from '@core/firebase/pending-logout';
 import { LogoutService } from './logout.service';
 
 type PushMode = 'success' | 'error' | 'empty' | 'never';
@@ -374,6 +375,7 @@ describe('LogoutService global session lifecycle', () => {
     t.auth.currentUser = null; // snapshot em memória muda antes de concluir a persistência
     await vi.advanceTimersByTimeAsync(10_000);
     expect(feedback.at(-1)).toBe('delayed');
+    expect(readPendingLogout()).toBe('user-a');
     expect(t.authSession.isTerminatingSnapshot).toBe(true);
     expect(t.sessionExit.markSignedOut).not.toHaveBeenCalled();
     expect(t.cache.clearSensitiveSessionCache$).not.toHaveBeenCalled();
@@ -388,6 +390,7 @@ describe('LogoutService global session lifecycle', () => {
     expect(t.sessionExit.openAfterLogout$).toHaveBeenCalledOnce();
     expect(t.authSession.isTerminatingSnapshot).toBe(false);
     expect(feedback).toEqual([null, 'ending', 'delayed', null]);
+    expect(readPendingLogout()).toBeNull();
     listener.unsubscribe();
   });
 
@@ -439,6 +442,21 @@ describe('LogoutService global session lifecycle', () => {
     t.service.logout();
     expect(t.executeSignOut).toHaveBeenCalledOnce();
     listener.unsubscribe();
+  });
+
+  it('mantém a sessão restaurada protegida enquanto retoma o signOut', async () => {
+    const t = createHarness();
+    savePendingLogout('user-a');
+    const sdk = pendingSignOut();
+    t.executeSignOut.mockReturnValueOnce(sdk.result$);
+    const done = firstValueFrom(t.service.invalidateRestoredSessionForBootstrap$());
+    expect(t.authSession.isTerminatingSnapshot).toBe(true);
+    expect(readPendingLogout()).toBe('user-a');
+    t.auth.currentUser = null;
+    sdk.resolve();
+    await done;
+    expect(readPendingLogout()).toBeNull();
+    expect(t.authSession.isTerminatingSnapshot).toBe(false);
   });
 
   it('ignora a conclusão da operação anterior quando outra conta já está ativa', async () => {
@@ -509,6 +527,8 @@ describe('LogoutService global session lifecycle', () => {
 
     const done = firstValueFrom(service.logout$());
 
+    expect(calls).toContain('push');
+    expect(calls).not.toContain('signout:strict');
     await vi.runAllTimersAsync();
     await done;
 

@@ -6,6 +6,7 @@ import { AuthAppBlockService } from '../services/autentication/auth/auth-app-blo
 import { AuthSessionService } from '../services/autentication/auth/auth-session.service';
 import { FIREBASE_AUTH_RESTORE_TIMEOUT_MS } from './firebase-runtime.constants';
 import { readAuthInvalidUid } from './auth-invalid-session-marker';
+import { clearPendingLogout, readPendingLogout } from './pending-logout';
 import { authInvalidationReason } from '../services/autentication/auth/auth.types';
 import { GlobalErrorHandlerService } from '../services/error-handler/global-error-handler.service';
 import {
@@ -32,7 +33,8 @@ export function authRestoreInitializer(
   auth: Auth,
   globalErrorHandler: GlobalErrorHandlerService,
   appBlock: AuthAppBlockService,
-  session: AuthSessionService
+  session: AuthSessionService,
+  resumeLogout?: () => Promise<void>
 ): () => Promise<void> {
   return async (): Promise<void> => {
     // A espera da casca tem limite. Se o SDK hidratar mais tarde, a
@@ -56,6 +58,14 @@ export function authRestoreInitializer(
       // Revalidacao no Cloud e no emulador. Identidade persistente nao
       // equivale a permissao de acesso se a credencial estiver invalida.
       const currentUser = auth.currentUser;
+      const pendingLogout = readPendingLogout();
+      if (pendingLogout && session.terminationVersionSnapshot === termination && resumeLogout) {
+        if (pendingLogout === currentUser?.uid) {
+          await resumeLogout();
+          return;
+        }
+        clearPendingLogout(pendingLogout);
+      }
       if (!currentUser || session.terminationVersionSnapshot !== termination) return;
       const restoredUid = currentUser.uid;
 

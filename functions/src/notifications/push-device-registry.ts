@@ -22,6 +22,7 @@ interface PushDeviceRequest {
   platform?: unknown;
   installationId?: unknown;
   registrationId?: unknown;
+  deliveryBindingId?: unknown;
   cancelledRegistrationIds?: unknown;
 }
 
@@ -31,6 +32,7 @@ interface PushDeviceDocument {
   createdAt?: unknown;
   updatedAt?: unknown;
   lastSeenAt?: unknown;
+  deliveryBindingId?: unknown;
   schemaVersion?: unknown;
   cancelledRegistrationIds?: string[];
 }
@@ -99,6 +101,9 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
     const platform = requirePlatform(request.data?.platform);
     const installationId = requireInstallationId(request.data?.installationId);
     const registrationId = requireInstallationId(request.data?.registrationId);
+    const requestedDeliveryBindingId = platform === 'web' && request.data?.deliveryBindingId !== undefined
+      ? requireInstallationId(request.data.deliveryBindingId)
+      : null;
     const installationDocumentId =
       buildPushInstallationDocumentId(installationId);
     const tokenDocumentId = buildPushTokenDocumentId(token);
@@ -126,6 +131,8 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
         ? (deviceSnapshot.data() as PushDeviceDocument)
         : undefined;
       const currentToken = normalizePushToken(current?.token);
+      const deliveryBindingId = requestedDeliveryBindingId ??
+        (platform === 'web' && currentToken === token ? normalizePushInstallationId(current?.deliveryBindingId) : null);
       if (current?.cancelledRegistrationIds?.includes(registrationId)) {
         throw new HttpsError('aborted', 'O registro do dispositivo foi cancelado.');
       }
@@ -137,6 +144,7 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
           platform,
           observedAtMs
         ) &&
+        (current?.deliveryBindingId ?? null) === deliveryBindingId &&
         tokenOwnerSnapshot.exists &&
         isCanonicalPushTokenOwner(
           tokenOwnerSnapshot.data(),
@@ -218,6 +226,7 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
           token,
           platform,
           schemaVersion: 2,
+          deliveryBindingId: deliveryBindingId ?? FieldValue.delete(),
           createdAt: currentForWrite?.createdAt ?? now,
           updatedAt: now,
           lastSeenAt: now,

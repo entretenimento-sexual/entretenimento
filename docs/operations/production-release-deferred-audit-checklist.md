@@ -187,6 +187,21 @@ publicação. Durante o desenvolvimento, seguir com os testes no emulador.
 - [ ] Executar `npm run validate:staging` e verificar no domínio de staging a
   emissão de tokens do App Check e o cadastro com as Functions, incluindo
   troca de conta, perda de conexão e retomada da etapa pendente.
+- [ ] Com Web Push ativo em uma conta de teste A, verificar um aviso com o app
+  em segundo plano. Derrubar a rede durante a saída, gerar um novo aviso para
+  A, reconectar e repetir após entrar como B no mesmo navegador. Repetir a
+  saída com outra aba aberta e com recarga durante a confirmação do SDK.
+  Conferir que a conta A não volta após a recarga e que nenhum aviso de A
+  chega após a reconexão, inclusive com a aba fechada. Ativar Push em B e
+  confirmar que os avisos dela chegam normalmente. Verificar o Chrome e
+  demais navegadores suportados, incluindo avisos genéricos do próprio
+  navegador se a entrega for descartada pelo service worker.
+- [ ] Publicar Functions e o service worker no mesmo ciclo de release. Verificar
+  a atualização do worker de uma instalação existente. Na Web, a Function
+  envia alertas sem fila quando o navegador está offline, e o worker exige um
+  vínculo ativo antes de exibir. Instalações antigas voltam a receber avisos
+  na próxima abertura autenticada que sincronizar o opt-in existente. A
+  Central mantém as notificações para consulta.
 - [ ] Conferir o provedor do App Check e a configuração de Web Push do projeto
   `entretenimento-sexual` antes da liberação pública, seguindo o
   [runbook de produção](../production-deployment-runbook.md).

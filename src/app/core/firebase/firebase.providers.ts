@@ -1,5 +1,7 @@
+import { firstValueFrom } from 'rxjs';
 import {
   inject,
+  Injector,
   provideAppInitializer,
   type EnvironmentProviders,
   type Provider,
@@ -35,6 +37,7 @@ import { getStorage } from 'firebase/storage';
 
 import { environment } from '../../../environments/environment';
 import { AuthAppBlockService } from '../services/autentication/auth/auth-app-block.service';
+import { LogoutService } from '../services/autentication/auth/logout.service';
 import { AuthSessionService } from '../services/autentication/auth/auth-session.service';
 import { GlobalErrorHandlerService } from '../services/error-handler/global-error-handler.service';
 import { authRestoreInitializer } from './firebase-auth-session.initializer';
@@ -258,12 +261,14 @@ export const FIREBASE_APPLICATION_PROVIDERS: Array<
   provideApplicationDatabase(),
   provideApplicationStorage(),
 
-  provideAppInitializer(() =>
-    authRestoreInitializer(
+  provideAppInitializer(() => {
+    const injector = inject(Injector);
+    return authRestoreInitializer(
       inject(Auth),
       inject(GlobalErrorHandlerService),
       inject(AuthAppBlockService),
-      inject(AuthSessionService)
-    )()
-  ),
+      inject(AuthSessionService),
+      () => firstValueFrom(injector.get(LogoutService).invalidateRestoredSessionForBootstrap$())
+    )();
+  }),
 ];
