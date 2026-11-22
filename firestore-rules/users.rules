@@ -153,6 +153,7 @@ match /users/{userId} {
       "initialAdultConsentRequired",
       "registrationCompletedAt",
       "registrationAbandonment",
+      "registrationAuthProgress",
       "profileCompleted",
       "ageEligibility",
       "ageVerification",

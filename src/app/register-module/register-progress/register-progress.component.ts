@@ -9,6 +9,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
 
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
+import type { IUserDados } from '@core/interfaces/iuser-dados';
 import { isEmailLinkPreviewUid } from '@core/services/autentication/register/email-link-registration.service';
 import type { RegisterFlowStep } from '../data-access/register-flow.model';
 
@@ -28,6 +29,15 @@ const EMAIL_LINK_STAGES = [STAGE.email, STAGE.age, STAGE.password, STAGE.terms, 
 const EMAIL_LINK_LATE_AGE_STAGES = [STAGE.email, STAGE.password, STAGE.terms, STAGE.age, STAGE.profile] as const;
 
 type ProgressStep = (typeof STAGES | typeof EMAIL_LINK_STAGES)[number]['step'];
+const ABANDONMENT_STAGE_BY_STEP: Partial<Record<
+  ProgressStep, NonNullable<IUserDados['registrationAbandonment']>['stage']
+>> = {
+  emailVerification: 'emailPending',
+  passwordSetup: 'passwordPending',
+  termsAcceptance: 'termsPending',
+  ageVerification: 'profilePending',
+  profileCompletion: 'profilePending',
+};
 
 @Component({
   selector: 'app-register-progress',
@@ -50,8 +60,10 @@ export class RegisterProgressComponent {
   protected readonly abandonment = computed(() => {
     const user = this.currentUser?.();
     const review = user?.registrationAbandonment;
-    if (!user || !this.ownerUid() || user.uid !== this.ownerUid() || user.profileCompleted !== false ||
-        this.completed() || !review || !Number.isSafeInteger(review.reviewAfterMs)) return null;
+    const stage = ABANDONMENT_STAGE_BY_STEP[this.step()];
+    if (!stage || !user || !this.ownerUid() || user.uid !== this.ownerUid() || user.profileCompleted !== false ||
+        this.completed() || !review || review.stage !== stage ||
+        !Number.isSafeInteger(review.reviewAfterMs)) return null;
     return review;
   });
 

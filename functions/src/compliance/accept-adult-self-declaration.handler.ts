@@ -333,6 +333,7 @@ export const acceptAdultSelfDeclaration =
           userRef,
           {
             ageEligibility: projection,
+            ...(user['profileCompleted'] === false ? { registrationAbandonment: FieldValue.delete() } : {}),
             updatedAt: timestamp,
           },
           { merge: true }

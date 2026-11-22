@@ -1,11 +1,15 @@
 import type { UserRecord } from 'firebase-admin/auth';
 import { REGISTRATION_FLOW_VERSION } from '../auth/user-registration-seed';
 import { hasAcceptedCurrentTerms } from '../compliance/platform-legal.constants';
+import {
+  REGISTRATION_EMAIL_LINK_UID_PREFIX,
+  resolveRegistrationAuthProgress,
+  type RegistrationAuthProgress,
+} from './registration-auth-progress.policy';
 
 const DAY_MS = 86_400_000;
 export const REGISTRATION_RESUME_WINDOW_MS = 7 * DAY_MS;
 export const REGISTRATION_EMAIL_LINK_DRAFTS = 'registration_email_link_drafts';
-export const REGISTRATION_EMAIL_LINK_UID_PREFIX = 'email-link-preview-';
 export const REGISTRATION_INACTIVITY_DAYS = {
   emailPending: 7,
   passwordPending: 7,
@@ -20,7 +24,7 @@ const KNOWN_AGE_STATES = new Set(['UNVERIFIED', 'SELF_DECLARED_ADULT', 'VERIFIED
 
 export type AbandonmentAssessment =
   | { kind: 'protected' | 'unclassified' }
-  | { kind: 'active' | 'candidate'; stage: Stage; activityAtMs: number };
+  | { kind: 'active' | 'candidate'; stage: Stage; activityAtMs: number; authProgress: RegistrationAuthProgress };
 
 export interface RegistrationAbandonment {
   stage: Stage;
@@ -68,21 +72,21 @@ export function assessRegistrationAbandonment(
   }
 
   // A renovação automática de token não significa que a pessoa retomou o cadastro.
+  const authProgress = resolveRegistrationAuthProgress(account, auth, nowMs);
   const dates = [
     auth.metadata.creationTime, account.createdAt, auth.metadata.lastSignInTime,
     account.acceptedTerms?.acceptedAt, account.acceptedTerms?.date,
-    account.nicknameHistory?.[0]?.date, age?.decidedAtMs,
+    account.nicknameHistory?.[0]?.date, age?.decidedAtMs, authProgress.observedAtMs,
   ];
   const present = dates.filter((date, index) => index < 2 || date != null).map(millis);
   if (present.some(date => !Number.isFinite(date) || date <= 0 || date > nowMs)) {
     return { kind: 'unclassified' };
   }
-  const stage = !auth.emailVerified ? 'emailPending'
-    : uid.startsWith(REGISTRATION_EMAIL_LINK_UID_PREFIX) && !auth.passwordHash ? 'passwordPending'
-      : !hasAcceptedCurrentTerms(account.acceptedTerms) ? 'termsPending' : 'profilePending';
+  const stage = authProgress.stage !== 'credentialsReady' ? authProgress.stage
+    : !hasAcceptedCurrentTerms(account.acceptedTerms) ? 'termsPending' : 'profilePending';
   const activityAtMs = Math.max(...present);
   const kind = nowMs - activityAtMs >= REGISTRATION_INACTIVITY_DAYS[stage] * DAY_MS ? 'candidate' : 'active';
-  return { kind, stage, activityAtMs };
+  return { kind, stage, activityAtMs, authProgress };
 }
 
 export function nextRegistrationAbandonment(

@@ -167,6 +167,7 @@ export interface IUserDados {
   registrationDate?: number | null;
   registrationCompletedAt?: number | null;
   registrationAbandonment?: {
+    stage: 'emailPending' | 'passwordPending' | 'termsPending' | 'profilePending';
     status: 'resume_window' | 'review_ready';
     activityAtMs: number;
     reviewAfterMs: number;

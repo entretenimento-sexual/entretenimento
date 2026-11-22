@@ -75,7 +75,8 @@ export async function sweepRegistrationAbandonment(
       'deletionRequestedAt', 'deletedAt', 'ageReverificationRestrictedAt', 'moderationAutomationHold.active',
       'legalHold', 'billingHold', 'isSubscriber', 'subscriptionStatus', 'currentSubscriptionId', 'entitlements',
       'ageReverification.status', 'registrationFlowVersion', 'publicVisibility', 'interactionBlocked',
-      'profileCompleted', 'createdAt', 'acceptedTerms', 'nicknameHistory', 'registrationAbandonment',
+      'profileCompleted', 'createdAt', 'acceptedTerms', 'nicknameHistory',
+      'registrationAbandonment', 'registrationAuthProgress',
     ),
   };
 
@@ -120,7 +121,10 @@ export async function sweepRegistrationAbandonment(
       } else {
         accounts[assessment.kind]++;
       }
-      if (!apply || (assessment.kind !== 'candidate' && account.registrationAbandonment == null)) continue;
+      const progressChanged = 'authProgress' in assessment &&
+        assessment.authProgress !== account.registrationAuthProgress;
+      if (!apply || (!progressChanged && assessment.kind !== 'candidate' &&
+          account.registrationAbandonment == null)) continue;
 
       const change = await db.runTransaction(async tx => {
         const current = (await tx.get(doc.ref)).data();
@@ -129,8 +133,15 @@ export async function sweepRegistrationAbandonment(
         const fresh = await readAssessment(db, doc.ref, current, user, nowMs, tx);
         const previous = current.registrationAbandonment;
         const next = nextRegistrationAbandonment(fresh, previous, nowMs);
-        if (previous === next || (previous == null && next == null)) return null;
-        tx.update(doc.ref, { registrationAbandonment: next ?? FieldValue.delete() });
+        const progress = 'authProgress' in fresh ? fresh.authProgress : undefined;
+        const updateProgress = progress && progress !== current.registrationAuthProgress;
+        const updateMarker = previous !== next && (previous != null || next != null);
+        if (!updateProgress && !updateMarker) return null;
+        tx.update(doc.ref, {
+          ...(updateProgress ? { registrationAuthProgress: progress } : {}),
+          ...(updateMarker ? { registrationAbandonment: next ?? FieldValue.delete() } : {}),
+        });
+        if (!updateMarker) return null;
         if (!next) return 'cleared';
         return next.status === 'review_ready' ? 'readyForReview' : 'opened';
       });

@@ -62,6 +62,7 @@ export {
 export { blockDirectAuthRegistration } from './registration/registration-auth-admission.handler';
 export { getRegistrationNicknameAvailability } from './registration/get-registration-nickname-availability.handler';
 export { sweepIncompleteRegistrations } from './registration/registration-abandonment.schedule';
+export { onRegistrationEmailVerificationChanged } from './registration/registration-auth-progress.handler';
 export {
   inspectEmailLinkRegistration,
   prepareEmailLinkRegistration,

@@ -342,6 +342,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
         profileCompleted: true, publicVisibility: 'visible',
         interactionBlocked: false, registrationCompletedAt: now,
         registrationAbandonment: FieldValue.delete(),
+        registrationAuthProgress: FieldValue.delete(),
         updatedAt: now, updatedAtMs: nowMs,
       });
 

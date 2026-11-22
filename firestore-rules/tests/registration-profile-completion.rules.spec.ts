@@ -236,6 +236,9 @@ describe('Firestore Rules / registration and profile completion', () => {
     await assertFails(updateDoc(doc(authenticatedDb(true), 'users', UID), {
       registrationAbandonment: { status: 'review_ready', reviewAfterMs: 1 },
     }));
+    await assertFails(updateDoc(doc(authenticatedDb(true), 'users', UID), {
+      registrationAuthProgress: { stage: 'credentialsReady', observedAtMs: 1 },
+    }));
   });
 
   it('impede renomear nickname ou histórico após o cadastro sem bloquear descrição', async () => {

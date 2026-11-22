@@ -189,6 +189,7 @@ const expectedDeploymentExports = [
   'moderateVideoComment',
   'normalizeLegacyVideoModeration',
   'normalizeLegacyPhotoModeration',
+  'onRegistrationEmailVerificationChanged',
   'onUserCreate',
   'onUserCreateIndexNickname',
   'paymentWebhook',

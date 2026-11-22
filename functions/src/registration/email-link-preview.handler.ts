@@ -9,7 +9,9 @@ import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.
 import { requiresTrustedAdultVerification } from '../compliance/adult-self-declaration-evidence';
 import { ADULT_SELF_DECLARATION_VERSION } from '../compliance/platform-legal.constants';
 import { normalizeRegistrationNicknameClaim } from './nickname-reservation.policy';
-import { REGISTRATION_EMAIL_LINK_DRAFTS, REGISTRATION_EMAIL_LINK_UID_PREFIX } from './registration-abandonment.policy';
+import { REGISTRATION_EMAIL_LINK_DRAFTS } from './registration-abandonment.policy';
+import { recordRegistrationAuthProgress } from './registration-auth-progress.handler';
+import { REGISTRATION_EMAIL_LINK_UID_PREFIX } from './registration-auth-progress.policy';
 
 const emailLinkPreviewAllowed = isFunctionsEmulatorRuntime() && !requiresTrustedAdultVerification;
 const PREVIEW_UID_PREFIX = REGISTRATION_EMAIL_LINK_UID_PREFIX;
@@ -258,7 +260,9 @@ export const getEmailLinkRegistrationState = isFunctionsEmulatorRuntime() ? onCa
   }
   const passwordRequired = await registrationPasswordRequired(uid);
   const evidenceRef = emailLinkSignupEvidenceRef(uid);
-  if (passwordRequired || !evidenceRef) return { passwordRequired };
+  if (!evidenceRef) return { passwordRequired };
+  await recordRegistrationAuthProgress(uid);
+  if (passwordRequired) return { passwordRequired };
   const nickname = (await evidenceRef.get()).get('nickname');
   return { passwordRequired, ...(typeof nickname === 'string' ? { nickname } : {}) };
 }) : undefined;

@@ -39,7 +39,9 @@ O acesso ao produto exige conta ativa, perfil explicitamente concluído e aceite
 
 ## Triagem de abandono
 
-O backend usa a mesma política no emulador, staging e produção. Fechar o navegador não inicia a triagem. Ela considera o último marco confiável entre criação da conta, entrada no Auth, aceite, reserva inicial de apelido e decisão de maioridade. Renovação automática do token fica fora. Expiração de link e inatividade da conta são relógios independentes.
+O backend usa a mesma política no emulador, staging e produção. Fechar o navegador não inicia a triagem. Ela considera o último marco confiável entre criação da conta, entrada no Auth, confirmação de e-mail, definição de senha na prévia por link, aceite, reserva inicial de apelido e decisão de maioridade. Renovação automática do token fica fora. Expiração de link e inatividade da conta são relógios independentes.
+
+O backend registra quando observa uma nova etapa de credenciais no Auth. Uma confirmação de e-mail fora da sessão pode ser observada na próxima varredura. Uma conta pendente que já tinha credenciais confirmadas e ficou sem data confiável recebe o marco da primeira observação. Se a triagem já conhecia a mesma etapa, preserva o marco existente. Reconsultar o mesmo estado não reinicia o prazo.
 
 | Estado | Inatividade | Providência |
 |---|---|---|

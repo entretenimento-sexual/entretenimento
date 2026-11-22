@@ -74,6 +74,7 @@ const SERVER_MANAGED_RUNTIME_PATCH_KEYS = new Set<string>([
   'publicVisibility',
   'interactionBlocked',
   'registrationAbandonment',
+  'registrationAuthProgress',
   'loginAllowed',
   'statusUpdatedAt',
   'statusUpdatedBy',

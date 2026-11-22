@@ -2,6 +2,7 @@ import type { UserRecord } from 'firebase-admin/auth';
 
 import { FieldValue } from 'firebase-admin/firestore';
 import { generatePublicProfileId } from '../identity/public-profile-id';
+import { resolveRegistrationAuthProgress } from '../registration/registration-auth-progress.policy';
 
 export const INITIAL_TERMS_VERSION = 'v1';
 export const REGISTRATION_FLOW_VERSION = 'v3-private-by-default';
@@ -51,6 +52,7 @@ export function buildInitialUserSeed(
     accountStatus: 'active',
     profileCompleted: false,
     registrationFlowVersion: REGISTRATION_FLOW_VERSION,
+    registrationAuthProgress: resolveRegistrationAuthProgress(undefined, user, nowMs),
     registrationCompletedAt: null,
 
     acceptedTerms: {

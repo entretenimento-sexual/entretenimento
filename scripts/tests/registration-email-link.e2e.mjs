@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
+import { setTimeout as delay } from 'node:timers/promises';
 import { initializeApp, deleteApp } from 'firebase/app';
 import {
   applyActionCode, checkActionCode, connectAuthEmulator, createUserWithEmailAndPassword,
@@ -90,6 +91,18 @@ async function verifyProductionEmailAction() {
   assert.equal(otherBrowser.auth.currentUser.uid, other.uid);
   assert.equal((await adminAuth.getUser(other.uid)).emailVerified, false);
   assert.equal((await adminAuth.getUser(user.uid)).emailVerified, true);
+  const registrationRef = db.doc(`users/${user.uid}`);
+  const observedAfter = Date.now();
+  await registrationRef.update({ emailVerified: true });
+  let progress;
+  const deadline = Date.now() + 10_000;
+  do {
+    progress = (await registrationRef.get()).get('registrationAuthProgress');
+    if (progress?.stage === 'credentialsReady') break;
+    await delay(50);
+  } while (Date.now() < deadline);
+  assert.equal(progress?.stage, 'credentialsReady');
+  assert.ok(progress.observedAtMs >= observedAfter);
   assert.equal((await signInWithEmailAndPassword(sender.auth, address, password)).user.uid, user.uid);
   await assert.rejects(checkActionCode(otherBrowser.auth, message.oobCode), { code: 'auth/invalid-action-code' });
   console.log('[email-link:e2e] PASS native VERIFY_EMAIL action verifies only the recipient and preserves both sessions and credentials');
@@ -98,7 +111,7 @@ async function verifyProductionEmailAction() {
 async function seedRetentionCases() {
   const day = 24 * 60 * 60 * 1000;
   const fixtures = [
-    { key: 'email', days: 8, emailVerified: false },
+    { key: 'email', days: 42, emailVerified: false },
     { key: 'password', days: 8, emailVerified: true, preview: true },
     { key: 'terms', days: 32, emailVerified: true },
     { key: 'stale-terms', days: 35, emailVerified: true, terms: true, stale: true },
@@ -120,10 +133,14 @@ async function seedRetentionCases() {
   })));
   assert.equal(imported.failureCount, 0);
 
-  await Promise.all(fixtures.map(({ uid, createdAt, terms, stale, legalHold }) => db.doc(`users/${uid}`).set({
+  await Promise.all(fixtures.map(({ uid, createdAt, emailVerified, preview, terms, stale, legalHold }) => db.doc(`users/${uid}`).set({
     uid, createdAt, accountStatus: 'active', profileCompleted: false,
     publicVisibility: 'hidden', interactionBlocked: true, loginAllowed: true,
     registrationFlowVersion: 'v3-private-by-default',
+    registrationAuthProgress: {
+      stage: !emailVerified ? 'emailPending' : preview ? 'passwordPending' : 'credentialsReady',
+      observedAtMs: createdAt,
+    },
     acceptedTerms: {
       accepted: terms === true,
       ...(terms ? {
@@ -206,6 +223,7 @@ async function verifyDraftCleanupDryRun(expiredDraftId) {
   const emailMarker = (await emailRef.get()).get('registrationAbandonment');
   assert.equal(emailMarker.status, 'resume_window');
   assert.equal(emailMarker.reviewAfterMs - emailMarker.flaggedAtMs, 7 * 86_400_000);
+  const emailConfirmedAfter = Date.now();
   await adminAuth.updateUser(emailRef.id, { emailVerified: true });
   await profileRef.update({ billingHold: true });
   await Promise.all(accountRefs.filter(ref => ref.id !== emailRef.id && ref.id !== profileRef.id).map(async ref => {
@@ -219,7 +237,10 @@ async function verifyDraftCleanupDryRun(expiredDraftId) {
   const advanced = JSON.parse((await runNode(process.execPath, [script, '--apply'], { env })).stdout);
   assert.equal(advanced.changes.cleared, 2);
   assert.equal(advanced.changes.readyForReview, 3);
-  assert.equal((await emailRef.get()).get('registrationAbandonment'), undefined);
+  const resumedEmail = (await emailRef.get()).data();
+  assert.equal(resumedEmail.registrationAbandonment, undefined);
+  assert.equal(resumedEmail.registrationAuthProgress.stage, 'credentialsReady');
+  assert.ok(resumedEmail.registrationAuthProgress.observedAtMs >= emailConfirmedAfter);
   assert.equal((await profileRef.get()).get('registrationAbandonment'), undefined);
   for (const uid of accountUids) assert.equal((await adminAuth.getUser(uid)).uid, uid);
   assert.deepEqual(await readAccounts(), beforeUsers);
@@ -275,14 +296,29 @@ try {
     await rejects(consumer.call(name, data), 'failed-precondition', 'registration/password-required');
   }
 
+  const privateRef = db.collection('users').doc(uid);
+  const previousPasswordProgress = (await privateRef.get()).get('registrationAuthProgress');
+  assert.equal(previousPasswordProgress.stage, 'passwordPending');
+  const flaggedAtMs = Date.now();
+  await privateRef.update({
+    registrationAbandonment: {
+      stage: 'passwordPending', activityAtMs: previousPasswordProgress.observedAtMs,
+      flaggedAtMs, status: 'resume_window', reviewAfterMs: flaggedAtMs + 7 * 86_400_000,
+    },
+  });
   // A sessão por link precisa ser anterior à revogação gerada pela mudança de senha.
   await new Promise(resolve => setTimeout(resolve, 1_100));
   await updatePassword(credential.user, password);
   await reauthenticateWithCredential(credential.user, EmailAuthProvider.credential(email, password));
   assert.deepEqual((await state(uid)).data, { passwordRequired: false, nickname });
+  const passwordAdvanced = (await privateRef.get()).data();
+  assert.equal(passwordAdvanced.registrationAuthProgress.stage, 'credentialsReady');
+  assert.ok(passwordAdvanced.registrationAuthProgress.observedAtMs > previousPasswordProgress.observedAtMs);
+  assert.equal(passwordAdvanced.registrationAbandonment, undefined);
+  await state(uid);
+  assert.deepEqual((await privateRef.get()).get('registrationAuthProgress'), passwordAdvanced.registrationAuthProgress);
   const reservation = await consumer.call('reserveRegistrationNickname', { ...expectedUid, nickname });
   assert.equal(reservation.data.nickname, nickname);
-  const privateRef = db.collection('users').doc(uid);
   const declarationRef = db.collection('adult_self_declarations').doc(uid);
   const indexRef = db.collection('public_index').doc('nickname:' + nickname.toLowerCase());
   const publicRef = db.collection('public_profiles').doc(uid);

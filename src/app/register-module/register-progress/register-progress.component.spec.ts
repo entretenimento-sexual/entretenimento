@@ -17,7 +17,7 @@ describe('RegisterProgressComponent', () => {
     const fixture = TestBed.createComponent(RegisterProgressComponent);
     fixture.componentRef.setInput('step', 'termsAcceptance');
     fixture.componentRef.setInput('ownerUid', 'owner');
-    const review = { activityAtMs: 1, reviewAfterMs: Date.UTC(2026, 10, 25, 15) };
+    const review = { stage: 'termsPending' as const, activityAtMs: 1, reviewAfterMs: Date.UTC(2026, 10, 25, 15) };
     user$.next({
       uid: 'owner', profileCompleted: false,
       registrationAbandonment: { ...review, status: 'resume_window' },
@@ -31,6 +31,10 @@ describe('RegisterProgressComponent', () => {
     });
     fixture.detectChanges();
     expect(view.querySelector('[role="status"]')?.textContent).toContain('Você ainda pode continuar');
+    fixture.componentRef.setInput('step', 'profileCompletion');
+    fixture.detectChanges();
+    expect(view.querySelector('[role="status"]')).toBeNull();
+    fixture.componentRef.setInput('step', 'termsAcceptance');
     user$.next({ ...user$.value, uid: 'other' });
     fixture.detectChanges();
     expect(view.querySelector('[role="status"]')).toBeNull();
