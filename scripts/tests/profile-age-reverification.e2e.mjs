@@ -183,26 +183,26 @@ async function run() {
 
     const targetUserRef = db.doc(`users/${targetUid}`);
     const targetPublicProfileRef = db.doc(`public_profiles/${targetUid}`);
-    const nicknameIndexId = `nickname:perfil-${runId}`;
-    const nicknameIndexRef = db.doc(`public_index/${nicknameIndexId}`);
+    const nicknameKey = `perfil-${runId.slice(0, 30)}`;
+    const nicknameIndexRef = db.doc(`public_index/nickname:${nicknameKey}`);
 
     await Promise.all([
       targetUserRef.set({
         ...userDocument(targetUid, `Perfil ${runId}`),
-        nicknameNormalized: `perfil-${runId}`,
+        nicknameNormalized: nicknameKey,
       }, { merge: true }),
       db.doc(`users/${reporterUid}`).set(
         userDocument(reporterUid, `Reporter ${runId}`),
         { merge: true }
       ),
       db.doc(`users/${moderatorUid}`).set(
-        userDocument(moderatorUid, `Admin ${runId}`),
+        { ...userDocument(moderatorUid, `Admin ${runId}`), permissions: ['users:suspend'] },
         { merge: true }
       ),
       targetPublicProfileRef.set({
         uid: targetUid,
         nickname: `Perfil ${runId}`,
-        nicknameNormalized: `perfil-${runId}`,
+        nicknameNormalized: nicknameKey,
         role: 'free',
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -210,7 +210,7 @@ async function run() {
       nicknameIndexRef.set({
         uid: targetUid,
         type: 'nickname',
-        value: `perfil-${runId}`,
+        value: nicknameKey,
         createdAt: Date.now(),
         lastChangedAt: Date.now(),
       }),
@@ -322,6 +322,8 @@ async function run() {
       reportId: firstReportId,
       decision: 'VERIFY',
       resolution: 'Maioridade confirmada após revisão administrativa.',
+      evidenceMethod: 'MANUAL_DOCUMENT_REVIEW',
+      evidenceReference: `emulator-age-review-${firstReportId}`,
     });
 
     await waitFor(
@@ -361,12 +363,16 @@ async function run() {
       reportId: secondReportId,
       decision: 'VERIFY',
       resolution: 'Esta aprovação deve ser bloqueada pelo backend.',
+      evidenceMethod: 'MANUAL_DOCUMENT_REVIEW',
+      evidenceReference: `emulator-age-review-${secondReportId}`,
     });
 
     await reviewAsAdmin({
       reportId: secondReportId,
       decision: 'REJECT',
       resolution: 'Menoridade confirmada pela declaração enviada no caso.',
+      evidenceMethod: 'MANUAL_DOCUMENT_REVIEW',
+      evidenceReference: `emulator-age-review-${secondReportId}`,
     });
 
     await waitFor(

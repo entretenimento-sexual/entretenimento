@@ -200,11 +200,10 @@ async function run() {
         updatedAt: entitlementNow,
       }),
       db.doc(`users/${incompleteUid}`).set(incompleteDocument),
-      db.doc(`users/${inviteeUid}`).set(eligibleUserDocument(
-        inviteeUid,
-        inviteeEmail,
-        inviteeNickname
-      )),
+      db.doc(`users/${inviteeUid}`).set({
+        ...eligibleUserDocument(inviteeUid, inviteeEmail, inviteeNickname),
+        nicknameNormalized: inviteeNicknameNormalized,
+      }),
       db.doc(`public_profiles/${inviteeUid}`).set({
         uid: inviteeUid,
         nickname: inviteeNickname,
@@ -983,6 +982,12 @@ async function run() {
     assert.equal(candidateBeforeInvite.data.candidate.userId, inviteeUid);
     assert.equal(candidateBeforeInvite.data.candidate.nickname, inviteeNickname);
     assert.equal(candidateBeforeInvite.data.candidate.status, 'eligible');
+
+    const inviteeAccount = db.doc(`users/${inviteeUid}`);
+    await inviteeAccount.update({ nicknameNormalized: `${inviteeNicknameNormalized}-old` });
+    const inconsistentCandidate = await findInviteCandidateAsCreator({ communityId, nickname: inviteeNickname });
+    assert.equal(inconsistentCandidate.data.candidate, null);
+    await inviteeAccount.update({ nicknameNormalized: inviteeNicknameNormalized });
 
     const missingCandidate = await findInviteCandidateAsCreator({
       communityId,

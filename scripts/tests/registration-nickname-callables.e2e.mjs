@@ -139,12 +139,18 @@ async function run() {
       nickname: 'Legado Antigo',
       registrationFlowVersion: 'v2',
     });
-    await db.doc('public_index/nickname:legado_antigo').set({
+    const legacyIndex = db.doc('public_index/nickname:legado_antigo');
+    await legacyIndex.set({
       uid: legacyUser.uid, type: 'nickname', value: 'legado_antigo',
     });
     assert.deepEqual(await nicknameStatus('Legado'), { status: 'taken' });
     await rejects(reserveOther, { nickname: 'Legado Novo' }, 'already-exists');
     assert.equal((await db.doc('nickname_reservations/legado').get()).exists, false);
+
+    await legacyRef.update({ nicknameNormalized: 'legado_antigo', publicVisibility: 'hidden' });
+    await legacyIndex.delete();
+    assert.deepEqual(await nicknameStatus('Legado'), { status: 'taken' });
+    await rejects(reserveOther, { nickname: 'Legado Novo' }, 'already-exists');
 
     await rejects(reserve, { nickname: 'Outro Apelido' }, 'failed-precondition');
     assert.equal((await db.doc('nickname_reservations/outro').get()).exists, false);
@@ -230,6 +236,9 @@ async function run() {
 
     const publishedIndex = db.doc('public_index/nickname:perfil');
     const publishedIndexData = (await publishedIndex.get()).data();
+    await publishedIndex.delete();
+    assert.equal((await complete(payload)).data.status, 'COMPLETED');
+    assert.equal((await publishedIndex.get()).get('uid'), uid);
     await privateRef.update({ publicVisibility: 'hidden' });
     await publishedIndex.delete();
     assert.deepEqual(await nicknameStatus('Perfil'), { status: 'taken' });
@@ -360,6 +369,53 @@ async function run() {
     const legacyReservations = await db.collection('nickname_reservations').get();
     assert.equal(legacyReservations.empty, true);
     console.log('[registration:e2e] PASS one transaction owns a principal under concurrent signup');
+
+    const suspend = httpsCallable(owner.functions, 'requestSelfSuspension');
+    const reactivate = httpsCallable(owner.functions, 'reactivateSelfSuspension');
+    const { onUserCreateIndexNickname } = await import(
+      '../../functions/lib/public_index/onUserCreateIndexNickname.js'
+    );
+    const publicBeforeSuspend = await publicRef.get();
+    assert.equal((await suspend({})).data.publicVisibility, 'hidden');
+    const publicWhileHidden = await publicRef.get();
+    assert.equal(publicWhileHidden.exists, false);
+    assert.equal((await publishedIndex.get()).exists, false);
+
+    // Repetir a criação antiga enquanto a conta está suspensa mantém o índice oculto.
+    await onUserCreateIndexNickname.run({
+      params: { userId: uid }, data: { before: publicWhileHidden, after: publicBeforeSuspend },
+    });
+    assert.equal((await publishedIndex.get()).exists, false);
+
+    assert.equal((await reactivate({})).data.publicVisibility, 'visible');
+    assert.equal((await publicRef.get()).get('nicknameNormalized'), 'perfil');
+    assert.equal((await publishedIndex.get()).get('uid'), uid);
+    // Repetir a exclusão antiga após a reativação preserva o índice vigente.
+    const indexAfterRestore = await publishedIndex.get();
+    await onUserCreateIndexNickname.run({
+      params: { userId: uid }, data: { before: publicBeforeSuspend, after: publicWhileHidden },
+    });
+    assert.deepEqual((await publishedIndex.get()).data(), indexAfterRestore.data());
+
+    const scheduleDeletion = httpsCallable(owner.functions, 'requestAccountDeletion');
+    const cancelDeletion = httpsCallable(owner.functions, 'cancelAccountDeletion');
+    assert.equal((await scheduleDeletion({})).data.accountStatus, 'pending_deletion');
+    assert.equal((await publishedIndex.get()).exists, false);
+    assert.equal((await cancelDeletion({})).data.publicVisibility, 'visible');
+    assert.equal((await publicRef.get()).get('nicknameNormalized'), 'perfil');
+    assert.equal((await publishedIndex.get()).get('uid'), uid);
+
+    const foreignIndex = { ...(await publishedIndex.get()).data(), uid: otherUid };
+    await publishedIndex.set(foreignIndex);
+    await suspend({});
+    assert.deepEqual((await publishedIndex.get()).data(), foreignIndex);
+    const conflicted = (await reactivate({})).data;
+    assert.equal(conflicted.accountStatus, 'active');
+    assert.equal(conflicted.publicVisibility, 'hidden');
+    assert.match(conflicted.message, /não foi possível confirmar seu apelido/i);
+    assert.equal((await publicRef.get()).exists, false);
+    assert.deepEqual((await publishedIndex.get()).data(), foreignIndex);
+    console.log('[registration:e2e] PASS lifecycle preserves current nickname ownership under stale events and conflicts');
   } finally {
     await Promise.allSettled(apps.map(deleteApp));
     await deleteAdminApp(admin);

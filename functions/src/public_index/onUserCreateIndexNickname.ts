@@ -1,148 +1,67 @@
-// functions/src/public_index/onUserCreateIndexNickname.ts
-// -----------------------------------------------------------------------------
-// Índice público de nickname derivado exclusivamente da projeção pública.
-//
-// Mantemos o nome exportado da Function para compatibilidade operacional, mas
-// a fonte canônica deixa de ser users/{uid}. Assim uma conta em reverificação,
-// suspensão ou qualquer fluxo que remova public_profiles/{uid} não pode ter o
-// índice recriado por um evento atrasado do documento privado do usuário.
-// -----------------------------------------------------------------------------
-
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { warn } from 'firebase-functions/logger';
 
-import { db, FieldValue } from '../firebaseApp';
+import { isUserEligibleForPublicProjection } from '../account_lifecycle/_shared';
+import { db } from '../firebaseApp';
+import { canPublishNicknameIndex } from '../registration/registration-nickname-availability.policy';
+import {
+  deleteOwnedNicknameIndex, NICKNAME_INDEX_COLLECTION, nicknameIndexRef,
+  readNicknameIndex, writeNicknameIndex,
+} from './nickname-index.service';
+import {
+  isNicknameIndexKey, isNicknamePublicProjectionAligned, resolveNicknameNormalized,
+} from './nickname-key.policy';
 
-interface PublicProfileIndexDocument {
-  nickname?: unknown;
-  nicknameNormalized?: unknown;
-  publicVisibility?: unknown;
+export async function reconcileNicknameIndex(
+  firestore: FirebaseFirestore.Firestore, uid: string,
+): Promise<void> {
+  await firestore.runTransaction(async tx => {
+    const [privateProfile, publicProfile] = await tx.getAll(
+      firestore.collection('users').doc(uid),
+      firestore.collection('public_profiles').doc(uid),
+    );
+    const user = privateProfile.data();
+    const projection = publicProfile.data();
+    const key = user ? resolveNicknameNormalized(user) : '';
+    const eligible = !!user && user.uid === uid &&
+      isUserEligibleForPublicProjection(user) && !!projection &&
+      (projection.publicVisibility == null || projection.publicVisibility === 'visible');
+    if (eligible && !isNicknamePublicProjectionAligned(uid, user, projection)) {
+      warn('Indexação de apelido ignorada por divergência entre conta e projeção.');
+      return;
+    }
+
+    const index = eligible ? await readNicknameIndex(firestore, tx, key) : null;
+    const canPublish = eligible && await canPublishNicknameIndex(firestore, tx, index, uid, user);
+    if (eligible && !canPublish) {
+      warn('Indexação de apelido ignorada por conflito de titularidade.');
+    }
+
+    const existing = await tx.get(
+      firestore.collection(NICKNAME_INDEX_COLLECTION).where('uid', '==', uid).select('uid'),
+    );
+    const holdsReservation = !!user && user.uid === uid && user.profileCompleted === false;
+    const keepPath = (eligible || holdsReservation) && isNicknameIndexKey(key)
+      ? nicknameIndexRef(firestore, key).path : null;
+    for (const entry of existing.docs) {
+      if (entry.ref.path !== keepPath) deleteOwnedNicknameIndex(tx, entry, uid);
+    }
+    if (canPublish && index) writeNicknameIndex(tx, index, uid);
+  });
 }
 
-function normalizeNicknameForIndex(value: unknown): string {
-  const display = String(value ?? '').trim().replace(/\s+/g, ' ');
-  const ascii = display
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-
-  return ascii
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9._-]/g, '')
-    .slice(0, 40);
-}
-
-function resolveIndexedNickname(
-  profile: PublicProfileIndexDocument | null
-): string {
-  if (!profile) {
-    return '';
-  }
-
-  const persistedNormalized = String(profile.nicknameNormalized ?? '')
-    .trim()
-    .toLowerCase();
-
-  if (/^[a-z0-9._-]{3,40}$/.test(persistedNormalized)) {
-    return persistedNormalized;
-  }
-
-  const fallback = normalizeNicknameForIndex(profile.nickname);
-  return /^[a-z0-9._-]{3,40}$/.test(fallback) ? fallback : '';
-}
-
-function isPubliclyVisible(profile: PublicProfileIndexDocument): boolean {
-  const visibility = String(profile.publicVisibility ?? '')
-    .trim()
-    .toLowerCase();
-
-  return visibility !== 'hidden' && visibility !== 'private';
-}
-
-function nicknameIndexRef(nickname: string) {
-  return db.collection('public_index').doc(`nickname:${nickname}`);
-}
-
+// O evento dispara a conciliação, que decide pela conta e projeção vigentes
+// na mesma transação. O nome exportado mantém o identificador da Function.
 export const onUserCreateIndexNickname = onDocumentWritten(
   'public_profiles/{userId}',
-  async (event) => {
-    const uid = String(event.params.userId ?? '').trim();
-
-    if (!uid) {
-      return;
-    }
-
-    const after = event.data?.after;
-    const currentProfile = after?.exists
-      ? after.data() as PublicProfileIndexDocument
-      : null;
-    const currentNickname = currentProfile && isPubliclyVisible(currentProfile)
-      ? resolveIndexedNickname(currentProfile)
-      : '';
-    const currentRef = currentNickname
-      ? nicknameIndexRef(currentNickname)
-      : null;
-    const ownedIndexesPromise = db
-      .collection('public_index')
-      .where('uid', '==', uid)
-      .get();
-    const currentSnapshotPromise = currentRef ? currentRef.get() : null;
-    const [ownedIndexes, currentSnapshot] = await Promise.all([
-      ownedIndexesPromise,
-      currentSnapshotPromise,
-    ]);
-    const batch = db.batch();
-    let hasMutation = false;
-
-    for (const indexDocument of ownedIndexes.docs) {
-      // A query por UID também retorna email:*; jamais apagar índices de
-      // autenticação quando a projeção pública do perfil for removida.
-      if (!indexDocument.id.startsWith('nickname:')) continue;
-      if (!currentRef || indexDocument.ref.path !== currentRef.path) {
-        batch.delete(indexDocument.ref);
-        hasMutation = true;
-      }
-    }
-
-    if (currentRef) {
-      const indexedOwnerUid = currentSnapshot?.exists
-        ? String(currentSnapshot.get('uid') ?? '').trim()
-        : '';
-
-      if (indexedOwnerUid && indexedOwnerUid !== uid) {
-        console.error(
-          `[public_index] Nickname '${currentNickname}' pertence a outro perfil.`
-        );
-      } else {
-        batch.set(
-          currentRef,
-          {
-            uid,
-            type: 'nickname',
-            value: currentNickname,
-            updatedAt: FieldValue.serverTimestamp(),
-            ...(currentSnapshot?.exists
-              ? {}
-              : {
-                createdAt: FieldValue.serverTimestamp(),
-                lastChangedAt: FieldValue.serverTimestamp(),
-              }),
-          },
-          { merge: true }
-        );
-        hasMutation = true;
-      }
-    }
-
-    if (!hasMutation) {
-      return;
-    }
-
-    await batch.commit();
-
-    if (currentNickname) {
-      console.log(`[public_index] Nickname '${currentNickname}' sincronizado.`);
-    } else if (ownedIndexes.size > 0) {
-      console.log(`[public_index] Índice público removido para '${uid}'.`);
-    }
-  }
+  async event => {
+    const uid = event.params.userId;
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    const nicknameUnchanged = before && after &&
+      before.uid === after.uid && before.nickname === after.nickname &&
+      before.nicknameNormalized === after.nicknameNormalized && before.publicVisibility === after.publicVisibility;
+    if (!uid || nicknameUnchanged) return;
+    await reconcileNicknameIndex(db, uid);
+  },
 );

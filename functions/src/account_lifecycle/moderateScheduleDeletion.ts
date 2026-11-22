@@ -1,4 +1,6 @@
 // functions/src/account_lifecycle/moderateScheduleDeletion.ts
+import { deleteOwnedNicknameIndex, readNicknameIndex } from '../public_index/nickname-index.service';
+import { resolveNicknameNormalized } from '../public_index/nickname-key.policy';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   assertAccountLifecycleMutationSecurity,
@@ -11,7 +13,6 @@ import {
   assertRecentAuthentication,
   assertStaffAuthorization,
   createLifecycleAudit,
-  getNicknameIndexDocId,
   normalizeRequiredReason,
 } from './_shared';
 import {
@@ -167,7 +168,7 @@ export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
           ownedResourceDecision
         );
 
-        const nicknameIndexDocId = getNicknameIndexDocId(user);
+        const nicknameIndex = await readNicknameIndex(db, tx, resolveNicknameNormalized(user));
 
         tx.set(
           userRef,
@@ -175,7 +176,7 @@ export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
             accountStatus: 'pending_deletion',
             publicVisibility: 'hidden',
             interactionBlocked: true,
-            loginAllowed: true,
+            loginAllowed: user.loginAllowed !== false,
             suspended: false,
             suspensionReason: null,
             suspensionSource: null,
@@ -197,9 +198,7 @@ export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
 
         tx.delete(publicProfileRef);
 
-        if (nicknameIndexDocId) {
-          tx.delete(db.collection('public_index').doc(nicknameIndexDocId));
-        }
+        deleteOwnedNicknameIndex(tx, nicknameIndex, targetUid);
 
         createLifecycleAudit(tx, {
           uid: targetUid,

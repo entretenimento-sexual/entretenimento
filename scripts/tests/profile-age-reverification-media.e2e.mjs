@@ -217,7 +217,10 @@ async function run() {
         { merge: true }
       ),
       db.doc(`users/${moderatorUid}`).set(
-        registeredUser(moderatorUid, `admin-${runId.slice(0, 20)}`),
+        {
+          ...registeredUser(moderatorUid, `admin-${runId.slice(0, 20)}`),
+          permissions: ['users:suspend'],
+        },
         { merge: true }
       ),
       publicProfileRef.set({
@@ -422,6 +425,8 @@ async function run() {
       reportId,
       decision: 'VERIFY',
       resolution: 'Maioridade confirmada após revisão administrativa.',
+      evidenceMethod: 'MANUAL_DOCUMENT_REVIEW',
+      evidenceReference: `emulator-age-review-${reportId}`,
     });
 
     const restoredState = await waitFor(

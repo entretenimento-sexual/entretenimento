@@ -4,6 +4,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { hasAcceptedCurrentTerms } from '../compliance/platform-legal.constants';
+import { isNicknameIndexKey, resolveNicknameNormalized } from '../public_index/nickname-key.policy';
 
 export const ACCOUNT_LIFECYCLE_REGION = FUNCTIONS_REGION;
 export const MAX_LIFECYCLE_REASON_LENGTH = 500;
@@ -63,6 +64,9 @@ export type UserDoc = {
   accountLocked?: boolean | null;
   loginAllowed?: boolean | null;
   suspended?: boolean | null;
+  ageReverificationRestrictedAt?: unknown;
+  ageReverificationSuspensionCaseId?: unknown;
+  moderationAutomationHold?: { active?: boolean; expiresAtMs?: number } | null;
 
   suspensionReason?: string | null;
   suspensionSource?: 'self' | 'moderator' | 'automation' | null;
@@ -163,31 +167,6 @@ function normalizeLifecycleReason(
   return safe;
 }
 
-export function normalizeNicknameForIndex(raw?: string | null): string {
-  return String(raw ?? '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9._-]+/g, '_')
-    .replace(/^[._-]+|[._-]+$/g, '')
-    .slice(0, 40);
-}
-
-export function resolveNicknameNormalized(user: UserDoc): string {
-  const stored = String(user.nicknameNormalized ?? '').trim().toLowerCase();
-  return /^[a-z0-9._-]{3,40}$/.test(stored)
-    ? stored
-    : normalizeNicknameForIndex(user.nickname);
-}
-
-export function getNicknameIndexDocId(user: UserDoc): string | null {
-  const normalized = resolveNicknameNormalized(user);
-  return /^[a-z0-9._-]{3,40}$/.test(normalized)
-    ? `nickname:${normalized}`
-    : null;
-}
-
 export function isUserEligibleForPublicProjection(user: UserDoc): boolean {
   const normalized = resolveNicknameNormalized(user);
   const currentLegalAcceptance = hasAcceptedCurrentTerms(user.acceptedTerms);
@@ -200,14 +179,26 @@ export function isUserEligibleForPublicProjection(user: UserDoc): boolean {
     user.suspended !== true &&
     user.interactionBlocked !== true &&
     user.accountLocked !== true &&
-    user.publicVisibility !== 'hidden' &&
+    (user.publicVisibility == null || user.publicVisibility === 'visible') &&
     user.loginAllowed !== false &&
+    user.ageReverificationRestrictedAt == null &&
+    user.ageReverificationSuspensionCaseId == null &&
+    user.deletionRequestedAt == null &&
+    user.deletedAt == null &&
     user.emailVerified === true &&
     user.profileCompleted === true &&
     currentLegalAcceptance &&
-    /^[a-z0-9._-]{3,40}$/.test(normalized) &&
+    isNicknameIndexKey(normalized) &&
     String(user.nickname ?? '').trim().length >= 3
   );
+}
+
+/** Avalia o estado resultante da reativação sem afastar restrições independentes. */
+export function canRestorePublicProfileProjection(user: UserDoc): boolean {
+  return user.moderationAutomationHold?.active !== true && isUserEligibleForPublicProjection({
+    ...user, accountStatus: 'active', suspended: false,
+    publicVisibility: 'visible', interactionBlocked: false,
+  });
 }
 
 /**
@@ -223,6 +214,7 @@ export function buildPublicProfileSeed(
     uid,
     nickname: String(user.nickname ?? '').trim(),
     nicknameNormalized: resolveNicknameNormalized(user),
+    publicVisibility: 'visible',
     avatarUrl: user.photoURL ?? null,
     municipio: user.municipio ?? null,
     estado: user.estado ?? null,

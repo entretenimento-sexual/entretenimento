@@ -1,8 +1,9 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
-  getNicknameIndexDocId,
-} from '../account_lifecycle/_shared';
+  deleteOwnedNicknameIndex, getNicknameIndexOwner, readNicknameIndex,
+} from '../public_index/nickname-index.service';
+import { resolveNicknameNormalized } from '../public_index/nickname-key.policy';
 import {
   buildAgeReviewRestrictionPatch,
 } from '../account_lifecycle/account-age-review-lifecycle.policy';
@@ -123,14 +124,12 @@ export const requestProfileAgeReverification = onCall<
         );
       }
 
-      const nicknameIndexDocId = getNicknameIndexDocId(user);
-      const nicknameIndexRef = nicknameIndexDocId
-        ? db.collection('public_index').doc(nicknameIndexDocId)
-        : null;
-      const publicProfileSnapshot = await transaction.get(publicProfileRef);
-      const nicknameIndexSnapshot = nicknameIndexRef
-        ? await transaction.get(nicknameIndexRef)
-        : null;
+      const [publicProfileSnapshot, nicknameIndex] = await Promise.all([
+        transaction.get(publicProfileRef),
+        readNicknameIndex(db, transaction, resolveNicknameNormalized(user)),
+      ]);
+      const ownedIndex = nicknameIndex && getNicknameIndexOwner(nicknameIndex) === targetUid
+        ? nicknameIndex : null;
 
       if (!publicProfileSnapshot.exists) {
         throw new HttpsError(
@@ -169,9 +168,7 @@ export const requestProfileAgeReverification = onCall<
 
       transaction.delete(publicProfileRef);
 
-      if (nicknameIndexRef) {
-        transaction.delete(nicknameIndexRef);
-      }
+      deleteOwnedNicknameIndex(transaction, ownedIndex, targetUid);
 
       transaction.create(caseRef, {
         caseId: caseRef.id,
@@ -186,10 +183,8 @@ export const requestProfileAgeReverification = onCall<
           PROFILE_AGE_REVERIFICATION_RESPONSE_WINDOW_BASIS,
         requestedBy: adminUid,
         publicProfileBackup: publicProfileSnapshot.data(),
-        nicknameIndexBackup: nicknameIndexSnapshot?.exists
-          ? nicknameIndexSnapshot.data()
-          : null,
-        nicknameIndexDocId: nicknameIndexDocId || null,
+        nicknameIndexBackup: ownedIndex?.data() ?? null,
+        nicknameIndexDocId: ownedIndex?.id ?? null,
         createdAt: timestamp,
         updatedAt: timestamp,
       });

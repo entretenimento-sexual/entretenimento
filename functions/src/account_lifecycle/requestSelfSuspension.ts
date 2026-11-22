@@ -1,4 +1,6 @@
 // functions/src/account_lifecycle/requestSelfSuspension.ts
+import { deleteOwnedNicknameIndex, readNicknameIndex } from '../public_index/nickname-index.service';
+import { resolveNicknameNormalized } from '../public_index/nickname-key.policy';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { ASAAS_API_KEY } from '../payments/config/asaas.config';
 import {
@@ -14,7 +16,6 @@ import {
   UserDoc,
   assertRecentAuthentication,
   createLifecycleAudit,
-  getNicknameIndexDocId,
   normalizeOptionalReason,
 } from './_shared';
 
@@ -111,7 +112,7 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
         );
       }
 
-      const nicknameIndexDocId = getNicknameIndexDocId(user);
+      const nicknameIndex = await readNicknameIndex(db, tx, resolveNicknameNormalized(user));
 
       tx.set(
         userRef,
@@ -119,7 +120,7 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
           accountStatus: 'self_suspended',
           publicVisibility: 'hidden',
           interactionBlocked: true,
-          loginAllowed: true,
+          loginAllowed: user.loginAllowed !== false,
 
           suspended: true,
           suspensionReason: reason,
@@ -147,9 +148,7 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
 
       tx.delete(publicProfileRef);
 
-      if (nicknameIndexDocId) {
-        tx.delete(db.collection('public_index').doc(nicknameIndexDocId));
-      }
+      deleteOwnedNicknameIndex(tx, nicknameIndex, uid);
 
       createLifecycleAudit(tx, {
         uid,

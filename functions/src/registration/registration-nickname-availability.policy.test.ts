@@ -5,16 +5,18 @@ import { resolvePublicNicknameAvailability as availability } from './registratio
 const nickname = { key: 'zapzap', display: 'Zapzap' };
 
 function firestore({
-  indexed = false, storedOwners = [], aliases = [], displays = [],
+  indexed = false, storedOwners = [], aliases = [], displays = [], privateAliases = [],
 }: {
   indexed?: boolean;
   storedOwners?: string[];
   aliases?: string[];
   displays?: string[];
+  privateAliases?: { id: string; display: string }[];
 } = {}) {
   const reads: string[] = [];
   const db = {
     collection(name: string) {
+      let orderedBy: unknown;
       return {
         doc(id: string) {
           return { get: async () => {
@@ -25,14 +27,16 @@ function firestore({
         where() { return this; },
         select() { return this; },
         limit() { return this; },
-        orderBy() { return this; },
+        orderBy(field: unknown) { orderedBy = field; return this; },
         startAt() { return this; },
         endAt() { return this; },
         async get() {
-          reads.push(name);
+          reads.push(orderedBy && name === 'users' ? 'users-by-prefix' : name);
           return {
             docs: name === 'users'
-              ? storedOwners.map(id => ({ id }))
+              ? orderedBy
+                ? privateAliases.map(({ id, display }) => ({ id, get: () => display }))
+                : storedOwners.map(id => ({ id }))
               : aliases.map(uid => ({ get: () => uid })),
           };
         },
@@ -70,5 +74,21 @@ test('a legacy alias blocks signup only if it represents the same principal', as
 test('a free principal is confirmed explicitly', async () => {
   const { db, reads } = firestore();
   assert.equal(await availability(db, nickname), 'available');
-  assert.deepEqual(reads, ['public_index/nickname:zapzap', 'users', 'public_index']);
+  assert.deepEqual(reads, ['public_index/nickname:zapzap', 'users', 'users-by-prefix', 'public_index']);
+});
+
+test('a historical owner keeps the principal even without the old combined public index', async () => {
+  assert.equal(await availability(firestore({
+    privateAliases: [{ id: 'owner', display: 'Zapzap Oficial' }],
+  }).db, nickname), 'taken');
+  assert.equal(await availability(firestore({
+    privateAliases: [{ id: 'owner', display: 'Zapzap_Oficial' }],
+  }).db, nickname), 'available');
+});
+
+test('a saturated alias lookup never reports the principal as available', async () => {
+  const privateAliases = Array.from({ length: 101 }, (_, index) => ({
+    id: `owner-${index}`, display: `Zapzap_${index}`,
+  }));
+  await assert.rejects(availability(firestore({ privateAliases }).db, nickname), { code: 'unavailable' });
 });

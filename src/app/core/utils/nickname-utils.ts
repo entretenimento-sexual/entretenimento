@@ -5,16 +5,12 @@
  * NicknameUtils
  * -----------------------------------------------------------------------------
  * Objetivo:
- * Centralizar as regras de composição, normalização e validação de apelidos,
- * evitando divergência entre:
- * - validação no register,
- * - checagem de unicidade (public_index),
- * - persistência (transaction),
- * - update de nickname.
+ * Composição, normalização e validação local do apelido no formulário.
+ * A titularidade e a chave persistida são decididas pelas Functions.
  *
  * IMPORTANTE (conceito):
  * - "DISPLAY"  => o apelido "bonito" que o usuário digita e vê (pode ter espaço).
- * - "KEY/ÍNDICE" => forma indexável e compatível com rules/docId (não pode ter espaço).
+ * - "KEY" => forma normalizada para validação e cache local.
  *
  * Estratégia adotada:
  * - DISPLAY: mantém espaços simples (colapsa múltiplos) e preserva casing.
@@ -22,7 +18,7 @@
  *        remove qualquer caractere não permitido em índice.
  *
  * Assim, o usuário pode digitar "João Oficial" (display),
- * e o índice vira "joao_oficial" (key), compatível com:
+ * e a validação local usa "joao_oficial" (key), compatível com:
  *   /^[a-z0-9._-]{3,40}$/
  * =============================================================================
  */
@@ -147,7 +143,7 @@ export namespace NicknameUtils {
   }
 
   /**
-   * Normaliza para KEY/ÍNDICE (public_index docId e nicknameNormalized).
+   * Normaliza para validação local e chaves de cache.
    * - trim + colapsa espaços
    * - remove acentos
    * - lower
@@ -169,23 +165,6 @@ export namespace NicknameUtils {
     const cleaned = stripInvalidKeyChars(withUnderscore);
 
     return cleaned;
-  }
-
-  /**
-   * Gera o docId do public_index a partir da KEY normalizada.
-   * Ex.: "joao_oficial" => "nickname:joao_oficial"
-   */
-  export function getPublicIndexDocIdFromKey(normalizedKey: string): string {
-    const key = (normalizedKey || '').trim();
-    return `nickname:${key}`;
-  }
-
-  /**
-   * Atalho: recebe DISPLAY e já retorna docId correto do índice.
-   */
-  export function getPublicIndexDocIdFromDisplay(apelidoDisplay: string): string {
-    const key = normalizarApelidoParaIndice(apelidoDisplay);
-    return getPublicIndexDocIdFromKey(key);
   }
 
   /**

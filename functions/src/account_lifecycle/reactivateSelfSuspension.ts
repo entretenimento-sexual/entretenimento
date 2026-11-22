@@ -1,4 +1,9 @@
 // functions/src/account_lifecycle/reactivateSelfSuspension.ts
+import {
+  deleteOwnedNicknameIndex, readNicknameIndex, writeNicknameIndex,
+} from '../public_index/nickname-index.service';
+import { resolveNicknameNormalized } from '../public_index/nickname-key.policy';
+import { canPublishNicknameIndex } from '../registration/registration-nickname-availability.policy';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   assertAccountLifecycleMutationSecurity,
@@ -13,9 +18,7 @@ import {
   assertRecentAuthentication,
   buildPublicProfileSeed,
   createLifecycleAudit,
-  getNicknameIndexDocId,
-  isUserEligibleForPublicProjection,
-  resolveNicknameNormalized,
+  canRestorePublicProfileProjection,
 } from './_shared';
 
 interface AccountLifecycleCommandResult {
@@ -53,7 +56,7 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
 
     const now = Date.now();
 
-    const restored = await db.runTransaction(
+    const { publicationDeferred, ...restored } = await db.runTransaction(
       async (tx: FirebaseFirestore.Transaction) => {
         const userRef = db.collection('users').doc(uid);
         const publicProfileRef = db.collection('public_profiles').doc(uid);
@@ -75,6 +78,7 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
             publicVisibility:
               user.publicVisibility === 'visible' ? 'visible' : 'hidden',
             interactionBlocked: user.interactionBlocked === true,
+            publicationDeferred: false,
           } as const;
         }
 
@@ -85,7 +89,11 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
           );
         }
 
-        const canPublish = isUserEligibleForPublicProjection(user);
+        const nicknameIndex = await readNicknameIndex(db, tx, resolveNicknameNormalized(user));
+        const hasPublicationEligibility = canRestorePublicProfileProjection(user);
+        const canPublish = hasPublicationEligibility &&
+          await canPublishNicknameIndex(db, tx, nicknameIndex, uid, user);
+        const publicationDeferred = hasPublicationEligibility && !canPublish;
         const publicVisibility = canPublish ? 'visible' : 'hidden';
         const interactionBlocked = !canPublish;
 
@@ -95,7 +103,7 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
             accountStatus: 'active',
             publicVisibility,
             interactionBlocked,
-            loginAllowed: true,
+            loginAllowed: user.loginAllowed !== false,
             suspended: false,
             suspensionReason: null,
             suspensionSource: null,
@@ -108,8 +116,6 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
           { merge: true }
         );
 
-        const nicknameIndexDocId = getNicknameIndexDocId(user);
-
         if (canPublish) {
           tx.set(
             publicProfileRef,
@@ -117,24 +123,10 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
             { merge: true }
           );
 
-          if (nicknameIndexDocId) {
-            tx.set(
-              db.collection('public_index').doc(nicknameIndexDocId),
-              {
-                type: 'nickname',
-                value: resolveNicknameNormalized(user),
-                uid,
-                createdAt: now,
-                lastChangedAt: now,
-              },
-              { merge: true }
-            );
-          }
+          if (nicknameIndex) writeNicknameIndex(tx, nicknameIndex, uid);
         } else {
           tx.delete(publicProfileRef);
-          if (nicknameIndexDocId) {
-            tx.delete(db.collection('public_index').doc(nicknameIndexDocId));
-          }
+          deleteOwnedNicknameIndex(tx, nicknameIndex, uid);
         }
 
         createLifecycleAudit(tx, {
@@ -144,18 +136,30 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
           previousAccountStatus: 'self_suspended',
           accountStatus: 'active',
           publicProjectionRestored: canPublish,
+          nicknamePublicationDeferred: publicationDeferred,
           source: 'self',
           moderationReason: null,
           createdAt: now,
           updatedAt: now,
         });
 
-        return { publicVisibility, interactionBlocked } as const;
+        return { publicVisibility, interactionBlocked, publicationDeferred } as const;
       }
     );
 
     const subscriptionRenewalStatus =
       await getAccountLifecycleSubscriptionRenewalStatus(uid);
+    const accountMessage = publicationDeferred
+      ? 'Conta reativada. Não foi possível confirmar seu apelido. ' +
+        'Seu perfil continua oculto. Se isso persistir, fale com o suporte.'
+      : restored.publicVisibility === 'visible'
+        ? 'Conta reativada com sucesso.'
+        : 'Conta reativada. Conclua as verificações pendentes para voltar a aparecer e interagir.';
+    const subscriptionMessage = subscriptionRenewalStatus === 'pending'
+      ? 'A interrupção da renovação automática ainda está sendo processada.'
+      : subscriptionRenewalStatus === 'canceled'
+        ? 'A renovação automática permanece cancelada. Revise sua assinatura se quiser voltar a renovar.'
+        : '';
 
     return {
       ok: true,
@@ -167,17 +171,7 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
       suspensionEndsAt: null,
       statusUpdatedAt: now,
       subscriptionRenewalStatus,
-      message:
-        subscriptionRenewalStatus === 'pending'
-          ? 'Conta reativada. A interrupção da renovação automática ainda está sendo processada.'
-          : subscriptionRenewalStatus === 'canceled'
-            ? [
-              'Conta reativada. A renovação automática permanece cancelada;',
-              'revise sua assinatura se quiser voltar a renovar.',
-            ].join(' ')
-            : restored.publicVisibility === 'visible'
-              ? 'Conta reativada com sucesso.'
-              : 'Conta reativada. Conclua as verificações pendentes para voltar a aparecer e interagir.',
+      message: [accountMessage, subscriptionMessage].filter(Boolean).join(' '),
     };
   }
 );

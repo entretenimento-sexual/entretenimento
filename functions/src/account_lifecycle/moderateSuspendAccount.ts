@@ -1,4 +1,6 @@
 // functions/src/account_lifecycle/moderateSuspendAccount.ts
+import { deleteOwnedNicknameIndex, readNicknameIndex } from '../public_index/nickname-index.service';
+import { resolveNicknameNormalized } from '../public_index/nickname-key.policy';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { ASAAS_API_KEY } from '../payments/config/asaas.config';
 import {
@@ -15,7 +17,6 @@ import {
   assertRecentAuthentication,
   assertStaffAuthorization,
   createLifecycleAudit,
-  getNicknameIndexDocId,
   normalizeRequiredReason,
 } from './_shared';
 
@@ -138,7 +139,7 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
         );
       }
 
-      const nicknameIndexDocId = getNicknameIndexDocId(user);
+      const nicknameIndex = await readNicknameIndex(db, tx, resolveNicknameNormalized(user));
 
       tx.set(
         userRef,
@@ -146,7 +147,7 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
           accountStatus: 'moderation_suspended',
           publicVisibility: 'hidden',
           interactionBlocked: true,
-          loginAllowed: true,
+          loginAllowed: user.loginAllowed !== false,
           suspended: true,
           suspensionReason: reason,
           suspensionSource: 'moderator',
@@ -170,9 +171,7 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
 
       tx.delete(publicProfileRef);
 
-      if (nicknameIndexDocId) {
-        tx.delete(db.collection('public_index').doc(nicknameIndexDocId));
-      }
+      deleteOwnedNicknameIndex(tx, nicknameIndex, targetUid);
 
       tx.create(notificationRef, {
         userId: targetUid,

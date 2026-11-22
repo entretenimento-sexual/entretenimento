@@ -8,9 +8,10 @@
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { normalizeNicknameForIndex } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import { getNicknameIndexOwner, nicknameIndexRef } from '../public_index/nickname-index.service';
+import { isNicknamePublicProjectionAligned, resolveNicknameNormalized } from '../public_index/nickname-key.policy';
 import { normalizeRegistrationNicknameClaim } from '../registration/nickname-reservation.policy';
 import { resolveBlockedTargetUids } from '../friendship/application/bilateral-block-access.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
@@ -178,16 +179,15 @@ export const findCommunityInviteCandidate =
       const keys = [...new Set([command.nicknameNormalized, principal ?? command.nicknameNormalized])];
       const [actorContext, indexes] = await Promise.all([
         actorContextPromise,
-        db.getAll(...keys.map(key => db.collection('public_index').doc(`nickname:${key}`))),
+        db.getAll(...keys.map(key => nicknameIndexRef(db, key))),
       ]);
       const generatedAt = Date.now();
       const candidates = new Map<string, string>();
       indexes.forEach((snapshot, position) => {
         const index = snapshot.data();
-        const candidateUid = normalizeCommunityInviteText(index?.['uid'], 160);
+        const candidateUid = getNicknameIndexOwner(snapshot);
         if (index?.['type'] === 'nickname' && index['value'] === keys[position] &&
-            candidateUid && candidateUid !== actorUid &&
-            !candidateUid.includes(':') && !candidateUid.includes('/')) {
+            candidateUid && candidateUid !== actorUid) {
           candidates.set(keys[position], candidateUid);
         }
       });
@@ -198,11 +198,10 @@ export const findCommunityInviteCandidate =
         ...candidateUids.map(uid => db.collection('public_profiles').doc(uid)),
       );
       const profileSnapshot = profiles.find(snapshot => {
-        if (!snapshot.exists) return false;
-        const nickname = snapshot.get('nickname');
-        const key = snapshot.get('nicknameNormalized') || normalizeNicknameForIndex(nickname);
-        return candidates.get(key) === snapshot.id &&
-          (!exactDisplay || normalizeDisplay(nickname) === exactDisplay);
+        const profile = snapshot.data();
+        return !!profile && profile.uid === snapshot.id &&
+          candidates.get(resolveNicknameNormalized(profile)) === snapshot.id &&
+          (!exactDisplay || normalizeDisplay(profile.nickname) === exactDisplay);
       });
       if (!profileSnapshot) return { candidate: null, generatedAt };
       const candidateUid = profileSnapshot.id;
@@ -226,17 +225,13 @@ export const findCommunityInviteCandidate =
         resolveBlockedTargetUids(actorUid, [candidateUid]),
       ]);
 
-      if (
-        blockedUids.has(candidateUid)
-        || !isEligibleUser(
-          userSnapshot.exists ? userSnapshot.data() : null,
-          candidateUid
-        )
-      ) {
+      const user = userSnapshot.data();
+      const profile = profileSnapshot.data() ?? {};
+      if (!user || blockedUids.has(candidateUid) || !isEligibleUser(user, candidateUid) ||
+          !isNicknamePublicProjectionAligned(candidateUid, user, profile)) {
         return { candidate: null, generatedAt };
       }
 
-      const profile = profileSnapshot.data() ?? {};
       const nickname = normalizeCommunityInviteText(profile['nickname'], 60);
       if (!nickname) return { candidate: null, generatedAt };
 

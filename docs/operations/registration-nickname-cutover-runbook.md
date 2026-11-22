@@ -28,9 +28,16 @@ projeção pública for retirada, a chave da conta em `users` continua
 protegendo o titular.
 
 Contas já gravadas preservam o apelido e a chave legada ao retomar a conclusão.
-O backend verifica as chaves existentes no próprio índice para evitar
-disputas pelo mesmo principal. A pré-consulta usa a mesma verificação de
-titularidade quando a chave exata está ausente.
+Quando a chave exata está ausente, a pré-consulta, a reserva e a republicação
+verificam a titularidade na conta privada e no índice. Isso cobre também
+chaves históricas compostas quando o perfil está oculto. Cada consulta por
+prefixo lê até 101 entradas. Atingido o limite sem confirmar a titularidade,
+a disponibilidade fica indeterminada e o backend pede nova tentativa.
+
+Há um único serviço de gravação e remoção do índice. A reativação publica o
+perfil e seu índice juntos, após confirmar a titularidade. O reconciliador lê
+a conta privada e a projeção pública vigentes na mesma transação, inclusive
+quando recebe eventos fora de ordem.
 
 Antes do deploy coordenado, o inventário somente leitura deve apurar
 `duplicatePrincipals` e identificar contas sem proteção de titularidade. Resolver

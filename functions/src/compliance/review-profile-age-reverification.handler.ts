@@ -1,9 +1,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
-  buildPublicProfileSeed,
-  getNicknameIndexDocId,
-  normalizeNicknameForIndex,
+  buildPublicProfileSeed, isUserEligibleForPublicProjection,
 } from '../account_lifecycle/_shared';
 import {
   buildAgeReviewRestorePatch,
@@ -12,6 +10,11 @@ import {
 } from '../account_lifecycle/account-age-review-lifecycle.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import {
+  deleteOwnedNicknameIndex, readNicknameIndex, writeNicknameIndex,
+} from '../public_index/nickname-index.service';
+import { resolveNicknameNormalized } from '../public_index/nickname-key.policy';
+import { canPublishNicknameIndex } from '../registration/registration-nickname-availability.policy';
 import {
   safeRecordModerationReviewSignal,
 } from '../moderation/moderation-automation.service';
@@ -54,20 +57,6 @@ interface AgeReverificationCaseDocument {
   publicProfileBackup?: Record<string, unknown> | null;
   nicknameIndexBackup?: Record<string, unknown> | null;
   nicknameIndexDocId?: string | null;
-}
-
-function cleanIndexDocumentId(value: unknown): string {
-  const normalized = String(value ?? '').trim();
-
-  if (
-    !normalized ||
-    normalized.length > 180 ||
-    normalized.includes('/')
-  ) {
-    return '';
-  }
-
-  return normalized;
 }
 
 function asBackupRecord(value: unknown): Record<string, unknown> | null {
@@ -179,15 +168,19 @@ export const reviewProfileAgeReverification = onCall<
       });
       const ageDecisionOwnsSuspension = restoration.ownsSuspension;
       const canRestoreAccess = decision === 'VERIFY' && restoration.canRestore;
+      const restorePatch = canRestoreAccess ? buildAgeReviewRestorePatch({
+        reviewedAt, reviewedBy: adminUid, ownsSuspension: ageDecisionOwnsSuspension,
+      }) : {};
       const timestamp = FieldValue.serverTimestamp();
       const publicProfileRef = db
         .collection('public_profiles')
         .doc(targetUid);
-      const fallbackIndexDocId = getNicknameIndexDocId(user);
-      const backupIndexDocId = cleanIndexDocumentId(
-        ageCase.nicknameIndexDocId
-      );
-      const nicknameIndexDocId = backupIndexDocId || fallbackIndexDocId;
+      const nicknameKey = resolveNicknameNormalized(user);
+      const nicknameIndex = canRestoreAccess || decision === 'REJECT'
+        ? await readNicknameIndex(db, transaction, nicknameKey) : null;
+      const canPublish = canRestoreAccess && user.uid === targetUid &&
+        isUserEligibleForPublicProjection({ ...user, ...restorePatch }) &&
+        await canPublishNicknameIndex(db, transaction, nicknameIndex, targetUid, user);
       const dedupRef = db
         .collection('moderation_report_dedup')
         .doc(profileMinorReportDedupId(reporterUid, targetUid));
@@ -224,56 +217,40 @@ export const reviewProfileAgeReverification = onCall<
               appealRequestedAt: null,
             },
             ageEligibility,
-            ...(canRestoreAccess
-              ? buildAgeReviewRestorePatch({
-                reviewedAt,
-                reviewedBy: adminUid,
-                ownsSuspension: ageDecisionOwnsSuspension,
-              })
-              : {}),
+            ...restorePatch,
+            ...(canRestoreAccess && !canPublish
+              ? { publicVisibility: 'hidden', interactionBlocked: true } : {}),
             updatedAt: timestamp,
           },
           { merge: true }
         );
 
-        if (canRestoreAccess) {
-          const publicProfileBackup = asBackupRecord(
-            ageCase.publicProfileBackup
-          );
-          const nicknameIndexBackup = asBackupRecord(
-            ageCase.nicknameIndexBackup
-          );
-
+        if (canPublish && nicknameIndex) {
+          const publicProfileBackup = asBackupRecord(ageCase.publicProfileBackup);
+          const nicknameIndexBackup = asBackupRecord(ageCase.nicknameIndexBackup);
+          const publicProfile = buildPublicProfileSeed(user, targetUid, reviewedAt);
           transaction.set(
             publicProfileRef,
             publicProfileBackup
               ? {
                 ...publicProfileBackup,
                 uid: targetUid,
+                nickname: publicProfile.nickname,
+                nicknameNormalized: nicknameKey,
+                publicVisibility: publicProfile.publicVisibility,
                 updatedAt: timestamp,
               }
-              : buildPublicProfileSeed(user, targetUid, reviewedAt)
+              : publicProfile
           );
 
-          if (nicknameIndexDocId) {
-            transaction.set(
-              db.collection('public_index').doc(nicknameIndexDocId),
-              nicknameIndexBackup
-                ? {
-                  ...nicknameIndexBackup,
-                  uid: targetUid,
-                  lastChangedAt: timestamp,
-                }
-                : {
-                  type: 'nickname',
-                  value: String(user.nicknameNormalized ?? '').trim() ||
-                    normalizeNicknameForIndex(user.nickname),
-                  uid: targetUid,
-                  createdAt: reviewedAt,
-                  lastChangedAt: reviewedAt,
-                }
-            );
-          }
+          const previousCreatedAt = ageCase.nicknameIndexDocId === nicknameIndex.id &&
+            nicknameIndexBackup?.['uid'] === targetUid &&
+            nicknameIndexBackup['type'] === 'nickname' && nicknameIndexBackup['value'] === nicknameKey
+            ? nicknameIndexBackup['createdAt'] : undefined;
+          writeNicknameIndex(transaction, nicknameIndex, targetUid, previousCreatedAt);
+        } else if (canRestoreAccess) {
+          transaction.delete(publicProfileRef);
+          deleteOwnedNicknameIndex(transaction, nicknameIndex, targetUid);
         }
       } else {
         transaction.set(
@@ -305,11 +282,7 @@ export const reviewProfileAgeReverification = onCall<
 
         transaction.delete(publicProfileRef);
 
-        if (nicknameIndexDocId) {
-          transaction.delete(
-            db.collection('public_index').doc(nicknameIndexDocId)
-          );
-        }
+        deleteOwnedNicknameIndex(transaction, nicknameIndex, targetUid);
       }
 
       transaction.set(
@@ -379,6 +352,7 @@ export const reviewProfileAgeReverification = onCall<
           caseId,
           decision,
           nextStatus: finalStatus,
+          publicProjectionRestored: canPublish,
           resolution,
           evidenceMethod: evidence.method,
           evidenceReferenceHash: evidence.referenceHash,

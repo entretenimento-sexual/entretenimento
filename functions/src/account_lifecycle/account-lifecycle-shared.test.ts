@@ -6,12 +6,13 @@ import {
   MAX_LIFECYCLE_REASON_LENGTH,
   assertRecentAuthentication,
   buildPublicProfileSeed,
+  canRestorePublicProfileProjection,
   isUserEligibleForPublicProjection,
   normalizeOptionalReason,
   normalizeRequiredReason,
-  resolveNicknameNormalized,
   type UserDoc,
 } from './_shared';
+import { resolveNicknameNormalized } from '../public_index/nickname-key.policy';
 
 function eligibleUser(overrides: Partial<UserDoc> = {}): UserDoc {
   return {
@@ -147,11 +148,34 @@ describe('account lifecycle shared guards', () => {
     );
   });
 
+  it('restaura a visibilidade anterior sem liberar restrições independentes', () => {
+    const suspended = eligibleUser({
+      accountStatus: 'self_suspended', suspended: true, publicVisibility: 'hidden', interactionBlocked: true,
+    });
+    assert.equal(canRestorePublicProfileProjection(suspended), true);
+    for (const restricted of [
+      { accountLocked: true },
+      { loginAllowed: false },
+      { ageReverificationRestrictedAt: 123 },
+      { ageReverificationSuspensionCaseId: 'age-case' },
+      { moderationAutomationHold: { active: true } },
+    ]) {
+      assert.equal(canRestorePublicProfileProjection({ ...suspended, ...restricted }), false);
+    }
+  });
+
   it('normaliza apelido para índice seguro', () => {
     assert.equal(
       resolveNicknameNormalized({ nickname: '  Pessoa Segura  ' }),
       'pessoa_segura'
     );
+  });
+
+  it('preserva a chave gravada e a pontuação de apelidos novos permitidos', () => {
+    assert.equal(resolveNicknameNormalized({
+      nickname: 'Nome Complemento', nicknameNormalized: 'nome',
+    }), 'nome');
+    assert.equal(resolveNicknameNormalized({ nickname: '  .Nome-  ' }), '.nome-');
   });
 
   it('não projeta papel financeiro no perfil público', () => {

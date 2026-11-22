@@ -3,7 +3,7 @@
 // COMMUNITY INVITE MANAGEMENT CONTRACTS
 // -----------------------------------------------------------------------------
 
-import { normalizeNicknameForIndex } from '../account_lifecycle/_shared';
+import { isNicknameIndexKey, normalizeNicknameForIndex } from '../public_index/nickname-key.policy';
 import { normalizeCommunityId } from './community-preview.model';
 
 export interface CommunityInviteManagementRequest {
@@ -70,7 +70,7 @@ export function normalizeCommunityInviteCandidateRequest(
 
   if (
     !communityId
-    || !/^[a-z0-9._-]{3,40}$/.test(nicknameNormalized)
+    || !isNicknameIndexKey(nicknameNormalized)
   ) {
     return null;
   }

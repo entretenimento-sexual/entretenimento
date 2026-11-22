@@ -15,6 +15,8 @@ import {
 } from '../account_lifecycle/interaction-access.policy';
 import { normalizePublicProfileDiscoveryFields } from '../discovery/profile-discovery-normalization';
 import { hasAcceptedCurrentTerms } from '../compliance/platform-legal.constants';
+import { getNicknameIndexOwner, nicknameIndexRef, writeNicknameIndex } from '../public_index/nickname-index.service';
+import { isNicknamePublicProjectionAligned } from '../public_index/nickname-key.policy';
 import { buildInitialUserSeed, buildRegistrationAuthProjection } from '../auth/user-registration-seed';
 import {
   PROFILE_IDENTITY_CATALOG_VERSION, isCoupleProfileIdentityCode, isSelectableProfileIdentityCode,
@@ -102,42 +104,19 @@ function assertClaimAllowed(
     });
 }
 
-function ownerOf(data: FirebaseFirestore.DocumentData | undefined): string | undefined {
-  return data ? String(data['uid'] ?? '') : undefined;
-}
-
 async function getNicknameOwnership(
   tx: FirebaseFirestore.Transaction, uid: string, nickname: RegistrationNickname,
   currentDisplay?: unknown,
 ) {
-  const indexRef = db.collection('public_index').doc(`nickname:${nickname.key}`);
-  const indexSnap = await tx.get(indexRef);
+  const indexSnap = await tx.get(nicknameIndexRef(db, nickname.key));
   assertClaimAllowed(canClaimRegistrationNickname({
     uid, requested: nickname, currentDisplay,
-    indexOwnerUid: ownerOf(indexSnap.data()),
+    indexOwnerUid: getNicknameIndexOwner(indexSnap),
   }));
   if (!indexSnap.exists && await hasNicknameOwnerWithoutIndex(db, nickname, { tx, uid })) {
     assertClaimAllowed('in-use');
   }
-  return { indexRef, indexExists: indexSnap.exists };
-}
-
-function reserveInTransaction(
-  tx: FirebaseFirestore.Transaction,
-  uid: string,
-  nickname: RegistrationNickname,
-  { indexRef, indexExists }:
-    Awaited<ReturnType<typeof getNicknameOwnership>>,
-): void {
-  const now = FieldValue.serverTimestamp();
-  if (!indexExists) {
-    // O apelido já pertence ao UID durante a retomada, mesmo com o perfil pendente.
-    // Uma futura liberação por abandono precisa verificar se esse UID ainda é o titular.
-    tx.create(indexRef, {
-      uid, type: 'nickname', value: nickname.key,
-      createdAt: now, lastChangedAt: now,
-    });
-  }
+  return indexSnap;
 }
 
 async function syncRegistrationDisplayName(user: UserRecord, nickname: string): Promise<void> {
@@ -192,7 +171,7 @@ export const reserveRegistrationNickname = onCall<{ nickname?: unknown; expected
           ...buildRegistrationAuthProjection(authUser),
           nickname: nickname.display,
           nicknameNormalized: nickname.key,
-          ...(ownership.indexExists ? {} : {
+          ...(ownership.exists ? {} : {
             registrationAbandonment: FieldValue.delete(),
           }),
           ...(!Array.isArray(user['nicknameHistory']) || user['nicknameHistory'].length === 0
@@ -208,7 +187,7 @@ export const reserveRegistrationNickname = onCall<{ nickname?: unknown; expected
           nicknameHistory: [{ nickname: nickname.key, date: Timestamp.now() }],
         });
       }
-      reserveInTransaction(tx, uid, nickname, ownership);
+      writeNicknameIndex(tx, ownership, uid);
       return { nickname: nickname.display, normalized: nickname.key };
     });
     await syncRegistrationDisplayName(authUser, result.nickname);
@@ -302,8 +281,12 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
           });
       }
       if (user['profileCompleted'] === true) {
-        if (publicSnap.exists && user['nickname'] === nickname.display &&
-          publicSnap.get('nicknameNormalized') === nickname.key) {
+        const projection = publicSnap.data();
+        if (projection && user['nickname'] === nickname.display &&
+          (user['publicVisibility'] == null || user['publicVisibility'] === 'visible') &&
+          isNicknamePublicProjectionAligned(uid, user, projection)) {
+          const ownership = await getNicknameOwnership(tx, uid, nickname, user['nickname']);
+          writeNicknameIndex(tx, ownership, uid);
           return { status: 'COMPLETED' as const, nickname: nickname.display };
         }
         throw new HttpsError('failed-precondition', 'Perfil já foi concluído.');
@@ -329,6 +312,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
         partner2Orientation: FieldValue.delete(),
       };
       tx.update(userRef, {
+        uid,
         nickname: nickname.display,
         nicknameNormalized: nickname.key,
         ...(!Array.isArray(user['nicknameHistory']) || user['nicknameHistory'].length === 0
@@ -348,6 +332,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
 
       const publicFields: Record<string, unknown> = {
         uid, nickname: nickname.display, nicknameNormalized: nickname.key,
+        publicVisibility: 'visible',
         gender, identityCode: gender,
         identityCatalogVersion: PROFILE_IDENTITY_CATALOG_VERSION,
         orientation: showOrientationPublicly ? orientation : null,
@@ -364,7 +349,7 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
         publicFields['role'] = 'free';
       }
       tx.set(publicRef, publicFields, { merge: true });
-      reserveInTransaction(tx, uid, nickname, ownership);
+      writeNicknameIndex(tx, ownership, uid);
       return { status: 'COMPLETED' as const, nickname: nickname.display };
     });
     await syncRegistrationDisplayName(authUser, result.nickname);

@@ -1,4 +1,6 @@
 // functions/src/account_lifecycle/requestAccountDeletion.ts
+import { deleteOwnedNicknameIndex, readNicknameIndex } from '../public_index/nickname-index.service';
+import { resolveNicknameNormalized } from '../public_index/nickname-key.policy';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   assertAccountLifecycleMutationSecurity,
@@ -10,7 +12,6 @@ import {
   UserDoc,
   assertRecentAuthentication,
   createLifecycleAudit,
-  getNicknameIndexDocId,
   normalizeOptionalReason,
 } from './_shared';
 import { ASAAS_API_KEY } from '../payments/config/asaas.config';
@@ -148,7 +149,7 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
         const restoreStatus = normalizeRestorableStatus(currentStatus);
         const deletionUndoUntil = now + DEFAULT_UNDO_WINDOW_MS;
         const purgeAfter = deletionUndoUntil;
-        const nicknameIndexDocId = getNicknameIndexDocId(user);
+        const nicknameIndex = await readNicknameIndex(db, tx, resolveNicknameNormalized(user));
 
         tx.set(
           userRef,
@@ -156,7 +157,7 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
             accountStatus: 'pending_deletion',
             publicVisibility: 'hidden',
             interactionBlocked: true,
-            loginAllowed: true,
+            loginAllowed: user.loginAllowed !== false,
 
             deletionRestoreStatus: restoreStatus,
             deletionRestoreSuspended:
@@ -188,9 +189,7 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
 
         tx.delete(publicProfileRef);
 
-        if (nicknameIndexDocId) {
-          tx.delete(db.collection('public_index').doc(nicknameIndexDocId));
-        }
+        deleteOwnedNicknameIndex(tx, nicknameIndex, uid);
 
         createLifecycleAudit(tx, {
           uid,

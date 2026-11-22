@@ -1,4 +1,6 @@
 // functions/src/moderation/moderation-automation.service.ts
+import { deleteOwnedNicknameIndex, readNicknameIndex } from '../public_index/nickname-index.service';
+import { resolveNicknameNormalized } from '../public_index/nickname-key.policy';
 import { createHash } from 'node:crypto';
 
 import * as logger from 'firebase-functions/logger';
@@ -6,7 +8,6 @@ import * as logger from 'firebase-functions/logger';
 import {
   UserDoc,
   createLifecycleAudit,
-  getNicknameIndexDocId,
 } from '../account_lifecycle/_shared';
 import { db, FieldValue, Timestamp } from '../firebaseApp';
 import {
@@ -234,7 +235,7 @@ async function applyConfirmedAutomaticSuspension(input: {
       return;
     }
 
-    const nicknameIndexDocId = getNicknameIndexDocId(user);
+    const nicknameIndex = await readNicknameIndex(db, transaction, resolveNicknameNormalized(user));
     const reason = input.critical
       ? 'Suspensão automática após confirmação de violação crítica envolvendo segurança de menores.'
       : 'Suspensão automática após reincidência de violações confirmadas pela moderação.';
@@ -245,7 +246,7 @@ async function applyConfirmedAutomaticSuspension(input: {
         accountStatus: 'moderation_suspended',
         publicVisibility: 'hidden',
         interactionBlocked: true,
-        loginAllowed: true,
+        loginAllowed: user.loginAllowed !== false,
         suspended: true,
         suspensionReason: reason,
         suspensionSource: 'automation',
@@ -270,11 +271,7 @@ async function applyConfirmedAutomaticSuspension(input: {
 
     transaction.delete(publicProfileRef);
 
-    if (nicknameIndexDocId) {
-      transaction.delete(
-        db.collection('public_index').doc(nicknameIndexDocId)
-      );
-    }
+    deleteOwnedNicknameIndex(transaction, nicknameIndex, input.targetUid);
 
     transaction.set(
       notificationRef,

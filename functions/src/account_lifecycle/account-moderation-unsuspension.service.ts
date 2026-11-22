@@ -6,6 +6,11 @@
 // ação manual autorizada ou por expiração automática do prazo.
 // -----------------------------------------------------------------------------
 
+import {
+  deleteOwnedNicknameIndex, readNicknameIndex, writeNicknameIndex,
+} from '../public_index/nickname-index.service';
+import { resolveNicknameNormalized } from '../public_index/nickname-key.policy';
+import { canPublishNicknameIndex } from '../registration/registration-nickname-availability.policy';
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import { db } from '../firebaseApp';
@@ -14,9 +19,7 @@ import {
   assertStaffAuthorization,
   buildPublicProfileSeed,
   createLifecycleAudit,
-  getNicknameIndexDocId,
-  isUserEligibleForPublicProjection,
-  resolveNicknameNormalized,
+  canRestorePublicProfileProjection,
 } from './_shared';
 import {
   evaluateModerationSuspensionExpiry,
@@ -115,10 +118,13 @@ export async function restoreModerationSuspension(input: {
         };
       }
 
-      const canPublish = isUserEligibleForPublicProjection(user);
+      const nicknameIndex = await readNicknameIndex(db, tx, resolveNicknameNormalized(user));
+      const hasPublicationEligibility = canRestorePublicProfileProjection(user);
+      const canPublish = hasPublicationEligibility &&
+        await canPublishNicknameIndex(db, tx, nicknameIndex, input.targetUid, user);
+      const publicationDeferred = hasPublicationEligibility && !canPublish;
       const publicVisibility = canPublish ? 'visible' : 'hidden';
       const interactionBlocked = !canPublish;
-      const nicknameIndexDocId = getNicknameIndexDocId(user);
 
       tx.set(
         userRef,
@@ -126,7 +132,7 @@ export async function restoreModerationSuspension(input: {
           accountStatus: 'active',
           publicVisibility,
           interactionBlocked,
-          loginAllowed: true,
+          loginAllowed: user.loginAllowed !== false,
           suspended: false,
           suspensionReason: null,
           suspensionSource: null,
@@ -146,25 +152,11 @@ export async function restoreModerationSuspension(input: {
           { merge: true }
         );
 
-        if (nicknameIndexDocId) {
-          tx.set(
-            db.collection('public_index').doc(nicknameIndexDocId),
-            {
-              type: 'nickname',
-              value: resolveNicknameNormalized(user),
-              uid: input.targetUid,
-              createdAt: now,
-              lastChangedAt: now,
-            },
-            { merge: true }
-          );
-        }
+        if (nicknameIndex) writeNicknameIndex(tx, nicknameIndex, input.targetUid);
       } else {
         tx.delete(publicProfileRef);
 
-        if (nicknameIndexDocId) {
-          tx.delete(db.collection('public_index').doc(nicknameIndexDocId));
-        }
+        deleteOwnedNicknameIndex(tx, nicknameIndex, input.targetUid);
       }
 
       if (input.source === 'system') {
@@ -179,10 +171,13 @@ export async function restoreModerationSuspension(input: {
             title: 'Suspensão encerrada',
             body: canPublish
               ? 'O período de suspensão terminou e sua conta voltou ao estado ativo.'
-              : [
-                'O período de suspensão terminou. A conta foi reativada,',
-                'mas algumas verificações ainda limitam visibilidade e interação.',
-              ].join(' '),
+              : publicationDeferred
+                ? 'Sua conta foi reativada. Não foi possível confirmar seu apelido. ' +
+                  'Seu perfil continua oculto. Se isso persistir, fale com o suporte.'
+                : [
+                  'O período de suspensão terminou. A conta foi reativada,',
+                  'mas algumas verificações ainda limitam visibilidade e interação.',
+                ].join(' '),
             route: '/conta/status',
             actionRequired: !canPublish,
             readAt: null,
@@ -201,6 +196,7 @@ export async function restoreModerationSuspension(input: {
             ? 'expire_moderation_suspension'
             : 'moderate_unsuspend_account',
         previousAccountStatus: 'moderation_suspended',
+        nicknamePublicationDeferred: publicationDeferred,
         accountStatus: 'active',
         publicProjectionRestored: canPublish,
         source: input.source,

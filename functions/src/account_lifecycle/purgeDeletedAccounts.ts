@@ -1,4 +1,6 @@
 // functions/src/account_lifecycle/purgeDeletedAccounts.ts
+import { deleteOwnedNicknameIndex, readNicknameIndex } from '../public_index/nickname-index.service';
+import { resolveNicknameNormalized } from '../public_index/nickname-key.policy';
 import { randomUUID } from 'node:crypto';
 
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -8,7 +10,6 @@ import {
   ACCOUNT_LIFECYCLE_REGION,
   UserDoc,
   createLifecycleAudit,
-  getNicknameIndexDocId,
   hashEmail,
 } from './_shared';
 import {
@@ -75,7 +76,6 @@ type PurgeUserDoc = UserDoc & {
 type PurgeCandidate = {
   uid: string;
   user: PurgeUserDoc;
-  nicknameIndexDocId: string | null;
   emailHash: string | null;
   reference: string;
 };
@@ -294,7 +294,6 @@ function toCandidate(uid: string, user: PurgeUserDoc): PurgeCandidate {
   return {
     uid,
     user,
-    nicknameIndexDocId: getNicknameIndexDocId(user),
     emailHash: hashEmail(user.email),
     reference: buildPurgeCandidateReference(uid),
   };
@@ -373,6 +372,7 @@ async function claimDeletion(
     };
 
     if (currentStatus === 'pending_deletion') {
+      const nicknameIndex = await readNicknameIndex(db, tx, resolveNicknameNormalized(currentUser));
       tx.set(
         userRef,
         {
@@ -390,11 +390,7 @@ async function claimDeletion(
       );
 
       tx.delete(publicProfileRef);
-      if (candidate.nicknameIndexDocId) {
-        tx.delete(
-          db.collection('public_index').doc(candidate.nicknameIndexDocId)
-        );
-      }
+      deleteOwnedNicknameIndex(tx, nicknameIndex, candidate.uid);
 
       createLifecycleAudit(tx, {
         uid: candidate.uid,

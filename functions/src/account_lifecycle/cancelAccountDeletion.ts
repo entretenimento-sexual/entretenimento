@@ -1,4 +1,9 @@
 // functions/src/account_lifecycle/cancelAccountDeletion.ts
+import {
+  deleteOwnedNicknameIndex, readNicknameIndex, writeNicknameIndex,
+} from '../public_index/nickname-index.service';
+import { resolveNicknameNormalized } from '../public_index/nickname-key.policy';
+import { canPublishNicknameIndex } from '../registration/registration-nickname-availability.policy';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   assertAccountLifecycleMutationSecurity,
@@ -14,9 +19,7 @@ import {
   assertRecentAuthentication,
   buildPublicProfileSeed,
   createLifecycleAudit,
-  getNicknameIndexDocId,
-  isUserEligibleForPublicProjection,
-  resolveNicknameNormalized,
+  canRestorePublicProfileProjection,
 } from './_shared';
 
 interface AccountLifecycleCommandResult {
@@ -60,13 +63,13 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
 
     const now = Date.now();
 
-    const restored = await db.runTransaction(
+    const { publicationDeferred, ...restored } = await db.runTransaction(
       async (
         tx: FirebaseFirestore.Transaction
       ): Promise<Omit<
         AccountLifecycleCommandResult,
         'ok' | 'message' | 'subscriptionRenewalStatus'
-      >> => {
+      > & { publicationDeferred: boolean }> => {
         const userRef = db.collection('users').doc(uid);
         const publicProfileRef = db.collection('public_profiles').doc(uid);
 
@@ -105,9 +108,12 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
           user.deletionRestoreStatus
         );
         const suspended = accountStatus !== 'active';
-        const canPublish =
-          accountStatus === 'active' &&
-          isUserEligibleForPublicProjection(user);
+        const nicknameIndex = await readNicknameIndex(db, tx, resolveNicknameNormalized(user));
+        const hasPublicationEligibility = !suspended &&
+          canRestorePublicProfileProjection({ ...user, deletionRequestedAt: null });
+        const canPublish = hasPublicationEligibility &&
+          await canPublishNicknameIndex(db, tx, nicknameIndex, uid, user);
+        const publicationDeferred = hasPublicationEligibility && !canPublish;
         const publicVisibility = canPublish ? 'visible' : 'hidden';
         const interactionBlocked = suspended || !canPublish;
         const suspensionReason = suspended
@@ -127,7 +133,7 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
             accountStatus,
             publicVisibility,
             interactionBlocked,
-            loginAllowed: true,
+            loginAllowed: user.loginAllowed !== false,
             suspended,
             suspensionReason,
             suspensionSource,
@@ -147,8 +153,6 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
           { merge: true }
         );
 
-        const nicknameIndexDocId = getNicknameIndexDocId(user);
-
         if (canPublish) {
           tx.set(
             publicProfileRef,
@@ -156,24 +160,10 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
             { merge: true }
           );
 
-          if (nicknameIndexDocId) {
-            tx.set(
-              db.collection('public_index').doc(nicknameIndexDocId),
-              {
-                type: 'nickname',
-                value: resolveNicknameNormalized(user),
-                uid,
-                createdAt: now,
-                lastChangedAt: now,
-              },
-              { merge: true }
-            );
-          }
+          if (nicknameIndex) writeNicknameIndex(tx, nicknameIndex, uid);
         } else {
           tx.delete(publicProfileRef);
-          if (nicknameIndexDocId) {
-            tx.delete(db.collection('public_index').doc(nicknameIndexDocId));
-          }
+          deleteOwnedNicknameIndex(tx, nicknameIndex, uid);
         }
 
         createLifecycleAudit(tx, {
@@ -183,6 +173,7 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
           previousAccountStatus: 'pending_deletion',
           accountStatus,
           publicProjectionRestored: canPublish,
+          nicknamePublicationDeferred: publicationDeferred,
           source: 'self',
           moderationReason: null,
           createdAt: now,
@@ -193,6 +184,7 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
           accountStatus,
           publicVisibility,
           interactionBlocked,
+          publicationDeferred,
           suspended,
           suspensionReason,
           suspensionSource,
@@ -207,21 +199,23 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
       restored.publicVisibility === 'hidden';
     const subscriptionRenewalStatus =
       await getAccountLifecycleSubscriptionRenewalStatus(uid);
+    const accountMessage = publicationDeferred
+      ? 'Exclusão cancelada. Não foi possível confirmar seu apelido. ' +
+        'Seu perfil continua oculto. Se isso persistir, fale com o suporte.'
+      : activeButRestricted
+        ? 'Exclusão cancelada. Conclua as verificações pendentes para voltar a aparecer e interagir.'
+        : restored.accountStatus === 'active'
+          ? 'Exclusão cancelada. Sua conta voltou ao estado ativo.'
+          : 'Exclusão cancelada. O estado anterior da conta foi restaurado.';
+    const subscriptionMessage = subscriptionRenewalStatus === 'pending'
+      ? 'A interrupção da renovação automática ainda está sendo processada.'
+      : subscriptionRenewalStatus === 'canceled' ? 'A renovação automática permanece cancelada.' : '';
 
     return {
       ok: true,
       ...restored,
       subscriptionRenewalStatus,
-      message:
-        subscriptionRenewalStatus === 'pending'
-          ? 'Exclusão cancelada. A interrupção da renovação automática ainda está sendo processada.'
-          : subscriptionRenewalStatus === 'canceled'
-            ? 'Exclusão cancelada. A renovação automática permanece cancelada.'
-            : activeButRestricted
-              ? 'Exclusão cancelada. Conclua as verificações pendentes para voltar a aparecer e interagir.'
-              : restored.accountStatus === 'active'
-                ? 'Exclusão cancelada. Sua conta voltou ao estado ativo.'
-                : 'Exclusão cancelada. O estado anterior da conta foi restaurado.',
+      message: [accountMessage, subscriptionMessage].filter(Boolean).join(' '),
     };
   }
 );

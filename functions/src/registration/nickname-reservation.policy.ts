@@ -1,8 +1,11 @@
 // Canonical nickname normalization for authoritative backend registration.
 // Do not trust display/key pairs sent by a browser; only raw display arrives.
 // Mantém os apelidos existentes e admite 12 + espaço + 12 no cadastro.
+import {
+  isNicknameIndexKey, normalizeNicknameForIndex, resolveNicknameNormalized,
+} from '../public_index/nickname-key.policy';
+
 const DISPLAY_PATTERN = /^(?:[A-Za-z0-9._\- ]{4,24}|[A-Za-z0-9._-]{12} [A-Za-z0-9._-]{12})$/;
-const KEY_PATTERN = /^[a-z0-9._-]{3,40}$/;
 const SIGNUP_DISPLAY_PATTERN = /^[A-Za-z0-9._-]{4,12}(?: [A-Za-z0-9._-]{1,12})?$/;
 
 export interface RegistrationNickname {
@@ -14,12 +17,8 @@ export function normalizeRegistrationNickname(value: unknown): RegistrationNickn
   if (typeof value !== 'string') return null;
   const display = value.trim().replace(/\s+/g, ' ');
   if (!DISPLAY_PATTERN.test(display)) return null;
-  const key = display.normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9._-]/g, '');
-  return KEY_PATTERN.test(key) ? { display, key } : null;
+  const key = normalizeNicknameForIndex(display);
+  return isNicknameIndexKey(key) ? { display, key } : null;
 }
 
 export function registrationNicknamePrincipal(display: string): string {
@@ -36,8 +35,10 @@ export function normalizeRegistrationNicknameClaim(value: unknown): Registration
 export function resolveStoredRegistrationNickname(
   value: unknown, storedKey: unknown
 ): RegistrationNickname | null {
-  const claim = normalizeRegistrationNicknameClaim(value);
-  return claim && claim.key === storedKey ? claim : normalizeRegistrationNickname(value);
+  const nickname = normalizeRegistrationNickname(value);
+  return nickname && { display: nickname.display, key: resolveNicknameNormalized({
+    nickname: nickname.display, nicknameNormalized: storedKey,
+  }) };
 }
 
 export function canClaimRegistrationNickname(input: {
