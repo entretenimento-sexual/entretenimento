@@ -86,7 +86,7 @@ const COMMON_CODE_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
   unauthenticated: 'Sua sessão expirou. Entre novamente para continuar.',
   'auth/user-token-expired': 'Sua sessão expirou. Entre novamente para continuar.',
   'auth/session-changed': 'A conta ativa mudou durante esta operação. Confira a sessão e continue com a conta desejada.',
-  'auth/post-login-navigation': 'O acesso foi confirmado, mas a próxima tela não abriu. Recarregue a página para continuar.',
+  'auth/post-login-navigation': 'A próxima tela não abriu. Tente continuar com sua sessão atual.',
   'auth/requires-recent-login': 'Confirme sua identidade novamente para continuar.',
   'permission-denied': 'Sua conta não tem permissão para realizar esta ação.',
   'not-found': 'O conteúdo solicitado não está mais disponível.',

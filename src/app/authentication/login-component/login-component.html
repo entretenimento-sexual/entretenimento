@@ -169,13 +169,6 @@
         <span>{{ googleButtonLabel }}</span>
       </button>
 
-      @if (isLoading) {
-        <div class="loading-overlay" role="status" aria-live="polite">
-          <div class="spinner" aria-hidden="true"></div>
-          <p class="loading-overlay__copy">{{ loadingMessage }}</p>
-        </div>
-      }
-
       @if (errorMessage) {
         <p id="form-error" class="alert alert-error" role="alert" aria-live="assertive">
           {{ errorMessage }}
@@ -192,6 +185,14 @@
         }
       </p>
     </form>
+    <div role="status" aria-live="polite" aria-atomic="true">
+      @if (isLoading) {
+        <div class="loading-overlay">
+          <div class="spinner" aria-hidden="true"></div>
+          <p class="loading-overlay__copy">{{ loadingMessage }}</p>
+        </div>
+      }
+    </div>
     </div>
   }
 

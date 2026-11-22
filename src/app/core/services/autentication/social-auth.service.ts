@@ -184,12 +184,15 @@ export class SocialAuthService {
     return this.sessionPersistence.setSessionPersistence$('local');
   }
 
-  googleLogin(rememberMe = true): Observable<SocialAuthResult> {
+  googleLogin(rememberMe = true, onAuthenticated?: (user: FirebaseUser) => void): Observable<SocialAuthResult> {
     const provider = this.buildGoogleProvider();
 
     return this.ensurePersistentAuth$(rememberMe).pipe(
       switchMap(() => this.signInWithPopupInCtx$(provider)),
-      switchMap((credential) => this.bootstrapUserAfterAuth$(credential)),
+      switchMap((credential) => {
+        if (this.auth.currentUser === credential.user) onAuthenticated?.(credential.user);
+        return this.bootstrapUserAfterAuth$(credential);
+      }),
       catchError((err) => of(this.handleGoogleLoginError(err)))
     );
   }

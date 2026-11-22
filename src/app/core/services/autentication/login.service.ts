@@ -21,7 +21,6 @@ import {
 import {
   catchError,
   map,
-  retry,
   switchMap,
   take,
   timeout,
@@ -62,6 +61,7 @@ type EmuPersistMode = 'memory' | 'session';
 @Injectable({ providedIn: 'root' })
 export class LoginService {
   private readonly NET_TIMEOUT_MS = 12_000;
+  private readonly PROFILE_TIMEOUT_MS = 3_500;
 
   constructor(
     private readonly appBlock: AuthAppBlockService,
@@ -219,8 +219,7 @@ export class LoginService {
     }
 
     return this.firestoreUserQuery.getUser$(authUser.uid).pipe(
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      retry({ count: 2, delay: 200 }),
+      timeout({ first: this.PROFILE_TIMEOUT_MS }),
       take(1),
       catchError((error: unknown) => {
         this.reportSilent(
@@ -259,7 +258,8 @@ export class LoginService {
   login$(
     email: string,
     password: string,
-    _rememberMe?: boolean
+    _rememberMe?: boolean,
+    onAuthenticated?: (user: User) => void
   ): Observable<LoginResult> {
     const safeEmail = String(email ?? '').trim().toLowerCase();
     const safePassword = String(password ?? '');
@@ -295,6 +295,8 @@ export class LoginService {
 
     return this.setSessionPersistence$(requestedMode).pipe(
       timeout({ each: this.NET_TIMEOUT_MS }),
+      // O SDK tem prazo de rede próprio. Abandonar sua Promise antes dele
+      // poderia anunciar falha enquanto a mesma tentativa ainda cria a sessão.
       switchMap(() =>
         this.ctx
           .deferPromise$(() =>
@@ -304,10 +306,15 @@ export class LoginService {
               safePassword
             )
           )
-          .pipe(timeout({ each: this.NET_TIMEOUT_MS }))
       ),
       switchMap(({ user }) => {
-        if (this.auth.currentUser?.uid === user.uid) this.appBlock.resolveInvalidation(user.uid);
+        if (this.auth.currentUser !== user) {
+          throw Object.assign(new Error('A conta ativa mudou durante o login.'), {
+            code: 'auth/session-changed',
+          });
+        }
+        this.appBlock.resolveInvalidation(user.uid);
+        onAuthenticated?.(user);
         return this.loadEffectiveUserAfterLogin$(user);
       }),
       catchError((error: unknown) => {
@@ -526,6 +533,9 @@ export class LoginService {
         break;
       case 'auth/user-disabled':
         message = 'Esta conta está desativada.';
+        break;
+      case 'auth/session-changed':
+        message = 'A conta ativa mudou. Confira qual sessão está aberta.';
         break;
       case 'auth/too-many-requests':
         message = 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';

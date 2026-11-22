@@ -1,7 +1,7 @@
 // src/app/core/services/autentication/login.service.spec.ts
 import { TestBed } from '@angular/core/testing';
 import { Auth } from '@angular/fire/auth';
-import { firstValueFrom, Observable, of, throwError } from 'rxjs';
+import { firstValueFrom, NEVER, Observable, of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LoginService } from './login.service';
@@ -75,6 +75,47 @@ describe('LoginService', () => {
 
   it('deve ser criado', () => {
     expect(service).toBeTruthy();
+  });
+
+  it('confirma a identidade antes da leitura do perfil e abre recuperação se demorar', async () => {
+    vi.useFakeTimers();
+    try {
+      authMock.currentUser = { uid: 'pessoa', email: 'pessoa@example.com', emailVerified: true };
+      deferPromise$.mockReturnValueOnce(of({ user: authMock.currentUser }));
+      const query = TestBed.inject(FirestoreUserQueryService);
+      vi.mocked(query.getUser$).mockReturnValueOnce(NEVER);
+      const confirmed = vi.fn();
+      const result = firstValueFrom(service.login$('pessoa@example.com', 'senha', undefined, confirmed));
+
+      expect(confirmed).toHaveBeenCalledWith(authMock.currentUser);
+      await vi.advanceTimersByTimeAsync(3_500);
+      expect(await result).toMatchObject({ success: true, profileResolution: 'unknown' });
+      expect(query.getUser$).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('preserva a tentativa do SDK quando a credencial é confirmada depois do antigo prazo', async () => {
+    vi.useFakeTimers();
+    try {
+      const credential$ = new Subject<{ user: { uid: string; emailVerified: boolean } }>();
+      deferPromise$.mockReturnValueOnce(credential$);
+      const confirm = vi.fn();
+      const result = firstValueFrom(service.login$('pessoa@example.com', 'senha', undefined, confirm));
+      const resolved = vi.fn();
+      void result.then(resolved);
+      await vi.advanceTimersByTimeAsync(12_500);
+      expect(resolved).not.toHaveBeenCalled();
+      expect(confirm).not.toHaveBeenCalled();
+
+      authMock.currentUser = { uid: 'pessoa', emailVerified: true };
+      credential$.next({ user: authMock.currentUser });
+      expect(await result).toMatchObject({ success: true });
+      expect(confirm).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('falha fechado ao reautenticar sem usuário com provedor de senha', async () => {

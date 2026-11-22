@@ -340,7 +340,7 @@ export class LogoutService {
   }
 
   /**
-   * Restaura Web Push sem abrir prompt: só tentamos `activate$()` quando o estado
+   * Restaura Web Push sem abrir prompt: só tentamos quando o estado
    * anterior era `active` e o navegador ainda informa permissão `granted`.
    */
   private restorePushAfterFailedSignOutBestEffort$(
@@ -354,7 +354,7 @@ export class LogoutService {
 
     if (!canRestoreWithoutPrompt) return of(void 0);
 
-    return defer(() => this.pushNotifications.activate$()).pipe(
+    return defer(() => this.pushNotifications.activate$('restore')).pipe(
       take(1),
       defaultIfEmpty('inactive' as PushNotificationDeviceState),
       timeout({

@@ -17,9 +17,12 @@ import {
 } from './push-device.policy';
 
 interface PushDeviceRequest {
+  expectedUid?: unknown;
   token?: unknown;
   platform?: unknown;
   installationId?: unknown;
+  registrationId?: unknown;
+  cancelledRegistrationIds?: unknown;
 }
 
 interface PushDeviceDocument {
@@ -29,16 +32,30 @@ interface PushDeviceDocument {
   updatedAt?: unknown;
   lastSeenAt?: unknown;
   schemaVersion?: unknown;
+  cancelledRegistrationIds?: string[];
 }
 
-function requireUid(value: unknown): string {
+function requireUid(value: unknown, expectedUid: unknown): string {
   const uid = String(value ?? '').trim();
 
   if (!uid) {
     throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
   }
+  if (uid !== expectedUid) {
+    throw new HttpsError('failed-precondition', 'A conta ativa mudou durante a operação.');
+  }
 
   return uid;
+}
+
+const MAX_CANCELLED_REGISTRATIONS = 32;
+
+function readCancelledRegistrationIds(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > MAX_CANCELLED_REGISTRATIONS) {
+    throw new HttpsError('invalid-argument', 'Registros Web Push a cancelar inválidos.');
+  }
+  return value.map(requireInstallationId);
 }
 
 function requireToken(value: unknown): string {
@@ -77,10 +94,11 @@ function requirePlatform(value: unknown) {
 export const registerPushDevice = onCall<PushDeviceRequest>(
   { region: FUNCTIONS_REGION, enforceAppCheck: true },
   async (request): Promise<{ ok: true }> => {
-    const uid = requireUid(request.auth?.uid);
+    const uid = requireUid(request.auth?.uid, request.data?.expectedUid);
     const token = requireToken(request.data?.token);
     const platform = requirePlatform(request.data?.platform);
     const installationId = requireInstallationId(request.data?.installationId);
+    const registrationId = requireInstallationId(request.data?.registrationId);
     const installationDocumentId =
       buildPushInstallationDocumentId(installationId);
     const tokenDocumentId = buildPushTokenDocumentId(token);
@@ -108,6 +126,9 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
         ? (deviceSnapshot.data() as PushDeviceDocument)
         : undefined;
       const currentToken = normalizePushToken(current?.token);
+      if (current?.cancelledRegistrationIds?.includes(registrationId)) {
+        throw new HttpsError('aborted', 'O registro do dispositivo foi cancelado.');
+      }
 
       if (
         isPushDeviceRegistrationFresh(
@@ -221,19 +242,21 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
 export const unregisterPushDevice = onCall<PushDeviceRequest>(
   { region: FUNCTIONS_REGION, enforceAppCheck: true },
   async (request): Promise<{ ok: true }> => {
-    const uid = requireUid(request.auth?.uid);
+    const uid = requireUid(request.auth?.uid, request.data?.expectedUid);
     const installationId = requireInstallationId(request.data?.installationId);
     const installationDocumentId =
       buildPushInstallationDocumentId(installationId);
     const requestedToken = normalizePushToken(request.data?.token);
+    const cancelledRegistrationIds = readCancelledRegistrationIds(request.data?.cancelledRegistrationIds);
     const userRef = db.collection('users').doc(uid);
     const devicesRef = userRef.collection('push_devices');
     const deviceRef = devicesRef.doc(installationDocumentId);
 
     await db.runTransaction(async (tx) => {
       const deviceSnapshot = await tx.get(deviceRef);
+      const device = deviceSnapshot.data() as PushDeviceDocument | undefined;
       const registeredToken = normalizePushToken(
-        deviceSnapshot.data()?.token
+        device?.token
       );
       const tokensToRelease = new Set(
         [requestedToken, registeredToken].filter(
@@ -250,7 +273,17 @@ export const unregisterPushDevice = onCall<PushDeviceRequest>(
         ownerRefs.map((ownerRef) => tx.get(ownerRef))
       );
 
-      tx.delete(deviceRef);
+      const cancelled = Array.from(new Set([
+        ...(device?.cancelledRegistrationIds ?? []),
+        ...cancelledRegistrationIds,
+      ])).slice(-MAX_CANCELLED_REGISTRATIONS);
+
+      if (cancelled.length > 0) {
+        // Sem lastSeenAt, o documento não é elegível para entrega nem para a quota.
+        tx.set(deviceRef, { cancelledRegistrationIds: cancelled });
+      } else {
+        tx.delete(deviceRef);
+      }
 
       // Logout/desregistro atrasado nunca pode remover um token que já foi
       // transferido a outro usuário ou a outra instalação.

@@ -14,9 +14,10 @@
 // - falhas públicas sobem para a UI, que usa a mesma entrada canônica.
 // -----------------------------------------------------------------------------
 
-import { Injectable, OnDestroy, inject } from '@angular/core';
+import { Injectable, InjectionToken, OnDestroy, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { getApp } from 'firebase/app';
+import type { User } from 'firebase/auth';
 import {
   deleteToken,
   getMessaging,
@@ -26,6 +27,7 @@ import {
 } from 'firebase/messaging';
 import {
   BehaviorSubject,
+  EMPTY,
   Observable,
   Subscription,
   combineLatest,
@@ -38,12 +40,16 @@ import {
 import {
   catchError,
   distinctUntilChanged,
+  endWith,
+  filter,
   finalize,
+  ignoreElements,
   map,
   shareReplay,
   switchMap,
   take,
-  tap,
+  takeUntil,
+  timeout,
 } from 'rxjs/operators';
 
 import { environment } from 'src/environments/environment';
@@ -71,26 +77,57 @@ export interface PushNotificationDeviceVm {
 }
 
 interface PushDeviceRegistrationRequest {
+  expectedUid: string;
+  registrationId: string;
   token: string;
   platform: 'web';
   installationId: string;
 }
 
 interface PushDeviceUnregistrationRequest {
+  expectedUid: string;
   installationId: string;
+  cancelledRegistrationIds: string[];
 }
 
 interface PushDeviceCallableResponse {
   ok?: unknown;
 }
 
+export const PUSH_NOTIFICATION_SDK = new InjectionToken('PushNotificationSdk', {
+  factory: () => {
+    const functions = inject(Functions);
+    return {
+      isSupported,
+      getMessaging: () => getMessaging(getApp()),
+      getToken,
+      deleteToken,
+      register: (request: PushDeviceRegistrationRequest) =>
+        httpsCallable<PushDeviceRegistrationRequest, PushDeviceCallableResponse>(
+          functions, 'registerPushDevice'
+        )(request),
+      unregister: (request: PushDeviceUnregistrationRequest) =>
+        httpsCallable<PushDeviceUnregistrationRequest, PushDeviceCallableResponse>(
+          functions, 'unregisterPushDevice'
+        )(request),
+    };
+  },
+});
+
+interface PushSession {
+  user: User;
+  terminationVersion: number;
+  optOutVersion: number;
+}
+
 const PUSH_OPT_IN_UID_STORAGE_KEY = 'entretenimento.push.opt-in-uid.v1';
 const PUSH_INSTALLATION_STORAGE_KEY =
   'entretenimento.push.installation-id.v2';
+const PUSH_CLEANUP_TIMEOUT_MS = 10_000;
 
 @Injectable({ providedIn: 'root' })
 export class PushNotificationDeviceService implements OnDestroy {
-  private readonly functions = inject(Functions);
+  private readonly sdk = inject(PUSH_NOTIFICATION_SDK);
   private readonly session = inject(AuthSessionService);
   private readonly applicationError = inject(ApplicationErrorService);
 
@@ -98,7 +135,11 @@ export class PushNotificationDeviceService implements OnDestroy {
     new BehaviorSubject<PushNotificationDeviceState>('inactive');
   private readonly busySubject = new BehaviorSubject(false);
   private startupSubscription: Subscription | null = null;
-  private sessionForcedOptOut = false;
+  private optOutVersion = 0;
+  private deactivation: { user: User; cleanup$: Observable<PushNotificationDeviceState> } | null = null;
+  private readonly registrationsInProgress = new Map<string, string>();
+  private localMessagingWork: Promise<unknown> = Promise.resolve();
+  private messagingWithWorker: Messaging | null = null;
 
   readonly state$: Observable<PushNotificationDeviceState> =
     this.stateSubject.asObservable().pipe(
@@ -127,6 +168,7 @@ export class PushNotificationDeviceService implements OnDestroy {
   start(): void {
     if (this.startupSubscription) return;
 
+    let previousUid: string | null = null;
     this.startupSubscription = this.session.readyUid$
       .pipe(
         distinctUntilChanged(),
@@ -134,11 +176,22 @@ export class PushNotificationDeviceService implements OnDestroy {
           const safeUid = String(uid ?? '').trim();
 
           if (!safeUid) {
-            return of(this.setState('inactive'));
+            this.setState('inactive');
+            if (this.session.currentAuthUser || !previousUid) return EMPTY;
+            const outgoingUid = previousUid;
+            previousUid = null;
+            return this.clearOptInAfterAccountChange$(outgoingUid, null);
           }
 
-          return this.synchronizeExistingOptInForUid$(safeUid).pipe(
+          const outgoingUid = previousUid;
+          previousUid = safeUid;
+          this.setState('inactive');
+          const scope = this.captureSession(safeUid);
+          if (!scope || this.deactivation?.user === scope.user) return EMPTY;
+          return this.clearOptInAfterAccountChange$(outgoingUid, safeUid).pipe(
+            switchMap(() => this.isCurrent(scope) ? this.synchronizeExistingOptInForUid$(scope) : EMPTY),
             catchError((error) => {
+              if (!this.isCurrent(scope)) return EMPTY;
               this.setState('error');
               this.reportError(error, 'startupSync');
               return of<PushNotificationDeviceState>('error');
@@ -160,18 +213,19 @@ export class PushNotificationDeviceService implements OnDestroy {
             return of(this.setState('inactive'));
           }
 
-          return this.synchronizeExistingOptInForUid$(safeUid);
+          const scope = this.captureSession(safeUid);
+          return scope ? this.synchronizeExistingOptInForUid$(scope) : EMPTY;
         })
       )
     ).pipe(
       catchError((error) =>
-        this.failOperation(error, 'refresh')
+        this.failOperation(error)
       )
     );
   }
 
-  activate$(): Observable<PushNotificationDeviceState> {
-    return this.runBusy$(() =>
+  activate$(mode: 'request-permission' | 'restore' = 'request-permission'): Observable<PushNotificationDeviceState> {
+    const activation$ = this.runBusy$(() =>
       defer(() => {
         const vapidKey = this.resolveVapidKey();
 
@@ -183,8 +237,11 @@ export class PushNotificationDeviceService implements OnDestroy {
           return of(this.setState('unsupported'));
         }
 
+        const scope = this.captureSession();
+        if (!scope) return EMPTY;
         return this.firebaseMessagingSupported$().pipe(
           switchMap((supported) => {
+            if (!this.isCurrent(scope)) return EMPTY;
             if (!supported) {
               return of(this.setState('unsupported'));
             }
@@ -197,19 +254,20 @@ export class PushNotificationDeviceService implements OnDestroy {
             const currentPermission = this.notificationPermission();
 
             if (currentPermission === 'denied') {
-              this.removeOptInSafely();
+              this.removeOptInSafely(scope.user.uid);
               return of(this.setState('blocked'));
             }
 
             const permission$ =
-              currentPermission === 'default'
+              currentPermission === 'default' && mode === 'request-permission'
                 ? this.requestPermission$()
                 : of(currentPermission);
 
             return permission$.pipe(
               switchMap((permission) => {
+                if (!this.isCurrent(scope)) return EMPTY;
                 if (permission !== 'granted') {
-                  this.removeOptInSafely();
+                  this.removeOptInSafely(scope.user.uid);
                   return of(
                     this.setState(
                       permission === 'denied' ? 'blocked' : 'inactive'
@@ -217,51 +275,57 @@ export class PushNotificationDeviceService implements OnDestroy {
                   );
                 }
 
-                this.sessionForcedOptOut = false;
-
                 return this.session.readyUid$.pipe(
+                  filter((uid) => uid === scope.user.uid),
                   take(1),
-                  switchMap((uid) => {
-                    const safeUid = String(uid ?? '').trim();
-
-                    if (!safeUid) {
-                      return throwError(
-                        () => new Error('Usuário não autenticado para Web Push.')
-                      );
-                    }
-
-                    return this.registerForUid$(safeUid, vapidKey).pipe(
-                      tap((state) => {
-                        if (state === 'active') {
-                          this.persistOptInForUid(safeUid);
-                        }
-                      })
-                    );
-                  })
+                  timeout({ first: PUSH_CLEANUP_TIMEOUT_MS }),
+                  switchMap(() => this.registerForUid$(scope, vapidKey, true))
                 );
               })
             );
-          })
+          }),
+          takeUntil(this.session.authUser$.pipe(filter(() => !this.isCurrent(scope)))),
+          catchError((error) => this.isCurrent(scope) ? throwError(() => error) : EMPTY)
         );
       })
     ).pipe(
-      catchError((error) =>
-        this.failOperation(error, 'activate')
-      )
+      catchError((error) => this.failOperation(error))
     );
+    if (mode !== 'restore') return activation$;
+
+    return defer(() => {
+      const scope = this.captureSession();
+      if (!scope) return EMPTY;
+      const cleanup$ = this.deactivation?.cleanup$ ?? EMPTY;
+      return cleanup$.pipe(
+        ignoreElements(),
+        catchError(() => EMPTY),
+        endWith(undefined),
+        switchMap(() => this.busy$.pipe(filter((busy) => !busy), take(1))),
+        switchMap(() => this.isCurrent(scope) ? activation$ : EMPTY),
+        takeUntil(this.session.authUser$.pipe(filter(() => !this.isCurrent(scope))))
+      );
+    }).pipe(shareReplay({ bufferSize: 1, refCount: false }));
   }
 
   deactivate$(): Observable<PushNotificationDeviceState> {
-    return this.runBusy$(() =>
-      defer(() => {
-        this.sessionForcedOptOut = true;
-        this.removeOptInSafely();
-
+    return defer(() => {
+      const user = this.session.currentAuthUser;
+      if (!user) return of(this.setState('inactive'));
+      if (this.deactivation?.user === user) return this.deactivation.cleanup$;
+      const uid = user.uid;
+      const version = ++this.optOutVersion;
+      const cleanup$ = defer(() => {
+        this.removeOptInSafely(uid);
         const installationId = this.readInstallationId();
+        const cancelledRegistrationIds = Array.from(this.registrationsInProgress)
+          .filter(([, owner]) => owner === uid)
+          .map(([registrationId]) => registrationId);
 
         return forkJoin({
           backend: installationId
-            ? this.unregisterBackend$(installationId).pipe(
+            ? this.unregisterBackend$({ installationId, expectedUid: uid, cancelledRegistrationIds }).pipe(
+                timeout({ first: PUSH_CLEANUP_TIMEOUT_MS }),
                 map(() => true),
                 catchError((error) => {
                   this.reportError(error, 'unregisterBackend');
@@ -269,7 +333,8 @@ export class PushNotificationDeviceService implements OnDestroy {
                 })
               )
             : of(true),
-          localToken: this.deleteLocalMessagingToken$().pipe(
+          localToken: this.deleteLocalMessagingToken$(uid).pipe(
+            timeout({ first: PUSH_CLEANUP_TIMEOUT_MS }),
             map(() => true),
             catchError((error) => {
               this.reportError(error, 'deleteLocalToken');
@@ -278,6 +343,9 @@ export class PushNotificationDeviceService implements OnDestroy {
           ),
         }).pipe(
           switchMap(({ backend, localToken }) => {
+            if (this.session.currentAuthUser !== user || version !== this.optOutVersion) {
+              return EMPTY;
+            }
             if (!backend && !localToken) {
               return throwError(
                 () =>
@@ -290,12 +358,22 @@ export class PushNotificationDeviceService implements OnDestroy {
             return of(this.setState('inactive'));
           })
         );
-      })
-    ).pipe(
-      catchError((error) =>
-        this.failOperation(error, 'deactivate')
-      )
-    );
+      }).pipe(
+        catchError((error) => this.session.currentAuthUser === user
+          ? this.failOperation(error)
+          : EMPTY),
+        finalize(() => {
+          if (this.deactivation?.cleanup$ === cleanup$) {
+            this.deactivation = null;
+            this.busySubject.next(false);
+          }
+        }),
+        shareReplay({ bufferSize: 1, refCount: false })
+      );
+      this.deactivation = { user, cleanup$ };
+      this.busySubject.next(true);
+      return cleanup$;
+    });
   }
 
   ngOnDestroy(): void {
@@ -304,7 +382,7 @@ export class PushNotificationDeviceService implements OnDestroy {
   }
 
   private synchronizeExistingOptInForUid$(
-    uid: string
+    scope: PushSession
   ): Observable<PushNotificationDeviceState> {
     return defer(() => {
       const vapidKey = this.resolveVapidKey();
@@ -323,7 +401,7 @@ export class PushNotificationDeviceService implements OnDestroy {
         return of(this.setState('blocked'));
       }
 
-      if (!this.hasPersistedOptInForUid(uid)) {
+      if (!this.hasPersistedOptInForUid(scope.user.uid)) {
         return of(this.setState('inactive'));
       }
 
@@ -335,87 +413,70 @@ export class PushNotificationDeviceService implements OnDestroy {
 
       return this.firebaseMessagingSupported$().pipe(
         switchMap((supported) => {
+          if (!this.isCurrent(scope)) return EMPTY;
           if (!supported) {
             return of(this.setState('unsupported'));
           }
 
-          return this.registerForUid$(uid, vapidKey);
+          return this.registerForUid$(scope, vapidKey);
         })
       );
     });
   }
 
   private registerForUid$(
-    _uid: string,
-    vapidKey: string
+    scope: PushSession,
+    vapidKey: string,
+    persistOptIn = false
   ): Observable<PushNotificationDeviceState> {
     return defer(() => {
+      if (!this.isCurrent(scope)) return EMPTY;
       const installationId = this.ensureInstallationId();
 
-      return this.registerServiceWorker$().pipe(
-        switchMap((registration) =>
-          this.messaging$().pipe(
-            switchMap((messaging) =>
-              defer(() =>
-                from(
-                  getToken(messaging, {
-                    vapidKey,
-                    serviceWorkerRegistration: registration,
-                  })
-                )
-              )
-            )
-          )
-        ),
+      return this.withLocalMessaging$(async () => {
+        if (!this.isCurrent(scope)) return null;
+        const registration = await navigator.serviceWorker.register(this.buildServiceWorkerUrl(), {
+          updateViaCache: 'none',
+        });
+        if (!this.isCurrent(scope)) return null;
+        const messaging = this.sdk.getMessaging();
+        const token = await this.sdk.getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
+        this.messagingWithWorker = messaging;
+        return token;
+      }).pipe(
         map((token) => String(token ?? '').trim()),
         switchMap((token) => {
+          if (!this.isCurrent(scope)) return EMPTY;
           if (token.length < MIN_PUSH_FCM_TOKEN_LENGTH) {
             return throwError(
               () => new Error('FCM não retornou um token Web Push válido.')
             );
           }
 
-          const callable = httpsCallable<
-            PushDeviceRegistrationRequest,
-            PushDeviceCallableResponse
-          >(this.functions, 'registerPushDevice');
-
-          return defer(() =>
-            from(
-              callable({
-                token,
-                platform: 'web',
-                installationId,
-              })
-            )
-          );
+          const registrationId = createPushInstallationId(globalThis.crypto);
+          this.registrationsInProgress.set(registrationId, scope.user.uid);
+          return from(Promise.resolve().then(() => (this.isCurrent(scope)
+            ? this.sdk.register({ token, platform: 'web', installationId, registrationId, expectedUid: scope.user.uid })
+            : null)
+          ).finally(() => this.registrationsInProgress.delete(registrationId)));
         }),
-        map((result) => {
+        switchMap((result) => {
+          if (!result || !this.isCurrent(scope)) return EMPTY;
           if (result.data?.ok !== true) {
             throw new Error('Registro do dispositivo Web Push não confirmado.');
           }
 
-          return this.setState('active');
+          if (persistOptIn) this.persistOptInForUid(scope.user.uid);
+          return of(this.setState('active'));
         })
       );
     }).pipe(
-      catchError((error) => throwError(() => error))
+      catchError((error) => this.isCurrent(scope) ? throwError(() => error) : EMPTY)
     );
   }
 
-  private unregisterBackend$(installationId: string): Observable<void> {
-    const callable = httpsCallable<
-      PushDeviceUnregistrationRequest,
-      PushDeviceCallableResponse
-    >(this.functions, 'unregisterPushDevice');
-
-    return defer(() =>
-      from(
-        callable({
-          installationId,
-        })
-      )
-    ).pipe(
+  private unregisterBackend$(request: PushDeviceUnregistrationRequest): Observable<void> {
+    return defer(() => from(this.sdk.unregister(request))).pipe(
       map((result) => {
         if (result.data?.ok !== true) {
           throw new Error('Remoção do dispositivo Web Push não confirmada.');
@@ -424,45 +485,78 @@ export class PushNotificationDeviceService implements OnDestroy {
     );
   }
 
-  private registerServiceWorker$(): Observable<ServiceWorkerRegistration> {
-    return defer(() =>
-      from(
-        navigator.serviceWorker.register(this.buildServiceWorkerUrl(), {
-          updateViaCache: 'none',
-        })
-      )
-    );
-  }
-
-  private messaging$(): Observable<Messaging> {
-    return defer(() => of(getMessaging(getApp())));
-  }
-
-  private deleteLocalMessagingToken$(): Observable<void> {
+  private deleteLocalMessagingToken$(uid: string): Observable<void> {
     // Sem VAPID este ambiente não emite tokens. deleteToken pode tentar
     // registrar o worker padrão do FCM quando a instância não tem worker.
     if (!this.resolveVapidKey() || !this.hasBrowserPushApis()) {
       return of(undefined);
     }
 
-    return this.firebaseMessagingSupported$().pipe(
-      switchMap((supported) => {
-        if (!supported) {
-          return of(undefined);
-        }
+    return this.withLocalMessaging$(async () => {
+      const optedInUid = this.requireLocalStorage().getItem(PUSH_OPT_IN_UID_STORAGE_KEY);
+      if (optedInUid && optedInUid !== uid) return;
+      if (this.messagingWithWorker) {
+        const removed = await this.sdk.deleteToken(this.messagingWithWorker);
+        if (!removed) throw new Error('O navegador não confirmou a remoção do token Web Push.');
+        this.messagingWithWorker = null;
+        return;
+      }
 
-        return this.messaging$().pipe(
-          switchMap((messaging) =>
-            defer(() => from(deleteToken(messaging)))
-          ),
-          map(() => undefined)
-        );
+      const path = this.resolveServiceWorkerPath();
+      const registration = await navigator.serviceWorker.getRegistration(path);
+      const worker = registration?.active;
+      if (worker && new URL(worker.scriptURL).pathname === path) {
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription && !await subscription.unsubscribe()) {
+          throw new Error('O navegador não confirmou a remoção do Web Push.');
+        }
+      }
+    });
+  }
+
+  private clearOptInAfterAccountChange$(outgoingUid: string | null, incomingUid: string | null): Observable<void> {
+    return defer(() => {
+      if (!this.resolveVapidKey() || !this.hasBrowserPushApis()) return of(undefined);
+      const ownerUid = this.requireLocalStorage().getItem(PUSH_OPT_IN_UID_STORAGE_KEY);
+      const inactiveUid = ownerUid ?? outgoingUid;
+      if (!inactiveUid || inactiveUid === incomingUid || (!incomingUid && inactiveUid !== outgoingUid)) {
+        return of(undefined);
+      }
+      this.removeOptInSafely(inactiveUid);
+      return this.deleteLocalMessagingToken$(inactiveUid);
+    }).pipe(
+      catchError((error) => {
+        this.reportError(error, 'clearOptInAfterAccountChange');
+        return of(undefined);
       })
     );
   }
 
+  private withLocalMessaging$<T>(work: () => Promise<T>): Observable<T> {
+    return defer(() => {
+      // As Promises do SDK continuam executando após cancelar uma inscrição.
+      // A próxima mutação local só começa quando a anterior realmente termina.
+      const task = this.localMessagingWork.then(work);
+      this.localMessagingWork = task.catch(() => undefined);
+      return from(task);
+    });
+  }
+
+  private captureSession(uid = this.session.currentAuthUser?.uid): PushSession | null {
+    const user = this.session.currentAuthUser;
+    if (!user || user.uid !== uid || this.session.isTerminatingSnapshot) return null;
+    return { user, terminationVersion: this.session.terminationVersionSnapshot, optOutVersion: this.optOutVersion };
+  }
+
+  private isCurrent(scope: PushSession): boolean {
+    return this.session.currentAuthUser === scope.user &&
+      !this.session.isTerminatingSnapshot &&
+      this.session.terminationVersionSnapshot === scope.terminationVersion &&
+      this.optOutVersion === scope.optOutVersion;
+  }
+
   private firebaseMessagingSupported$(): Observable<boolean> {
-    return defer(() => from(isSupported())).pipe(
+    return defer(() => from(this.sdk.isSupported())).pipe(
       catchError((error) => {
         this.reportError(error, 'isSupported');
         return of(false);
@@ -528,8 +622,6 @@ export class PushNotificationDeviceService implements OnDestroy {
   }
 
   private hasPersistedOptInForUid(uid: string): boolean {
-    if (this.sessionForcedOptOut) return false;
-
     const storage = this.requireLocalStorage();
     return storage.getItem(PUSH_OPT_IN_UID_STORAGE_KEY) === uid;
   }
@@ -539,9 +631,12 @@ export class PushNotificationDeviceService implements OnDestroy {
     storage.setItem(PUSH_OPT_IN_UID_STORAGE_KEY, uid);
   }
 
-  private removeOptInSafely(): void {
+  private removeOptInSafely(uid: string): void {
     try {
-      this.requireLocalStorage().removeItem(PUSH_OPT_IN_UID_STORAGE_KEY);
+      const storage = this.requireLocalStorage();
+      if (storage.getItem(PUSH_OPT_IN_UID_STORAGE_KEY) === uid) {
+        storage.removeItem(PUSH_OPT_IN_UID_STORAGE_KEY);
+      }
     } catch (error) {
       this.reportError(error, 'persistOptOut');
     }
@@ -591,14 +686,15 @@ export class PushNotificationDeviceService implements OnDestroy {
     sourceFactory: () => Observable<PushNotificationDeviceState>
   ): Observable<PushNotificationDeviceState> {
     return defer(() => {
-      if (this.busySubject.value) {
-        return of(this.stateSubject.value);
-      }
+      if (this.busySubject.value) return EMPTY;
 
+      const version = this.optOutVersion;
       this.busySubject.next(true);
 
       return sourceFactory().pipe(
-        finalize(() => this.busySubject.next(false))
+        finalize(() => {
+          if (version === this.optOutVersion) this.busySubject.next(false);
+        })
       );
     });
   }
@@ -610,10 +706,7 @@ export class PushNotificationDeviceService implements OnDestroy {
     return state;
   }
 
-  private failOperation(
-    error: unknown,
-    _operation: string
-  ): Observable<never> {
+  private failOperation(error: unknown): Observable<never> {
     this.setState('error');
     return throwError(() => error);
   }

@@ -1,4 +1,4 @@
-// Executa somente a integração do Direct Chat em um Firestore Emulator isolado.
+// Executa integrações de chat e isolamento de notificações em um Firestore Emulator isolado.
 // Não reutiliza nem encerra os emuladores do desenvolvimento.
 import { spawn } from 'node:child_process';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
@@ -57,6 +57,7 @@ try {
     'functions/lib/chat/direct-chat/application/direct-unread-backfill.emulator.test.js',
     'functions/lib/chat/direct-chat/application/direct-unread-backfill.metrics.emulator.test.js',
     'functions/lib/chat/direct-chat/application/direct-unread-backfill.journal.emulator.test.js',
+    'functions/lib/notifications/push-device-registry.emulator.test.js',
   ].join(' ');
   const args = [
     'emulators:exec',

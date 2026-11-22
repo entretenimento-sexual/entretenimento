@@ -24,7 +24,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
-import type { UserCredential } from 'firebase/auth';
+import type { User, UserCredential } from 'firebase/auth';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
@@ -264,10 +264,13 @@ export class AuthFacade {
    * - navegar para result.nextRoute
    * - abrir fluxo complementar
    */
-  googleLogin$(rememberMe = true): Observable<AuthFacadeSocialAuthResult> {
+  googleLogin$(rememberMe = true, onAuthenticated?: (user: User) => void): Observable<AuthFacadeSocialAuthResult> {
     this.startLoading();
 
-    return this.socialAuthService.googleLogin(rememberMe).pipe(
+    const attempt$ = onAuthenticated
+      ? this.socialAuthService.googleLogin(rememberMe, onAuthenticated)
+      : this.socialAuthService.googleLogin(rememberMe);
+    return attempt$.pipe(
       map((result) => this.normalizeSocialAuthResult(result)),
       catchError((err: any) =>
         of({

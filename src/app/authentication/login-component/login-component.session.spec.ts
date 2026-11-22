@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { NavigationEnd, Router, RouterModule, provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import type { User } from 'firebase/auth';
 import { BehaviorSubject, NEVER, Observable, Subject, defer, filter, firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -38,6 +39,8 @@ describe('LoginComponent e sessão compartilhada', () => {
   let blockedReason$: BehaviorSubject<string | null>;
   let login$: ReturnType<typeof vi.fn>;
   let googleLogin$: ReturnType<typeof vi.fn>;
+  let resolveAfterEmailLogin$: ReturnType<typeof vi.fn>;
+  let authUser: { uid: string } | null;
   let report: ReturnType<typeof vi.fn>;
   let registrationVm$: Observable<RegisterFlowVm>;
   let invalidation: AuthAppBlockService['invalidationSnapshot'];
@@ -48,6 +51,8 @@ describe('LoginComponent e sessão compartilhada', () => {
     blockedReason$ = new BehaviorSubject<string | null>(null);
     login$ = vi.fn();
     googleLogin$ = vi.fn();
+    resolveAfterEmailLogin$ = vi.fn();
+    authUser = null;
     report = vi.fn().mockReturnValue({ userMessage: 'Falha na tentativa local.' });
     registrationVm$ = NEVER;
     invalidation = null;
@@ -88,7 +93,10 @@ describe('LoginComponent e sessão compartilhada', () => {
         ], withComponentInputBinding()),
         { provide: AuthSessionService, useValue: {
           ready$, uid$,
-          get currentAuthUser() { return uid$.value ? { uid: uid$.value } : null; },
+          get currentAuthUser() {
+            if (authUser?.uid !== uid$.value) authUser = uid$.value ? { uid: uid$.value } : null;
+            return authUser;
+          },
         } },
         { provide: AccessControlService, useValue: {
           ready$, authUid$: uid$, appUser$, blockedReason$, emailVerified$: of(true),
@@ -105,7 +113,7 @@ describe('LoginComponent e sessão compartilhada', () => {
         { provide: AuthFacade, useValue: { googleLogin$ } },
         { provide: EmailInputModalService, useValue: {} },
         { provide: LoginService, useValue: { login$ } },
-        { provide: PostAuthNavigationService, useValue: {} },
+        { provide: PostAuthNavigationService, useValue: { resolveAfterEmailLogin$ } },
         { provide: RegisterFlowFacade, useValue: { vm$: defer(() => registrationVm$) } },
       ],
     }).overrideComponent(LoginComponent, { set: { styleUrls: [] } });
@@ -119,6 +127,37 @@ describe('LoginComponent e sessão compartilhada', () => {
       filter((event) => event instanceof NavigationEnd && event.urlAfterRedirects === destination)
     ));
   }
+
+  it('anuncia identidade confirmada antes do perfil e oferece retomar sem senha se a navegação falhar', async () => {
+    const login = await harness.navigateByUrl(attempt, LoginComponent);
+    const result$ = new Subject<{ success: boolean }>();
+    const target$ = new Subject<string>();
+    let confirm!: (user: User) => void;
+    login$.mockImplementation((_email, _password, _remember, confirmIdentity) => {
+      confirm = confirmIdentity;
+      return result$;
+    });
+    resolveAfterEmailLogin$.mockReturnValue(target$);
+    login.loginForm.patchValue({ email: 'pessoa@example.com', password: 'senha' });
+    login.login();
+    harness.detectChanges();
+    expect(harness.routeNativeElement?.querySelector('.loading-overlay')?.textContent)
+      .toContain('Conferindo e-mail e senha');
+
+    uid$.next('uid-alice');
+    confirm(TestBed.inject(AuthSessionService).currentAuthUser!);
+    harness.detectChanges();
+    expect(harness.routeNativeElement?.querySelector('.loading-overlay')?.textContent)
+      .toContain('Identidade confirmada. Conferindo seu acesso');
+    result$.next({ success: true });
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValueOnce(false);
+    target$.next(destination);
+    await vi.waitFor(() => expect(login.sharedSessionStatus).toBe('failed'));
+    harness.detectChanges();
+    expect(harness.routeNativeElement?.textContent).toContain('Continuar com a sessão atual');
+    expect(navigate).toHaveBeenCalledOnce();
+    expect(login$.mock.calls).toHaveLength(1);
+  });
 
   it('mostra um convite neutro sem sessão e abre os Termos quando a sessão é restaurada', async () => {
     const target = '/register/aceitar-termos';

@@ -23,8 +23,9 @@ import {
 import { Location } from '@angular/common';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
+import type { User } from 'firebase/auth';
 
-import { BehaviorSubject, EMPTY, Observable, Subject, combineLatest, defer, of } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, Subject, combineLatest, defer, of, timer } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -60,6 +61,7 @@ const SESSION_END_MESSAGES: Record<SessionEndReason, string> = {
   'session-disabled': 'A autenticação desta conta foi desativada. Se você precisar recuperar o acesso, fale com o suporte.',
 };
 const SHARED_SESSION_NAVIGATION_TIMEOUT_MS = 15_000;
+const SLOW_LOGIN_FEEDBACK_MS = 8_000;
 
 type LoginAction =
   | 'idle'
@@ -125,6 +127,10 @@ export class LoginComponent implements OnInit {
   private readonly appBlock = inject(AuthAppBlockService);
   private readonly localLoginBusy$ = new BehaviorSubject(false);
   private readonly retrySharedSession$ = new Subject<void>();
+  private confirmedUser: User | null = null;
+  private retryConfirmedUid: string | null = null;
+  private openingDestination = false;
+  private waitingForCredentials = false;
   readonly sessionUid$ = this.authSession.uid$;
 
   get isLoading(): boolean {
@@ -153,6 +159,13 @@ export class LoginComponent implements OnInit {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+    this.localLoginBusy$.pipe(
+      switchMap((busy) => busy ? timer(SLOW_LOGIN_FEEDBACK_MS).pipe(map(() => true)) : of(false)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe((waiting) => {
+      this.waitingForCredentials = waiting;
+      this.cdr.markForCheck();
+    });
     this.resumeSharedSession();
   }
 
@@ -206,8 +219,11 @@ export class LoginComponent implements OnInit {
 
         // Reutiliza o guard da rota original para decidir destino, bloqueio e cadastro.
         const loginUrl = this.router.url;
-        return this.retrySharedSession$.pipe(
-          startWith(void 0),
+        const needsRetry = this.retryConfirmedUid === uid;
+        this.retryConfirmedUid = null;
+        if (needsRetry) this.setSharedSessionStatus('failed');
+        const requests$ = needsRetry ? this.retrySharedSession$ : this.retrySharedSession$.pipe(startWith(void 0));
+        return requests$.pipe(
           exhaustMap(() => this.openSharedSession$(loginUrl))
         );
       }),
@@ -293,19 +309,25 @@ export class LoginComponent implements OnInit {
   }
 
   get primaryButtonLabel(): string {
-    return this.isEmailLoginLoading ? 'Conferindo acesso...' : 'Entrar';
+    return this.isEmailLoginLoading ? 'Entrando…' : 'Entrar';
   }
 
   get googleButtonLabel(): string {
-    return this.isGoogleLoginLoading ? 'Abrindo Google...' : 'Continuar com Google';
+    return this.isGoogleLoginLoading ? 'Entrando…' : 'Continuar com Google';
   }
 
   get loadingMessage(): string {
+    if (this.openingDestination) return 'Abrindo a próxima tela…';
+    if (this.confirmedUser) return 'Identidade confirmada. Conferindo seu acesso…';
     switch (this.currentAction) {
       case 'emailLogin':
-        return 'Entrando e conferindo seu cadastro...';
+        return this.waitingForCredentials
+          ? 'Ainda estamos aguardando a confirmação da entrada…'
+          : 'Conferindo e-mail e senha…';
       case 'googleLogin':
-        return 'Abrindo autenticação com Google...';
+        return this.waitingForCredentials
+          ? 'Aguardando o Google. Conclua a entrada na janela aberta.'
+          : 'Aguardando a confirmação do Google…';
       case 'idle':
       default:
         return 'Processando...';
@@ -313,7 +335,6 @@ export class LoginComponent implements OnInit {
   }
 
   get currentAssistiveStatus(): string {
-    // Mensagens e progresso já usam regiões aria-live dedicadas no template.
     return 'Formulário de login pronto.';
   }
 
@@ -340,7 +361,7 @@ export class LoginComponent implements OnInit {
     this.setBusyState(true, 'emailLogin');
 
     this.loginservice
-      .login$(email, password)
+      .login$(email, password, undefined, this.confirmIdentity)
       .pipe(
         switchMap((result) => {
           if (!result?.success) {
@@ -356,17 +377,11 @@ export class LoginComponent implements OnInit {
           );
         }),
         switchMap((target) => target
-          ? this.navigateAfterLogin$(target)
+          ? this.openConfirmedDestination$(target)
           : of(void 0)
         ),
         catchError((error: unknown) => {
-          const descriptor = this.applicationError.report(error, {
-            feature: 'login',
-            operation: 'resolveAfterEmailLogin$',
-            fallbackMessage: 'Não foi possível concluir o acesso agora. Tente novamente.',
-            presentation: { surface: 'inline', severity: 'error' },
-          });
-          this.setSystemError(descriptor.userMessage);
+          this.reportLoginError(error, 'resolveAfterEmailLogin$');
           return of(void 0);
         }),
         finalize(() => this.setBusyState(false)),
@@ -384,7 +399,7 @@ export class LoginComponent implements OnInit {
     const redirectTo = this.route.snapshot.queryParamMap.get('redirectTo');
 
     this.authFacade
-      .googleLogin$()
+      .googleLogin$(true, this.confirmIdentity)
       .pipe(
         switchMap((result) => {
           if (!result?.success) {
@@ -397,17 +412,11 @@ export class LoginComponent implements OnInit {
           return this.postAuthNavigation.resolveAfterSocialLogin$(result, redirectTo);
         }),
         switchMap((target) => target
-          ? this.navigateAfterLogin$(target)
+          ? this.openConfirmedDestination$(target)
           : of(void 0)
         ),
         catchError((error: unknown) => {
-          const descriptor = this.applicationError.report(error, {
-            feature: 'login',
-            operation: 'resolveAfterSocialLogin$',
-            fallbackMessage: 'Não foi possível concluir o acesso com Google agora.',
-            presentation: { surface: 'inline', severity: 'error' },
-          });
-          this.setSystemError(descriptor.userMessage);
+          this.reportLoginError(error, 'resolveAfterSocialLogin$');
           return of(void 0);
         }),
         finalize(() => this.setBusyState(false)),
@@ -416,10 +425,36 @@ export class LoginComponent implements OnInit {
       .subscribe();
   }
 
+  private readonly confirmIdentity = (user: User): void => {
+    this.confirmedUser = user;
+    this.cdr.markForCheck();
+  };
+
+  private openConfirmedDestination$(target: string): Observable<void> {
+    this.openingDestination = true;
+    this.cdr.markForCheck();
+    return this.navigateAfterLogin$(target);
+  }
+
+  private reportLoginError(error: unknown, operation: string): void {
+    const user = this.confirmedUser;
+    const canContinue = user && this.authSession.currentAuthUser === user &&
+      !this.authSession.isTerminatingSnapshot && this.appBlock.invalidationSnapshot?.uid !== user.uid;
+    if (canContinue) this.retryConfirmedUid = user.uid;
+    const descriptor = this.applicationError.report(error, {
+      feature: 'login',
+      operation,
+      fallbackMessage: 'Não foi possível concluir o acesso agora. Tente novamente.',
+      presentation: { surface: canContinue ? 'none' : 'inline', severity: 'error' },
+    });
+    if (!canContinue) this.setSystemError(descriptor.userMessage);
+  }
+
   private navigateAfterLogin$(target: string): Observable<void> {
     return defer(() => this.router.navigateByUrl(target, { replaceUrl: true })).pipe(
+      timeout({ first: SHARED_SESSION_NAVIGATION_TIMEOUT_MS }),
       map((navigated) => {
-        if (!navigated) {
+        if (!navigated || this.router.url.split(/[?#]/)[0] === '/login') {
           throw Object.assign(new Error('A navegação foi interrompida.'), {
             code: 'auth/post-login-navigation',
           });
@@ -452,6 +487,8 @@ export class LoginComponent implements OnInit {
     action: LoginAction = 'idle'
   ): void {
     this.currentAction = isBusy ? action : 'idle';
+    this.confirmedUser = null;
+    this.openingDestination = false;
 
     if (isBusy) {
       this.loginForm.disable({ emitEvent: false });
