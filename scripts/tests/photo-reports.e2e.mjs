@@ -177,12 +177,12 @@ async function run() {
     moderatorUid = credentials[3].user.uid;
     privateStoragePath = `users/${ownerUid}/uploads/images/${photoId}.png`;
 
+    await seedPublicMediaCompliance(adminDb, [ownerUid, visitorAUid, visitorBUid, moderatorUid]);
     await Promise.all([
       adminAuth.setCustomUserClaims(moderatorUid, { admin: true }),
       adminDb.doc('users/' + moderatorUid).set({
-        staffRoles: ['admin'], accountStatus: 'active',
+        staffRoles: ['admin'],
       }, { merge: true }),
-      seedPublicMediaCompliance(adminDb, [ownerUid, visitorAUid, visitorBUid]),
     ]);
     await credentials[3].user.getIdToken(true);
 

@@ -163,12 +163,12 @@ async function run() {
     publishedStoragePath =
       `users/${ownerUid}/published/videos/${videoId}/assets/${assetVersion}`;
 
+    await seedPublicMediaCompliance(db, [ownerUid, visitorAUid, visitorBUid, moderatorUid]);
     await Promise.all([
       adminAuth.setCustomUserClaims(moderatorUid, { admin: true }),
       db.doc('users/' + moderatorUid).set({
-        staffRoles: ['admin'], accountStatus: 'active',
+        staffRoles: ['admin'],
       }, { merge: true }),
-      seedPublicMediaCompliance(db, [ownerUid, visitorAUid, visitorBUid]),
     ]);
     await credentials[3].user.getIdToken(true);
 
