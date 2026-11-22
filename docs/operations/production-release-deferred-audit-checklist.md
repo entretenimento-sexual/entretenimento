@@ -61,12 +61,33 @@ Console: repetir o diagnóstico antes de qualquer decisão.
 
 ## Domínio internacional e privacidade cadastral
 
-O nome e a compra ficam para o pré-deploy de produção. Preferir um nome de
-marca neutro, sem referência sexual explícita nem dados pessoais, em um domínio
-genérico internacional como `.com`. A apresentação da plataforma deve descrever
-com precisão o serviço para maiores de 18 anos, inclusive na tela de
-consentimento do Google.
+**Decisão recomendada para o pré-deploy.** Escolher um `.com` de marca neutra,
+sem conotação sexual nem dados pessoais. Usar Cloudflare Registrar e o DNS da
+Cloudflare em modo `DNS only`, com o Angular servido no domínio próprio pelo
+Firebase Hosting. Manter Auth, Functions e Firestore nos projetos próprios de
+cada ambiente. Apresentar o serviço com precisão como uma plataforma para
+maiores de 18 anos, inclusive na marca e na descrição exibidas pelo Google
+OAuth. Confirmar separadamente o provedor que armazenará e entregará mídia
+explícita. A compra, o DNS e a configuração dos serviços ficam para a execução
+autorizada do pré-deploy.
 
+**Limite de privacidade.** A Cloudflare retém o cadastro completo e pode
+ocultar campos pessoais na consulta pública, conforme a extensão. A
+documentação informa que estado e país do titular ficam públicos. O Registrar
+exige os nameservers da Cloudflare. Se a visibilidade de estado e país for
+inaceitável, reavaliar registrador, extensão e serviço de privacidade antes
+de pagar. Definir também a titularidade real e os contatos institucionais,
+considerando as informações que a operação deve divulgar em seus próprios
+canais.
+[Ocultação cadastral na Cloudflare](https://developers.cloudflare.com/registrar/account-options/whois-redaction/)
+· [Contrato do Cloudflare Registrar](https://www.cloudflare.com/domain-registration-agreement/)
+· [Modo DNS only](https://developers.cloudflare.com/dns/proxy-status/).
+
+- [ ] **Preparar sem alterar serviços.** Selecionar candidatos de nome em
+  lista privada. Inventariar, em consulta ao código, URLs, marcas e contatos
+  que podem aparecer no login, nos links de e-mail, nos metadados da página e
+  nos canais de suporte. Anotar os campos públicos aceitáveis no RDAP e
+  preparar um roteiro de homologação com contas e mídia sintéticas.
 - [ ] **Escolher o nome e a extensão.** Conferir disponibilidade, conflito de
   marca e reputação de uso anterior do domínio. Comparar o custo de registro e
   renovação de registradores acreditados pela ICANN e confirmar que a política
@@ -85,9 +106,13 @@ consentimento do Google.
   processam as páginas, perfis, fotos e vídeos de usuários. Revisar o uso
   adulto previsto nos termos vigentes de DNS/CDN se aplicável,
   Firebase Hosting, Auth, Functions, Firestore, Storage, App Check e FCM.
-  Considerar a publicação e moderação de mídia adulta gerada por usuários.
-  Se houver dúvida sobre permissão, solicitar orientação formal do provedor e
-  resolver a pendência antes de publicar.
+  Descrever ao provedor que o uso envolve armazenamento e entrega de fotos e
+  vídeos sexualmente explícitos enviados por usuários adultos. Registrar
+  confirmação por escrito para o produto escolhido antes de aceitar arquivos
+  reais. Se a permissão do Storage permanecer indefinida, avaliar outro
+  provedor apenas para os arquivos, mantendo o domínio e a autenticação.
+  Validar também aferição de idade, autorização das pessoas retratadas,
+  moderação e retirada de acesso a arquivos e miniaturas.
   [Termos do Firebase por produto](https://firebase.google.com/terms/)
   · [Política de uso do Google Cloud](https://cloud.google.com/terms/aup).
 - [ ] **Registrar e conferir a consulta pública.** Após aprovar nome,
