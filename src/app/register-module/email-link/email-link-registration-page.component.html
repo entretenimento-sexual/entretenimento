@@ -13,7 +13,9 @@
 
       <header class="email-link-header">
         <h1 id="email-link-heading" #heading tabindex="-1">{{ title() }}</h1>
-        @if (mode === 'confirm') {
+        @if (mode === 'unavailable') {
+          <p>O cadastro por link ainda está indisponível neste ambiente. Se você já tem uma conta, entre para continuar.</p>
+        } @else if (mode === 'confirm') {
           @switch (linkState()) {
             @case ('confirm') { <p>Link recebido. Confirme a declaração de maioridade para validar o e-mail e seguir para a senha.</p> }
             @case ('sign-in') {
@@ -36,7 +38,13 @@
       @if (error()) { <p class="email-link-message email-link-message--error" role="alert">{{ error() }}</p> }
       @if (status()) { <p class="email-link-message" role="status">{{ status() }}</p> }
 
-      @if (mode === 'confirm') {
+      @if (mode === 'unavailable') {
+        <a class="app-action app-action--primary email-link-continue" routerLink="/login"
+          [queryParams]="{ retomarCadastro: '1' }">Entrar na minha conta</a>
+        <nav class="email-link-actions" aria-label="Alternativas de cadastro">
+          <a routerLink="/register">Abrir cadastro</a>
+        </nav>
+      } @else if (mode === 'confirm') {
         @if (linkState() === 'confirm') {
           <form [formGroup]="emailForm" (ngSubmit)="confirm()" novalidate>
             <label class="form-checkbox email-link-declaration">

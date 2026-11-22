@@ -93,6 +93,20 @@ Referências oficiais:
 
 [Validação por link de autenticação no Firebase](https://firebase.google.com/docs/auth/web/email-link-auth?hl=pt-BR) · [Handler de confirmação do Firebase](https://firebase.google.com/docs/auth/custom-email-handler)
 
+### Preparação por ambiente
+
+| Modo | Cadastro por e-mail primeiro | Verificação esperada |
+|---|---|---|
+| Desenvolvimento com emuladores | A prévia usa o Auth Emulator para validar o código e resolver o destinatário. | Cadastro completo, retomada em outro navegador e preservação das credenciais de contas já existentes. |
+| Staging | A rota de retorno informa a indisponibilidade do cadastro por link e oferece acesso à conta ou ao cadastro vigente. | Implementar e homologar a prova 18+ pré-Auth, o vínculo entre link e destinatário e o registro autoritativo da criação de senha no projeto isolado. |
+| Produção | A mesma rota de retorno informa a indisponibilidade e mantém acesso à confirmação vigente, ao login e à recuperação. | Usar a candidata homologada em staging, com Auth, Functions e Rules alinhados e aprovações vinculadas à revisão de release. |
+
+O retorno por link em um ambiente que ainda não o aceita retira o código da URL e apresenta as ações disponíveis sem consultar o link no Firebase. Links de confirmação do cadastro vigente continuam pelo handler de `VERIFY_EMAIL`.
+
+Para a próxima implementação, vincule uma prova 18+ vigente de um emissor confiável à tentativa de cadastro antes de provisionar a conta. Valide também a posse do e-mail por um mecanismo suportado na nuvem, sem reaproveitar a busca de códigos do emulador. A primeira definição de senha precisa de confirmação autoritativa vinculada ao UID. O Firebase documenta `passwordHash` apenas para registros obtidos por `listUsers()`, portanto a leitura que funciona com o `getUser()` do emulador não sustenta a transição de senha no fluxo hospedado.
+
+[UserRecord no Admin SDK](https://firebase.google.com/docs/reference/admin/node/firebase-admin.auth.userrecord) · [Funções de bloqueio do Firebase Auth](https://firebase.google.com/docs/auth/extend-with-blocking-functions)
+
 ### Ensaio de homologação do e-mail
 
 Ao retomar a homologação hospedada no pré-deploy, consulte a

@@ -127,9 +127,11 @@ const routes: Routes = [
 
       {
         path: 'register/continuar-por-email',
-        canMatch: [emailLinkPreviewCanMatch],
         loadComponent: loadEmailLinkPage,
-        data: { emailLinkMode: 'confirm', allowUnverified: true },
+        data: {
+          emailLinkMode: emailLinkPreviewCanMatch() ? 'confirm' : 'unavailable',
+          allowUnverified: true,
+        },
       },
       {
         path: 'register/definir-senha',

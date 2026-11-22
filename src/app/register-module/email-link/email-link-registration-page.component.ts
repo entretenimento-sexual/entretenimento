@@ -18,7 +18,7 @@ import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { clearSignupDraft } from '../data-access/signup-draft.storage';
 import { RegisterProgressComponent } from '../register-progress/register-progress.component';
 
-type LinkMode = 'confirm' | 'password';
+type LinkMode = 'confirm' | 'password' | 'unavailable';
 
 @Component({
   selector: 'app-email-link-registration-page',
@@ -38,13 +38,15 @@ export class EmailLinkRegistrationPageComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(FormBuilder).nonNullable;
-  private readonly authLink = this.route.snapshot.queryParamMap.get('oobCode') &&
+  readonly mode = this.route.snapshot.data['emailLinkMode'] as LinkMode;
+  private readonly hasActionCode = this.route.snapshot.queryParamMap.has('oobCode');
+  private readonly authLink = this.mode === 'confirm' && this.hasActionCode &&
     typeof window !== 'undefined' ? window.location.href : '';
 
-  readonly mode = this.route.snapshot.data['emailLinkMode'] as LinkMode;
   readonly hasLink = Boolean(this.authLink);
   readonly linkState = signal<EmailLinkInspectionState | 'retry' | 'active-session'>(this.hasLink ? 'retry' : 'unavailable');
   readonly title = computed(() => {
+    if (this.mode === 'unavailable') return 'Cadastro por link indisponível';
     if (this.mode === 'password') return 'Defina sua senha';
     switch (this.linkState()) {
       case 'confirm': return 'Confirme sua maioridade';
@@ -69,16 +71,18 @@ export class EmailLinkRegistrationPageComponent {
 
   constructor() {
     afterNextRender(() => this.heading()?.nativeElement.focus({ preventScroll: true }));
-    if (this.mode === 'confirm') {
-      if (this.authLink) inject(Location).replaceState(EMAIL_LINK_REGISTRATION_ROUTE);
-      this.checkLink();
-    } else {
+    if (this.mode !== 'password' && this.hasActionCode) {
+      inject(Location).replaceState(EMAIL_LINK_REGISTRATION_ROUTE);
+    }
+    if (this.mode === 'password') {
       this.checkPasswordState();
+    } else if (this.mode === 'confirm') {
+      this.checkLink();
     }
   }
 
   checkLink(): void {
-    if (this.busy()) return;
+    if (this.mode !== 'confirm' || this.busy()) return;
     this.linkState.set('retry');
     this.run(() => this.session.readyAuthUser$.pipe(
       take(1),
