@@ -70,9 +70,6 @@ export interface IntegrationsConfig {
 export interface FeaturesConfig {
   /** Laboratório emulado para o cadastro por link, sem ativar o fluxo em produção. */
   emailFirstSignupPreview?: boolean;
-  enforceEmailVerified?: boolean;
-  showGuestBanner?: boolean;
-  restrictedRoutesWhenUnverified?: string[];
 
   /**
    * Exige que a sessão possua a versão jurídica material vigente para navegar.

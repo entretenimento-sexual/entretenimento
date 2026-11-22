@@ -32,6 +32,7 @@ describe('AuthOrchestratorService canonical errors', () => {
 
     const appBlock = {
       set: vi.fn(),
+      domainBlockFor: vi.fn(() => null),
       clear: vi.fn(),
       reason$: { pipe: vi.fn() },
       invalidationSnapshot: null as { uid: string; reason: string } | null,
@@ -283,7 +284,7 @@ describe('AuthOrchestratorService canonical errors', () => {
     const confirmation = target.confirmAndSignOutIfMissing('user-a', 'deleted');
     result$.next(true);
     await confirmation;
-    expect(appBlock.set).toHaveBeenCalledWith('deleted');
+    expect(appBlock.set).toHaveBeenCalledWith('deleted', 'user-a');
   });
 
 });

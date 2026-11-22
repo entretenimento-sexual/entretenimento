@@ -196,6 +196,10 @@ publicação. Durante o desenvolvimento, seguir com os testes no emulador.
   confirmar que os avisos dela chegam normalmente. Verificar o Chrome e
   demais navegadores suportados, incluindo avisos genéricos do próprio
   navegador se a entrega for descartada pelo service worker.
+- [ ] Gerar o build do projeto de destino e executar `node scripts/quality/check-hosting-auth-assets.mjs`.
+  O Firebase CLI também executa essa verificação antes de publicar o Hosting.
+  Depois da publicação, confirmar que `/assets/firebase-messaging-sw.js` é
+  servido como JavaScript e que a SPA abre as rotas de recuperação.
 - [ ] Publicar Functions e o service worker no mesmo ciclo de release. Verificar
   a atualização do worker de uma instalação existente. Na Web, a Function
   envia alertas sem fila quando o navegador está offline, e o worker exige um

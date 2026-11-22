@@ -35,6 +35,7 @@ describe('AppComponent', () => {
   const logoutStub = {
     voluntaryLogoutStatus$: new BehaviorSubject<string | null>(null),
     retryVoluntaryLogout: vi.fn(),
+    canReloadPendingLogout: () => false,
   };
   const orchestratorStub = { start: vi.fn() };
   const presenceOrchestratorStub = { start: vi.fn() };
@@ -128,6 +129,7 @@ describe('AppComponent', () => {
 
   it('mantém a tela protegida inerte durante o logout e oferece recarga se demorar', () => {
     const fixture = TestBed.createComponent(AppComponent);
+    vi.spyOn(fixture.componentInstance, 'canReloadPendingLogout').mockReturnValue(true);
     const reload = vi.spyOn(fixture.componentInstance, 'reloadAfterPendingLogout').mockImplementation(() => {});
     const root = fixture.nativeElement as HTMLElement;
     fixture.detectChanges();
@@ -153,6 +155,18 @@ describe('AppComponent', () => {
     fixture.detectChanges();
     expect(root.textContent).toContain('Abrindo a tela de login');
     expect(root.querySelector<HTMLElement>('#route-content [hidden]')?.inert).toBe(true);
+  });
+
+  it('preserva a aba aberta quando a intenção de logout não pôde ser guardada', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    vi.spyOn(fixture.componentInstance, 'canReloadPendingLogout').mockReturnValue(false);
+    fixture.detectChanges();
+    logoutStub.voluntaryLogoutStatus$.next('delayed');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Mantenha esta aba aberta');
+    expect(fixture.nativeElement.querySelector('.logout-status button')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#route-content [hidden]')?.inert).toBe(true);
   });
 
   it('reabre a tela e oferece nova tentativa quando a mesma sessão continua ativa', () => {

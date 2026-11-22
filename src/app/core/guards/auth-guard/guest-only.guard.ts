@@ -13,7 +13,7 @@ import { PostAuthNavigationService } from 'src/app/register-module/data-access/p
 import { isRegistrationStepRoute, resolveRegistrationReturnUrl } from 'src/app/register-module/data-access/register-flow.model';
 
 import {
-  AUTH_GUARD_WAIT_MS, AUTH_UNAVAILABLE_REASON, buildAuthRetryTree, buildRedirectTree, buildWelcomeRedirectTree,
+  AUTH_GUARD_WAIT_MS, AUTH_UNAVAILABLE_REASON, buildAuthRetryTree, buildRedirectTree,
 } from '../_shared-guard/guard-utils';
 
 function routeOrChildrenAllowAuthenticated(route: ActivatedRouteSnapshot): boolean {
@@ -34,7 +34,6 @@ function decideGuestAccess$(attemptedUrl: string, allowAuthenticated: boolean, r
 
   const path = cleanUrl(attemptedUrl);
   const tryingLogin = path === '/login';
-  const tryingWelcome = path === '/register/welcome';
   const registrationStep = isRegistrationStepRoute(path) || path === '/register/verify';
   if (tryingLogin && router.parseUrl(attemptedUrl).queryParams['reason'] === AUTH_UNAVAILABLE_REASON) return of(true);
 
@@ -62,8 +61,9 @@ function decideGuestAccess$(attemptedUrl: string, allowAuthenticated: boolean, r
           : buildRedirectTree(router, '/login', safeRedirect ?? undefined, { reason: appBlock.invalidationSnapshot?.reason }));
       }
 
-      if (blockedReason && !tryingWelcome) {
-        return of<GuardResult>(buildWelcomeRedirectTree(router, safeRedirect ?? undefined, { reason: blockedReason }));
+      const domainBlock = appBlock.domainBlockFor(uid);
+      if (domainBlock) {
+        return of<GuardResult>(buildRedirectTree(router, '/conta/status', safeRedirect ?? undefined, { reason: domainBlock }));
       }
 
       // As etapas autenticadas validam o mesmo estado através de registrationStepGuard.

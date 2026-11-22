@@ -116,7 +116,7 @@ private dbg(msg: string, extra?: unknown): void {
       a.requiresSession === b.requiresSession &&
       a.inRegistrationFlow === b.inRegistrationFlow
     ),
-    tap((ctx) => this.dbg('context$', ctx)),
+    tap((ctx) => this.dbg('context$', { ...ctx, currentUrl: this.stripQueryAndHash(ctx.currentUrl) })),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(
       this.handleStreamError<AuthRouteContext>(

@@ -110,6 +110,7 @@ describe('LoginComponent e sessão compartilhada', () => {
           ready$, authUid$: uid$, appUser$, blockedReason$, emailVerified$: of(true),
         } },
         { provide: AuthAppBlockService, useValue: {
+          domainBlockFor: () => null,
           get invalidationSnapshot() { return invalidation; },
           reason$: blockedReason$,
         } },

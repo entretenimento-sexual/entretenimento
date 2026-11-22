@@ -1,7 +1,17 @@
 <!-- src/app/account/pages/account-status/account-status.component.html -->
 <main class="account-status-page app-page" aria-label="Status da conta">
   <section class="account-status-shell ui-container">
-    @if (vm$ | async; as vm) {
+    @if (domainBlock$ | async; as reason) {
+      <app-page-header title="Acesso à conta indisponível" />
+      <section class="app-card account-status-card" role="status">
+        <p>{{ reason === 'doc-missing-confirmed'
+          ? 'Os dados da sua conta deixaram de estar disponíveis. Se isso persistir, procure o suporte.'
+          : reason === 'deleted'
+            ? 'Esta conta foi excluída. Procure o suporte se precisar de orientação.'
+            : 'O acesso a esta conta está restrito. Procure o suporte para consultar a situação.' }}</p>
+        <button class="app-action app-action--primary" type="button" (click)="logout()">Sair da conta</button>
+      </section>
+    } @else if (vm$ | async; as vm) {
       <app-page-header
         [title]="vm.title"
         [subtitle]="vm.description"

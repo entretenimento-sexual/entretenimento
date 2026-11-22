@@ -1,13 +1,14 @@
 // src/app/register-module/data-access/register-flow.facade.ts
 import { Injectable, Optional } from '@angular/core';
 
-import { combineLatest, concat, EMPTY, Observable, of } from 'rxjs';
+import { combineLatest, concat, Observable, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
   map,
   shareReplay,
   switchMap,
+  timeout,
 } from 'rxjs/operators';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -88,12 +89,13 @@ export class RegisterFlowFacade {
           return of(resolve(false));
         }
 
-        return concat(
-          this.ageEligibility.reconcileTrustedStateOncePerSession$().pipe(
-            catchError(() => EMPTY)
-          ),
-          this.ageEligibility.current$
-        ).pipe(map(ageState => resolve(isCurrentAdultAccountAdmissionProjection(ageState))));
+        return this.ageEligibility.reconcileTrustedStateOncePerSession$().pipe(
+          timeout({ first: 4_000 }),
+          switchMap((decision) => concat(of(decision), this.ageEligibility.current$)),
+          map((decision) => resolve(isCurrentAdultAccountAdmissionProjection(decision))),
+          // A tela de maioridade oferece nova consulta quando a autoridade está indisponível.
+          catchError(() => of(resolve(false)))
+        );
       };
 
       if (!authReady || !uid || !emailVerified || !this.emailLink || !isEmailLinkPreviewUid(uid)) {

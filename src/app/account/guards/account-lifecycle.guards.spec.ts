@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from '@core/interfaces/iuser-dados';
 import { AUTH_GUARD_WAIT_MS } from '@core/guards/_shared-guard/guard-utils';
+import { AuthAppBlockService } from '@core/services/autentication/auth/auth-app-block.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { PostAuthNavigationService } from 'src/app/register-module/data-access/post-auth-navigation.service';
@@ -79,6 +80,17 @@ describe('account lifecycle guards', () => {
       ) as Observable<boolean | UrlTree>
     );
   }
+
+  it('mantém a conta bloqueada na página de status mesmo com dados ainda pendentes', async () => {
+    const block = TestBed.inject(AuthAppBlockService);
+    block.set('doc-missing-confirmed', 'user-1');
+    currentUser$.next(undefined);
+
+    const result = await runLifecycleGuard('/dashboard/principal');
+    expect(router.serializeUrl(result as UrlTree)).toContain('/conta/status');
+    expect(await runStatusGuard()).toBe(true);
+    expect(block.domainBlockFor('user-2')).toBeNull();
+  });
 
   it('libera conta ativa quando perfil e Auth possuem o mesmo UID', async () => {
     expect(await runLifecycleGuard()).toBe(true);

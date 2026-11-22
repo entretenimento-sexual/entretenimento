@@ -31,7 +31,8 @@
       <p role="status" aria-live="polite">Abrindo a tela de login…</p>
     }
   } @else if (logoutStatus) {
-    <div class="logout-status">
+    <section class="logout-status app-card" aria-labelledby="logout-status-title">
+      <h2 id="logout-status-title">Encerramento da sessão</h2>
       @if (logoutStatus === 'failed') {
         <p role="alert">Não conseguimos sair. Sua sessão continua ativa.</p>
         <button class="app-action app-action--primary" type="button" (click)="retryVoluntaryLogout()">
@@ -41,15 +42,17 @@
         <p role="status" aria-live="polite">
           {{ logoutStatus === 'ending'
             ? 'Encerrando sessão…'
-            : 'Ainda não conseguimos confirmar a saída. Você pode recarregar a página para retomar o encerramento.' }}
+            : (canReloadPendingLogout()
+              ? 'Ainda não conseguimos confirmar a saída. Você pode recarregar a página para retomar o encerramento.'
+              : 'Ainda não conseguimos confirmar a saída. Mantenha esta aba aberta enquanto a confirmação estiver pendente.') }}
         </p>
-        @if (logoutStatus !== 'ending') {
+        @if (logoutStatus !== 'ending' && canReloadPendingLogout()) {
           <button class="app-action app-action--primary" type="button" (click)="reloadAfterPendingLogout()">
             Recarregar para concluir a saída
           </button>
         }
       }
-    </div>
+    </section>
   }
   <div [hidden]="hideRoute" [inert]="hideRoute">
     <router-outlet></router-outlet>

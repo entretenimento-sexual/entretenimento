@@ -1,4 +1,5 @@
 // src/app/register-module/auth-verification-handler/auth-verification-handler.component.spec.ts
+import { Location } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { provideZonelessChangeDetection } from '@angular/core';
@@ -47,8 +48,6 @@ describe('AuthVerificationHandlerComponent', () => {
 
   let emailInputModalMock: {
     state$: BehaviorSubject<PasswordRecoveryModalState>;
-    isModalOpen: Subject<boolean>;
-    emailSentMessage: Subject<string>;
     openModal: Mock;
     closeModal: Mock;
     updateEmail: Mock;
@@ -99,8 +98,6 @@ describe('AuthVerificationHandlerComponent', () => {
         cooldownUntilMs: 0,
         feedback: null,
       }),
-      isModalOpen: new Subject<boolean>(),
-      emailSentMessage: new Subject<string>(),
       openModal: vi.fn(),
       closeModal: vi.fn(),
       updateEmail: vi.fn(),
@@ -161,7 +158,7 @@ describe('AuthVerificationHandlerComponent', () => {
     fixture.detectChanges();
 
     expect(component.isLoading).toBe(false);
-    expect(component.message).toBe('Código inválido ou ausente.');
+    expect(component.message).toBe('Reabra o link recebido por e-mail ou solicite um novo.');
   });
 
   it('deve oferecer novo link quando resetPassword vier sem oobCode', () => {
@@ -170,7 +167,7 @@ describe('AuthVerificationHandlerComponent', () => {
 
     expect(component.passwordResetUnavailable).toBe(true);
     expect(component.shouldShowRecoveryLink).toBe(true);
-    expect(component.message).toBe('Código inválido ou ausente.');
+    expect(component.message).toBe('Reabra o link recebido por e-mail ou solicite um novo.');
     expect(passwordResetValidationMock.validate$).not.toHaveBeenCalled();
   });
 
@@ -183,14 +180,17 @@ describe('AuthVerificationHandlerComponent', () => {
       })
     );
 
+    const replaceState = vi.spyOn(TestBed.inject(Location), 'replaceState');
     queryParamsSubject.next({ mode: 'verifyEmail', oobCode: 'abc123' });
     fixture.detectChanges();
 
+    expect(replaceState).toHaveBeenCalledWith('/__/auth/action', 'mode=verifyEmail');
     expect(emailVerificationMock.handleEmailVerification).not.toHaveBeenCalled();
     const confirm = fixture.nativeElement.querySelector('button');
     expect(confirm.textContent.trim()).toBe('Confirmar e-mail');
     confirm.click();
-    expect(emailVerificationMock.handleEmailVerification).toHaveBeenCalledTimes(1);
+    expect(emailVerificationMock.handleEmailVerification).toHaveBeenCalledExactlyOnceWith('abc123');
+    expect(component.oobCode).toBe('');
     expect(component.verifyOk).toBe(true);
     expect(component.actionSucceeded).toBe(true);
     expect(component.message).toBe('E-mail verificado com sucesso.');
@@ -434,16 +434,17 @@ describe('AuthVerificationHandlerComponent', () => {
   });
 
   it('informa erro quando as senhas não coincidirem', async () => {
-    component.mode = 'resetPassword';
-    component.oobCode = 'reset-code';
-    component.isLoading = false;
-    component.passwordResetCodeValidated = true;
+    queryParamsSubject.next({ mode: 'resetPassword', oobCode: 'reset-code' });
+    fixture.detectChanges();
     component.newPassword = 'SenhaSegura123';
     component.confirmPassword = 'OutraSenha123';
 
     await component.resetPassword();
 
-    expect(component.message).toBe('As senhas não coincidem.');
+    fixture.detectChanges();
+    const field = fixture.nativeElement.querySelector('#confirmPassword');
+    expect(field.getAttribute('aria-invalid')).toBe('true');
+    expect(field.getAttribute('aria-describedby')).toBe('password-reset-confirmation-error');
     expect(component.passwordResetOk).toBe(false);
     expect(loginServiceMock.confirmPasswordReset$).not.toHaveBeenCalled();
   });

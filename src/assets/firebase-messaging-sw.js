@@ -173,10 +173,10 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 importScripts(
-  'https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js'
+  'https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js'
 );
 importScripts(
-  'https://www.gstatic.com/firebasejs/11.10.0/firebase-messaging-compat.js'
+  'https://www.gstatic.com/firebasejs/12.19.0/firebase-messaging-compat.js'
 );
 
 const params = new URL(self.location.href).searchParams;

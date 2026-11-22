@@ -296,6 +296,40 @@ describe('PushNotificationDeviceService', () => {
       .not.toBe(fcm.register.mock.calls[0][0].deliveryBindingId);
   });
 
+  it('libera a interface no timeout e descarta trabalho expirado na fila do SDK', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      configurePush('granted');
+      let signalStarted!: () => void;
+      let finishToken!: (token: string) => void;
+      const started = new Promise<void>((resolve) => { signalStarted = resolve; });
+      fcm.getToken.mockImplementationOnce(() => {
+        signalStarted();
+        return new Promise<string>((resolve) => { finishToken = resolve; });
+      });
+      const service = TestBed.inject(PushNotificationDeviceService);
+      const start = () => firstValueFrom(service.activate$()).catch((error: unknown) => error);
+      const first = start();
+      await started;
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      expect(await first).toMatchObject({ name: 'TimeoutError' });
+      expect(await firstValueFrom(service.busy$)).toBe(false);
+      expect(await firstValueFrom(service.state$)).toBe('reload-required');
+
+      const queued = start();
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(await queued).toMatchObject({ name: 'TimeoutError' });
+      finishToken('a-valid-test-fcm-registration-token');
+
+      expect(await firstValueFrom(service.activate$())).toBe('active');
+      expect(fcm.getToken).toHaveBeenCalledTimes(2);
+      expect(fcm.register).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('desativa o token local ao assumir outra conta sem reaproveitar o opt-in anterior', async () => {
     configurePush('granted');
     const service = TestBed.inject(PushNotificationDeviceService);

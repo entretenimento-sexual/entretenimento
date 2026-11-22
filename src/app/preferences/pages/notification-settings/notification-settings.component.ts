@@ -128,6 +128,8 @@ export class NotificationSettingsComponent {
         return 'Não compatível';
       case 'unconfigured':
         return 'Não configurado';
+      case 'reload-required':
+        return 'Verificação pendente';
       case 'error':
         return 'Falha de sincronização';
       case 'inactive':
@@ -146,12 +148,18 @@ export class NotificationSettingsComponent {
         return 'Este navegador ou dispositivo não oferece os recursos necessários para Web Push com segurança.';
       case 'unconfigured':
         return 'Web Push ainda não está configurado neste ambiente. Nenhuma permissão será solicitada até a configuração estar completa.';
+      case 'reload-required':
+        return 'O navegador demorou para confirmar o Web Push. Recarregue a página para verificar a inscrição.';
       case 'error':
         return 'Não foi possível sincronizar este dispositivo. Você pode tentar novamente sem alterar suas preferências por tipo.';
       case 'inactive':
       default:
         return 'Ative somente se quiser receber alertas deste dispositivo fora da Central de Notificações.';
     }
+  }
+
+  reloadPushPage(): void {
+    window.location.reload();
   }
 
   retryPreferences(): void {
@@ -185,6 +193,7 @@ export class NotificationSettingsComponent {
               'A permissão não foi concedida. As notificações continuam inativas.'
             );
             return;
+          case 'reload-required':
           case 'error':
             return;
         }

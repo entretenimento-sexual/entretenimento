@@ -134,7 +134,9 @@
             spellcheck="false"
             autocapitalize="none"
             class="app-control"
-            aria-describedby="password-reset-help"
+            (blur)="confirmationTouched = true"
+            [attr.aria-invalid]="passwordMismatch ? 'true' : null"
+            [attr.aria-describedby]="passwordMismatch ? 'password-reset-confirmation-error' : 'password-reset-help'"
             [disabled]="isLoading"
           />
           <button
@@ -151,6 +153,9 @@
             ></i>
           </button>
         </div>
+        @if (passwordMismatch) {
+          <p id="password-reset-confirmation-error" class="app-field-error" role="status">As senhas precisam ser iguais.</p>
+        }
 
         <button
           type="submit"

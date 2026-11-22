@@ -43,6 +43,7 @@ import {
 } from 'rxjs/operators';
 
 import { buildAuthRetryTree, buildRedirectTree } from '@core/guards/_shared-guard/guard-utils';
+import { AuthAppBlockService } from '@core/services/autentication/auth/auth-app-block.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { REGISTER_FLOW_WAIT_MS } from './post-auth-navigation.service';
 import { RegisterFlowFacade } from './register-flow.facade';
@@ -133,6 +134,9 @@ export const registrationStepGuard: CanActivateFn = (
   const router = inject(Router);
   const registerFlow = inject(RegisterFlowFacade);
   const session = inject(AuthSessionService);
+  const appBlock = inject(AuthAppBlockService);
+  const block = appBlock.domainBlockFor(session.currentAuthUser?.uid);
+  if (block) return of(buildRedirectTree(router, '/conta/status', undefined, { reason: block }));
 
   const allowedSteps = getAllowedSteps(route.data?.['allowedRegisterSteps']);
 

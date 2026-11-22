@@ -240,10 +240,10 @@ export class AuthFacade {
     );
   }
 
-  handleEmailVerification$(): Observable<VerifyEmailResult> {
+  handleEmailVerification$(code: string): Observable<VerifyEmailResult> {
     this.startLoading();
 
-    return this.emailVerification.handleEmailVerification().pipe(
+    return this.emailVerification.handleEmailVerification(code).pipe(
       finalize(() => this.stopLoading())
     );
   }
@@ -261,7 +261,7 @@ export class AuthFacade {
    *
    * A UI decide:
    * - mostrar mensagem
-   * - navegar para result.nextRoute
+   * - consultar o destino em PostAuthNavigationService
    * - abrir fluxo complementar
    */
   googleLogin$(rememberMe = true, onAuthenticated?: (user: User) => void): Observable<AuthFacadeSocialAuthResult> {

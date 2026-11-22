@@ -1,4 +1,4 @@
-import { BehaviorSubject, firstValueFrom, of, Subject } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of, Subject, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import type { IUserAgeEligibility } from 'src/app/core/interfaces/iuser-dados';
 import { RegisterFlowFacade } from './register-flow.facade';
@@ -92,6 +92,19 @@ describe('registration admission without redundant adult consent', () => {
     await expect(firstValueFrom(vm.vm$)).resolves.toMatchObject({ currentStep: 'accountRecovery' });
     authUser$.next({ uid: 'next-user', emailVerified: true });
     await expect(firstValueFrom(vm.vm$)).resolves.toMatchObject({ currentStep: 'loading', uid: 'next-user' });
+  });
+
+  it('mantém a etapa de maioridade quando o backend falha mesmo com autodeclaração local', async () => {
+    const { vm, reconcileAge, currentAge$ } = facade(false);
+    currentAge$.next({
+      status: 'SELF_DECLARED_ADULT', policyVersion: 1, source: 'SELF_DECLARATION',
+      method: 'SELF_DECLARATION', verifiedAtMs: null, expiresAtMs: null, updatedAtMs: 2,
+    });
+    reconcileAge.mockReturnValueOnce(throwError(() => new Error('offline')));
+
+    await expect(firstValueFrom(vm.vm$)).resolves.toMatchObject({
+      currentStep: 'ageVerification', ageEligibilityAllowed: false,
+    });
   });
 
   it('avança após atualizar a decisão etária na mesma sessão', () => {

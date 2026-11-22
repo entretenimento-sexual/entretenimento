@@ -40,7 +40,7 @@ describe('Account 18+ admission and age assurance boundary', () => {
       'reconcileTrustedStateOncePerSession$()'
     );
     expect(registerFlow).toContain(
-      'isCurrentAdultAccountAdmissionProjection(ageState)'
+      'isCurrentAdultAccountAdmissionProjection(decision)'
     );
     expect(registerFlow).not.toContain(
       'isCurrentTrustedAdultAgeProjection(ageState)'

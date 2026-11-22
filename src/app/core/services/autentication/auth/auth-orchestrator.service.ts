@@ -211,7 +211,6 @@ export class AuthOrchestratorService {
       ready: ctx.ready,
       routerReady: ctx.routerReady,
       uid: ctx.uid,
-      url: ctx.url,
       navPath: ctx.navPath,
       inReg: ctx.inReg,
       unverified: ctx.unverified,
@@ -244,6 +243,12 @@ export class AuthOrchestratorService {
      * conta ativa nem como punição. Paramos infraestrutura dependente do
      * usuário e aguardamos a hidratação canônica Firestore -> Store.
      */
+    if (this.appBlock.domainBlockFor(ctx.uid)) {
+      this.stopRuntimeSideEffects();
+      if (!ctx.inReg) this.navigateToAccountStatus(true);
+      return;
+    }
+
     if (!isRuntimeAccountLifecycleResolved(ctx.accountStatus)) {
       this.stopRuntimeSideEffects();
       return;
@@ -258,16 +263,6 @@ export class AuthOrchestratorService {
         } else {
           this.navigateToAccountStatus(true);
         }
-      }
-
-      return;
-    }
-
-    if (ctx.blockedReason) {
-      this.stopRuntimeSideEffects();
-
-      if (!ctx.inReg) {
-        this.navigateToWelcome(ctx.blockedReason, true);
       }
 
       return;
@@ -625,23 +620,6 @@ export class AuthOrchestratorService {
       });
   }
 
-  /**
-   * Navegação defensiva para a tela de welcome/onboarding.
-   */
-  private navigateToWelcome(reason: TerminateReason, replaceUrl = true): void {
-    const target = '/register/welcome';
-    const url = this.router.url || '';
-
-    if (url.startsWith(target) || isPublicLegalDocument(url)) return;
-
-    this.router
-      .navigate([target], {
-        queryParams: { reason, autocheck: '1' },
-        replaceUrl,
-      })
-      .catch(() => {});
-  }
-
   private isRegistrationFlowUrl(url: string): boolean {
     return isRegFlow(url);
   }
@@ -773,12 +751,12 @@ export class AuthOrchestratorService {
     this.terminating = true;
 
     try {
-      this.appBlock.set(reason);
+      this.appBlock.set(reason, this.sessionUid ?? undefined);
       this.stopRuntimeSideEffects();
       this.clearMissingDocProbe();
 
       this.notifyAppBlocked(reason);
-      this.navigateToWelcome(reason, true);
+      this.navigateToAccountStatus(true);
     } finally {
       this.terminating = false;
     }

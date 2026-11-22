@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { Observable, of } from 'rxjs';
+import { Observable, combineLatest, of } from 'rxjs';
 import {
   filter,
   finalize,
@@ -29,6 +29,9 @@ import {
   AccountReauthenticationMode,
 } from '../../models/account-lifecycle.model';
 import { AccountLifecycleDialogComponent } from '../../components/account-lifecycle-dialog/account-lifecycle-dialog.component';
+import { AuthAppBlockService } from '@core/services/autentication/auth/auth-app-block.service';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { LogoutService } from '@core/services/autentication/auth/logout.service';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import {
   normalizeUserAccountLifecycleStatus,
@@ -56,6 +59,17 @@ export class AccountStatusComponent {
   );
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly notify = inject(ErrorNotificationService);
+
+  private readonly authSession = inject(AuthSessionService);
+  private readonly appBlock = inject(AuthAppBlockService);
+  private readonly logoutService = inject(LogoutService);
+  readonly domainBlock$ = combineLatest([this.authSession.uid$, this.appBlock.reason$]).pipe(
+    map(([uid]) => this.appBlock.domainBlockFor(uid))
+  );
+
+  logout(): void {
+    this.logoutService.logout();
+  }
 
   readonly lifecycleState$ = this.accountLifecycleFacade.lifecycleState$;
   readonly vm$ = this.accountLifecycleFacade.statusVm$;

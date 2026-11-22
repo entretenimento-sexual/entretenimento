@@ -52,8 +52,12 @@ export class AppComponent implements OnInit {
     this.logoutService.retryVoluntaryLogout();
   }
 
+  canReloadPendingLogout(): boolean {
+    return this.logoutService.canReloadPendingLogout();
+  }
+
   reloadAfterPendingLogout(): void {
-    this.document.defaultView?.location.reload();
+    if (this.canReloadPendingLogout()) this.document.defaultView?.location.reload();
   }
 
   readonly showFooter$: Observable<boolean> = this.router.events.pipe(

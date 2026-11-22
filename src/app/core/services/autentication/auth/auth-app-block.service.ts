@@ -13,6 +13,7 @@ interface AuthInvalidation {
 
 @Injectable({ providedIn: 'root' })
 export class AuthAppBlockService {
+  private domainBlockUid: string | null = null;
   private readonly _reason$ = new BehaviorSubject<TerminateReason | null>(null);
 
   private readonly invalidationSubject = new BehaviorSubject<AuthInvalidation | null>(null);
@@ -55,12 +56,18 @@ export class AuthAppBlockService {
     return this._reason$.value;
   }
 
-  set(reason: TerminateReason | null): void {
+  domainBlockFor(uid: string | null | undefined): Exclude<TerminateReason, 'auth-invalid'> | null {
+    const reason = this.snapshot;
+    return uid && uid === this.domainBlockUid && reason !== 'auth-invalid' ? reason : null;
+  }
+
+  set(reason: TerminateReason | null, uid?: string): void {
+    this.domainBlockUid = reason && reason !== 'auth-invalid' ? uid ?? null : null;
     this._reason$.next(reason);
   }
 
   clear(): void {
-    this._reason$.next(null);
+    this.set(null);
   }
 }
 /*

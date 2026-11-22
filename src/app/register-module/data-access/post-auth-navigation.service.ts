@@ -1,9 +1,10 @@
 import { Injectable, Optional } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { observeUserChanges } from 'src/app/store/actions/actions.user/user.actions';
-import { Observable, catchError, defaultIfEmpty, defer, filter, map, merge, mergeMap, of, take, timeout, throwError } from 'rxjs';
+import { EMPTY, Observable, catchError, defaultIfEmpty, defer, filter, map, merge, mergeMap, of, take, timeout, throwError } from 'rxjs';
 
 import { AUTH_UNAVAILABLE_REASON } from '@core/guards/_shared-guard/guard-utils';
+import { AuthAppBlockService } from '@core/services/autentication/auth/auth-app-block.service';
 import { AuthReturnUrlService } from '@core/services/autentication/auth/auth-return-url.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import type { AuthFacadeSocialAuthResult } from '@core/services/autentication/auth/auth.facade';
@@ -22,7 +23,8 @@ export class PostAuthNavigationService {
     private readonly registerFlow: RegisterFlowFacade,
     private readonly authSession: AuthSessionService,
     @Optional() private readonly store?: Store,
-    @Optional() private readonly returnUrl?: AuthReturnUrlService
+    @Optional() private readonly returnUrl?: AuthReturnUrlService,
+    @Optional() private readonly appBlock?: AuthAppBlockService
   ) {}
 
   resolveAfterEmailLogin$(result: LoginResult, redirectTo: string | null): Observable<string> {
@@ -56,8 +58,14 @@ export class PostAuthNavigationService {
         catchError(() => of(unavailable)),
         defaultIfEmpty(unavailable)
       );
+      const blocked$ = this.appBlock?.reason$.pipe(
+        map(() => this.appBlock?.domainBlockFor(uid)),
+        filter((reason) => !!reason),
+        map((reason) => '/conta/status?reason=' + encodeURIComponent(reason))
+      ) ?? EMPTY;
       return merge(
         this.authSession.uid$.pipe(filter(() => !isCurrent()), mergeMap(() => throwError(changed))),
+        blocked$,
         decision$
       ).pipe(
         take(1),

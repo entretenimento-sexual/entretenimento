@@ -23,7 +23,7 @@ import {
   inject,
 } from '@angular/core';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import {
@@ -71,6 +71,7 @@ type HandlerMode = 'verifyEmail' | 'resetPassword' | '';
 })
 export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   private readonly changeDetector = inject(ChangeDetectorRef);
+  private readonly location = inject(Location);
   public isLoading = true;
 
   public mode: HandlerMode = '';
@@ -91,6 +92,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   public confirmPassword = '';
   public showPassword = false;
   public showConfirmPassword = false;
+  public confirmationTouched = false;
   public shouldShowRecoveryLink = false;
   public passwordResetOk = false;
   public passwordResetCompleted = false;
@@ -114,6 +116,10 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     private readonly logout: LogoutService
   ) {}
 
+  get passwordMismatch(): boolean {
+    return this.confirmationTouched && this.newPassword !== this.confirmPassword;
+  }
+
   get actionSucceeded(): boolean {
     return this.mode === 'verifyEmail' ? this.verifyOk : this.passwordResetOk;
   }
@@ -133,13 +139,18 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.route.queryParams
       .pipe(takeUntil(this.ngUnsubscribe))
       .subscribe((params) => {
-        const modeFromQuery = (params['mode'] as HandlerMode) ?? '';
-        const codeFromQuery = (params['oobCode'] as string | undefined) ?? '';
+        const mode = params['mode'];
+        const modeFromQuery: HandlerMode = mode === 'verifyEmail' || mode === 'resetPassword' ? mode : '';
+        const codeFromQuery = typeof params['oobCode'] === 'string' ? params['oobCode'].trim() : '';
 
         this.actionChanged.next();
         this.resetActionState();
         this.mode = modeFromQuery;
         this.oobCode = codeFromQuery;
+        if (params['oobCode'] !== undefined) {
+          const path = this.router.url?.split(/[?#]/, 1)[0] || '/__/auth/action';
+          this.location.replaceState(path, modeFromQuery ? 'mode=' + modeFromQuery : '');
+        }
 
         if (!this.mode) {
           this.message = 'Ação desconhecida.';
@@ -148,7 +159,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
         }
 
         if (!this.oobCode) {
-          this.message = 'Código inválido ou ausente.';
+          this.message = 'Reabra o link recebido por e-mail ou solicite um novo.';
           this.passwordResetUnavailable = this.mode === 'resetPassword';
           this.shouldShowRecoveryLink = this.mode === 'resetPassword';
           this.showGoToLoginCTA = this.mode === 'verifyEmail';
@@ -177,6 +188,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.ngUnsubscribe.next();
     this.ngUnsubscribe.complete();
     this.actionChanged.complete();
+    this.oobCode = '';
   }
 
   confirmEmailVerification(): void {
@@ -188,7 +200,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
   private processVerifyEmail(): void {
     this.setLoading(true);
-    this.emailVerificationService.handleEmailVerification()
+    this.emailVerificationService.handleEmailVerification(this.oobCode)
       .pipe(
         take(1),
         takeUntil(this.actionChanged),
@@ -212,6 +224,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.verifiedUser = activeUser && activeUser.uid === result.verifiedUid ? activeUser : null;
     this.verifiedSession = this.session.terminationVersionSnapshot;
     this.canRetryVerification = result.reason === 'unavailable';
+    if (!this.canRetryVerification) this.oobCode = '';
     this.canSwitchAccount = result.reason === 'different-account' ||
       ((result.reason === 'expired' || result.reason === 'invalid') && !!this.session.currentAuthUser);
     this.showGoToLoginCTA = !this.canSwitchAccount &&
@@ -393,7 +406,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     }
 
     if (this.newPassword !== this.confirmPassword) {
-      this.message = 'As senhas não coincidem.';
+      this.confirmationTouched = true;
       this.changeDetector.markForCheck();
       return;
     }
@@ -415,6 +428,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
           this.passwordResetCompleted = true;
           this.passwordResetCodeValidated = false;
           this.message = 'Senha redefinida com sucesso.';
+          this.oobCode = '';
           this.newPassword = '';
           this.confirmPassword = '';
         }),
@@ -494,6 +508,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.confirmPassword = '';
     this.showPassword = false;
     this.showConfirmPassword = false;
+    this.confirmationTouched = false;
     this.shouldShowRecoveryLink = false;
     this.passwordResetOk = false;
     this.passwordResetCompleted = false;

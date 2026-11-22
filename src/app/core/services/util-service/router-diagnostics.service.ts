@@ -137,6 +137,7 @@ export class RouterDiagnosticsService {
     }
 
     return text
+      .replace(/(oobCode(?:=|%3D))[^&#\s"'<>]+/gi, '$1[omitido]')
       .split(/([:/?&=|,\s]+)/)
       .map((token) => {
         const cleanToken = token.trim();

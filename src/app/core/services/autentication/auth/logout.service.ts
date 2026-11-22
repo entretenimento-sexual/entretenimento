@@ -49,7 +49,7 @@ import {
 
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { inRegistrationFlow as isRegFlow, type TerminateReason } from './auth.types';
-import { clearPendingLogout, savePendingLogout } from '@core/firebase/pending-logout';
+import { clearPendingLogout, readPendingLogout, savePendingLogout } from '@core/firebase/pending-logout';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 type SignOutMode = 'strict' | 'best-effort';
@@ -203,6 +203,11 @@ export class LogoutService {
       next: () => {},
       error: () => {},
     });
+  }
+
+  canReloadPendingLogout(): boolean {
+    const feedback = this.logoutFeedback.value;
+    return feedback !== null && readPendingLogout() === feedback.user.uid;
   }
 
   retryVoluntaryLogout(): void {

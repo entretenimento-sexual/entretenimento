@@ -103,7 +103,9 @@
             <label for="link-password-confirmation">Confirme a senha</label>
             <div class="password-field">
               <input class="app-control" id="link-password-confirmation" name="confirmPassword"
-                [type]="showConfirmPassword() ? 'text' : 'password'" formControlName="confirmation"
+                [type]="showConfirmPassword() ? 'text' : 'password'" formControlName="confirmation" (blur)="passwordChecked.set(true)"
+                [attr.aria-invalid]="passwordMismatch() ? 'true' : null"
+                [attr.aria-describedby]="passwordMismatch() ? 'link-password-confirmation-error' : null"
                 maxlength="128" autocomplete="new-password" spellcheck="false" autocapitalize="none" required />
               <button type="button" class="toggle-input" aria-label="Mostrar confirmação de senha"
                 aria-controls="link-password-confirmation" [attr.aria-pressed]="showConfirmPassword()"
@@ -113,6 +115,9 @@
               </button>
             </div>
           </div>
+          @if (passwordMismatch()) {
+            <p id="link-password-confirmation-error" class="app-field-error" role="status">As senhas precisam ser iguais.</p>
+          }
           <button class="app-action app-action--primary" type="submit" [disabled]="busy()">
             {{ busy() ? 'Confirmando senha…' : 'Definir senha e continuar' }}
           </button>

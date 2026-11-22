@@ -4,10 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EmailVerificationService } from './email-verification.service';
 
 describe('EmailVerificationService canonical errors', () => {
-  let router: {
-    url: string;
-    parseUrl: ReturnType<typeof vi.fn>;
-  };
   let authSession: {
     refreshCurrentUser$: ReturnType<typeof vi.fn>;
     terminationVersionSnapshot: number;
@@ -30,10 +26,6 @@ describe('EmailVerificationService canonical errors', () => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
 
-    router = {
-      url: '',
-      parseUrl: vi.fn(() => ({ queryParams: {} })),
-    };
     authSession = {
       refreshCurrentUser$: vi.fn(() => of(null)),
       terminationVersionSnapshot: 0,
@@ -52,7 +44,6 @@ describe('EmailVerificationService canonical errors', () => {
     };
 
     service = new EmailVerificationService(
-      router as any,
       authSession as any,
       userWrite as any,
       applicationError as any,
@@ -209,7 +200,6 @@ describe('EmailVerificationService canonical errors', () => {
   });
 
   function prepareLink(operation = 'VERIFY_EMAIL') {
-    router.parseUrl.mockReturnValue({ queryParams: { mode: 'verifyEmail', oobCode: 'synthetic-code' } });
     const check = vi.fn().mockResolvedValue({ operation, data: { email: 'A@example.test' } });
     Object.assign(service, { checkVerificationCode: check });
     const verify = vi.spyOn(service, 'verifyEmail').mockReturnValue(of(void 0));
@@ -220,7 +210,7 @@ describe('EmailVerificationService canonical errors', () => {
     auth.currentUser = { uid: 'B', email: 'b@example.test', emailVerified: true };
     const { verify } = prepareLink();
 
-    await expect(firstValueFrom(service.handleEmailVerification())).resolves.toEqual({
+    await expect(firstValueFrom(service.handleEmailVerification('synthetic-code'))).resolves.toEqual({
       ok: true, firestoreUpdated: false, reason: 'different-account',
     });
     expect(verify).toHaveBeenCalledExactlyOnceWith('synthetic-code');
@@ -230,7 +220,7 @@ describe('EmailVerificationService canonical errors', () => {
 
   it('confirma o link fora da sessão e deixa o perfil para o login', async () => {
     prepareLink();
-    await expect(firstValueFrom(service.handleEmailVerification())).resolves.toEqual({
+    await expect(firstValueFrom(service.handleEmailVerification('synthetic-code'))).resolves.toEqual({
       ok: true, firestoreUpdated: false, reason: 'not-logged-in',
     });
     expect(authSession.refreshCurrentUser$).not.toHaveBeenCalled();
@@ -239,7 +229,7 @@ describe('EmailVerificationService canonical errors', () => {
 
   it('não aplica um código de recuperação de senha como verificação de e-mail', async () => {
     const { verify } = prepareLink('PASSWORD_RESET');
-    await expect(firstValueFrom(service.handleEmailVerification()))
+    await expect(firstValueFrom(service.handleEmailVerification('synthetic-code')))
       .resolves.toEqual({ ok: false, reason: 'invalid' });
     expect(verify).not.toHaveBeenCalled();
   });
@@ -248,7 +238,7 @@ describe('EmailVerificationService canonical errors', () => {
     prepareLink();
     auth.currentUser = { uid: 'A', email: 'a@example.test', emailVerified: true };
     authSession.refreshCurrentUser$.mockReturnValue(of(auth.currentUser));
-    await expect(firstValueFrom(service.handleEmailVerification())).resolves.toEqual({
+    await expect(firstValueFrom(service.handleEmailVerification('synthetic-code'))).resolves.toEqual({
       ok: true, firestoreUpdated: true, verifiedUid: 'A',
     });
     expect(userWrite.patchEmailVerified$).toHaveBeenCalledExactlyOnceWith('A', true);
@@ -260,7 +250,7 @@ describe('EmailVerificationService canonical errors', () => {
     authSession.refreshCurrentUser$.mockReturnValue(of(auth.currentUser));
     userWrite.patchEmailVerified$.mockReturnValue(throwError(() => new Error('offline')));
 
-    await expect(firstValueFrom(service.handleEmailVerification())).resolves.toEqual({
+    await expect(firstValueFrom(service.handleEmailVerification('synthetic-code'))).resolves.toEqual({
       ok: true, firestoreUpdated: false, reason: 'sync-pending', verifiedUid: 'A',
     });
     expect(applicationError.report).toHaveBeenCalledTimes(1);
@@ -272,7 +262,7 @@ describe('EmailVerificationService canonical errors', () => {
     auth.currentUser = user;
     const refresh = new Subject<typeof user>();
     authSession.refreshCurrentUser$.mockReturnValue(refresh);
-    const result = firstValueFrom(service.handleEmailVerification());
+    const result = firstValueFrom(service.handleEmailVerification('synthetic-code'));
     await vi.waitFor(() => expect(authSession.refreshCurrentUser$).toHaveBeenCalledOnce());
     auth.currentUser = { uid: 'B', email: 'b@example.test', emailVerified: true };
     refresh.next(user);
@@ -288,7 +278,7 @@ describe('EmailVerificationService canonical errors', () => {
   ])('classifica a resposta %s para a próxima ação', async (code, reason) => {
     const { check } = prepareLink();
     check.mockRejectedValue(Object.assign(new Error('Firebase error'), { code }));
-    await expect(firstValueFrom(service.handleEmailVerification())).resolves.toEqual({ ok: false, reason });
+    await expect(firstValueFrom(service.handleEmailVerification('synthetic-code'))).resolves.toEqual({ ok: false, reason });
   });
 
   it('impede rediagnóstico verify→handle sem alterar o objeto público mapeado', () => {
@@ -362,37 +352,13 @@ describe('EmailVerificationService canonical errors', () => {
     });
   });
 
-  it('preserva resultados locais de handle antes de chamar Firebase Auth', async () => {
-    router.url = '/post-verification/action?mode=resetPassword&oobCode=abc';
-    router.parseUrl.mockReturnValue({
-      queryParams: {
-        mode: 'resetPassword',
-        oobCode: 'abc',
-      },
-    });
-
-    await expect(
-      firstValueFrom(service.handleEmailVerification())
-    ).resolves.toEqual({
+  it('rejeita código ausente sem chamar o Firebase nem registrar falha técnica', async () => {
+    const { check } = prepareLink();
+    await expect(firstValueFrom(service.handleEmailVerification(''))).resolves.toEqual({
       ok: false,
-      reason: 'unknown',
+      reason: 'invalid',
     });
-
-    expect(applicationError.report).not.toHaveBeenCalled();
-  });
-
-  it('preserva erro de action code ausente sem diagnóstico técnico', async () => {
-    router.url = '/post-verification/action?mode=verifyEmail';
-    router.parseUrl.mockReturnValue({
-      queryParams: {
-        mode: 'verifyEmail',
-      },
-    });
-
-    await expect(
-      firstValueFrom(service.handleEmailVerification())
-    ).rejects.toThrow('Código de verificação ausente na URL.');
-
+    expect(check).not.toHaveBeenCalled();
     expect(applicationError.report).not.toHaveBeenCalled();
   });
 

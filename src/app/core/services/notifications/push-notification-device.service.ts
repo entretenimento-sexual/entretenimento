@@ -30,6 +30,7 @@ import {
   EMPTY,
   Observable,
   Subscription,
+  TimeoutError,
   combineLatest,
   defer,
   forkJoin,
@@ -72,6 +73,7 @@ export type PushNotificationDeviceState =
   | 'blocked'
   | 'unsupported'
   | 'unconfigured'
+  | 'reload-required'
   | 'error';
 
 export interface PushNotificationDeviceVm {
@@ -193,7 +195,7 @@ export class PushNotificationDeviceService implements OnDestroy {
               catchError((error) => {
                 if (!this.isCurrent(scope)) return EMPTY;
                 this.reportError(error, 'startupSync');
-                return of(this.setState('error'));
+                return of(this.operationFailureState(error));
               })
             );
           })
@@ -301,11 +303,14 @@ export class PushNotificationDeviceService implements OnDestroy {
         ignoreElements(),
         catchError(() => EMPTY),
         endWith(undefined),
-        switchMap(() => this.busy$.pipe(filter((busy) => !busy), take(1))),
+        switchMap(() => this.busy$.pipe(filter((busy) => !busy), take(1), timeout({ first: PUSH_CLEANUP_TIMEOUT_MS }))),
         switchMap(() => this.isCurrent(scope) ? activation$ : EMPTY),
         takeUntil(this.session.authUser$.pipe(filter(() => !this.isCurrent(scope))))
       );
-    }).pipe(shareReplay({ bufferSize: 1, refCount: false }));
+    }).pipe(
+      catchError((error) => this.failOperation(error)),
+      shareReplay({ bufferSize: 1, refCount: false })
+    );
   }
 
   deactivate$(): Observable<PushNotificationDeviceState> {
@@ -481,7 +486,8 @@ export class PushNotificationDeviceService implements OnDestroy {
 
           if (persistOptIn) this.persistOptInForUid(scope.user.uid);
           return of(this.setState('active'));
-        })
+        }),
+        timeout({ first: PUSH_CLEANUP_TIMEOUT_MS })
       );
     }).pipe(
       catchError((error) => this.isCurrent(scope) ? throwError(() => error) : EMPTY)
@@ -587,11 +593,18 @@ export class PushNotificationDeviceService implements OnDestroy {
 
   private withLocalMessaging$<T>(work: () => Promise<T>): Observable<T> {
     return defer(() => {
-      // As Promises do SDK continuam executando após cancelar uma inscrição.
-      // A próxima mutação local só começa quando a anterior realmente termina.
-      const task = this.localMessagingWork.then(work);
+      // O deadline libera a interface. Uma mutação iniciada mantém a exclusão
+      // mútua e as mutações cujo prazo venceu na fila são descartadas.
+      let listening = true;
+      const task = this.localMessagingWork.then(() => {
+        if (!listening) throw new TimeoutError();
+        return work();
+      });
       this.localMessagingWork = task.catch(() => undefined);
-      return from(task);
+      return from(task).pipe(
+        timeout({ first: PUSH_CLEANUP_TIMEOUT_MS }),
+        finalize(() => { listening = false; })
+      );
     });
   }
 
@@ -765,8 +778,12 @@ export class PushNotificationDeviceService implements OnDestroy {
   }
 
   private failOperation(error: unknown): Observable<never> {
-    this.setState('error');
+    this.operationFailureState(error);
     return throwError(() => error);
+  }
+
+  private operationFailureState(error: unknown): PushNotificationDeviceState {
+    return this.setState(error instanceof TimeoutError ? 'reload-required' : 'error');
   }
 
   private reportError(

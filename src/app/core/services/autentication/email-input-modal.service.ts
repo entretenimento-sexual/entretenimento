@@ -10,7 +10,7 @@
 // - diferenciar a orientação de produção da orientação do Auth Emulator.
 // -----------------------------------------------------------------------------
 import { Injectable, OnDestroy } from '@angular/core';
-import { BehaviorSubject, Subject, Subscription, timer } from 'rxjs';
+import { BehaviorSubject, Subscription, timer } from 'rxjs';
 import { finalize, take } from 'rxjs/operators';
 
 import { LoginService } from '../autentication/login.service';
@@ -36,13 +36,6 @@ export interface PasswordRecoveryModalState {
 
 @Injectable({ providedIn: 'root' })
 export class EmailInputModalService implements OnDestroy {
-  /**
-   * Mantidos por compatibilidade com usos/specs antigos.
-   * Novo fluxo deve preferir state$.
-   */
-  public readonly isModalOpen = new Subject<boolean>();
-  public readonly emailSentMessage = new Subject<string>();
-
   private readonly cooldownStorageKey = '__AUTH_PASSWORD_RECOVERY_COOLDOWN_UNTIL__';
   private readonly cooldownMs = 60_000;
   private cooldownTimer?: Subscription;
@@ -100,8 +93,6 @@ export class EmailInputModalService implements OnDestroy {
       submittedEmail: null,
       feedback: null,
     });
-
-    this.isModalOpen.next(true);
   }
 
   closeModal(): void {
@@ -114,8 +105,6 @@ export class EmailInputModalService implements OnDestroy {
       submittedEmail: null,
       feedback: null,
     });
-
-    this.isModalOpen.next(false);
   }
 
   updateEmail(email: string): void {
@@ -153,9 +142,6 @@ export class EmailInputModalService implements OnDestroy {
     const currentState = this.stateSubject.value;
 
     if (currentState.isSending) return;
-    if (currentState.requestCompleted && currentState.submittedEmail === safeEmail) {
-      return;
-    }
 
     const cooldownUntilMs = this.getActiveCooldownUntilMs();
     if (cooldownUntilMs > Date.now()) {
@@ -208,8 +194,6 @@ export class EmailInputModalService implements OnDestroy {
       submittedEmail: email,
       feedback: { type: 'success', message },
     });
-
-    this.emailSentMessage.next(message);
   }
 
   private getSuccessMessage(): string {
@@ -294,8 +278,6 @@ export class EmailInputModalService implements OnDestroy {
     this.patchState({
       feedback: { type, message },
     });
-
-    this.emailSentMessage.next(message);
   }
 
   private normalizeEmail(email: string): string {

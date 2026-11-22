@@ -50,7 +50,7 @@ export const accountLifecycleGuard: CanActivateFn = (
      */
     filter(([ready, authUser, appUser]) => {
       if (!ready) return false;
-      if (!authUser) return true;
+      if (!authUser || appBlock.domainBlockFor(authUser.uid)) return true;
       return appUser !== undefined && (appUser === null || appUser.uid === authUser.uid);
     }),
     take(1),
@@ -69,7 +69,7 @@ export const accountLifecycleGuard: CanActivateFn = (
         user: appUser,
       };
 
-      const blockedReason = ageRegistrationRoute && appBlock.snapshot;
+      const blockedReason = appBlock.domainBlockFor(authUser.uid);
       const status = resolveAccountStatus(context);
       if (!blockedReason && status === 'registration_pending' && ageRegistrationRoute) return of(true);
       if (!blockedReason && (status === 'registration_pending' || appUser === null)) {

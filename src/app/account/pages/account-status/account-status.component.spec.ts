@@ -4,6 +4,8 @@ import { BehaviorSubject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from '@core/interfaces/iuser-dados';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { LogoutService } from '@core/services/autentication/auth/logout.service';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { AccountLifecycleFacade } from '../../application/account-lifecycle.facade';
@@ -67,6 +69,8 @@ describe('AccountStatusComponent', () => {
     await TestBed.configureTestingModule({
       imports: [AccountStatusComponent],
       providers: [
+        { provide: AuthSessionService, useValue: { uid$: of('user-1') } },
+        { provide: LogoutService, useValue: { logout: vi.fn() } },
         {
           provide: Router,
           useValue: { navigate },

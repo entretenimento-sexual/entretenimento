@@ -59,7 +59,7 @@ export const emailVerifiedGuard: CanActivateFn = (route, state) => {
        * BYPASS EXPLÍCITO APENAS EM DEV-EMU E APENAS PARA /preferencias
        * acionado pela navegação do WelcomeComponent.
        */
-      const nav = router.getCurrentNavigation();
+      const nav = router.currentNavigation();
       const devBypassEmailVerified =
         !environment.production &&
         environment.env === 'dev-emu' &&

@@ -63,12 +63,6 @@ export const environment: AppEnvironment = {
   },
 
   features: {
-    enforceEmailVerified: false,
-    showGuestBanner: true,
-    restrictedRoutesWhenUnverified: [
-      '/dashboard/chat',
-      '/dashboard/featured-profiles',
-    ],
 
     subscriberExperiencesPreview: false,
     communitiesEnabled: true,

@@ -66,6 +66,13 @@
               </button>
             }
 
+            @case ('reload-required') {
+              <button type="button" class="push-device-card__action app-action app-action--primary"
+                (click)="reloadPushPage()">
+                Recarregar página
+              </button>
+            }
+
             @case ('error') {
               <button
                 type="button"

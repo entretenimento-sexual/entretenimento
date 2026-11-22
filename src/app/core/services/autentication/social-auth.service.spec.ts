@@ -15,7 +15,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Auth } from '@angular/fire/auth';
 import { EnvironmentInjector } from '@angular/core';
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { NEVER, firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { SocialAuthService } from './social-auth.service';
@@ -133,6 +133,26 @@ describe('SocialAuthService', () => {
     await firstValueFrom(service.googleLogin(false));
 
     expect((service as any).ensurePersistentAuth$).toHaveBeenCalledWith(false);
+  });
+
+  it('encerra a espera de preparação mesmo quando a escrita do perfil não responde', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(signedIn(makeFirebaseUser()));
+      readMock.getDocument.mockReturnValue(of(makeExistingUserDoc()));
+      writeMock.updateDocument.mockReturnValue(NEVER);
+      const operation = firstValueFrom(service.googleLogin());
+
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(await operation).toMatchObject({
+        success: false,
+        code: 'social-auth/bootstrap-failed',
+        authenticatedUid: 'uid-123',
+      });
+      expect(authMock.currentUser?.uid).toBe('uid-123');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('deve ser criado', () => {

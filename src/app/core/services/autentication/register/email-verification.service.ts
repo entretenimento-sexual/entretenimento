@@ -8,7 +8,6 @@
 // - preserva os nomes públicos existentes.
 // -----------------------------------------------------------------------------
 import { Injectable } from '@angular/core';
-import { Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
 import {
   ActionCodeOperation,
@@ -50,7 +49,6 @@ export class EmailVerificationService {
   private readonly reportedErrors = new WeakSet<object>();
 
   constructor(
-    private readonly router: Router,
     private readonly authSession: AuthSessionService,
     private readonly userWrite: FirestoreUserWriteService,
     private readonly applicationError: ApplicationErrorService,
@@ -131,19 +129,10 @@ export class EmailVerificationService {
 
   private buildActionCodeSettings(base?: string): ActionCodeSettings {
     const continueBase = base ?? this.preferredBaseUrl();
-    const settings: ActionCodeSettings = {
+    return {
       url: this.buildContinueUrl(continueBase),
       handleCodeInApp: !this.isEmulator(),
     };
-
-    const config = environment as typeof environment & {
-      dynamicLinkDomain?: string;
-    };
-    if (config.dynamicLinkDomain) {
-      settings.dynamicLinkDomain = config.dynamicLinkDomain;
-    }
-
-    return settings;
   }
 
   reloadCurrentUser(): Observable<boolean> {
@@ -238,22 +227,9 @@ export class EmailVerificationService {
     );
   }
 
-  handleEmailVerification(): Observable<VerifyEmailResult> {
-    const tree = this.router.parseUrl(this.router.url || '');
-    const queryParams = tree?.queryParams ?? {};
-    const mode = String(queryParams['mode'] ?? '').trim() || null;
-    const actionCode =
-      String(queryParams['oobCode'] ?? '').trim() || null;
-
-    if (mode && mode !== 'verifyEmail') {
-      return of({ ok: false, reason: 'unknown' });
-    }
-
-    if (!actionCode) {
-      return throwError(
-        () => new Error('Código de verificação ausente na URL.')
-      );
-    }
+  handleEmailVerification(code: string): Observable<VerifyEmailResult> {
+    const actionCode = code.trim();
+    if (!actionCode) return of({ ok: false, reason: 'invalid' });
 
     return defer(() => {
       const initialUser = this.auth.currentUser;

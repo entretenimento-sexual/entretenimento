@@ -20,6 +20,24 @@
   ],
   "hosting": {
     "public": "dist/entretenimento/browser",
+    "predeploy": ["node scripts/quality/check-hosting-auth-assets.mjs"],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [{ "key": "X-Content-Type-Options", "value": "nosniff" }]
+      },
+      {
+        "source": "/assets/firebase-messaging-sw.js",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "regex": "^/(register/verify|register/continuar-por-email|post-verification/action|__/auth/action)$",
+        "headers": [
+          { "key": "Referrer-Policy", "value": "no-referrer" },
+          { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'" }
+        ]
+      }
+    ],
     "ignore": [
       "firebase.json",
       "**/.*",

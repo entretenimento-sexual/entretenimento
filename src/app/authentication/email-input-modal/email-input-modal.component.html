@@ -17,7 +17,7 @@
         <h2 id="password-recovery-title">Redefinir senha</h2>
 
         <p id="password-recovery-description" class="modal-description">
-          Informe o e-mail usado na conta. Após a solicitação, evite repetir o envio para o mesmo endereço.
+          Informe o e-mail usado na conta. Você poderá reenviar o link após o intervalo de segurança.
         </p>
 
         <form class="recovery-form" novalidate (ngSubmit)="sendEmail(vm.email)">
@@ -56,7 +56,7 @@
             </p>
           }
 
-          @if (vm.cooldownUntilMs > 0 && !vm.requestCompleted) {
+          @if (vm.cooldownUntilMs > 0) {
             <p class="recovery-next-step" role="status">
               Aguarde um minuto antes de solicitar outro envio.
             </p>
@@ -66,10 +66,10 @@
             <button
               class="app-action app-action--primary"
               type="submit"
-              [disabled]="vm.isSending || vm.requestCompleted || vm.cooldownUntilMs > 0"
+              [disabled]="vm.isSending || vm.cooldownUntilMs > 0"
               [attr.aria-busy]="vm.isSending ? 'true' : 'false'"
             >
-              {{ vm.isSending ? 'Enviando...' : vm.requestCompleted ? 'Solicitação enviada' : 'Enviar instruções' }}
+              {{ vm.isSending ? 'Enviando...' : vm.requestCompleted ? (vm.cooldownUntilMs > 0 ? 'Solicitação enviada' : 'Reenviar instruções') : 'Enviar instruções' }}
             </button>
 
             <button

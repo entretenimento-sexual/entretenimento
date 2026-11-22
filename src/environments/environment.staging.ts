@@ -64,9 +64,6 @@ export const environment: AppEnvironment = {
   },
 
   features: {
-    enforceEmailVerified: true, // exigir verificação
-    showGuestBanner: true,
-    restrictedRoutesWhenUnverified: ['/dashboard', '/chat', '/friends'],
     subscriberExperiencesPreview: false,
     communitiesEnabled: true,
     communityPreview: false,

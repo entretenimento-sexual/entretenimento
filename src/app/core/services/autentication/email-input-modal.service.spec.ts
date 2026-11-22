@@ -70,12 +70,11 @@ describe('EmailInputModalService', () => {
     pending$.complete();
   });
 
-  it('libera novo envio após expirar o cooldown', () => {
+  it('permite reenviar ao mesmo endereço após o cooldown com o modal aberto', () => {
     service.openModal();
     service.sendPasswordRecoveryEmail('person@example.com');
     vi.advanceTimersByTime(60_000);
-    service.updateEmail('other@example.com');
-    service.sendPasswordRecoveryEmail('other@example.com');
+    service.sendPasswordRecoveryEmail('person@example.com');
     expect(sendPasswordResetEmail$).toHaveBeenCalledTimes(2);
   });
   it.each([

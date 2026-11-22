@@ -249,7 +249,6 @@ export class SocialAuthService {
       .getDocument<SocialAuthUserDoc>('users', authUser.uid, { source: 'server' })
       .pipe(
         take(1),
-        timeout({ first: 15_000 }),
         switchMap((doc) => {
           if (this.auth.currentUser !== authUser) {
             throw new Error('A conta ativa mudou durante a autenticação.');
@@ -260,6 +259,7 @@ export class SocialAuthService {
 
           return this.handleNewUserLogin$(authUser, nowMs);
         }),
+        timeout({ first: 15_000 }),
         catchError((err) => {
           this.reportSilent(err, {
             phase: 'bootstrapUserAfterAuth',

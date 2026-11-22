@@ -1,3 +1,4 @@
+import { toSignal } from '@angular/core/rxjs-interop';
 import { Location, NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -63,6 +64,10 @@ export class EmailLinkRegistrationPageComponent {
   readonly error = signal('');
   readonly status = signal('');
   readonly passwordReady = signal(false);
+  readonly passwordChecked = signal(false);
+  private readonly passwordValues = toSignal(this.passwordForm.valueChanges, { initialValue: this.passwordForm.value });
+  readonly passwordMismatch = computed(() => this.passwordChecked() &&
+    this.passwordValues().password !== this.passwordValues().confirmation);
   protected readonly showPassword = signal(false);
   protected readonly showConfirmPassword = signal(false);
   private readonly heading = viewChild<ElementRef<HTMLHeadingElement>>('heading');
@@ -146,9 +151,15 @@ export class EmailLinkRegistrationPageComponent {
     if (!this.passwordReady() || !this.ownerUid) return;
     const uid = this.ownerUid;
     const { password, confirmation } = this.passwordForm.getRawValue();
+    this.passwordChecked.set(true);
+    if (this.passwordMismatch()) {
+      this.error.set('');
+      return;
+    }
     const email = this.auth.currentUser?.email ?? '';
     this.run(() => this.emailLink.setPassword$(uid, email, password, confirmation).pipe(
       switchMap(() => {
+        this.passwordChecked.set(false);
         this.passwordForm.reset();
         this.showPassword.set(false);
         this.showConfirmPassword.set(false);

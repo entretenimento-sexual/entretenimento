@@ -161,6 +161,7 @@ export class AgeEligibilityService {
             this.trustedSessionProjection.next(null);
           }
 
+          this.reconciledUid = uid;
           return data.status;
         })
       );
