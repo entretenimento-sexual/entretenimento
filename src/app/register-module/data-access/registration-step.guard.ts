@@ -43,17 +43,18 @@ import {
 } from 'rxjs/operators';
 
 import { buildAuthRetryTree, buildRedirectTree } from '@core/guards/_shared-guard/guard-utils';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { REGISTER_FLOW_WAIT_MS } from './post-auth-navigation.service';
 import { RegisterFlowFacade } from './register-flow.facade';
 import {
   isRegistrationStepRoute,
+  isRegisterFlowDecisionReady,
   resolveRegistrationReturnUrl,
   RegisterFlowStep,
   RegisterFlowVm,
 } from './register-flow.model';
 
 type RegistrationStepGuardResult = boolean | UrlTree;
-
-const REGISTER_FLOW_GUARD_TIMEOUT_MS = 5000;
 
 function normalizePath(url: string): string {
   return (url || '').split('?')[0].split('#')[0] || '/';
@@ -131,19 +132,16 @@ export const registrationStepGuard: CanActivateFn = (
 ): Observable<RegistrationStepGuardResult> => {
   const router = inject(Router);
   const registerFlow = inject(RegisterFlowFacade);
+  const session = inject(AuthSessionService);
 
   const allowedSteps = getAllowedSteps(route.data?.['allowedRegisterSteps']);
 
   return registerFlow.vm$.pipe(
-    filter((vm) => vm.authReady === true),
-    filter(
-      (vm) =>
-        vm.currentStep === 'emailVerification' || vm.currentStep === 'passwordSetup' ||
-        vm.userResolved === true
-    ),
+    filter((vm) => isRegisterFlowDecisionReady(vm) &&
+      vm.uid === (session.isTerminatingSnapshot ? null : session.currentAuthUser?.uid ?? null)),
     take(1),
     timeout({
-      first: REGISTER_FLOW_GUARD_TIMEOUT_MS,
+      first: REGISTER_FLOW_WAIT_MS,
       with: () => of(null),
     }),
     map((vm) => resolveGuardResult(router, state.url, vm, allowedSteps)),

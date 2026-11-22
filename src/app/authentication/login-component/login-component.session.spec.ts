@@ -5,7 +5,7 @@ import { ReactiveFormsModule } from '@angular/forms';
 import { NavigationEnd, Router, RouterModule, provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import type { User } from 'firebase/auth';
-import { BehaviorSubject, NEVER, Observable, Subject, defer, filter, firstValueFrom, of, throwError } from 'rxjs';
+import { BehaviorSubject, NEVER, Observable, Subject, combineLatest, defer, filter, firstValueFrom, map, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { guestOnlyCanActivate, guestOnlyCanMatch } from '@core/guards/auth-guard/guest-only.guard';
@@ -19,6 +19,7 @@ import { LoginService } from '@core/services/autentication/login.service';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { PostAuthNavigationService } from 'src/app/register-module/data-access/post-auth-navigation.service';
+import { RegisterNavigationService } from 'src/app/register-module/data-access/register-navigation.service';
 import { RegisterFlowFacade } from 'src/app/register-module/data-access/register-flow.facade';
 import type { RegisterFlowVm } from 'src/app/register-module/data-access/register-flow.model';
 import { registrationStepGuard } from 'src/app/register-module/data-access/registration-step.guard';
@@ -54,7 +55,14 @@ describe('LoginComponent e sessão compartilhada', () => {
     resolveAfterEmailLogin$ = vi.fn();
     authUser = null;
     report = vi.fn().mockReturnValue({ userMessage: 'Falha na tentativa local.' });
-    registrationVm$ = NEVER;
+    const navigation = new RegisterNavigationService();
+    registrationVm$ = combineLatest([uid$, appUser$]).pipe(map(([uid, user]) =>
+      navigation.resolveVm({
+        uid, authReady: true, email: null, emailVerified: true, userExists: user?.uid === uid,
+        userResolved: user?.uid === uid, termsAccepted: true, ageEligibilityAllowed: true,
+        profileCompleted: user?.profileCompleted === true,
+      })
+    ));
     invalidation = null;
     const ready$ = of(true);
     TestBed.configureTestingModule({
@@ -113,7 +121,10 @@ describe('LoginComponent e sessão compartilhada', () => {
         { provide: AuthFacade, useValue: { googleLogin$ } },
         { provide: EmailInputModalService, useValue: {} },
         { provide: LoginService, useValue: { login$ } },
-        { provide: PostAuthNavigationService, useValue: { resolveAfterEmailLogin$ } },
+        { provide: PostAuthNavigationService, deps: [RegisterFlowFacade, AuthSessionService],
+          useFactory: (flow: RegisterFlowFacade, session: AuthSessionService) =>
+            Object.assign(new PostAuthNavigationService(flow, session), { resolveAfterEmailLogin$ }),
+        },
         { provide: RegisterFlowFacade, useValue: { vm$: defer(() => registrationVm$) } },
       ],
     }).overrideComponent(LoginComponent, { set: { styleUrls: [] } });
@@ -308,7 +319,7 @@ describe('LoginComponent e sessão compartilhada', () => {
       await vi.advanceTimersByTimeAsync(8_000);
       harness.detectChanges();
       expect(router.parseUrl(router.url).queryParamMap.get('reason')).toBe('auth_unavailable');
-      expect(harness.routeNativeElement?.textContent).toContain('Continuar com a sessão atual');
+      expect(harness.routeNativeElement?.textContent).toContain('Sua sessão está ativa. Não conseguimos consultar a próxima etapa');
 
       appUser$.next({ uid: 'shared-user', profileCompleted: true });
       const navigated = waitForDestination();
@@ -336,6 +347,7 @@ describe('LoginComponent e sessão compartilhada', () => {
     await harness.navigateByUrl('/conta');
     uid$.next('shared-user');
     appUser$.next({ uid: 'shared-user', profileCompleted: false });
+    registrationVm$ = NEVER;
   }
 
   it('interrompe o ciclo no timeout e retoma a etapa na mesma sessão com o destino original', async () => {

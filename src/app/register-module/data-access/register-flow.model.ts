@@ -1,5 +1,7 @@
 // src/app/register-module/data-access/register-flow.model.ts
 
+import type { RuntimeAccountLifecycleStatus } from '@core/services/autentication/auth/account-lifecycle.policy';
+
 export const REGISTRATION_COMPLETION_ROUTE = '/preferencias/editar';
 export const PROFILE_COMPLETED_NAVIGATION_INFO = 'profile-completed';
 
@@ -15,6 +17,7 @@ export function resolveRegistrationReturnUrl(raw: string | null | undefined): st
 }
 
 export type RegisterFlowStep =
+  | 'accountStatus'
   | 'loading'
   | 'signup'
   | 'emailVerification'
@@ -60,6 +63,7 @@ export interface RegisterFlowVm {
   termsAccepted: boolean;
   ageEligibilityAllowed: boolean;
   profileCompleted: boolean;
+  accountStatus?: RuntimeAccountLifecycleStatus;
   currentStep: RegisterFlowStep;
   nextRoute: string;
   progress: number;
@@ -80,4 +84,13 @@ export interface RegisterFlowAccessState {
   termsAccepted: boolean;
   ageEligibilityAllowed: boolean;
   profileCompleted: boolean;
+  accountStatus?: RuntimeAccountLifecycleStatus;
+}
+
+export function isRegistrationRestricted(status: RuntimeAccountLifecycleStatus | undefined): boolean {
+  return !!status && status !== 'unknown' && status !== 'active' && status !== 'registration_pending';
+}
+
+export function isRegisterFlowDecisionReady(vm: RegisterFlowVm): boolean {
+  return vm.authReady && vm.currentStep !== 'loading';
 }

@@ -1,4 +1,4 @@
-import { DestroyRef, Injectable, inject } from '@angular/core';
+import { DestroyRef, Injectable, Injector, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatDialog } from '@angular/material/dialog';
 import { Router, type UrlTree } from '@angular/router';
@@ -20,6 +20,7 @@ import { ApplicationErrorService } from '@core/services/error-handler/applicatio
 import { AuthAppBlockService } from './auth-app-block.service';
 import { AuthRouteContextService } from './auth-route-context.service';
 import { AuthSessionService } from './auth-session.service';
+import { PostAuthNavigationService } from 'src/app/register-module/data-access/post-auth-navigation.service';
 import type { SessionEndReason } from './auth.types';
 
 export const VOLUNTARY_LOGOUT_NOTICE = 'signed-out';
@@ -39,6 +40,7 @@ export class AuthSessionExitService {
   private readonly dialog = inject(MatDialog);
   private readonly errors = inject(ApplicationErrorService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
   private readonly pending = new BehaviorSubject<SessionExitNotice | null>(null);
   readonly pending$ = this.pending.asObservable();
   private readonly loginFailed = new BehaviorSubject(false);
@@ -153,7 +155,11 @@ export class AuthSessionExitService {
 
   retryLogin(): void {
     if (!this.loginFailed.value) return;
-    if (this.accountSwitch) this.openCurrentAccount(this.session.currentAuthUser?.uid ?? null);
+    if (this.accountSwitch) {
+      const uid = this.session.currentAuthUser?.uid ?? null;
+      if (uid) this.injector.get(PostAuthNavigationService).retryProfileLookup();
+      this.openCurrentAccount(uid);
+    }
     else if (this.destination) void this.goToLogin(this.destination);
   }
 
@@ -192,7 +198,11 @@ export class AuthSessionExitService {
       const reason = transition.uid
         ? invalidation?.uid === transition.uid ? invalidation.reason : undefined
         : 'session-ended';
-      const target = this.loginDestination(reason, transition.uid ? CURRENT_ACCOUNT_HOME : undefined);
+      const target = transition.uid && !reason
+        ? await firstValueFrom(this.injector.get(PostAuthNavigationService)
+          .resolveForCurrentSession$(transition.uid, CURRENT_ACCOUNT_HOME))
+        : this.loginDestination(reason, transition.uid ? CURRENT_ACCOUNT_HOME : undefined);
+      if (!isCurrent()) return;
       const navigated = await firstValueFrom(defer(() =>
         this.router.navigateByUrl(target, { replaceUrl: true })
       ).pipe(timeout({ first: LOGIN_NAVIGATION_TIMEOUT_MS })));

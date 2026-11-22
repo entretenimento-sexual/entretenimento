@@ -136,6 +136,7 @@ export class CurrentUserStoreService {
   private readonly keyUid = 'currentUserUid';
 
   private readonly userSubject = new BehaviorSubject<UserTriState>(undefined);
+  private missingProfileUid: string | null = null;
   readonly user$: Observable<UserTriState> = this.userSubject.asObservable();
 
   constructor(
@@ -155,6 +156,7 @@ export class CurrentUserStoreService {
     const authenticatedUid = this.authSession.currentAuthUser?.uid?.trim();
     if (authenticatedUid && authenticatedUid !== user.uid) return;
 
+    this.missingProfileUid = null;
     const safeUser = normalizeCurrentUserRuntimeVisibility(user);
     const current = this.userSubject.value;
     if (this.areUsersEquivalent(current, safeUser)) return;
@@ -201,13 +203,12 @@ export class CurrentUserStoreService {
   }
 
   setUnavailable(): void {
-    if (this.userSubject.value !== null) {
-      this.userSubject.next(null);
-    }
+    const authUid = this.getLoggedUserUIDSnapshot();
+    const changed = this.missingProfileUid !== authUid;
+    this.missingProfileUid = authUid;
+    if (changed || this.userSubject.value !== null) this.userSubject.next(null);
 
     this.cache.delete(this.keyUser);
-
-    const authUid = this.getLoggedUserUIDSnapshot();
 
     if (authUid) {
       this.cache.set(this.keyUid, authUid, undefined, { persist: false });
@@ -218,7 +219,12 @@ export class CurrentUserStoreService {
     this.dbg('setUnavailable()', { authUid });
   }
 
+  isMissingForUid(uid: string): boolean {
+    return this.missingProfileUid === uid;
+  }
+
   clear(): void {
+    this.missingProfileUid = null;
     if (this.userSubject.value !== null) {
       this.userSubject.next(null);
     }
@@ -229,6 +235,7 @@ export class CurrentUserStoreService {
   }
 
   markUnhydrated(): void {
+    this.missingProfileUid = null;
     if (this.userSubject.value === undefined) return;
     this.userSubject.next(undefined);
     this.dbg('markUnhydrated()');

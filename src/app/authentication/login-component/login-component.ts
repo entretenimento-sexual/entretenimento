@@ -45,7 +45,7 @@ import { EmailInputModalService } from 'src/app/core/services/autentication/emai
 import { LoginService } from 'src/app/core/services/autentication/login.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PostAuthNavigationService } from 'src/app/register-module/data-access/post-auth-navigation.service';
-import { isRegistrationStepRoute } from 'src/app/register-module/data-access/register-flow.model';
+import { isRegistrationStepRoute, resolveRegistrationReturnUrl } from 'src/app/register-module/data-access/register-flow.model';
 import { emailLinkSignupPreviewAllowed } from '@core/services/autentication/register/email-link-registration.service';
 import { environment } from 'src/environments/environment';
 
@@ -90,6 +90,12 @@ export class LoginComponent implements OnInit {
 
   get registrationRetryTarget(): string | null {
     const target = this.sessionRetryTarget;
+    if (this.reason === AUTH_UNAVAILABLE_REASON && this.retomarCadastro === '1') {
+      const redirect = resolveRegistrationReturnUrl(this.route.snapshot.queryParamMap.get('redirectTo'));
+      return this.router.serializeUrl(this.router.createUrlTree(['/login'], {
+        queryParams: { redirectTo: redirect ?? undefined },
+      }));
+    }
     return target && isRegistrationStepRoute(target) ? target : null;
   }
 
@@ -174,6 +180,7 @@ export class LoginComponent implements OnInit {
         this.registrationRetryTarget !== target) return;
     this.isRetryingRegistration = true;
     this.registrationRetryError = '';
+    this.postAuthNavigation.retryProfileLookup();
     this.navigateAfterLogin$(target).pipe(
       catchError((error: unknown) => {
         this.applicationError.report(error, {
@@ -433,7 +440,7 @@ export class LoginComponent implements OnInit {
   private openConfirmedDestination$(target: string): Observable<void> {
     this.openingDestination = true;
     this.cdr.markForCheck();
-    return this.navigateAfterLogin$(target);
+    return this.navigateAfterLogin$(target, true);
   }
 
   private reportLoginError(error: unknown, operation: string): void {
@@ -450,11 +457,14 @@ export class LoginComponent implements OnInit {
     if (!canContinue) this.setSystemError(descriptor.userMessage);
   }
 
-  private navigateAfterLogin$(target: string): Observable<void> {
+  private navigateAfterLogin$(target: string, allowPending = false): Observable<void> {
     return defer(() => this.router.navigateByUrl(target, { replaceUrl: true })).pipe(
       timeout({ first: SHARED_SESSION_NAVIGATION_TIMEOUT_MS }),
       map((navigated) => {
-        if (!navigated || this.router.url.split(/[?#]/)[0] === '/login') {
+        const requested = this.router.parseUrl(target);
+        const pending = allowPending && requested.queryParams['reason'] === AUTH_UNAVAILABLE_REASON &&
+          this.router.url === this.router.serializeUrl(requested);
+        if (!navigated || (this.router.url.split(/[?#]/)[0] === '/login' && !pending)) {
           throw Object.assign(new Error('A navegação foi interrompida.'), {
             code: 'auth/post-login-navigation',
           });

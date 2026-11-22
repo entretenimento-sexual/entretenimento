@@ -27,6 +27,7 @@
 // =============================================================================
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
+import { PostAuthNavigationService } from 'src/app/register-module/data-access/post-auth-navigation.service';
 import { CurrentUserStoreService } from './current-user-store.service';
 import { combineLatest, firstValueFrom, Subscription, timer } from 'rxjs';
 import {
@@ -113,7 +114,8 @@ export class AuthOrchestratorService {
     private readonly applicationError: ApplicationErrorService,
     private readonly appBlock: AuthAppBlockService,
     private readonly currentUserStore: CurrentUserStoreService,
-    private readonly privacyDebug: PrivacyDebugLoggerService
+    private readonly privacyDebug: PrivacyDebugLoggerService,
+    private readonly postAuthNavigation: PostAuthNavigationService
   ) {}
 
   /**
@@ -252,7 +254,7 @@ export class AuthOrchestratorService {
 
       if (!ctx.inReg) {
         if (ctx.accountStatus === 'registration_pending' && !ctx.blockedReason) {
-          this.navigateToWelcome('registration_pending', true, ctx.navPath === '/conta/status' ? undefined : ctx.url);
+          this.resumeRegistration(ctx);
         } else {
           this.navigateToAccountStatus(true);
         }
@@ -605,10 +607,28 @@ export class AuthOrchestratorService {
     });
   }
 
+  private resumeRegistration(ctx: OrchestratorContext): void {
+    const uid = ctx.uid;
+    if (!uid || this.router.currentNavigation()) return;
+    const redirectTo = ctx.navPath === '/conta/status' ? null : ctx.url;
+
+    firstValueFrom(this.postAuthNavigation.resolveForCurrentSession$(uid, redirectTo))
+      .then((target) => {
+        if (this.router.url !== ctx.url || this.router.currentNavigation() ||
+            !this.isCurrentSession(uid)) return;
+        return this.router.navigateByUrl(target, { replaceUrl: true });
+      })
+      .catch((error: unknown) => {
+        if ((error as { code?: string } | null)?.code !== 'auth/session-changed') {
+          this.reportSilent(error, { phase: 'resumeRegistration' });
+        }
+      });
+  }
+
   /**
    * Navegação defensiva para a tela de welcome/onboarding.
    */
-  private navigateToWelcome(reason: TerminateReason | 'registration_pending', replaceUrl = true, redirectTo?: string): void {
+  private navigateToWelcome(reason: TerminateReason, replaceUrl = true): void {
     const target = '/register/welcome';
     const url = this.router.url || '';
 
@@ -616,7 +636,7 @@ export class AuthOrchestratorService {
 
     this.router
       .navigate([target], {
-        queryParams: { reason, autocheck: '1', ...(redirectTo ? { redirectTo } : {}) },
+        queryParams: { reason, autocheck: '1' },
         replaceUrl,
       })
       .catch(() => {});

@@ -21,10 +21,12 @@ import {
   EmailLinkRegistrationService, isEmailLinkPreviewUid,
 } from 'src/app/core/services/autentication/register/email-link-registration.service';
 
+import { normalizeUserAccountLifecycleStatus } from '@core/services/autentication/auth/account-lifecycle.policy';
 import { RegisterNavigationService } from './register-navigation.service';
 import {
   RegisterFlowAccessState,
   RegisterFlowVm,
+  isRegistrationRestricted,
 } from './register-flow.model';
 
 @Injectable({ providedIn: 'root' })
@@ -46,10 +48,11 @@ export class RegisterFlowFacade {
         uid,
         email: authUser?.email ?? user?.email ?? null,
         emailVerified: authUser?.emailVerified === true,
-        userResolved: !uid || appUser === null || user !== null,
+        userResolved: !uid || user !== null || (appUser === null && this.currentUser.isMissingForUid(uid)),
         userExists: user !== null,
         termsAccepted: isCurrentLegalAcceptanceSatisfied(user?.acceptedTerms),
         profileCompleted: user?.profileCompleted === true,
+        accountStatus: user ? normalizeUserAccountLifecycleStatus(user) : undefined,
       };
     }),
     // A consulta da autoridade etária pode atualizar users/{uid}. Mudanças
@@ -62,6 +65,7 @@ export class RegisterFlowFacade {
       previous.userResolved === current.userResolved &&
       previous.userExists === current.userExists &&
       previous.termsAccepted === current.termsAccepted &&
+      previous.accountStatus === current.accountStatus &&
       previous.profileCompleted === current.profileCompleted
     ),
     switchMap((state) => {
@@ -78,7 +82,7 @@ export class RegisterFlowFacade {
 
       const continueRegistration = () => {
         // Uma expiração posterior de elegibilidade não reinicia o cadastro.
-        if (profileCompleted) return of(resolve(true));
+        if (profileCompleted || isRegistrationRestricted(state.accountStatus)) return of(resolve(profileCompleted));
 
         if (!authReady || !uid || !emailVerified || !userExists || !termsAccepted) {
           return of(resolve(false));
@@ -129,6 +133,7 @@ export class RegisterFlowFacade {
       a.termsAccepted === b.termsAccepted &&
       a.ageEligibilityAllowed === b.ageEligibilityAllowed &&
       a.profileCompleted === b.profileCompleted &&
+      a.accountStatus === b.accountStatus &&
       a.currentStep === b.currentStep &&
       a.nextRoute === b.nextRoute &&
       a.progress === b.progress &&

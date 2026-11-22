@@ -17,7 +17,8 @@ function facade(profileCompleted: boolean) {
     status: 'UNVERIFIED', policyVersion: 1, source: 'INITIAL_VERIFICATION',
     method: 'MANUAL_REVIEW',
   });
-  const user$ = new BehaviorSubject({
+  let missingUid: string | null = null;
+  const profile = {
     uid: 'adult-user', emailVerified: true, profileCompleted,
     accountStatus: 'active', initialAdultConsentRequired: true,
     adultConsent: null,
@@ -26,14 +27,15 @@ function facade(profileCompleted: boolean) {
       status: 'EXPIRED', policyVersion: 1, source: 'INITIAL_VERIFICATION',
       method: 'MANUAL_REVIEW', verifiedAtMs: 1, expiresAtMs: 2,
     },
-  });
+  };
+  const user$ = new BehaviorSubject<typeof profile | null>(profile);
   const vm = new RegisterFlowFacade(
     { ready$: of(true), authUser$ } as never,
-    { user$ } as never,
+    { user$, isMissingForUid: (uid: string) => uid === missingUid } as never,
     { reconcileTrustedStateOncePerSession$: reconcileAge, current$: currentAge$ } as never,
     new RegisterNavigationService()
   );
-  return { vm, reconcileAge, authUser$, currentAge$, user$ };
+  return { vm, reconcileAge, authUser$, currentAge$, user$, confirmMissing: (uid: string) => { missingUid = uid; user$.next(null); } };
 }
 describe('registration admission without redundant adult consent', () => {
   it('não reabre idade ou consentimento em perfil admitido', async () => {
@@ -55,7 +57,7 @@ describe('registration admission without redundant adult consent', () => {
     const pending = new Subject<IUserAgeEligibility>();
     reconcileAge.mockReturnValue(pending);
     const ready = firstValueFrom(vm.vm$);
-    const previous = user$.value;
+    const previous = user$.value!;
 
     user$.next({
       ...previous,
@@ -80,6 +82,16 @@ describe('registration admission without redundant adult consent', () => {
     await expect(firstValueFrom(vm.vm$)).resolves.toMatchObject({
       uid: null, userExists: false, currentStep: 'signup',
     });
+  });
+
+  it('distingue ausência confirmada do null que sobrou de outra sessão', async () => {
+    const { vm, authUser$, user$, confirmMissing } = facade(false);
+    user$.next(null);
+    await expect(firstValueFrom(vm.vm$)).resolves.toMatchObject({ currentStep: 'loading' });
+    confirmMissing('adult-user');
+    await expect(firstValueFrom(vm.vm$)).resolves.toMatchObject({ currentStep: 'accountRecovery' });
+    authUser$.next({ uid: 'next-user', emailVerified: true });
+    await expect(firstValueFrom(vm.vm$)).resolves.toMatchObject({ currentStep: 'loading', uid: 'next-user' });
   });
 
   it('avança após atualizar a decisão etária na mesma sessão', () => {

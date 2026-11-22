@@ -130,7 +130,6 @@ export class UserEffects {
     );
 
     return merge(start$, stop$).pipe(
-      distinctUntilChanged(),
       tap((uid) => this.dbg('observeUserChanges driver', { uid })),
       switchMap((uid) => {
         if (!uid) {
@@ -156,7 +155,7 @@ export class UserEffects {
           });
         }
 
-        return this.firestoreUserQuery.getUser(uid).pipe(
+        return this.firestoreUserQuery.getUser(uid, true).pipe(
           // Cancela o efeito lógico mesmo antes da action stop/observe da nova
           // sessão chegar ao Store. O switchMap externo cancela fisicamente.
           filter((user) =>

@@ -53,7 +53,8 @@ describe('AuthOrchestratorService canonical errors', () => {
       applicationError as unknown as ApplicationErrorService,
       appBlock as unknown as AuthAppBlockService,
       {} as CurrentUserStoreService,
-      { log: vi.fn() } as unknown as PrivacyDebugLoggerService
+      { log: vi.fn() } as unknown as PrivacyDebugLoggerService,
+    {} as never
     );
 
     return {
@@ -161,7 +162,8 @@ describe('AuthOrchestratorService canonical errors', () => {
       { report: vi.fn() } as unknown as ApplicationErrorService,
       new AuthAppBlockService(),
       { user$ } as unknown as CurrentUserStoreService,
-      { log: vi.fn() } as unknown as PrivacyDebugLoggerService
+      { log: vi.fn() } as unknown as PrivacyDebugLoggerService,
+    {} as never
     ).start();
 
     for (const path of ['/politica-de-privacidade#privacy-title', '/politica-de-cookies/']) {
@@ -253,7 +255,8 @@ describe('AuthOrchestratorService canonical errors', () => {
       applicationError as unknown as ApplicationErrorService,
       new AuthAppBlockService(),
       { user$: profiles } as unknown as CurrentUserStoreService,
-      { log: vi.fn() } as unknown as PrivacyDebugLoggerService
+      { log: vi.fn() } as unknown as PrivacyDebugLoggerService,
+    {} as never
     );
 
     service.start();

@@ -3,6 +3,7 @@ import { ActivatedRouteSnapshot, Router, RouterStateSnapshot, UrlTree } from '@a
 import { RouterTestingModule } from '@angular/router/testing';
 import { firstValueFrom, Observable } from 'rxjs';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { RegisterFlowFacade } from './register-flow.facade';
 import type { RegisterFlowVm } from './register-flow.model';
 import { registrationStepGuard } from './registration-step.guard';
@@ -22,7 +23,9 @@ describe('registrationStepGuard / adult consent retired', () => {
     currentVm=makeVm('profileCompletion','/register/finalizar-cadastro');
     TestBed.configureTestingModule({
       imports:[RouterTestingModule],
-      providers:[{provide:RegisterFlowFacade,useValue:{
+      providers:[
+        { provide: AuthSessionService, useValue: { currentAuthUser: { uid: 'u1' } } },
+        {provide:RegisterFlowFacade,useValue:{
         vm$:new Observable<RegisterFlowVm>(s=>{s.next(currentVm);s.complete();}),
       }}],
     });

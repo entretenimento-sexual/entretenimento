@@ -6,6 +6,7 @@ import {
   REGISTRATION_COMPLETION_ROUTE,
   RegisterFlowAccessState,
   RegisterFlowVm,
+  isRegistrationRestricted,
 } from './register-flow.model';
 
 @Injectable({ providedIn: 'root' })
@@ -38,6 +39,19 @@ export class RegisterNavigationService {
         progress: 0,
         canContinue: true,
         primaryActionLabel: 'Criar conta',
+      };
+    }
+
+    if (isRegistrationRestricted(state.accountStatus)) {
+      return {
+        ...state,
+        uid,
+        email,
+        currentStep: 'accountStatus',
+        nextRoute: state.accountStatus === 'deleted' ? '/conta/status?reason=deleted' : '/conta/status',
+        progress: 0,
+        canContinue: true,
+        primaryActionLabel: 'Consultar situação da conta',
       };
     }
 

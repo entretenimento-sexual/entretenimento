@@ -12,15 +12,16 @@
 // - fluxos públicos devem migrar para /public_profiles
 import { Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { defer, from, Observable, of } from 'rxjs';
-import { catchError, finalize, map, shareReplay } from 'rxjs/operators';
+import { catchError, filter, finalize, map, shareReplay } from 'rxjs/operators';
 
 import {
   Firestore,
   doc,
-  docData,
+  onSnapshot,
   docSnapshots,
   getDoc,
   getDocFromServer,
+  type DocumentSnapshot,
 } from '@angular/fire/firestore';
 
 import {
@@ -39,7 +40,7 @@ import { FirestoreErrorHandlerService } from '@core/services/error-handler/fires
 
 @Injectable({ providedIn: 'root' })
 export class UsersReadRepository {
-  private readonly userWatchCache = new Map<string, Observable<IUserDados | null>>();
+  private readonly userWatchCache = new Map<string, Observable<DocumentSnapshot<IUserDados>>>();
 
   constructor(
     private readonly db: Firestore,
@@ -76,27 +77,39 @@ export class UsersReadRepository {
     }
   }
 
-  /**
-   * watchUser$(uid)
-   * - Stream realtime do doc /users/{uid}.
-   * - Memoizado: múltiplos subscribers compartilham o MESMO listener.
-   * - Em erro (permission-denied / offline etc), retorna null.
-   */
-  watchUser$(uid: string): Observable<IUserDados | null> {
+  /** O listener é compartilhado. Só a consulta de cadastro exige ausência confirmada no servidor. */
+  watchUser$(uid: string, confirmAbsence = false): Observable<IUserDados | null> {
     const id = this.norm(uid);
     if (!id) return of(null);
 
+    const snapshots$ = this.watchUserSnapshots$(id);
+    const result$ = snapshots$.pipe(
+      filter((snap) => !confirmAbsence || snap.exists() ||
+        (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites)),
+      map((snap) => snap.data() ?? null)
+    );
+    if (confirmAbsence) return result$;
+
+    return result$.pipe(catchError((err) => {
+      this.firestoreError.report(err, { context: 'UsersReadRepository.watchUser$' });
+      return of(null);
+    }));
+  }
+
+  private watchUserSnapshots$(id: string): Observable<DocumentSnapshot<IUserDados>> {
     const cached = this.userWatchCache.get(id);
     if (cached) return cached;
 
-    const stream$ = runInInjectionContext(this.injector, () => docData(this.userRef(id))).pipe(
-      map(v => (v ?? null) as IUserDados | null),
-      catchError(err => {
-        this.firestoreError.report(err, { context: 'UsersReadRepository.watchUser$' });
-        return of(null);
-      }),
-      shareReplay({ bufferSize: 1, refCount: true }),
-      finalize(() => this.userWatchCache.delete(id))
+    const stream$ = new Observable<DocumentSnapshot<IUserDados>>((subscriber) =>
+      runInInjectionContext(this.injector, () => onSnapshot(
+        this.userRef(id), { includeMetadataChanges: true }, {
+          next: (snap) => subscriber.next(snap),
+          error: (err) => subscriber.error(err),
+        }
+      ))
+    ).pipe(
+      finalize(() => this.userWatchCache.delete(id)),
+      shareReplay({ bufferSize: 1, refCount: true })
     );
 
     this.userWatchCache.set(id, stream$);

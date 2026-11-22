@@ -2,6 +2,8 @@ import { of, Subject } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from '@core/interfaces/iuser-dados';
+import type { DocumentSnapshot } from '@angular/fire/firestore';
+import { UsersReadRepository } from './users-read.repository';
 import { UserRepositoryService } from './user-repository.service';
 
 function user(uid: string): IUserDados {
@@ -81,5 +83,33 @@ describe('UserRepositoryService - cache privado vinculado à sessão', () => {
     h.watch$.next(user('user-b'));
     expect(h.cache.upsertUser).not.toHaveBeenCalled();
     sub.unsubscribe();
+  });
+});
+
+describe('Verificação de ausência do perfil privado', () => {
+  it('ignora ausência em cache e propaga falhas, aceitando ausência confirmada pelo servidor', () => {
+    const repo = new UsersReadRepository({} as never, {} as never, {} as never);
+    const snapshots = new Subject<DocumentSnapshot<IUserDados>>();
+    vi.spyOn(repo as unknown as { watchUserSnapshots$: () => typeof snapshots }, 'watchUserSnapshots$')
+      .mockReturnValue(snapshots);
+    const values: Array<IUserDados | null> = [];
+    const error = vi.fn();
+    repo.watchUser$('user-a', true).subscribe({ next: (value) => values.push(value), error });
+    const missing = (fromCache: boolean, hasPendingWrites = false) => ({
+      exists: () => false,
+      data: () => undefined,
+      metadata: { fromCache, hasPendingWrites },
+    }) as unknown as DocumentSnapshot<IUserDados>;
+
+    snapshots.next(missing(true));
+    snapshots.next(missing(false, true));
+    expect(values).toEqual([]);
+    snapshots.next(missing(false));
+    expect(values).toEqual([null]);
+
+    const offline = new Error('Firestore indisponível');
+    snapshots.error(offline);
+    expect(error).toHaveBeenCalledWith(offline);
+    expect(values).toEqual([null]);
   });
 });

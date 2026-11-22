@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { NavigationEnd, Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { BehaviorSubject, filter, firstValueFrom, of } from 'rxjs';
+import { BehaviorSubject, combineLatest, filter, firstValueFrom, map, of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { authInvalidMarkerKey, markAuthInvalidUid } from '@core/firebase/auth-invalid-session-marker';
@@ -15,7 +15,8 @@ import { ErrorNotificationService } from '@core/services/error-handler/error-not
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { AccessControlService } from './access-control.service';
 import { AuthAppBlockService } from './auth-app-block.service';
-import { AuthReturnUrlService } from './auth-return-url.service';
+import { RegisterFlowFacade } from 'src/app/register-module/data-access/register-flow.facade';
+import { RegisterNavigationService } from 'src/app/register-module/data-access/register-navigation.service';
 import { AuthRouteContextService, type AuthRouteContext } from './auth-route-context.service';
 import { AuthSessionExitService } from './auth-session-exit.service';
 import { AuthSessionService } from './auth-session.service';
@@ -187,6 +188,9 @@ describe('AuthSessionExitService com o Router', () => {
     const uid$ = new BehaviorSubject<string | null>('a');
     const appUser$ = new BehaviorSubject({ uid: 'a', profileCompleted: true });
     const ready$ = of(true);
+    let active = { uid: 'a', emailVerified: true };
+    uid$.subscribe((uid) => { if (uid) active = { uid, emailVerified: true }; });
+    const navigation = new RegisterNavigationService();
     const isTerminating$ = of(false);
     const mayEnterHome = vi.fn(() => true);
     const dialog = { closeAll: vi.fn(), open: vi.fn() };
@@ -201,13 +205,17 @@ describe('AuthSessionExitService com o Router', () => {
         ]),
         { provide: AuthSessionService, useValue: {
           uid$, ready$, isTerminating$, isTerminatingSnapshot: false,
-          get currentAuthUser() { return uid$.value ? { uid: uid$.value, emailVerified: true } : null; },
+          get currentAuthUser() { return uid$.value ? active : null; },
         } },
         { provide: AccessControlService, useValue: {
           ready$, appUser$, blockedReason$: of(null), emailVerified$: of(true),
         } },
-        { provide: AuthReturnUrlService, useValue: {
-          resolveAuthedRedirect: (redirect: string | null, fallback: string) => redirect ?? fallback,
+        { provide: RegisterFlowFacade, useValue: {
+          vm$: combineLatest([uid$, appUser$]).pipe(map(([uid, profile]) => navigation.resolveVm({
+            authReady: true, uid, email: null, emailVerified: true, userResolved: profile.uid === uid,
+            userExists: profile.uid === uid, termsAccepted: true, ageEligibilityAllowed: true,
+            profileCompleted: profile.profileCompleted,
+          }))),
         } },
         { provide: ApplicationErrorService, useValue: { report: vi.fn() } },
         { provide: ErrorNotificationService, useValue: { showError: vi.fn() } },

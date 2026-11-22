@@ -171,8 +171,8 @@ getPublicUserById$(
    * @deprecated Use UserRepositoryService.watchUser$
    * Mantém o nome getUser(uid) que existia como realtime.
    */
-  getUser(uid: string): Observable<IUserDados | null> {
-    return this.userRepo.watchUser$(uid);
+  getUser(uid: string, confirmAbsence = false): Observable<IUserDados | null> {
+    return this.userRepo.watchUser$(uid, confirmAbsence);
   }
 
   /**

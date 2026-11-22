@@ -1,11 +1,11 @@
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import type { AuthFacadeSocialAuthResult } from 'src/app/core/services/autentication/auth/auth.facade';
 import type { LoginResult } from 'src/app/core/services/autentication/login.service';
 
-import { PostAuthNavigationService } from './post-auth-navigation.service';
+import { PostAuthNavigationService, REGISTER_FLOW_WAIT_MS } from './post-auth-navigation.service';
 import type { RegisterFlowVm } from './register-flow.model';
 
 function vm(
@@ -55,7 +55,7 @@ function navigation(
   flow$: BehaviorSubject<RegisterFlowVm>,
   session = { currentAuthUser: { uid: 'u1' }, isTerminatingSnapshot: false }
 ): PostAuthNavigationService {
-  return new PostAuthNavigationService({ vm$: flow$ } as never, session as never);
+  return new PostAuthNavigationService({ vm$: flow$ } as never, Object.assign(session, { uid$: new BehaviorSubject(session.currentAuthUser.uid) }) as never);
 }
 
 describe('PostAuthNavigationService', () => {
@@ -84,27 +84,24 @@ describe('PostAuthNavigationService', () => {
     );
   });
 
-  it('deve abrir recuperação imediatamente quando o perfil do login por e-mail não foi resolvido', async () => {
-    const flow$ = new BehaviorSubject<RegisterFlowVm>(
-      vm('loading', '/register', {
-        userResolved: false,
-        userExists: false,
-      })
-    );
-    const service = navigation(flow$);
-    const result: LoginResult = {
-      success: true,
-      emailVerified: true,
-      user: user({ profileCompleted: undefined }),
-      profileResolution: 'unknown',
-      needsProfileCompletion: undefined,
-    };
-
-    await expect(
-      firstValueFrom(service.resolveAfterEmailLogin$(result, '/friends'))
-    ).resolves.toBe(
-      '/register/recuperar-conta?redirectTo=%2Ffriends'
-    );
+  it('usa o mesmo destino de nova tentativa para e-mail, Google e sessão restaurada enquanto o perfil não resolve', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = navigation(new BehaviorSubject(vm('loading', '/register', {
+        userResolved: false, userExists: false,
+      })));
+      const result = user({ profileCompleted: false });
+      const attempts = [
+        service.resolveAfterEmailLogin$({ success: true, user: result, profileResolution: 'unknown' }, '/friends'),
+        service.resolveAfterSocialLogin$({ success: true, user: result, nextRoute: '/register/finalizar-cadastro' } as AuthFacadeSocialAuthResult, '/friends'),
+        service.resolveForCurrentSession$('u1', '/friends'),
+      ].map((attempt) => firstValueFrom(attempt));
+      await vi.advanceTimersByTimeAsync(REGISTER_FLOW_WAIT_MS);
+      const retry = '/login?reason=auth_unavailable&retomarCadastro=1&redirectTo=%2Ffriends';
+      expect(await Promise.all(attempts)).toEqual([retry, retry, retry]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('deve direcionar login por e-mail para termos antes do perfil', async () => {
@@ -196,7 +193,7 @@ describe('PostAuthNavigationService', () => {
     ).resolves.toBe('/friends');
   });
 
-  it('deve priorizar a recuperação quando o Google autenticou e o perfil falhou', async () => {
+  it('prioriza a etapa canônica se a leitura secundária do Google falhar', async () => {
     const flow$ = new BehaviorSubject<RegisterFlowVm>(
       vm('termsAcceptance', '/register/aceitar-termos', {
         termsAccepted: false,
@@ -219,7 +216,7 @@ describe('PostAuthNavigationService', () => {
     await expect(
       firstValueFrom(service.resolveAfterSocialLogin$(result, '/friends'))
     ).resolves.toBe(
-      '/register/recuperar-conta?redirectTo=%2Ffriends'
+      '/register/aceitar-termos?redirectTo=%2Ffriends'
     );
   });
 
@@ -259,7 +256,7 @@ describe('PostAuthNavigationService', () => {
     await expect(resolution).resolves.toBe('/adulto/verificar-idade?redirectTo=%2Ffriends');
   });
 
-  it('descarta destino resolvido depois que a conta ativa muda', async () => {
+  it('cancela a consulta em andamento assim que a conta ativa muda', async () => {
     const flow$ = new BehaviorSubject(vm('loading', '/register', { userResolved: false }));
     const session = { currentAuthUser: { uid: 'u1' }, isTerminatingSnapshot: false };
     const service = navigation(flow$, session);
@@ -270,9 +267,10 @@ describe('PostAuthNavigationService', () => {
       user: user(),
     }, '/friends'));
 
+    const observed = expect(resolution).rejects.toMatchObject({ code: 'auth/session-changed' });
     session.currentAuthUser = { uid: 'u2' };
-    flow$.next(vm('preferences', '/preferencias/editar/u1'));
-    await expect(resolution).rejects.toMatchObject({ code: 'auth/session-changed' });
+    (session as typeof session & { uid$: BehaviorSubject<string> }).uid$.next('u2');
+    await observed;
   });
 
 });

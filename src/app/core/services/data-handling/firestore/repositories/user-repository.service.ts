@@ -136,23 +136,25 @@ export class UserRepositoryService {
    * O UsersReadRepository já memoiza listeners por UID (evita múltiplos onSnapshot).
    * Também padroniza store+cache quando o doc emite.
    */
-  watchUser$(uid: string): Observable<IUserDados | null> {
+  watchUser$(uid: string, confirmAbsence = false): Observable<IUserDados | null> {
     const id = this.norm(uid);
     if (!id) return of(null);
 
-    return this.usersReadRepo.watchUser$(id).pipe(
+    const user$ = this.usersReadRepo.watchUser$(id, confirmAbsence).pipe(
       tap((user) => {
         if (user?.uid === id && this.canCachePrivateUser(id)) {
           this.userStateCache.upsertUser(user);
         }
-      }),
-      catchError((err) =>
-        this.firestoreError.handleFirestoreErrorAndReturnNull<IUserDados>(err, {
-          silent: true,
-          context: 'UserRepositoryService.watchUser$'
-        })
-      )
+      })
     );
+    if (confirmAbsence) return user$;
+
+    return user$.pipe(catchError((err) =>
+      this.firestoreError.handleFirestoreErrorAndReturnNull<IUserDados>(err, {
+        silent: true,
+        context: 'UserRepositoryService.watchUser$'
+      })
+    ));
   }
 
   // ============================================================

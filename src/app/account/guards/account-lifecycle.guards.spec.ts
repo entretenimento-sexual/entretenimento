@@ -1,12 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, UrlTree, provideRouter } from '@angular/router';
-import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
+import { BehaviorSubject, Observable, firstValueFrom, of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from '@core/interfaces/iuser-dados';
 import { AUTH_GUARD_WAIT_MS } from '@core/guards/_shared-guard/guard-utils';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
+import { PostAuthNavigationService } from 'src/app/register-module/data-access/post-auth-navigation.service';
 import { accountLifecycleGuard } from './account-lifecycle.guard';
 import { accountStatusPageGuard } from './account-status-page.guard';
 
@@ -39,6 +40,11 @@ describe('account lifecycle guards', () => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
+        { provide: PostAuthNavigationService, useValue: {
+          resolveForCurrentSession$: (_uid: string, target: string | null) => of(currentUser$.value
+            ? '/register/finalizar-cadastro?reason=profile_incomplete&redirectTo=' + encodeURIComponent(target ?? '/preferencias/editar')
+            : '/register/recuperar-conta?redirectTo=' + encodeURIComponent(target ?? '/preferencias/editar')),
+        } },
         {
           provide: AuthSessionService,
           useValue: {
@@ -97,16 +103,14 @@ describe('account lifecycle guards', () => {
     const result = await runLifecycleGuard('/dashboard/principal');
 
     expect(result).toBeInstanceOf(UrlTree);
-    expect(router.serializeUrl(result as UrlTree)).toContain('/conta/status');
+    expect(router.serializeUrl(result as UrlTree)).toContain('/register/recuperar-conta');
   });
 
-  it('bloqueia UID divergente da sessão canônica', async () => {
+  it('aguarda o perfil da sessão atual e ignora a projeção de outro UID', async () => {
     currentUser$.next(user({ uid: 'stale-user' }));
-
-    const result = await runLifecycleGuard();
-
-    expect(result).toBeInstanceOf(UrlTree);
-    expect(router.serializeUrl(result as UrlTree)).toContain('/conta/status');
+    const pending = runLifecycleGuard();
+    currentUser$.next(user());
+    expect(await pending).toBe(true);
   });
 
   it('bloqueia accountLocked mesmo com accountStatus active', async () => {
@@ -129,11 +133,11 @@ describe('account lifecycle guards', () => {
 
     expect(await runLifecycleGuard('/adulto/verificar-idade', true)).toBe(true);
     const result = await runLifecycleGuard('/dashboard/principal');
-    expect(router.serializeUrl(result as UrlTree)).toContain('/register/welcome');
+    expect(router.serializeUrl(result as UrlTree)).toContain('/register/finalizar-cadastro');
     expect((result as UrlTree).queryParams).toMatchObject({
-      reason: 'registration_pending', redirectTo: '/dashboard/principal',
+      reason: 'profile_incomplete', redirectTo: '/dashboard/principal',
     });
-    expect(router.serializeUrl(await runStatusGuard() as UrlTree)).toContain('/register/welcome');
+    expect(router.serializeUrl(await runStatusGuard() as UrlTree)).toContain('/register/finalizar-cadastro');
 
     currentUser$.next({ ...pending, ageReverificationRestrictedAt: 1 });
     const restricted = await runLifecycleGuard('/adulto/verificar-idade', true);
@@ -161,7 +165,7 @@ describe('account lifecycle guards', () => {
       currentUser$.next(pending);
 
       const result = await runLifecycleGuard(url) as UrlTree;
-      expect(router.serializeUrl(result)).toContain('/register/welcome');
+      expect(router.serializeUrl(result)).toContain('/register/finalizar-cadastro');
       expect(result.queryParams['redirectTo']).toBe(url);
 
       currentUser$.next({ ...pending, profileCompleted: true, publicVisibility: 'visible', interactionBlocked: false });

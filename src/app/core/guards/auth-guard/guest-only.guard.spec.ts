@@ -1,15 +1,16 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { BehaviorSubject, ReplaySubject, of, startWith } from 'rxjs';
+import { BehaviorSubject, ReplaySubject, combineLatest, map, of, startWith } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AccessControlService } from '../../services/autentication/auth/access-control.service';
-import { AuthReturnUrlService } from '../../services/autentication/auth/auth-return-url.service';
+import { RegisterFlowFacade } from 'src/app/register-module/data-access/register-flow.facade';
+import { RegisterNavigationService } from 'src/app/register-module/data-access/register-navigation.service';
 import { AuthSessionService } from '../../services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from '../../services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../../services/error-handler/error-notification.service';
-import { AUTH_GUARD_WAIT_MS } from '../_shared-guard/guard-utils';
+import { REGISTER_FLOW_WAIT_MS } from 'src/app/register-module/data-access/post-auth-navigation.service';
 import { guestOnlyCanActivate, guestOnlyCanMatch } from './guest-only.guard';
 
 @Component({ template: '' })
@@ -28,6 +29,9 @@ describe('guestOnlyGuard e recuperação de navegação', () => {
     emailVerified$ = new BehaviorSubject(true);
     uid$ = new ReplaySubject<string | null>(1);
     currentAuthUser = { uid: 'user-a', emailVerified: true };
+    let activeUid: string | null = null;
+    uid$.subscribe((uid) => { activeUid = uid; });
+    const navigation = new RegisterNavigationService();
     appUser$ = new BehaviorSubject<{ uid: string; profileCompleted: boolean } | undefined>(undefined);
     const guarded = {
       component: RouteFixtureComponent,
@@ -45,9 +49,15 @@ describe('guestOnlyGuard e recuperação de navegação', () => {
         { provide: AccessControlService, useValue: {
           ready$, appUser$, authUid$: uid$.pipe(startWith(null)), blockedReason$: of(null), emailVerified$,
         } },
-        { provide: AuthSessionService, useValue: { currentAuthUser, uid$ } },
-        { provide: AuthReturnUrlService, useValue: {
-          resolveAuthedRedirect: (redirect: string | null) => redirect ?? '/conta',
+        { provide: AuthSessionService, useValue: { get currentAuthUser() { return activeUid ? currentAuthUser : null; }, uid$ } },
+        { provide: RegisterFlowFacade, useValue: {
+          vm$: combineLatest([ready$, uid$, appUser$, emailVerified$]).pipe(
+            map(([authReady, uid, user, emailVerified]) => navigation.resolveVm({
+              authReady, uid, emailVerified, email: null,
+              userResolved: user?.uid === uid, userExists: !!user && user.uid === uid,
+              termsAccepted: true, ageEligibilityAllowed: true, profileCompleted: user?.profileCompleted === true,
+            }))
+          ),
         } },
         { provide: ApplicationErrorService, useValue: { report: vi.fn() } },
         { provide: ErrorNotificationService, useValue: { showError: vi.fn() } },
@@ -75,11 +85,12 @@ describe('guestOnlyGuard e recuperação de navegação', () => {
     const target = '/register?redirectTo=%2Fconta';
     const navigation = router.navigateByUrl(target);
 
-    await vi.advanceTimersByTimeAsync(AUTH_GUARD_WAIT_MS);
+    await vi.advanceTimersByTimeAsync(REGISTER_FLOW_WAIT_MS);
     expect(await navigation).toBe(true);
     expect(router.parseUrl(router.url).queryParams).toEqual({
       reason: 'auth_unavailable',
-      redirectTo: target,
+      retomarCadastro: '1',
+      redirectTo: '/conta',
     });
     expect(router.url).toMatch(/^\/login\?/);
   });
