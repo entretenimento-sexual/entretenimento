@@ -79,7 +79,8 @@ export function isCurrentAdultAccountAdmissionProjection(
     return false;
   }
   if (state.status === 'SELF_DECLARED_ADULT') {
-    return state.source === 'SELF_DECLARATION' &&
+    return state.registrationRequiresTrustedVerification !== true &&
+      state.source === 'SELF_DECLARATION' &&
       state.method === 'SELF_DECLARATION' &&
       state.verifiedAtMs == null && state.expiresAtMs == null;
   }

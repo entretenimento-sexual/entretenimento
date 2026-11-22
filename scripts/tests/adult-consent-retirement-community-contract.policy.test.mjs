@@ -11,7 +11,7 @@ test('guard central exige lifecycle e termos, não consentimento histórico', ()
   assert.match(source, /accountStatus\s*!==\s*'active'/);
   assert.match(source, /interactionBlocked\s*===\s*true/);
   assert.match(source, /moderationAutomationHold/);
-  assert.match(source, /hasCurrentTerms\(user\.acceptedTerms\)/);
+  assert.match(source, /hasAcceptedCurrentTerms\(user\.acceptedTerms\)/);
   assert.doesNotMatch(source, /user\.(?:adultConsent|initialAdultConsentRequired)/);
 });
 

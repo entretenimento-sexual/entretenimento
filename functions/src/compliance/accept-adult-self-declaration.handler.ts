@@ -34,10 +34,11 @@ import {
   TERMS_ACCEPTANCE_VERSION,
   TERMS_DOCUMENT_VERSION,
 } from './platform-legal.constants';
+import { writeAdultSelfDeclarationEvidence } from './adult-self-declaration-evidence';
 import {
   requiresTrustedAdultVerification,
-  writeAdultSelfDeclarationEvidence,
-} from './adult-self-declaration-evidence';
+  TRUSTED_AGE_VERIFICATION_REQUIRED,
+} from './registration-age-admission.policy';
 
 const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== 'true';
 
@@ -146,7 +147,8 @@ export const acceptAdultSelfDeclaration =
       if (requiresTrustedAdultVerification) {
         throw new HttpsError(
           'failed-precondition',
-          'A política atual exige verificação de maioridade por uma fonte confiável.'
+          'A política atual exige verificação de maioridade por uma fonte confiável.',
+          { reason: TRUSTED_AGE_VERIFICATION_REQUIRED }
         );
       }
 

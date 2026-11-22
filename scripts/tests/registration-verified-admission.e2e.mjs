@@ -104,6 +104,20 @@ try {
   assert.equal(privateUser.profileCompleted, false);
   assert.equal(privateUser.interactionBlocked, true);
   console.log('[registration:verified] PASS proof is UID-bound, current and trusted before private seed recovery');
+
+  const historicalDeclaration = {
+    ...verifiedRecord, status: 'SELF_DECLARED_ADULT', source: 'SELF_DECLARATION', method: 'SELF_DECLARATION',
+    verifiedAtMs: null,
+  };
+  await ageRef.set(historicalDeclaration);
+  const refresh = httpsCallable(functions, 'refreshMyAgeEligibility');
+  const declarationReview = (await refresh({})).data;
+  assert.equal(declarationReview.registrationRequiresTrustedVerification, true);
+  assert.equal(declarationReview.ageEligibility.status, 'SELF_DECLARED_ADULT');
+  assert.equal((await ageRef.get()).get('status'), 'SELF_DECLARED_ADULT');
+  const declareAgain = httpsCallable(functions, 'acceptAdultSelfDeclaration');
+  await assert.rejects(declareAgain({ expectedUid: uid, confirmsAdult: true }), seedDenied);
+  console.log('[registration:verified] PASS current mode is reported while preserving historical self-declaration');
 } finally {
   await deleteApp(app);
   await deleteAdminApp(adminApp);

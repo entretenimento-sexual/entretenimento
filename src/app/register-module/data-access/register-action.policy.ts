@@ -10,6 +10,10 @@ export function isRegistrationSessionChange(error: unknown): boolean {
       failure.details?.reason === 'auth/session-changed');
 }
 
+export function isRegistrationTrustedAgeVerificationRequired(error: unknown): boolean {
+  return (error as { details?: { reason?: unknown } } | null)?.details?.reason === 'trusted_age_verification_required';
+}
+
 export function isRegistrationConfirmationUncertain(error: unknown): boolean {
   const code = (error as { code?: unknown } | null)?.code;
   // O SDK de Functions também usa internal quando o fetch perde a resposta.

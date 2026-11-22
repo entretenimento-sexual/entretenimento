@@ -112,16 +112,6 @@ export function isAdultAccountAdmissionDecision(
   return isTrustedAdultAgeDecision(decision);
 }
 
-/** Na modalidade verificada, a declaração permanece evidência de cadastro. */
-export function isRegistrationAgeAdmitted(
-  decision: AgeEligibilityDecision,
-  requiresTrustedVerification: boolean
-): boolean {
-  return requiresTrustedVerification
-    ? isTrustedAdultAgeDecision(decision)
-    : isAdultAccountAdmissionDecision(decision);
-}
-
 function cleanUid(value: unknown): string {
   const normalized = String(value ?? '').trim();
   return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';

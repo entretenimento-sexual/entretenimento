@@ -16,10 +16,8 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
-import {
-  requiresTrustedAdultVerification,
-  SIGNUP_ADULT_DECLARATION_SCHEMA_VERSION,
-} from './adult-self-declaration-evidence';
+import { SIGNUP_ADULT_DECLARATION_SCHEMA_VERSION } from './adult-self-declaration-evidence';
+import { requiresTrustedAdultVerification } from './registration-age-admission.policy';
 import { hasAcceptedCurrentTerms } from './platform-legal.constants';
 import {
   evaluateCanonicalAgeEligibility,
@@ -44,6 +42,7 @@ interface RefreshMyAgeEligibilityResponse {
   migrated: boolean;
   restoredFromDeclarationEvidence: boolean;
   ageEligibility: AgeEligibilityProjection | null;
+  registrationRequiresTrustedVerification: boolean;
 }
 
 function cleanUid(value: unknown): string {
@@ -107,7 +106,9 @@ export const refreshMyAgeEligibility = onCall(
     }
     await assertRegistrationPasswordDefined(uid);
 
-    return db.runTransaction(async (transaction) => {
+    const result = await db.runTransaction<Omit<
+      RefreshMyAgeEligibilityResponse, 'registrationRequiresTrustedVerification'
+    >>(async (transaction) => {
       const userRef = db.collection('users').doc(uid);
       const recordRef = db.collection('age_eligibility_records').doc(uid);
       const declarationRef = db
@@ -337,6 +338,7 @@ export const refreshMyAgeEligibility = onCall(
         ageEligibility: null,
       };
     });
+    return { ...result, registrationRequiresTrustedVerification: requiresTrustedAdultVerification };
   }
 );
 import { assertRegistrationPasswordDefined } from '../registration/email-link-preview.handler';

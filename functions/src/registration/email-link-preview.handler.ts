@@ -6,7 +6,7 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { auth, db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 
-import { requiresTrustedAdultVerification } from '../compliance/adult-self-declaration-evidence';
+import { requiresTrustedAdultVerification } from '../compliance/registration-age-admission.policy';
 import { ADULT_SELF_DECLARATION_VERSION } from '../compliance/platform-legal.constants';
 import { normalizeRegistrationNicknameClaim } from './nickname-reservation.policy';
 import { REGISTRATION_EMAIL_LINK_DRAFTS } from './registration-abandonment.policy';

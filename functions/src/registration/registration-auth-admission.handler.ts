@@ -1,7 +1,10 @@
 import { beforeUserCreated } from 'firebase-functions/v2/identity';
 import { HttpsError } from 'firebase-functions/v2/https';
 
-import { requiresTrustedAdultVerification } from '../compliance/adult-self-declaration-evidence';
+import {
+  requiresTrustedAdultVerification,
+  TRUSTED_AGE_VERIFICATION_REQUIRED,
+} from '../compliance/registration-age-admission.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 
 /**
@@ -12,7 +15,7 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 export const blockDirectAuthRegistration = requiresTrustedAdultVerification
   ? beforeUserCreated({ region: FUNCTIONS_REGION }, () => {
     throw new HttpsError('permission-denied', 'Conclua a verificação confiável de maioridade antes de criar a conta.', {
-      reason: 'trusted_age_verification_required',
+      reason: TRUSTED_AGE_VERIFICATION_REQUIRED,
     });
   })
   : undefined;

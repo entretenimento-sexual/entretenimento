@@ -138,6 +138,31 @@ describe('AgeVerificationPageComponent', () => {
     ));
   });
 
+  it('preserva a declaração anterior e aguarda prova confiável quando o backend exige', async () => {
+    current$.next({
+      ...UNVERIFIED,
+      status: 'SELF_DECLARED_ADULT',
+      source: 'SELF_DECLARATION',
+      method: 'SELF_DECLARATION',
+      registrationRequiresTrustedVerification: true,
+    });
+    fixture.detectChanges();
+
+    const text = String(fixture.nativeElement.textContent ?? '');
+    expect(text).toContain('Verificação de maioridade necessária');
+    expect(text).toContain('Sua declaração anterior continua registrada');
+    expect(text).not.toContain('Confirmo que tenho 18 anos ou mais');
+    expect(ageEligibilityMock.acceptSelfDeclaration$).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+
+    current$.next({ ...VERIFIED, registrationRequiresTrustedVerification: true });
+    component.recheckAge(true);
+    await vi.waitFor(() => expect(router.navigateByUrl).toHaveBeenCalledWith(
+      '/dashboard/explorar',
+      { replaceUrl: true },
+    ));
+  });
+
   it('mantém feedback quando a confirmação de maioridade falha', () => {
     fixture.detectChanges();
     ageEligibilityMock.acceptSelfDeclaration$.mockReturnValueOnce(

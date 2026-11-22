@@ -5,9 +5,12 @@ import {
   AGE_ELIGIBILITY_POLICY_VERSION,
   evaluateCanonicalAgeEligibility,
   isTrustedAdultAgeDecision,
-  isRegistrationAgeAdmitted,
   isAdultAccountAdmissionDecision,
 } from './age-eligibility.policy';
+import {
+  isRegistrationAgeAdmitted,
+  resolveRegistrationAgeAdmissionMode,
+} from './registration-age-admission.policy';
 
 const NOW = 1_800_000_000_000;
 
@@ -201,10 +204,18 @@ describe('age-eligibility.policy', () => {
     assert.equal(verified.status, 'VERIFIED_ADULT');
     assert.equal(verified.verifiedAtMs, NOW - 1_000);
     assert.equal(isTrustedAdultAgeDecision(selfDeclared), false);
-    assert.equal(isRegistrationAgeAdmitted(selfDeclared, false), true);
-    assert.equal(isRegistrationAgeAdmitted(selfDeclared, true), false);
-    assert.equal(isRegistrationAgeAdmitted(verified, true), true);
+    assert.equal(isRegistrationAgeAdmitted(selfDeclared, 'SELF_DECLARATION'), true);
+    assert.equal(isRegistrationAgeAdmitted(selfDeclared, 'VERIFIED_REQUIRED'), false);
+    assert.equal(isRegistrationAgeAdmitted(verified, 'VERIFIED_REQUIRED'), true);
     assert.equal(isTrustedAdultAgeDecision(verified), true);
+  });
+
+  it('mantém o padrão histórico e exige prova quando o modo explícito é inválido', () => {
+    assert.equal(resolveRegistrationAgeAdmissionMode(undefined), 'SELF_DECLARATION');
+    assert.equal(resolveRegistrationAgeAdmissionMode(' self_declaration '), 'SELF_DECLARATION');
+    assert.equal(resolveRegistrationAgeAdmissionMode(' verified_required '), 'VERIFIED_REQUIRED');
+    assert.equal(resolveRegistrationAgeAdmissionMode(''), 'VERIFIED_REQUIRED');
+    assert.equal(resolveRegistrationAgeAdmissionMode('VERFIED_REQUIRED'), 'VERIFIED_REQUIRED');
   });
 
   it('não aceita registro vencido ou política divergente', () => {

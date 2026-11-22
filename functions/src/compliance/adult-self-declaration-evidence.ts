@@ -9,11 +9,6 @@ import {
 // until the authenticated e-mail and the current admission policy are checked.
 export const SIGNUP_ADULT_DECLARATION_SCHEMA_VERSION = 2;
 
-export const requiresTrustedAdultVerification =
-  String(process.env.AGE_ADMISSION_MODE ?? 'SELF_DECLARATION')
-    .trim()
-    .toUpperCase() === 'VERIFIED_REQUIRED';
-
 export function writeAdultSelfDeclarationEvidence(
   transaction: Transaction,
   input: {

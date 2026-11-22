@@ -8,7 +8,11 @@ import type { UserRecord } from 'firebase-admin/auth';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue, Timestamp, auth } from '../firebaseApp';
 import { assertCallableAppCheck } from '../shared/security/callable-app-check';
-import { requiresTrustedAdultVerification } from '../compliance/adult-self-declaration-evidence';
+import {
+  isRegistrationAgeAdmitted,
+  requiresTrustedAdultVerification,
+  TRUSTED_AGE_VERIFICATION_REQUIRED,
+} from '../compliance/registration-age-admission.policy';
 import {
   assertPlatformAccountAccessData,
   isRegistrationInteractionBlock,
@@ -21,9 +25,7 @@ import { buildInitialUserSeed, buildRegistrationAuthProjection } from '../auth/u
 import {
   PROFILE_IDENTITY_CATALOG_VERSION, isCoupleProfileIdentityCode, isSelectableProfileIdentityCode,
 } from '../identity/profile-identity.catalog';
-import {
-  evaluateCanonicalAgeEligibility, isRegistrationAgeAdmitted,
-} from '../compliance/age-eligibility.policy';
+import { evaluateCanonicalAgeEligibility } from '../compliance/age-eligibility.policy';
 import {
   canClaimRegistrationNickname, normalizeRegistrationNickname, normalizeRegistrationNicknameClaim,
   resolveStoredRegistrationNickname, type RegistrationNickname,
@@ -271,12 +273,12 @@ export const completeRegistrationProfile = onCall<CompleteRegistrationInput>(
       const age = evaluateCanonicalAgeEligibility({
         uid, rawRecord: ageSnap.data() ?? null,
       });
-      if (!isRegistrationAgeAdmitted(age, requiresTrustedAdultVerification)) {
+      if (!isRegistrationAgeAdmitted(age)) {
         throw new HttpsError('permission-denied',
           'Conta sem autoridade etária canônica válida para conclusão.',
           {
             reason: requiresTrustedAdultVerification
-              ? 'trusted_age_verification_required'
+              ? TRUSTED_AGE_VERIFICATION_REQUIRED
               : 'age_admission_required',
           });
       }

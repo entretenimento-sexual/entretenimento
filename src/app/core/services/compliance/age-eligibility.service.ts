@@ -54,7 +54,8 @@ const UNVERIFIED: IUserAgeEligibility = Object.freeze({
 
 interface TrustedSessionAgeProjection {
   uid: string;
-  state: IUserAgeEligibility;
+  state: IUserAgeEligibility | null;
+  registrationRequiresTrustedVerification: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -91,20 +92,20 @@ export class AgeEligibilityService {
       map(([uid, user, trusted]) => {
         const persisted = this.normalize(uid && user?.uid === uid ? user.ageEligibility : null);
 
-        if (
-          uid &&
-          trusted?.uid === uid &&
-          (trusted.state.updatedAtMs ?? 0) >=
-            (persisted.updatedAtMs ?? 0)
-        ) {
-          return trusted.state;
-        }
+        const active = uid && trusted?.uid === uid ? trusted : null;
+        const state = active?.state;
+        const latest = state && (state.updatedAtMs ?? 0) >= (persisted.updatedAtMs ?? 0)
+          ? state
+          : persisted;
 
-        return persisted;
+        return active?.registrationRequiresTrustedVerification
+          ? { ...latest, registrationRequiresTrustedVerification: true }
+          : latest;
       }),
       distinctUntilChanged(
         (left, right) =>
           left.status === right.status &&
+          left.registrationRequiresTrustedVerification === right.registrationRequiresTrustedVerification &&
           left.policyVersion === right.policyVersion &&
           left.source === right.source &&
           left.method === right.method &&
@@ -136,6 +137,7 @@ export class AgeEligibilityService {
             migrated: boolean;
             restoredFromDeclarationEvidence: boolean;
             ageEligibility: IUserAgeEligibility | null;
+            registrationRequiresTrustedVerification?: boolean;
           }
         >(
           inject(Functions),
@@ -147,9 +149,14 @@ export class AgeEligibilityService {
         map(({ data }) => {
           this.assertCurrentSession(uid, generation);
           const state = this.normalize(data.ageEligibility);
+          const registrationRequiresTrustedVerification = data.registrationRequiresTrustedVerification === true;
 
-          if (state.status !== 'UNVERIFIED') {
-            this.trustedSessionProjection.next({ uid, state });
+          if (state.status !== 'UNVERIFIED' || registrationRequiresTrustedVerification) {
+            this.trustedSessionProjection.next({
+              uid,
+              state: state.status === 'UNVERIFIED' ? null : state,
+              registrationRequiresTrustedVerification,
+            });
           } else if (this.trustedSessionProjection.value?.uid === uid) {
             this.trustedSessionProjection.next(null);
           }
@@ -263,7 +270,7 @@ export class AgeEligibilityService {
           const state = this.normalize(data.ageEligibility);
 
           if (state.status === 'SELF_DECLARED_ADULT' || state.status === 'VERIFIED_ADULT') {
-            this.trustedSessionProjection.next({ uid, state });
+            this.trustedSessionProjection.next({ uid, state, registrationRequiresTrustedVerification: false });
           }
 
           return data.status;

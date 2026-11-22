@@ -63,6 +63,7 @@ import { ProfileCompletionFacade } from '../data-access/profile-completion.facad
 import {
   isRegistrationConfirmationUncertain,
   isRegistrationSessionChange,
+  isRegistrationTrustedAgeVerificationRequired,
   REGISTRATION_ACTION_TIMEOUT_MS,
 } from '../data-access/register-action.policy';
 
@@ -686,7 +687,7 @@ implements OnInit, UnsavedChangesAware
             this.setWarningMessage('Sua conta está com uma restrição. Consulte o status da conta para saber como continuar.');
             return EMPTY;
           }
-          if (reason === 'trusted_age_verification_required') {
+          if (isRegistrationTrustedAgeVerificationRequired(error)) {
             this.setWarningMessage('Sua maioridade ainda precisa ser verificada para concluir o cadastro.');
             return EMPTY;
           }

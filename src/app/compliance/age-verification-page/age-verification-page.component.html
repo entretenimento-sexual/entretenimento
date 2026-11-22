@@ -99,6 +99,19 @@
             Ir para minha conta
           </button>
         </div>
+      } @else if (vm.registrationRequiresTrustedVerification) {
+        <section class="age-verification__status age-verification__status--warning" role="status">
+          <div>
+            <strong>Verificação de maioridade necessária</strong>
+            <p>Seu cadastro aguarda uma verificação confiável da sua idade.</p>
+            @if (vm.selfDeclared) {
+              <p>Sua declaração anterior continua registrada.</p>
+            }
+          </div>
+        </section>
+        <button type="button" class="app-action app-action--primary" (click)="recheckAge(true)">
+          Consultar situação novamente
+        </button>
       } @else {
         @if (vm.selfDeclared) {
           <section class="age-verification__migration-note" role="status">

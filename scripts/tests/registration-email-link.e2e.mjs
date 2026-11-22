@@ -359,7 +359,8 @@ try {
   const declared = (await declarationRef.get()).data();
   assert.ok(declared.declaredAtMs <= declared.termsAcceptedAtMs);
   assert.equal(declared.legalSnapshotCapturedAtDeclaration, false);
-  await consumer.call('refreshMyAgeEligibility', {});
+  const declaredAdmission = await consumer.call('refreshMyAgeEligibility', {});
+  assert.equal(declaredAdmission.data.registrationRequiresTrustedVerification, false);
   assert.equal((await db.collection('age_eligibility_records').doc(uid).get()).get('status'), 'SELF_DECLARED_ADULT');
   await consumer.call('acceptPlatformTerms', terms);
   assert.equal((await declarationRef.get()).get('declaredAtMs'), declared.declaredAtMs);

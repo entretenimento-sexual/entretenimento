@@ -51,7 +51,7 @@ test('a conclusão pelo backend exige idade canônica e os termos vigentes', () 
   const completion = read('functions/src/registration/registration-profile-authority.handler.ts')
     .split('export const completeRegistrationProfile')[1]?.split('export const updateProfileOrientation')[0] ?? '';
   assert.match(completion, /evaluateCanonicalAgeEligibility\(/);
-  assert.match(completion, /isRegistrationAgeAdmitted\(age, requiresTrustedAdultVerification\)/);
+  assert.match(completion, /isRegistrationAgeAdmitted\(age\)/);
   assert.match(completion, /hasAcceptedCurrentTerms\(user\['acceptedTerms'\]\)/);
   assert.doesNotMatch(completion, /adultConsentReady|initialAdultConsentRequired/);
 });

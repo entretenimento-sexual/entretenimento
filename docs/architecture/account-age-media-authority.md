@@ -57,9 +57,11 @@ decision instead of equating permission to join with strong verification:
   It recognizes a valid `SELF_DECLARED_ADULT` or a truly trusted
   `VERIFIED_ADULT`, but never `DENIED_UNDERAGE`, `REVIEW_REQUIRED`,
   expired states or a forged/untrusted verified claim.
-- `accept-adult-self-declaration.handler.ts` defaults to preserving a
-  one-time backend-created adult declaration. An explicit
-  `AGE_ADMISSION_MODE=VERIFIED_REQUIRED` remains an operational override.
+- `registration-age-admission.policy.ts` resolves `AGE_ADMISSION_MODE` for
+  Auth admission, private seed creation, self-declaration reconciliation and
+  profile completion. The account retains the first backend-created
+  declaration. `refreshMyAgeEligibility` reports the configured requirement
+  to onboarding. See the [registration configuration](../operations/registration-email-first-design.md#configuração-da-admissão).
 - `adult-consent.handler.ts` checks account adult admission rather than
   strong assurance.
 - `firestore-rules/_helpers.rules` accepts only a backend-created,
@@ -73,12 +75,9 @@ decision instead of equating permission to join with strong verification:
 - Rules tests verify valid declaration admission and rejection of underage,
   open review, missing timestamp and mismatched declaration evidence.
 
-The optional strong-verification workflow is **not** a registration
-prerequisite. The initial admission screen does not expose the review
-request action, because opening a review there could transition the
-canonical record into `REVIEW_REQUIRED` before admission. Follow-up
-assurance/KYC must be surfaced in an account-level workflow with explicit
-policy about whether a genuine safety concern requires a lifecycle hold.
+In `SELF_DECLARATION` mode, follow-up verification is handled at the account
+level and materializes restrictions according to the safety decision.
+`VERIFIED_REQUIRED` reserves initial admission for a current trusted proof.
 
 No publication/distribution entitlement is derived from owner age-assurance
 fields, and `media-content-safety-assessment.policy.ts` remains the separate

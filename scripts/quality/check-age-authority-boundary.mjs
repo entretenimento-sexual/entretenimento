@@ -133,7 +133,7 @@ requireAll(
   'functions/src/registration/registration-profile-authority.handler.ts',
   [
     'const age = evaluateCanonicalAgeEligibility(',
-    'if (!isRegistrationAgeAdmitted(age, requiresTrustedAdultVerification))',
+    'if (!isRegistrationAgeAdmitted(age))',
   ],
   'conclusão do cadastro deve exigir 18+ canônico no backend'
 );
@@ -506,9 +506,9 @@ forbidAll(
 // -----------------------------------------------------------------------------
 
 requireAll(
-  'functions/src/compliance/adult-self-declaration-evidence.ts',
-  ["AGE_ADMISSION_MODE ?? 'SELF_DECLARATION'"],
-  'admissão 18+ autodeclarada deve ser o padrão'
+  'functions/src/compliance/registration-age-admission.policy.ts',
+  ['process.env.AGE_ADMISSION_MODE', "value ?? 'SELF_DECLARATION'", 'isRegistrationAgeAdmitted'],
+  'configuração e regra de admissão devem ter uma autoridade única'
 );
 
 requireAll(

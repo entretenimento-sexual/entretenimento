@@ -13,7 +13,7 @@ test('guard de produto preserva lifecycle e termos vigentes', () => {
   assert.match(guard, /accountStatus\s*!==\s*'active'/);
   assert.match(guard, /user\.accountLocked\s*===\s*true/);
   assert.match(guard, /user\.interactionBlocked\s*===\s*true/);
-  assert.match(guard, /hasCurrentTerms\(user\.acceptedTerms\)/);
+  assert.match(guard, /hasAcceptedCurrentTerms\(user\.acceptedTerms\)/);
   assert.match(guard, /moderationAutomationHold/);
 });
 

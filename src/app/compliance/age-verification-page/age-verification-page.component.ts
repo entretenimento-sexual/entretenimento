@@ -28,6 +28,7 @@ import { RegisterFlowFacade } from 'src/app/register-module/data-access/register
 import {
   isRegistrationConfirmationUncertain,
   isRegistrationSessionChange,
+  isRegistrationTrustedAgeVerificationRequired,
   REGISTRATION_ACTION_TIMEOUT_MS,
 } from 'src/app/register-module/data-access/register-action.policy';
 import { RegisterProgressComponent } from 'src/app/register-module/register-progress/register-progress.component';
@@ -44,6 +45,7 @@ import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.comp
 interface AgeVerificationPageVm {
   state: IUserAgeEligibility;
   accessAllowed: boolean;
+  registrationRequiresTrustedVerification: boolean;
   verified: boolean;
   selfDeclared: boolean;
   expired: boolean;
@@ -87,6 +89,7 @@ export class AgeVerificationPageComponent implements OnInit {
       map((state) => ({
         state,
         accessAllowed: isCurrentAdultAccountAdmissionProjection(state),
+        registrationRequiresTrustedVerification: state.registrationRequiresTrustedVerification === true,
         verified: isCurrentTrustedAdultAgeProjection(state),
         selfDeclared: state.status === 'SELF_DECLARED_ADULT',
         expired: state.status === 'EXPIRED',
@@ -158,6 +161,15 @@ export class AgeVerificationPageComponent implements OnInit {
       catchError((error: unknown) => {
         if (!this.isCurrentAccount() || isRegistrationSessionChange(error)) {
           this.reportSessionChange();
+          return EMPTY;
+        }
+        if (isRegistrationTrustedAgeVerificationRequired(error)) {
+          this.ageRecheckRequired.set(true);
+          this.feedback.set({
+            tone: 'warning',
+            title: 'Verificação de maioridade necessária',
+            message: 'Este cadastro exige uma verificação confiável da idade. Consulte a situação da sua conta para continuar.',
+          });
           return EMPTY;
         }
         if (isRegistrationConfirmationUncertain(error)) {

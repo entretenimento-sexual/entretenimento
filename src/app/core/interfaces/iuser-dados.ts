@@ -39,6 +39,7 @@ export type AgeEligibilityMethod =
 
 export interface IUserAgeEligibility {
   status: AgeEligibilityStatus;
+  registrationRequiresTrustedVerification?: boolean;
   policyVersion: number;
   source: AgeEligibilitySource;
   method: AgeEligibilityMethod;

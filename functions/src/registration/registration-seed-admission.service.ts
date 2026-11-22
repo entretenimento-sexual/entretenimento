@@ -1,6 +1,9 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 
-import { requiresTrustedAdultVerification } from '../compliance/adult-self-declaration-evidence';
+import {
+  requiresTrustedAdultVerification,
+  TRUSTED_AGE_VERIFICATION_REQUIRED,
+} from '../compliance/registration-age-admission.policy';
 import { evaluateCanonicalAgeEligibility, isTrustedAdultAgeDecision } from '../compliance/age-eligibility.policy';
 import { db } from '../firebaseApp';
 
@@ -24,6 +27,6 @@ export async function assertCanCreateRegistrationSeed(
   if (await canCreateRegistrationSeed(transaction, uid)) return;
 
   throw new HttpsError('failed-precondition', 'Conclua a verificação confiável de maioridade antes de continuar.', {
-    reason: 'trusted_age_verification_required',
+    reason: TRUSTED_AGE_VERIFICATION_REQUIRED,
   });
 }
