@@ -40,6 +40,7 @@ import {
 import { db, FieldValue } from '../../../firebaseApp';
 import { assertCallableAppCheck } from '../../../shared/security/callable-app-check';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
+import { assertDirectChatEmailVerified } from '../domain/direct-chat.policy';
 
 import {
   assertMessagingAccountOperational,
@@ -181,9 +182,7 @@ export const getDirectConversationStarter = onCall<{ chatId?: unknown }>(
     assertCallableAppCheck(request.app);
     const actorUid = request.auth?.uid;
     if (!actorUid) throw new HttpsError('unauthenticated', 'Entre para abrir a conversa.');
-    if (request.auth?.token.email_verified !== true) {
-      throw new HttpsError('failed-precondition', 'Confirme seu e-mail para conversar.');
-    }
+    assertDirectChatEmailVerified(request.auth?.token?.email_verified);
     const chatId = normalizeIdentifier(request.data?.chatId);
     if (!chatId || chatId.includes('/') || chatId === '.' || chatId === '..' || chatId.length > 256) {
       throw new HttpsError('invalid-argument', 'Conversa não identificada.');
@@ -222,12 +221,9 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
-    if (request.auth?.token?.email_verified !== true) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Verifique seu e-mail antes de enviar mensagens.'
-      );
-    }
+    assertDirectChatEmailVerified(
+      request.auth?.token?.email_verified, 'Verifique seu e-mail antes de enviar mensagens.'
+    );
 
     const chatId = normalizeIdentifier(request.data?.chatId);
 

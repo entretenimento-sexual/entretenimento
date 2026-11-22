@@ -4,7 +4,7 @@
     //    `service cloud.firestore`
     //
     // Segurança desta versão:
-    // - leitura permanece restrita aos participantes da conversa;
+    // - leitura fica restrita aos participantes com e-mail verificado;
     // - criação de chat direto ocorre somente por Cloud Function confiável;
     // - atualização do documento de chat ocorre somente por backend confiável;
     // - criação de mensagens diretas ocorre somente por Cloud Function;
@@ -19,9 +19,10 @@
     // - removida criação client-side de mensagens diretas.
     // =======================================================================
 match /chats/{chatId} {
-  function isChatParticipant() {
-    let participants = resource.data.participants;
-    return currentUserCanUseAdultSocialPlatform()
+  function canUseDirectChat(chat) {
+    let participants = chat is map ? chat.get("participants", null) : null;
+    return hasVerifiedEmail()
+      && currentUserCanUseAdultSocialPlatform()
       && participants is list
       && participants.size() == 2
       && (uid() in participants)
@@ -36,16 +37,15 @@ match /chats/{chatId} {
    * A consulta do frontend já utiliza:
    * where('participants', 'array-contains', uid)
    */
-  allow read: if isChatParticipant();
+  allow read: if canUseDirectChat(resource.data);
 
   /**
    * Criação e alteração estrutural de chat direto permanecem exclusivas
    * das Cloud Functions confiáveis.
    */
   allow create, update, delete: if false;
-}
 
-    match /chats/{chatId}/messages/{messageId} {
+    match /messages/{messageId} {
       function chatExists() {
         return exists(/databases/$(database)/documents/chats/$(chatId));
       }
@@ -54,14 +54,7 @@ match /chats/{chatId} {
         let chat = chatExists()
           ? get(/databases/$(database)/documents/chats/$(chatId)).data
           : null;
-        let participants = chat is map ? chat.get("participants", null) : null;
-        return currentUserCanUseAdultSocialPlatform()
-          && participants is list
-          && participants.size() == 2
-          && (uid() in participants)
-          && bilateralExposureAllows(
-            participants[0] == uid() ? participants[1] : participants[0]
-          );
+        return canUseDirectChat(chat);
       }
 
       function isMessageReceivedByCurrentUser() {
@@ -164,3 +157,4 @@ match /chats/{chatId} {
 
       allow delete: if false;
     }
+}

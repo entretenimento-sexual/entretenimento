@@ -62,6 +62,17 @@ run('reconcileDirectChatAccess — bounded bilateral projection', () => {
     cleanup?.();
   });
 
+  it('recusa sessão sem e-mail verificado antes de atualizar a projeção', async () => {
+    for (const token of [{ email_verified: false }, {}]) {
+      await assert.rejects(
+        invoke({ data: { peerUid: right }, auth: { uid: left, token } }, {}),
+        { code: 'failed-precondition', details: { reason: 'email_verification_required' } }
+      );
+    }
+    assert.equal((await leftAccess.get()).exists, false);
+    assert.equal((await rightAccess.get()).exists, false);
+  });
+
   it('preenche par legado e reexecução não regrava projeções', async () => {
     assert.equal((await leftAccess.get()).exists, false);
     await request();

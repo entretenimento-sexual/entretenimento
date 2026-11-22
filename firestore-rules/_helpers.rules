@@ -27,6 +27,9 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function uid() { return request.auth.uid; }
     function isSelf(userId) { return signedIn() && uid() == userId; }
+    function hasVerifiedEmail() {
+      return signedIn() && request.auth.token.get("email_verified", false) == true;
+    }
 
     // ===============================================================
     // Acesso a conteúdo adulto público

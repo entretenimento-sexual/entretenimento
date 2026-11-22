@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -6,9 +7,32 @@ import {
   resolveFirebaseAuthEmulatorPersistenceMode,
   resolveFirebaseAuthEmulatorStartupMode,
 } from './firebase-environment.config';
+import { environment as emulatorEnvironment } from '../../../environments/environment.dev-emu';
 
 
 describe('firebase-environment.config', () => {
+  it('seleciona o ambiente emulado nas entradas padrão de desenvolvimento', () => {
+    const { scripts } = JSON.parse(readFileSync('package.json', 'utf8'));
+    const { build, serve } = JSON.parse(readFileSync('angular.json', 'utf8'))
+      .projects.entretenimento.architect;
+    const commands = ['ng serve', scripts.start, scripts['start:dev'], scripts['start:emu']];
+
+    for (const command of commands) {
+      const match = /^ng serve(?: -c ([\w-]+))?$/.exec(command);
+      expect(match, command).not.toBeNull();
+      const serveConfiguration = match?.[1] ?? serve.defaultConfiguration;
+      const buildTarget = serve.configurations[serveConfiguration].buildTarget;
+      const environmentReplacement = build.configurations[buildTarget.split(':')[2]].fileReplacements
+        ?.find((replacement: { replace: string }) => replacement.replace === 'src/environments/environment.ts');
+      expect(environmentReplacement?.with, command).toBe('src/environments/environment.dev-emu.ts');
+    }
+
+    expect(emulatorEnvironment.useEmulators).toBe(true);
+    for (const service of ['auth', 'firestore', 'functions', 'storage', 'database'] as const) {
+      expect(requireLocalFirebaseEmulatorEndpoint(service, emulatorEnvironment.emulators).host).toBe('127.0.0.1');
+    }
+  });
+
   it('normaliza endpoint válido do emulator', () => {
     expect(
       normalizeFirebaseEmulatorEndpoint('auth', {

@@ -87,6 +87,31 @@ describe('Firestore Rules / direct chat receipts', () => {
     await assertFails(getDoc(message(OUTSIDER)));
   });
 
+  it.each([
+    ['não verificado', { email_verified: false }],
+    ['sem claim', {}],
+  ])('restringe o chat pelo token %s até a confirmação do e-mail', async (_label, token) => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), 'users', RECIPIENT), { emailVerified: true });
+    });
+    const client = env.authenticatedContext(RECIPIENT, token).firestore();
+    const chat = doc(client, 'chats', CHAT_ID);
+    const messages = collection(chat, 'messages');
+    const incoming = doc(messages, MESSAGE_ID);
+
+    await assertFails(getDoc(chat));
+    await assertFails(getDocs(query(collection(client, 'chats'), where('participants', 'array-contains', RECIPIENT))));
+    await assertFails(getDoc(incoming));
+    await assertFails(getDocs(messages));
+    await assertFails(updateDoc(incoming, { status: 'delivered' }));
+    await assertFails(updateDoc(incoming, { ['reactionsByUser.' + RECIPIENT]: '❤️' }));
+
+    const verified = message(RECIPIENT);
+    await assertSucceeds(getDoc(verified));
+    await assertSucceeds(updateDoc(verified, { status: 'delivered' }));
+    await assertSucceeds(updateDoc(verified, { ['reactionsByUser.' + RECIPIENT]: '❤️' }));
+  });
+
   it('nega adulteração da identidade e dos campos autoritativos pelo destinatário', async () => {
     for (const patch of [
       { senderId: RECIPIENT },

@@ -13,6 +13,7 @@ import {
   assertMessagingAccountOperational,
 } from '../../shared/messaging-account.policy';
 import type { MessagingUserDoc } from '../../shared/messaging.types';
+import { assertDirectChatEmailVerified } from '../domain/direct-chat.policy';
 import {
   DIRECT_MESSAGE_POLICY_VERSION,
   assertNoDirectMessagingBlock,
@@ -81,12 +82,9 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
     if (!actorUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
-    if (request.auth?.token?.email_verified !== true) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Verifique seu e-mail antes de enviar mensagens.'
-      );
-    }
+    assertDirectChatEmailVerified(
+      request.auth?.token?.email_verified, 'Verifique seu e-mail antes de enviar mensagens.'
+    );
 
     const chatId = clean(request.data?.chatId);
     const clientRequestId = normalizeDirectMessageRequestId(

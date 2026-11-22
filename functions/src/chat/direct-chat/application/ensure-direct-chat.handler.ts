@@ -40,6 +40,7 @@ import {
   ENSURE_DIRECT_CHAT_RATE_LIMIT_CONFIG,
   ENSURE_DIRECT_CHAT_LEGACY_SCAN_LIMIT,
   assertCanCreateNewDirectChat,
+  assertDirectChatEmailVerified,
   isEligibleExistingDirectChat,
 } from '../domain/direct-chat.policy';
 import { assertNoDirectMessagingBlock } from '../domain/direct-message.policy';
@@ -137,12 +138,9 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
-    if (request.auth?.token?.email_verified !== true) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Verifique seu e-mail antes de iniciar conversas.'
-      );
-    }
+    assertDirectChatEmailVerified(
+      request.auth?.token?.email_verified, 'Verifique seu e-mail antes de iniciar conversas.'
+    );
 
     if (!targetUid) {
       throw new HttpsError(

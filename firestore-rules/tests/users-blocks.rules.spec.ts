@@ -135,26 +135,26 @@ describe('Firestore Rules / user blocks', () => {
     await assertFails(deleteDoc(blockRef));
   });
 
-  it('permite apenas get da própria projeção de acesso bilateral', async () => {
+  it('permite apenas get da própria projeção de acesso bilateral com e-mail verificado', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(
         doc(context.firestore(), 'direct_chat_access', OWNER_UID, 'peers', TARGET_UID),
         { available: false, version: 1, updatedAt: serverTimestamp() }
       );
     });
-    const ownerRef = doc(
-      authenticatedDb(OWNER_UID), 'direct_chat_access', OWNER_UID, 'peers', TARGET_UID
-    );
-    const outsiderRef = doc(
-      authenticatedDb(OUTSIDER_UID), 'direct_chat_access', OWNER_UID, 'peers', TARGET_UID
-    );
+    const projection = (client: ReturnType<typeof authenticatedDb>) =>
+      doc(client, 'direct_chat_access', OWNER_UID, 'peers', TARGET_UID);
+    const ownerDb = testEnv.authenticatedContext(OWNER_UID, { email_verified: true }).firestore();
+    const outsiderDb = testEnv.authenticatedContext(OUTSIDER_UID, { email_verified: true }).firestore();
+    const ownerRef = projection(ownerDb);
 
     await assertSucceeds(getDoc(ownerRef));
-    await assertFails(getDoc(outsiderRef));
+    await assertFails(getDoc(projection(authenticatedDb(OWNER_UID))));
+    await assertFails(getDoc(projection(outsiderDb)));
     await assertFails(updateDoc(ownerRef, { available: true }));
     await assertFails(deleteDoc(ownerRef));
     await assertFails(setDoc(
-      doc(authenticatedDb(OWNER_UID), 'direct_chat_access', OWNER_UID, 'peers', OUTSIDER_UID),
+      doc(ownerDb, 'direct_chat_access', OWNER_UID, 'peers', OUTSIDER_UID),
       { available: true, version: 1 }
     ));
   });

@@ -15,7 +15,7 @@ import {
 } from 'firebase/functions';
 import {
   getFirestore as getClientFirestore, connectFirestoreEmulator,
-  collection, doc, getDoc, onSnapshot, query, setDoc, updateDoc, where, writeBatch,
+  collection, doc, getDoc, getDocFromServer, onSnapshot, query, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 import {
   initializeApp as initializeAdminApp, deleteApp as deleteAdminApp,
@@ -331,6 +331,23 @@ try {
     clientRequestId: randomUUID().replaceAll('-', ''),
   })).data.messageId;
   assert.ok(firstMessage);
+
+  const aMessage = doc(a.firestore, 'chats', chatId, 'messages', firstMessage);
+  const aUser = a.auth.currentUser;
+  await adminAuth.updateUser(aUid, { emailVerified: false });
+  await aUser.reload();
+  assert.equal((await aUser.getIdTokenResult(true)).claims.email_verified, false);
+  await expectDenied(() => getDocFromServer(aMessage), 'permission-denied');
+  await expectDenied(() => updateDoc(aMessage, { status: 'delivered' }), 'permission-denied');
+  await expectDenied(() => reconcile({ peerUid: bUid }), 'functions/failed-precondition');
+  await expectDenied(() => getStarter({ chatId }), 'functions/failed-precondition');
+
+  await adminAuth.updateUser(aUid, { emailVerified: true });
+  await aUser.reload();
+  assert.equal((await aUser.getIdTokenResult(true)).claims.email_verified, true);
+  assert.equal((await getDocFromServer(aMessage)).exists(), true);
+  await updateDoc(aMessage, { status: 'delivered' });
+  console.log('[bilateral-two-sessions:e2e] PASS chat authorization follows the refreshed Auth token');
 
   // One owner-scoped block collection watcher, not one watcher per card.
   const aOwnBlocks = observeOwnBlocks(a, aUid);

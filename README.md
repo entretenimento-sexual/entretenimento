@@ -17,9 +17,15 @@ Esses documentos não autorizam deploy, mudança de IAM ou alteração de Rules.
 Para homologar o cadastro em `entretenimento-staging`, consulte
 [App Check e Web Push no checklist de pré-deploy](./docs/operations/production-release-deferred-audit-checklist.md#app-check-e-web-push-no-ensaio-da-release).
 
-## Development server
+## Desenvolvimento local
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+Com os emuladores iniciados, `npm start`, `npm run start:dev` e
+`npm run start:emu` servem a aplicação em `http://localhost:4200/` usando
+os endpoints locais de `dev-emu`. `ng serve` usa a mesma configuração.
+Se os emuladores estiverem desligados, a aplicação continua apontando para
+localhost. No Windows, `npm run dev:auth:win` inicia o frontend e os emuladores.
+Para usar o projeto de homologação `entretenimento-staging`, selecione
+explicitamente `npm run start:staging`.
 
 ## Code scaffolding
 

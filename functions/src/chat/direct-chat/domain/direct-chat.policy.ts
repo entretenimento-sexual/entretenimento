@@ -18,6 +18,15 @@ import type { BackendFixedWindowRateLimitConfig } from '../../../shared/security
 
 export const DIRECT_CHAT_POLICY_VERSION = 'direct-chat-v2' as const;
 
+export function assertDirectChatEmailVerified(
+  emailVerified: unknown,
+  message = 'Confirme seu e-mail para conversar.'
+): void {
+  if (emailVerified !== true) {
+    throw new HttpsError('failed-precondition', message, { reason: 'email_verification_required' });
+  }
+}
+
 export interface DirectChatPairIdentity {
   participants: [string, string];
   /** Apenas para consulta de históricos existentes; pode colidir. */

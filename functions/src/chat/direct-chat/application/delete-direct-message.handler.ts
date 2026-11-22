@@ -16,6 +16,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { db, FieldValue } from '../../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
+import { assertDirectChatEmailVerified } from '../domain/direct-chat.policy';
 
 interface DeleteDirectMessageRequest {
   chatId?: unknown;
@@ -70,12 +71,9 @@ export const deleteDirectMessage = onCall<DeleteDirectMessageRequest>(
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
-    if (request.auth?.token?.email_verified !== true) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Verifique seu e-mail antes de apagar mensagens.'
-      );
-    }
+    assertDirectChatEmailVerified(
+      request.auth?.token?.email_verified, 'Verifique seu e-mail antes de apagar mensagens.'
+    );
 
     const chatId = normalizeIdentifier(request.data?.chatId);
     const messageId = normalizeIdentifier(request.data?.messageId);
