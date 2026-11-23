@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
+import { provideRouter } from '@angular/router';
 import { BehaviorSubject, Subject, of } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -38,6 +39,7 @@ describe('FriendBlockedComponent', () => {
     await TestBed.configureTestingModule({
       imports: [FriendBlockedComponent],
       providers: [
+        provideRouter([]),
         { provide: AuthSessionService, useValue: { uid$: authUid$.asObservable() } },
         { provide: FriendshipService, useValue: friendship },
         { provide: MatDialog, useValue: { open: confirm } },
