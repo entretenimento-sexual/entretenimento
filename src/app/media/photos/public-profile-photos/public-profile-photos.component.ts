@@ -52,6 +52,7 @@ import {
   samePublicGalleryOwnerIdentity,
 } from 'src/app/core/services/media/public-gallery-owner-identity.util';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+import { PublicProfileVisibilityService } from 'src/app/core/services/discovery/public-profile-visibility.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { visitedProfileReturnRoute } from 'src/app/core/utils/media/visited-profile-return-route';
 import {
@@ -89,7 +90,7 @@ export function resolvePublicProfilePhotoPageSize(
   return 24;
 }
 interface PublicProfilePhotosState {
-  readonly status: 'loading' | 'ready' | 'empty' | 'error';
+  readonly status: 'loading' | 'ready' | 'empty' | 'error' | 'unavailable';
   readonly items: readonly IPublicPhotoItem[];
   readonly ownerUid: string;
   readonly hasMore: boolean;
@@ -115,6 +116,7 @@ interface PublicProfilePhotosState {
 export class PublicProfilePhotosComponent implements AfterViewInit {
   private readonly route = inject(ActivatedRoute);
   private readonly photoPagination = inject(PublicProfilePhotoPaginationService);
+  private readonly profileVisibility = inject(PublicProfileVisibilityService);
   private readonly publicUserQuery = inject(FirestoreUserQueryService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly destroyRef = inject(DestroyRef);
@@ -162,16 +164,35 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
   private viewerOpening = false;
   private resizeObserver: ResizeObserver | null = null;
 
+  /** O UID e seu estado de visibilidade pertencem à mesma emissão. */
+  private readonly galleryAccess$ = this.ownerUid$.pipe(
+    switchMap((ownerUid) => ownerUid
+      ? this.profileVisibility.watch$(ownerUid).pipe(
+          map((available) => ({ ownerUid, available }))
+        )
+      : of({ ownerUid, available: false })
+    ),
+    distinctUntilChanged((a, b) =>
+      a.ownerUid === b.ownerUid && a.available === b.available
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   readonly state$: Observable<PublicProfilePhotosState> = combineLatest([
-    this.ownerUid$,
+    this.galleryAccess$,
     this.refreshSubject,
   ]).pipe(
-    switchMap(([ownerUid]) => {
+    switchMap(([{ ownerUid, available }]) => {
+      // Revogação desmonta a grade, cancela a página anterior via switchMap e
+      // invalida páginas de continuação em voo no mesmo ciclo de emissão.
       this.resetGallery(ownerUid);
       const revision = this.galleryRevision;
 
       if (!ownerUid) {
         return of(this.buildState('empty', []));
+      }
+      if (!available) {
+        return of(this.buildState('unavailable', []));
       }
 
       return this.pageSizeSubject.pipe(
@@ -255,7 +276,7 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
         )
       ),
       switchMap(({ ownerUid, status, mediaIdentity }) => {
-        if (!ownerUid || status === 'loading' || status === 'error') {
+        if (!ownerUid || status === 'loading' || status === 'error' || status === 'unavailable') {
           return of(null);
         }
         if (mediaIdentity) return of(mediaIdentity);
@@ -369,9 +390,10 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
     }).pipe(
       take(1),
       // Um novo perfil ou retry invalida a página em voo.
-      takeUntil(combineLatest([this.ownerUid$, this.refreshSubject]).pipe(
-        filter(([currentOwnerUid, refresh]) =>
-          currentOwnerUid !== ownerUid || refresh !== refreshAtRequest
+      takeUntil(combineLatest([this.galleryAccess$, this.refreshSubject]).pipe(
+        filter(([access, refresh]) =>
+          access.ownerUid !== ownerUid || !access.available ||
+          refresh !== refreshAtRequest
         )
       )),
       tap((page) => {

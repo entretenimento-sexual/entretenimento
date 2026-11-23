@@ -41,6 +41,7 @@ import {
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+import { PublicProfileVisibilityService } from 'src/app/core/services/discovery/public-profile-visibility.service';
 import {
   publicGalleryOwnerIdentityFromMedia,
   samePublicGalleryOwnerIdentity,
@@ -67,7 +68,7 @@ import { PublicVideoCardComponent } from '../../shared/components/public-video-c
 import { PublicVideoViewerLauncherService } from '../public-video-viewer/public-video-viewer-launcher.service';
 
 interface PublicProfileVideosState {
-  status: 'loading' | 'ready' | 'empty' | 'error';
+  status: 'loading' | 'ready' | 'empty' | 'error' | 'unavailable';
   items: IPublicVideoItem[];
   renderItems: IPublicVideoItem[];
   renderStart: number;
@@ -119,6 +120,7 @@ export class PublicProfileVideosComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly publicUserQuery = inject(FirestoreUserQueryService);
+  private readonly profileVisibility = inject(PublicProfileVisibilityService);
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
   private readonly videoPagination = inject(PublicProfileVideoPaginationService);
   private readonly publicVideoShare = inject(PublicVideoShareService);
@@ -183,16 +185,38 @@ export class PublicProfileVideosComponent implements OnInit {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  /** Mantém rota e autorização correlacionadas, mesmo na troca de perfil. */
+  private readonly galleryAccess$ = this.galleryRoute$.pipe(
+    switchMap((route) => route.ownerUid
+      ? this.profileVisibility.watch$(route.ownerUid).pipe(
+          map((available) => ({ route, available }))
+        )
+      : of({ route, available: false })
+    ),
+    distinctUntilChanged((a, b) =>
+      routeIdentity(a.route) === routeIdentity(b.route) &&
+      a.available === b.available
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   readonly state$: Observable<PublicProfileVideosState> = combineLatest([
-    this.galleryRoute$,
+    this.galleryAccess$,
     this.refreshSubject,
   ]).pipe(
-    switchMap(([route]) => {
+    switchMap(([{ route, available }]) => {
       const { ownerUid, requestedVideoId } = route;
       this.galleryRouteIdentity = routeIdentity(route);
       if (!ownerUid) {
         this.resetGallery('');
         return of(this.buildState('empty', []));
+      }
+      if (!available) {
+        this.resetGallery('');
+        this.autoOpenedVideoKeys.clear();
+        // Descarta também a abertura agendada por deep link após revogação.
+        this.deepLinkRouteGeneration += 1;
+        return of(this.buildState('unavailable', []));
       }
 
       if (requestedVideoId) {
@@ -297,7 +321,7 @@ export class PublicProfileVideosComponent implements OnInit {
         )
       ),
       switchMap(({ ownerUid, status, mediaIdentity }) => {
-        if (!ownerUid || status === 'loading' || status === 'error') {
+        if (!ownerUid || status === 'loading' || status === 'error' || status === 'unavailable') {
           return of(null);
         }
         if (mediaIdentity) return of(mediaIdentity);
@@ -360,10 +384,10 @@ export class PublicProfileVideosComponent implements OnInit {
     }).pipe(
       take(1),
       // Ao trocar proprietário, vídeo deep link ou retry, cancelar a página antiga.
-      takeUntil(combineLatest([this.galleryRoute$, this.refreshSubject]).pipe(
-        filter(([route, refresh]) =>
-          routeIdentity(route) !== routeAtRequest ||
-          refresh !== refreshAtRequest
+      takeUntil(combineLatest([this.galleryAccess$, this.refreshSubject]).pipe(
+        filter(([access, refresh]) =>
+          routeIdentity(access.route) !== routeAtRequest ||
+          !access.available || refresh !== refreshAtRequest
         )
       )),
       tap((page) => {

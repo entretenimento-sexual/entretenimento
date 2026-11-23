@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+import { PublicProfileVisibilityService } from 'src/app/core/services/discovery/public-profile-visibility.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -89,6 +90,7 @@ describe('PublicProfileVideosComponent', () => {
   let component: PublicProfileVideosComponent;
   let publicUserQuery: { getPublicUserById$: ReturnType<typeof vi.fn> };
   let routeParamMapSubject: BehaviorSubject<ParamMap>;
+  let profileAvailable: BehaviorSubject<boolean>;
   let mediaPublicQuery: {
     getProfilePublicVideos$: ReturnType<typeof vi.fn>;
     getPublicVideoById$: ReturnType<typeof vi.fn>;
@@ -109,6 +111,7 @@ describe('PublicProfileVideosComponent', () => {
   };
 
   beforeEach(() => {
+    profileAvailable = new BehaviorSubject<boolean>(true);
     routeParamMapSubject = new BehaviorSubject<ParamMap>(
       convertToParamMap({ id: VIDEO.ownerUid })
     );
@@ -180,6 +183,13 @@ describe('PublicProfileVideosComponent', () => {
           useValue: publicUserQuery,
         },
         {
+          provide: PublicProfileVisibilityService,
+          useValue: {
+            watch$: (ownerUid: string) => ownerUid === VIDEO.ownerUid
+              ? profileAvailable.asObservable() : of(true),
+          },
+        },
+        {
           provide: PublicProfileVideoPaginationService,
           useValue: videoPagination,
         },
@@ -205,6 +215,47 @@ describe('PublicProfileVideosComponent', () => {
     component = TestBed.runInInjectionContext(
       () => new PublicProfileVideosComponent()
     );
+  });
+
+  it('revoga cards e cabeçalho, e restaura apenas após reautorização', () => {
+    const states: Array<{ status: string; items: IPublicVideoItem[];
+      hasMore: boolean }> = [];
+    const identities: Array<{ nickname: string } | null> = [];
+    const stateSub = component.state$.subscribe(state => states.push(state));
+    const identitySub = component.profileIdentity$.subscribe(value => identities.push(value));
+    expect(states.at(-1)?.items).toEqual([VIDEO]);
+
+    profileAvailable.next(false);
+    expect(states.at(-1)).toMatchObject({
+      status: 'unavailable', items: [], hasMore: false,
+    });
+    expect(identities.at(-1)).toBeNull();
+    component.openVideo(0, VIDEO);
+    component.loadMoreVideos();
+    expect(videoViewerLauncher.open$).not.toHaveBeenCalled();
+    expect(videoPagination.loadPage$).toHaveBeenCalledTimes(1);
+
+    profileAvailable.next(true);
+    expect(states.at(-1)).toMatchObject({ status: 'ready', items: [VIDEO] });
+    expect(videoPagination.loadPage$).toHaveBeenCalledTimes(2);
+    identitySub.unsubscribe();
+    stateSub.unsubscribe();
+  });
+
+  it('cancela paginação de vídeo em voo quando a conta é suspensa', () => {
+    const pending = new Subject<{items: IPublicVideoItem[];
+      nextCursor: null; hasMore: boolean }>();
+    videoPagination.loadPage$.mockImplementation((_uid: string,
+      options: { cursor?: IPublicProfileVideoCursor | null }
+    ) => options.cursor ? pending : of({
+      items: [VIDEO], nextCursor: NEXT_CURSOR, hasMore: true,
+    }));
+    const sub = component.state$.subscribe();
+    component.loadMoreVideos();
+    expect(pending.observed).toBe(true);
+    profileAvailable.next(false);
+    expect(pending.observed).toBe(false);
+    sub.unsubscribe();
   });
 
   it('retorna ao perfil próprio e ao perfil visitado sem usar /perfil/:uid', () => {

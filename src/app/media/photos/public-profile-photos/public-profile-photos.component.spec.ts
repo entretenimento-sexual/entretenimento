@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+import { PublicProfileVisibilityService } from 'src/app/core/services/discovery/public-profile-visibility.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import {
   IPublicProfilePhotoCursor,
@@ -69,12 +70,14 @@ function page(
 describe('PublicProfilePhotosComponent / paginação pública', () => {
   let component: PublicProfilePhotosComponent;
   let routeParams: BehaviorSubject<ParamMap>;
+  let profileAvailable: BehaviorSubject<boolean>;
   let pagination: { loadPage$: ReturnType<typeof vi.fn> };
   let viewer: { openWithResult$: ReturnType<typeof vi.fn> };
   let errors: { report: ReturnType<typeof vi.fn> };
   let publicUsers: { getPublicUserById$: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
+    profileAvailable = new BehaviorSubject<boolean>(true);
     routeParams = new BehaviorSubject<ParamMap>(
       convertToParamMap({ id: PHOTO.ownerUid })
     );
@@ -127,6 +130,13 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
           useValue: publicUsers,
         },
         {
+          provide: PublicProfileVisibilityService,
+          useValue: {
+            watch$: (ownerUid: string) => ownerUid === PHOTO.ownerUid
+              ? profileAvailable.asObservable() : of(true),
+          },
+        },
+        {
           provide: CurrentUserStoreService,
           useValue: { user$: of({ uid: 'viewer-1' }) },
         },
@@ -152,6 +162,48 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
     // O componente criado diretamente não executa ngAfterViewInit.
     // A dimensão inicial é injetada explicitamente nestes testes.
     component['pageSizeSubject'].next(24);
+  });
+
+  it('revoga cartões, identidade e ações enquanto a conta está suspensa', () => {
+    const states: Array<{ status: string; items: readonly IPublicPhotoItem[];
+      hasMore: boolean }> = [];
+    const identities: Array<{ nickname: string } | null> = [];
+    const stateSub = component.state$.subscribe((state) => states.push(state));
+    const identitySub = component.profileIdentity$.subscribe((value) => identities.push(value));
+
+    expect(states.at(-1)?.items).toEqual([PHOTO]);
+    profileAvailable.next(false);
+
+    expect(states.at(-1)).toMatchObject({
+      status: 'unavailable', items: [], hasMore: false,
+    });
+    expect(identities.at(-1)).toBeNull();
+
+    component.openPhoto(0, PHOTO);
+    component.loadMorePhotos();
+    expect(viewer.openWithResult$).not.toHaveBeenCalled();
+    expect(pagination.loadPage$).toHaveBeenCalledTimes(1);
+
+    profileAvailable.next(true);
+    expect(states.at(-1)).toMatchObject({ status: 'ready', items: [PHOTO] });
+    expect(pagination.loadPage$).toHaveBeenCalledTimes(2);
+    identitySub.unsubscribe();
+    stateSub.unsubscribe();
+  });
+
+  it('cancela continuação pendente ao revogar o perfil', () => {
+    const pending = new Subject<IPublicProfilePhotoPage>();
+    pagination.loadPage$.mockImplementation((
+      _uid: string, options?: { cursor?: IPublicProfilePhotoCursor | null }
+    ) => options?.cursor ? pending : of(page([PHOTO], CURSOR)));
+    const sub = component.state$.subscribe();
+    component.loadMorePhotos();
+    expect(pending.observed).toBe(true);
+
+    profileAvailable.next(false);
+    expect(pending.observed).toBe(false);
+    pending.next(page([SECOND], null));
+    sub.unsubscribe();
   });
 
   it('retorna ao perfil visitado ou ao perfil próprio conforme o UID', () => {

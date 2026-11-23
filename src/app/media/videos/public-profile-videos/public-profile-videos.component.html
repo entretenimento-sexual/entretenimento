@@ -89,6 +89,14 @@
         />
       }
 
+      @case ('unavailable') {
+        <app-content-state
+          state="empty"
+          title="Vídeos indisponíveis"
+          message="Os vídeos deste perfil não estão disponíveis para visualização."
+        />
+      }
+
       @case ('empty') {
         <app-content-state
           state="empty"

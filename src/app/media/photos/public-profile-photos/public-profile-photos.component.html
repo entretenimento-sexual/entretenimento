@@ -74,6 +74,14 @@
         />
       }
 
+      @case ('unavailable') {
+        <app-content-state
+          state="empty"
+          title="Fotos indisponíveis"
+          message="As fotos deste perfil não estão disponíveis para visualização."
+        />
+      }
+
       @case ('empty') {
         <app-content-state
           state="empty"
