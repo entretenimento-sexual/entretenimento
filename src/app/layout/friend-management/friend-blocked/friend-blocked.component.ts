@@ -1,66 +1,131 @@
-// src/app/layout/friend-management/friend-blocked/friend-blocked.component.ts
-import { Component, OnInit, inject, signal } from '@angular/core';
+// Gerenciamento de bloqueios do UID atual, em tempo real e sem NgRx legado.
+// Escritas permanecem exclusivamente nas Cloud Functions do domínio social.
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { Store } from '@ngrx/store';
-import { Observable, filter, take } from 'rxjs';
-import { AppState } from 'src/app/store/states/app.state';
-import { BlockedUserActive } from 'src/app/core/interfaces/friendship/blocked-user.interface';
-import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
-import { loadBlockedUsers } from 'src/app/store/actions/actions.interactions/actions.friends';
+import { RouterModule } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
+import { BehaviorSubject, EMPTY, Observable, combineLatest, of } from 'rxjs';
+import {
+  catchError, distinctUntilChanged, filter, finalize, map,
+  shareReplay, startWith, switchMap, take, takeUntil, tap,
+} from 'rxjs/operators';
+
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { ConfirmationDialogComponent } from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 
-// ✅ selectors tipados
-import {
-  selectBlockedFriends
-} from 'src/app/store/selectors/selectors.interactions/friends/blocked.selectors';
+interface BlockedProfilesState {
+  readonly ownerUid: string | null;
+  readonly status: 'loading' | 'ready' | 'error' | 'signed-out';
+  readonly blockedUids: readonly string[];
+}
 
 @Component({
   selector: 'app-friend-blocked',
   standalone: true,
-  imports: [CommonModule, PageHeaderComponent, ContentStateComponent],
+  imports: [CommonModule, RouterModule, PageHeaderComponent, ContentStateComponent],
   templateUrl: './friend-blocked.component.html',
-  styleUrls: ['./friend-blocked.component.css']
+  styleUrls: ['./friend-blocked.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FriendBlockedComponent implements OnInit {
-  readonly uid = signal<string | null>(null);
-  blockedUsers$!: Observable<BlockedUserActive[]>;
+export class FriendBlockedComponent {
+  private readonly authSession = inject(AuthSessionService);
+  private readonly friendship = inject(FriendshipService);
+  private readonly applicationError = inject(ApplicationErrorService);
+  private readonly notification = inject(ErrorNotificationService);
+  private readonly dialog = inject(MatDialog);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly refreshSubject = new BehaviorSubject(0);
 
-  private store = inject<Store<AppState>>(Store as any);
-  private friendship = inject(FriendshipService);
-  private authSession = inject(AuthSessionService);
+  readonly pendingUid = signal<string | null>(null);
 
-  ngOnInit(): void {
-    this.blockedUsers$ = this.store.select(selectBlockedFriends);
+  /** Uma única coleção observada por UID; troca/logout desmontam a anterior. */
+  readonly state$: Observable<BlockedProfilesState> = combineLatest([
+    this.authSession.uid$.pipe(distinctUntilChanged()),
+    this.refreshSubject,
+  ]).pipe(
+    switchMap(([uid]) => {
+      const ownerUid = String(uid ?? '').trim();
+      if (!ownerUid) {
+        return of<BlockedProfilesState>({
+          ownerUid: null, status: 'signed-out', blockedUids: [],
+        });
+      }
+      return this.friendship.watchBlockedUids(ownerUid).pipe(
+        map((blockedUids): BlockedProfilesState => ({
+          ownerUid, status: 'ready', blockedUids,
+        })),
+        startWith({
+          ownerUid, status: 'loading' as const, blockedUids: [],
+        }),
+        catchError((error): Observable<BlockedProfilesState> => {
+          this.applicationError.report(error, {
+            feature: 'friendship',
+            operation: 'FriendBlockedComponent.watchBlockedUids',
+            fallbackMessage: 'Não foi possível atualizar seus perfis bloqueados.',
+            presentation: { surface: 'none', severity: 'error' },
+          });
+          return of({ ownerUid, status: 'error', blockedUids: [] });
+        })
+      );
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
-    this.authSession.readyUid$
-      .pipe(
-        filter((uid): uid is string => typeof uid === 'string' && uid.trim().length > 0),
-        take(1)
-      )
-      .subscribe((uid) => {
-        const normalizedUid = uid.trim();
-        this.uid.set(normalizedUid);
-        this.store.dispatch(loadBlockedUsers({ uid: normalizedUid }));
-      });
+  retry(): void {
+    this.refreshSubject.next(this.refreshSubject.value + 1);
   }
 
-  blockUser(friendUid: string): void {
-    const uid = this.uid();
-    if (!uid) return;
+  unblockUser(targetUid: string): void {
+    if (!targetUid || this.pendingUid()) return;
 
-    this.friendship.blockUser(uid, friendUid).subscribe(() => {
-      this.store.dispatch(loadBlockedUsers({ uid }));
+    const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
+      width: 'min(92vw, 28rem)',
+      autoFocus: 'first-tabbable',
+      restoreFocus: true,
+      data: {
+        title: 'Desbloquear perfil?',
+        message: 'Deseja permitir novamente o acesso entre vocês?',
+        detail: 'Isso não restaura conexões anteriores. Se a outra pessoa ainda bloqueia você, o acesso continua indisponível.',
+        confirmLabel: 'Desbloquear',
+        cancelLabel: 'Manter bloqueado',
+        tone: 'warning',
+      },
     });
-  }
 
-  unblockUser(friendUid: string): void {
-    const uid = this.uid();
-    if (!uid) return;
-
-    this.friendship.unblockUser(uid, friendUid).subscribe(() => {
-      this.store.dispatch(loadBlockedUsers({ uid }));
-    });
+    dialogRef.afterClosed().pipe(
+      take(1),
+      filter((confirmed) => confirmed === true),
+      switchMap(() => this.authSession.uid$.pipe(take(1))),
+      filter((uid): uid is string => typeof uid === 'string' && uid.trim().length > 0),
+      switchMap((uid) => {
+        if (this.pendingUid()) return EMPTY;
+        this.pendingUid.set(targetUid);
+        return this.friendship.unblockUser(uid, targetUid).pipe(
+          // Uma resposta de uma conta anterior nunca produz feedback na nova.
+          takeUntil(this.authSession.uid$.pipe(
+            filter((currentUid) => currentUid !== uid)
+          )),
+          tap(() => this.notification.showSuccess(
+            'Perfil desbloqueado. A lista foi atualizada.'
+          )),
+          catchError((error) => {
+            this.applicationError.report(error, {
+              feature: 'friendship',
+              operation: 'FriendBlockedComponent.unblockUser',
+              fallbackMessage: 'Não foi possível desbloquear este perfil.',
+            });
+            return EMPTY;
+          }),
+          finalize(() => this.pendingUid.set(null))
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 }

@@ -163,6 +163,7 @@ describe('sidebar runtime composition', () => {
     expect(connections?.items.map(({ id }) => id)).toEqual([
       'friends-list',
       'friend-requests',
+      'friend-blocked',
     ]);
     expect(
       connections?.items.map((item) =>
@@ -171,6 +172,7 @@ describe('sidebar runtime composition', () => {
     ).toEqual([
       '/friends/list',
       '/friends/requests',
+      '/friends/blocked',
     ]);
 
     expect(chat?.items.map(({ id }) => id)).toEqual([
@@ -197,7 +199,7 @@ describe('sidebar runtime composition', () => {
       'friend-requests'
     );
     expect(resolveSidebarItemIdFromUrl('/friends/blocked')).toBe(
-      'friends-list'
+      'friend-blocked'
     );
     expect(resolveSidebarItemIdFromUrl('/chat/rooms')).toBe('chat-list');
   });
