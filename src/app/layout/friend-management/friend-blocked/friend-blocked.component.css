@@ -2,80 +2,80 @@
   display: block;
   min-width: 0;
 }
-
 .friend-blocked {
   display: grid;
   gap: clamp(12px, 1.6vw, 18px);
-  width: min(100%, 920px);
+  width: min(100%, 960px);
   min-width: 0;
   margin-inline: auto;
-  color: var(--text-color, #f5f7fb);
+  color: var(--text-color, inherit);
 }
-
+.friend-blocked__summary {
+  margin: 0;
+  font-weight: 700;
+  color: var(--text-color, inherit);
+}
 .friend-blocked__list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   padding: 0;
   margin: 0;
   list-style: none;
 }
-
 .friend-blocked__item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
   min-width: 0;
-  padding: 12px;
+  padding: clamp(14px, 2vw, 20px);
+  border-radius: 18px;
 }
-
 .friend-blocked__identity {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 12px;
   min-width: 0;
 }
-
 .friend-blocked__avatar {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 14px;
-  background: color-mix(in oklab, var(--danger-color, #ef4444) 12%, transparent);
+  background: color-mix(in srgb, var(--danger-color, #ef4444) 10%, transparent);
 }
-
-.friend-blocked__identity div {
+.friend-blocked__identity > div {
   display: grid;
-  gap: 2px;
+  gap: 5px;
   min-width: 0;
 }
-
 .friend-blocked__identity strong {
-  color: var(--text-color, #f5f7fb);
-  font-size: 0.94rem;
-  font-weight: 900;
-  line-height: 1.2;
-}
-
-.friend-blocked__identity span:last-child {
-  overflow: hidden;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
-  font-size: 0.78rem;
-  font-weight: 700;
+  color: var(--text-color, inherit);
+  font-size: 1rem;
+  font-weight: 750;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-
+.friend-blocked__identity span {
+  color: color-mix(in srgb, var(--text-color, #222) 68%, transparent);
+  font-size: .88rem;
+  line-height: 1.4;
+}
+.friend-blocked__identity .friend-blocked__reference {
+  font-size: .8rem;
+  font-variant-numeric: tabular-nums;
+}
+.friend-blocked__item button { flex-shrink: 0; }
+.friend-blocked__note {
+  margin: 0;
+  font-size: .85rem;
+  color: color-mix(in srgb, var(--text-color, #222) 68%, transparent);
+}
 @media (max-width: 640px) {
   .friend-blocked__item {
     align-items: stretch;
     flex-direction: column;
   }
-
-  .friend-blocked__item .app-action {
-    width: 100%;
-  }
+  .friend-blocked__item button { width: 100%; }
 }

@@ -194,6 +194,10 @@ export function resolveSidebarItemIdFromUrl(url: string): string | null {
     return 'discover-communities';
   }
 
+  if (matchesRoute(clean, '/friends/blocked')) {
+    return 'friend-blocked';
+  }
+
   if (
     matchesRoute(clean, '/friends/requests')
     || matchesRoute(clean, '/dashboard/friends/requests')
@@ -343,6 +347,14 @@ function composeDomainNavigation(
         icon: '🤝',
         exact: false,
         ariaLabel: 'Abrir solicitações de conexão recebidas e enviadas',
+      },
+      {
+        id: 'friend-blocked',
+        label: 'Perfis bloqueados',
+        route: '/friends/blocked',
+        icon: '🛡️',
+        exact: true,
+        ariaLabel: 'Gerenciar perfis bloqueados por mim',
       },
     ],
   };

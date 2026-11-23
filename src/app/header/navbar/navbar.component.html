@@ -124,6 +124,15 @@
                 </a>
 
                 <a
+                  routerLink="/friends/blocked"
+                  routerLinkActive="active"
+                  ariaCurrentWhenActive="page"
+                  (click)="accountMenu.open = false"
+                >
+                  Perfis bloqueados
+                </a>
+
+                <a
                   routerLink="/subscription-plan"
                   routerLinkActive="active"
                   (click)="accountMenu.open = false"
@@ -239,6 +248,16 @@
           (click)="closeMobileMenu()"
         >
           Gerenciar conta
+        </a>
+
+        <a
+          routerLink="/friends/blocked"
+          class="navbar-mobile-link"
+          routerLinkActive="active"
+          ariaCurrentWhenActive="page"
+          (click)="closeMobileMenu()"
+        >
+          Perfis bloqueados
         </a>
 
         <a

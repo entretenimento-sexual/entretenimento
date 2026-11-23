@@ -1,41 +1,75 @@
-<section class="friend-blocked app-page" aria-label="Perfis bloqueados">
+<section class="friend-blocked app-page" aria-label="Gerenciamento de perfis bloqueados">
   <app-page-header
     title="Perfis bloqueados"
-    subtitle="Revise quem está impedido de tentar contato. Desbloqueie apenas quando tiver certeza de que a aproximação pode ser retomada."
-  />
+    subtitle="Aqui você controla os bloqueios que realizou. O outro perfil não recebe informações sobre quem iniciou o bloqueio."
+  >
+    <a page-actions class="app-action app-action--ghost" routerLink="/friends/list">
+      Voltar às conexões
+    </a>
+  </app-page-header>
 
-  @let blockedUsers = (blockedUsers$ | async) || [];
-
-  @if (blockedUsers.length) {
-    <ul class="friend-blocked__list" aria-label="Lista de perfis bloqueados">
-      @for (blocked of blockedUsers; track blocked.uid) {
-        <li class="friend-blocked__item app-card app-card--flat">
-          <div class="friend-blocked__identity">
-            <span class="friend-blocked__avatar" aria-hidden="true">⛔</span>
-
-            <div>
-              <strong>Perfil bloqueado</strong>
-              <span>{{ blocked.uid }}</span>
+  @if (state$ | async; as state) {
+    @if (state.status === 'loading') {
+      <app-content-state
+        state="loading"
+        title="Consultando bloqueios"
+        message="Verificando as restrições da sua conta."
+        [skeletonRows]="3"
+      />
+    } @else if (state.status === 'error') {
+      <app-content-state
+        state="error"
+        title="Não foi possível consultar os bloqueios"
+        message="Não alteramos seus bloqueios. Verifique a conexão e tente novamente."
+        actionLabel="Tentar novamente"
+        (action)="retry()"
+      />
+    } @else if (state.status === 'signed-out') {
+      <app-content-state
+        state="empty"
+        title="Sessão encerrada"
+        message="Entre novamente para consultar seus bloqueios."
+      />
+    } @else if (state.blockedUids.length) {
+      <p class="friend-blocked__summary" role="status" aria-live="polite">
+        {{ state.blockedUids.length }} {{ state.blockedUids.length === 1 ? 'perfil bloqueado' : 'perfis bloqueados' }}
+      </p>
+      <ul class="friend-blocked__list" aria-label="Perfis que você bloqueou">
+        @for (targetUid of state.blockedUids; track targetUid; let index = $index) {
+          <li class="friend-blocked__item app-card app-card--flat">
+            <div class="friend-blocked__identity">
+              <span class="friend-blocked__avatar" aria-hidden="true">🛡️</span>
+              <div>
+                <strong>Perfil bloqueado {{ index + 1 }}</strong>
+                <span class="friend-blocked__reference">
+                  Identificador final: {{ targetUid.slice(-8) }}
+                </span>
+                <span>Contatos e conteúdo estão restritos enquanto o bloqueio estiver ativo.</span>
+              </div>
             </div>
-          </div>
-
-          <button
-            type="button"
-            class="app-action app-action--ghost"
-            (click)="unblockUser(blocked.uid)"
-            [attr.aria-label]="'Desbloquear perfil ' + blocked.uid"
-          >
-            Desbloquear
-          </button>
-        </li>
-      }
-    </ul>
-  } @else {
-    <app-content-state
-      state="empty"
-      title="Nenhum perfil bloqueado"
-      message="Quando você bloquear alguém, o perfil aparecerá aqui para revisão futura."
-      [compact]="true"
-    />
+            <button
+              type="button"
+              class="app-action app-action--secondary"
+              [disabled]="pendingUid() !== null"
+              [attr.aria-busy]="pendingUid() === targetUid ? 'true' : null"
+              [attr.aria-label]="'Desbloquear perfil ' + (index + 1)"
+              (click)="unblockUser(targetUid)"
+            >
+              {{ pendingUid() === targetUid ? 'Desbloqueando…' : 'Desbloquear' }}
+            </button>
+          </li>
+        }
+      </ul>
+      <p class="friend-blocked__note">
+        O desbloqueio não restabelece automaticamente amizades, conversas ou permissões.
+      </p>
+    } @else {
+      <app-content-state
+        state="empty"
+        title="Nenhum perfil bloqueado"
+        message="Os perfis bloqueados por você aparecerão aqui. Se alguém bloquear você, essa informação não será revelada."
+        [compact]="true"
+      />
+    }
   }
 </section>

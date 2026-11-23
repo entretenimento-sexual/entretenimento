@@ -9,7 +9,6 @@ import { FirestoreContextService } from 'src/app/core/services/data-handling/fir
 import { PublicProfileReadBoundaryService } from 'src/app/core/services/discovery/public-profile-read-boundary.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { PublicBilateralMediaAvailabilityService } from 'src/app/core/services/media/public-bilateral-media-availability.service';
-import { combinePublicVideoExposure$ } from 'src/app/core/services/media/public-media-availability-observer';
 
 const RECHECK_INTERVAL_MS = 15_000;
 const RECHECK_TIMEOUT_MS = 5_000;
@@ -20,6 +19,17 @@ const RECHECK_TIMEOUT_MS = 5_000;
  * backend quando o documento se tornou inacessível (legado/bloqueio).
  * Um cache local NUNCA autoriza exibir dados privados ou mídia.
  */
+/** Revogação imediata e nova assinatura da projeção após unblock. */
+export function watchBilateralProfileVisibility$(
+  bilateralAllowed$: Observable<boolean>,
+  watchOwner$: () => Observable<boolean>
+): Observable<boolean> {
+  return bilateralAllowed$.pipe(
+    switchMap((allowed) => allowed ? watchOwner$() : of(false)),
+    distinctUntilChanged()
+  );
+}
+
 @Injectable({ providedIn: 'root' })
 export class PublicProfileVisibilityService {
   private readonly db = inject(Firestore);
@@ -37,13 +47,15 @@ export class PublicProfileVisibilityService {
     return this.authSession.uid$.pipe(
       switchMap((viewerUid) => {
         if (!viewerUid) return of(false);
-        const ownerVisible$ = this.watchOwnerProfile$(uid);
-        if (viewerUid === uid) return ownerVisible$;
+        if (viewerUid === uid) return this.watchOwnerProfile$(uid);
 
-        // O bloco é atualizado sem alterar public_profiles. A projeção
-        // bilateral é portanto necessária para revogar uma página já aberta.
-        return combinePublicVideoExposure$(
-          ownerVisible$, this.bilateral.watch$(uid, viewerUid)
+        // A concessão bilateral é a porta de entrada para observar o perfil.
+        // Após unblock, uma NOVA observação é criada imediatamente; um
+        // listener anterior encerrado por permission-denied não pode atrasar
+        // a recuperação até o próximo polling de contingência.
+        return watchBilateralProfileVisibility$(
+          this.bilateral.watch$(uid, viewerUid),
+          () => this.watchOwnerProfile$(uid)
         );
       }),
       distinctUntilChanged(),
@@ -56,7 +68,7 @@ export class PublicProfileVisibilityService {
       const ref = doc(this.db, `public_profiles/${uid}`);
       return docSnapshots(ref).pipe(
         // Não promover projeções em cache a autorização atual.
-        map((snapshot) => 
+        map((snapshot) =>
           !snapshot.metadata.fromCache &&
           !snapshot.metadata.hasPendingWrites &&
           snapshot.exists()

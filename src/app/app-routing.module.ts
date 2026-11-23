@@ -255,6 +255,18 @@ const routes: Routes = [
       },
 
       {
+        // A revisão dos bloqueios é um recurso de segurança da conta.
+        // Não exige perfil concluído nem e-mail verificado para leitura
+        // dos próprios bloqueios; Firestore restringe por request.auth.uid.
+        path: 'friends/blocked',
+        loadComponent: () =>
+          import('./layout/friend-management/friend-blocked/friend-blocked.component')
+            .then(m => m.FriendBlockedComponent),
+        canActivate: [authGuard, accountLifecycleGuard],
+        data: { requireVerified: false },
+      },
+
+      {
         path: 'friends',
         loadChildren: () =>
           import('./layout/friend-management/friend-management.module')

@@ -31,12 +31,6 @@ const routes: Routes = [
         .then(m => m.FriendSearchComponent)
   },
   {
-    path: 'blocked',
-    loadComponent: () =>
-      import('./friend-blocked/friend-blocked.component')
-        .then(m => m.FriendBlockedComponent)
-  },
-  {
     path: 'settings',
     loadComponent: () =>
       import('./friend-settings/friend-settings.component')
