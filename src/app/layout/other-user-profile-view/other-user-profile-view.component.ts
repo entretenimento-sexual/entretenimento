@@ -44,6 +44,7 @@ import {
 
 import { ProfileOfficialCommunitiesComponent } from 'src/app/community/profile-official-communities/profile-official-communities.component';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { PublicProfileVisibilityService } from 'src/app/core/services/discovery/public-profile-visibility.service';
 import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
 import {
   normalizePublicUserIdentity,
@@ -133,6 +134,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     private readonly router: Router,
     private readonly authSession: AuthSessionService,
     private readonly bootstrapOrchestrator: VisitedProfileBootstrapOrchestrator,
+    private readonly profileVisibility: PublicProfileVisibilityService,
     private readonly affinityPresenter: VisitedProfileAffinityPresenter,
     private readonly visitedFriendship: VisitedProfileFriendshipFacade,
     private readonly intentContextFacade: VisitedProfileIntentContextFacade,
@@ -172,9 +174,8 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       if (result.kind === 'missing') {
         this.uid = result.targetUid;
         this.userProfile = null;
-        if (result.targetUid) {
-          this.viewedProfileUid$.next(result.targetUid);
-        }
+        // A tela não mantém ações nem escutas sociais de um perfil revogado.
+        this.viewedProfileUid$.next(null);
         return;
       }
 
@@ -209,8 +210,24 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     if (previousTargetUid !== targetUid) this.optimisticBlockTarget$.next(null);
     this.markView();
 
-    return this.bootstrapOrchestrator.load$(targetUid).pipe(
-      finalize(() => {
+    return this.authSession.uid$.pipe(
+      take(1),
+      switchMap((authUid) => {
+        // Preserva o redirecionamento canônico de acesso ao próprio perfil.
+        if (authUid === targetUid) {
+          return this.bootstrapOrchestrator.load$(targetUid);
+        }
+        return this.profileVisibility.watch$(targetUid).pipe(
+          switchMap((available) => available
+            ? this.bootstrapOrchestrator.load$(targetUid)
+            : of({
+                kind: 'missing' as const,
+                targetUid: targetUid || null,
+              })
+          )
+        );
+      }),
+      tap(() => {
         this.isLoading = false;
         this.markView();
       })

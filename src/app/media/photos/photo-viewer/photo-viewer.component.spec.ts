@@ -9,6 +9,7 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaPhotoCommentsService } from 'src/app/core/services/media/media-photo-comments.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
+import { PublicVideoPlaybackExposureService } from 'src/app/core/services/media/public-video-playback-exposure.service';
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
 import {
   PublicPhotoContinuationResult,
@@ -72,6 +73,7 @@ describe('PhotoViewerComponent mixed-owner safety', () => {
   let fixture: ComponentFixture<PhotoViewerComponent>;
   let userSubject: BehaviorSubject<{ uid: string; nickname: string }>;
   let continuationSubject: Subject<PublicPhotoContinuationResult>;
+  let photoAccess$: BehaviorSubject<boolean>;
   let data: IPhotoViewerData;
 
   const dialogRef = { close: vi.fn() };
@@ -103,6 +105,7 @@ describe('PhotoViewerComponent mixed-owner safety', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     continuationSubject = new Subject<PublicPhotoContinuationResult>();
+    photoAccess$ = new BehaviorSubject<boolean>(true);
     userSubject = new BehaviorSubject({
       uid: 'viewer-1',
       nickname: 'Viewer',
@@ -132,6 +135,9 @@ describe('PhotoViewerComponent mixed-owner safety', () => {
           useValue: { user$: userSubject.asObservable() },
         },
         { provide: MediaPublicationService, useValue: mediaPublication },
+        { provide: PublicVideoPlaybackExposureService, useValue: {
+          watchActivePhoto$: vi.fn(() => photoAccess$.asObservable()),
+        } },
         { provide: MediaPhotoCommentsService, useValue: comments },
         { provide: MediaReactionsService, useValue: reactions },
         {
@@ -150,6 +156,16 @@ describe('PhotoViewerComponent mixed-owner safety', () => {
   afterEach(() => {
     continuationSubject.complete();
     fixture.destroy();
+  });
+
+  it('fecha a foto já aberta quando o autor fica indisponível', () => {
+    expect(fixture.nativeElement.querySelector('.viewer-img')).not.toBeNull();
+    photoAccess$.next(false);
+    fixture.detectChanges();
+    expect(dialogRef.close).toHaveBeenCalledTimes(1);
+    expect(errorNotifier.showWarning).toHaveBeenCalledWith(
+      'Esta foto não está mais disponível para visualização.'
+    );
   });
 
   it('mostra o autor ativo, CTA de perfil e motivo de descoberta', () => {

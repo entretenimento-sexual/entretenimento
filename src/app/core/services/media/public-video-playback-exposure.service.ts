@@ -1,20 +1,17 @@
 import { Injectable, inject } from '@angular/core';
 import { Firestore, doc, docSnapshots } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, of, timer } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import {
-  catchError, distinctUntilChanged, exhaustMap, filter, ignoreElements, map, timeout,
+  catchError, distinctUntilChanged, filter, ignoreElements, map,
 } from 'rxjs/operators';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
-import { PublicProfileReadBoundaryService } from 'src/app/core/services/discovery/public-profile-read-boundary.service';
+import { PublicProfileVisibilityService } from 'src/app/core/services/discovery/public-profile-visibility.service';
 import { resolvePublicMediaAvailability } from './public-media-availability.policy';
 import {
   combinePublicVideoExposure$, watchPublicMediaAvailability$,
 } from './public-media-availability-observer';
-
-const LEGACY_OWNER_RECHECK_INTERVAL_MS = 15_000;
-const LEGACY_OWNER_RECHECK_TIMEOUT_MS = 5_000;
 
 /**
  * Observe only the open video, its owner's public profile and the bilateral
@@ -29,42 +26,55 @@ export class PublicVideoPlaybackExposureService {
   private readonly db = inject(Firestore);
   private readonly context = inject(FirestoreContextService);
   private readonly functions = inject(Functions);
-  private readonly publicProfileRead = inject(PublicProfileReadBoundaryService);
+  private readonly profileVisibility = inject(PublicProfileVisibilityService);
 
   watchActiveVideo$(
     ownerUid: string,
     videoId: string,
     viewerUid: string
   ): Observable<boolean> {
+    return this.watchActiveMedia$('public_videos', ownerUid, videoId, viewerUid);
+  }
+
+  /** Mesma fronteira de revogação aplicada a fotografias já abertas. */
+  watchActivePhoto$(
+    ownerUid: string,
+    photoId: string,
+    viewerUid: string
+  ): Observable<boolean> {
+    return this.watchActiveMedia$('public_photos', ownerUid, photoId, viewerUid);
+  }
+
+  private watchActiveMedia$(
+    collectionName: 'public_videos' | 'public_photos',
+    ownerUid: string,
+    mediaId: string,
+    viewerUid: string
+  ): Observable<boolean> {
     const validId = (value: string) => /^[A-Za-z0-9_-]{1,128}$/.test(value);
-    if (![ownerUid, videoId, viewerUid].every(validId)) {
-      return of(false);
-    }
+    if (![ownerUid, mediaId, viewerUid].every(validId)) return of(false);
 
     return this.context.deferObservable$(() => {
       const publicRef = doc(
-        this.db, `public_profiles/${ownerUid}/public_videos/${videoId}`
+        this.db, `public_profiles/${ownerUid}/${collectionName}/${mediaId}`
       );
       const publicExposure$ = docSnapshots(publicRef).pipe(
+        filter((snapshot) =>
+          !snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites
+        ),
         map((snapshot) => {
           const data = snapshot.data();
           return snapshot.exists() &&
-            data?.['visibility'] === 'PUBLIC' &&
+            (data?.['visibility'] === 'PUBLIC' ||
+              (collectionName === 'public_photos' && data?.['visibility'] === 'FRIENDS')) &&
             data?.['moderationStatus'] === 'APPROVED';
         }),
         catchError(() => of(false))
       );
 
-      if (ownerUid === viewerUid) {
-        return publicExposure$;
-      }
+      if (ownerUid === viewerUid) return publicExposure$;
 
-      // Account suspension removes this document but leaves the child video
-      // projection in place. Watch the document the transaction actually writes.
-      const ownerProfileAvailable$ = this.watchOwnerProfile$(ownerUid);
-
-      // Neither direction of canonical blocks is exposed to this client.
-      // The backend mirrors only a neutral boolean in the viewer's own scope.
+      const ownerProfileAvailable$ = this.profileVisibility.watch$(ownerUid);
       const bilateralAccessRef = doc(
         this.db, `public_media_access/${viewerUid}/owners/${ownerUid}`
       );
@@ -76,43 +86,13 @@ export class PublicVideoPlaybackExposureService {
         ),
         () => this.reconcileLegacyPair$(ownerUid)
       ).pipe(catchError(() => of(false)));
+
       return combinePublicVideoExposure$(
         publicExposure$, bilateralAllowed$, ownerProfileAvailable$
       );
     }).pipe(
       distinctUntilChanged(),
       catchError(() => of(false))
-    );
-  }
-
-  private watchOwnerProfile$(ownerUid: string): Observable<boolean> {
-    const ref = doc(this.db, `public_profiles/${ownerUid}`);
-    let receivedServerSnapshot = false;
-
-    // AngularFire's docSnapshots includes server metadata changes.
-    return docSnapshots(ref).pipe(
-      filter((snapshot) =>
-        !snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites
-      ),
-      map((snapshot) => {
-        receivedServerSnapshot = true;
-        return snapshot.exists();
-      }),
-      catchError((error: { code?: string } | null) => {
-        if (receivedServerSnapshot || error?.code !== 'permission-denied') {
-          return of(false);
-        }
-
-        // Legacy projections with private fields cannot be watched directly.
-        // Keep the backend's sanitized read in charge while this player is open.
-        return timer(0, LEGACY_OWNER_RECHECK_INTERVAL_MS).pipe(
-          exhaustMap(() => this.publicProfileRead.readByUids$([ownerUid]).pipe(
-            timeout({ first: LEGACY_OWNER_RECHECK_TIMEOUT_MS }),
-            map(({ items }) => items.some((item) => item['uid'] === ownerUid)),
-            catchError(() => of(false))
-          ))
-        );
-      })
     );
   }
 

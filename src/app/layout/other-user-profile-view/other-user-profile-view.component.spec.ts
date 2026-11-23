@@ -19,6 +19,7 @@ import { AccessControlService } from '../../core/services/autentication/auth/acc
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
+import { PublicProfileVisibilityService } from '../../core/services/discovery/public-profile-visibility.service';
 import { ApplicationErrorService } from '../../core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { FriendshipService } from '../../core/services/interactions/friendship/friendship.service';
@@ -41,6 +42,7 @@ describe('OtherUserProfileViewComponent', () => {
   let fixture: ComponentFixture<OtherUserProfileViewComponent>;
   let component: OtherUserProfileViewComponent;
   let routeParamMap$: BehaviorSubject<ParamMap>;
+  let profileVisible$: BehaviorSubject<boolean>;
   let dialogAfterClosed$: Subject<boolean>;
   let dialogOpen: ReturnType<typeof vi.fn>;
   let dialogPrototypeSpy: { mockRestore(): void } | undefined;
@@ -51,6 +53,7 @@ describe('OtherUserProfileViewComponent', () => {
 
   beforeEach(async () => {
     routeParamMap$ = new BehaviorSubject<ParamMap>(convertToParamMap({ id: targetUid }));
+    profileVisible$ = new BehaviorSubject<boolean>(true);
     dialogAfterClosed$ = new Subject<boolean>();
     dialogOpen = vi.fn(() => ({
       afterClosed: () => dialogAfterClosed$.asObservable(),
@@ -68,6 +71,9 @@ describe('OtherUserProfileViewComponent', () => {
       ],
       providers: [
         { provide: Firestore, useValue: {} },
+        { provide: PublicProfileVisibilityService, useValue: {
+          watch$: vi.fn(() => profileVisible$.asObservable()),
+        } },
         { provide: MatDialog, useValue: { open: dialogOpen } },
         {
           provide: ActivatedRoute,
@@ -324,6 +330,24 @@ describe('OtherUserProfileViewComponent', () => {
 
   afterEach(() => {
     dialogPrototypeSpy?.mockRestore();
+  });
+
+  it('revoga o perfil aberto e recupera a projeção ao reativar, sem refresh', () => {
+    const query = TestBed.inject(FirestoreUserQueryService);
+    const original = component.userProfile!;
+    profileVisible$.next(false);
+    fixture.detectChanges();
+
+    expect(component.userProfile).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Perfil indisponível');
+    expect(fixture.nativeElement.querySelector('app-profile-media-showcase')).toBeNull();
+
+    vi.mocked(query.getPublicUserById$).mockReturnValue(of(original));
+    profileVisible$.next(true);
+    fixture.detectChanges();
+
+    expect(component.userProfile?.uid).toBe(targetUid);
+    expect(fixture.nativeElement.querySelector('app-profile-media-showcase')).not.toBeNull();
   });
 
   it('troca de perfil na mesma instância limpa a identidade antiga e preserva a rota atual', () => {

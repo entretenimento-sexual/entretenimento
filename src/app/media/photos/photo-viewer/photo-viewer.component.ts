@@ -68,6 +68,7 @@ import { MediaPhotoCommentsService } from 'src/app/core/services/media/media-pho
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
 import { PublicPhotoContinuationService } from 'src/app/core/services/media/public-photo-continuation.service';
+import { PublicVideoPlaybackExposureService } from 'src/app/core/services/media/public-video-playback-exposure.service';
 import type { TPhotoViewSource } from 'src/app/core/services/media/photo-view-tracking.service';
 import { PublicMediaBadgeComponent } from '../../shared/components/public-media-badge/public-media-badge.component';
 import { PublicMediaRecommendationBadgeComponent } from '../../shared/components/public-media-recommendation-badge/public-media-recommendation-badge.component';
@@ -175,10 +176,12 @@ export class PhotoViewerComponent {
   private readonly mediaError = inject(MediaApplicationErrorService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly publicPhotoContinuation = inject(PublicPhotoContinuationService);
+  private readonly mediaExposure = inject(PublicVideoPlaybackExposureService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly changeDetector = inject(ChangeDetectorRef);
 
   private readonly recordedViewKeys = new Set<string>();
+  private photoRevoked = false;
   private continuationExhausted = false;
   private pendingContinuationAdvanceKey: string | null = null;
 
@@ -386,6 +389,33 @@ export class PhotoViewerComponent {
     );
 
     this.syncCurrentPhotoIdentity();
+    // Observa apenas a foto aberta. Ao mudar de item, switchMap encerra a
+    // escuta anterior. O backend segue sendo o autor da autorização.
+    combineLatest([this.currentPhoto$, this.viewerUid$]).pipe(
+      switchMap(([photo, viewerUid]) => {
+        const ownerUid = this.resolvePhotoOwnerUid(photo);
+        const photoId = String(photo?.id ?? '').trim();
+        if (!this.data.source || !ownerUid || !photoId ||
+            !viewerUid || viewerUid === ownerUid) {
+          return EMPTY;
+        }
+        const key = this.photoKey(photo);
+        return this.mediaExposure.watchActivePhoto$(ownerUid, photoId, viewerUid).pipe(
+          map((allowed) => ({ key, allowed })),
+          catchError(() => of({ key, allowed: false }))
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(({ key, allowed }) => {
+      if (!allowed && !this.photoRevoked && key === this.photoKey(this.current)) {
+        this.photoRevoked = true;
+        this.cancelSwipeNavigation();
+        this.dialogRef.close();
+        this.errorNotifier.showWarning(
+          'Esta foto não está mais disponível para visualização.'
+        );
+      }
+    });
     this.recordCurrentPhotoView();
     this.announceCurrentPhoto();
     queueMicrotask(() => this.prefetchContinuationIfNeeded());
@@ -782,6 +812,7 @@ export class PhotoViewerComponent {
 
   private changeIndex(nextIndex: number): void {
     this.cancelSwipeNavigation();
+    this.photoRevoked = false;
     this.index = nextIndex;
     this.commentControl.setValue('');
     this.cancelReply();
