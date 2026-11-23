@@ -100,6 +100,27 @@ describe('public media projection observer', () => {
 });
 
 describe('combined public video exposure', () => {
+  it('revoga o perfil e todos os visualizadores via projeção bilateral sem alterar o perfil público', () => {
+    const publicProfile$ = new Subject<boolean>();
+    const pair$ = new Subject<boolean>();
+    const seen: boolean[] = [];
+    const sub = combinePublicVideoExposure$(publicProfile$, pair$)
+      .subscribe((allowed) => seen.push(allowed));
+
+    publicProfile$.next(true);
+    pair$.next(true);
+    expect(seen).toEqual([true]);
+
+    // Block pode alterar apenas public_media_access. O perfil segue existente.
+    pair$.next(false);
+    expect(seen).toEqual([true, false]);
+
+    // Nenhum novo snapshot da projeção pública é necessário para revogação.
+    pair$.next(true);
+    expect(seen).toEqual([true, false, true]);
+    sub.unsubscribe();
+  });
+
   it('revoga se o perfil do autor desaparecer com o vídeo e o par ainda permitidos', () => {
     const ownerProfile$ = new Subject<boolean>();
     const emitted: boolean[] = [];
