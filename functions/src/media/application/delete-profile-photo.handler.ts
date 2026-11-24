@@ -273,9 +273,9 @@ export async function deleteProfilePhotoResources(
         .doc(buildDeletionJobId(ownerUid, photoId));
       const [currentPrivate, currentPublication, pendingJob, publicProfile,
         currentPublicPhoto] = await Promise.all([
-          tx.get(privatePhotoRef), tx.get(publicationRef), tx.get(jobRef),
-          tx.get(publicProfileRef), tx.get(publicPhotoRef),
-        ]);
+        tx.get(privatePhotoRef), tx.get(publicationRef), tx.get(jobRef),
+        tx.get(publicProfileRef), tx.get(publicPhotoRef),
+      ]);
       if (pendingJob.exists) {
         if (pendingJob.get('ownerUid') !== ownerUid ||
             pendingJob.get('photoId') !== photoId) {
