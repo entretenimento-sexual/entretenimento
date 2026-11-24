@@ -158,6 +158,7 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
   private readonly pageErrorSubject = new BehaviorSubject(false);
 
   private galleryOwnerUid = '';
+  private galleryMediaRevision = 0;
   private galleryRevision = 0;
   private galleryCursor: IPublicProfilePhotoCursor | null = null;
   private galleryHasMore = false;
@@ -167,13 +168,17 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
   /** O UID e seu estado de visibilidade pertencem à mesma emissão. */
   private readonly galleryAccess$ = this.ownerUid$.pipe(
     switchMap((ownerUid) => ownerUid
-      ? this.profileVisibility.watch$(ownerUid).pipe(
-          map((available) => ({ ownerUid, available }))
+      ? this.profileVisibility.watchMediaIndex$(ownerUid).pipe(
+          map(({ available, mediaRevision }) => ({
+            ownerUid, available, mediaRevision,
+          }))
         )
-      : of({ ownerUid, available: false })
+      : of({ ownerUid, available: false, mediaRevision: 0 })
     ),
     distinctUntilChanged((a, b) =>
-      a.ownerUid === b.ownerUid && a.available === b.available
+      a.ownerUid === b.ownerUid &&
+      a.available === b.available &&
+      a.mediaRevision === b.mediaRevision
     ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -182,8 +187,11 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
     this.galleryAccess$,
     this.refreshSubject,
   ]).pipe(
-    switchMap(([{ ownerUid, available }]) => {
-      // Revogação desmonta a grade, cancela a página anterior via switchMap e
+    switchMap(([{ ownerUid, available, mediaRevision }]) => {
+      this.galleryMediaRevision = mediaRevision;
+      // Revogação ou exclusão individual desmonta a grade e cancela a
+      // requisição anterior. Só a nova página autorizada pode repor cartões.
+      //
       // invalida páginas de continuação em voo no mesmo ciclo de emissão.
       this.resetGallery(ownerUid);
       const revision = this.galleryRevision;
@@ -370,6 +378,7 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
     const ownerUid = this.galleryOwnerUid;
     const cursor = this.galleryCursor;
     const revision = this.galleryRevision;
+    const mediaRevisionAtRequest = this.galleryMediaRevision;
     const refreshAtRequest = this.refreshSubject.value;
 
     if (
@@ -393,6 +402,7 @@ export class PublicProfilePhotosComponent implements AfterViewInit {
       takeUntil(combineLatest([this.galleryAccess$, this.refreshSubject]).pipe(
         filter(([access, refresh]) =>
           access.ownerUid !== ownerUid || !access.available ||
+          access.mediaRevision !== mediaRevisionAtRequest ||
           refresh !== refreshAtRequest
         )
       )),

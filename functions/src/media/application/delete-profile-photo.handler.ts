@@ -239,6 +239,7 @@ export async function deleteProfilePhotoResources(
   const publicPhotoRef = db.doc(
     `public_profiles/${ownerUid}/public_photos/${photoId}`
   );
+  const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
   const [privatePhotoSnap, publicationSnap] = await Promise.all([
     privatePhotoRef.get(),
     publicationRef.get(),
@@ -270,8 +271,10 @@ export async function deleteProfilePhotoResources(
     const missingPhotoCleanup = await db.runTransaction(async (tx) => {
       const jobRef = db.collection(DELETION_JOBS_COLLECTION)
         .doc(buildDeletionJobId(ownerUid, photoId));
-      const [currentPrivate, currentPublication, pendingJob] = await Promise.all([
+      const [currentPrivate, currentPublication, pendingJob, publicProfile,
+        currentPublicPhoto] = await Promise.all([
         tx.get(privatePhotoRef), tx.get(publicationRef), tx.get(jobRef),
+        tx.get(publicProfileRef), tx.get(publicPhotoRef),
       ]);
       if (pendingJob.exists) {
         if (pendingJob.get('ownerUid') !== ownerUid ||
@@ -303,6 +306,11 @@ export async function deleteProfilePhotoResources(
       });
       tx.delete(publicationRef);
       tx.delete(publicPhotoRef);
+      if (publicProfile.exists && currentPublicPhoto.exists) {
+        tx.update(publicProfileRef, {
+          publicMediaRevision: FieldValue.increment(1),
+        });
+      }
       return { kind: 'STAGED', storagePath } as const;
     });
     if (missingPhotoCleanup.kind === 'PENDING') {
@@ -357,11 +365,13 @@ export async function deleteProfilePhotoResources(
   };
 
   const staged = await db.runTransaction(async (tx) => {
-    const [existingJob, currentPhoto, currentPublication, currentProjection] = await Promise.all([
+    const [existingJob, currentPhoto, currentPublication, currentProjection,
+      publicProfile] = await Promise.all([
       tx.get(jobRef),
       tx.get(privatePhotoRef),
       tx.get(publicationRef),
       tx.get(publicPhotoRef),
+      tx.get(publicProfileRef),
     ]);
     if (existingJob.exists) {
       if (
@@ -412,6 +422,11 @@ export async function deleteProfilePhotoResources(
     });
     tx.delete(publicationRef);
     tx.delete(publicPhotoRef);
+    if (publicProfile.exists && currentProjection.exists) {
+      tx.update(publicProfileRef, {
+        publicMediaRevision: FieldValue.increment(1),
+      });
+    }
     return true;
   });
 

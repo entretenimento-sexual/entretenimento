@@ -6,7 +6,8 @@ import {
   ParamMap,
   convertToParamMap,
 } from '@angular/router';
-import { BehaviorSubject, Subject, of } from 'rxjs';
+import { BehaviorSubject, Subject, combineLatest, of } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
@@ -91,6 +92,7 @@ describe('PublicProfileVideosComponent', () => {
   let publicUserQuery: { getPublicUserById$: ReturnType<typeof vi.fn> };
   let routeParamMapSubject: BehaviorSubject<ParamMap>;
   let profileAvailable: BehaviorSubject<boolean>;
+  let mediaRevision: BehaviorSubject<number>;
   let mediaPublicQuery: {
     getProfilePublicVideos$: ReturnType<typeof vi.fn>;
     getPublicVideoById$: ReturnType<typeof vi.fn>;
@@ -112,6 +114,7 @@ describe('PublicProfileVideosComponent', () => {
 
   beforeEach(() => {
     profileAvailable = new BehaviorSubject<boolean>(true);
+    mediaRevision = new BehaviorSubject<number>(0);
     routeParamMapSubject = new BehaviorSubject<ParamMap>(
       convertToParamMap({ id: VIDEO.ownerUid })
     );
@@ -185,8 +188,13 @@ describe('PublicProfileVideosComponent', () => {
         {
           provide: PublicProfileVisibilityService,
           useValue: {
-            watch$: (ownerUid: string) => ownerUid === VIDEO.ownerUid
-              ? profileAvailable.asObservable() : of(true),
+            watchMediaIndex$: (ownerUid: string) => ownerUid === VIDEO.ownerUid
+              ? combineLatest([profileAvailable, mediaRevision]).pipe(
+                  map(([available, revision]) => ({
+                    available, mediaRevision: revision,
+                  }))
+                )
+              : of({ available: true, mediaRevision: 0 }),
           },
         },
         {
@@ -240,6 +248,41 @@ describe('PublicProfileVideosComponent', () => {
     expect(videoPagination.loadPage$).toHaveBeenCalledTimes(2);
     identitySub.unsubscribe();
     stateSub.unsubscribe();
+  });
+
+  it('retira vídeo individual da grade, sem refetch para cada cartão', () => {
+    let initialReads = 0;
+    const pending = new Subject<{
+      items: IPublicVideoItem[];
+      nextCursor: null;
+      hasMore: boolean;
+    }>();
+    videoPagination.loadPage$.mockImplementation((
+      _uid: string,
+      options: { cursor?: IPublicProfileVideoCursor | null }
+    ) => {
+      if (options.cursor) return pending;
+      initialReads += 1;
+      return initialReads === 1
+        ? of({ items: [VIDEO, VIDEO_2], nextCursor: NEXT_CURSOR, hasMore: true })
+        : of({ items: [VIDEO_2], nextCursor: null, hasMore: false });
+    });
+
+    const seen: Array<{ status: string; items: IPublicVideoItem[] }> = [];
+    const sub = component.state$.subscribe(state => seen.push(state));
+    expect(seen.at(-1)?.items).toEqual([VIDEO, VIDEO_2]);
+    component.loadMoreVideos();
+    expect(pending.observed).toBe(true);
+
+    mediaRevision.next(1);
+    expect(pending.observed).toBe(false);
+    expect(seen.at(-1)).toMatchObject({
+      status: 'ready', items: [VIDEO_2],
+    });
+    expect(videoPagination.loadPage$).toHaveBeenCalledTimes(3);
+    component.openVideo(0, VIDEO);
+    expect(videoViewerLauncher.open$).not.toHaveBeenCalled();
+    sub.unsubscribe();
   });
 
   it('cancela paginação de vídeo em voo quando a conta é suspensa', () => {

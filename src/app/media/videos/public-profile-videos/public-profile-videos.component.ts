@@ -139,6 +139,7 @@ export class PublicProfileVideosComponent implements OnInit {
   private deepLinkRouteGeneration = 0;
   private galleryRouteIdentity = '';
   private galleryOwnerUid = '';
+  private galleryMediaRevision = 0;
   private galleryCursor: IPublicProfileVideoCursor | null = null;
   private galleryHasMore = false;
   private galleryRevision = 0;
@@ -188,14 +189,17 @@ export class PublicProfileVideosComponent implements OnInit {
   /** Mantém rota e autorização correlacionadas, mesmo na troca de perfil. */
   private readonly galleryAccess$ = this.galleryRoute$.pipe(
     switchMap((route) => route.ownerUid
-      ? this.profileVisibility.watch$(route.ownerUid).pipe(
-          map((available) => ({ route, available }))
+      ? this.profileVisibility.watchMediaIndex$(route.ownerUid).pipe(
+          map(({ available, mediaRevision }) => ({
+            route, available, mediaRevision,
+          }))
         )
-      : of({ route, available: false })
+      : of({ route, available: false, mediaRevision: 0 })
     ),
     distinctUntilChanged((a, b) =>
       routeIdentity(a.route) === routeIdentity(b.route) &&
-      a.available === b.available
+      a.available === b.available &&
+      a.mediaRevision === b.mediaRevision
     ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -204,7 +208,8 @@ export class PublicProfileVideosComponent implements OnInit {
     this.galleryAccess$,
     this.refreshSubject,
   ]).pipe(
-    switchMap(([{ route, available }]) => {
+    switchMap(([{ route, available, mediaRevision }]) => {
+      this.galleryMediaRevision = mediaRevision;
       const { ownerUid, requestedVideoId } = route;
       this.galleryRouteIdentity = routeIdentity(route);
       if (!ownerUid) {
@@ -365,6 +370,7 @@ export class PublicProfileVideosComponent implements OnInit {
     const cursor = this.galleryCursor;
     const revision = this.galleryRevision;
     const routeAtRequest = this.galleryRouteIdentity;
+    const mediaRevisionAtRequest = this.galleryMediaRevision;
     const refreshAtRequest = this.refreshSubject.value;
 
     if (
@@ -387,7 +393,9 @@ export class PublicProfileVideosComponent implements OnInit {
       takeUntil(combineLatest([this.galleryAccess$, this.refreshSubject]).pipe(
         filter(([access, refresh]) =>
           routeIdentity(access.route) !== routeAtRequest ||
-          !access.available || refresh !== refreshAtRequest
+          !access.available ||
+          access.mediaRevision !== mediaRevisionAtRequest ||
+          refresh !== refreshAtRequest
         )
       )),
       tap((page) => {

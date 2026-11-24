@@ -5,6 +5,7 @@
  */
 import { HttpsError } from 'firebase-functions/v2/https';
 import {
+  FieldValue,
   type DocumentReference, type DocumentSnapshot, type Firestore,
 } from 'firebase-admin/firestore';
 
@@ -90,15 +91,19 @@ export async function commitProfileVideoDeletionRequest<T extends object>(
     throw new Error('Invalid video profile deletion identity.');
   }
 
+  const publicProfileRef = firestore.doc(`public_profiles/${ownerUid}`);
+
   return firestore.runTransaction(async transaction => {
-    const [existingDeletion, privateVideo, publication, processingJob, identity] =
-      await Promise.all([
-        transaction.get(deletionJobRef),
-        transaction.get(privateVideoRef),
-        transaction.get(publicationRef),
-        transaction.get(processingJobRef),
-        transaction.get(identityRef),
-      ]);
+    const [existingDeletion, privateVideo, publication, processingJob,
+      identity, publicProfile, publicVideo] = await Promise.all([
+      transaction.get(deletionJobRef),
+      transaction.get(privateVideoRef),
+      transaction.get(publicationRef),
+      transaction.get(processingJobRef),
+      transaction.get(identityRef),
+      transaction.get(publicProfileRef),
+      transaction.get(publicVideoRef),
+    ]);
 
     if (existingDeletion.exists) {
       // Do not recreate a job, overwrite a lease, retire twice or append events.
@@ -161,6 +166,11 @@ export async function commitProfileVideoDeletionRequest<T extends object>(
       transaction.delete(publicationRef);
     }
     transaction.delete(publicVideoRef);
+    if (publicProfile.exists && publicVideo.exists) {
+      transaction.update(publicProfileRef, {
+        publicMediaRevision: FieldValue.increment(1),
+      });
+    }
     return { kind: 'CREATED', processingCleanupPending } as const;
   }, { maxAttempts: 3 });
 }
