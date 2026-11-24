@@ -135,3 +135,17 @@ export async function probeFunctionsCallable({
     clearTimeout(timeout);
   }
 }
+
+// Retry transport failures only; explicit HTTP/CORS failures remain fail-closed.
+export async function probeFunctionsCallableWithRetry(options, {
+  probe = probeFunctionsCallable,
+  sleep = ms => new Promise(resolve => setTimeout(resolve, ms)),
+} = {}) {
+  let result;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    result = await probe(options);
+    if (result.ready || result.status !== 0) return result;
+    if (attempt < 2) await sleep(500);
+  }
+  return result;
+}
