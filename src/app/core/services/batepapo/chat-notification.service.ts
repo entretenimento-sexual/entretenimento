@@ -5,7 +5,8 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, Subscription, combineLatest, defer, from, of } from 'rxjs';
 import { catchError, distinctUntilChanged, filter, map, shareReplay, startWith, switchMap, take, takeUntil } from 'rxjs/operators';
 import { Firestore } from '@angular/fire/firestore';
-import { collection, query, where, onSnapshot, getDocs, type QuerySnapshot, type DocumentData } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { ChatRepository } from '../data-handling/firestore/repositories/chat.repository';
 import { ApplicationErrorService } from '../error-handler/application-error.service';
 import { AccessControlService } from '../autentication/auth/access-control.service';
 import { DirectReceiptsService } from 'src/app/messaging/direct-chat/services/direct-receipts.service';
@@ -22,7 +23,7 @@ export class ChatNotificationService {
   readonly activeChatId$ = this.activeChatId.asObservable();
 
   private readonly authorizedUid$ = combineLatest([
-    this.accessControl.authUid$, this.accessControl.canListenRealtime$,
+    this.accessControl.authUid$, this.accessControl.canRunChatRealtime$,
   ]).pipe(
     map(([uid, allowed]) => allowed ? uid : null),
     distinctUntilChanged(),
@@ -50,7 +51,8 @@ export class ChatNotificationService {
     private readonly db: Firestore,
     private readonly applicationError: ApplicationErrorService,
     private readonly accessControl: AccessControlService,
-    private readonly directReceipts: DirectReceiptsService
+    private readonly directReceipts: DirectReceiptsService,
+    private readonly chatsRepo: ChatRepository
   ) {}
 
   setActiveChat(chatId: string | null | undefined, _reason?: string): void {
@@ -95,27 +97,15 @@ export class ChatNotificationService {
         listeners.clear();
         counts.clear();
       };
-      const chats$ = recoverDirectChatListener$<QuerySnapshot<DocumentData> | null>(
-        () => new Observable<QuerySnapshot<DocumentData>>(sink => onSnapshot(
-          query(collection(this.db, 'chats'), where('participants', 'array-contains', uid)),
-          { includeMetadataChanges: true },
-          snapshot => sink.next(snapshot), error => sink.error(error)
-        )),
-        error => {
-          this.handleRealtimeError('Não foi possível acompanhar conversas.', error, 'observeUnreadForUser$');
-          return null;
-        }
-      );
-      const chatsSub = chats$.subscribe({
-        next: snapshot => {
-          if (!snapshot || snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) {
+      const chatsSub = this.chatsRepo.watchDiscoveryForOwner$(uid).subscribe({
+        next: scope => {
+          if (scope.status !== 'ready') {
             clear(); emit(); return;
           }
           const peers = new Map<string, string>();
-          for (const chat of snapshot.docs) {
-            const data = chat.data();
-            const pair = data['participants'];
-            if (data['isRoom'] === true || !Array.isArray(pair) || pair.length !== 2 ||
+          for (const chat of scope.chats) {
+            const pair = chat.participants;
+            if (!chat.id || !Array.isArray(pair) || pair.length !== 2 ||
                 !pair.includes(uid) || pair[0] === pair[1]) continue;
             const peer = pair.find(value => value !== uid);
             if (typeof peer === 'string' && peer.trim()) peers.set(chat.id, peer);

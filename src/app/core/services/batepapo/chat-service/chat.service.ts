@@ -18,7 +18,6 @@ import {
   switchMap,
   take,
   takeUntil,
-  tap,
 } from 'rxjs/operators';
 
 import { Timestamp } from 'firebase/firestore';
@@ -45,7 +44,7 @@ export class ChatService implements OnDestroy {
     private readonly authSession: AuthSessionService,
     private readonly appBlock: AuthAppBlockService,
 
-    private readonly cache: CacheService,
+    _cache: CacheService, // Compatibilidade de DI; nunca reutilizar histórico sem confirmação.
     private readonly chatsRepo: ChatRepository,
     private readonly msgsRepo: ChatMessagesRepository,
 
@@ -283,7 +282,7 @@ export class ChatService implements OnDestroy {
   /**
    * watchChats$(uid):
    * - Stream realtime das conversas do usuário.
-   * - NÃO usa cache “stale” (diferente do getChats()).
+   * - NÃO usa cache “stale”.
    * - Effects controla start/stop (takeUntil).
    */
   watchChats$(uid: string, limit = 10): Observable<IChat[]> {
@@ -302,31 +301,18 @@ export class ChatService implements OnDestroy {
   /**
    * getChats:
    * - Mantido por compat.
-   * - Pode devolver cache e/ou paginação.
-   * - Para realtime em Store, prefira watchChats$ nos Effects.
+   * - Usa a mesma fonte reativa, sem cache legado.
    */
   getChats(userId: string, lastChatTimestamp?: Timestamp): Observable<IChat[]> {
     const uid = (userId ?? '').toString().trim();
     if (!uid) return of([]);
 
-    const cacheKey = `chats:${uid}`;
-
     return this.listeningUid$.pipe(
-      take(1),
       switchMap(listeningUid => {
         if (listeningUid !== uid) return of([] as IChat[]);
-        return this.cache.get<IChat[]>(cacheKey).pipe(
-          take(1),
-          switchMap(cached => {
-            if (!lastChatTimestamp && cached?.length) return of(cached);
-            const result$ = !lastChatTimestamp
-              ? this.chatsRepo.watchChats$(uid, 10)
-              : this.chatsRepo.getChatsPageOnce$(uid, lastChatTimestamp, 10);
-            return result$.pipe(
-              tap(list => this.cache.set(cacheKey, list))
-            );
-          })
-        );
+        return lastChatTimestamp
+          ? this.chatsRepo.getChatsPageOnce$(uid, lastChatTimestamp, 10)
+          : this.chatsRepo.watchChats$(uid, 10);
       }),
       catchError(err => this.reportSilent('getChats', err))
     );

@@ -1,40 +1,66 @@
 // src/app/core/services/data-handling/firestore/repositories/chat.repository.ts
 import { Injectable, inject } from '@angular/core';
 import { Observable, defer, of, throwError } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { filter, map, switchMap, take } from 'rxjs/operators';
+import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
+import { createChatDiscoveryScope$, type ChatDiscoveryScope } from './chat-discovery-scope';
+import { recoverDirectChatListener$ } from 'src/app/messaging/direct-chat/services/direct-chat-listener-recovery';
 
 import {
   Firestore,
   collection,
-  limit,
-  orderBy,
   query,
-  startAfter,
   where,
 } from '@angular/fire/firestore';
 
-import { Timestamp, onSnapshot, getDocsFromServer } from 'firebase/firestore';
+import { Timestamp, onSnapshot } from 'firebase/firestore';
 
 import { IChat } from '@core/interfaces/interfaces-chat/chat.interface';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 
 @Injectable({ providedIn: 'root' })
 export class ChatRepository {
   private readonly db = inject(Firestore);
   private readonly ctx = inject(FirestoreContextService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly access = inject(AccessControlService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
-  private reportSilent(action: string, err: unknown): void {
-    const e = err instanceof Error ? err : new Error(`[ChatRepository] ${action}`);
-    (e as any).silent = true;
-    (e as any).original = err;
-    (e as any).context = { action };
-    this.globalError.handleError(e);
+  readonly discoveryScope$ = createChatDiscoveryScope$(
+    this.access.authUid$,
+    this.access.canRunChatRealtime$,
+    uid => recoverDirectChatListener$<ChatDiscoveryScope>(
+      () => this.observeTransport$(uid),
+      error => this.failedScope(uid, error)
+    ),
+    (uid, error) => this.failedScope(uid, error)
+  );
+
+  private failedScope(uid: string, error: unknown): ChatDiscoveryScope {
+    this.applicationError.report(error, {
+      feature: 'chat',
+      operation: 'ChatRepository.discoveryScope$',
+      fallbackMessage: 'Não foi possível acompanhar conversas.',
+      presentation: { surface: 'none', severity: 'error' },
+    });
+    return { ownerUid: uid, status: 'error', chats: [] };
   }
 
-  private chatsCol() {
-    return collection(this.db, 'chats');
+  // R1.5 replaces this transport. Never authorize from candidates or cache.
+  private observeTransport$(uid: string): Observable<ChatDiscoveryScope> {
+    return this.ctx.deferObservable$(() => {
+      const q = query(collection(this.db, 'chats'), where('participants', 'array-contains', uid));
+      return new Observable<ChatDiscoveryScope>(sink => onSnapshot(q, { includeMetadataChanges: true }, snapshot => {
+        if (snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) {
+          sink.next({ ownerUid: uid, status: 'loading', chats: [] });
+          return;
+        }
+        sink.next({
+          ownerUid: uid, status: 'ready',
+          chats: snapshot.docs.map(d => ({ ...d.data(), id: d.id } as IChat)),
+        });
+      }, error => sink.error(error)));
+    });
   }
 
   /**
@@ -74,60 +100,26 @@ export class ChatRepository {
   }
 
   watchChats$(uid: string, pageSize = 10): Observable<IChat[]> {
-    const id = (uid ?? '').toString().trim();
-    if (!id) return of([]);
+    return this.watchDiscoveryForOwner$(uid).pipe(map(scope => scope.chats.slice(0, pageSize)));
+  }
 
-    return this.ctx.deferObservable$(() => {
-      const q = query(
-        this.chatsCol(),
-        where('participants', 'array-contains', id),
-        orderBy('timestamp', 'desc'),
-        limit(pageSize)
-      );
-
-      return new Observable<IChat[]>(sink => onSnapshot(q, { includeMetadataChanges: true }, snapshot => {
-        if (snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) {
-          sink.next([]);
-          return;
-        }
-        sink.next(snapshot.docs.map(d => ({ ...d.data(), id: d.id } as IChat)));
-      }, error => sink.error(error)));
-    }).pipe(
-      map((arr) => (arr ?? []) as IChat[]),
-      catchError((err) => {
-        this.reportSilent('watchChats$', err);
-        return throwError(() => err);
-      })
-    );
+  watchDiscoveryForOwner$(uid: string): Observable<ChatDiscoveryScope> {
+    const owner = String(uid ?? '').trim();
+    return this.discoveryScope$.pipe(map(scope => owner && scope.ownerUid === owner
+      ? scope
+      : { ownerUid: null, status: 'revoked', chats: [] }));
   }
 
   getChatsPageOnce$(uid: string, lastChatTimestamp?: Timestamp, pageSize = 10): Observable<IChat[]> {
-    const id = (uid ?? '').toString().trim();
-    if (!id) return of([]);
-
-    return this.ctx.deferPromise$(() => {
-      const q = lastChatTimestamp
-        ? query(
-            this.chatsCol(),
-            where('participants', 'array-contains', id),
-            orderBy('timestamp', 'desc'),
-            startAfter(lastChatTimestamp),
-            limit(pageSize)
-          )
-        : query(
-            this.chatsCol(),
-            where('participants', 'array-contains', id),
-            orderBy('timestamp', 'desc'),
-            limit(pageSize)
-          );
-
-      return getDocsFromServer(q);
-    }).pipe(
-      map((snap) => snap.docs.map((d) => ({ ...d.data(), id: d.id } as IChat))),
-      catchError((err) => {
-        this.reportSilent('getChatsPageOnce$', err);
-        return of([]);
-      })
+    return this.watchDiscoveryForOwner$(uid).pipe(
+      filter(scope => scope.status !== 'loading'),
+      take(1),
+      switchMap(scope => scope.status === 'error'
+        ? throwError(() => new Error('Não foi possível consultar conversas.'))
+        : of(scope.chats.filter(chat => !lastChatTimestamp ||
+          chat.timestamp.seconds < lastChatTimestamp.seconds ||
+          (chat.timestamp.seconds === lastChatTimestamp.seconds &&
+            chat.timestamp.nanoseconds < lastChatTimestamp.nanoseconds)).slice(0, pageSize)))
     );
   }
 }
