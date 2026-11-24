@@ -21,14 +21,33 @@ test('photo removal revises gallery atomically in regular and orphan paths', () 
 
 test('photo deletion maps projection and parent snapshots to their own references', () => {
   const source = read('delete-profile-photo.handler.ts');
-  const snapshotOrder = new RegExp([
-    String.raw`const \\[existingJob, currentPhoto, currentPublication, currentProjection,`,
-    String.raw`\\s*publicProfile\\] = await Promise\\.all\\(\\[`,
-    String.raw`\\s*tx\\.get\\(jobRef\\),\\s*tx\\.get\\(privatePhotoRef\\),`,
-    String.raw`\\s*tx\\.get\\(publicationRef\\),\\s*tx\\.get\\(publicPhotoRef\\),`,
-    String.raw`\\s*tx\\.get\\(publicProfileRef\\),\\s*\\]\\)`,
-  ].join(''));
-  assert.match(source, snapshotOrder);
+  const start = source.indexOf('const [existingJob, currentPhoto');
+  const end = source.indexOf('if (existingJob.exists)', start);
+  assert.ok(start >= 0 && end > start);
+
+  const block = source.slice(start, end);
+  const fields = [
+    'existingJob', 'currentPhoto', 'currentPublication',
+    'currentProjection', 'publicProfile',
+  ];
+  const reads = [
+    'tx.get(jobRef)', 'tx.get(privatePhotoRef)',
+    'tx.get(publicationRef)', 'tx.get(publicPhotoRef)',
+    'tx.get(publicProfileRef)',
+  ];
+  const header = block.slice(0, block.indexOf('await Promise.all'));
+  let previous = -1;
+  for (const name of fields) {
+    const index = header.indexOf(name);
+    assert.ok(index > previous, `Campo fora da posição esperada: ${name}`);
+    previous = index;
+  }
+  previous = -1;
+  for (const read of reads) {
+    const index = block.indexOf(read);
+    assert.ok(index > previous, `Leitura fora da posição esperada: ${read}`);
+    previous = index;
+  }
 });
 
 test('video removal revises gallery in the same transaction as projection removal', () => {
