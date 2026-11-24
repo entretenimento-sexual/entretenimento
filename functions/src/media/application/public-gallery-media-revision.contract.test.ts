@@ -21,16 +21,21 @@ test('photo removal revises gallery atomically in regular and orphan paths', () 
 
 test('photo deletion maps projection and parent snapshots to their own references', () => {
   const source = read('delete-profile-photo.handler.ts');
-  assert.match(
-    source,
-    /const \[existingJob, currentPhoto, currentPublication, currentProjection,\s*publicProfile\] = await Promise\.all\(\[\s*tx\.get\(jobRef\),\s*tx\.get\(privatePhotoRef\),\s*tx\.get\(publicationRef\),\s*tx\.get\(publicPhotoRef\),\s*tx\.get\(publicProfileRef\),\s*\]\)/
-  );
+  const snapshotOrder = new RegExp([
+    String.raw`const \\[existingJob, currentPhoto, currentPublication, currentProjection,`,
+    String.raw`\\s*publicProfile\\] = await Promise\\.all\\(\\[`,
+    String.raw`\\s*tx\\.get\\(jobRef\\),\\s*tx\\.get\\(privatePhotoRef\\),`,
+    String.raw`\\s*tx\\.get\\(publicationRef\\),\\s*tx\\.get\\(publicPhotoRef\\),`,
+    String.raw`\\s*tx\\.get\\(publicProfileRef\\),\\s*\\]\\)`,
+  ].join(''));
+  assert.match(source, snapshotOrder);
 });
 
 test('video removal revises gallery in the same transaction as projection removal', () => {
   const source = read('video-profile-deletion-commit.firestore.ts');
   assert.match(source, /transaction\.delete\(publicVideoRef\)/);
   assert.match(source, /if \(publicProfile\.exists && publicVideo\.exists\)/);
-  assert.match(source, /transaction\.update\(publicProfileRef,[\s\S]*publicMediaRevision:\s*FieldValue\.increment\(1\)/);
+  assert.match(source, /transaction\.update\(publicProfileRef,[\s\S]*publicMediaRevision/);
+  assert.match(source, /publicMediaRevision:\s*FieldValue\.increment\(1\)/);
   assert.doesNotMatch(source, /transaction\.set\(publicProfileRef/);
 });
