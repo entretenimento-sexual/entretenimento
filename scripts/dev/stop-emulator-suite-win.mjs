@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { assessEmulatorSuiteShutdown } from './emulator-suite-stop.policy.mjs';
+import { assessEmulatorSuiteShutdown, assessEmulatorSuiteStopped } from './emulator-suite-stop.policy.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const execute = process.argv.includes('--execute');
@@ -91,8 +91,22 @@ try {
       stdio: 'inherit',
       timeout: 20_000,
     });
+  // A child may exit while taskkill is enumerating its tree. Verify actual
+  // postconditions even when taskkill reports success or a nonzero exit code.
+  let remaining;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const current = inspectProcesses();
+    remaining = assessEmulatorSuiteStopped({
+      hubPid: after.hubPid,
+      beforeProcesses: after.processInfo.processes,
+      ...current,
+    });
+    if (!remaining) break;
+    if (attempt < 4) await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  if (remaining) refuse('Encerramento não confirmado: ' + remaining);
   if (result.error || result.status !== 0) {
-    refuse('Encerramento da árvore falhou; verifique o diagnóstico.');
+    console.warn('[emu:stop] taskkill retornou erro, mas árvore e portas foram verificadas como encerradas.');
   }
   console.log('[emu:stop] Árvore da suíte encerrada. Angular na porta 4200 não foi selecionado.');
 } catch (error) {
