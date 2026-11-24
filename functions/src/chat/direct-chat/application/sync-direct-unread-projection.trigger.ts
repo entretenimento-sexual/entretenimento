@@ -11,8 +11,7 @@ import { db, FieldValue } from '../../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
 import {
   applyDirectUnreadTransition,
-  type DirectUnreadMessage,
-  type DirectReceiptStatus,
+  normalizeDirectUnreadMessage,
 } from '../domain/direct-unread-projection.policy';
 import { DIRECT_UNREAD_MAX_TRANSACTION_ATTEMPTS } from '../domain/direct-unread-backfill-budget.policy';
 
@@ -22,17 +21,6 @@ export interface DirectUnreadTransactionMetrics {
   attemptedDocumentReads: number;
   stagedDocumentWrites: number;
   committedDocumentWrites: number;
-}
-
-const validStatuses = new Set<DirectReceiptStatus>(['sent', 'delivered', 'read']);
-
-function readMessage(id: string, data: FirebaseFirestore.DocumentData | undefined):
-  DirectUnreadMessage | null {
-  if (!data) return null;
-  const senderUid = String(data.senderId ?? data.senderUid ?? '').trim();
-  const status = data.status;
-  if (!senderUid || !validStatuses.has(status as DirectReceiptStatus)) return null;
-  return { messageId: id, senderUid, status: status as DirectReceiptStatus, deleted: data.deleted === true };
 }
 
 /** Callable internally by emulator tests and future bounded backfill. */
@@ -76,8 +64,7 @@ async function reconcileDirectUnreadMessageInternal(
         throw new Error('Unread backfill message set changed in transaction');
       }
     }
-    const current = readMessage(messageId, message.data());
-    if (current && !participants.includes(current.senderUid)) return;
+    const current = normalizeDirectUnreadMessage(messageId, message.data(), participants);
 
     // Keep projections per participant. Reads precede all writes.
     const entries = (participants as string[]).map((uid) => {
@@ -94,7 +81,13 @@ async function reconcileDirectUnreadMessageInternal(
 
     entries.forEach((entry, index) => {
       const snapshotsForUser = snapshots[index];
-      const previous = readMessage(messageId, snapshotsForUser.checkpoint.data());
+      const previous = normalizeDirectUnreadMessage(messageId, snapshotsForUser.checkpoint.data(), participants);
+      if (snapshotsForUser.checkpoint.exists && !previous) {
+        throw new Error('Invalid direct unread checkpoint');
+      }
+      if (snapshotsForUser.checkpoint.exists && !snapshotsForUser.projection.exists) {
+        throw new Error('Unread checkpoint without projection');
+      }
       const priorCount = snapshotsForUser.projection.exists
         ? snapshotsForUser.projection.data()?.unreadCount : 0;
       // Invalid projection is not silently repaired by a delta.

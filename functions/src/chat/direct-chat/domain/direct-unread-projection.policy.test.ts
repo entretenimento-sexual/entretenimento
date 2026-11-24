@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   applyDirectUnreadTransition,
   isDirectMessageUnread,
+  normalizeDirectUnreadMessage,
   type DirectUnreadMessage,
 } from './direct-unread-projection.policy';
 
@@ -59,4 +60,19 @@ describe('direct unread projection policy (inactive contract)', () => {
     assert.throws(() => applyDirectUnreadTransition(Number.NaN, null, message('sent'), 'recipient'));
     assert.equal(applyDirectUnreadTransition(0, message('sent'), message('read'), 'recipient'), 0);
   });
+});
+
+it('normalizes only coherent participant authorship and recipient', () => {
+  const pair = ['sender', 'recipient'];
+  const parse = (data: Record<string, unknown>) => normalizeDirectUnreadMessage('m1', data, pair);
+  assert.equal(parse({ senderUid: 'sender', status: 'sent' })?.senderUid, 'sender');
+  assert.equal(parse({ senderId: 'sender', senderUid: 'sender', recipientUid: 'recipient', status: 'delivered' })?.status, 'delivered');
+  for (const data of [
+    { senderId: 'sender', senderUid: 'recipient', status: 'sent' },
+    { senderId: null, senderUid: 'sender', status: 'sent' },
+    { senderId: 'sender', recipientUid: 'sender', status: 'sent' },
+    { senderId: 'third', status: 'sent' },
+    { senderId: ['sender'], status: 'sent' },
+    { senderId: 'sender', status: 'unknown' },
+  ]) assert.equal(parse(data), null);
 });

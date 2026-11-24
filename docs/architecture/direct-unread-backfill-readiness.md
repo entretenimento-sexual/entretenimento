@@ -133,3 +133,7 @@ manual investigation rather than triggering retries automatically.
    a rollback/recomputation protocol for inconsistent projections.
 5. Validate shadow comparisons independently before enabling a read path.
    Do not switch the badge or deploy the trigger during this phase.
+
+## CHAT-A5.8 — receipt normalization (2026-11-24)
+
+The experimental reconciler and all audit readers now use one backend normalization policy: strict participant authorship, compatible legacy sender alias, consistent recipient and valid receipt status. Invalid current messages contribute zero; a formerly valid checkpoint is removed transactionally. Invalid stored checkpoints or checkpoints without a projection abort rather than being silently repaired. Nontransactional page audits cannot certify MATCH even for a single page, since the projection is read separately; use the consistent transactional audit. Existing audit tests and CLI callers must be checked against this stricter result. No new aggregate, trigger export, Rules grant, client read path or production migration is enabled. All release gates remain blocking.

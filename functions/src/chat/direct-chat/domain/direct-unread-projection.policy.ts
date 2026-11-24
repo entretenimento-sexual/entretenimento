@@ -53,3 +53,24 @@ export function applyDirectUnreadTransition(
   const after = next ? Number(isDirectMessageUnread(next, participantUid)) : 0;
   return Math.max(0, count + after - before);
 }
+
+/** Canonical receipt normalization for the experimental backend read model.
+ * A missing legacy alias is allowed, but inconsistent authorship is not.
+ * Checkpoints retain only normalized fields, never message content.
+ */
+export function normalizeDirectUnreadMessage(
+  messageId: string,
+  data: Record<string, unknown> | undefined,
+  participants: readonly string[]
+): DirectUnreadMessage | null {
+  if (!data || participants.length !== 2 || participants[0] === participants[1] ||
+      participants.some(uid => typeof uid !== 'string' || !uid.trim())) return null;
+  const senderUid = data.senderId === undefined ? data.senderUid : data.senderId;
+  if (typeof senderUid !== 'string' || !participants.includes(senderUid) ||
+      (data.senderUid !== undefined && data.senderUid !== senderUid)) return null;
+  const recipientUid = participants.find(uid => uid !== senderUid);
+  if (data.recipientUid !== undefined && data.recipientUid !== recipientUid) return null;
+  const status = data.status;
+  if (status !== 'sent' && status !== 'delivered' && status !== 'read') return null;
+  return { messageId, senderUid, status, deleted: data.deleted === true };
+}

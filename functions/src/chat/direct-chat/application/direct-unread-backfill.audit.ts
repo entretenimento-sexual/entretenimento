@@ -4,7 +4,7 @@
  * O cursor é um ID de mensagem, usado somente dentro da conversa indicada.
  */
 import { db } from '../../../firebaseApp';
-import { isDirectMessageUnread, type DirectUnreadMessage } from '../domain/direct-unread-projection.policy';
+import { isDirectMessageUnread, normalizeDirectUnreadMessage } from '../domain/direct-unread-projection.policy';
 
 export interface DirectUnreadAuditPage {
   chatId: string;
@@ -52,14 +52,8 @@ export async function auditDirectUnreadPage(
   const docs = page.docs.slice(0, pageSize);
   const hasMore = page.docs.length > pageSize;
   const count = docs.reduce((sum, doc) => {
-    const data = doc.data();
-    const senderUid = String(data.senderId ?? data.senderUid ?? '');
-    const status = data.status;
-    if (!participants.includes(senderUid) || !['sent', 'delivered', 'read'].includes(status)) return sum;
-    const message: DirectUnreadMessage = {
-      messageId: doc.id, senderUid, status, deleted: data.deleted === true,
-    };
-    return sum + Number(isDirectMessageUnread(message, participantUid));
+    const message = normalizeDirectUnreadMessage(doc.id, doc.data(), participants);
+    return sum + Number(!!message && isDirectMessageUnread(message, participantUid));
   }, previousUnread);
 
   const scanned = previousScanned + docs.length;
@@ -77,9 +71,7 @@ export async function auditDirectUnreadPage(
     complete, storedUnreadCount,
     consistency: multiPage ? 'UNVERIFIED_MULTI_PAGE' : 'SINGLE_QUERY',
     readBudgetUsed: 2 + page.docs.length + Number(Boolean(cursor)),
-    comparison: !complete ? 'INCOMPLETE' : multiPage ? 'INCONCLUSIVE' :
-      !projection.exists ? 'NO_PROJECTION' :
-        storedUnreadCount === count ? 'MATCH' : 'MISMATCH',
+    comparison: !complete ? 'INCOMPLETE' : 'INCONCLUSIVE',
   };
 }
 
@@ -120,14 +112,8 @@ export async function auditDirectUnreadConsistent(
       };
     }
     const unread = messages.docs.reduce((total, doc) => {
-      const value = doc.data();
-      const senderUid = value.senderId ?? value.senderUid;
-      if (!participants.includes(senderUid) ||
-          !['sent', 'delivered', 'read'].includes(value.status)) return total;
-      return total + Number(isDirectMessageUnread({
-        messageId: doc.id, senderUid, status: value.status,
-        deleted: value.deleted === true,
-      }, participantUid));
+      const message = normalizeDirectUnreadMessage(doc.id, doc.data(), participants);
+      return total + Number(!!message && isDirectMessageUnread(message, participantUid));
     }, 0);
     const stored = projection.data()?.unreadCount;
     const validStored = Number.isSafeInteger(stored) && stored >= 0 ? stored : null;
@@ -171,13 +157,8 @@ export async function auditDirectUnreadConversation(chatId: string) {
         actualUnreadCount: null, storedUnreadCount,
       };
       const actualUnreadCount = messages.docs.reduce((total, doc) => {
-        const data = doc.data();
-        const senderUid = data.senderId ?? data.senderUid;
-        if (!uids.includes(senderUid) || !['sent', 'delivered', 'read'].includes(data.status)) return total;
-        return total + Number(isDirectMessageUnread({
-          messageId: doc.id, senderUid, status: data.status,
-          deleted: data.deleted === true,
-        }, uid));
+        const message = normalizeDirectUnreadMessage(doc.id, doc.data(), uids);
+        return total + Number(!!message && isDirectMessageUnread(message, uid));
       }, 0);
       const comparison = !projections[index].exists ? 'NO_PROJECTION' :
         actualUnreadCount === storedUnreadCount ? 'MATCH' : 'MISMATCH';

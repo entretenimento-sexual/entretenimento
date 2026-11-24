@@ -58,4 +58,18 @@ run('direct unread projection — Firestore emulator', () => {
     ]);
     assert.equal(await count('recipient'), 0);
   });
+  it('removes previously counted contribution when authorship becomes inconsistent', async () => {
+    await messageRef.set({ senderId: 'sender', status: 'sent' });
+    await reconcileDirectUnreadMessage(chatId, 'msg-1');
+    assert.equal(await count('recipient'), 1);
+    await messageRef.update({ senderUid: 'recipient' });
+    await reconcileDirectUnreadMessage(chatId, 'msg-1');
+    await reconcileDirectUnreadMessage(chatId, 'msg-1');
+    assert.equal(await count('recipient'), 0);
+    assert.equal((await projection('recipient').collection('messages').doc('msg-1').get()).exists, false);
+    await messageRef.set({ senderUid: 'sender', recipientUid: 'recipient', status: 'sent' });
+    await reconcileDirectUnreadMessage(chatId, 'msg-1');
+    assert.equal(await count('recipient'), 1);
+  });
+
 });
