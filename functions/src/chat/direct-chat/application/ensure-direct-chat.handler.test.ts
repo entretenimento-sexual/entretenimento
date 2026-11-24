@@ -74,6 +74,8 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
       db.recursiveDelete(db.doc(`users/${targetUid}`)),
       db.recursiveDelete(canonicalRef),
       registryRef.delete(),
+      db.recursiveDelete(db.doc(`direct_chat_discovery/${actorUid}`)),
+      db.recursiveDelete(db.doc(`direct_chat_discovery/${targetUid}`)),
     ]);
     cleanup?.();
   });
@@ -91,6 +93,11 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
     assert.deepEqual(canonical.data()?.participants, [actorUid, targetUid].sort());
     assert.equal(canonical.data()?.participantsKey, identity.canonicalKey);
     assert.equal(canonical.data()?.pairKeyVersion, 2);
+    for (const owner of [actorUid, targetUid]) {
+      const reference = await db.doc(`direct_chat_discovery/${owner}/chats/${canonicalRef.id}`).get();
+      assert.deepEqual(reference.data(), { version: 1, chatId: canonicalRef.id });
+    }
+    assert.equal((await db.doc(`direct_chat_discovery/${actorUid}/chats/foreign-chat`).get()).exists, false);
   });
 
   for (const [label, blockRef] of [

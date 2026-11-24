@@ -162,3 +162,9 @@ match /chats/{chatId} {
       allow delete: if false;
     }
 }
+
+// CHAT-R1.2: internal discovery candidates are not an authorization grant.
+// Client access stays closed until lifecycle, revocation and migration are validated.
+match /direct_chat_discovery/{ownerUid}/chats/{chatId} {
+  allow read, write: if false;
+}

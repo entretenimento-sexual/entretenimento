@@ -45,6 +45,7 @@ import {
   isEligibleExistingDirectChat,
 } from '../domain/direct-chat.policy';
 import { assertNoDirectMessagingBlock } from '../domain/direct-message.policy';
+import { stageDirectChatDiscoveryReferences } from './direct-chat-discovery.references';
 
 interface EnsureDirectChatRequest {
   otherUserUid?: unknown;
@@ -296,6 +297,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
           );
         }
 
+        stageDirectChatDiscoveryReferences(transaction, participants, registeredChatId);
         return {
           chatId: registeredChatId,
           created: false,
@@ -345,6 +347,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
             pairHash: canonicalHash,
             createdAt: FieldValue.serverTimestamp(),
           });
+          stageDirectChatDiscoveryReferences(transaction, participants, previousRegistryId);
           return {
             chatId: previousRegistryId,
             created: false,
@@ -402,6 +405,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         });
+        stageDirectChatDiscoveryReferences(transaction, participants, legacyDeterministicChatRef.id);
         return {
           chatId: legacyDeterministicChatRef.id,
           created: false,
@@ -445,6 +449,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
           createdAt: FieldValue.serverTimestamp(),
         });
 
+        stageDirectChatDiscoveryReferences(transaction, participants, canonicalLegacyChat.id);
         return {
           chatId: canonicalLegacyChat.id,
           created: false,
@@ -476,6 +481,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
           updatedAt: FieldValue.serverTimestamp(),
         });
 
+        stageDirectChatDiscoveryReferences(transaction, participants, deterministicChatRef.id);
         return {
           chatId: deterministicChatRef.id,
           created: false,
@@ -522,6 +528,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         createdAt: FieldValue.serverTimestamp(),
       });
 
+      stageDirectChatDiscoveryReferences(transaction, participants, deterministicChatRef.id);
       return {
         chatId: deterministicChatRef.id,
         created: true,

@@ -112,6 +112,21 @@ describe('Firestore Rules / direct chat receipts', () => {
     await assertSucceeds(updateDoc(verified, { ['reactionsByUser.' + RECIPIENT]: '❤️' }));
   });
 
+  it('nega leitura, listagem e escrita de referências internas de descoberta', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      await setDoc(doc(context.firestore(), 'direct_chat_discovery', RECIPIENT, 'chats', CHAT_ID), {
+        version: 1, chatId: CHAT_ID,
+      });
+    });
+    for (const uid of [RECIPIENT, SENDER, OUTSIDER]) {
+      const client = env.authenticatedContext(uid, { email_verified: true }).firestore();
+      const refs = collection(client, 'direct_chat_discovery', RECIPIENT, 'chats');
+      await assertFails(getDoc(doc(refs, CHAT_ID)));
+      await assertFails(getDocs(refs));
+      await assertFails(setDoc(doc(refs, CHAT_ID), { version: 1, chatId: CHAT_ID }));
+    }
+  });
+
   it('consulta ampla de chats não é um filtro de autorização bilateral', async () => {
     const client = env.authenticatedContext(
       RECIPIENT, { email_verified: true }
