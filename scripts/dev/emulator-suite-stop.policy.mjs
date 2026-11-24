@@ -62,3 +62,16 @@ export function assessEmulatorSuiteShutdown({
   }
   return null;
 }
+
+// Verify shutdown against the previously authorized tree and watched ports.
+export function assessEmulatorSuiteStopped({ hubPid, beforeProcesses = [], processes = [], listeners = [] } = {}) {
+  if (!Number.isSafeInteger(hubPid) || hubPid <= 0) return 'PID do Hub inválido.';
+  if (!beforeProcesses.some(p => Number(p.pid) === hubPid)) return 'Árvore anterior não identificada.';
+  const byId = new Map(beforeProcesses.map(p => [Number(p.pid), p]));
+  const tree = new Set(beforeProcesses.filter(p => belongsToTree(p.pid, hubPid, byId)).map(p => Number(p.pid)));
+  const remaining = processes.find(p => tree.has(Number(p.pid)));
+  if (remaining) return 'Processo da árvore ainda presente (PID ' + remaining.pid + ').';
+  const listener = listeners.find(p => WATCHED_PORTS.has(Number(p.port)));
+  if (listener) return 'Porta emulada ainda ocupada: ' + listener.port + '.';
+  return null;
+}
