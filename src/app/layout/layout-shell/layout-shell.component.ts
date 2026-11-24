@@ -1,3 +1,4 @@
+import { ChatNotificationService } from '@core/services/batepapo/chat-notification.service';
 // src/app/layout/layout-shell/layout-shell.component.ts
 import {
   ChangeDetectionStrategy,
@@ -64,6 +65,7 @@ export class LayoutShellComponent {
   protected readonly usesRegistrationPresentation = usesRegistrationPresentation;
   protected readonly isRegistrationEmailLinkStep = isRegistrationEmailLinkStep;
   private readonly store = inject<Store<AppState>>(Store as any);
+  private readonly chatNotification = inject(ChatNotificationService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
   /**
@@ -135,6 +137,7 @@ export class LayoutShellComponent {
     this.sidebarShouldOverlay$,
     this.sidebarShouldCompact$,
     this.store.select(selectInboundRequestsCount).pipe(distinctUntilChanged()),
+    this.chatNotification.unreadState$,
   ]).pipe(
     map(([
       sidebar,
@@ -142,6 +145,7 @@ export class LayoutShellComponent {
       sidebarShouldOverlay,
       sidebarShouldCompact,
       inboundRequestsCount,
+      unreadState,
     ]): LayoutShellVm => {
       const currentUrl = sidebar.currentUrl;
       const shellMode = this.resolveShellMode(currentUrl);
@@ -164,7 +168,9 @@ export class LayoutShellComponent {
       );
       const sidebarWithBadges = this.applySidebarBadges(
         sidebar,
-        safeFriendRequestsCount
+        safeFriendRequestsCount,
+        shellMode === 'auth' && unreadState.ownerUid === navVm.uid
+          ? Array.from(unreadState.counts.values()).reduce((sum, count) => sum + count, 0) : 0
       );
 
       const shellContextActions =
@@ -288,9 +294,10 @@ export class LayoutShellComponent {
 
   private applySidebarBadges(
     sidebar: SidebarVm,
-    friendRequestsCount: number
+    friendRequestsCount: number,
+    unreadMessagesCount: number
   ): SidebarVm {
-    if (!friendRequestsCount) {
+    if (!friendRequestsCount && !unreadMessagesCount) {
       return sidebar;
     }
 
@@ -303,6 +310,11 @@ export class LayoutShellComponent {
       sections: sidebar.sections.map((section) => ({
         ...section,
         items: section.items.map((item) => {
+          if (item.id === 'chat-list' && unreadMessagesCount > 0) {
+            const badgeLabel = `${unreadMessagesCount} mensagens não lidas`;
+            return { ...item, badgeCount: unreadMessagesCount, badgeLabel,
+              ariaLabel: `Abrir mensagens diretas. ${badgeLabel}.` };
+          }
           if (item.id === 'friend-requests' && friendRequestsCount > 0) {
             return {
               ...item,

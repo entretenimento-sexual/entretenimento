@@ -1,327 +1,198 @@
-// src/app/core/services/batepapo/chat-notification.service.ts
-// Serviço de Bate-Papo usando Firestore
-// Não esquecer os comentários
-//
-// Ajuste arquitetural desta versão:
-// - o serviço passa a conhecer a thread ativa do chat;
-// - mensagens da conversa aberta e visível não entram no contador global;
-// - isso evita badge/notificação enganosa quando o usuário já está lendo a thread.
-//
-// SUPRESSÃO EXPLÍCITA:
-// - ainda não criamos evento backend ChatMessageCreated;
-// - ainda não persistimos unread por participante no documento do chat;
-// - ainda não integramos mute/preferência por conversa.
-//
-// Motivo:
-// - esta é a correção segura de UX/arquitetura no frontend atual;
-// - a persistência correta exige migração de contrato, rules e Cloud Functions.
+// Canonical client read path until the backend unread projection is validated.
+// Count only authorized, server-confirmed message receipts. Alert visibility
+// is independent of unread state. One shared subscription per active consumer set.
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, Subscription, from, of } from 'rxjs';
-import { catchError, map, mergeMap, reduce, switchMap, take } from 'rxjs/operators';
-
-// ✅ Injeta a instância correta via AngularFire
+import { BehaviorSubject, Observable, Subscription, combineLatest, defer, from, of } from 'rxjs';
+import { catchError, distinctUntilChanged, filter, map, shareReplay, startWith, switchMap, take, takeUntil } from 'rxjs/operators';
 import { Firestore } from '@angular/fire/firestore';
-
-// ✅ Use o pacote público "firebase/firestore" (evite @firebase/*)
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  getDocs,
-  type QuerySnapshot,
-  type DocumentData,
-} from 'firebase/firestore';
-
+import { collection, query, where, onSnapshot, getDocs, type QuerySnapshot, type DocumentData } from 'firebase/firestore';
 import { ApplicationErrorService } from '../error-handler/application-error.service';
 import { AccessControlService } from '../autentication/auth/access-control.service';
 import { DirectReceiptsService } from 'src/app/messaging/direct-chat/services/direct-receipts.service';
+import { recoverDirectChatListener$ } from 'src/app/messaging/direct-chat/services/direct-chat-listener-recovery';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
+import { isDirectMessageUnreadFor, totalDirectUnread, type DirectUnreadState } from './chat-unread.policy';
 
 @Injectable({ providedIn: 'root' })
 export class ChatNotificationService {
-  private readonly unreadMessagesCount = new BehaviorSubject<number>(0);
   private readonly pendingInvitesCount = new BehaviorSubject<number>(0);
   private readonly activeChatId = new BehaviorSubject<string | null>(null);
-
-  readonly unreadMessagesCount$ = this.unreadMessagesCount.asObservable();
+  private legacyMonitor: Subscription | null = null;
   readonly pendingInvitesCount$ = this.pendingInvitesCount.asObservable();
   readonly activeChatId$ = this.activeChatId.asObservable();
 
-  // controle de listener/recompute
-  private currentUid: string | null = null;
-  private unsubChats: (() => void) | null = null;
-  private recountSub: Subscription | null = null;
-  private runToken = 0;
-  private recountVersion = 0;
+  private readonly authorizedUid$ = combineLatest([
+    this.accessControl.authUid$, this.accessControl.canListenRealtime$,
+  ]).pipe(
+    map(([uid, allowed]) => allowed ? uid : null),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly unreadState$: Observable<DirectUnreadState> = this.authorizedUid$.pipe(
+    switchMap(uid => uid
+      ? this.observeUnreadForUser$(uid).pipe(startWith({ ownerUid: uid, counts: new Map<string, number>() }))
+      : of({ ownerUid: null, counts: new Map<string, number>() })),
+    catchError(error => {
+      this.handleRealtimeError('Não foi possível acompanhar mensagens não lidas.', error, 'unreadState$');
+      return of({ ownerUid: null, counts: new Map<string, number>() });
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly unreadMessagesCount$ = this.unreadState$.pipe(
+    map(totalDirectUnread), distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   constructor(
     private readonly db: Firestore,
     private readonly applicationError: ApplicationErrorService,
     private readonly accessControl: AccessControlService,
     private readonly directReceipts: DirectReceiptsService
-  ) { }
+  ) {}
 
-  private dbg(tag: string, data?: any): void {
-    const w: any = typeof window !== 'undefined' ? window : null;
-    if (!w?.__DBG_ON__) return;
-    if (typeof w?.DBG === 'function') w.DBG(`[CHAT-NOTIF] ${tag}`, data ?? '');
-    else console.log(`[CHAT-NOTIF] ${tag}`, data ?? '');
+  setActiveChat(chatId: string | null | undefined, _reason?: string): void {
+    const id = String(chatId ?? '').trim() || null;
+    if (this.activeChatId.value !== id) this.activeChatId.next(id);
   }
 
-  setActiveChat(chatId: string | null | undefined, reason?: string): void {
-    const safeChatId = String(chatId ?? '').trim() || null;
+  clearActiveChat(reason?: string): void { this.setActiveChat(null, reason); }
 
-    if (this.activeChatId.getValue() === safeChatId) {
-      return;
-    }
+  // Legacy public signatures: never overwrite receipt-derived totals.
+  updateUnreadMessagesForUser(_totalUnreadCount: number): void {}
+  updateUnreadMessages(_count: number): void {}
+  incrementUnreadMessages(): void {}
+  decrementUnreadMessages(): void {}
+  resetUnreadMessages(): void {}
 
-    this.activeChatId.next(safeChatId);
-    this.dbg('ACTIVE_CHAT', { chatId: safeChatId, reason });
-
-    if (this.currentUid) {
-      this.refreshUnreadCountOnce(this.currentUid);
-    }
-  }
-
-  clearActiveChat(reason?: string): void {
-    this.setActiveChat(null, reason ?? 'clearActiveChat');
-  }
-
-  updateUnreadMessagesForUser(totalUnreadCount: number): void {
-    if (this.unreadMessagesCount.getValue() !== totalUnreadCount) {
-      this.unreadMessagesCount.next(totalUnreadCount);
-    }
-  }
-
-  updateUnreadMessages(count: number): void {
-    if (this.unreadMessagesCount.getValue() !== count) {
-      this.unreadMessagesCount.next(count);
-    }
-  }
-
-  stopUnreadMessagesMonitoring(reason?: string): void {
-    this.dbg('STOP', { reason, currentUid: this.currentUid });
-
-    this.runToken++; // invalida listeners de sessões anteriores
-    this.recountVersion++; // invalida contagens assíncronas anteriores
-
-    if (this.unsubChats) {
-      this.unsubChats();
-      this.unsubChats = null;
-    }
-
-    if (this.recountSub) {
-      this.recountSub.unsubscribe();
-      this.recountSub = null;
-    }
-
-    this.currentUid = null;
-    this.activeChatId.next(null);
-    this.unreadMessagesCount.next(0);
-  }
-
-  /** Monitora mensagens não lidas (idempotente + sem listener pendurado) */
   monitorUnreadMessages(userId: string): void {
-    const uid = (userId ?? '').trim();
-    if (!uid) return;
-
-    // idempotente: se já está ouvindo o mesmo uid, não duplica
-    if (this.currentUid === uid && this.unsubChats) {
-      this.dbg('MONITOR SKIP (same uid)', { uid });
-      return;
-    }
-
-    this.stopUnreadMessagesMonitoring();
-    this.currentUid = uid;
-
-    let userChatsQuery;
-    try {
-      const chatsRef = collection(this.db, 'chats');
-      userChatsQuery = query(chatsRef, where('participants', 'array-contains', uid));
-    } catch (err) {
-      this.handleRealtimeError('Erro ao iniciar monitoramento', err, 'monitorUnreadMessages:initQuery');
-      return;
-    }
-
-    const token = ++this.runToken;
-    this.dbg('MONITOR START', { uid, token });
-
-    this.unsubChats = onSnapshot(
-      userChatsQuery,
-      (snapshot: QuerySnapshot<DocumentData>) => {
-        if (token !== this.runToken) return;
-        this.recountUnreadFromSnapshot(snapshot, uid, token);
-      },
-      (err) => {
-        if (token !== this.runToken) return;
-        this.handleRealtimeError('Erro ao monitorar chats', err, 'monitorUnreadMessages:onSnapshot');
-      }
-    );
-  }
-
-  private recountUnreadFromSnapshot(
-    snapshot: QuerySnapshot<DocumentData>,
-    userId: string,
-    token: number
-  ): void {
-    // Cancelar antes do caso vazio; uma resposta anterior não deve reverter o zero.
-    this.recountVersion++;
-    const version = this.recountVersion;
-    if (this.recountSub) {
-      this.recountSub.unsubscribe();
-      this.recountSub = null;
-    }
-    const chatIds: string[] = (snapshot?.docs ?? [])
-      .map(d => String(d.id))
-      .filter((chatId) => this.shouldCountChat(chatId));
-
-    this.dbg('SNAPSHOT', {
-      token,
-      chats: chatIds.length,
-      activeChatId: this.activeChatId.getValue(),
-      visible: this.isDocumentVisible(),
-    });
-
-    if (!chatIds.length) {
-      if (token === this.runToken && version === this.recountVersion) this.updateUnreadMessagesForUser(0);
-      return;
-    }
-
-    this.recountSub = from(chatIds).pipe(
-      mergeMap((chatId) => this.countUnreadForChat$(chatId, userId), 6),
-      reduce((acc: number, n: number) => acc + n, 0),
-      catchError((err) => {
-        this.handleRealtimeError('Erro ao calcular mensagens não lidas', err, 'recountUnreadFromSnapshot');
-        return of(0);
-      })
-    ).subscribe((total) => {
-      if (token !== this.runToken || version !== this.recountVersion) return;
-      this.dbg('TOTAL', { token, version, total });
-      this.updateUnreadMessagesForUser(total);
-    });
-  }
-
-  private countUnreadForChat$(chatId: string, userId: string): Observable<number> {
-    if (!this.shouldCountChat(chatId)) {
-      return of(0);
-    }
-
-    let unreadMessagesQuery;
-    try {
-      const messagesRef = collection(this.db, `chats/${chatId}/messages`);
-      unreadMessagesQuery = query(
-        messagesRef,
-        // Entregue não significa lida: só 'read' retira a mensagem do badge.
-        where('status', 'in', ['sent', 'delivered']),
-        where('senderId', '!=', userId)
-      );
-    } catch (err) {
-      this.handleRealtimeError('Erro ao montar query de não lidas', err, 'countUnreadForChat$:buildQuery');
-      return of(0);
-    }
-
-    return from(getDocs(unreadMessagesQuery)).pipe(
-      map(snap => snap.size),
-      catchError(err => {
-        this.handleRealtimeError('Erro ao ler mensagens não lidas', err, 'countUnreadForChat$:getDocs');
-        return of(0);
-      })
-    );
-  }
-
-  /**
-   * Mantém a assinatura legada, delegando toda mutação de recibos à autoridade
-   * DirectReceiptsService. Nunca grava sent -> read diretamente.
-   * O segundo avanço depende do snapshot atualizado da thread.
-   */
-  resetUnreadMessagesForChat(chatId: string): void {
-    const id = (chatId ?? '').trim();
-    if (!id) return;
-
-    this.accessControl.authUid$.pipe(
+    this.legacyMonitor?.unsubscribe();
+    this.legacyMonitor = this.authorizedUid$.pipe(
+      filter(uid => uid === userId),
       take(1),
-      switchMap((uid) => {
-        if (!uid || uid !== this.currentUid) return of(0);
-        const messagesRef = collection(this.db, `chats/${id}/messages`);
-        return from(getDocs(query(messagesRef, where('senderId', '!=', uid)))).pipe(
-          switchMap((snapshot) => {
-            if (uid !== this.currentUid) return of(0);
-            const messages = snapshot.docs
-              .filter((doc) => ['sent', 'delivered'].includes(doc.data()?.['status']))
-              .map((doc) => ({ id: doc.id, ...doc.data() }) as Message);
-            return this.directReceipts.markDeliveredAsRead$(id, uid, messages);
-          })
-        );
+      switchMap(() => this.unreadState$),
+      takeUntil(this.authorizedUid$.pipe(filter(uid => uid !== userId)))
+    ).subscribe();
+  }
+
+  stopUnreadMessagesMonitoring(_reason?: string): void {
+    this.legacyMonitor?.unsubscribe();
+    this.legacyMonitor = null;
+    this.activeChatId.next(null);
+  }
+
+  private observeUnreadForUser$(uid: string): Observable<DirectUnreadState> {
+    // Keep unchanged chat listeners across preview changes. Remove counts
+    // synchronously when the parent list or its authorization is revoked.
+    return new Observable<DirectUnreadState>(subscriber => {
+      const listeners = new Map<string, { peer: string; sub: Subscription }>();
+      const counts = new Map<string, number>();
+      const emit = () => subscriber.next({ ownerUid: uid, counts: new Map(counts) });
+      const clear = () => {
+        listeners.forEach(entry => entry.sub.unsubscribe());
+        listeners.clear();
+        counts.clear();
+      };
+      const chats$ = recoverDirectChatListener$<QuerySnapshot<DocumentData> | null>(
+        () => new Observable<QuerySnapshot<DocumentData>>(sink => onSnapshot(
+          query(collection(this.db, 'chats'), where('participants', 'array-contains', uid)),
+          { includeMetadataChanges: true },
+          snapshot => sink.next(snapshot), error => sink.error(error)
+        )),
+        error => {
+          this.handleRealtimeError('Não foi possível acompanhar conversas.', error, 'observeUnreadForUser$');
+          return null;
+        }
+      );
+      const chatsSub = chats$.subscribe({
+        next: snapshot => {
+          if (!snapshot || snapshot.metadata.fromCache) {
+            clear(); emit(); return;
+          }
+          const peers = new Map<string, string>();
+          for (const chat of snapshot.docs) {
+            const data = chat.data();
+            const pair = data['participants'];
+            if (data['isRoom'] === true || !Array.isArray(pair) || pair.length !== 2 ||
+                !pair.includes(uid) || pair[0] === pair[1]) continue;
+            const peer = pair.find(value => value !== uid);
+            if (typeof peer === 'string' && peer.trim()) peers.set(chat.id, peer);
+          }
+          for (const [id, entry] of listeners) {
+            if (peers.get(id) !== entry.peer) {
+              entry.sub.unsubscribe(); listeners.delete(id); counts.delete(id);
+            }
+          }
+          emit();
+          for (const [id, peer] of peers) {
+            if (listeners.has(id)) continue;
+            const sub = new Subscription();
+            listeners.set(id, { peer, sub });
+            sub.add(this.countUnreadForChat$(id, uid, peer).subscribe(count => {
+              if (listeners.get(id)?.sub !== sub) return;
+              counts.set(id, count); emit();
+            }));
+          }
+        },
+        error: error => {
+          clear(); emit();
+          this.handleRealtimeError('Não foi possível acompanhar conversas.', error, 'observeUnreadForUser$');
+        },
+        complete: () => { clear(); emit(); }
+      });
+      return () => { chatsSub.unsubscribe(); clear(); };
+    });
+  }
+
+  private countUnreadForChat$(chatId: string, ownerUid: string, peerUid: string): Observable<number> {
+    return recoverDirectChatListener$(
+      () => new Observable<number>(sink => onSnapshot(
+        query(collection(this.db, 'chats', chatId, 'messages'), where('status', 'in', ['sent', 'delivered'])),
+        { includeMetadataChanges: true },
+        snapshot => sink.next(snapshot.metadata.fromCache ? 0 : snapshot.docs.filter(
+          doc => !doc.metadata.hasPendingWrites && isDirectMessageUnreadFor(doc.data(), ownerUid, peerUid)
+        ).length),
+        error => sink.error(error)
+      )),
+      error => {
+        this.handleRealtimeError('Não foi possível acompanhar mensagens não lidas.', error, 'countUnreadForChat$');
+        return 0;
+      }
+    ).pipe(
+      catchError(error => {
+        this.handleRealtimeError('Não foi possível acompanhar mensagens não lidas.', error, 'countUnreadForChat$');
+        return of(0);
       }),
-      catchError((error) => {
+      distinctUntilChanged()
+    );
+  }
+
+  /** Legacy receipt command; the listener, not this command, updates counts. */
+  resetUnreadMessagesForChat(chatId: string): void {
+    const id = chatId?.trim();
+    if (!id || id.includes('/')) return;
+    this.authorizedUid$.pipe(
+      take(1),
+      switchMap(uid => !uid ? of(0) : defer(() => from(getDocs(query(
+        collection(this.db, 'chats', id, 'messages'),
+        where('status', 'in', ['sent', 'delivered'])
+      )))).pipe(
+        switchMap(snapshot => this.directReceipts.markDeliveredAsRead$(id, uid,
+          snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Message))),
+        takeUntil(this.authorizedUid$.pipe(filter(current => current !== uid)))
+      )),
+      catchError(error => {
         this.handleRealtimeError('Erro ao atualizar recibos', error, 'resetUnreadMessagesForChat');
         return of(0);
       })
-    ).subscribe(() => {
-      if (this.currentUid) this.refreshUnreadCountOnce(this.currentUid);
-    });
-  }
-
-  private refreshUnreadCountOnce(userId: string): void {
-    const uid = (userId ?? '').trim();
-    if (!uid) return;
-
-    let userChatsQuery;
-    try {
-      const chatsRef = collection(this.db, 'chats');
-      userChatsQuery = query(chatsRef, where('participants', 'array-contains', uid));
-    } catch (err) {
-      this.handleRealtimeError('Erro ao atualizar contagem de não lidas', err, 'refreshUnreadCountOnce:buildQuery');
-      return;
-    }
-
-    // Atualização pontual não deve invalidar o listener onSnapshot existente.
-    const token = this.runToken;
-
-    getDocs(userChatsQuery)
-      .then((snapshot) => {
-        if (token !== this.runToken || uid !== this.currentUid) return;
-        this.recountUnreadFromSnapshot(snapshot, uid, token);
-      })
-      .catch((err) => this.handleRealtimeError('Erro ao atualizar contagem de não lidas', err, 'refreshUnreadCountOnce:getDocs'));
-  }
-
-  private shouldCountChat(chatId: string): boolean {
-    const safeChatId = String(chatId ?? '').trim();
-    const activeId = this.activeChatId.getValue();
-
-    if (!safeChatId) {
-      return false;
-    }
-
-    if (!this.isDocumentVisible()) {
-      return true;
-    }
-
-    return !activeId || activeId !== safeChatId;
-  }
-
-  private isDocumentVisible(): boolean {
-    if (typeof document === 'undefined') {
-      return true;
-    }
-
-    return document.visibilityState === 'visible';
+    ).subscribe();
   }
 
   updatePendingInvites(count: number): void {
     if (this.pendingInvitesCount.getValue() !== count) {
       this.pendingInvitesCount.next(count);
     }
-  }
-
-  incrementUnreadMessages(): void {
-    this.unreadMessagesCount.next(this.unreadMessagesCount.getValue() + 1);
-  }
-  decrementUnreadMessages(): void {
-    const currentCount = this.unreadMessagesCount.getValue();
-    if (currentCount > 0) this.unreadMessagesCount.next(currentCount - 1);
   }
 
   incrementPendingInvites(): void {
@@ -332,12 +203,8 @@ export class ChatNotificationService {
     if (currentCount > 0) this.pendingInvitesCount.next(currentCount - 1);
   }
 
-  resetUnreadMessages(): void { this.unreadMessagesCount.next(0); }
   resetPendingInvites(): void { this.pendingInvitesCount.next(0); }
 
-  // -----------------------------------------------------------------------------
-  // Erros (entrada canônica)
-  // -----------------------------------------------------------------------------
   private handleRealtimeError(
     userMessage: string,
     error: unknown,
@@ -347,6 +214,7 @@ export class ChatNotificationService {
       feature: 'notifications.chat',
       operation,
       fallbackMessage: userMessage,
+      presentation: { surface: 'none', severity: 'error' },
       metadata: {
         scope: 'ChatNotificationService',
       },

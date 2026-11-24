@@ -38,6 +38,7 @@ import {
   DirectChatListState,
 } from '../models/direct-chat.models';
 
+import { ChatNotificationService } from '@core/services/batepapo/chat-notification.service';
 import { DirectChatService } from '../services/direct-chat.service';
 import { DirectChatAvailabilityService } from '../services/direct-chat-availability.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
@@ -163,8 +164,10 @@ export class DirectChatFacade {
         })
       );
 
-      return combineLatest([scopedItems$, publicProfiles$]).pipe(
-        map(([items, profiles]) => this.applyPublicProfiles(items, profiles))
+      return combineLatest([scopedItems$, publicProfiles$, this.chatNotification.unreadState$]).pipe(
+        map(([items, profiles, unread]) => this.applyPublicProfiles(items, profiles).map(item => ({
+          ...item, unreadCount: unread.ownerUid === uid ? unread.counts.get(item.id) ?? 0 : 0,
+        })))
       );
     }),
     catchError((error) => {
@@ -284,7 +287,8 @@ export class DirectChatFacade {
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly applicationError: ApplicationErrorService,
     destroyRef: DestroyRef,
-    private readonly availabilityService: DirectChatAvailabilityService
+    private readonly availabilityService: DirectChatAvailabilityService,
+    private readonly chatNotification: ChatNotificationService
   ) {
     this.authSession.uid$
       .pipe(
@@ -404,7 +408,7 @@ export class DirectChatFacade {
       otherParticipantPreview: null,
       otherParticipantNickname: null,
       otherParticipantPhotoURL: null,
-      unreadCount: Number((chat as any)?.unreadCount ?? 0),
+      unreadCount: 0,
       lastMessagePreview,
       lastMessageAt:
         chat?.lastMessage?.timestamp?.toDate?.()?.getTime?.() ?? null,

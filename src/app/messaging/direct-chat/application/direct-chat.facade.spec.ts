@@ -86,7 +86,8 @@ describe('DirectChatFacade session isolation', () => {
       firestoreUserQuery,
       applicationError.service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any
+      { observe$: () => of(true) } as any,
+      { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
 
     const chatEmissions: IChat[][] = [];
@@ -159,7 +160,8 @@ describe('DirectChatFacade session isolation', () => {
       { getUsersPublicMap$: () => of({}) } as unknown as FirestoreUserQueryService,
       buildApplicationError().service,
       buildDestroyRef(),
-      { observe$ } as any
+      { observe$ } as any,
+      { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
     const access: boolean[] = [];
     const subscription = facade.selectedChatCanOpen$.subscribe(value => access.push(value));
@@ -190,7 +192,8 @@ describe('DirectChatFacade session isolation', () => {
       { getUsersPublicMap$: () => of({}) } as unknown as FirestoreUserQueryService,
       buildApplicationError().service,
       buildDestroyRef(),
-      { observe$ } as any
+      { observe$ } as any,
+      { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
     const observed: boolean[] = [];
     const sub = facade.selectedChatCanOpen$.subscribe(value => observed.push(value));
@@ -258,7 +261,8 @@ describe('DirectChatFacade session isolation', () => {
       firestoreUserQuery,
       applicationError.service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any
+      { observe$: () => of(true) } as any,
+      { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
 
     const emissions: any[][] = [];
@@ -324,7 +328,8 @@ describe('DirectChatFacade late opening isolation', () => {
       query,
       buildApplicationError().service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any
+      { observe$: () => of(true) } as any,
+      { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
     const output: Array<string | null> = [];
     const subscription = facade.openChatWithUser$('peer-a').subscribe(
@@ -364,7 +369,8 @@ describe('DirectChatFacade canonical errors', () => {
       firestoreUserQuery,
       applicationError.service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any
+      { observe$: () => of(true) } as any,
+      { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
 
     const emissions: IChat[][] = [];
@@ -401,7 +407,8 @@ describe('DirectChatFacade canonical errors', () => {
       { getUsersPublicMap$ } as unknown as FirestoreUserQueryService,
       buildApplicationError().service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any
+      { observe$: () => of(true) } as any,
+      { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
     const values: any[][] = [];
     const sub = facade.items$.subscribe((items) => values.push(items));
@@ -438,7 +445,8 @@ describe('DirectChatFacade canonical errors', () => {
       firestoreUserQuery,
       applicationError.service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any
+      { observe$: () => of(true) } as any,
+      { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
 
     const emissions: any[][] = [];
@@ -488,7 +496,8 @@ describe('DirectChatFacade canonical errors', () => {
       firestoreUserQuery,
       applicationError.service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any
+      { observe$: () => of(true) } as any,
+      { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
 
     await expect(
@@ -531,7 +540,8 @@ describe('DirectChatFacade canonical errors', () => {
       firestoreUserQuery,
       applicationError.service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any
+      { observe$: () => of(true) } as any,
+      { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
 
     const emissions: IChat[][] = [];
