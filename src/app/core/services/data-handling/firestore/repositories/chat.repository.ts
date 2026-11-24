@@ -1,6 +1,6 @@
 // src/app/core/services/data-handling/firestore/repositories/chat.repository.ts
 import { Injectable, inject } from '@angular/core';
-import { Observable, combineLatest, defer, from, of, throwError, timer } from 'rxjs';
+import { Observable, combineLatest, defer, of, throwError, timer } from 'rxjs';
 import { catchError, distinctUntilChanged, exhaustMap, filter, map, startWith, switchMap, take } from 'rxjs/operators';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
@@ -86,14 +86,14 @@ export class ChatRepository {
               ? { ...snapshot.data(), id: snapshot.id } as IChat : null);
           }, error => sink.error(error)));
       }), () => null
-    ).pipe(catchError(error => {
+    ).pipe(catchError((error): Observable<IChat | null> => {
       this.applicationError.report(error, {
         feature: 'chat', operation: 'ChatRepository.observeChat$',
         fallbackMessage: 'Não foi possível acompanhar uma conversa.',
         presentation: { surface: 'none', severity: 'error' },
       });
       return of(null);
-    }), startWith(null));
+    }), startWith<IChat | null>(null));
   }
 
   /**

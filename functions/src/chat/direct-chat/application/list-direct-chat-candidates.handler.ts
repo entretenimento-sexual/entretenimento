@@ -6,7 +6,11 @@ import { FUNCTIONS_REGION } from '../../../config/functions-region';
 import { assertCallableAppCheck } from '../../../shared/security/callable-app-check';
 import { consumeBackendRateLimitQuota } from '../../../shared/security/backend-rate-limit.service';
 import { assertPlatformAccountAccessData } from '../../../account_lifecycle/interaction-access.policy';
-import { assertDirectChatEmailVerified, isEligibleExistingDirectChat, ENSURE_DIRECT_CHAT_RATE_LIMIT_CONFIG } from '../domain/direct-chat.policy';
+import {
+  assertDirectChatEmailVerified,
+  isEligibleExistingDirectChat,
+  ENSURE_DIRECT_CHAT_RATE_LIMIT_CONFIG,
+} from '../domain/direct-chat.policy';
 
 const MAX_CANDIDATES = 500;
 const safeUid = (value: unknown): value is string =>
