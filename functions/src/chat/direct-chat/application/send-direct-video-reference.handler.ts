@@ -235,6 +235,7 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
       const content = 'Vídeo compartilhado';
       const nickname = resolveNickname(actor);
       const lastMessage = {
+        messageId,
         content,
         senderId: actorUid,
         senderUid: actorUid,
@@ -256,6 +257,8 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
         chatRef,
         {
           lastMessage,
+          // Keep the existing indexed list ordering compatible with legacy chats.
+          timestamp: FieldValue.serverTimestamp(),
           lastMessageAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         },

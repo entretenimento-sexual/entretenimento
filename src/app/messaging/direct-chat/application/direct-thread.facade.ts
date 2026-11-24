@@ -139,13 +139,25 @@ export class DirectThreadFacade {
       }
 
       const describeFailure = (error: unknown): DirectThreadState => {
-        this.reportSilent(error, 'DirectThreadFacade.state
-        map((messages): DirectThreadState => ({
-          chatId: permittedChatId,
-          messages: Array.isArray(messages) ? messages : [],
-          loading: false,
-        })),
-      ), describeFailure).pipe(
+        this.reportSilent(error, 'DirectThreadFacade.state$');
+        const code = String((error as { code?: unknown } | null)?.code ?? '').toLowerCase();
+        const errorMessage = code.includes('permission-denied')
+          ? 'Você não tem mais acesso a esta conversa.'
+          : code.includes('unauthenticated')
+            ? 'Entre novamente para acessar esta conversa.'
+            : 'Não foi possível carregar as mensagens. Verifique sua conexão.';
+        return { ...emptyState, errorMessage, loaded: false };
+      };
+      return recoverDirectChatListener$(
+        () => this.directThreadService.observeMessages$(permittedChatId).pipe(
+          map((messages): DirectThreadState => ({
+            chatId: permittedChatId,
+            messages: Array.isArray(messages) ? messages : [],
+            loading: false,
+          }))
+        ),
+        describeFailure
+      ).pipe(
         startWith(emptyState),
         catchError(error => of(describeFailure(error)))
       );

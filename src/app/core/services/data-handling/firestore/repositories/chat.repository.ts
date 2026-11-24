@@ -91,8 +91,42 @@ export class ChatRepository {
     }).pipe(
       map((arr) => (arr ?? []) as IChat[]),
       catchError((err) => {
-        this.reportSilent('watchChats$', err);
+        this.reportSilent('watchChats
+      })
+    );
+  }
+
+  getChatsPageOnce$(uid: string, lastChatTimestamp?: Timestamp, pageSize = 10): Observable<IChat[]> {
+    const id = (uid ?? '').toString().trim();
+    if (!id) return of([]);
+
+    return this.ctx.deferPromise$(() => {
+      const q = lastChatTimestamp
+        ? query(
+            this.chatsCol(),
+            where('participants', 'array-contains', id),
+            orderBy('timestamp', 'desc'),
+            startAfter(lastChatTimestamp),
+            limit(pageSize)
+          )
+        : query(
+            this.chatsCol(),
+            where('participants', 'array-contains', id),
+            orderBy('timestamp', 'desc'),
+            limit(pageSize)
+          );
+
+      return getDocs(q);
+    }).pipe(
+      map((snap) => snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as IChat))),
+      catchError((err) => {
+        this.reportSilent('getChatsPageOnce$', err);
         return of([]);
+      })
+    );
+  }
+}, err);
+        return throwError(() => err);
       })
     );
   }

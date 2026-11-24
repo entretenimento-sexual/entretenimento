@@ -86,6 +86,8 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     const chat = await db.doc(`chats/${chatId}`).get();
     assert.equal(chat.data()?.lastMessage?.content, 'mensagem concorrente');
     assert.equal(chat.data()?.lastMessage?.messageId, results[0].messageId);
+    assert.equal(chat.data()?.timestamp?.toMillis(), chat.data()?.lastMessageAt?.toMillis());
+    assert.equal(chat.data()?.timestamp?.toMillis(), chat.data()?.lastMessage?.timestamp?.toMillis());
   });
 
   it('deduplica retry sequencial da mesma intenção sem alterar preview', async () => {
@@ -109,9 +111,12 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     const newId = randomUUID();
     const original = await send('mensagem anterior', oldId);
     const newer = await send('mensagem posterior', newId);
-    const previewBefore = (await db.doc(`chats/${chatId}`).get()).data()?.lastMessage;
+    const beforeRetry = (await db.doc(`chats/${chatId}`).get()).data();
+    const previewBefore = beforeRetry?.lastMessage;
     const retry = await send('mensagem anterior', oldId);
-    const previewAfter = (await db.doc(`chats/${chatId}`).get()).data()?.lastMessage;
+    const afterRetry = (await db.doc(`chats/${chatId}`).get()).data();
+    const previewAfter = afterRetry?.lastMessage;
+    assert.equal(afterRetry?.timestamp?.toMillis(), beforeRetry?.timestamp?.toMillis());
 
     assert.equal(retry.deduplicated, true);
     assert.equal(retry.messageId, original.messageId);

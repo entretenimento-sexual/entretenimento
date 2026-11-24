@@ -330,6 +330,8 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
         chatRef,
         {
           lastMessage,
+          // Keep the existing indexed list ordering compatible with legacy chats.
+          timestamp: FieldValue.serverTimestamp(),
           lastMessageAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         },
