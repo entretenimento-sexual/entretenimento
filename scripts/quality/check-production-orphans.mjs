@@ -447,6 +447,13 @@ const functionsOperationalArtifacts = new Set([
     'chat/direct-chat/domain/direct-unread-projection.policy.ts',
     'chat/direct-chat/domain/direct-unread-backfill-budget.policy.ts',
     'chat/direct-chat/domain/direct-unread-backfill-journal.policy.ts',
+    // CHAT-A5.8: explicitly test-owned shadow tooling; not deployable.
+    'chat/direct-chat/application/direct-unread-access.emulator.ts',
+    'chat/direct-chat/application/direct-unread-global.emulator.ts',
+    'chat/direct-chat/application/direct-unread-paged-backfill.emulator.ts',
+    'chat/direct-chat/application/direct-unread-shadow-compare.emulator.ts',
+    'chat/direct-chat/domain/direct-unread-cutover.policy.ts',
+    'chat/direct-chat/domain/direct-unread-global.policy.ts',
   ].map((relativePath) => posix(path.join(functionsSourceRoot, relativePath))),
 
   posix(path.join(
