@@ -370,8 +370,8 @@ export async function deleteProfilePhotoResources(
       tx.get(jobRef),
       tx.get(privatePhotoRef),
       tx.get(publicationRef),
-      tx.get(publicProfileRef),
       tx.get(publicPhotoRef),
+      tx.get(publicProfileRef),
     ]);
     if (existingJob.exists) {
       if (
