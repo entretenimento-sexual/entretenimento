@@ -1,3 +1,4 @@
+import type { Transaction } from 'firebase-admin/firestore';
 /** Experimental access-aware shadow read. No production export or client grant. */
 import { HttpsError } from 'firebase-functions/v2/https';
 import { db, FieldValue } from '../../../firebaseApp';
@@ -30,23 +31,7 @@ export async function reconcileShadowUnreadAccessOnEmulator(chatId: string, owne
         participants.every(valid) && participants.includes(ownerUid) &&
         participants[0] !== participants[1] &&
         isEligibleExistingDirectChat(chat.data(), participants)) {
-      const peerUid = participants.find(uid => uid !== ownerUid)!;
-      const owner = db.collection('users').doc(ownerUid);
-      const peer = db.collection('users').doc(peerUid);
-      const [a, b, ab, ba] = await Promise.all([
-        tx.get(owner), tx.get(peer), tx.get(owner.collection('blocks').doc(peerUid)),
-        tx.get(peer.collection('blocks').doc(ownerUid)),
-      ]);
-      try {
-        assertMessagingAccountOperational(a.data(), { operation: 'ensure-direct-chat', perspective: 'actor' });
-        assertMessagingAccountOperational(b.data(), { operation: 'ensure-direct-chat', perspective: 'target' });
-        assertPlatformAccountAccessData(a.data());
-        assertPlatformAccountAccessData(b.data());
-        available = !isBilateralBlockActive({ actorBlock: ab.data(), targetBlock: ba.data() });
-      } catch (error) {
-        if (!(error instanceof HttpsError)) throw error;
-        available = false;
-      }
+      available = await evaluateShadowHistoryAccessInTransaction(tx, ownerUid, participants.find(uid => uid !== ownerUid)!);
       // No friendship check: history exposure is separate from send permission.
       if (available && projection.exists) {
         projectedVisibleUnreadCount = buildShadowUnreadAggregate(ownerUid, [
@@ -62,4 +47,25 @@ export async function reconcileShadowUnreadAccessOnEmulator(chatId: string, owne
     }
     return next;
   }, { maxAttempts: DIRECT_UNREAD_MAX_TRANSACTION_ATTEMPTS });
+}
+
+/** Shared decision for experimental materialization and consistent read-only audits. */
+export async function evaluateShadowHistoryAccessInTransaction(tx: Transaction, ownerUid: string, peerUid: string): Promise<boolean> {
+      const owner = db.collection('users').doc(ownerUid);
+      const peer = db.collection('users').doc(peerUid);
+      const [a, b, ab, ba] = await Promise.all([
+        tx.get(owner), tx.get(peer), tx.get(owner.collection('blocks').doc(peerUid)),
+        tx.get(peer.collection('blocks').doc(ownerUid)),
+      ]);
+      try {
+        assertMessagingAccountOperational(a.data(), { operation: 'ensure-direct-chat', perspective: 'actor' });
+        assertMessagingAccountOperational(b.data(), { operation: 'ensure-direct-chat', perspective: 'target' });
+        assertPlatformAccountAccessData(a.data());
+        assertPlatformAccountAccessData(b.data());
+        return !isBilateralBlockActive({ actorBlock: ab.data(), targetBlock: ba.data() });
+      } catch (error) {
+        if (!(error instanceof HttpsError)) throw error;
+        return false;
+      }
+
 }

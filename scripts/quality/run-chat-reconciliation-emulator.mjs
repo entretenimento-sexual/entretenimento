@@ -56,6 +56,7 @@ try {
     'functions/lib/chat/direct-chat/application/direct-unread-global.emulator.test.js',
     'functions/lib/chat/direct-chat/application/direct-unread-access.emulator.test.js',
     'functions/lib/chat/direct-chat/application/direct-unread-paged-backfill.emulator.test.js',
+    'functions/lib/chat/direct-chat/application/direct-unread-shadow-compare.emulator.test.js',
     'functions/lib/chat/direct-chat/application/direct-unread-backfill.audit.emulator.test.js',
     'functions/lib/chat/direct-chat/application/direct-unread-backfill.emulator.test.js',
     'functions/lib/chat/direct-chat/application/direct-unread-backfill.metrics.emulator.test.js',
