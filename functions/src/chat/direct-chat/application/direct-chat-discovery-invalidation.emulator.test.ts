@@ -3,7 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
 import { db } from '../../../firebaseApp';
 import { invalidateDirectChatPeers } from './direct-chat-discovery-invalidation.trigger';
-import { stageDirectChatDiscoveryReferences } from './direct-chat-discovery.references';
+import {
+  stageDirectChatDiscoveryReferences,
+  stageDirectChatDiscoveryInvalidation,
+} from './direct-chat-discovery.references';
 
 const run = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip;
 run('CHAT-R1.6 opaque invalidation', () => {
@@ -28,6 +31,39 @@ run('CHAT-R1.6 opaque invalidation', () => {
     } finally {
       await chat.delete();
       await Promise.all([a, b, c].flatMap(uid => [db.doc('users/' + uid).delete(), db.recursiveDelete(root(uid))]));
+    }
+  });
+
+  it('preserves the revision under concurrent commits and rolls back aborted writes', async () => {
+    const a = 'concurrent-' + randomUUID();
+    const b = 'concurrent-' + randomUUID();
+    const root = (uid: string) => db.doc('direct_chat_discovery/' + uid);
+    const chat = db.doc('chats/' + randomUUID());
+    try {
+      await db.runTransaction(async tx => {
+        stageDirectChatDiscoveryReferences(tx, [a, b], chat.id);
+      });
+      await Promise.all(Array.from({ length: 8 }, () =>
+        db.runTransaction(async tx => {
+          stageDirectChatDiscoveryInvalidation(tx, a);
+          stageDirectChatDiscoveryInvalidation(tx, b);
+        })
+      ));
+      assert.deepEqual((await root(a).get()).data(), { version: 1, revision: 9 });
+      assert.deepEqual((await root(b).get()).data(), { version: 1, revision: 9 });
+      await assert.rejects(db.runTransaction(async tx => {
+        stageDirectChatDiscoveryInvalidation(tx, a);
+        stageDirectChatDiscoveryInvalidation(tx, b);
+        throw new Error('abort-discovery-transaction');
+      }), /abort-discovery-transaction/);
+      assert.deepEqual((await root(a).get()).data(), { version: 1, revision: 9 });
+      assert.deepEqual((await root(b).get()).data(), { version: 1, revision: 9 });
+      for (const uid of [a, b]) {
+        assert.deepEqual((await root(uid).collection('chats').doc(chat.id).get()).data(),
+          { version: 1, chatId: chat.id });
+      }
+    } finally {
+      await Promise.all([db.recursiveDelete(root(a)), db.recursiveDelete(root(b))]);
     }
   });
 });

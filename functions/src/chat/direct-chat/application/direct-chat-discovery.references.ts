@@ -23,10 +23,12 @@ export function stageDirectChatDiscoveryReferences(
 }
 
 // Opaque owner-only invalidation, not an authorization grant.
+// Merge is required: a replacing set can reset the transform base in the emulator.
+// Keep the atomic server transform, never a client-side read/modify/write.
 export function stageDirectChatDiscoveryInvalidation(
   transaction: Transaction, ownerUid: string
 ): void {
   transaction.set(db.doc(`direct_chat_discovery/${ownerUid}`), {
     version: 1, revision: FieldValue.increment(1),
-  });
+  }, { merge: true });
 }
