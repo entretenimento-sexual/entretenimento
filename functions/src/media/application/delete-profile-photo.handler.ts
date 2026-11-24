@@ -271,10 +271,10 @@ export async function deleteProfilePhotoResources(
     const missingPhotoCleanup = await db.runTransaction(async (tx) => {
       const jobRef = db.collection(DELETION_JOBS_COLLECTION)
         .doc(buildDeletionJobId(ownerUid, photoId));
-      const [currentPrivate, currentPublication, pendingJob, publicProfile] =
-        await Promise.all([
+      const [currentPrivate, currentPublication, pendingJob, publicProfile,
+        currentPublicPhoto] = await Promise.all([
           tx.get(privatePhotoRef), tx.get(publicationRef), tx.get(jobRef),
-          tx.get(publicProfileRef),
+          tx.get(publicProfileRef), tx.get(publicPhotoRef),
         ]);
       if (pendingJob.exists) {
         if (pendingJob.get('ownerUid') !== ownerUid ||
@@ -306,7 +306,7 @@ export async function deleteProfilePhotoResources(
       });
       tx.delete(publicationRef);
       tx.delete(publicPhotoRef);
-      if (publicProfile.exists && currentPublication.exists) {
+      if (publicProfile.exists && currentPublicPhoto.exists) {
         tx.update(publicProfileRef, {
           publicMediaRevision: FieldValue.increment(1),
         });
