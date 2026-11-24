@@ -13,6 +13,31 @@ import { PublicBilateralMediaAvailabilityService } from 'src/app/core/services/m
 const RECHECK_INTERVAL_MS = 15_000;
 const RECHECK_TIMEOUT_MS = 5_000;
 
+/** Não representa acesso à mídia: apenas sinaliza mudança na lista pública. */
+export interface PublicProfileMediaIndexState {
+  readonly available: boolean;
+  readonly mediaRevision: number;
+}
+
+const UNAVAILABLE_MEDIA_INDEX: PublicProfileMediaIndexState = Object.freeze({
+  available: false,
+  mediaRevision: 0,
+});
+
+export function samePublicProfileMediaIndex(
+  left: PublicProfileMediaIndexState,
+  right: PublicProfileMediaIndexState
+): boolean {
+  return left.available === right.available &&
+    left.mediaRevision === right.mediaRevision;
+}
+
+function revisionFromPublicProfile(data: Record<string, unknown> | undefined):
+  number {
+  const revision = Number(data?.['publicMediaRevision'] ?? 0);
+  return Number.isSafeInteger(revision) && revision >= 0 ? revision : 0;
+}
+
 /**
  * Disponibilidade do perfil público visitado: somente um UID em foco.
  * Firestore transmite revogação imediata; fallback sanitizado consulta o
@@ -20,12 +45,13 @@ const RECHECK_TIMEOUT_MS = 5_000;
  * Um cache local NUNCA autoriza exibir dados privados ou mídia.
  */
 /** Revogação imediata e nova assinatura da projeção após unblock. */
-export function watchBilateralProfileVisibility$(
+export function watchBilateralProfileVisibility$<T = boolean>(
   bilateralAllowed$: Observable<boolean>,
-  watchOwner$: () => Observable<boolean>
-): Observable<boolean> {
+  watchOwner$: () => Observable<T>,
+  denied: T = false as T
+): Observable<T> {
   return bilateralAllowed$.pipe(
-    switchMap((allowed) => allowed ? watchOwner$() : of(false)),
+    switchMap((allowed) => allowed ? watchOwner$() : of(denied)),
     distinctUntilChanged()
   );
 }
@@ -39,58 +65,82 @@ export class PublicProfileVisibilityService {
   private readonly bilateral = inject(PublicBilateralMediaAvailabilityService);
 
   watch$(ownerUid: string): Observable<boolean> {
-    const uid = String(ownerUid ?? '').trim();
-    if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid)) return of(false);
-
-    // Escopa a autorização ao UID autenticado vigente; troca de conta
-    // cancela imediatamente observações do visitante anterior.
-    return this.authSession.uid$.pipe(
-      switchMap((viewerUid) => {
-        if (!viewerUid) return of(false);
-        if (viewerUid === uid) return this.watchOwnerProfile$(uid);
-
-        // A concessão bilateral é a porta de entrada para observar o perfil.
-        // Após unblock, uma NOVA observação é criada imediatamente; um
-        // listener anterior encerrado por permission-denied não pode atrasar
-        // a recuperação até o próximo polling de contingência.
-        return watchBilateralProfileVisibility$(
-          this.bilateral.watch$(uid, viewerUid),
-          () => this.watchOwnerProfile$(uid)
-        );
-      }),
-      distinctUntilChanged(),
-      catchError(() => of(false))
+    return this.watchMediaIndex$(ownerUid).pipe(
+      map(({ available }) => available),
+      distinctUntilChanged()
     );
   }
 
-  private watchOwnerProfile$(uid: string): Observable<boolean> {
+  /**
+   * Único observador canônico por UID para galeria: lifecycle, bloqueio
+   * bilateral e revisão pública. Uma alteração da revisão NUNCA concede
+   * acesso: sempre exige a leitura autorizada na próxima paginação.
+   */
+  watchMediaIndex$(ownerUid: string): Observable<PublicProfileMediaIndexState> {
+    const uid = String(ownerUid ?? '').trim();
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid)) return of(UNAVAILABLE_MEDIA_INDEX);
+
+    return this.authSession.uid$.pipe(
+      switchMap((viewerUid) => {
+        if (!viewerUid) return of(UNAVAILABLE_MEDIA_INDEX);
+        if (viewerUid === uid) return this.watchOwnerProfileIndex$(uid);
+
+        // Troca de conta/bloqueio revogam antes de escutar a projeção.
+        return watchBilateralProfileVisibility$(
+          this.bilateral.watch$(uid, viewerUid),
+          () => this.watchOwnerProfileIndex$(uid),
+          UNAVAILABLE_MEDIA_INDEX
+        );
+      }),
+      distinctUntilChanged(samePublicProfileMediaIndex),
+      catchError(() => of(UNAVAILABLE_MEDIA_INDEX))
+    );
+  }
+
+  private watchOwnerProfileIndex$(
+    uid: string
+  ): Observable<PublicProfileMediaIndexState> {
     return this.context.deferObservable$(() => {
       const ref = doc(this.db, `public_profiles/${uid}`);
       return docSnapshots(ref).pipe(
-        // Não promover projeções em cache a autorização atual.
-        map((snapshot) =>
-          !snapshot.metadata.fromCache &&
-          !snapshot.metadata.hasPendingWrites &&
-          snapshot.exists()
-        ),
-        catchError(() => of(false)),
-        switchMap((available) => available
-          ? of(true)
+        map((snapshot): PublicProfileMediaIndexState => {
+          if (snapshot.metadata.fromCache ||
+              snapshot.metadata.hasPendingWrites ||
+              !snapshot.exists()) {
+            return UNAVAILABLE_MEDIA_INDEX;
+          }
+          return {
+            available: true,
+            mediaRevision: revisionFromPublicProfile(
+              snapshot.data() as Record<string, unknown>
+            ),
+          };
+        }),
+        catchError(() => of(UNAVAILABLE_MEDIA_INDEX)),
+        switchMap((state) => state.available
+          ? of(state)
           : concat(
-              of(false),
-              // Necessário para recuperar o perfil sem refresh se o listener
-              // terminou com permission-denied durante a suspensão.
+              of(UNAVAILABLE_MEDIA_INDEX),
+              // Fallback legada: só reconstitui a disponibilidade. A revisão
+              // permanece zero até existir um snapshot canônico do perfil.
               timer(0, RECHECK_INTERVAL_MS).pipe(
                 exhaustMap(() => this.publicRead.readByUids$([uid]).pipe(
                   timeout({ first: RECHECK_TIMEOUT_MS }),
-                  map(({ items }) => items.some((item) => item['uid'] === uid)),
-                  catchError(() => of(false))
+                  map(({ items }) => items.some((item) => item['uid'] === uid)
+                    ? { available: true, mediaRevision: 0 }
+                    : UNAVAILABLE_MEDIA_INDEX
+                  ),
+                  catchError(() => of(UNAVAILABLE_MEDIA_INDEX))
                 ))
               )
             )
         ),
-        distinctUntilChanged()
+        distinctUntilChanged(samePublicProfileMediaIndex)
       );
-    }).pipe(catchError(() => of(false)), distinctUntilChanged());
+    }).pipe(
+      catchError(() => of(UNAVAILABLE_MEDIA_INDEX)),
+      distinctUntilChanged(samePublicProfileMediaIndex)
+    );
   }
+
 }

@@ -4,7 +4,8 @@ import {
   ParamMap,
   convertToParamMap,
 } from '@angular/router';
-import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
+import { BehaviorSubject, Subject, combineLatest, of, throwError } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
@@ -71,6 +72,7 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
   let component: PublicProfilePhotosComponent;
   let routeParams: BehaviorSubject<ParamMap>;
   let profileAvailable: BehaviorSubject<boolean>;
+  let mediaRevision: BehaviorSubject<number>;
   let pagination: { loadPage$: ReturnType<typeof vi.fn> };
   let viewer: { openWithResult$: ReturnType<typeof vi.fn> };
   let errors: { report: ReturnType<typeof vi.fn> };
@@ -78,6 +80,7 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
 
   beforeEach(() => {
     profileAvailable = new BehaviorSubject<boolean>(true);
+    mediaRevision = new BehaviorSubject<number>(0);
     routeParams = new BehaviorSubject<ParamMap>(
       convertToParamMap({ id: PHOTO.ownerUid })
     );
@@ -132,8 +135,13 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
         {
           provide: PublicProfileVisibilityService,
           useValue: {
-            watch$: (ownerUid: string) => ownerUid === PHOTO.ownerUid
-              ? profileAvailable.asObservable() : of(true),
+            watchMediaIndex$: (ownerUid: string) => ownerUid === PHOTO.ownerUid
+              ? combineLatest([profileAvailable, mediaRevision]).pipe(
+                  map(([available, revision]) => ({
+                    available, mediaRevision: revision,
+                  }))
+                )
+              : of({ available: true, mediaRevision: 0 }),
           },
         },
         {
@@ -189,6 +197,39 @@ describe('PublicProfilePhotosComponent / paginação pública', () => {
     expect(pagination.loadPage$).toHaveBeenCalledTimes(2);
     identitySub.unsubscribe();
     stateSub.unsubscribe();
+  });
+
+  it('recarrega a galeria na exclusão individual e cancela páginas obsoletas', () => {
+    let firstPageCount = 0;
+    const delayedContinuation = new Subject<IPublicProfilePhotoPage>();
+    pagination.loadPage$.mockImplementation((
+      _uid: string, options?: { cursor?: IPublicProfilePhotoCursor | null }
+    ) => {
+      if (options?.cursor) return delayedContinuation;
+      firstPageCount += 1;
+      return firstPageCount === 1
+        ? of(page([PHOTO, SECOND], CURSOR))
+        : of(page([SECOND], null));
+    });
+    const seen: Array<{ status: string; items: readonly IPublicPhotoItem[] }> = [];
+    const sub = component.state$.subscribe((state) => seen.push(state));
+
+    expect(seen.at(-1)?.items).toEqual([PHOTO, SECOND]);
+    component.loadMorePhotos();
+    expect(delayedContinuation.observed).toBe(true);
+
+    // O backend incrementou a revisão na MESMA transação da exclusão.
+    mediaRevision.next(1);
+    expect(delayedContinuation.observed).toBe(false);
+    expect(seen.at(-1)).toMatchObject({
+      status: 'ready', items: [SECOND],
+    });
+    expect(seen.at(-1)?.items).not.toContainEqual(PHOTO);
+    expect(pagination.loadPage$).toHaveBeenCalledTimes(3);
+
+    component.openPhoto(0, PHOTO);
+    expect(viewer.openWithResult$).not.toHaveBeenCalled();
+    sub.unsubscribe();
   });
 
   it('cancela continuação pendente ao revogar o perfil', () => {
