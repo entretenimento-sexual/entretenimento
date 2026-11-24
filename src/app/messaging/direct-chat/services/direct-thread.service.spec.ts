@@ -373,6 +373,8 @@ describe('DirectThreadService', () => {
           'Esta conversa não está disponível para mensagens.',
         'permission-denied':
           'Esta conversa não está disponível para mensagens.',
+        'resource-exhausted':
+          'Esta conversa não está disponível para mensagens.',
       },
       presentation: { surface: 'snackbar', severity: 'error' },
       metadata: {
@@ -381,6 +383,30 @@ describe('DirectThreadService', () => {
         chatId: 'chat-1',
       },
     });
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
+  });
+
+  it('sendMessage$ apresenta limite de envio pela fronteira canônica sem repetir o diagnóstico', async () => {
+    const error = { code: 'functions/resource-exhausted', message: 'quota' };
+    sendCallableMock.mockRejectedValueOnce(error);
+
+    await expect(
+      firstValueFrom(service.sendMessage$('chat-1', 'olá', 'req-1'))
+    ).rejects.toEqual(error);
+
+    expect(sendCallableMock).toHaveBeenCalledTimes(1);
+    expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
+    expect(applicationErrorMock.report).toHaveBeenCalledWith(error,
+      expect.objectContaining({
+        feature: 'direct-thread',
+        operation: 'DirectThreadService.sendMessage$',
+        fallbackMessage: 'Muitas mensagens em pouco tempo. Aguarde antes de enviar novamente.',
+        codeMessages: expect.objectContaining({
+          'resource-exhausted': 'Muitas mensagens em pouco tempo. Aguarde antes de enviar novamente.',
+        }),
+        presentation: { surface: 'snackbar', severity: 'error' },
+      })
+    );
     expect(errorNotifierMock.showError).not.toHaveBeenCalled();
   });
 
