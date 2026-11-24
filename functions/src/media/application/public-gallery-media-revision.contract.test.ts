@@ -15,7 +15,7 @@ test('photo removal revises gallery atomically in regular and orphan paths', () 
     2
   );
   assert.match(source, /if \(publicProfile\.exists && currentProjection\.exists\)/);
-  assert.match(source, /if \(publicProfile\.exists && currentPublication\.exists\)/);
+  assert.match(source, /if \(publicProfile\.exists && currentPublicPhoto\.exists\)/);
   assert.doesNotMatch(source, /tx\.set\(publicProfileRef/);
 });
 
