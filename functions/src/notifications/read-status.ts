@@ -7,6 +7,7 @@ import {
   MARK_ALL_NOTIFICATIONS_MAX_BATCHES,
   resolveMarkAllNotificationsReadBatchPlan,
   shouldResetGroupedCommunityActivityCount,
+  notificationEligibleForReadCutoff,
 } from './read-status.policy';
 
 interface MarkNotificationReadRequest {
@@ -22,6 +23,8 @@ interface NotificationReadState {
   userId?: unknown;
   readAt?: unknown;
   type?: unknown;
+  updatedAt?: unknown;
+  createdAt?: unknown;
 }
 
 function getUid(value: unknown): string {
@@ -29,9 +32,9 @@ function getUid(value: unknown): string {
 }
 
 function getNotificationId(value: unknown): string {
-  const notificationId = String(value ?? '').trim();
+  const notificationId = typeof value === 'string' ? value.trim() : '';
 
-  if (!notificationId || notificationId.length > 160 || notificationId.includes('/')) {
+  if (!notificationId || notificationId.length > 160 || notificationId.includes('/') || notificationId === '.' || notificationId === '..' || /^__.*__$/.test(notificationId) || [...notificationId].some(c => c.charCodeAt(0) <= 31 || c.charCodeAt(0) === 127)) {
     throw new HttpsError('invalid-argument', 'Notificação inválida.');
   }
 
@@ -106,37 +109,37 @@ export const markAllNotificationsRead = onCall(
       batchNumber <= MARK_ALL_NOTIFICATIONS_MAX_BATCHES;
       batchNumber += 1
     ) {
-      // Busca um documento além do tamanho gravável como sentinela. Assim sabemos
-      // se ainda há pendências sem executar uma consulta adicional de contagem.
-      const snapshot = await db
-        .collection('notifications')
-        .where('userId', '==', uid)
-        .where('readAt', '==', null)
-        .orderBy('createdAt', 'desc')
-        .startAt(cutoffAt)
-        .limit(MARK_ALL_NOTIFICATIONS_BATCH_SIZE + 1)
-        .get();
-      const plan = resolveMarkAllNotificationsReadBatchPlan({
-        fetchedCount: snapshot.size,
-        batchNumber,
+      const result = await db.runTransaction(async tx => {
+        const snapshot = await tx.get(db.collection('notifications')
+          .where('userId', '==', uid)
+          .where('readAt', '==', null)
+          .orderBy('createdAt', 'desc')
+          .startAt(cutoffAt)
+          .limit(MARK_ALL_NOTIFICATIONS_BATCH_SIZE + 1));
+        const plan = resolveMarkAllNotificationsReadBatchPlan({
+          fetchedCount: snapshot.size,
+          batchNumber,
+        });
+        const millis = (value: unknown): number | null =>
+          value instanceof Timestamp ? value.toMillis() : null;
+        let written = 0;
+        let skipped = false;
+        for (const docSnapshot of snapshot.docs.slice(0, plan.writeCount)) {
+          const data = docSnapshot.data() as NotificationReadState;
+          if (data.userId !== uid || data.readAt != null ||
+              !notificationEligibleForReadCutoff(millis(data.updatedAt), millis(data.createdAt), cutoffAt.toMillis())) {
+            skipped = true;
+            continue;
+          }
+          tx.set(docSnapshot.ref, buildReadPatch(data), { merge: true });
+          written++;
+        }
+        return { plan, written, skipped };
       });
-
-      if (plan.writeCount === 0) {
-        return { updated, complete: true };
-      }
-
-      const batch = db.batch();
-
-      snapshot.docs.slice(0, plan.writeCount).forEach((docSnapshot) => {
-        batch.set(
-          docSnapshot.ref,
-          buildReadPatch(docSnapshot.data() as NotificationReadState),
-          { merge: true }
-        );
-      });
-
-      await batch.commit();
-      updated += plan.writeCount;
+      const { plan, written, skipped } = result;
+      updated += written;
+      // Do not loop over skipped fresh activity or claim it was read.
+      if (skipped) return { updated, complete: false };
 
       if (!plan.hasMore) {
         return { updated, complete: true };

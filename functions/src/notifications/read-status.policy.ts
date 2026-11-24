@@ -4,6 +4,12 @@ const GROUPED_COMMUNITY_NOTIFICATION_TYPES = new Set([
 ]);
 
 export const MARK_ALL_NOTIFICATIONS_BATCH_SIZE = 250;
+
+/** Never consume activity updated after the action's fixed cutoff. */
+export function notificationEligibleForReadCutoff(updatedAtMs: number | null, createdAtMs: number | null, cutoffMs: number): boolean {
+  if (createdAtMs === null || !Number.isFinite(createdAtMs) || createdAtMs > cutoffMs) return false;
+  return updatedAtMs === null || (Number.isFinite(updatedAtMs) && updatedAtMs <= cutoffMs);
+}
 export const MARK_ALL_NOTIFICATIONS_MAX_BATCHES = 4;
 
 export interface MarkAllNotificationsReadBatchPlan {

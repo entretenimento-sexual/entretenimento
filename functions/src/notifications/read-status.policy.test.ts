@@ -6,6 +6,7 @@ import {
   MARK_ALL_NOTIFICATIONS_MAX_BATCHES,
   resolveMarkAllNotificationsReadBatchPlan,
   shouldResetGroupedCommunityActivityCount,
+  notificationEligibleForReadCutoff,
 } from './read-status.policy';
 
 test('zera o acumulador somente para atividade agrupada de Comunidade', () => {
@@ -79,4 +80,12 @@ test('normaliza contagens inválidas sem produzir escrita', () => {
       shouldContinue: false,
     }
   );
+});
+
+test('preserva atividade criada ou atualizada após o corte', () => {
+  assert.equal(notificationEligibleForReadCutoff(100, 90, 100), true);
+  assert.equal(notificationEligibleForReadCutoff(101, 90, 100), false);
+  assert.equal(notificationEligibleForReadCutoff(null, 101, 100), false);
+  assert.equal(notificationEligibleForReadCutoff(null, null, 100), false);
+  assert.equal(notificationEligibleForReadCutoff(null, 90, 100), true);
 });

@@ -15,21 +15,21 @@
 // - retry manual substitui o listener atual, sem abrir listener paralelo;
 // - resumos recentes por Comunidade derivam da janela global e servem só à apresentação;
 // - o total exato de atividade não lida de Comunidades pertence à projeção agregada dedicada;
-// - o total global não é inferido da janela recente: usa count() agregado e barato;
-// - mudanças de conteúdo que preservam ids/readAt não repetem o count() global.
+// - total global deriva da consulta reativa de documentos não lidos, sem janela;
+// - custo dessa transição precisa ser medido antes da produção.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
   collection,
-  collectionData,
-  getCountFromServer,
   limit as firestoreLimit,
   orderBy,
   query,
   where,
 } from '@angular/fire/firestore';
+import { onSnapshot } from 'firebase/firestore';
+import { recoverDirectChatListener$ } from 'src/app/messaging/direct-chat/services/direct-chat-listener-recovery';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import {
   BehaviorSubject,
@@ -41,7 +41,6 @@ import {
   throwError,
 } from 'rxjs';
 import {
-  auditTime,
   catchError,
   distinctUntilChanged,
   map,
@@ -111,15 +110,9 @@ export interface MarkAllNotificationsReadResult {
 
 export type NotificationReadState = 'loading' | 'ready' | 'error';
 
-interface NotificationReadWindowState {
-  items: IAppNotification[];
-  signature: string;
-}
-
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
 const LEGACY_MARK_ALL_BATCH_SIZE = 50;
-const UNREAD_COUNT_COALESCE_MS = 75;
 
 @Injectable({ providedIn: 'root' })
 export class AppNotificationService {
@@ -128,7 +121,6 @@ export class AppNotificationService {
   private readonly session = inject(AuthSessionService);
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly applicationError = inject(ApplicationErrorService);
-  private readonly unreadCountRefreshSubject = new BehaviorSubject(0);
   private readonly currentUserRefreshSubject = new BehaviorSubject(0);
   private readonly currentUserReadStateSubject =
     new BehaviorSubject<NotificationReadState>('loading');
@@ -163,8 +155,16 @@ export class AppNotificationService {
 
         this.currentUserReadStateSubject.next('loading');
 
-        return this.watchForUserQuery$(uid, DEFAULT_LIMIT).pipe(
-          tap(() => this.currentUserReadStateSubject.next('ready')),
+        return recoverDirectChatListener$(
+          () => this.watchForUserQuery$(uid, DEFAULT_LIMIT).pipe(
+            tap(() => this.currentUserReadStateSubject.next('ready'))
+          ),
+          error => {
+            this.currentUserReadStateSubject.next('error');
+            this.reportReadError(error, 'currentUserNotifications', { uid });
+            return [] as IAppNotification[];
+          }
+        ).pipe(
           catchError((error) => {
             if (isFirebasePermissionDeniedError(error)) {
               this.currentUserReadStateSubject.next('ready');
@@ -181,39 +181,22 @@ export class AppNotificationService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  private readonly currentUserNotificationReadWindow$:
-    Observable<NotificationReadWindowState> = this.currentUserNotifications$.pipe(
-      map((items) => ({
-        items,
-        signature: items
-          .map((item) => `${item.id}:${item.readAt == null ? 'unread' : 'read'}`)
-          .join('|'),
-      })),
-      distinctUntilChanged(
-        (previous, current) => previous.signature === current.signature
-      ),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
+  // Single shared exact read path, independent of the recent 20-item window.
   readonly currentUserUnreadCount$: Observable<number> = this.session.readyAuthUser$.pipe(
     map(user => String(user?.uid ?? '').trim()),
     distinctUntilChanged(),
-    switchMap(uid => {
-      if (!uid) return of(0);
-      return combineLatest([
-        this.currentUserNotificationReadWindow$,
-        this.unreadCountRefreshSubject,
-      ]).pipe(
-        auditTime(UNREAD_COUNT_COALESCE_MS),
-        switchMap(([state]) => {
-          const fallbackCount = state.items.filter(
-            item => item.userId === uid && item.readAt == null
-          ).length;
-          return this.countUnreadForUser$(uid, fallbackCount);
-        }),
-        startWith(0)
-      );
-    }),
+    switchMap(uid => uid
+      ? recoverDirectChatListener$(
+          () => this.countUnreadForUser$(uid),
+          error => { this.reportReadError(error, 'countUnreadForUser', { uid }); return 0; }
+        ).pipe(
+          startWith(0),
+          catchError(error => {
+            this.reportReadError(error, 'countUnreadForUser', { uid });
+            return of(0);
+          })
+        )
+      : of(0)),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -277,7 +260,6 @@ export class AppNotificationService {
     return defer(() => from(this.markNotificationReadCallable({
       notificationId: safeNotificationId,
     }))).pipe(
-      tap(() => this.refreshUnreadCount()),
       map(() => undefined),
       catchError((error) => throwError(() => error))
     );
@@ -297,7 +279,6 @@ export class AppNotificationService {
 
         return { updated, complete };
       }),
-      tap(() => this.refreshUnreadCount()),
       catchError((error) => throwError(() => error))
     );
   }
@@ -317,9 +298,12 @@ export class AppNotificationService {
         firestoreLimit(safeLimit)
       );
 
-      return collectionData(notificationsQuery, { idField: 'id' }) as Observable<
-        AppNotificationFirestoreDocument[]
-      >;
+      return new Observable<AppNotificationFirestoreDocument[]>(sink => onSnapshot(
+        notificationsQuery, { includeMetadataChanges: true }, snapshot => {
+          sink.next(snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites ? [] :
+            snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+        }, error => sink.error(error)
+      ));
     }).pipe(
       map((items) =>
         (items ?? [])
@@ -329,34 +313,16 @@ export class AppNotificationService {
     );
   }
 
-  private countUnreadForUser$(uid: string, fallbackCount: number): Observable<number> {
-    return this.firestoreContext.deferPromise$(() => {
-      const notificationsRef = collection(this.firestore, 'notifications');
-      const unreadQuery = query(
-        notificationsRef,
-        where('userId', '==', uid),
-        where('readAt', '==', null)
-      );
-
-      return getCountFromServer(unreadQuery);
-    }).pipe(
-      map((snapshot) => {
-        const parsedCount = Math.trunc(Number(snapshot.data().count));
-        return Number.isFinite(parsedCount)
-          ? Math.max(0, parsedCount)
-          : fallbackCount;
-      }),
-      catchError((error) => {
-        this.reportReadError(error, 'countUnreadForUser', { uid });
-        return of(fallbackCount);
-      })
-    );
-  }
-
-  private refreshUnreadCount(): void {
-    this.unreadCountRefreshSubject.next(
-      this.unreadCountRefreshSubject.value + 1
-    );
+  private countUnreadForUser$(uid: string): Observable<number> {
+    return this.firestoreContext.deferObservable$(() => {
+      const unreadQuery = query(collection(this.firestore, 'notifications'),
+        where('userId', '==', uid), where('readAt', '==', null));
+      return new Observable<number>(sink => onSnapshot(
+        unreadQuery, { includeMetadataChanges: true }, snapshot => {
+          sink.next(snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites ? 0 : snapshot.size);
+        }, error => sink.error(error)
+      ));
+    });
   }
 
   private normalizeLimit(value: unknown): number {
