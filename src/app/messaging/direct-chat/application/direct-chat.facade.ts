@@ -218,42 +218,39 @@ export class DirectChatFacade {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly selectedChatCanOpen$: Observable<boolean> = combineLatest([
-    this.selectedChat$,
-    this.sessionIdentity$,
+  readonly selectedChatAccess$: Observable<{
+    owner: string; epoch: number; chatId: string; peer: string; available: boolean;
+  } | null> = combineLatest([
+    this.sessionChats$, this.selectedChatRequestSubject,
   ]).pipe(
-    map(([chat, session]) => {
+    map(([session, request]) => {
+      if (!session.uid || request.ownerUid !== session.uid ||
+          request.sessionEpoch !== session.epoch || !request.chatId) return null;
+      const chat = session.chats.find(item => item.id === request.chatId);
       const participants = chat?.participants ?? [];
-      if (
-        !chat ||
-        Boolean((chat as { isRoom?: boolean }).isRoom) ||
-        !session.uid ||
-        participants.length !== 2 ||
-        participants[0] === participants[1] ||
-        !participants.includes(session.uid) ||
-        participants.some((uid) => typeof uid !== 'string' || !uid.trim())
-      ) {
-        return null;
-      }
-      const peerUid = participants.find((participant) => participant !== session.uid);
-      if (!peerUid) return null;
-      return { owner: session.uid, epoch: session.epoch, chatId: chat.id, peer: peerUid };
+      if (!chat || Boolean((chat as { isRoom?: boolean }).isRoom) ||
+          participants.length !== 2 || participants[0] === participants[1] ||
+          !participants.includes(session.uid) ||
+          participants.some(uid => typeof uid !== 'string' || !uid.trim())) return null;
+      const peer = participants.find(uid => uid !== session.uid);
+      return peer ? { owner: session.uid, epoch: session.epoch, chatId: chat.id, peer } : null;
     }),
     distinctUntilChanged((a, b) => a === b || (!!a && !!b &&
       a.owner === b.owner && a.epoch === b.epoch && a.chatId === b.chatId && a.peer === b.peer)),
     switchMap(context => context ? this.availabilityService.observe$(context.owner, context.peer).pipe(
       startWith(false),
       catchError(error => {
-        this.reportSilent(error, 'DirectChatFacade.selectedChatCanOpen
-);
+        this.reportSilent(error, 'DirectChatFacade.selectedChatCanOpen$');
         return of(false);
-      })
-    ) : of(false)),
+      }),
+      map(available => ({ ...context, available }))
+    ) : of(null)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly selectedChatCanOpen$: Observable<boolean> = this.selectedChatAccess$.pipe(
+    map(access => access?.available === true),
     distinctUntilChanged(),
-    catchError((error) => {
-      this.reportSilent(error, 'DirectChatFacade.selectedChatCanOpen$');
-      return of(false);
-    }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 

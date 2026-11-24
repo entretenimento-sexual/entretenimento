@@ -1,8 +1,14 @@
-import { BehaviorSubject, Subject, firstValueFrom, of, throwError } from 'rxjs';
+import { BehaviorSubject, Subject, firstValueFrom, of, throwError, combineLatest, map } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DirectThreadFacade } from './direct-thread.facade';
 import { DirectChatFacade } from './direct-chat.facade';
+
+
+function keyedAccess(chatId$: any, available$: any, uid$: any = of('me')) {
+  return combineLatest([chatId$, available$, uid$]).pipe(map(([chatId, available, owner]) =>
+    chatId && owner ? { chatId, available, owner, epoch: 1, peer: 'peer' } : null));
+}
 
 describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
   it('revoga histórico e comandos no bloqueio e só reabre após novo snapshot autorizado', () => {
@@ -19,7 +25,8 @@ describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
       { getUsersPublicMap$: () => of({}) } as any,
       { report: vi.fn() } as any,
       { destroyed: false, onDestroy: () => () => undefined } as any,
-      { observe$: observeAccess } as any
+      { observe$: observeAccess } as any,
+      { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
     const messages$ = new Subject<any[]>();
     const sendMessage$ = vi.fn(() => of('new-message'));
@@ -89,6 +96,7 @@ describe('DirectThreadFacade', () => {
         input?.selectedChatId === undefined ? 'chat-1' : input.selectedChatId
       ),
       selectedChatCanOpen$: input?.canOpen$ ?? of(true),
+      selectedChatAccess$: keyedAccess(of(input?.selectedChatId === undefined ? 'chat-1' : input.selectedChatId), input?.canOpen$ ?? of(true)),
     } as any;
 
     const directThreadService = {
@@ -185,7 +193,7 @@ describe('DirectThreadFacade', () => {
       chatId === 'chat-1' ? chatOne$ : chatTwo$
     );
     const facade = new DirectThreadFacade(
-      { selectedChatId$, selectedChatCanOpen$: of(true) } as any,
+      { selectedChatId$, selectedChatCanOpen$: of(true), selectedChatAccess$: keyedAccess(selectedChatId$, of(true), uid$) } as any,
       { observeMessages$ } as any,
       { markDeliveredAsRead$: vi.fn() } as any,
       { uid$ } as any,
@@ -225,7 +233,7 @@ describe('DirectThreadFacade', () => {
     const sendMessage$ = vi.fn(() => of('message-new'));
     const observeMessages$ = vi.fn(() => messages$);
     const facade = new DirectThreadFacade(
-      { selectedChatId$, selectedChatCanOpen$: canOpen$ } as any,
+      { selectedChatId$, selectedChatCanOpen$: canOpen$, selectedChatAccess$: keyedAccess(selectedChatId$, canOpen$, of('user-a')) } as any,
       { observeMessages$, sendMessage$ } as any,
       { markDeliveredAsRead$: vi.fn(() => of(0)) } as any,
       { uid$: of('user-a') } as any,
@@ -265,7 +273,7 @@ describe('DirectThreadFacade', () => {
     const observerError = Object.assign(new Error('offline'), { code: 'unavailable' });
     const sendMessage$ = vi.fn(() => of('sent'));
     const facade = new DirectThreadFacade(
-      { selectedChatId$: of('chat-1'), selectedChatCanOpen$: canOpen$ } as any,
+      { selectedChatId$: of('chat-1'), selectedChatCanOpen$: canOpen$, selectedChatAccess$: keyedAccess(of('chat-1'), canOpen$, of('user-a')) } as any,
       {
         observeMessages$: vi.fn(() => throwError(() => observerError)),
         sendMessage$,
@@ -299,7 +307,7 @@ describe('DirectThreadFacade', () => {
     const deleteMessage$ = vi.fn(() => of(void 0));
     const markDeliveredAsRead$ = vi.fn(() => of(1));
     const facade = new DirectThreadFacade(
-      { selectedChatId$: of('chat-1'), selectedChatCanOpen$: canOpen$ } as any,
+      { selectedChatId$: of('chat-1'), selectedChatCanOpen$: canOpen$, selectedChatAccess$: keyedAccess(of('chat-1'), canOpen$, of('user-a')) } as any,
       { observeMessages$: vi.fn(() => of([])), sendMessage$, deleteMessage$ } as any,
       { markDeliveredAsRead$ } as any,
       { uid$: of('user-a') } as any,
@@ -340,7 +348,7 @@ describe('DirectThreadFacade', () => {
     const deleteNext = vi.fn();
     const receiptNext = vi.fn();
     const facade = new DirectThreadFacade(
-      { selectedChatId$, selectedChatCanOpen$: of(true) } as any,
+      { selectedChatId$, selectedChatCanOpen$: of(true), selectedChatAccess$: keyedAccess(selectedChatId$, of(true), uid$) } as any,
       {
         observeMessages$: vi.fn(() => of([])),
         sendMessage$: vi.fn(() => send$),
@@ -369,7 +377,7 @@ describe('DirectThreadFacade', () => {
     const result$ = new Subject<string>();
     const observer = vi.fn();
     const facade = new DirectThreadFacade(
-      { selectedChatId$, selectedChatCanOpen$: of(true) } as any,
+      { selectedChatId$, selectedChatCanOpen$: of(true), selectedChatAccess$: keyedAccess(selectedChatId$, of(true), of('me')) } as any,
       { sendMessage$: vi.fn(() => result$) } as any,
       {} as any,
       { uid$: of('me') } as any,
@@ -440,5 +448,24 @@ describe('DirectThreadFacade', () => {
         context: 'DirectThreadFacade.canOpen$',
       },
     });
+  });
+});
+
+describe('keyed thread permission', () => {
+  it('never opens a new chat with the previous chat authorization', () => {
+    const selectedChatId$ = new BehaviorSubject('a');
+    const selectedChatAccess$ = new BehaviorSubject<any>({ chatId: 'a', owner: 'me', epoch: 1, peer: 'p', available: true });
+    const observeMessages$ = vi.fn(() => of([]));
+    const facade = new DirectThreadFacade(
+      { selectedChatId$, selectedChatAccess$, selectedChatCanOpen$: of(true) } as any,
+      { observeMessages$ } as any, {} as any, { uid$: of('me') } as any,
+      { canListenRealtime$: of(true) } as any, { report: vi.fn() } as any, { log: vi.fn() } as any
+    );
+    const sub = facade.state$.subscribe();
+    selectedChatId$.next('b');
+    expect(observeMessages$).not.toHaveBeenCalledWith('b');
+    selectedChatAccess$.next({ chatId: 'b', owner: 'me', epoch: 1, peer: 'q', available: true });
+    expect(observeMessages$).toHaveBeenCalledWith('b');
+    sub.unsubscribe();
   });
 });

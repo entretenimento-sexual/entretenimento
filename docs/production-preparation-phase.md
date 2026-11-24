@@ -40,3 +40,7 @@ A projeção de abertura do chat exige snapshot confirmado pelo servidor; cache 
 ### CHAT-A5.4 — notificações internas
 
 O total global usa uma única consulta compartilhada de todas as notificações não lidas do UID atual, sem depender da janela recente de 20 itens nem de refresh por mutação local. Cache não confirma leitura. O custo inicial cresce com o número de não lidas; medir antes de produção e substituir por projeção agregada validada se necessário. Marcar todas usa transações e corte fixo de criação/atualização; atividade nova não é consumida silenciosamente, e lote com item ignorado não declara conclusão total. Revogação por ator bloqueado exige política backend por tipo de notificação, preservando avisos legais e operacionais; não resolvida nesta etapa.
+
+### CHAT-A5.5 — contexto de autorização da thread
+
+A autorização observável contém UID, epoch, chatId e peer. A thread compara o identificador e UID antes de abrir ou executar comandos; não combina autorização booleana de um chat com seleção de outro. Removidos resíduos sintáticos das facades e restaurado loaded na leitura bem-sucedida. A sincronização integral entre sessões ainda requer execução dos testes, validação das Rules, recuperação prolongada e revisão das operações assíncronas de notificações.
