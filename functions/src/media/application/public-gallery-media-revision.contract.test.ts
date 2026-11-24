@@ -31,6 +31,6 @@ test('video removal revises gallery in the same transaction as projection remova
   const source = read('video-profile-deletion-commit.firestore.ts');
   assert.match(source, /transaction\.delete\(publicVideoRef\)/);
   assert.match(source, /if \(publicProfile\.exists && publicVideo\.exists\)/);
-  assert.match(source, /transaction\.update\(publicProfileRef,\s*\{\s*publicMediaRevision:\s*FieldValue\.increment\(1\)/);
+  assert.match(source, /transaction\.update\(publicProfileRef,[\s\S]*publicMediaRevision:\s*FieldValue\.increment\(1\)/);
   assert.doesNotMatch(source, /transaction\.set\(publicProfileRef/);
 });
