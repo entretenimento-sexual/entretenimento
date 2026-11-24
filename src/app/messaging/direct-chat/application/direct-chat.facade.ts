@@ -219,7 +219,7 @@ export class DirectChatFacade {
     this.selectedChat$,
     this.sessionIdentity$,
   ]).pipe(
-    switchMap(([chat, session]) => {
+    map(([chat, session]) => {
       const participants = chat?.participants ?? [];
       if (
         !chat ||
@@ -230,14 +230,22 @@ export class DirectChatFacade {
         !participants.includes(session.uid) ||
         participants.some((uid) => typeof uid !== 'string' || !uid.trim())
       ) {
-        return of(false);
+        return null;
       }
       const peerUid = participants.find((participant) => participant !== session.uid);
-      if (!peerUid) return of(false);
-      return this.availabilityService.observe$(session.uid, peerUid).pipe(
-        startWith(false)
-      );
+      if (!peerUid) return null;
+      return { owner: session.uid, epoch: session.epoch, chatId: chat.id, peer: peerUid };
     }),
+    distinctUntilChanged((a, b) => a === b || (!!a && !!b &&
+      a.owner === b.owner && a.epoch === b.epoch && a.chatId === b.chatId && a.peer === b.peer)),
+    switchMap(context => context ? this.availabilityService.observe$(context.owner, context.peer).pipe(
+      startWith(false),
+      catchError(error => {
+        this.reportSilent(error, 'DirectChatFacade.selectedChatCanOpen
+);
+        return of(false);
+      })
+    ) : of(false)),
     distinctUntilChanged(),
     catchError((error) => {
       this.reportSilent(error, 'DirectChatFacade.selectedChatCanOpen$');

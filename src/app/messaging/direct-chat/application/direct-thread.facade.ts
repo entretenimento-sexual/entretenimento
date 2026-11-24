@@ -1,3 +1,4 @@
+import { recoverDirectChatListener$ } from '../services/direct-chat-listener-recovery';
 // src/app/messaging/direct-chat/application/direct-thread.facade.ts
 // ============================================================================
 // DIRECT THREAD FACADE
@@ -137,7 +138,212 @@ export class DirectThreadFacade {
         return of(emptyState);
       }
 
-      return this.directThreadService.observeMessages$(permittedChatId).pipe(
+      const describeFailure = (error: unknown): DirectThreadState => {
+        this.reportSilent(error, 'DirectThreadFacade.state
+        map((messages): DirectThreadState => ({
+          chatId: permittedChatId,
+          messages: Array.isArray(messages) ? messages : [],
+          loading: false,
+        })),
+      ), describeFailure).pipe(
+        startWith(emptyState),
+        catchError(error => of(describeFailure(error)))
+      );
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly messages$: Observable<Message[]> = this.state$.pipe(
+    map((state) => state.messages),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  constructor(
+    private readonly directChatFacade: DirectChatFacade,
+    private readonly directThreadService: DirectThreadService,
+    private readonly directReceiptsService: DirectReceiptsService,
+    private readonly authSession: AuthSessionService,
+    private readonly accessControl: AccessControlService,
+    private readonly applicationError: ApplicationErrorService,
+    private readonly privacyDebug: PrivacyDebugLoggerService,
+  ) {}
+
+  // ---------------------------------------------------------------------------
+  // Commands
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Envia mensagem para a thread atualmente selecionada.
+   */
+  /**
+   * Executa comandos apenas no contexto capturado atomicamente na assinatura.
+   * O cancelamento impede que respostas antigas atinjam a UI. Uma chamada
+   * HTTP/Firestore já enviada não é revertida pelo unsubscribe: backend/rules
+   * continuam responsáveis pela autorização no momento da escrita.
+   */
+  private commandContext$(): Observable<{
+    chatId: string | null;
+    uid: string | null;
+    canOpen: boolean;
+    canListen: boolean;
+  }> {
+    return combineLatest([
+      this.activeChatId$,
+      this.canOpen$,
+      this.authSession.uid$,
+      this.accessControl.canListenRealtime$,
+    ]).pipe(
+      map(([chatId, canOpen, uid, canListen]) => ({
+        chatId,
+        uid: String(uid ?? '').trim() || null,
+        canOpen,
+        canListen,
+      }))
+    );
+  }
+
+  private withinCommandContext$<T>(
+    operation: Observable<T>,
+    context: { chatId: string | null; uid: string | null }
+  ): Observable<T> {
+    return operation.pipe(
+      takeUntil(this.commandContext$().pipe(
+        filter((current) =>
+          current.chatId !== context.chatId ||
+          current.uid !== context.uid ||
+          !current.canOpen ||
+          !current.canListen
+        )
+      ))
+    );
+  }
+
+  /** Recupera uma página anterior apenas para a conversa/sessão ainda ativa. */
+  loadOlderMessages$(
+    chatId: string,
+    timestamp: Timestamp,
+    messageId: string
+  ): Observable<Message[]> {
+    return defer(() => this.commandContext$().pipe(
+      take(1),
+      switchMap((context) => {
+        if (context.chatId !== chatId || !context.uid || !context.canOpen || !context.canListen) {
+          return of([] as Message[]);
+        }
+        return this.withinCommandContext$(
+          this.directThreadService.loadOlderMessages$(chatId, timestamp, messageId),
+          context
+        );
+      })
+    ));
+  }
+
+  sendMessage$(content: string, clientRequestId?: string): Observable<string | null> {
+    const safeContent = (content ?? '').trim();
+    if (!safeContent) return of(null);
+
+    return defer(() => this.commandContext$().pipe(
+      take(1),
+      switchMap((context) => {
+        if (!context.chatId || !context.uid || !context.canOpen || !context.canListen) {
+          return of(null);
+        }
+        return this.withinCommandContext$(
+          this.directThreadService.sendMessage$(context.chatId, safeContent, clientRequestId),
+          context
+        );
+      })
+    ));
+  }
+
+  deleteMessage$(messageId: string): Observable<void> {
+    const safeMessageId = (messageId ?? '').trim();
+    if (!safeMessageId) return of(void 0);
+
+    return defer(() => this.commandContext$().pipe(
+      take(1),
+      switchMap((context) => {
+        if (!context.chatId || !context.uid || !context.canOpen || !context.canListen) {
+          return of(void 0);
+        }
+        return this.withinCommandContext$(
+          this.directThreadService.deleteMessage$(context.chatId, safeMessageId),
+          context
+        );
+      }),
+      catchError((error) => {
+        this.reportSilent(error, 'DirectThreadFacade.deleteMessage$');
+        return of(void 0);
+      })
+    ));
+  }
+
+  markVisibleMessagesAsRead$(messages: Message[]): Observable<number> {
+    const safeMessages = Array.isArray(messages) ? messages : [];
+    if (!safeMessages.length) return of(0);
+
+    return defer(() => this.commandContext$().pipe(
+      take(1),
+      switchMap((context) => {
+        if (!context.chatId || !context.uid || !context.canOpen || !context.canListen) {
+          return of(0);
+        }
+        return this.withinCommandContext$(
+          this.directReceiptsService.markDeliveredAsRead$(
+            context.chatId,
+            context.uid,
+            safeMessages
+          ),
+          context
+        );
+      }),
+      catchError((error) => {
+        this.reportSilent(error, 'DirectThreadFacade.markVisibleMessagesAsRead$');
+        return of(0);
+      })
+    ));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Internals
+  // ---------------------------------------------------------------------------
+
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('chat', `DirectThreadFacade: ${message}`, extra);
+}
+
+  private reportSilent(error: unknown, context: string): void {
+    // O ChatService já registrou erros do transporte; não duplicar diagnóstico.
+    if ((error as { chatApplicationErrorReported?: boolean } | null)?.chatApplicationErrorReported) {
+      return;
+    }
+    try {
+      this.applicationError.report(error, {
+        feature: 'direct-thread',
+        operation: context,
+        fallbackMessage:
+          'Não foi possível concluir uma operação interna da conversa direta.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'DirectThreadFacade',
+          context,
+        },
+      });
+    } catch {
+      // Diagnóstico secundário não pode interromper os fallbacks reativos.
+    }
+  }
+}
+);
+        const code = String((error as { code?: unknown } | null)?.code ?? '').toLowerCase();
+        const errorMessage = code.includes('permission-denied')
+          ? 'Você não tem mais acesso a esta conversa.'
+          : code.includes('unauthenticated')
+            ? 'Entre novamente para acessar esta conversa.'
+            : 'Não foi possível carregar as mensagens. Verifique sua conexão.';
+        return { ...emptyState, errorMessage, loaded: false };
+      };
+      return recoverDirectChatListener$(() => this.directThreadService.observeMessages$(permittedChatId).pipe(
         map((messages): DirectThreadState => ({
           chatId: permittedChatId,
           messages: Array.isArray(messages) ? messages : [],

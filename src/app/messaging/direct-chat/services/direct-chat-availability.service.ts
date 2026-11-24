@@ -1,3 +1,4 @@
+import { recoverDirectChatListener$ } from './direct-chat-listener-recovery';
 // Projeção privada derivada. Nunca substitui Rules ou Cloud Functions.
 import { EnvironmentInjector, Injectable, runInInjectionContext } from '@angular/core';
 import { doc, docData, Firestore } from '@angular/fire/firestore';
@@ -41,7 +42,7 @@ export class DirectChatAvailabilityService {
       return of(false);
     }
 
-    return defer(() => runInInjectionContext(this.injector, () => {
+    return recoverDirectChatListener$(() => defer(() => runInInjectionContext(this.injector, () => {
       const reference = doc(this.firestore, 'direct_chat_access', owner, 'peers', peer);
       return docData(reference) as Observable<DirectChatAccessProjection | undefined>;
     })).pipe(
@@ -51,8 +52,9 @@ export class DirectChatAvailabilityService {
         }
         // Apenas a ausência ou formato legado solicita reconciliação.
         // A chamada não libera acesso; aguardamos o novo snapshot validado.
-        return this.reconcile$(owner, peer);
-      }),
+        return this.reconcile$(owner, peer).pipe(catchError(() => of(false)));
+      })
+    ), () => false).pipe(
       catchError(() => of(false))
     );
   }

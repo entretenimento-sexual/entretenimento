@@ -1,3 +1,4 @@
+import { recoverDirectChatListener$ } from './direct-chat-listener-recovery';
 // src/app/messaging/direct-chat/services/direct-chat.service.ts
 // ============================================================================
 // DIRECT CHAT SERVICE
@@ -104,7 +105,10 @@ getMyDirectChats$(): Observable<IChat[]> {
         return of([] as IChat[]);
       }
 
-      return this.chatService.watchChats$(safeUid, 50).pipe(
+      return recoverDirectChatListener$(
+        () => this.chatService.watchChats$(safeUid, 50),
+        () => [] as IChat[]
+      ).pipe(
         map((items) => {
           return (items ?? []).filter((chat) => !chat?.isRoom);
         }),

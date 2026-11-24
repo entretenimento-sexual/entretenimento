@@ -167,6 +167,11 @@ describe('DirectChatFacade session isolation', () => {
     expect(access.at(-1)).toBe(true);
     expect(observe$).toHaveBeenCalledWith('user-a', 'peer-b');
 
+    chats$.next([{ ...buildChat('chat-live', ['user-a', 'peer-b']), lastMessage: { content: 'novo preview' } } as IChat]);
+    expect(observe$).toHaveBeenCalledTimes(1);
+    expect(access.at(-1)).toBe(true);
+    expect(access).toEqual([false, true]);
+
     available$.next(false);
     expect(access.at(-1)).toBe(false);
 
