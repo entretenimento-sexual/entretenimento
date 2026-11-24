@@ -53,6 +53,7 @@ import type {
 import {
   DIRECT_MESSAGE_POLICY_VERSION,
   assertNoDirectMessagingBlock,
+  normalizeDirectChatDocumentId,
   normalizeDirectMessageContent,
   normalizeDirectMessageRequestId,
   resolveDirectMessageTargetUid,
@@ -183,10 +184,7 @@ export const getDirectConversationStarter = onCall<{ chatId?: unknown }>(
     const actorUid = request.auth?.uid;
     if (!actorUid) throw new HttpsError('unauthenticated', 'Entre para abrir a conversa.');
     assertDirectChatEmailVerified(request.auth?.token?.email_verified);
-    const chatId = normalizeIdentifier(request.data?.chatId);
-    if (!chatId || chatId.includes('/') || chatId === '.' || chatId === '..' || chatId.length > 256) {
-      throw new HttpsError('invalid-argument', 'Conversa não identificada.');
-    }
+    const chatId = normalizeDirectChatDocumentId(request.data?.chatId);
 
     return db.runTransaction(async (transaction) => {
       const chat = await transaction.get(db.collection('chats').doc(chatId));
@@ -215,6 +213,7 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
     invoker: 'public',
   },
   async (request): Promise<SendDirectMessageResponse> => {
+    assertCallableAppCheck(request.app);
     const actorUid = normalizeIdentifier(request.auth?.uid);
 
     if (!actorUid) {
@@ -225,14 +224,7 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
       request.auth?.token?.email_verified, 'Verifique seu e-mail antes de enviar mensagens.'
     );
 
-    const chatId = normalizeIdentifier(request.data?.chatId);
-
-    if (!chatId) {
-      throw new HttpsError(
-        'invalid-argument',
-        'Conversa não identificada.'
-      );
-    }
+    const chatId = normalizeDirectChatDocumentId(request.data?.chatId);
 
     const content = normalizeDirectMessageContent(request.data?.content);
     const clientRequestId = normalizeDirectMessageRequestId(

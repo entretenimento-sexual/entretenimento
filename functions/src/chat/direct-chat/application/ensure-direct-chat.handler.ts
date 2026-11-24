@@ -25,6 +25,7 @@ import {
 } from '../../../account_lifecycle/interaction-access.policy';
 import { db, FieldValue } from '../../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
+import { assertCallableAppCheck } from '../../../shared/security/callable-app-check';
 import { consumeBackendRateLimitQuota } from '../../../shared/security/backend-rate-limit.service';
 
 import {
@@ -131,6 +132,7 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
     invoker: 'public',
   },
   async (request): Promise<EnsureDirectChatResponse> => {
+    assertCallableAppCheck(request.app);
     const actorUid = normalizeUid(request.auth?.uid);
     const targetUid = normalizeUid(request.data?.otherUserUid);
 

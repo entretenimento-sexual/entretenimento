@@ -60,6 +60,7 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
   const send = (content: string, clientRequestId: string) =>
     invoke({
       data: { chatId, content, clientRequestId },
+      app: { appId: 'test-chat-app' },
       auth: { uid: actorUid, token: { email_verified: true } },
     }, {});
 
@@ -120,6 +121,7 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     const id = randomUUID();
     const fromTarget = (content: string) => invoke({
       data: { chatId, content, clientRequestId: id },
+      app: { appId: 'test-chat-app' },
       auth: { uid: targetUid, token: { email_verified: true } },
     }, {});
     const [actor, target] = await Promise.all([

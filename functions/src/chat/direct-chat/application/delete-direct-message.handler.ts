@@ -17,6 +17,8 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db, FieldValue } from '../../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
 import { assertDirectChatEmailVerified } from '../domain/direct-chat.policy';
+import { normalizeDirectChatDocumentId } from '../domain/direct-message.policy';
+import { assertCallableAppCheck } from '../../../shared/security/callable-app-check';
 
 interface DeleteDirectMessageRequest {
   chatId?: unknown;
@@ -65,6 +67,7 @@ export const deleteDirectMessage = onCall<DeleteDirectMessageRequest>(
     invoker: 'public',
   },
   async (request): Promise<DeleteDirectMessageResponse> => {
+    assertCallableAppCheck(request.app);
     const actorUid = normalizeIdentifier(request.auth?.uid);
 
     if (!actorUid) {
@@ -75,8 +78,8 @@ export const deleteDirectMessage = onCall<DeleteDirectMessageRequest>(
       request.auth?.token?.email_verified, 'Verifique seu e-mail antes de apagar mensagens.'
     );
 
-    const chatId = normalizeIdentifier(request.data?.chatId);
-    const messageId = normalizeIdentifier(request.data?.messageId);
+    const chatId = normalizeDirectChatDocumentId(request.data?.chatId);
+    const messageId = normalizeDirectChatDocumentId(request.data?.messageId);
 
     if (!chatId || !messageId) {
       throw new HttpsError('invalid-argument', 'Mensagem não identificada.');

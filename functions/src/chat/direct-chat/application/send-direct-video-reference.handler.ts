@@ -9,6 +9,7 @@ import {
 } from '../../../friendship/application/bilateral-block-access.policy';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
 import { db, FieldValue } from '../../../firebaseApp';
+import { assertCallableAppCheck } from '../../../shared/security/callable-app-check';
 import {
   assertMessagingAccountOperational,
 } from '../../shared/messaging-account.policy';
@@ -17,6 +18,7 @@ import { assertDirectChatEmailVerified } from '../domain/direct-chat.policy';
 import {
   DIRECT_MESSAGE_POLICY_VERSION,
   assertNoDirectMessagingBlock,
+  normalizeDirectChatDocumentId,
   normalizeDirectMessageRequestId,
   resolveDirectMessageTargetUid,
 } from '../domain/direct-message.policy';
@@ -77,6 +79,7 @@ function assertAcceptedFriendship(actorExists: boolean, targetExists: boolean): 
 export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
   { region: FUNCTIONS_REGION, invoker: 'public' },
   async (request) => {
+    assertCallableAppCheck(request.app);
     const actorUid = clean(request.auth?.uid);
 
     if (!actorUid) {
@@ -86,7 +89,7 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
       request.auth?.token?.email_verified, 'Verifique seu e-mail antes de enviar mensagens.'
     );
 
-    const chatId = clean(request.data?.chatId);
+    const chatId = normalizeDirectChatDocumentId(request.data?.chatId);
     const clientRequestId = normalizeDirectMessageRequestId(
       request.data?.clientRequestId
     );

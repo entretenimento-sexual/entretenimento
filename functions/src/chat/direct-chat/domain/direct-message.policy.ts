@@ -31,8 +31,20 @@ export interface DirectMessageBlockContext {
   targetBlockedActor: boolean;
 }
 
+export function normalizeDirectChatDocumentId(value: unknown): string {
+  const id = typeof value === 'string' ? value.trim() : '';
+  if (!id || id.length > 256 || id.includes('/') || id === '.' || id === '..' ||
+      /^__.*__$/.test(id) || /[\u0000-\u001f\u007f]/.test(id)) {
+    throw new HttpsError('invalid-argument', 'Identificador de conversa ou mensagem inválido.');
+  }
+  return id;
+}
+
 export function normalizeDirectMessageContent(value: unknown): string {
-  const rawContent = String(value ?? '');
+  if (typeof value !== 'string') {
+    throw new HttpsError('invalid-argument', 'A mensagem deve ser textual.');
+  }
+  const rawContent = value;
 
   if (rawContent.length > DIRECT_MESSAGE_MAX_RAW_LENGTH) {
     throw new HttpsError(
@@ -65,7 +77,7 @@ export function normalizeDirectMessageContent(value: unknown): string {
 }
 
 export function normalizeDirectMessageRequestId(value: unknown): string {
-  const requestId = String(value ?? '').trim();
+  const requestId = typeof value === 'string' ? value.trim() : '';
 
   if (!CLIENT_REQUEST_ID_PATTERN.test(requestId)) {
     throw new HttpsError(

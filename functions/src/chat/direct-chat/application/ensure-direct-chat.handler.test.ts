@@ -44,6 +44,7 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
   function ensure() {
     return invoke({
       data: { otherUserUid: targetUid },
+      app: { appId: 'test-chat-app' },
       auth: { uid: actorUid, token: { email_verified: true } },
     }, {});
   }
@@ -140,6 +141,7 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
       ]);
       const result = await invoke({
         data: { otherUserUid: right },
+        app: { appId: 'test-chat-app' },
         auth: { uid: left, token: { email_verified: true } },
       }, {});
       assert.equal(result.chatId, oldRef.id);
@@ -174,6 +176,7 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
       ]);
       await assert.rejects(invoke({
         data: { otherUserUid: right },
+        app: { appId: 'test-chat-app' },
         auth: { uid: left, token: { email_verified: true } },
       }, {}), (error: any) =>
         String(error?.code ?? '').includes('failed-precondition')
@@ -213,6 +216,7 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
       ]);
       await assert.rejects(invoke({
         data: { otherUserUid: right },
+        app: { appId: 'test-chat-app' },
         auth: { uid: left, token: { email_verified: true } },
       }, {}), (error: any) =>
         String(error?.code ?? '').includes('failed-precondition')
@@ -269,6 +273,7 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
       const call = (actorUid: string, otherUserUid: string) =>
         invoke({
           data: { otherUserUid },
+          app: { appId: 'test-chat-app' },
           auth: { uid: actorUid, token: { email_verified: true } },
         }, {});
       const first = await call(...pairA.participants);
@@ -329,6 +334,7 @@ run('ensureDirectChat — Firestore Emulator transaction and access', () => {
     const opened = await ensure();
     const send = (content: string) => sendInvoke({
       data: { chatId: opened.chatId, content, clientRequestId: randomUUID() },
+      app: { appId: 'test-chat-app' },
       auth: { uid: actorUid, token: { email_verified: true } },
     }, {});
 
