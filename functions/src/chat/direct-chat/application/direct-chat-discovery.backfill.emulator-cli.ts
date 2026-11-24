@@ -37,6 +37,9 @@ async function main(): Promise<void> {
   if (!(args.length === 2 || (args.length === 3 && args[2] === '--apply'))) {
     throw new Error('Expected exactly two UIDs and optional --apply.');
   }
+  if (args[0] === args[1] || args.slice(0, 2).some(uid => !/^[A-Za-z0-9_-]{1,128}$/.test(uid))) {
+    throw new Error('Invalid participant pair.');
+  }
   // Load Admin SDK only after emulator validation; never log raw UIDs/chat IDs.
   const { reconcileHistoricalDirectChatDiscovery } =
     require('./direct-chat-discovery.backfill') as

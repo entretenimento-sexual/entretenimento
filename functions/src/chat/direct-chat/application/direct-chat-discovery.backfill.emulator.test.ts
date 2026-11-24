@@ -1,11 +1,36 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { db } from '../../../firebaseApp';
 import { buildDirectChatPairIdentity } from '../domain/direct-chat.policy';
 import { reconcileHistoricalDirectChatDiscovery } from './direct-chat-discovery.backfill';
 
-const run = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip;
+const actualHost = process.env.FIRESTORE_EMULATOR_HOST;
+const expectedHost = process.env.CHAT_RECONCILIATION_EXPECTED_EMULATOR_HOST;
+if (expectedHost && actualHost !== expectedHost) {
+  throw new Error('Wrong Firestore Emulator.');
+}
+const run = actualHost ? describe : describe.skip;
+
+function invokeCli(args: string[], overrides: NodeJS.ProcessEnv = {}) {
+  return spawnSync(process.execPath, [
+    join(__dirname, 'direct-chat-discovery.backfill.emulator-cli.js'), ...args,
+  ], {
+    encoding: 'utf8',
+    timeout: 20000,
+    env: {
+      ...process.env,
+      GCLOUD_PROJECT: 'demo-entretenimento',
+      GOOGLE_CLOUD_PROJECT: 'demo-entretenimento',
+      GCP_PROJECT: 'demo-entretenimento',
+      FIREBASE_CONFIG: JSON.stringify({ projectId: 'demo-entretenimento' }),
+      GOOGLE_APPLICATION_CREDENTIALS: undefined,
+      ...overrides,
+    },
+  });
+}
 
 run('CHAT-R1.3 — historical discovery backfill (Firestore emulator)', () => {
   it('adota histórico único sem amizade, preserva mensagens e é idempotente', async () => {
@@ -25,13 +50,31 @@ run('CHAT-R1.3 — historical discovery backfill (Firestore emulator)', () => {
         chat.set({ participants: pair.participants, conversationType: 'direct' }),
         message.set({ senderId: a, text: 'histórico preservado' }),
       ]);
-      const dry = await reconcileHistoricalDirectChatDiscovery(a, b);
-      assert.equal(dry.status, 'dry-run');
+      for (const overrides of [
+        { FIRESTORE_EMULATOR_HOST: 'firestore.googleapis.com:443' },
+        { GCLOUD_PROJECT: 'production' },
+        { GOOGLE_APPLICATION_CREDENTIALS: '/private/credentials.json' },
+      ]) {
+        const denied = invokeCli([a, b, '--apply'], overrides);
+        assert.equal(denied.status, 1);
+        assert.equal(denied.stdout, '');
+        assert.equal(denied.stderr, 'Historical discovery reconciliation failed.\n');
+      }
+      const dry = invokeCli([a, b]);
+      assert.equal(dry.status, 0, dry.stderr);
+      assert.equal(JSON.parse(dry.stdout).status, 'dry-run');
+      for (const secret of [a, b, chat.id, pair.canonicalHash]) {
+        assert.ok(!dry.stdout.includes(secret));
+      }
       assert.equal((await registry.get()).exists, false);
       assert.equal((await refs[0].get()).exists, false);
 
-      const applied = await reconcileHistoricalDirectChatDiscovery(b, a, true);
-      assert.equal(applied.status, 'applied');
+      const applied = invokeCli([b, a, '--apply']);
+      assert.equal(applied.status, 0, applied.stderr);
+      assert.equal(JSON.parse(applied.stdout).status, 'applied');
+      for (const secret of [a, b, chat.id, pair.canonicalHash]) {
+        assert.ok(!applied.stdout.includes(secret));
+      }
       assert.deepEqual((await registry.get()).data()?.['chatId'], chat.id);
       for (const ref of refs) {
         assert.deepEqual((await ref.get()).data(), { version: 1, chatId: chat.id });

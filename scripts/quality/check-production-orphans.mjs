@@ -437,6 +437,10 @@ const functionsOperationalArtifacts = new Set([
     'chat/direct-chat/application/direct-chat-reconciliation.emulator-cli.ts',
     'chat/direct-chat/application/direct-chat-reconciliation.reader.ts',
     'chat/direct-chat/domain/direct-chat-reconciliation.audit.ts',
+    // CHAT-R1.3: CLI administrativo local e sua biblioteca de reconciliação.
+    // Execução real do CLI coberta no teste de integração; sem export implantável.
+    'chat/direct-chat/application/direct-chat-discovery.backfill.emulator-cli.ts',
+    'chat/direct-chat/application/direct-chat-discovery.backfill.ts',
     // Projeção unread em fase de auditoria, NÃO exportar trigger antes do gate.
     // CLI só aceita Firestore Emulator; estes módulos são usados fora do index.ts.
     'chat/direct-chat/application/direct-unread-backfill.emulator-cli.ts',
