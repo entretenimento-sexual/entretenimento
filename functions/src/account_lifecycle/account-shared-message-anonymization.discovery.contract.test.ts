@@ -28,6 +28,7 @@ test('CHAT-R1.3 keeps historical discovery independent of friendship and messagi
 test('CHAT-R1.3 purges discovery refs before finalization, leaving shared messages intact', () => {
   assert.match(lifecycle, /async anonymizeDirectChatsPage[\s\S]*transaction\.delete\([\s\S]*direct_chat_discovery/);
   assert.match(lifecycle, /async deleteDirectChatDiscoveryReferencesPage[\s\S]*deleteDocumentRefs/);
-  assert.match(executor, /await adapter\.deleteDirectChatDiscoveryReferencesPage/);
+  assert.match(executor,
+    /await executePagedStep\(\s*\(\) => adapter\.deleteDirectChatDiscoveryReferencesPage\(uid, pageSize\)/);
   assert.match(executor, /directChatDiscoveryReferencesDeleted/);
 });
