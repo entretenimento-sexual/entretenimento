@@ -94,6 +94,8 @@ const expectedDeploymentExports = [
   // CHAT-R1.5: authenticated owner-only discovery, App Check, quota, lifecycle
   // and bilateral block checks; identifiers only, no direct read grant.
   'listDirectChatCandidates',
+  // Backend lifecycle trigger; opaque owner-only discovery invalidation.
+  'syncDirectChatDiscoveryLifecycle',
   'reconcileDirectChatAccess',
   // Callable de reconciliação bilateral, autenticada, com rate limit e resposta
   // neutra; a autoridade continua nos bloqueios canônicos do Firestore.
@@ -366,6 +368,7 @@ const requiredExports = [
   'declineRoomInvite',
   'ensureDirectChat',
   'listDirectChatCandidates',
+  'syncDirectChatDiscoveryLifecycle',
   'sendDirectMessage',
   'deleteDirectMessage',
   'acceptPlatformTerms',

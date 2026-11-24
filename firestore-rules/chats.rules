@@ -168,3 +168,10 @@ match /chats/{chatId} {
 match /direct_chat_discovery/{ownerUid}/chats/{chatId} {
   allow read, write: if false;
 }
+
+// CHAT-R1.6: only the opaque revision document, never the candidate subcollection.
+match /direct_chat_discovery/{ownerUid} {
+  allow get: if hasVerifiedEmail() && isSelf(ownerUid)
+    && currentUserCanUseAdultSocialPlatform();
+  allow list, create, update, delete: if false;
+}

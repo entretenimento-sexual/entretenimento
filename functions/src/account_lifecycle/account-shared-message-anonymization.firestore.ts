@@ -8,6 +8,7 @@
 import { createHash } from 'node:crypto';
 
 import { db, FieldValue } from '../firebaseApp';
+import { stageDirectChatDiscoveryInvalidation } from '../chat/direct-chat/application/direct-chat-discovery.references';
 import { FirestoreAccountDataDeletionOrchestratorAdapter } from './account-owned-media-deletion.firestore';
 import type {
   AccountSharedMessageAnonymizationAdapter,
@@ -150,6 +151,7 @@ export class FirestoreAccountDataDeletionFullAdapter
           transaction.delete(
             db.doc(`direct_chat_discovery/${participant}/chats/${chatSnapshot.id}`)
           );
+          if (participant !== safeUid) stageDirectChatDiscoveryInvalidation(transaction, participant);
         }
       });
     }
@@ -169,6 +171,7 @@ export class FirestoreAccountDataDeletionFullAdapter
       .limit(limit)
       .get();
     await deleteDocumentRefs(snapshot.docs.map(document => document.ref));
+    if (snapshot.size < limit) await db.doc(`direct_chat_discovery/${safeUid}`).delete();
     return snapshot.size;
   }
 

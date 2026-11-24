@@ -48,6 +48,8 @@ try {
     'node --test --test-concurrency=1',
     'functions/lib/chat/direct-chat/application/direct-chat-reconciliation.reader.emulator.test.js',
     'functions/lib/chat/direct-chat/application/direct-chat-discovery.backfill.emulator.test.js',
+    'functions/lib/chat/direct-chat/application/list-direct-chat-candidates.handler.test.js',
+    'functions/lib/chat/direct-chat/application/direct-chat-discovery-invalidation.emulator.test.js',
     'functions/lib/account_lifecycle/account-shared-message-anonymization.discovery.emulator.test.js',
     'functions/lib/chat/direct-chat/application/reconcile-direct-chat-access.handler.test.js',
     'functions/lib/chat/direct-chat/application/ensure-direct-chat.handler.test.js',

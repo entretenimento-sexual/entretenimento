@@ -127,6 +127,27 @@ describe('Firestore Rules / direct chat receipts', () => {
     }
   });
 
+  it('permite somente ao titular elegível ler o sinal opaco de descoberta', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      await setDoc(doc(context.firestore(), 'direct_chat_discovery', RECIPIENT), {
+        version: 1, revision: 1,
+      });
+    });
+    const owner = env.authenticatedContext(RECIPIENT, { email_verified: true }).firestore();
+    const outsider = env.authenticatedContext(OUTSIDER, { email_verified: true }).firestore();
+    const unverified = env.authenticatedContext(RECIPIENT, { email_verified: false }).firestore();
+    const ref = doc(owner, 'direct_chat_discovery', RECIPIENT);
+    await assertSucceeds(getDoc(ref));
+    await assertFails(getDocs(collection(owner, 'direct_chat_discovery')));
+    await assertFails(getDoc(doc(outsider, 'direct_chat_discovery', RECIPIENT)));
+    await assertFails(getDoc(doc(unverified, 'direct_chat_discovery', RECIPIENT)));
+    await assertFails(setDoc(ref, { version: 1, revision: 2 }));
+    await env.withSecurityRulesDisabled(async context => {
+      await updateDoc(doc(context.firestore(), 'users', RECIPIENT), { accountStatus: 'deleted' });
+    });
+    await assertFails(getDoc(ref));
+  });
+
   it('consulta ampla de chats não é um filtro de autorização bilateral', async () => {
     const client = env.authenticatedContext(
       RECIPIENT, { email_verified: true }

@@ -20,6 +20,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
 import {
+  stageDirectChatDiscoveryInvalidation,
+} from '../../chat/direct-chat/application/direct-chat-discovery.references';
+import {
   isCommunityMuralActivityNotificationType,
 } from '../../community/community-notification.policy';
 import {
@@ -331,6 +334,8 @@ export async function manageUserBlock(input: {
     };
     transaction.set(actorAccessRef, accessProjection);
     transaction.set(targetAccessRef, accessProjection);
+    stageDirectChatDiscoveryInvalidation(transaction, input.actorUid);
+    stageDirectChatDiscoveryInvalidation(transaction, input.targetUid);
 
     // Private mirror for active media viewers. Authoritative block writes and
     // both viewer-facing projections commit atomically in this transaction.

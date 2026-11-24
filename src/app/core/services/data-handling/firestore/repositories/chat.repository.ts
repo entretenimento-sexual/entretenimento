@@ -1,11 +1,12 @@
 // src/app/core/services/data-handling/firestore/repositories/chat.repository.ts
 import { Injectable, inject } from '@angular/core';
-import { Observable, combineLatest, defer, of, throwError, timer } from 'rxjs';
-import { catchError, distinctUntilChanged, exhaustMap, filter, map, startWith, switchMap, take } from 'rxjs/operators';
+import { Observable, combineLatest, defer, of, throwError } from 'rxjs';
+import { catchError, filter, map, startWith, switchMap, take } from 'rxjs/operators';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { createChatDiscoveryScope$, type ChatDiscoveryScope } from './chat-discovery-scope';
+import { revalidateDiscoveryOnRevision$ } from './chat-discovery-invalidation';
 import { recoverDirectChatListener$ } from 'src/app/messaging/direct-chat/services/direct-chat-listener-recovery';
 
 import {
@@ -48,30 +49,42 @@ export class ChatRepository {
 
   // Only the backend discovers IDs. Each individual listener still uses Rules.
   private observeTransport$(uid: string): Observable<ChatDiscoveryScope> {
-    return timer(0, 60_000).pipe(
-      exhaustMap(() => this.ctx.deferPromise$(() =>
+    const revision$ = this.ctx.deferObservable$(() => {
+      const ref = doc(this.db, 'direct_chat_discovery', uid);
+      return new Observable<number | null>(sink => onSnapshot(ref,
+        { includeMetadataChanges: true }, snapshot => {
+          if (snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) {
+            sink.next(null);
+            return;
+          }
+          const data = snapshot.data();
+          if (!snapshot.exists()) sink.next(0);
+          else if (data?.['version'] === 1 && Number.isSafeInteger(data['revision'])) {
+            sink.next(data['revision'] as number);
+          } else sink.error(new Error('Sinal de descoberta inválido.'));
+        }, error => sink.error(error)));
+    });
+    const loading: ChatDiscoveryScope = { ownerUid: uid, status: 'loading', chats: [] };
+    return revalidateDiscoveryOnRevision$(revision$, loading, () =>
+      this.ctx.deferPromise$(() =>
         httpsCallable<Record<string, never>, { chatIds: string[] }>(
           this.functions, 'listDirectChatCandidates'
-        )({})).pipe(
-        map(({ data }) => {
+        )({})
+      ).pipe(
+        switchMap(({ data }) => {
           if (!Array.isArray(data.chatIds) || data.chatIds.some(id =>
             typeof id !== 'string' || !id || id.includes('/'))) {
             throw new Error('Resposta de descoberta inválida.');
           }
-          return { ids: [...new Set(data.chatIds)].sort(), failure: null as ChatDiscoveryScope | null };
+          const ids = [...new Set(data.chatIds)];
+          if (!ids.length) return of({ ownerUid: uid, status: 'ready', chats: [] } as ChatDiscoveryScope);
+          return combineLatest(ids.map(id => this.observeChat$(id))).pipe(
+            map(chats => ({ ownerUid: uid, status: 'ready' as const,
+              chats: chats.filter((chat): chat is IChat => chat !== null) }))
+          );
         }),
-        catchError(error => of({ ids: [] as string[], failure: this.failedScope(uid, error) }))
-      )),
-      distinctUntilChanged((a, b) => !a.failure && !b.failure &&
-        a.ids.length === b.ids.length && a.ids.every((id, i) => id === b.ids[i])),
-      switchMap(({ ids, failure }) => {
-        if (failure) return of(failure);
-        if (!ids.length) return of({ ownerUid: uid, status: 'ready', chats: [] } as ChatDiscoveryScope);
-        return combineLatest(ids.map(id => this.observeChat$(id))).pipe(
-          map(chats => ({ ownerUid: uid, status: 'ready' as const,
-            chats: chats.filter((chat): chat is IChat => chat !== null) }))
-        );
-      })
+        catchError(error => of(this.failedScope(uid, error)))
+      )
     );
   }
 

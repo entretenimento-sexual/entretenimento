@@ -11,3 +11,5 @@ export { deleteDirectMessage } from './application/delete-direct-message.handler
 export { reconcileDirectChatAccess } from './application/reconcile-direct-chat-access.handler';
 
 export { listDirectChatCandidates } from './application/list-direct-chat-candidates.handler';
+
+export { syncDirectChatDiscoveryLifecycle } from './application/direct-chat-discovery-invalidation.trigger';

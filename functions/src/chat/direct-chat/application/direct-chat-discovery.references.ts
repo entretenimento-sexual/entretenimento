@@ -1,5 +1,5 @@
 import type { Transaction } from 'firebase-admin/firestore';
-import { db } from '../../../firebaseApp';
+import { db, FieldValue } from '../../../firebaseApp';
 import { buildDirectChatPairIdentity } from '../domain/direct-chat.policy';
 
 /**
@@ -14,9 +14,19 @@ export function stageDirectChatDiscoveryReferences(
 ): void {
   const pair = buildDirectChatPairIdentity(participants[0], participants[1]);
   for (const ownerUid of pair.participants) {
+    stageDirectChatDiscoveryInvalidation(transaction, ownerUid);
     transaction.set(
       db.doc(`direct_chat_discovery/${ownerUid}/chats/${chatId}`),
       { version: 1, chatId }
     );
   }
+}
+
+// Opaque owner-only invalidation, not an authorization grant.
+export function stageDirectChatDiscoveryInvalidation(
+  transaction: Transaction, ownerUid: string
+): void {
+  transaction.set(db.doc(`direct_chat_discovery/${ownerUid}`), {
+    version: 1, revision: FieldValue.increment(1),
+  });
 }
