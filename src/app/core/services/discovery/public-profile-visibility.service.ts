@@ -1,8 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { Firestore, doc, docSnapshots } from '@angular/fire/firestore';
-import { Observable, concat, of, timer } from 'rxjs';
+import { Observable, concat, defer, of, timer } from 'rxjs';
 import {
-  catchError, distinctUntilChanged, exhaustMap, map, switchMap, timeout,
+  catchError, distinctUntilChanged, exhaustMap, filter, map, repeat, switchMap, take, timeout,
 } from 'rxjs/operators';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
@@ -56,6 +56,25 @@ export function watchBilateralProfileVisibility$<T = boolean>(
   );
 }
 
+/** Revoga no erro e restabelece a escuta somente após confirmação do backend. */
+export function watchPublicProfileMediaIndexWithRecovery$(
+  watchCanonical$: () => Observable<PublicProfileMediaIndexState>,
+  probeRecovery$: () => Observable<boolean>
+): Observable<PublicProfileMediaIndexState> {
+  return defer(watchCanonical$).pipe(
+    catchError(() => concat(
+      of(UNAVAILABLE_MEDIA_INDEX),
+      defer(probeRecovery$).pipe(
+        filter(Boolean),
+        take(1),
+        map(() => UNAVAILABLE_MEDIA_INDEX)
+      )
+    )),
+    repeat({ delay: () => timer(RECHECK_INTERVAL_MS) }),
+    distinctUntilChanged(samePublicProfileMediaIndex)
+  );
+}
+
 @Injectable({ providedIn: 'root' })
 export class PublicProfileVisibilityService {
   private readonly db = inject(Firestore);
@@ -102,7 +121,7 @@ export class PublicProfileVisibilityService {
   ): Observable<PublicProfileMediaIndexState> {
     return this.context.deferObservable$(() => {
       const ref = doc(this.db, `public_profiles/${uid}`);
-      return docSnapshots(ref).pipe(
+      const watchCanonical$ = () => docSnapshots(ref).pipe(
         map((snapshot): PublicProfileMediaIndexState => {
           if (snapshot.metadata.fromCache ||
               snapshot.metadata.hasPendingWrites ||
@@ -115,27 +134,18 @@ export class PublicProfileVisibilityService {
               snapshot.data() as Record<string, unknown>
             ),
           };
-        }),
-        catchError(() => of(UNAVAILABLE_MEDIA_INDEX)),
-        switchMap((state) => state.available
-          ? of(state)
-          : concat(
-              of(UNAVAILABLE_MEDIA_INDEX),
-              // Fallback legada: só reconstitui a disponibilidade. A revisão
-              // permanece zero até existir um snapshot canônico do perfil.
-              timer(0, RECHECK_INTERVAL_MS).pipe(
-                exhaustMap(() => this.publicRead.readByUids$([uid]).pipe(
-                  timeout({ first: RECHECK_TIMEOUT_MS }),
-                  map(({ items }) => items.some((item) => item['uid'] === uid)
-                    ? { available: true, mediaRevision: 0 }
-                    : UNAVAILABLE_MEDIA_INDEX
-                  ),
-                  catchError(() => of(UNAVAILABLE_MEDIA_INDEX))
-                ))
-              )
-            )
-        ),
-        distinctUntilChanged(samePublicProfileMediaIndex)
+        })
+      );
+
+      return watchPublicProfileMediaIndexWithRecovery$(
+        watchCanonical$,
+        () => timer(0, RECHECK_INTERVAL_MS).pipe(
+          exhaustMap(() => this.publicRead.readByUids$([uid]).pipe(
+            timeout({ first: RECHECK_TIMEOUT_MS }),
+            map(({ items }) => items.some((item) => item['uid'] === uid)),
+            catchError(() => of(false))
+          ))
+        )
       );
     }).pipe(
       catchError(() => of(UNAVAILABLE_MEDIA_INDEX)),
