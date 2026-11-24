@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import net from 'node:net';
 import path from 'node:path';
 
-import { probeFunctionsCallable } from './functions-emulator-health.mjs';
+import { probeFunctionsCallableWithRetry } from './functions-emulator-health.mjs';
 
 const HOST = '127.0.0.1';
 const REQUIRED_PORTS = [4000, 4200, 4400, 4500, 5001, 8080, 9099, 9199];
@@ -137,7 +137,7 @@ async function isExpectedSessionHealthy() {
     fetchText(`http://${HOST}:4200/`),
     fetchText(`http://${HOST}:4000/`),
     getSessionHead(),
-    probeFunctionsCallable({
+    probeFunctionsCallableWithRetry({
       name: 'acceptAdultSelfDeclaration',
       host: HOST,
       port: 5001,
