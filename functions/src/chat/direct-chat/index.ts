@@ -9,3 +9,5 @@ export {
 } from './application/send-direct-video-reference.handler';
 export { deleteDirectMessage } from './application/delete-direct-message.handler';
 export { reconcileDirectChatAccess } from './application/reconcile-direct-chat-access.handler';
+
+export { listDirectChatCandidates } from './application/list-direct-chat-candidates.handler';

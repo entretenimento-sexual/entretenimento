@@ -1,7 +1,8 @@
 // src/app/core/services/data-handling/firestore/repositories/chat.repository.ts
 import { Injectable, inject } from '@angular/core';
-import { Observable, defer, of, throwError } from 'rxjs';
-import { filter, map, switchMap, take } from 'rxjs/operators';
+import { Observable, combineLatest, defer, from, of, throwError, timer } from 'rxjs';
+import { catchError, distinctUntilChanged, exhaustMap, filter, map, startWith, switchMap, take } from 'rxjs/operators';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { createChatDiscoveryScope$, type ChatDiscoveryScope } from './chat-discovery-scope';
@@ -9,9 +10,7 @@ import { recoverDirectChatListener$ } from 'src/app/messaging/direct-chat/servic
 
 import {
   Firestore,
-  collection,
-  query,
-  where,
+  doc,
 } from '@angular/fire/firestore';
 
 import { Timestamp, onSnapshot } from 'firebase/firestore';
@@ -22,6 +21,7 @@ import { FirestoreContextService } from '@core/services/data-handling/firestore/
 @Injectable({ providedIn: 'root' })
 export class ChatRepository {
   private readonly db = inject(Firestore);
+  private readonly functions = inject(Functions);
   private readonly ctx = inject(FirestoreContextService);
   private readonly access = inject(AccessControlService);
   private readonly applicationError = inject(ApplicationErrorService);
@@ -46,21 +46,54 @@ export class ChatRepository {
     return { ownerUid: uid, status: 'error', chats: [] };
   }
 
-  // R1.5 replaces this transport. Never authorize from candidates or cache.
+  // Only the backend discovers IDs. Each individual listener still uses Rules.
   private observeTransport$(uid: string): Observable<ChatDiscoveryScope> {
-    return this.ctx.deferObservable$(() => {
-      const q = query(collection(this.db, 'chats'), where('participants', 'array-contains', uid));
-      return new Observable<ChatDiscoveryScope>(sink => onSnapshot(q, { includeMetadataChanges: true }, snapshot => {
-        if (snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) {
-          sink.next({ ownerUid: uid, status: 'loading', chats: [] });
-          return;
-        }
-        sink.next({
-          ownerUid: uid, status: 'ready',
-          chats: snapshot.docs.map(d => ({ ...d.data(), id: d.id } as IChat)),
-        });
-      }, error => sink.error(error)));
-    });
+    return timer(0, 60_000).pipe(
+      exhaustMap(() => this.ctx.deferPromise$(() =>
+        httpsCallable<Record<string, never>, { chatIds: string[] }>(
+          this.functions, 'listDirectChatCandidates'
+        )({})).pipe(
+        map(({ data }) => {
+          if (!Array.isArray(data.chatIds) || data.chatIds.some(id =>
+            typeof id !== 'string' || !id || id.includes('/'))) {
+            throw new Error('Resposta de descoberta inválida.');
+          }
+          return { ids: [...new Set(data.chatIds)].sort(), failure: null as ChatDiscoveryScope | null };
+        }),
+        catchError(error => of({ ids: [] as string[], failure: this.failedScope(uid, error) }))
+      )),
+      distinctUntilChanged((a, b) => !a.failure && !b.failure &&
+        a.ids.length === b.ids.length && a.ids.every((id, i) => id === b.ids[i])),
+      switchMap(({ ids, failure }) => {
+        if (failure) return of(failure);
+        if (!ids.length) return of({ ownerUid: uid, status: 'ready', chats: [] } as ChatDiscoveryScope);
+        return combineLatest(ids.map(id => this.observeChat$(id))).pipe(
+          map(chats => ({ ownerUid: uid, status: 'ready' as const,
+            chats: chats.filter((chat): chat is IChat => chat !== null) }))
+        );
+      })
+    );
+  }
+
+  private observeChat$(id: string): Observable<IChat | null> {
+    return recoverDirectChatListener$<IChat | null>(() =>
+      this.ctx.deferObservable$(() => {
+        const ref = doc(this.db, 'chats', id);
+        return new Observable<IChat | null>(sink => onSnapshot(ref,
+          { includeMetadataChanges: true }, snapshot => {
+            sink.next(snapshot.exists() && !snapshot.metadata.fromCache &&
+              !snapshot.metadata.hasPendingWrites
+              ? { ...snapshot.data(), id: snapshot.id } as IChat : null);
+          }, error => sink.error(error)));
+      }), () => null
+    ).pipe(catchError(error => {
+      this.applicationError.report(error, {
+        feature: 'chat', operation: 'ChatRepository.observeChat$',
+        fallbackMessage: 'Não foi possível acompanhar uma conversa.',
+        presentation: { surface: 'none', severity: 'error' },
+      });
+      return of(null);
+    }), startWith(null));
   }
 
   /**
