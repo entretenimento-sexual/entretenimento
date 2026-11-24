@@ -251,4 +251,16 @@ describe('UserCardComponent', () => {
       )
     ).toBeNull();
   });
+
+  it('mantém ação de mensagem visível e acessível sem conexão, sem abrir modal', () => {
+    const button = fixture.debugElement.query(
+      By.css('.user-card__action--message')
+    ).nativeElement as HTMLButtonElement;
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(button.getAttribute('aria-label')).toContain('Conecte-se para conversar');
+    button.click();
+    expect(TestBed.inject(MatDialog).open).not.toHaveBeenCalled();
+    expect(TestBed.inject(ErrorNotificationService).showInfo)
+      .toHaveBeenCalledWith('Conecte-se para conversar.');
+  });
 });

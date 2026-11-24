@@ -138,18 +138,20 @@
           relationship.canConnect
         ) {
           <div class="user-card__actions" aria-label="Ações do perfil">
+            <button
+              type="button"
+              class="user-card__action user-card__action--message app-action"
+              [class.app-action--primary]="relationship.canMessage"
+              [class.app-action--ghost]="!relationship.canMessage"
+              [attr.aria-disabled]="!relationship.canMessage"
+              [attr.aria-label]="'Conversar com ' + (profile.nickname || 'usuário') + '. ' + messageAvailabilityLabel()"
+              [title]="messageAvailabilityLabel()"
+              (click)="abrirDM($event)"
+            >
+              <i class="fas fa-paper-plane" aria-hidden="true"></i>
+              <span class="visually-hidden">{{ messageAvailabilityLabel() }}</span>
+            </button>
             @if (relationship.canMessage) {
-              <button
-                type="button"
-                class="user-card__action user-card__action--primary app-action app-action--primary"
-                (click)="abrirDM($event)"
-                [attr.aria-label]="'Conversar com ' + (profile.nickname || 'usuário')"
-                title="Conversar"
-              >
-                <i class="fas fa-paper-plane" aria-hidden="true"></i>
-                <span class="visually-hidden">Conversar</span>
-              </button>
-
               <button
                 type="button"
                 class="user-card__action user-card__action--danger-subtle app-action app-action--ghost app-action--danger"

@@ -327,8 +327,19 @@ export class UserCardComponent {
     return (this.cancelingOutboundRequestIds() ?? []).includes(requestId);
   });
 
+  readonly messageAvailabilityLabel = computed(() => {
+    switch (this.relationshipVm().state) {
+      case 'friends': return 'Conversar';
+      case 'incoming_pending': return 'Responda ao interesse antes de conversar.';
+      case 'outgoing_pending': return 'Aguarde a resposta ao interesse.';
+      case 'none': return 'Conecte-se para conversar.';
+      default: return 'Conversa indisponível.';
+    }
+  });
+
   abrirDM(event: Event): void {
     event.preventDefault();
+    event.stopPropagation();
 
     const profile = this.user();
     const targetUid = String(profile?.uid ?? '').trim();
@@ -341,23 +352,7 @@ export class UserCardComponent {
     const relationship = this.relationshipVm();
 
     if (!relationship.canMessage) {
-      if (relationship.state === 'incoming_pending') {
-        this.notifier.showInfo('Responda ao interesse antes de conversar.');
-        this.router.navigate(['/friends/requests']).catch(() => undefined);
-        return;
-      }
-
-      if (relationship.state === 'outgoing_pending') {
-        this.notifier.showInfo('Aguarde este perfil responder ao seu interesse.');
-        return;
-      }
-
-      if (relationship.state === 'none') {
-        this.notifier.showInfo('Mostre interesse antes de iniciar conversa.');
-        return;
-      }
-
-      this.notifier.showInfo('Conversa indisponível para este perfil.');
+      this.notifier.showInfo(this.messageAvailabilityLabel());
       return;
     }
 

@@ -397,3 +397,9 @@
     animation: none;
   }
 }
+
+/* Keep the unavailable messaging affordance focusable for its explanation. */
+.user-card__action--message[aria-disabled="true"] {
+  color: var(--uc-muted);
+  cursor: not-allowed;
+}
