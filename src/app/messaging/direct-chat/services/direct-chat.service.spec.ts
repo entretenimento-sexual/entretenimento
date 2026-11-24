@@ -1,4 +1,4 @@
-import { BehaviorSubject, firstValueFrom, Observable, of, throwError } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, Observable, of, throwError, Subject } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Functions } from '@angular/fire/functions';
@@ -357,4 +357,22 @@ describe('DirectChatService canonical errors', () => {
       },
     });
   });
+  it('compartilha a lista entre consumidores e não reinicia por emissões iguais do gate', () => {
+    const uid$ = new BehaviorSubject<string | null>('user-a');
+    const canListen$ = new BehaviorSubject(true);
+    const source = new Subject<IChat[]>();
+    const watchChats$ = vi.fn(() => source);
+    const { service } = createHarness({ uid$, canListen$, watchChats$ });
+    const a = service.getMyDirectChats$().subscribe();
+    const b = service.getMyDirectChats$().subscribe();
+    expect(watchChats$).toHaveBeenCalledTimes(1);
+    uid$.next('user-a');
+    canListen$.next(true);
+    expect(watchChats$).toHaveBeenCalledTimes(1);
+    a.unsubscribe();
+    expect(source.observers.length).toBe(1);
+    b.unsubscribe();
+    expect(source.observers.length).toBe(0);
+  });
+
 });

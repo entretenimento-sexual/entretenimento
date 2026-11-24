@@ -11,7 +11,7 @@ import { AccessControlService } from '../autentication/auth/access-control.servi
 import { DirectReceiptsService } from 'src/app/messaging/direct-chat/services/direct-receipts.service';
 import { recoverDirectChatListener$ } from 'src/app/messaging/direct-chat/services/direct-chat-listener-recovery';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
-import { isDirectMessageUnreadFor, totalDirectUnread, type DirectUnreadState } from './chat-unread.policy';
+import { isDirectMessageUnreadFor, totalDirectUnread, sameDirectUnreadState, type DirectUnreadState } from './chat-unread.policy';
 
 @Injectable({ providedIn: 'root' })
 export class ChatNotificationService {
@@ -37,6 +37,7 @@ export class ChatNotificationService {
       this.handleRealtimeError('Não foi possível acompanhar mensagens não lidas.', error, 'unreadState$');
       return of({ ownerUid: null, counts: new Map<string, number>() });
     }),
+    distinctUntilChanged(sameDirectUnreadState),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -107,7 +108,7 @@ export class ChatNotificationService {
       );
       const chatsSub = chats$.subscribe({
         next: snapshot => {
-          if (!snapshot || snapshot.metadata.fromCache) {
+          if (!snapshot || snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) {
             clear(); emit(); return;
           }
           const peers = new Map<string, string>();
@@ -119,18 +120,20 @@ export class ChatNotificationService {
             const peer = pair.find(value => value !== uid);
             if (typeof peer === 'string' && peer.trim()) peers.set(chat.id, peer);
           }
+          let removed = false;
           for (const [id, entry] of listeners) {
             if (peers.get(id) !== entry.peer) {
-              entry.sub.unsubscribe(); listeners.delete(id); counts.delete(id);
+              entry.sub.unsubscribe(); listeners.delete(id); counts.delete(id); removed = true;
             }
           }
-          emit();
+          if (removed) emit();
           for (const [id, peer] of peers) {
             if (listeners.has(id)) continue;
             const sub = new Subscription();
             listeners.set(id, { peer, sub });
             sub.add(this.countUnreadForChat$(id, uid, peer).subscribe(count => {
               if (listeners.get(id)?.sub !== sub) return;
+              if (counts.get(id) === count) return;
               counts.set(id, count); emit();
             }));
           }

@@ -22,6 +22,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { combineLatest, defer, from, Observable, of } from 'rxjs';
 import {
   catchError,
+  distinctUntilChanged,
   map,
   shareReplay,
   switchMap,
@@ -93,11 +94,11 @@ export class DirectChatService {
  * - respeita gate de realtime e autenticação;
  * - retorna [] em estado bloqueado, deslogado ou erro.
  */
-getMyDirectChats$(): Observable<IChat[]> {
-  return combineLatest([
+private readonly myDirectChats$ = defer(() => combineLatest([
     this.accessControl.canListenRealtime$,
     this.authSession.uid$,
   ]).pipe(
+    distinctUntilChanged(([a, uidA], [b, uidB]) => a === b && uidA === uidB),
     switchMap(([canListen, uid]) => {
       const safeUid = (uid ?? '').trim();
 
@@ -123,9 +124,11 @@ getMyDirectChats$(): Observable<IChat[]> {
       return of([] as IChat[]);
     }),
 
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-}
+  )).pipe(shareReplay({ bufferSize: 1, refCount: true }));
+
+  getMyDirectChats$(): Observable<IChat[]> {
+    return this.myDirectChats$;
+  }
 
   /**
    * Resolve ou cria o chat direto 1:1 com outro usuário.

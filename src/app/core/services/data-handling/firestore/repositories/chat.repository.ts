@@ -6,7 +6,6 @@ import { catchError, map } from 'rxjs/operators';
 import {
   Firestore,
   collection,
-  getDocs,
   limit,
   orderBy,
   query,
@@ -14,7 +13,7 @@ import {
   where,
 } from '@angular/fire/firestore';
 
-import { Timestamp, onSnapshot } from 'firebase/firestore';
+import { Timestamp, onSnapshot, getDocsFromServer } from 'firebase/firestore';
 
 import { IChat } from '@core/interfaces/interfaces-chat/chat.interface';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
@@ -96,41 +95,7 @@ export class ChatRepository {
     }).pipe(
       map((arr) => (arr ?? []) as IChat[]),
       catchError((err) => {
-        this.reportSilent('watchChats
-      })
-    );
-  }
-
-  getChatsPageOnce$(uid: string, lastChatTimestamp?: Timestamp, pageSize = 10): Observable<IChat[]> {
-    const id = (uid ?? '').toString().trim();
-    if (!id) return of([]);
-
-    return this.ctx.deferPromise$(() => {
-      const q = lastChatTimestamp
-        ? query(
-            this.chatsCol(),
-            where('participants', 'array-contains', id),
-            orderBy('timestamp', 'desc'),
-            startAfter(lastChatTimestamp),
-            limit(pageSize)
-          )
-        : query(
-            this.chatsCol(),
-            where('participants', 'array-contains', id),
-            orderBy('timestamp', 'desc'),
-            limit(pageSize)
-          );
-
-      return getDocs(q);
-    }).pipe(
-      map((snap) => snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as IChat))),
-      catchError((err) => {
-        this.reportSilent('getChatsPageOnce$', err);
-        return of([]);
-      })
-    );
-  }
-}, err);
+        this.reportSilent('watchChats$', err);
         return throwError(() => err);
       })
     );
@@ -156,9 +121,9 @@ export class ChatRepository {
             limit(pageSize)
           );
 
-      return getDocs(q);
+      return getDocsFromServer(q);
     }).pipe(
-      map((snap) => snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as IChat))),
+      map((snap) => snap.docs.map((d) => ({ ...d.data(), id: d.id } as IChat))),
       catchError((err) => {
         this.reportSilent('getChatsPageOnce$', err);
         return of([]);

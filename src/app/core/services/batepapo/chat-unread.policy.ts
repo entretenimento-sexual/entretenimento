@@ -20,3 +20,10 @@ export interface DirectUnreadState {
 export function totalDirectUnread(state: DirectUnreadState): number {
   return Array.from(state.counts.values()).reduce((sum, count) => sum + count, 0);
 }
+
+/** Suppress only identical owner-scoped counts, never authorization changes. */
+export function sameDirectUnreadState(a: DirectUnreadState, b: DirectUnreadState): boolean {
+  if (a.ownerUid !== b.ownerUid || a.counts.size !== b.counts.size) return false;
+  for (const [id, count] of a.counts) if (b.counts.get(id) !== count) return false;
+  return true;
+}
