@@ -3,6 +3,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db, FieldValue } from '../../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
+import { assertCallableAppCheck } from '../../../shared/security/callable-app-check';
 import { consumeBackendRateLimitQuota } from '../../../shared/security/backend-rate-limit.service';
 import { assertDirectChatEmailVerified, ENSURE_DIRECT_CHAT_RATE_LIMIT_CONFIG } from '../domain/direct-chat.policy';
 import { assertMessagingAccountOperational } from '../../shared/messaging-account.policy';
@@ -21,6 +22,7 @@ function uid(value: unknown): string {
 export const reconcileDirectChatAccess = onCall<{ peerUid?: unknown }>(
   { region: FUNCTIONS_REGION, invoker: 'public' },
   async (request): Promise<{ reconciled: boolean }> => {
+    assertCallableAppCheck(request.app);
     const actorUid = uid(request.auth?.uid);
     const peerUid = uid(request.data?.peerUid);
     if (!actorUid) throw new HttpsError('unauthenticated', 'Sessão necessária.');

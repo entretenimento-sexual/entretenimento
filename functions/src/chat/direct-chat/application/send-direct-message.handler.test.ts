@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
+import { DIRECT_MESSAGE_RATE_LIMIT_ACTION, DIRECT_MESSAGE_RATE_LIMIT_CONFIG } from '../domain/direct-message.policy';
+import { BACKEND_RATE_LIMIT_COLLECTION } from '../../../shared/security/backend-rate-limit.service';
 import { db } from '../../../firebaseApp';
 import { TERMS_ACCEPTANCE_VERSION, ADULT_CONSENT_VERSION } from '../../../compliance/platform-legal.constants';
 
@@ -14,6 +16,9 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
   const actorUid = `${prefix}-a`;
   const targetUid = `${prefix}-b`;
   const chatId = `${prefix}-chat`;
+  const quotaRef = (uid: string) => db.collection(BACKEND_RATE_LIMIT_COLLECTION).doc(
+    'backend-rate-limit__' + createHash('sha256').update(`${DIRECT_MESSAGE_RATE_LIMIT_ACTION}:${uid}`).digest('hex')
+  );
 
   before(async () => {
     const firebaseFunctionsTest = require('firebase-functions-test');
@@ -54,6 +59,7 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     await db.recursiveDelete(db.doc(`chats/${chatId}`));
     await db.recursiveDelete(db.doc(`users/${actorUid}`));
     await db.recursiveDelete(db.doc(`users/${targetUid}`));
+    await Promise.all([quotaRef(actorUid).delete(), quotaRef(targetUid).delete()]);
     cleanup?.();
   });
 
@@ -434,6 +440,33 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
     const typedMessage = await chat.collection('messages').doc(sent.messageId).get();
     assert.equal(typedMessage.get('content'), content);
     assert.equal(typedMessage.get('email'), undefined);
+  });
+
+  it('deduplicates confirmed retry even when new-message quota is exhausted', async () => {
+    const id = randomUUID();
+    const first = await send('quota retry', id);
+    const ref = quotaRef(actorUid);
+    const original = (await ref.get()).data();
+    const now = Date.now();
+    const exhausted = {
+      burstWindowStartedAt: now,
+      burstCount: DIRECT_MESSAGE_RATE_LIMIT_CONFIG.burstMax,
+      sustainedWindowStartedAt: now,
+      sustainedCount: DIRECT_MESSAGE_RATE_LIMIT_CONFIG.sustainedMax,
+    };
+    await ref.set(exhausted);
+    try {
+      const retry = await send('quota retry', id);
+      assert.equal(retry.messageId, first.messageId);
+      assert.equal(retry.deduplicated, true);
+      assert.deepEqual((await ref.get()).data(), exhausted);
+      const rejectedId = randomUUID();
+      await assert.rejects(send('new message over quota', rejectedId), { code: 'resource-exhausted' });
+      assert.equal((await db.collection(`chats/${chatId}/messages`).where('clientRequestId', '==', rejectedId).get()).empty, true);
+      assert.deepEqual((await ref.get()).data(), exhausted);
+    } finally {
+      if (original) await ref.set(original); else await ref.delete();
+    }
   });
 
   it('nega envio quando a amizade bilateral é removida', async () => {

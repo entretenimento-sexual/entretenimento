@@ -31,6 +31,7 @@ run('reconcileDirectChatAccess — bounded bilateral projection', () => {
   });
   const request = (actor = left, target = right) => invoke({
     data: { peerUid: target },
+    app: { appId: 'test-chat-app' },
     auth: { uid: actor, token: { email_verified: true } },
   }, {});
 
@@ -65,7 +66,7 @@ run('reconcileDirectChatAccess — bounded bilateral projection', () => {
   it('recusa sessão sem e-mail verificado antes de atualizar a projeção', async () => {
     for (const token of [{ email_verified: false }, {}]) {
       await assert.rejects(
-        invoke({ data: { peerUid: right }, auth: { uid: left, token } }, {}),
+        invoke({ data: { peerUid: right }, app: { appId: 'test-chat-app' }, auth: { uid: left, token } }, {}),
         { code: 'failed-precondition', details: { reason: 'email_verification_required' } }
       );
     }
@@ -116,6 +117,7 @@ run('reconcileDirectChatAccess — bounded bilateral projection', () => {
     const missingFriend = db.doc(`users/${right}/friends/${left}`);
     const manageRequest = (targetUid: string) => ({
       data: { targetUid },
+      app: { appId: 'test-chat-app' },
       auth: { uid: left, token: { email_verified: true } },
     });
 

@@ -17,6 +17,17 @@ export const DIRECT_MESSAGE_POLICY_VERSION = 'direct-message-v1' as const;
 export const DIRECT_MESSAGE_MAX_LENGTH = 1000;
 export const DIRECT_MESSAGE_MAX_RAW_LENGTH = 4000;
 
+// One sender-wide quota shared by text and video; initial limits for QA.
+export const DIRECT_MESSAGE_RATE_LIMIT_ACTION = 'send-direct-message';
+export const DIRECT_MESSAGE_RATE_LIMIT_CONFIG = {
+  burstWindowMs: 60_000,
+  burstMax: 60,
+  sustainedWindowMs: 60 * 60_000,
+  sustainedMax: 600,
+};
+export const DIRECT_MESSAGE_RATE_LIMIT_MESSAGE =
+  'Muitas mensagens em pouco tempo. Aguarde antes de enviar novamente.';
+
 const CLIENT_REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
 
 export interface DirectChatDocumentForSend {
@@ -34,7 +45,7 @@ export interface DirectMessageBlockContext {
 export function normalizeDirectChatDocumentId(value: unknown): string {
   const id = typeof value === 'string' ? value.trim() : '';
   if (!id || id.length > 256 || id.includes('/') || id === '.' || id === '..' ||
-      /^__.*__$/.test(id) || /[\u0000-\u001f\u007f]/.test(id)) {
+      /^__.*__$/.test(id) || Array.from(id).some(char => char.charCodeAt(0) <= 31 || char.charCodeAt(0) === 127)) {
     throw new HttpsError('invalid-argument', 'Identificador de conversa ou mensagem inválido.');
   }
   return id;

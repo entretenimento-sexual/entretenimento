@@ -10,6 +10,7 @@ import {
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
 import { db, FieldValue } from '../../../firebaseApp';
 import { assertCallableAppCheck } from '../../../shared/security/callable-app-check';
+import { consumeBackendRateLimitQuotaInTransaction } from '../../../shared/security/backend-rate-limit.service';
 import {
   assertMessagingAccountOperational,
 } from '../../shared/messaging-account.policy';
@@ -17,6 +18,9 @@ import type { MessagingUserDoc } from '../../shared/messaging.types';
 import { assertDirectChatEmailVerified } from '../domain/direct-chat.policy';
 import {
   DIRECT_MESSAGE_POLICY_VERSION,
+  DIRECT_MESSAGE_RATE_LIMIT_ACTION,
+  DIRECT_MESSAGE_RATE_LIMIT_CONFIG,
+  DIRECT_MESSAGE_RATE_LIMIT_MESSAGE,
   assertNoDirectMessagingBlock,
   normalizeDirectChatDocumentId,
   normalizeDirectMessageRequestId,
@@ -220,6 +224,13 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
           'Não foi possível confirmar o envio solicitado.'
         );
       }
+
+      await consumeBackendRateLimitQuotaInTransaction(transaction, {
+        action: DIRECT_MESSAGE_RATE_LIMIT_ACTION,
+        subject: actorUid,
+        config: DIRECT_MESSAGE_RATE_LIMIT_CONFIG,
+        message: DIRECT_MESSAGE_RATE_LIMIT_MESSAGE,
+      });
 
       const content = 'Vídeo compartilhado';
       const nickname = resolveNickname(actor);

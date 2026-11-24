@@ -366,6 +366,10 @@ export class DirectThreadService {
       return 'Não foi possível enviar a mensagem nas condições atuais.';
     }
 
+    if (code.includes('resource-exhausted')) {
+      return 'Muitas mensagens em pouco tempo. Aguarde antes de enviar novamente.';
+    }
+
     if (code.includes('permission-denied')) {
       return 'Esta conversa não está disponível para mensagens.';
     }
@@ -404,6 +408,7 @@ export class DirectThreadService {
           'invalid-argument': userMessage,
           'failed-precondition': userMessage,
           'permission-denied': userMessage,
+          'resource-exhausted': userMessage,
         },
         presentation: { surface: 'snackbar', severity: 'error' },
         metadata: {

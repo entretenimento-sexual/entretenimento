@@ -100,6 +100,10 @@ export class PublicVideoChatShareService {
       }
       return 'A conversa não permite este compartilhamento agora.';
     }
+    if (code.includes('resource-exhausted')) {
+      return 'Muitas mensagens em pouco tempo. Aguarde antes de enviar novamente.';
+    }
+
     if (code.includes('permission-denied')) {
       return 'Esta conversa não está disponível.';
     }

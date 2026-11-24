@@ -39,6 +39,7 @@ import {
 } from '../../../account_lifecycle/interaction-access.policy';
 import { db, FieldValue } from '../../../firebaseApp';
 import { assertCallableAppCheck } from '../../../shared/security/callable-app-check';
+import { consumeBackendRateLimitQuotaInTransaction } from '../../../shared/security/backend-rate-limit.service';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
 import { assertDirectChatEmailVerified } from '../domain/direct-chat.policy';
 
@@ -52,6 +53,9 @@ import type {
 
 import {
   DIRECT_MESSAGE_POLICY_VERSION,
+  DIRECT_MESSAGE_RATE_LIMIT_ACTION,
+  DIRECT_MESSAGE_RATE_LIMIT_CONFIG,
+  DIRECT_MESSAGE_RATE_LIMIT_MESSAGE,
   assertNoDirectMessagingBlock,
   normalizeDirectChatDocumentId,
   normalizeDirectMessageContent,
@@ -293,6 +297,13 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
           'Não foi possível confirmar o envio solicitado.'
         );
       }
+
+      await consumeBackendRateLimitQuotaInTransaction(transaction, {
+        action: DIRECT_MESSAGE_RATE_LIMIT_ACTION,
+        subject: actorUid,
+        config: DIRECT_MESSAGE_RATE_LIMIT_CONFIG,
+        message: DIRECT_MESSAGE_RATE_LIMIT_MESSAGE,
+      });
 
       const nickname = resolveNickname(actor);
 
