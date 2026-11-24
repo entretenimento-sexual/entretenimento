@@ -93,4 +93,37 @@ run('deleteDirectMessage — Firestore Emulator integration', () => {
     assert.equal(preview.content, 'legado');
     assert.equal(preview.messageId, undefined);
   });
+  it('remove referência de vídeo e reações do documento e preview, inclusive em retry legado', async () => {
+    const id = randomUUID();
+    const reference = { ownerUid: actor, videoId: 'video', title: 'private title' };
+    const data = {
+      senderId: actor, senderUid: actor, content: 'Vídeo compartilhado',
+      messageType: 'public_video', publicVideoReference: reference,
+      reactionsByUser: { [peer]: '❤️' }, deleted: true,
+    };
+    await message(id).set(data);
+    await chatRef.update({ lastMessage: { ...data, messageId: id } });
+    await call(actor, id);
+    const removed = (await message(id).get()).data()!;
+    const preview = (await chatRef.get()).data()!.lastMessage;
+    for (const row of [removed, preview]) {
+      assert.equal(row.deleted, true);
+      assert.equal(row.content, 'Mensagem apagada');
+      assert.equal(row.messageType, 'text');
+      assert.equal(row.publicVideoReference, undefined);
+      assert.equal(row.reactionsByUser, undefined);
+    }
+    await call(actor, id);
+    assert.deepEqual((await message(id).get()).data(), removed);
+  });
+
+  it('nega autoria contraditória e não revela existência a terceiro', async () => {
+    const id = randomUUID();
+    await message(id).set({ senderId: actor, senderUid: peer, content: 'conflicting' });
+    await assert.rejects(call(actor, id), { code: 'permission-denied' });
+    for (const candidate of [id, randomUUID()]) {
+      await assert.rejects(call('outsider', candidate), { code: 'permission-denied' });
+    }
+    assert.equal((await message(id).get()).data()?.deleted, undefined);
+  });
 });

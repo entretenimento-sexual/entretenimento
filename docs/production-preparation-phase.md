@@ -64,3 +64,7 @@ Lista compartilhada transporta ownerUid antes de replay; facade rejeita snapshot
 ### CHAT-A5.9 — CI recovery
 
 Quality Gate run 45454233878 on 42295701: 8/13 checks successful; Functions lint/build-tests, Angular tests/build and chat reconciliation failed. Corrected reported TypeScript index signature access and optional chat ID, 36 reported lint issues, outdated worker navigation tests and missing simulated App Check in delete-message integration fixture. No security checks disabled. Re-run CI before further feature work; no projection activation or production deployment.
+
+### CHAT-A6.1 — exclusão lógica e minimização de conteúdo
+
+Base Quality Gate 08d762ca aprovado. Exclusão valida a estrutura canônica de conversa direta antes da existência da mensagem e rejeita aliases conflitantes de autoria. Tombstone remove referência de vídeo e reações por FieldValue.delete e normaliza messageType, incluindo preview identificado pelo ID exato; retry autorizado saneia tombstone legado sem alterar deletedAt/deletedBy. Mantido direito de apagar mensagem própria após bloqueio; status explícito inativo segue política estrutural de envio. Previews sem messageId não são inferidos por texto. Não há varredura retroativa ou revogação de mídia original; pendentes A6.3/A6.6. Testes adicionados, aguardando CI.

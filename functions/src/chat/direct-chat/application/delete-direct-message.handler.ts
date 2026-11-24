@@ -17,7 +17,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db, FieldValue } from '../../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
 import { assertDirectChatEmailVerified } from '../domain/direct-chat.policy';
-import { normalizeDirectChatDocumentId } from '../domain/direct-message.policy';
+import { normalizeDirectChatDocumentId, resolveDirectMessageTargetUid } from '../domain/direct-message.policy';
 import { assertCallableAppCheck } from '../../../shared/security/callable-app-check';
 
 interface DeleteDirectMessageRequest {
@@ -33,6 +33,9 @@ interface DeleteDirectMessageResponse {
 
 interface DirectChatForDelete {
   participants?: unknown;
+  isRoom?: unknown;
+  conversationType?: unknown;
+  conversationStatus?: unknown;
   lastMessage?: {
     messageId?: unknown;
     content?: unknown;
@@ -51,14 +54,11 @@ function normalizeIdentifier(value: unknown): string {
   return String(value ?? '').trim();
 }
 
-function resolveParticipants(chat: DirectChatForDelete | undefined): string[] {
-  return Array.isArray(chat?.participants)
-    ? chat.participants.map((value) => normalizeIdentifier(value)).filter(Boolean)
-    : [];
-}
-
 function resolveSenderId(message: DirectMessageForDelete | undefined): string {
-  return normalizeIdentifier(message?.senderId) || normalizeIdentifier(message?.senderUid);
+  const sender = message?.senderId === undefined ? message?.senderUid : message.senderId;
+  if (typeof sender !== 'string' || !sender || sender !== sender.trim() ||
+      (message?.senderUid !== undefined && message.senderUid !== sender)) return '';
+  return sender;
 }
 
 export const deleteDirectMessage = onCall<DeleteDirectMessageRequest>(
@@ -94,21 +94,13 @@ export const deleteDirectMessage = onCall<DeleteDirectMessageRequest>(
         transaction.get(messageRef),
       ]);
 
-      if (!chatSnapshot.exists) {
-        throw new HttpsError('not-found', 'Conversa não encontrada.');
-      }
-
+      // Validate the conversation before disclosing whether a message exists.
+      const chat = chatSnapshot.data() as DirectChatForDelete | undefined;
+      resolveDirectMessageTargetUid(chat, actorUid);
       if (!messageSnapshot.exists) {
         throw new HttpsError('not-found', 'Mensagem não encontrada.');
       }
-
-      const chat = chatSnapshot.data() as DirectChatForDelete | undefined;
       const message = messageSnapshot.data() as DirectMessageForDelete | undefined;
-      const participants = resolveParticipants(chat);
-
-      if (!participants.includes(actorUid)) {
-        throw new HttpsError('permission-denied', 'Você não participa desta conversa.');
-      }
 
       if (resolveSenderId(message) !== actorUid) {
         throw new HttpsError(
@@ -117,46 +109,50 @@ export const deleteDirectMessage = onCall<DeleteDirectMessageRequest>(
         );
       }
 
-      if (message?.deleted === true) {
-        return;
-      }
-
       const deletedContent = 'Mensagem apagada';
-
-      transaction.set(
-        messageRef,
-        {
-          content: deletedContent,
-          deleted: true,
-          deletedAt: FieldValue.serverTimestamp(),
-          deletedBy: actorUid,
-          reactionsByUser: {},
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
+      const lastMessage = chat?.lastMessage;
+      // Exact document identity only; never guess from duplicated legacy text.
+      const shouldUpdatePreview = lastMessage?.messageId === messageId;
+      const stored = messageSnapshot.data()!;
+      const residualFields = ['publicVideoReference', 'reactionsByUser'];
+      const needsCleanup = stored.content !== deletedContent ||
+        stored.messageType === 'public_video' ||
+        residualFields.some(field => Object.prototype.hasOwnProperty.call(stored, field));
+      const previewNeedsCleanup = shouldUpdatePreview && (
+        lastMessage?.content !== deletedContent || lastMessage?.senderId !== actorUid ||
+        lastMessage?.senderUid !== actorUid ||
+        (lastMessage as Record<string, unknown>).deleted !== true ||
+        (lastMessage as Record<string, unknown>).messageType === 'public_video' ||
+        residualFields.some(field => Object.prototype.hasOwnProperty.call(lastMessage, field))
       );
 
-      const lastMessage = chat?.lastMessage;
-      // Sem ID persistido, textos iguais não identificam a mensagem correta.
-      // Preserva previews legados sem tentar uma correspondência ambígua.
-      const shouldUpdatePreview =
-        normalizeIdentifier(lastMessage?.messageId) === messageId;
+      if (message?.deleted !== true || needsCleanup) {
+        // update replaces maps instead of recursively merging their children.
+        transaction.update(messageRef, {
+          content: deletedContent,
+          deleted: true,
+          ...(message?.deleted === true ? {} : {
+            deletedAt: FieldValue.serverTimestamp(),
+            deletedBy: actorUid,
+          }),
+          publicVideoReference: FieldValue.delete(),
+          reactionsByUser: FieldValue.delete(),
+          messageType: 'text',
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
 
-      if (shouldUpdatePreview) {
-        transaction.set(
-          chatRef,
-          {
-            lastMessage: {
-              ...(lastMessage ?? {}),
-              content: deletedContent,
-              senderId: actorUid,
-              senderUid: actorUid,
-              deleted: true,
-            },
-            updatedAt: FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
+      if (previewNeedsCleanup) {
+        transaction.update(chatRef, {
+          'lastMessage.content': deletedContent,
+          'lastMessage.senderId': actorUid,
+          'lastMessage.senderUid': actorUid,
+          'lastMessage.deleted': true,
+          'lastMessage.messageType': 'text',
+          'lastMessage.publicVideoReference': FieldValue.delete(),
+          'lastMessage.reactionsByUser': FieldValue.delete(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
       }
     });
 
