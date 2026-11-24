@@ -19,6 +19,14 @@ test('photo removal revises gallery atomically in regular and orphan paths', () 
   assert.doesNotMatch(source, /tx\.set\(publicProfileRef/);
 });
 
+test('photo deletion maps projection and parent snapshots to their own references', () => {
+  const source = read('delete-profile-photo.handler.ts');
+  assert.match(
+    source,
+    /const \[existingJob, currentPhoto, currentPublication, currentProjection,\s*publicProfile\] = await Promise\.all\(\[\s*tx\.get\(jobRef\),\s*tx\.get\(privatePhotoRef\),\s*tx\.get\(publicationRef\),\s*tx\.get\(publicPhotoRef\),\s*tx\.get\(publicProfileRef\),\s*\]\)/
+  );
+});
+
 test('video removal revises gallery in the same transaction as projection removal', () => {
   const source = read('video-profile-deletion-commit.firestore.ts');
   assert.match(source, /transaction\.delete\(publicVideoRef\)/);
