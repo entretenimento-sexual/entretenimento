@@ -112,6 +112,34 @@ describe('Firestore Rules / direct chat receipts', () => {
     await assertSucceeds(updateDoc(verified, { ['reactionsByUser.' + RECIPIENT]: '❤️' }));
   });
 
+  it('consulta ampla de chats não é um filtro de autorização bilateral', async () => {
+    const client = env.authenticatedContext(
+      RECIPIENT, { email_verified: true }
+    ).firestore();
+    const root = collection(client, 'chats');
+    const broad = query(root, where('participants', 'array-contains', RECIPIENT));
+    await assertSucceeds(getDoc(doc(root, CHAT_ID)));
+    await assertFails(getDocs(broad));
+    await env.withSecurityRulesDisabled(async (context) => {
+      const admin = context.firestore();
+      await setDoc(doc(admin, 'chats', 'second-chat'), {
+        participants: [RECIPIENT, OUTSIDER],
+      });
+      await setDoc(doc(admin, 'users', SENDER, 'blocks', RECIPIENT), {
+        isBlocked: true,
+      });
+    });
+    await assertFails(getDoc(doc(root, CHAT_ID)));
+    await assertSucceeds(getDoc(doc(root, 'second-chat')));
+    await assertFails(getDocs(broad));
+    await assertFails(getDocs(collection(root, CHAT_ID, 'messages')));
+    await env.withSecurityRulesDisabled(async (context) => {
+      await deleteDoc(doc(context.firestore(), 'users', SENDER, 'blocks', RECIPIENT));
+    });
+    await assertSucceeds(getDoc(doc(root, CHAT_ID)));
+    await assertSucceeds(getDoc(doc(root, 'second-chat')));
+  });
+
   it('nega adulteração da identidade e dos campos autoritativos pelo destinatário', async () => {
     for (const patch of [
       { senderId: RECIPIENT },

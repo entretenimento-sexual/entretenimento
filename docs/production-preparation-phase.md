@@ -72,3 +72,9 @@ Base Quality Gate 08d762ca aprovado. Exclusão valida a estrutura canônica de c
 ### CHAT-A6.2 — rascunhos privados
 
 Quality Gate de87da49 aprovado. Rascunhos de chat ficam exclusivamente no composer em memória; troca de contexto, revogação de envio e destruição descartam texto, sem restauração. Diretiva mantém nomenclatura e elimina somente chaves sessionStorage chat-draft: legadas quando montada/alterada/destruída. Usa permissão de compose existente; não introduz listener de autenticação. Perda de acesso limpa também pendingSend em memória. Intenções de envio com digest permanecem separadas, sujeitas a revisão posterior. Reload/navegação perde rascunho deliberadamente. Limpeza de abas que não montam chat não comprovada. CI e QA pendentes.
+
+### CHAT-R1.1 — contrato de recuperação estrutural
+
+Base 726ac680: Quality Gate aprovado; QA manual revelou false for list. ChatRepository.watchChats$/getChatsPageOnce$ e ChatNotificationService.observeUnreadForUser$ consultam chats por array-contains, incompatível com canUseDirectChat (dupla + bloqueio bilateral); Rules não filtram resultados. Regressão de Rules reproduz consulta ampla negada mesmo quando get individual é autorizado, e prova isolamento entre duas conversas após bloqueio/desbloqueio. Nenhuma regra de produção flexibilizada.
+
+Próxima etapa: projetar descoberta owner-scoped com referências mínimas, sem conteúdo de mensagens/previews e sem usar amizade como requisito de histórico. Resolver exposição de identificadores em registros obsoletos, inicialização de históricos legados, criação/remoção de referências e ciclo de vida antes de ativar. Conteúdo continuará protegido por leitura documental individual e regras bilaterais; compartilhar uma única fonte de descoberta entre lista e unread sem impor limite de 50 ao total. Distinguir loading/erro/vazio e validar recuperação reativa de listeners. Nenhum cutover neste commit. CHAT-A6.3 suspensa até recuperação funcional.
