@@ -1,11 +1,14 @@
-import { BehaviorSubject, Subject, firstValueFrom, of, throwError, combineLatest, map } from 'rxjs';
+import { BehaviorSubject, Subject, firstValueFrom, of, throwError, combineLatest, map, type Observable } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DirectThreadFacade } from './direct-thread.facade';
 import { DirectChatFacade } from './direct-chat.facade';
 
 
-function keyedAccess(chatId$: any, available$: any, uid$: any = of('me')) {
+function keyedAccess(
+  chatId$: Observable<string | null>, available$: Observable<boolean>,
+  uid$: Observable<string | null> = of('me')
+) {
   return combineLatest([chatId$, available$, uid$]).pipe(map(([chatId, available, owner]) =>
     chatId && owner ? { chatId, available, owner, epoch: 1, peer: 'peer' } : null));
 }

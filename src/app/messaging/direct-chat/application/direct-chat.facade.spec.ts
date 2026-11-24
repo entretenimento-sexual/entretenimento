@@ -3,7 +3,6 @@ import { DestroyRef } from '@angular/core';
 import {
   BehaviorSubject,
   firstValueFrom,
-  Observable,
   map,
   of,
   Subject,
