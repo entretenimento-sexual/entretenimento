@@ -52,3 +52,7 @@ Worker exige vínculo ativo e identidade opaca estável do evento; alertas legad
 ### CHAT-A5.7 — eficiência de leitura
 
 Corrigido fragmento duplicado/incompleto em ChatRepository, preservando rethrow e leitura histórica de servidor. DirectChatService compartilha uma única instância de Observable da lista, com gate/UID distintos e refCount. O mapa de não lidas evita reemissões idênticas e não é reconstruído por simples mudança de preview. Não restringir query a senderId sem migração dos aliases legados. O modelo provisório ainda utiliza 1 listener de descoberta + N listeners de recibos (N conversas), além da lista paginada e thread ativa; total geral de notificações também lê todos os documentos não lidos. Esses limites são bloqueadores de escala a validar em A5.8, não uma solução final. Sem estimativa monetária sem medições reais. Compilação e homologação pendentes.
+
+### CHAT-A5.8.8 — governança de ativação
+
+Contrato puro de decisão com bloqueio estrutural da projeção experimental e retorno a RECEIPTS em qualquer condição inválida. Shadow não alimenta a UI. Não há switch operacional ativo. Exigir homologação, cobertura completa, reconciliação incremental, autorização global reativa e rollback real antes de conectar o contrato ao runtime. Ver docs/architecture/direct-unread-backfill-readiness.md.
