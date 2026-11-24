@@ -50,4 +50,53 @@ describe('watchMediaAfterProfileAvailability$', () => {
       .subscribe(value => seen.push(value));
     expect(seen).toEqual([false]);
   });
+
+  it('recupera depois de permission-denied do listener anterior', () => {
+    const profile$ = new Subject<boolean>();
+    const broken$ = new Subject<boolean>();
+    const restored$ = new Subject<boolean>();
+    const observe = vi.fn()
+      .mockImplementationOnce(() => broken$.asObservable())
+      .mockImplementationOnce(() => restored$.asObservable());
+    const seen: boolean[] = [];
+    const subscription = watchMediaAfterProfileAvailability$(
+      profile$, observe
+    ).subscribe((allowed) => seen.push(allowed));
+
+    profile$.next(true);
+    broken$.error({ code: 'permission-denied' });
+    expect(seen).toEqual([false]);
+
+    profile$.next(false);
+    profile$.next(true);
+    expect(observe).toHaveBeenCalledTimes(2);
+    restored$.next(true);
+    expect(seen).toEqual([false, true]);
+    subscription.unsubscribe();
+  });
+
+  it('não reautoriza a partir de um resultado anterior após novo bloqueio', () => {
+    const profile$ = new Subject<boolean>();
+    const first$ = new Subject<boolean>();
+    const second$ = new Subject<boolean>();
+    const observe = vi.fn()
+      .mockImplementationOnce(() => first$.asObservable())
+      .mockImplementationOnce(() => second$.asObservable());
+    const seen: boolean[] = [];
+    const subscription = watchMediaAfterProfileAvailability$(
+      profile$, observe
+    ).subscribe(v => seen.push(v));
+
+    profile$.next(true);
+    first$.next(true);
+    profile$.next(false);
+    first$.next(true);
+    expect(seen).toEqual([true, false]);
+
+    profile$.next(true);
+    second$.next(false); // mídia em quarentena/excluída
+    expect(seen).toEqual([true, false]);
+    expect(observe).toHaveBeenCalledTimes(2);
+    subscription.unsubscribe();
+  });
 });
