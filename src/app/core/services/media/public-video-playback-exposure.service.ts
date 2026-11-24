@@ -2,12 +2,33 @@ import { Injectable, inject } from '@angular/core';
 import { Firestore, doc, docSnapshots } from '@angular/fire/firestore';
 import { Observable, of } from 'rxjs';
 import {
-  catchError, distinctUntilChanged, map,
+  catchError, distinctUntilChanged, map, switchMap,
 } from 'rxjs/operators';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { PublicProfileVisibilityService } from 'src/app/core/services/discovery/public-profile-visibility.service';
-import { combinePublicVideoExposure$ } from './public-media-availability-observer';
+
+
+/**
+ * A autorização do perfil governa o ciclo de vida do listener da mídia.
+ * Enquanto o perfil está oculto, nenhum listener de mídia permanece ativo.
+ * Após restaurar acesso, uma NOVA assinatura recupera o documento público,
+ * inclusive se a antiga terminou com permission-denied durante exclusão.
+ * Uma resposta de cache ou uma URL assinada antiga nunca concede acesso.
+ */
+export function watchMediaAfterProfileAvailability$(
+  profileAvailable$: Observable<boolean>,
+  watchMedia$: () => Observable<boolean>
+): Observable<boolean> {
+  return profileAvailable$.pipe(
+    distinctUntilChanged(),
+    switchMap((available) => available
+      ? watchMedia$().pipe(catchError(() => of(false)))
+      : of(false)
+    ),
+    distinctUntilChanged()
+  );
+}
 
 /**
  * Observa a publicação ativa, o perfil e a projeção bilateral canônica.
@@ -49,7 +70,7 @@ export class PublicVideoPlaybackExposureService {
       const publicRef = doc(
         this.db, `public_profiles/${ownerUid}/${collectionName}/${mediaId}`
       );
-      const publicExposure$ = docSnapshots(publicRef).pipe(
+      const watchPublicExposure$ = () => docSnapshots(publicRef).pipe(
         map((snapshot) => {
           if (snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) {
             return false;
@@ -63,9 +84,10 @@ export class PublicVideoPlaybackExposureService {
         catchError(() => of(false))
       );
 
-      if (ownerUid === viewerUid) return publicExposure$;
-      return combinePublicVideoExposure$(
-        publicExposure$, this.profileVisibility.watch$(ownerUid)
+      if (ownerUid === viewerUid) return watchPublicExposure$();
+      return watchMediaAfterProfileAvailability$(
+        this.profileVisibility.watch$(ownerUid),
+        watchPublicExposure$
       );
     }).pipe(
       distinctUntilChanged(),
