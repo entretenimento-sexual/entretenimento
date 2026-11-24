@@ -168,6 +168,20 @@ describe('DirectReceiptsService', () => {
     expect(updateMessageStatus).toHaveBeenCalledWith('chat-1', 'm1', 'delivered');
   });
 
+  it('ignora autoria ausente, divergente e destinatário incompatível', async () => {
+    const { service, updateMessageStatus } = setup();
+    const count = await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', [
+      { id: 'missing', status: 'sent' },
+      { id: 'conflict', senderId: 'peer', senderUid: 'third', status: 'sent' },
+      { id: 'null', senderId: null, senderUid: 'peer', status: 'sent' },
+      { id: 'wrong-recipient', senderId: 'peer', recipientUid: 'third', status: 'sent' },
+      { id: 'legacy', senderUid: 'peer', status: 'sent' },
+    ] as any));
+    expect(count).toBe(1);
+    expect(updateMessageStatus).toHaveBeenCalledTimes(1);
+    expect(updateMessageStatus).toHaveBeenCalledWith('chat-1', 'legacy', 'delivered');
+  });
+
   it('coalesce chamadas simultâneas para a mesma transição enquanto aguarda confirmação', async () => {
     const { service, updateMessageStatus } = setup();
     const pending = new Subject<void>();

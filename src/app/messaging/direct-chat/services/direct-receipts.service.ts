@@ -218,10 +218,11 @@ export class DirectReceiptsService {
           return null;
         }
 
-        // Ambos os campos existem em mensagens legadas; nenhum pode identificar
-        // o destinatário como autor para fins de recibos.
-        if (message?.senderId === currentUserUid ||
-            message?.senderUid === currentUserUid) {
+        // Compatibilidade com um único campo legado, sem aceitar autoria ambígua.
+        const sender = message.senderId === undefined ? message.senderUid : message.senderId;
+        if (typeof sender !== 'string' || !sender.trim() || sender === currentUserUid ||
+            (message.senderUid !== undefined && message.senderUid !== sender) ||
+            ((message as Message & { recipientUid?: unknown }).recipientUid !== undefined && (message as Message & { recipientUid?: unknown }).recipientUid !== currentUserUid)) {
           return null;
         }
 

@@ -58,14 +58,18 @@ match /chats/{chatId} {
       }
 
       function isMessageReceivedByCurrentUser() {
-        return (
-          resource.data.keys().hasAny(["senderId"])
-          && resource.data.senderId != uid()
-        )
-        || (
-          resource.data.keys().hasAny(["senderUid"])
-          && resource.data.senderUid != uid()
-        );
+        let data = resource.data;
+        let senderId = data.get("senderId", null);
+        let senderUid = data.get("senderUid", null);
+        let sender = data.get("senderId", senderUid);
+        let chat = get(/databases/$(database)/documents/chats/$(chatId)).data;
+        return sender is string
+          && sender.size() > 0
+          && sender != uid()
+          && sender in chat.participants
+          && (!data.keys().hasAny(["senderId"]) || senderId == sender)
+          && (!data.keys().hasAny(["senderUid"]) || senderUid == sender)
+          && (!data.keys().hasAny(["recipientUid"]) || data.recipientUid == uid());
       }
 
       function isForwardReceiptTransition() {

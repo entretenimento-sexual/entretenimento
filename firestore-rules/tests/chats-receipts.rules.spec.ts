@@ -4,7 +4,7 @@ import {
   assertFails, assertSucceeds, initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, where, setDoc, startAfter, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, limit, orderBy, query, where, setDoc, startAfter, updateDoc } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const PROJECT_ID = 'demo-entretenimento-rules';
@@ -361,6 +361,31 @@ describe('Firestore Rules / direct chat receipts', () => {
     await assertFails(updateDoc(message(RECIPIENT), { status: 'sent' }));
     await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'read' }));
     await assertFails(updateDoc(message(RECIPIENT), { status: 'delivered' }));
+  });
+
+  it.each([
+    ['senderId apenas', { senderId: SENDER }],
+    ['senderUid apenas', { senderId: deleteField(), senderUid: SENDER }],
+    ['ambos coerentes', { senderId: SENDER, senderUid: SENDER, recipientUid: RECIPIENT }],
+  ])('aceita autoria legítima: %s', async (_label, patch) => {
+    await adminUpdate(patch);
+    await assertFails(updateDoc(message(SENDER), { status: 'delivered' }));
+    await assertSucceeds(updateDoc(message(RECIPIENT), { status: 'delivered' }));
+  });
+
+  it.each([
+    ['autoria divergente', { senderUid: RECIPIENT }],
+    ['autoria ausente', { senderId: deleteField() }],
+    ['autoria nula', { senderId: null }],
+    ['autoria vazia', { senderId: '' }],
+    ['autoria de terceiro', { senderId: OUTSIDER }],
+    ['destinatário divergente', { recipientUid: OUTSIDER }],
+    ['alias nulo', { senderUid: null }],
+  ])('nega recibos ambíguos sem apagar histórico: %s', async (_label, patch) => {
+    await adminUpdate(patch);
+    await assertSucceeds(getDoc(message(RECIPIENT)));
+    await assertFails(updateDoc(message(RECIPIENT), { status: 'delivered' }));
+    await assertFails(updateDoc(message(SENDER), { status: 'delivered' }));
   });
 
   it('nega atualização por não participante e alteração de outro campo', async () => {
