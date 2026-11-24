@@ -26,6 +26,7 @@ import {
   map,
   shareReplay,
   switchMap,
+  startWith,
   take,
   takeUntil,
   filter,
@@ -94,7 +95,7 @@ export class DirectChatService {
  * - respeita gate de realtime e autenticação;
  * - retorna [] em estado bloqueado, deslogado ou erro.
  */
-private readonly myDirectChats$ = defer(() => combineLatest([
+private readonly myDirectChatScope$ = defer(() => combineLatest([
     this.accessControl.canListenRealtime$,
     this.authSession.uid$,
   ]).pipe(
@@ -103,7 +104,7 @@ private readonly myDirectChats$ = defer(() => combineLatest([
       const safeUid = (uid ?? '').trim();
 
       if (!canListen || !safeUid) {
-        return of([] as IChat[]);
+        return of({ ownerUid: null, chats: [] as IChat[] });
       }
 
       return recoverDirectChatListener$(
@@ -115,19 +116,27 @@ private readonly myDirectChats$ = defer(() => combineLatest([
         }),
         // ChatService já é o dono do diagnóstico do transporte realtime.
         // Aqui apenas convertemos o rethrow em fallback do adapter.
-        catchError(() => of([] as IChat[]))
+        catchError(() => of([] as IChat[])),
+        map(chats => ({ ownerUid: safeUid, chats })),
+        startWith({ ownerUid: safeUid, chats: [] as IChat[] })
       );
     }),
 
     catchError((error) => {
       this.reportSilent(error, 'DirectChatService.getMyDirectChats$');
-      return of([] as IChat[]);
+      return of({ ownerUid: null, chats: [] as IChat[] });
     }),
 
   )).pipe(shareReplay({ bufferSize: 1, refCount: true }));
 
+  private readonly myDirectChats$ = this.myDirectChatScope$.pipe(map(scope => scope.chats));
+
   getMyDirectChats$(): Observable<IChat[]> {
     return this.myDirectChats$;
+  }
+
+  getMyDirectChatScope$(): Observable<{ ownerUid: string | null; chats: IChat[] }> {
+    return this.myDirectChatScope$;
   }
 
   /**

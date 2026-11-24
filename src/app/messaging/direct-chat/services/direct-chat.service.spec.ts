@@ -1,4 +1,4 @@
-import { BehaviorSubject, firstValueFrom, Observable, of, throwError, Subject } from 'rxjs';
+import { filter, BehaviorSubject, firstValueFrom, Observable, of, throwError, Subject } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Functions } from '@angular/fire/functions';
@@ -87,7 +87,7 @@ describe('DirectChatService canonical errors', () => {
     const { service, applicationError } = createHarness({ watchChats$ });
 
     await expect(
-      firstValueFrom(service.getMyDirectChats$())
+      firstValueFrom(service.getMyDirectChats$().pipe(filter(chats => chats.length > 0)))
     ).resolves.toEqual([
       buildChat('direct-1'),
       buildChat('direct-2'),

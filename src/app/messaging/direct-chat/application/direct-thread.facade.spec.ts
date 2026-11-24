@@ -20,7 +20,7 @@ describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
     const availability$ = new BehaviorSubject(false);
     const observeAccess = vi.fn(() => availability$.asObservable());
     const chatFacade = new DirectChatFacade(
-      { getMyDirectChats$: () => chats$.asObservable() } as any,
+      { getMyDirectChatScope$: () => chats$.pipe(map(chats => ({ ownerUid: 'user-a', chats }))) } as any,
       { uid$: uid$.asObservable() } as any,
       { getUsersPublicMap$: () => of({}) } as any,
       { report: vi.fn() } as any,

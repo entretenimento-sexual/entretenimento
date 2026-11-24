@@ -4,6 +4,7 @@ import {
   BehaviorSubject,
   firstValueFrom,
   Observable,
+  map,
   of,
   Subject,
   throwError,
@@ -66,10 +67,10 @@ describe('DirectChatFacade session isolation', () => {
     const userBChats = new Subject<IChat[]>();
 
     const directChatService = {
-      getMyDirectChats$: (): Observable<IChat[]> => {
-        if (currentUid === 'user-a') return userAChats.asObservable();
-        if (currentUid === 'user-b') return userBChats.asObservable();
-        return of([] as IChat[]);
+      getMyDirectChatScope$: () => {
+        const ownerUid = currentUid;
+        const source = ownerUid === 'user-a' ? userAChats : ownerUid === 'user-b' ? userBChats : of([] as IChat[]);
+        return source.pipe(map(chats => ({ ownerUid, chats })));
       },
       ensureDirectChatIdWithUser$: () => of(null),
     } as unknown as DirectChatService;
@@ -154,7 +155,7 @@ describe('DirectChatFacade session isolation', () => {
     const observe$ = vi.fn(() => available$.asObservable());
     const facade = new DirectChatFacade(
       {
-        getMyDirectChats$: () => chats$.asObservable(),
+        getMyDirectChatScope$: () => chats$.pipe(map(chats => ({ ownerUid: 'user-a', chats }))),
       } as unknown as DirectChatService,
       buildAuthSession(uid$),
       { getUsersPublicMap$: () => of({}) } as unknown as FirestoreUserQueryService,
@@ -187,7 +188,7 @@ describe('DirectChatFacade session isolation', () => {
     const chats$ = new BehaviorSubject<IChat[]>([buildChat('invalid', ['peer-b', 'peer-c'])]);
     const observe$ = vi.fn(() => of(true));
     const facade = new DirectChatFacade(
-      { getMyDirectChats$: () => chats$.asObservable() } as unknown as DirectChatService,
+      { getMyDirectChatScope$: () => chats$.pipe(map(chats => ({ ownerUid: 'user-a', chats }))) } as unknown as DirectChatService,
       buildAuthSession(uid$),
       { getUsersPublicMap$: () => of({}) } as unknown as FirestoreUserQueryService,
       buildApplicationError().service,
@@ -223,7 +224,7 @@ describe('DirectChatFacade session isolation', () => {
     const publicProfileId = 'profile-22222222-2222-4222-8222-222222222222';
 
     const directChatService = {
-      getMyDirectChats$: () => chats.asObservable(),
+      getMyDirectChatScope$: () => chats.pipe(map(chats => ({ ownerUid: 'user-a', chats }))),
       ensureDirectChatIdWithUser$: () => of(null),
     } as unknown as DirectChatService;
 
@@ -316,7 +317,7 @@ describe('DirectChatFacade late opening isolation', () => {
     const uid = new BehaviorSubject<string | null>('user-a');
     const pending = new Subject<string | null>();
     const service = {
-      getMyDirectChats$: () => of([] as IChat[]),
+      getMyDirectChatScope$: () => of({ ownerUid: null, chats: [] as IChat[] }),
       ensureDirectChatIdWithUser$: () => pending.asObservable(),
     } as unknown as DirectChatService;
     const query = {
@@ -355,7 +356,7 @@ describe('DirectChatFacade canonical errors', () => {
     const applicationError = buildApplicationError();
 
     const directChatService = {
-      getMyDirectChats$: () => throwError(() => error),
+      getMyDirectChatScope$: () => throwError(() => error),
       ensureDirectChatIdWithUser$: () => of(null),
     } as unknown as DirectChatService;
 
@@ -402,7 +403,7 @@ describe('DirectChatFacade canonical errors', () => {
     ]);
     const getUsersPublicMap$ = vi.fn(() => of({ 'peer-b': { uid: 'peer-b', nickname: 'Perfil B' } }));
     const facade = new DirectChatFacade(
-      { getMyDirectChats$: () => chats.asObservable() } as unknown as DirectChatService,
+      { getMyDirectChatScope$: () => chats.pipe(map(chats => ({ ownerUid: 'user-a', chats }))) } as unknown as DirectChatService,
       buildAuthSession(uidSubject),
       { getUsersPublicMap$ } as unknown as FirestoreUserQueryService,
       buildApplicationError().service,
@@ -430,8 +431,8 @@ describe('DirectChatFacade canonical errors', () => {
     const applicationError = buildApplicationError();
 
     const directChatService = {
-      getMyDirectChats$: () =>
-        of([buildChat('chat-1', ['user-a', 'peer-b'])]),
+      getMyDirectChatScope$: () =>
+        of({ ownerUid: 'user-a', chats: [buildChat('chat-1', ['user-a', 'peer-b'])] }),
       ensureDirectChatIdWithUser$: () => of(null),
     } as unknown as DirectChatService;
 
@@ -482,7 +483,7 @@ describe('DirectChatFacade canonical errors', () => {
     const applicationError = buildApplicationError();
 
     const directChatService = {
-      getMyDirectChats$: () => of([] as IChat[]),
+      getMyDirectChatScope$: () => of({ ownerUid: null, chats: [] as IChat[] }),
       ensureDirectChatIdWithUser$: () => throwError(() => error),
     } as unknown as DirectChatService;
 
@@ -526,7 +527,7 @@ describe('DirectChatFacade canonical errors', () => {
     });
 
     const directChatService = {
-      getMyDirectChats$: () => throwError(() => new Error('listener failed')),
+      getMyDirectChatScope$: () => throwError(() => new Error('listener failed')),
       ensureDirectChatIdWithUser$: () => of(null),
     } as unknown as DirectChatService;
 
@@ -554,4 +555,25 @@ describe('DirectChatFacade canonical errors', () => {
 
     expect(last(emissions)).toEqual([]);
   });
+});
+
+it('never relabels a shared replay from the preceding UID', () => {
+  const uid = new BehaviorSubject<string | null>('user-a');
+  const scope = new BehaviorSubject({ ownerUid: 'user-a', chats: [buildChat('private-a', ['user-a', 'peer'])] });
+  const facade = new DirectChatFacade(
+    { getMyDirectChatScope$: () => scope.asObservable() } as unknown as DirectChatService,
+    buildAuthSession(uid), { getUsersPublicMap$: () => of({}) } as any,
+    buildApplicationError().service, buildDestroyRef(),
+    { observe$: () => of(true) } as any,
+    { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
+  );
+  const seen: IChat[][] = [];
+  const sub = facade.chats$.subscribe(chats => seen.push(chats));
+  expect(last(seen)?.[0]?.id).toBe('private-a');
+  const before = seen.length;
+  uid.next('user-b');
+  expect(seen.slice(before).every(chats => chats.length === 0)).toBe(true);
+  scope.next({ ownerUid: 'user-b', chats: [buildChat('private-b', ['user-b', 'peer'])] });
+  expect(last(seen)?.[0]?.id).toBe('private-b');
+  sub.unsubscribe();
 });

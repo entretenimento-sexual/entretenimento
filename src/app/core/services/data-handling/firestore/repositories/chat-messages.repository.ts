@@ -205,7 +205,7 @@ export class ChatMessagesRepository {
     }).pipe(
       map((snap) =>
         snap.docs
-          .map((d) => ({ id: d.id, ...(d.data() as any) } as Message))
+          .map((d) => ({ ...d.data(), id: d.id } as Message))
           .reverse()
       ),
       catchError((err) => {

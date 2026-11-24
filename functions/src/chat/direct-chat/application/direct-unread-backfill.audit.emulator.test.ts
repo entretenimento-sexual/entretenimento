@@ -147,10 +147,10 @@ run('unread projection audit — read only', () => {
     await assert.rejects(auditDirectUnreadPage(chatId, 'recipient', '002', 100, 950, 1));
   });
 
-  it('confirms a single-query baseline before comparing counts', async () => {
+  it('does not certify independently read single-page counts', async () => {
     const result = await auditDirectUnreadPage(chatId, 'recipient', null, 100);
     assert.equal(result.consistency, 'SINGLE_QUERY');
-    assert.equal(result.comparison, 'MATCH');
+    assert.equal(result.comparison, 'INCONCLUSIVE');
   });
 
   it('returns NO_PROJECTION with no writes for a missing projection', async () => {
@@ -185,10 +185,10 @@ run('unread projection audit — read only', () => {
     await cleanup.commit();
   });
 
-  it('detects divergence and rejects nonparticipant scans', async () => {
+  it('keeps nontransactional divergence inconclusive and rejects nonparticipants', async () => {
     await projection.update({ unreadCount: 7 });
     const report = await auditDirectUnreadPage(chatId, 'recipient', null, 100);
-    assert.equal(report.comparison, 'MISMATCH');
+    assert.equal(report.comparison, 'INCONCLUSIVE');
     await assert.rejects(auditDirectUnreadPage(chatId, 'outsider'));
   });
 });

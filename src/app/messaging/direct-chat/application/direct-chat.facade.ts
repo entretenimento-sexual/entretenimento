@@ -97,11 +97,11 @@ export class DirectChatFacade {
           return of({ uid: null, epoch, chats: [] });
         }
 
-        return this.directChatService.getMyDirectChats$().pipe(
-          map((chats) => ({
+        return this.directChatService.getMyDirectChatScope$().pipe(
+          map((scope) => ({
             uid,
             epoch,
-            chats: Array.isArray(chats) ? chats : [],
+            chats: scope.ownerUid === uid && Array.isArray(scope.chats) ? scope.chats : [],
           })),
           startWith({ uid, epoch, chats: [] }),
           catchError((error) => {
