@@ -26,6 +26,7 @@ import { Observable, combineLatest } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 import { IAppNotification } from 'src/app/core/interfaces/app-notification.interface';
+import { ChatNotificationService } from 'src/app/core/services/batepapo/chat-notification.service';
 import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
 import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { isCommunityNotificationType } from 'src/app/core/services/notifications/community-notification-matrix.policy';
@@ -63,6 +64,7 @@ type ActivityKind =
 })
 export class UserActivityHubComponent {
   private readonly notifications = inject(AppNotificationService);
+  private readonly chatNotification = inject(ChatNotificationService);
   private readonly communityUnreadSummary = inject(
     CommunityNotificationUnreadSummaryService
   );
@@ -71,7 +73,7 @@ export class UserActivityHubComponent {
     {
       id: 'messages',
       label: 'Mensagens',
-      description: 'Conversas novas aguardando resposta',
+      description: 'Mensagens diretas não lidas',
       count: 0,
       icon: '💬',
       route: '/chat',
@@ -119,9 +121,10 @@ export class UserActivityHubComponent {
     this.notifications.currentUserNotifications$,
     this.notifications.currentUserUnreadCount$,
     this.communityUnreadSummary.currentUserUnreadCount$,
+    this.chatNotification.unreadMessagesCount$,
   ]).pipe(
-    map(([items, totalUnread, communityUnreadCount]) =>
-      this.toVm(items, totalUnread, communityUnreadCount)
+    map(([items, totalUnread, communityUnreadCount, messageUnreadCount]) =>
+      this.toVm(items, totalUnread, communityUnreadCount, messageUnreadCount)
     )
   );
 
@@ -132,7 +135,8 @@ export class UserActivityHubComponent {
   private toVm(
     items: IAppNotification[],
     totalUnread: number,
-    communityUnreadCount: number
+    communityUnreadCount: number,
+    messageUnreadCount: number
   ): UserActivityHubVm {
     const unreadItems = (items ?? []).filter((item) => item.readAt === null);
     const counts = new Map<ActivityKind, number>();
@@ -142,15 +146,12 @@ export class UserActivityHubComponent {
 
       // `central` representa o total global e `communities` possui projeção
       // agregada própria. Nenhuma das duas deve ser inferida da janela recente.
-      if (kind !== 'central' && kind !== 'communities') {
+      if (kind !== 'central' && kind !== 'communities' && kind !== 'messages') {
         counts.set(kind, (counts.get(kind) ?? 0) + 1);
       }
     });
 
-    const resolvedTotalUnread = Math.max(
-      this.normalizeCount(totalUnread),
-      unreadItems.length
-    );
+    const resolvedTotalUnread = this.normalizeCount(totalUnread);
     const resolvedCommunityUnread = this.normalizeCount(communityUnreadCount);
     const actions = this.baseActions.map((action) => ({
       ...action,
@@ -158,7 +159,9 @@ export class UserActivityHubComponent {
         ? resolvedTotalUnread
         : action.id === 'communities'
           ? resolvedCommunityUnread
-          : counts.get(action.id) ?? 0,
+          : action.id === 'messages'
+            ? this.normalizeCount(messageUnreadCount)
+            : counts.get(action.id) ?? 0,
     }));
 
     return {

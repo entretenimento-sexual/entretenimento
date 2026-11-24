@@ -151,11 +151,10 @@ export class AppNotificationService {
 
   readonly currentUserNotifications$: Observable<IAppNotification[]> =
     combineLatest([
-      this.session.readyAuthUser$,
+      this.session.readyAuthUser$.pipe(map(user => String(user?.uid ?? '').trim()), distinctUntilChanged()),
       this.currentUserRefreshSubject,
     ]).pipe(
-      switchMap(([user]) => {
-        const uid = String(user?.uid ?? '').trim();
+      switchMap(([uid]) => {
 
         if (!uid) {
           this.currentUserReadStateSubject.next('ready');
@@ -175,7 +174,8 @@ export class AppNotificationService {
             this.currentUserReadStateSubject.next('error');
             this.reportReadError(error, 'currentUserNotifications', { uid });
             return of([]);
-          })
+          }),
+          startWith([] as IAppNotification[])
         );
       }),
       shareReplay({ bufferSize: 1, refCount: true })
@@ -195,24 +195,24 @@ export class AppNotificationService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  readonly currentUserUnreadCount$: Observable<number> = combineLatest([
-    this.session.readyAuthUser$,
-    this.currentUserNotificationReadWindow$,
-    this.unreadCountRefreshSubject,
-  ]).pipe(
-    auditTime(UNREAD_COUNT_COALESCE_MS),
-    switchMap(([user, state]) => {
-      const uid = String(user?.uid ?? '').trim();
-
-      if (!uid) {
-        return of(0);
-      }
-
-      const fallbackCount = state.items.filter(
-        (item) => item.userId === uid && item.readAt == null
-      ).length;
-
-      return this.countUnreadForUser$(uid, fallbackCount);
+  readonly currentUserUnreadCount$: Observable<number> = this.session.readyAuthUser$.pipe(
+    map(user => String(user?.uid ?? '').trim()),
+    distinctUntilChanged(),
+    switchMap(uid => {
+      if (!uid) return of(0);
+      return combineLatest([
+        this.currentUserNotificationReadWindow$,
+        this.unreadCountRefreshSubject,
+      ]).pipe(
+        auditTime(UNREAD_COUNT_COALESCE_MS),
+        switchMap(([state]) => {
+          const fallbackCount = state.items.filter(
+            item => item.userId === uid && item.readAt == null
+          ).length;
+          return this.countUnreadForUser$(uid, fallbackCount);
+        }),
+        startWith(0)
+      );
     }),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })

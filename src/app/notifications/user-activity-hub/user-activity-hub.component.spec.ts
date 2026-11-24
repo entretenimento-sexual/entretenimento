@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
+import { ChatNotificationService } from 'src/app/core/services/batepapo/chat-notification.service';
 import { describe, expect, it } from 'vitest';
 
 import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
@@ -13,6 +14,7 @@ describe('UserActivityHubComponent', () => {
       imports: [UserActivityHubComponent],
       providers: [
         provideRouter([]),
+        { provide: ChatNotificationService, useValue: { unreadMessagesCount$: of(0) } },
         {
           provide: AppNotificationService,
           useValue: {
@@ -153,6 +155,7 @@ describe('UserActivityHubComponent', () => {
       imports: [UserActivityHubComponent],
       providers: [
         provideRouter([]),
+        { provide: ChatNotificationService, useValue: { unreadMessagesCount$: of(0) } },
         {
           provide: AppNotificationService,
           useValue: {
@@ -196,4 +199,36 @@ describe('UserActivityHubComponent', () => {
     ).toBe('1');
     expect(centralLink?.getAttribute('aria-label')).toContain('1 pendência.');
   });
+  it('deriva Mensagens de recibos, sem somar notificações nem inflar a Central', () => {
+    const unreadMessagesCount$ = new BehaviorSubject(4);
+    const total$ = new BehaviorSubject(1);
+    TestBed.configureTestingModule({
+      imports: [UserActivityHubComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ChatNotificationService, useValue: { unreadMessagesCount$ } },
+        { provide: CommunityNotificationUnreadSummaryService, useValue: { currentUserUnreadCount$: of(0) } },
+        { provide: AppNotificationService, useValue: {
+          currentUserUnreadCount$: total$,
+          currentUserNotifications$: of([
+            { id: 'a', type: 'chat', userId: 'u', title: 'Mensagem', body: 'Nova mensagem', route: '/chat', readAt: null },
+            { id: 'b', type: 'chat', userId: 'u', title: 'Mensagem', body: 'Nova mensagem', route: '/chat', readAt: null },
+          ]),
+        } },
+      ],
+    });
+    const fixture = TestBed.createComponent(UserActivityHubComponent);
+    const values: Array<{ messages: number; central: number }> = [];
+    const sub = fixture.componentInstance.vm$.subscribe(vm => values.push({
+      messages: vm.actions.find(action => action.id === 'messages')!.count,
+      central: vm.totalUnread,
+    }));
+    expect(values.at(-1)).toEqual({ messages: 4, central: 1 });
+    unreadMessagesCount$.next(0);
+    expect(values.at(-1)).toEqual({ messages: 0, central: 1 });
+    total$.next(0);
+    expect(values.at(-1)).toEqual({ messages: 0, central: 0 });
+    sub.unsubscribe();
+  });
+
 });
