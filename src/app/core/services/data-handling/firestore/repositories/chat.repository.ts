@@ -6,7 +6,6 @@ import { catchError, map } from 'rxjs/operators';
 import {
   Firestore,
   collection,
-  collectionData,
   getDocs,
   limit,
   orderBy,
@@ -15,7 +14,7 @@ import {
   where,
 } from '@angular/fire/firestore';
 
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, onSnapshot } from 'firebase/firestore';
 
 import { IChat } from '@core/interfaces/interfaces-chat/chat.interface';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
@@ -87,7 +86,13 @@ export class ChatRepository {
         limit(pageSize)
       );
 
-      return collectionData(q as any, { idField: 'id' }) as Observable<IChat[]>;
+      return new Observable<IChat[]>(sink => onSnapshot(q, { includeMetadataChanges: true }, snapshot => {
+        if (snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) {
+          sink.next([]);
+          return;
+        }
+        sink.next(snapshot.docs.map(d => ({ ...d.data(), id: d.id } as IChat)));
+      }, error => sink.error(error)));
     }).pipe(
       map((arr) => (arr ?? []) as IChat[]),
       catchError((err) => {

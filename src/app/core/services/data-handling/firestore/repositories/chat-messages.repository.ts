@@ -21,11 +21,9 @@ import {
   Firestore,
   FieldPath,
   collection,
-  collectionData,
   deleteField,
   doc,
   documentId,
-  getDocs,
   limit,
   orderBy,
   query,
@@ -33,7 +31,7 @@ import {
   updateDoc,
 } from '@angular/fire/firestore';
 
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, onSnapshot, getDocsFromServer } from 'firebase/firestore';
 import { Message } from '@core/interfaces/interfaces-chat/message.interface';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
@@ -203,7 +201,7 @@ export class ChatMessagesRepository {
 
     return defer(() => {
       const q = this.buildDescQuery(cid, boundedChatMessagePageSize(pageSize, 20), lastMessageTimestamp, lastMessageId);
-      return from(this.ctx.run(() => getDocs(q)));
+      return from(this.ctx.run(() => getDocsFromServer(q)));
     }).pipe(
       map((snap) =>
         snap.docs
@@ -225,9 +223,16 @@ export class ChatMessagesRepository {
       // A janela realtime precisa acompanhar as mensagens MAIS RECENTES, inclusive
       // depois de um intervalo offline; não a primeira página histórica.
       const q = this.buildLatestQuery(cid, boundedChatMessagePageSize(pageSize, 60));
-      return this.ctx.run(() =>
-        collectionData(q as any, { idField: 'id' })
-      ) as Observable<Message[]>;
+      return new Observable<Message[]>(sink => this.ctx.run(() =>
+        onSnapshot(q, { includeMetadataChanges: true }, snapshot => {
+          if (snapshot.metadata.fromCache) {
+            sink.next([]);
+            return;
+          }
+          // Preserve local pending receipt transitions for authorized server snapshots.
+          sink.next(snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Message)));
+        }, error => sink.error(error))
+      ));
     }).pipe(
       // A consulta limita pelos últimos timestamps; a UI continua em ordem
       // cronológica crescente, sem alterar o contrato de monitorChat.

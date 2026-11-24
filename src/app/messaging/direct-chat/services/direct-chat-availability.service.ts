@@ -1,7 +1,8 @@
 import { recoverDirectChatListener$ } from './direct-chat-listener-recovery';
 // Projeção privada derivada. Nunca substitui Rules ou Cloud Functions.
 import { EnvironmentInjector, Injectable, runInInjectionContext } from '@angular/core';
-import { doc, docData, Firestore } from '@angular/fire/firestore';
+import { doc, Firestore } from '@angular/fire/firestore';
+import { onSnapshot } from 'firebase/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { defer, from, Observable, of } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
@@ -44,9 +45,16 @@ export class DirectChatAvailabilityService {
 
     return recoverDirectChatListener$(() => defer(() => runInInjectionContext(this.injector, () => {
       const reference = doc(this.firestore, 'direct_chat_access', owner, 'peers', peer);
-      return docData(reference) as Observable<DirectChatAccessProjection | undefined>;
+      return new Observable<{ confirmed: boolean; projection?: DirectChatAccessProjection }>(sink =>
+        onSnapshot(reference, { includeMetadataChanges: true }, snapshot => sink.next({
+          confirmed: !snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites,
+          projection: snapshot.data() as DirectChatAccessProjection | undefined,
+        }), error => sink.error(error))
+      );
     })).pipe(
-      switchMap((projection) => {
+      switchMap(({ confirmed, projection }) => {
+        // Cache misses must not trigger reconciliation or grant permission.
+        if (!confirmed) return of(false);
         if (projection?.version === 1 && typeof projection.available === 'boolean') {
           return of(projection.available);
         }

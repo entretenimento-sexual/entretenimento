@@ -46,4 +46,22 @@ describe('recoverDirectChatListener$', () => {
       expect(failed).toHaveBeenCalledTimes(1);
     } finally { vi.useRealTimers(); }
   });
+  it('restarts an exhausted listener on a lifecycle event without polling', async () => {
+    vi.useFakeTimers();
+    try {
+      const resume = new Subject<void>();
+      const observe = vi.fn().mockReturnValueOnce(throwError(() => ({ code: 'permission-denied' })))
+        .mockReturnValueOnce(of(true));
+      const values: boolean[] = [];
+      const sub = recoverDirectChatListener$<boolean>(observe, () => false, [], resume).subscribe(v => values.push(v));
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(observe).toHaveBeenCalledTimes(1);
+      expect(values).toEqual([false]);
+      resume.next();
+      expect(values).toEqual([false, true]);
+      sub.unsubscribe();
+      expect(resume.observers.length).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
 });
