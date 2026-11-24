@@ -143,9 +143,32 @@ export class FirestoreAccountDataDeletionFullAdapter
         }
 
         transaction.update(chatSnapshot.ref, patch);
+        // CHAT-R1.3: revoke both owner candidates in the same transaction
+        // that pseudonymizes the canonical chat. Shared messages remain intact.
+        for (const participant of participants) {
+          if (!isSafeId(participant) || participant.startsWith('deleted:')) continue;
+          transaction.delete(
+            db.doc(`direct_chat_discovery/${participant}/chats/${chatSnapshot.id}`)
+          );
+        }
       });
     }
 
+    return snapshot.size;
+  }
+
+  async deleteDirectChatDiscoveryReferencesPage(
+    uid: string,
+    limit: number
+  ): Promise<number> {
+    const safeUid = requireUid(uid);
+    const snapshot = await db
+      .collection('direct_chat_discovery')
+      .doc(safeUid)
+      .collection('chats')
+      .limit(limit)
+      .get();
+    await deleteDocumentRefs(snapshot.docs.map(document => document.ref));
     return snapshot.size;
   }
 

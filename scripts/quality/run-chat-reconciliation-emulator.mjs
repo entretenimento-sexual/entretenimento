@@ -47,6 +47,8 @@ try {
   const testCommand = [
     'node --test --test-concurrency=1',
     'functions/lib/chat/direct-chat/application/direct-chat-reconciliation.reader.emulator.test.js',
+    'functions/lib/chat/direct-chat/application/direct-chat-discovery.backfill.emulator.test.js',
+    'functions/lib/account_lifecycle/account-shared-message-anonymization.discovery.emulator.test.js',
     'functions/lib/chat/direct-chat/application/reconcile-direct-chat-access.handler.test.js',
     'functions/lib/chat/direct-chat/application/ensure-direct-chat.handler.test.js',
     'functions/lib/chat/direct-chat/application/send-direct-message.handler.test.js',

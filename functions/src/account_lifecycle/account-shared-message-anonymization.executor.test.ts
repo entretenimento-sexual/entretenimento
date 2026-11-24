@@ -18,6 +18,7 @@ implements AccountSharedMessageAnonymizationAdapter
   reactions: number[] = [0];
   chats: number[] = [0];
   pairs: number[] = [0];
+  discovery: number[] = [0];
   error: unknown = null;
 
   async anonymizeMessageIdentityPage(
@@ -39,6 +40,10 @@ implements AccountSharedMessageAnonymizationAdapter
   async deleteDirectChatPairReferencesPage(): Promise<number> {
     return this.pairs.shift() ?? 0;
   }
+
+  async deleteDirectChatDiscoveryReferencesPage(): Promise<number> {
+    return this.discovery.shift() ?? 0;
+  }
 }
 
 test('shared message domain anonymizes identities, reactions and direct chat metadata', async () => {
@@ -51,6 +56,7 @@ test('shared message domain anonymizes identities, reactions and direct chat met
   adapter.reactions = [2];
   adapter.chats = [2];
   adapter.pairs = [1];
+  adapter.discovery = [2];
 
   const result = await executeSharedMessageAnonymizationDomain(adapter, {
     uid: 'message-owner',
@@ -59,7 +65,7 @@ test('shared message domain anonymizes identities, reactions and direct chat met
   });
 
   assert.equal(result.status, 'completed');
-  assert.equal(result.processed, 13);
+  assert.equal(result.processed, 15);
   assert.deepEqual(result.details, {
     senderIdMessagesAnonymized: 3,
     senderUidMessagesAnonymized: 1,
@@ -67,6 +73,7 @@ test('shared message domain anonymizes identities, reactions and direct chat met
     messageReactionsRemoved: 2,
     directChatsAnonymized: 2,
     directChatPairReferencesDeleted: 1,
+    directChatDiscoveryReferencesDeleted: 2,
   });
 });
 

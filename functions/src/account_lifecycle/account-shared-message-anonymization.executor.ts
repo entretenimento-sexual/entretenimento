@@ -21,6 +21,7 @@ export interface AccountSharedMessageAnonymizationAdapter {
   removeMessageReactionsPage(uid: string, limit: number): Promise<number>;
   anonymizeDirectChatsPage(uid: string, limit: number): Promise<number>;
   deleteDirectChatPairReferencesPage(uid: string, limit: number): Promise<number>;
+  deleteDirectChatDiscoveryReferencesPage(uid: string, limit: number): Promise<number>;
 }
 
 export interface ExecuteSharedMessageAnonymizationInput {
@@ -97,11 +98,17 @@ export async function executeSharedMessageAnonymizationDomain(
       pageSize,
       maxPages
     );
+    const discoveryReferences = await executePagedStep(
+      () => adapter.deleteDirectChatDiscoveryReferencesPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
     const allResults = [
       ...IDENTITY_FIELDS.map((field) => identityResults[field]),
       reactions,
       directChats,
       pairReferences,
+      discoveryReferences,
     ];
     const completed = allResults.every((result) => result.completed);
     const processed = allResults.reduce(
@@ -126,6 +133,7 @@ export async function executeSharedMessageAnonymizationDomain(
         messageReactionsRemoved: reactions.processed,
         directChatsAnonymized: directChats.processed,
         directChatPairReferencesDeleted: pairReferences.processed,
+        directChatDiscoveryReferencesDeleted: discoveryReferences.processed,
       },
     };
   } catch (error: unknown) {
