@@ -44,3 +44,7 @@ O total global usa uma única consulta compartilhada de todas as notificações 
 ### CHAT-A5.5 — contexto de autorização da thread
 
 A autorização observável contém UID, epoch, chatId e peer. A thread compara o identificador e UID antes de abrir ou executar comandos; não combina autorização booleana de um chat com seleção de outro. Removidos resíduos sintáticos das facades e restaurado loaded na leitura bem-sucedida. A sincronização integral entre sessões ainda requer execução dos testes, validação das Rules, recuperação prolongada e revisão das operações assíncronas de notificações.
+
+### CHAT-A5.6 — Web Push
+
+Worker exige vínculo ativo e identidade opaca estável do evento; alertas legados sem identidade são descartados. Conteúdo externo é neutralizado novamente no worker; tag estável substitui duplicatas ainda visíveis sem renotify. Clique exige vínculo atual e abre somente a Central autenticada, sem redirecionar aba arbitrária para deep link privado. Deploy coordenado backend/worker necessário: durante transição, alertas Web antigos podem ser descartados, mas documentos canônicos continuam na Central. Não garante deduplicação após dispensar alerta, nem revogação de push já entregue pelo SO. Supressão de qualquer aba visível e revalidação de lifecycle/bloqueio de chat no backend ainda precisam de revisão; não alterar registro de tokens nesta etapa. Teste isolado: npm run webpush:worker:test.

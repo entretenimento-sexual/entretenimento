@@ -41,6 +41,7 @@
     "audit:visual:strict": "node scripts/quality/audit-visual-density.mjs --strict",
     "appcheck:staging:check": "node scripts/quality/check-app-check-config.mjs staging",
     "appcheck:prod:check": "node scripts/quality/check-app-check-config.mjs prod",
+    "webpush:worker:test": "node --test scripts/tests/web-push-worker.test.mjs",
     "webpush:staging:check": "node scripts/quality/check-web-push-config.mjs staging",
     "webpush:prod:check": "node scripts/quality/check-web-push-config.mjs prod",
     "test": "ng test",

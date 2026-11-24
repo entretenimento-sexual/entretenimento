@@ -12,7 +12,8 @@
 'use strict';
 
 const NOTIFICATION_FALLBACK_ROUTE = '/notificacoes';
-const MAX_NOTIFICATION_ROUTE_LENGTH = 2048;
+const PRIVATE_PUSH_TITLE = 'Entretenimento';
+const PRIVATE_PUSH_BODY = 'Você tem uma nova notificação.';
 const DELIVERY_DATABASE = 'entretenimento-web-push';
 const DELIVERY_STORE = 'delivery';
 const DELIVERY_KEY = 'active';
@@ -43,15 +44,21 @@ function readBindingId() {
 async function displayPush(event) {
   const data = event.data?.json()?.data;
   const id = data?.webPushBinding;
-  if (typeof id !== 'string' || !id || !data.title || !data.body) return;
+  if (!validBinding(id)) return;
+  const eventId = data.webPushEventId;
+  if (typeof eventId !== 'string' || !/^[a-f0-9]{64}$/.test(eventId)) return;
 
   const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
   if (clients.some((client) => client.visibilityState === 'visible')) return;
   if (await readBindingId() !== id) return;
 
-  await self.registration.showNotification(data.title, {
-    body: data.body,
-    data: { route: normalizeNotificationRoute(data.route), webPushBinding: id },
+  // A stable tag replaces the same visible alert without re-alerting.
+  // The worker independently enforces neutral content and destination.
+  await self.registration.showNotification(PRIVATE_PUSH_TITLE, {
+    body: PRIVATE_PUSH_BODY,
+    tag: `push:${id}:${eventId}`,
+    renotify: false,
+    data: { webPushBinding: id },
   });
   // Um logout pode ter confirmado enquanto showNotification aguardava o browser.
   if (await readBindingId() !== id) {
@@ -67,53 +74,12 @@ self.addEventListener('push', (event) => {
   event.waitUntil(displayPush(event).catch(() => undefined));
 });
 
-function hasControlCharacters(value) {
-  return Array.from(value).some((character) => {
-    const code = character.charCodeAt(0);
-    return code <= 31 || code === 127;
-  });
+function validBinding(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{16,128}$/.test(value);
 }
 
-function normalizeNotificationRoute(value) {
-  const route = String(value || '').trim();
-
-  if (
-    !route ||
-    route.length > MAX_NOTIFICATION_ROUTE_LENGTH ||
-    !route.startsWith('/') ||
-    route.startsWith('//') ||
-    route.includes('\\') ||
-    hasControlCharacters(route)
-  ) {
-    return null;
-  }
-
-  try {
-    const resolved = new URL(route, self.location.origin);
-
-    if (resolved.origin !== self.location.origin) {
-      return null;
-    }
-
-    return `${resolved.pathname}${resolved.search}${resolved.hash}`;
-  } catch {
-    return null;
-  }
-}
-
-function resolveNotificationRoute(notificationData) {
-  const directRoute = notificationData?.route;
-  const firebaseRoute = notificationData?.FCM_MSG?.data?.route;
-
-  return (
-    normalizeNotificationRoute(directRoute) ||
-    normalizeNotificationRoute(firebaseRoute) ||
-    NOTIFICATION_FALLBACK_ROUTE
-  );
-}
-
-async function focusOrOpenNotificationRoute(route) {
-  const targetUrl = new URL(route, self.location.origin);
+async function focusOrOpenNotificationRoute(binding) {
+  const targetUrl = new URL(NOTIFICATION_FALLBACK_ROUTE, self.location.origin);
   const windowClients = await self.clients.matchAll({
     type: 'window',
     includeUncontrolled: true,
@@ -133,24 +99,14 @@ async function focusOrOpenNotificationRoute(route) {
     }
   });
 
+  if (await readBindingId() !== binding) return;
   if (exactClient) {
     return exactClient.focus();
   }
 
-  const reusableClient = sameOriginClients[0];
-
-  if (reusableClient && typeof reusableClient.navigate === 'function') {
-    try {
-      const navigatedClient = await reusableClient.navigate(targetUrl.href);
-
-      if (navigatedClient) {
-        return navigatedClient.focus();
-      }
-    } catch {
-      // Se a aba deixou de aceitar navegação, abrimos uma nova janela segura.
-    }
-  }
-
+  // Do not navigate an arbitrary existing tab: it may represent another
+  // independently authenticated session. Open only the generic Central.
+  if (await readBindingId() !== binding) return;
   return self.clients.openWindow(targetUrl.href);
 }
 
@@ -164,11 +120,10 @@ self.addEventListener('notificationclick', (event) => {
 
   event.notification.close();
 
-  const route = resolveNotificationRoute(event.notification.data);
   const binding = event.notification.data?.webPushBinding;
   event.waitUntil((async () => {
-    if (binding && await readBindingId() !== binding) return;
-    await focusOrOpenNotificationRoute(route);
+    if (!validBinding(binding) || await readBindingId() !== binding) return;
+    await focusOrOpenNotificationRoute(binding);
   })());
 });
 

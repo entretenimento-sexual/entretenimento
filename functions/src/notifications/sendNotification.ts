@@ -1,5 +1,6 @@
 // functions/src/notifications/sendNotification.ts
 import {logger} from 'firebase-functions';
+import {createHash} from 'node:crypto';
 import {onDocumentCreated} from 'firebase-functions/v2/firestore';
 import {getMessaging} from 'firebase-admin/messaging';
 import {getFirestore, Timestamp} from 'firebase-admin/firestore';
@@ -376,6 +377,8 @@ export const sendNotification = onDocumentCreated(
       }
     }
 
+    // Stable opaque identity for replacement of duplicate visible Web alerts.
+    const webPushEventId = createHash('sha256').update(notificationId).digest('hex');
     const pushContent = buildPrivatePushContent();
     const deliveryOptions = buildPushNotificationDeliveryOptions();
     const response = await getMessaging().sendEach(targets.map(({ token, webPushBinding }) =>
@@ -383,7 +386,7 @@ export const sendNotification = onDocumentCreated(
         ? {
           token,
           webpush: deliveryOptions.webpush,
-          data: { ...navigationData, ...pushContent, webPushBinding },
+          data: { ...pushContent, webPushBinding, webPushEventId, route: '/notificacoes' },
         }
         : {
           token,
