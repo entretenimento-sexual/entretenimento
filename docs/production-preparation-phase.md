@@ -68,3 +68,7 @@ Quality Gate run 45454233878 on 42295701: 8/13 checks successful; Functions lint
 ### CHAT-A6.1 — exclusão lógica e minimização de conteúdo
 
 Base Quality Gate 08d762ca aprovado. Exclusão valida a estrutura canônica de conversa direta antes da existência da mensagem e rejeita aliases conflitantes de autoria. Tombstone remove referência de vídeo e reações por FieldValue.delete e normaliza messageType, incluindo preview identificado pelo ID exato; retry autorizado saneia tombstone legado sem alterar deletedAt/deletedBy. Mantido direito de apagar mensagem própria após bloqueio; status explícito inativo segue política estrutural de envio. Previews sem messageId não são inferidos por texto. Não há varredura retroativa ou revogação de mídia original; pendentes A6.3/A6.6. Testes adicionados, aguardando CI.
+
+### CHAT-A6.2 — rascunhos privados
+
+Quality Gate de87da49 aprovado. Rascunhos de chat ficam exclusivamente no composer em memória; troca de contexto, revogação de envio e destruição descartam texto, sem restauração. Diretiva mantém nomenclatura e elimina somente chaves sessionStorage chat-draft: legadas quando montada/alterada/destruída. Usa permissão de compose existente; não introduz listener de autenticação. Perda de acesso limpa também pendingSend em memória. Intenções de envio com digest permanecem separadas, sujeitas a revisão posterior. Reload/navegação perde rascunho deliberadamente. Limpeza de abas que não montam chat não comprovada. CI e QA pendentes.

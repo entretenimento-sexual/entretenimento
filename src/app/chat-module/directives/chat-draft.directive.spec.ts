@@ -38,7 +38,6 @@ describe('ChatDraftDirective', () => {
       ],
     });
     const directive = TestBed.runInInjectionContext(() => new ChatDraftDirective());
-    directive.ngOnInit();
     function switchTo(key: string | null) {
       const previous = directive.appChatDraftKey;
       directive.appChatDraftKey = key;
@@ -49,51 +48,53 @@ describe('ChatDraftDirective', () => {
     function type(value: string) {
       textarea.value = value;
       modelValue = value;
-      directive.onInput();
     }
     return { directive, textarea, switchTo, type, model, get modelValue() { return modelValue; } };
   }
 
-  it('isola rascunhos por UID e restaura o texto da chave atual', () => {
+  it('purga rascunhos legados sem restaurar conteúdo ou afetar chaves alheias', () => {
+    sessionStorage.setItem(storageKeys[0], 'texto de A');
     sessionStorage.setItem(storageKeys[1], 'texto de B');
-    const state = setup();
-    state.switchTo('user-a:chat:chat-1');
-    state.type('texto de A');
-    expect(sessionStorage.getItem(storageKeys[0])).toBe('texto de A');
-
-    state.switchTo('user-b:chat:chat-1');
-    expect(state.textarea.value).toBe('texto de B');
-    expect(state.modelValue).toBe('texto de B');
-    expect(sessionStorage.getItem(storageKeys[0])).toBe('texto de A');
-    state.directive.ngOnDestroy();
+    sessionStorage.setItem('unrelated-test-key', 'preserved');
+    try {
+      const state = setup();
+      state.switchTo('user-a:chat:chat-1');
+      expect(state.textarea.value).toBe('');
+      expect(state.modelValue).toBe('');
+      expect(sessionStorage.getItem(storageKeys[0])).toBeNull();
+      expect(sessionStorage.getItem(storageKeys[1])).toBeNull();
+      expect(sessionStorage.getItem('unrelated-test-key')).toBe('preserved');
+    } finally {
+      sessionStorage.removeItem('unrelated-test-key');
+    }
   });
 
-  it('remove rascunho após envio e não restaura ao alternar de conta', () => {
+  it('mantém texto apenas no contexto ativo e descarta na troca de conversa ou conta', () => {
     const state = setup();
     state.switchTo('user-a:chat:chat-1');
-    state.type('mensagem enviada');
-    expect(sessionStorage.getItem(storageKeys[0])).toBe('mensagem enviada');
-
-    state.model.control.setValue('', { emitEvent: true });
+    state.type('privado');
+    state.switchTo('user-a:chat:chat-1');
+    expect(state.textarea.value).toBe('privado');
     expect(sessionStorage.getItem(storageKeys[0])).toBeNull();
+    state.switchTo('user-a:chat:chat-2');
+    expect(state.modelValue).toBe('');
     state.switchTo('user-b:chat:chat-1');
     expect(state.textarea.value).toBe('');
     state.switchTo('user-a:chat:chat-1');
     expect(state.textarea.value).toBe('');
-    state.directive.ngOnDestroy();
   });
 
-  it('não transfere texto após perda do contexto autenticado', () => {
+  it('descarta texto na revogação de acesso e na destruição', () => {
     const state = setup();
     state.switchTo('user-a:chat:chat-1');
     state.type('rascunho privado');
     state.switchTo(null);
+    expect(state.modelValue).toBe('');
+    state.switchTo('user-a:chat:chat-1');
     expect(state.textarea.value).toBe('');
-
-    state.switchTo('user-b:chat:chat-1');
-    expect(state.textarea.value).toBe('');
-    expect(sessionStorage.getItem(storageKeys[0])).toBe('rascunho privado');
-    expect(sessionStorage.getItem(storageKeys[1])).toBeNull();
+    state.type('novo');
     state.directive.ngOnDestroy();
+    expect(state.modelValue).toBe('');
+    expect(sessionStorage.getItem(storageKeys[0])).toBeNull();
   });
 });

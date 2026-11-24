@@ -423,7 +423,11 @@ get shouldShowComposerHelp(): boolean {
       )
       .pipe(
         tap((state) => {
-          if (!state.canSendCurrentMessage) this.starterFeedback.set(null);
+          if (!state.canSendCurrentMessage) {
+            this.starterFeedback.set(null);
+            this.messageContent = '';
+            this.pendingSend = null;
+          }
           this.canSendCurrentMessage.set(state.canSendCurrentMessage);
           this.sendStatusMessageSignal.set(state.statusMessage);
         }),
@@ -435,6 +439,8 @@ get shouldShowComposerHelp(): boolean {
             false
           );
 
+          this.messageContent = '';
+          this.pendingSend = null;
           this.canSendCurrentMessage.set(false);
           this.sendStatusMessageSignal.set(
             'Não foi possível validar o envio agora.'
