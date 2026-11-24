@@ -145,7 +145,7 @@ describe('DirectChatFacade session isolation', () => {
     selectedSubscription.unsubscribe();
   });
 
-  it('bloqueio remoto revoga abertura reativamente e desbloqueio restaura após snapshot', () => {
+  it('amizade controla envio e descoberta canônica revoga leitura reativamente', () => {
     const uid$ = new BehaviorSubject<string | null>('user-a');
     const chats$ = new BehaviorSubject<IChat[]>([
       buildChat('chat-live', ['user-a', 'peer-b']),
@@ -175,9 +175,12 @@ describe('DirectChatFacade session isolation', () => {
     expect(access).toEqual([false, true]);
 
     available$.next(false);
+    expect(access.at(-1)).toBe(true);
+    chats$.next([]);
     expect(access.at(-1)).toBe(false);
-
     available$.next(true);
+    expect(access.at(-1)).toBe(false);
+    chats$.next([buildChat('chat-live', ['user-a', 'peer-b'])]);
     expect(access.at(-1)).toBe(true);
     subscription.unsubscribe();
   });

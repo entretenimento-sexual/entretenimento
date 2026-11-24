@@ -92,7 +92,7 @@ export class DirectThreadFacade {
    * Mantido fora do state$ por compatibilidade com o modelo atual.
    */
   readonly canSend$: Observable<boolean> = this.commandContext$().pipe(
-    map(({ chatId, canOpen, uid, canListen }) => !!chatId && canOpen && !!uid && canListen),
+    map(({ chatId, canOpen, canSend, uid, canListen }) => !!chatId && canOpen && canSend && !!uid && canListen),
     distinctUntilChanged(),
     tap((canSend) => {
       this.dbg('canSend$', { canSend });
@@ -111,6 +111,9 @@ export class DirectThreadFacade {
    * emite imediatamente uma thread vazia.
    */
   readonly state$: Observable<DirectThreadState> = this.commandContext$().pipe(
+    map(({ chatId, canOpen, uid, canListen }) => ({ chatId, canOpen, uid, canListen })),
+    distinctUntilChanged((a, b) => a.chatId === b.chatId && a.uid === b.uid &&
+      a.canOpen === b.canOpen && a.canListen === b.canListen),
     switchMap(({ chatId, canOpen, uid, canListen }) => {
       const permittedChatId =
         chatId && canOpen && String(uid ?? '').trim() && canListen
@@ -187,6 +190,7 @@ export class DirectThreadFacade {
     chatId: string | null;
     uid: string | null;
     canOpen: boolean;
+    canSend: boolean;
     canListen: boolean;
   }> {
     return combineLatest([
@@ -198,17 +202,19 @@ export class DirectThreadFacade {
       map(([chatId, access, uid, canListen]) => ({
         chatId,
         uid: String(uid ?? '').trim() || null,
-        canOpen: !!access && access.available === true && access.chatId === chatId && access.owner === uid,
+        canOpen: !!access && access.readable === true && access.chatId === chatId && access.owner === uid,
+        canSend: !!access && access.available === true && access.chatId === chatId && access.owner === uid,
         canListen,
       })),
       distinctUntilChanged((a, b) => a.chatId === b.chatId && a.uid === b.uid &&
-        a.canOpen === b.canOpen && a.canListen === b.canListen)
+        a.canOpen === b.canOpen && a.canSend === b.canSend && a.canListen === b.canListen)
     );
   }
 
   private withinCommandContext$<T>(
     operation: Observable<T>,
-    context: { chatId: string | null; uid: string | null }
+    context: { chatId: string | null; uid: string | null },
+    requireSend = false
   ): Observable<T> {
     return operation.pipe(
       takeUntil(this.commandContext$().pipe(
@@ -216,6 +222,7 @@ export class DirectThreadFacade {
           current.chatId !== context.chatId ||
           current.uid !== context.uid ||
           !current.canOpen ||
+          (requireSend && !current.canSend) ||
           !current.canListen
         )
       ))
@@ -249,12 +256,13 @@ export class DirectThreadFacade {
     return defer(() => this.commandContext$().pipe(
       take(1),
       switchMap((context) => {
-        if (!context.chatId || !context.uid || !context.canOpen || !context.canListen) {
+        if (!context.chatId || !context.uid || !context.canOpen || !context.canSend || !context.canListen) {
           return of(null);
         }
         return this.withinCommandContext$(
           this.directThreadService.sendMessage$(context.chatId, safeContent, clientRequestId),
-          context
+          context,
+          true
         );
       })
     ));

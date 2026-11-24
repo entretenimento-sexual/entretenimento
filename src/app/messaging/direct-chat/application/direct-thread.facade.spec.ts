@@ -10,7 +10,7 @@ function keyedAccess(
   uid$: Observable<string | null> = of('me')
 ) {
   return combineLatest([chatId$, available$, uid$]).pipe(map(([chatId, available, owner]) =>
-    chatId && owner ? { chatId, available, owner, epoch: 1, peer: 'peer' } : null));
+    chatId && owner ? { chatId, available, readable: available, owner, epoch: 1, peer: 'peer' } : null));
 }
 
 describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
@@ -51,7 +51,11 @@ describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
     chatFacade.selectChat('chat-1');
     expect(states.at(-1)?.messages).toEqual([]);
     expect(canSend.at(-1)).toBe(false);
-    expect(observeMessages$).not.toHaveBeenCalled();
+    expect(observeMessages$).toHaveBeenCalledTimes(1);
+    messages$.next([{ id: 'read-only-history' }]);
+    expect(states.at(-1)?.messages).toEqual([{ id: 'read-only-history' }]);
+    threadFacade.sendMessage$('no-connection').subscribe();
+    expect(sendMessage$).not.toHaveBeenCalled();
 
     availability$.next(true);
     expect(canSend.at(-1)).toBe(true);
@@ -59,8 +63,13 @@ describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
     messages$.next([{ id: 'private-before-block' }]);
     expect(states.at(-1)?.messages).toEqual([{ id: 'private-before-block' }]);
 
-    // Bloqueio remoto atualiza o espelho de acesso e cancela o listener.
+    // Encerrar amizade não remove histórico nem reinicia o listener.
     availability$.next(false);
+    expect(states.at(-1)?.messages).toEqual([{ id: 'private-before-block' }]);
+    expect(observeMessages$).toHaveBeenCalledTimes(1);
+    expect(canSend.at(-1)).toBe(false);
+    // Bloqueio revoga a descoberta canônica e cancela o listener.
+    chats$.next([]);
     expect(canSend.at(-1)).toBe(false);
     expect(states.at(-1)).toMatchObject({ chatId: null, messages: [] });
     expect(messages$.observers.length).toBe(0);
@@ -75,6 +84,8 @@ describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
     // Desbloqueio sem confirmação no snapshot não reabre nada.
     expect(canSend.at(-1)).toBe(false);
     availability$.next(true);
+    expect(states.at(-1)).toMatchObject({ chatId: null, messages: [] });
+    chats$.next([{ id: 'chat-1', participants: ['user-a', 'peer-b'], isRoom: false }]);
     expect(states.at(-1)).toMatchObject({ chatId: 'chat-1', messages: [] });
     expect(observeMessages$).toHaveBeenCalledTimes(2);
     expect(canSend.at(-1)).toBe(true);
@@ -457,7 +468,7 @@ describe('DirectThreadFacade', () => {
 describe('keyed thread permission', () => {
   it('never opens a new chat with the previous chat authorization', () => {
     const selectedChatId$ = new BehaviorSubject('a');
-    const selectedChatAccess$ = new BehaviorSubject<any>({ chatId: 'a', owner: 'me', epoch: 1, peer: 'p', available: true });
+    const selectedChatAccess$ = new BehaviorSubject<any>({ chatId: 'a', owner: 'me', epoch: 1, peer: 'p', available: true, readable: true });
     const observeMessages$ = vi.fn(() => of([]));
     const facade = new DirectThreadFacade(
       { selectedChatId$, selectedChatAccess$, selectedChatCanOpen$: of(true) } as any,
@@ -467,7 +478,7 @@ describe('keyed thread permission', () => {
     const sub = facade.state$.subscribe();
     selectedChatId$.next('b');
     expect(observeMessages$).not.toHaveBeenCalledWith('b');
-    selectedChatAccess$.next({ chatId: 'b', owner: 'me', epoch: 1, peer: 'q', available: true });
+    selectedChatAccess$.next({ chatId: 'b', owner: 'me', epoch: 1, peer: 'q', available: true, readable: true });
     expect(observeMessages$).toHaveBeenCalledWith('b');
     sub.unsubscribe();
   });

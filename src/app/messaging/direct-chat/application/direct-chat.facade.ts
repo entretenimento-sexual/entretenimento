@@ -219,7 +219,7 @@ export class DirectChatFacade {
   );
 
   readonly selectedChatAccess$: Observable<{
-    owner: string; epoch: number; chatId: string; peer: string; available: boolean;
+    owner: string; epoch: number; chatId: string; peer: string; available: boolean; readable: boolean;
   } | null> = combineLatest([
     this.sessionChats$, this.selectedChatRequestSubject,
   ]).pipe(
@@ -243,13 +243,13 @@ export class DirectChatFacade {
         this.reportSilent(error, 'DirectChatFacade.selectedChatCanOpen$');
         return of(false);
       }),
-      map(available => ({ ...context, available }))
+      map(available => ({ ...context, available, readable: true }))
     ) : of(null)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
   readonly selectedChatCanOpen$: Observable<boolean> = this.selectedChatAccess$.pipe(
-    map(access => access?.available === true),
+    map(access => access?.readable === true),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
