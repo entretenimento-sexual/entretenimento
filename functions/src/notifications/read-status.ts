@@ -34,7 +34,9 @@ function getUid(value: unknown): string {
 function getNotificationId(value: unknown): string {
   const notificationId = typeof value === 'string' ? value.trim() : '';
 
-  if (!notificationId || notificationId.length > 160 || notificationId.includes('/') || notificationId === '.' || notificationId === '..' || /^__.*__$/.test(notificationId) || [...notificationId].some(c => c.charCodeAt(0) <= 31 || c.charCodeAt(0) === 127)) {
+  if (!notificationId || notificationId.length > 160 || notificationId.includes('/') ||
+      notificationId === '.' || notificationId === '..' || /^__.*__$/.test(notificationId) ||
+      [...notificationId].some(c => c.charCodeAt(0) <= 31 || c.charCodeAt(0) === 127)) {
     throw new HttpsError('invalid-argument', 'Notificação inválida.');
   }
 

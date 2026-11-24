@@ -60,3 +60,7 @@ Contrato puro de decisão com bloqueio estrutural da projeção experimental e r
 ### CHAT-A5.8.9 — revisão de homologação
 
 Lista compartilhada transporta ownerUid antes de replay; facade rejeita snapshot de outra sessão e limpa a lista na transição. Mantida API getMyDirectChats$. Identificador documental prevalece na paginação de mensagens. Testes de auditoria não transacional atualizados para INCONCLUSIVE; teste de replay entre UIDs adicionado. Não substitui listeners por projeção. Compilação, testes unitários, Rules e integração emulador ainda precisam ser executados no checkout. Não declarar homologação concluída.
+
+### CHAT-A5.9 — CI recovery
+
+Quality Gate run 45454233878 on 42295701: 8/13 checks successful; Functions lint/build-tests, Angular tests/build and chat reconciliation failed. Corrected reported TypeScript index signature access and optional chat ID, 36 reported lint issues, outdated worker navigation tests and missing simulated App Check in delete-message integration fixture. No security checks disabled. Re-run CI before further feature work; no projection activation or production deployment.

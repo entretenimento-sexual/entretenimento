@@ -3,13 +3,13 @@
 export function isDirectMessageUnreadFor(
   data: Record<string, unknown>, ownerUid: string, peerUid: string
 ): boolean {
-  const sender = data.senderId === undefined ? data.senderUid : data.senderId;
+  const sender = data['senderId'] === undefined ? data['senderUid'] : data['senderId'];
   return !!ownerUid && !!peerUid && ownerUid !== peerUid &&
     sender === peerUid &&
-    (data.senderUid === undefined || data.senderUid === sender) &&
-    (data.recipientUid === undefined || data.recipientUid === ownerUid) &&
-    data.deleted !== true &&
-    (data.status === 'sent' || data.status === 'delivered');
+    (data['senderUid'] === undefined || data['senderUid'] === sender) &&
+    (data['recipientUid'] === undefined || data['recipientUid'] === ownerUid) &&
+    data['deleted'] !== true &&
+    (data['status'] === 'sent' || data['status'] === 'delivered');
 }
 
 export interface DirectUnreadState {

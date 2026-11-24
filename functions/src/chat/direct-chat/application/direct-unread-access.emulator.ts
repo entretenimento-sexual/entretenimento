@@ -11,7 +11,9 @@ import { buildShadowUnreadAggregate } from '../domain/direct-unread-global.polic
 
 export async function reconcileShadowUnreadAccessOnEmulator(chatId: string, ownerUid: string) {
   const host = process.env.FIRESTORE_EMULATOR_HOST;
-  const projects = [process.env.GCLOUD_PROJECT, process.env.GOOGLE_CLOUD_PROJECT, process.env.GCP_PROJECT].filter(Boolean);
+  const projects = [
+    process.env.GCLOUD_PROJECT, process.env.GOOGLE_CLOUD_PROJECT, process.env.GCP_PROJECT,
+  ].filter(Boolean);
   if (!host || !/^(127\.0\.0\.1|localhost):[0-9]{1,5}$/.test(host) ||
       !projects.length || projects.some(id => id !== 'demo-entretenimento') ||
       process.env.GOOGLE_APPLICATION_CREDENTIALS) {
@@ -31,7 +33,9 @@ export async function reconcileShadowUnreadAccessOnEmulator(chatId: string, owne
         participants.every(valid) && participants.includes(ownerUid) &&
         participants[0] !== participants[1] &&
         isEligibleExistingDirectChat(chat.data(), participants)) {
-      available = await evaluateShadowHistoryAccessInTransaction(tx, ownerUid, participants.find(uid => uid !== ownerUid)!);
+      available = await evaluateShadowHistoryAccessInTransaction(
+        tx, ownerUid, participants.find(uid => uid !== ownerUid)!
+      );
       // No friendship check: history exposure is separate from send permission.
       if (available && projection.exists) {
         projectedVisibleUnreadCount = buildShadowUnreadAggregate(ownerUid, [
@@ -50,22 +54,24 @@ export async function reconcileShadowUnreadAccessOnEmulator(chatId: string, owne
 }
 
 /** Shared decision for experimental materialization and consistent read-only audits. */
-export async function evaluateShadowHistoryAccessInTransaction(tx: Transaction, ownerUid: string, peerUid: string): Promise<boolean> {
-      const owner = db.collection('users').doc(ownerUid);
-      const peer = db.collection('users').doc(peerUid);
-      const [a, b, ab, ba] = await Promise.all([
-        tx.get(owner), tx.get(peer), tx.get(owner.collection('blocks').doc(peerUid)),
-        tx.get(peer.collection('blocks').doc(ownerUid)),
-      ]);
-      try {
-        assertMessagingAccountOperational(a.data(), { operation: 'ensure-direct-chat', perspective: 'actor' });
-        assertMessagingAccountOperational(b.data(), { operation: 'ensure-direct-chat', perspective: 'target' });
-        assertPlatformAccountAccessData(a.data());
-        assertPlatformAccountAccessData(b.data());
-        return !isBilateralBlockActive({ actorBlock: ab.data(), targetBlock: ba.data() });
-      } catch (error) {
-        if (!(error instanceof HttpsError)) throw error;
-        return false;
-      }
+export async function evaluateShadowHistoryAccessInTransaction(
+  tx: Transaction, ownerUid: string, peerUid: string
+): Promise<boolean> {
+  const owner = db.collection('users').doc(ownerUid);
+  const peer = db.collection('users').doc(peerUid);
+  const [a, b, ab, ba] = await Promise.all([
+    tx.get(owner), tx.get(peer), tx.get(owner.collection('blocks').doc(peerUid)),
+    tx.get(peer.collection('blocks').doc(ownerUid)),
+  ]);
+  try {
+    assertMessagingAccountOperational(a.data(), { operation: 'ensure-direct-chat', perspective: 'actor' });
+    assertMessagingAccountOperational(b.data(), { operation: 'ensure-direct-chat', perspective: 'target' });
+    assertPlatformAccountAccessData(a.data());
+    assertPlatformAccountAccessData(b.data());
+    return !isBilateralBlockActive({ actorBlock: ab.data(), targetBlock: ba.data() });
+  } catch (error) {
+    if (!(error instanceof HttpsError)) throw error;
+    return false;
+  }
 
 }

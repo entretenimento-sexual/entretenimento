@@ -5,7 +5,9 @@ import { DIRECT_UNREAD_MAX_TRANSACTION_ATTEMPTS } from '../domain/direct-unread-
 
 export async function rebuildShadowDirectUnreadGlobalOnEmulator(participantUid: string) {
   const host = process.env.FIRESTORE_EMULATOR_HOST;
-  const projects = [process.env.GCLOUD_PROJECT, process.env.GOOGLE_CLOUD_PROJECT, process.env.GCP_PROJECT].filter(Boolean);
+  const projects = [
+    process.env.GCLOUD_PROJECT, process.env.GOOGLE_CLOUD_PROJECT, process.env.GCP_PROJECT,
+  ].filter(Boolean);
   if (!host || !/^(127\.0\.0\.1|localhost):[0-9]{1,5}$/.test(host) ||
       projects.length === 0 || projects.some(id => id !== 'demo-entretenimento') ||
       process.env.GOOGLE_APPLICATION_CREDENTIALS) {
@@ -16,7 +18,9 @@ export async function rebuildShadowDirectUnreadGlobalOnEmulator(participantUid: 
   return db.runTransaction(async tx => {
     const snapshot = await tx.get(root.collection('chats').orderBy('__name__').limit(MAX_SHADOW_UNREAD_CHATS + 1));
     const previous = await tx.get(root);
-    const next = buildShadowUnreadAggregate(participantUid, snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })));
+    const next = buildShadowUnreadAggregate(
+      participantUid, snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() }))
+    );
     const old = previous.data();
     const changed = !old || Object.entries(next).some(([key, value]) => old[key] !== value);
     if (changed) tx.set(root, { ...next, updatedAt: FieldValue.serverTimestamp() });

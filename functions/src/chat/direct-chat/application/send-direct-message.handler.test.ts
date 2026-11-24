@@ -467,7 +467,9 @@ run('sendDirectMessage — Firestore Emulator transactional integration', () => 
       assert.deepEqual((await ref.get()).data(), exhausted);
       const rejectedId = randomUUID();
       await assert.rejects(send('new message over quota', rejectedId), { code: 'resource-exhausted' });
-      assert.equal((await db.collection(`chats/${chatId}/messages`).where('clientRequestId', '==', rejectedId).get()).empty, true);
+      const rejectedMessages = await db.collection(`chats/${chatId}/messages`)
+        .where('clientRequestId', '==', rejectedId).get();
+      assert.equal(rejectedMessages.empty, true);
       assert.deepEqual((await ref.get()).data(), exhausted);
     } finally {
       if (original) await ref.set(original); else await ref.delete();

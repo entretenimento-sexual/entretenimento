@@ -233,7 +233,7 @@ export class DirectChatFacade {
           !participants.includes(session.uid) ||
           participants.some(uid => typeof uid !== 'string' || !uid.trim())) return null;
       const peer = participants.find(uid => uid !== session.uid);
-      return peer ? { owner: session.uid, epoch: session.epoch, chatId: chat.id, peer } : null;
+      return peer ? { owner: session.uid, epoch: session.epoch, chatId: request.chatId, peer } : null;
     }),
     distinctUntilChanged((a, b) => a === b || (!!a && !!b &&
       a.owner === b.owner && a.epoch === b.epoch && a.chatId === b.chatId && a.peer === b.peer)),

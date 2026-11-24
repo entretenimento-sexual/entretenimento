@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, describe, it } from 'node:test';
 import { db } from '../../../firebaseApp';
-import { TERMS_ACCEPTANCE_VERSION, TERMS_DOCUMENT_VERSION, PRIVACY_NOTICE_VERSION } from '../../../compliance/platform-legal.constants';
+import {
+  TERMS_ACCEPTANCE_VERSION,
+  TERMS_DOCUMENT_VERSION,
+  PRIVACY_NOTICE_VERSION
+} from '../../../compliance/platform-legal.constants';
 import { reconcileShadowUnreadAccessOnEmulator } from './direct-unread-access.emulator';
 
 const run = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip;

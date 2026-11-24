@@ -125,8 +125,8 @@ export async function consumeBackendRateLimitQuotaInTransaction(
   if (!action || !subject) throw new Error('Rate limit requer action e subject válidos.');
   const rateLimitId = buildRateLimitDocumentId(action, subject);
   const rateLimitRef = db
-  .collection(BACKEND_RATE_LIMIT_COLLECTION)
-  .doc(rateLimitId);
+    .collection(BACKEND_RATE_LIMIT_COLLECTION)
+    .doc(rateLimitId);
 
   const snapshot = await transaction.get(rateLimitRef);
   const state = snapshot.exists

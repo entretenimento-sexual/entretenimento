@@ -14,7 +14,9 @@ const validId = (value: unknown): value is string =>
 
 export async function advanceShadowUnreadBackfillOnEmulator(chatId: string, runId: string) {
   const host = process.env.FIRESTORE_EMULATOR_HOST;
-  const projects = [process.env.GCLOUD_PROJECT, process.env.GOOGLE_CLOUD_PROJECT, process.env.GCP_PROJECT].filter(Boolean);
+  const projects = [
+    process.env.GCLOUD_PROJECT, process.env.GOOGLE_CLOUD_PROJECT, process.env.GCP_PROJECT,
+  ].filter(Boolean);
   if (!host || !/^(127\.0\.0\.1|localhost):[0-9]{1,5}$/.test(host) ||
       !projects.length || projects.some(id => id !== 'demo-entretenimento') ||
       process.env.GOOGLE_APPLICATION_CREDENTIALS) throw new Error('Isolated demo emulator required');

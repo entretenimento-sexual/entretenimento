@@ -16,6 +16,7 @@ run('deleteDirectMessage — Firestore Emulator integration', () => {
   const message = (id: string) => chatRef.collection('messages').doc(id);
   const call = (uid: string, id: string) => invoke({
     data: { chatId, messageId: id },
+    app: { appId: 'test-chat-app' },
     auth: { uid, token: { email_verified: true } },
   }, {});
 

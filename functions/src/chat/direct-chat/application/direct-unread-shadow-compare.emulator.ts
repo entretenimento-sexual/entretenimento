@@ -20,7 +20,9 @@ function compare(expected: number | null, stored: unknown, exists: boolean): Com
 
 export async function compareShadowUnreadOnEmulator(chatId: string, ownerUid: string) {
   const host = process.env.FIRESTORE_EMULATOR_HOST;
-  const projects = [process.env.GCLOUD_PROJECT, process.env.GOOGLE_CLOUD_PROJECT, process.env.GCP_PROJECT].filter(Boolean);
+  const projects = [
+    process.env.GCLOUD_PROJECT, process.env.GOOGLE_CLOUD_PROJECT, process.env.GCP_PROJECT,
+  ].filter(Boolean);
   if (!host || !/^(127\.0\.0\.1|localhost):[0-9]{1,5}$/.test(host) ||
       !projects.length || projects.some(id => id !== 'demo-entretenimento') ||
       process.env.GOOGLE_APPLICATION_CREDENTIALS) throw new Error('Isolated demo emulator required');
@@ -54,7 +56,7 @@ export async function compareShadowUnreadOnEmulator(chatId: string, ownerUid: st
     const accessComparison = access.exists && (accessData?.version !== 1 ||
       accessData.coverage !== 'UNVERIFIED' || typeof accessData.available !== 'boolean') ? 'INVALID' :
       access.exists && accessData?.available !== available ? 'MISMATCH' :
-      compare(expectedVisible, accessData?.projectedVisibleUnreadCount, access.exists);
+        compare(expectedVisible, accessData?.projectedVisibleUnreadCount, access.exists);
     let globalComparison: Comparison = 'INCONCLUSIVE';
     let projectedSum: number | null = null;
     if (rows.size <= MAX_SHADOW_UNREAD_CHATS) {
@@ -66,8 +68,8 @@ export async function compareShadowUnreadOnEmulator(chatId: string, ownerUid: st
           stored?.version !== 1 || stored.participantUid !== ownerUid ||
           stored.coverage !== 'UNVERIFIED' || !validCount(stored.projectedChatCount) ||
           !validCount(stored.projectedUnreadCount) ? 'INVALID' :
-          stored.projectedChatCount !== expected.projectedChatCount ? 'MISMATCH' :
-          compare(projectedSum, stored.projectedUnreadCount, true);
+            stored.projectedChatCount !== expected.projectedChatCount ? 'MISMATCH' :
+              compare(projectedSum, stored.projectedUnreadCount, true);
       } catch {
         globalComparison = 'INVALID';
       }

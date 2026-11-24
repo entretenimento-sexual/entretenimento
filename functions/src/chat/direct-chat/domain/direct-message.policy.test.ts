@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { normalizeDirectChatDocumentId, normalizeDirectMessageContent, normalizeDirectMessageRequestId, resolveDirectMessageTargetUid } from './direct-message.policy';
+import {
+  normalizeDirectChatDocumentId,
+  normalizeDirectMessageContent,
+  normalizeDirectMessageRequestId,
+  resolveDirectMessageTargetUid
+} from './direct-message.policy';
 
 describe('resolveDirectMessageTargetUid', () => {
   it('aceita somente dois participantes distintos', () => {

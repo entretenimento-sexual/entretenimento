@@ -233,72 +233,40 @@ test('backend não reescreve /messages sem contexto completo de Sala', () => {
   );
 });
 
-test('worker navega uma aba same-origin para o deep link válido do FCM', async () => {
-  const navigatedUrls: string[] = [];
-  let focusCount = 0;
+test('worker não redireciona uma aba independente e abre somente a Central com vínculo válido', async () => {
   const client: FakeWindowClient = {
     url: 'https://app.example/dashboard/principal',
-    navigate: async (url) => {
-      navigatedUrls.push(url);
-      client.url = url;
-      return client;
-    },
-    focus: async () => {
-      focusCount += 1;
-      return client;
-    },
-  };
-  const harness = createWorkerHarness([client]);
-
-  const eventState = await harness.dispatchClick({
-    FCM_MSG: {
-      data: {
-        route: '/comunidades/abc/post/123?origem=push#comentario',
-      },
-    },
-  });
-
-  assert.deepEqual(navigatedUrls, [
-    'https://app.example/comunidades/abc/post/123?origem=push#comentario',
-  ]);
-  assert.equal(focusCount, 1);
-  assert.equal(harness.openedUrls.length, 0);
-  assert.deepEqual(eventState, {closed: 1, stopped: 1});
-});
-
-test('worker rejeita destino externo e usa a Central como fallback', async () => {
-  const navigatedUrls: string[] = [];
-  const client: FakeWindowClient = {
-    url: 'https://app.example/dashboard/principal',
-    navigate: async (url) => {
-      navigatedUrls.push(url);
-      client.url = url;
-      return client;
-    },
+    navigate: async () => { throw new Error('Unexpected navigation'); },
     focus: async () => client,
   };
   const harness = createWorkerHarness([client]);
-
-  await harness.dispatchClick({route: 'https://evil.example/phish'});
-
-  assert.deepEqual(navigatedUrls, ['https://app.example/notificacoes']);
-  assert.equal(harness.openedUrls.length, 0);
+  await harness.setBinding('account-a-binding');
+  const state = await harness.dispatchClick({
+    webPushBinding: 'account-a-binding', route: '/comunidades/private',
+  });
+  assert.deepEqual(harness.openedUrls, ['https://app.example/notificacoes']);
+  assert.deepEqual(state, {closed: 1, stopped: 1});
 });
 
-test('worker abre a Central quando não existe rota nem aba reutilizável', async () => {
+test('worker rejeita clique legado sem vínculo e rota externa', async () => {
   const harness = createWorkerHarness([]);
+  await harness.setBinding('account-a-binding');
+  await harness.dispatchClick({ route: 'https://evil.example/phish' });
+  await harness.dispatchClick({ FCM_MSG: { data: { route: '/chat' } } });
+  assert.deepEqual(harness.openedUrls, []);
+});
 
-  await harness.dispatchClick({});
-
-  assert.deepEqual(harness.openedUrls, [
-    'https://app.example/notificacoes',
-  ]);
+test('worker abre a Central sem deep link com vínculo confirmado', async () => {
+  const harness = createWorkerHarness([]);
+  await harness.setBinding('account-a-binding');
+  await harness.dispatchClick({ webPushBinding: 'account-a-binding' });
+  assert.deepEqual(harness.openedUrls, ['https://app.example/notificacoes']);
 });
 
 test('worker descarta push legado e push da sessão anterior após revogação ou troca', async () => {
   const harness = createWorkerHarness([]);
   const payload = (webPushBinding: string) => ({
-    data: { webPushBinding, title: 'Entretenimento', body: 'Nova notificação.' },
+    data: { webPushBinding, webPushEventId: 'a'.repeat(64), title: 'Entretenimento', body: 'Nova notificação.' },
   });
 
   await harness.setBinding('account-a-binding');

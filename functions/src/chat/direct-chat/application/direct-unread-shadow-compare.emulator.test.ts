@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
 import { db } from '../../../firebaseApp';
-import { TERMS_ACCEPTANCE_VERSION, TERMS_DOCUMENT_VERSION, PRIVACY_NOTICE_VERSION } from '../../../compliance/platform-legal.constants';
+import {
+  TERMS_ACCEPTANCE_VERSION,
+  TERMS_DOCUMENT_VERSION,
+  PRIVACY_NOTICE_VERSION
+} from '../../../compliance/platform-legal.constants';
 import { compareShadowUnreadOnEmulator } from './direct-unread-shadow-compare.emulator';
 import { rebuildShadowDirectUnreadGlobalOnEmulator } from './direct-unread-global.emulator';
 import { reconcileShadowUnreadAccessOnEmulator } from './direct-unread-access.emulator';
@@ -42,7 +46,10 @@ run('shadow unread comparison', () => {
       assert.equal((await root.get()).updateTime?.toMillis(), before.updateTime?.toMillis());
       assert.equal((await projection.get()).data()?.unreadCount, 1);
     } finally {
-      await Promise.all([db.recursiveDelete(chat), db.recursiveDelete(owner), db.recursiveDelete(peer), db.recursiveDelete(root)]);
+      await Promise.all([
+        db.recursiveDelete(chat), db.recursiveDelete(owner),
+        db.recursiveDelete(peer), db.recursiveDelete(root),
+      ]);
     }
   });
 });

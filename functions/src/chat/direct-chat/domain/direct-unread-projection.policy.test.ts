@@ -66,7 +66,10 @@ it('normalizes only coherent participant authorship and recipient', () => {
   const pair = ['sender', 'recipient'];
   const parse = (data: Record<string, unknown>) => normalizeDirectUnreadMessage('m1', data, pair);
   assert.equal(parse({ senderUid: 'sender', status: 'sent' })?.senderUid, 'sender');
-  assert.equal(parse({ senderId: 'sender', senderUid: 'sender', recipientUid: 'recipient', status: 'delivered' })?.status, 'delivered');
+  assert.equal(
+    parse({ senderId: 'sender', senderUid: 'sender', recipientUid: 'recipient', status: 'delivered' })?.status,
+    'delivered'
+  );
   for (const data of [
     { senderId: 'sender', senderUid: 'recipient', status: 'sent' },
     { senderId: null, senderUid: 'sender', status: 'sent' },
