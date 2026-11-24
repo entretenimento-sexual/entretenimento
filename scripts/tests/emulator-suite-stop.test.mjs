@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { assessEmulatorSuiteShutdown } from '../dev/emulator-suite-stop.policy.mjs';
+import { assessEmulatorSuiteShutdown, assessEmulatorSuiteStopped } from '../dev/emulator-suite-stop.policy.mjs';
 
 const data = {
   hubPid: 200,
@@ -39,3 +39,25 @@ for (const [label, change] of [
     assert.notEqual(assessEmulatorSuiteShutdown({ ...data, ...change }), null);
   });
 }
+
+const stopped = {
+  hubPid: data.hubPid, beforeProcesses: data.processes,
+  processes: data.processes.filter(p => p.pid < data.hubPid), listeners: [],
+};
+test('confirms shutdown when CLI and children are gone and ports are free', () => {
+  assert.equal(assessEmulatorSuiteStopped(stopped), null);
+});
+for (const pid of [200, 300, 301]) {
+  test('refuses shutdown confirmation while PID ' + pid + ' remains', () => {
+    assert.notEqual(assessEmulatorSuiteStopped({ ...stopped, processes: data.processes.filter(p => p.pid === pid) }), null);
+  });
+}
+test('refuses shutdown confirmation when a watched port remains occupied', () => {
+  assert.notEqual(assessEmulatorSuiteStopped({ ...stopped, listeners: [{ port: 8080, pid: 999 }] }), null);
+});
+test('does not require stopping Angular', () => {
+  assert.equal(assessEmulatorSuiteStopped({ ...stopped, listeners: [{ port: 4200, pid: 999 }] }), null);
+});
+test('refuses shutdown confirmation without the previously identified tree', () => {
+  assert.notEqual(assessEmulatorSuiteStopped({ ...stopped, beforeProcesses: [] }), null);
+});
