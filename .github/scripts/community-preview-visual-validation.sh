@@ -342,6 +342,61 @@ run_checked "$OUT/mobile/about.metrics.log" "async (page) => {
 }"
 playwright-cli screenshot --full-page --filename="$OUT/mobile/about.full-page.png"
 
+validate_timeline() {
+  local viewport="$1"
+  run_checked "$OUT/management/$viewport/history.metrics.log" "async (page) => {
+    const hub = page.locator('.community-management-hub');
+    const history = hub.getByRole('button', { name: 'Histórico', exact: true });
+    await history.focus();
+    if (!(await history.evaluate(button => document.activeElement === button))) {
+      throw new Error('History navigation is not keyboard focusable');
+    }
+    await history.press('Enter');
+    const timeline = hub.getByRole('region', { name: 'Histórico administrativo' });
+    await timeline.waitFor({ state: 'visible' });
+    await timeline.getByText('Marina aprovou a entrada de Bia.', { exact: true }).waitFor({ state: 'visible' });
+    const refresh = timeline.getByRole('button', { name: 'Atualizar histórico administrativo' });
+    const more = timeline.getByRole('button', { name: 'Carregar mais', exact: true });
+    const metrics = await timeline.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      const buttons = Array.from(element.querySelectorAll('button'));
+      const minTarget = Math.min(...buttons.map(button => {
+        const box = button.getBoundingClientRect();
+        return Math.min(box.width, box.height);
+      }));
+      return {
+        insideViewport: rect.left >= -1 && rect.right <= window.innerWidth + 1,
+        noOverflow: document.documentElement.scrollWidth <= window.innerWidth + 1,
+        minTarget,
+        hasPrivacyNotice: (element.textContent ?? '').includes('Dados internos de auditoria e evidências não'),
+        timeCount: element.querySelectorAll('time[datetime]').length,
+      };
+    });
+    if (await history.getAttribute('aria-pressed') !== 'true'
+      || !metrics.insideViewport || !metrics.noOverflow || metrics.minTarget < 44
+      || !metrics.hasPrivacyNotice || metrics.timeCount !== 1) {
+      throw new Error('History accessibility validation failed: ' + JSON.stringify(metrics));
+    }
+    await more.click();
+    await timeline.getByText('Rafael destacou uma publicação.', { exact: true }).waitFor({ state: 'visible' });
+    if (await timeline.locator('li').count() !== 2 || await more.count() !== 0) {
+      throw new Error('History pagination did not retain both events');
+    }
+    await refresh.click();
+    await more.waitFor({ state: 'visible' });
+    if (await timeline.locator('li').count() !== 1) {
+      throw new Error('History refresh did not reset pagination');
+    }
+    await hub.getByRole('button', { name: 'Visão geral', exact: true }).click();
+    await timeline.waitFor({ state: 'detached' });
+    const card = hub.locator('.community-management-hub__card').filter({ hasText: 'Histórico administrativo' });
+    await card.click();
+    await timeline.getByText('Marina aprovou a entrada de Bia.', { exact: true }).waitFor({ state: 'visible' });
+    return metrics;
+  }"
+  playwright-cli screenshot --full-page --filename="$OUT/management/$viewport/history.full-page.png"
+}
+
 playwright-cli goto 'http://127.0.0.1:4200/?scenario=owner'
 playwright-cli resize 1440 1100
 
@@ -381,14 +436,14 @@ run_checked "$OUT/management/desktop/overview.metrics.log" "async (page) => {
       hasTitle: (hub?.textContent ?? '').includes('Gestão da Comunidade'),
       hasCapacity: (hub?.textContent ?? '').includes('86 de 100 integrantes'),
       heavyChildren: document.querySelectorAll(
-        'app-community-member-roster-management, app-community-settings, app-community-ownership-management'
+        'app-community-member-roster-management, app-community-settings, app-community-ownership-management, app-community-admin-timeline'
       ).length,
     };
   });
   const expectedContentTabs = ['Mural', 'Fotos', 'Membros', 'Sobre'];
   const expectedManagementActions = ['Gestão', 'Convites'];
-  const expectedNav = ['Visão geral', 'Solicitações', 'Participantes', 'Configurações', 'Propriedade'];
-  const expectedCards = ['Solicitações', 'Participantes', 'Convites', 'Configurações', 'Moderação', 'Capacidade', 'Propriedade'];
+  const expectedNav = ['Visão geral', 'Solicitações', 'Participantes', 'Configurações', 'Histórico', 'Propriedade'];
+  const expectedCards = ['Solicitações', 'Participantes', 'Convites', 'Configurações', 'Moderação', 'Capacidade', 'Histórico administrativo', 'Propriedade'];
   if (
     metrics.scrollWidth > metrics.viewportWidth + 1
     || metrics.contentTabCount !== expectedContentTabs.length
@@ -398,9 +453,9 @@ run_checked "$OUT/management/desktop/overview.metrics.log" "async (page) => {
     || metrics.duplicatedAdminRail
     || metrics.hubWidth < 700
     || metrics.navLabels.length !== expectedNav.length
-    || !expectedNav.every((label) => metrics.navLabels.some((value) => value.includes(label)))
+    || !expectedNav.every((label, index) => metrics.navLabels[index] === label)
     || metrics.cardCount !== expectedCards.length
-    || !expectedCards.every((label) => metrics.cardLabels.includes(label))
+    || !expectedCards.every((label, index) => metrics.cardLabels[index] === label)
     || !metrics.hasOwnerLabel
     || !metrics.hasTitle
     || !metrics.hasCapacity
@@ -424,7 +479,7 @@ run_checked "$OUT/management/desktop/requests.metrics.log" "async (page) => {
     hasContextualEmptyState: text.includes('Nenhuma solicitação de entrada pendente.'),
     scrollWidth: await page.evaluate(() => document.documentElement.scrollWidth),
     heavyChildren: await page.locator(
-      'app-community-member-roster-management, app-community-settings, app-community-ownership-management'
+      'app-community-member-roster-management, app-community-settings, app-community-ownership-management, app-community-admin-timeline'
     ).count(),
   };
   if (
@@ -438,6 +493,8 @@ run_checked "$OUT/management/desktop/requests.metrics.log" "async (page) => {
   return metrics;
 }"
 playwright-cli screenshot --full-page --filename="$OUT/management/desktop/requests.full-page.png"
+
+validate_timeline desktop
 
 playwright-cli goto 'http://127.0.0.1:4200/?scenario=owner'
 playwright-cli resize 390 844
@@ -492,11 +549,14 @@ run_checked "$OUT/management/mobile/overview.metrics.log" "async (page) => {
         (button) => (button.textContent ?? '').trim()
       ),
       navCount: document.querySelectorAll('.community-management-hub__nav button').length,
+      navLabels: Array.from(document.querySelectorAll('.community-management-hub__nav button'))
+        .map((button) => (button.textContent ?? '').trim()),
       cardCount: cards.length,
+      cardLabels: cards.map((card) => (card.querySelector('strong')?.textContent ?? '').trim()),
       cardsInsideViewport,
       hasTitle: (hub?.textContent ?? '').includes('Gestão da Comunidade'),
       heavyChildren: document.querySelectorAll(
-        'app-community-member-roster-management, app-community-settings, app-community-ownership-management'
+        'app-community-member-roster-management, app-community-settings, app-community-ownership-management, app-community-admin-timeline'
       ).length,
     };
   });
@@ -513,8 +573,10 @@ run_checked "$OUT/management/mobile/overview.metrics.log" "async (page) => {
       metrics.managementActionLabels.some((value) => value.includes(label))
     )
     || metrics.managementActionMinHeight < 44
-    || metrics.navCount !== 5
-    || metrics.cardCount !== 7
+    || metrics.navCount !== ['Visão geral', 'Solicitações', 'Participantes', 'Configurações', 'Histórico', 'Propriedade'].length
+    || !['Visão geral', 'Solicitações', 'Participantes', 'Configurações', 'Histórico', 'Propriedade'].every((label, index) => metrics.navLabels[index] === label)
+    || metrics.cardCount !== ['Solicitações', 'Participantes', 'Convites', 'Configurações', 'Moderação', 'Capacidade', 'Histórico administrativo', 'Propriedade'].length
+    || !['Solicitações', 'Participantes', 'Convites', 'Configurações', 'Moderação', 'Capacidade', 'Histórico administrativo', 'Propriedade'].every((label, index) => metrics.cardLabels[index] === label)
     || !metrics.cardsInsideViewport
     || !metrics.hasTitle
     || metrics.heavyChildren !== 0
@@ -528,6 +590,8 @@ run_checked "$OUT/management/mobile/overview.metrics.log" "async (page) => {
 playwright-cli snapshot --filename="$OUT/management/mobile/overview.accessibility.yml"
 playwright-cli screenshot --filename="$OUT/management/mobile/overview.viewport.png"
 playwright-cli screenshot --full-page --filename="$OUT/management/mobile/overview.full-page.png"
+
+validate_timeline mobile
 
 mkdir -p "$OUT/browser-console"
 while IFS= read -r console_file; do

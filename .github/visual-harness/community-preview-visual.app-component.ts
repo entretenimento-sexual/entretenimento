@@ -20,6 +20,8 @@ import type {
   CommunityFeedPostCreateRequest,
   CommunityFeedReactionRequest,
 } from './community/data-access/community-feed.model';
+import { CommunityAdminTimelineRepository } from './community/data-access/community-admin-timeline.repository';
+import { normalizeCommunityAdminTimelinePage } from './community/data-access/community-admin-timeline.model';
 import { CommunityMemberRosterRepository } from './community/data-access/community-member-roster.repository';
 import { normalizeCommunityMemberRosterPage } from './community/data-access/community-member-roster.model';
 import { CommunityMemberSearchRepository } from './community/data-access/community-member-search.repository';
@@ -272,6 +274,35 @@ const memberSearchRepository = {
   },
 };
 
+// Only the sanitized callable DTO is represented in the isolated visual fixture.
+const adminTimelineRepository = {
+  getPage$: (_communityId: string, cursor: string | null = null) => {
+    const page = normalizeCommunityAdminTimelinePage({
+      items: cursor ? [{
+        id: 'visual-event-2',
+        category: 'moderation',
+        eventType: 'highlight_changed',
+        actor: { kind: 'user', label: 'Rafael' },
+        subject: null,
+        details: { action: 'pinned' },
+        createdAt: now - 60_000,
+      }] : [{
+        id: 'visual-event-1',
+        category: 'membership',
+        eventType: 'membership_approved',
+        actor: { kind: 'user', label: 'Marina' },
+        subject: { kind: 'user', label: 'Bia' },
+        details: {},
+        createdAt: now,
+      }],
+      nextCursor: cursor ? null : 'visual-next',
+      generatedAt: now,
+    });
+    if (!page) throw new Error('Invalid visual admin timeline fixture');
+    return of(page);
+  },
+};
+
 const previewRepository = {
   getPreview$: () => of(currentPreview()),
 };
@@ -351,6 +382,7 @@ const route = {
   providers: [
     { provide: ActivatedRoute, useValue: route },
     { provide: MatDialog, useValue: { open: () => ({ afterClosed: () => of(false) }) } },
+    { provide: CommunityAdminTimelineRepository, useValue: adminTimelineRepository },
     { provide: CommunityMemberRosterRepository, useValue: rosterRepository },
     { provide: CommunityMemberSearchRepository, useValue: memberSearchRepository },
     { provide: CommunityPreviewRepository, useValue: previewRepository },

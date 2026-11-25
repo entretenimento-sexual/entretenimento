@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { CommunityAdminTimelineRepository } from '../data-access/community-admin-timeline.repository';
 import { CommunityMemberManagementRepository } from '../data-access/community-member-management.repository';
 import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
 import { CommunityPreviewViewerRole } from '../data-access/community-preview.model';
@@ -23,6 +24,9 @@ describe('CommunityMembershipManagementComponent', () => {
   const memberManagementRepositoryMock = {
     getManagedMembersPage$: vi.fn(),
     manageMember$: vi.fn(),
+  };
+  const timelineRepositoryMock = {
+    getPage$: vi.fn().mockReturnValue(of({ items: [], nextCursor: null, generatedAt: 100 })),
   };
   const settingsRepositoryMock = { updateSettings$: vi.fn() };
   const tagRepositoryMock = { getCommunityTagCatalog$: vi.fn() };
@@ -65,6 +69,7 @@ describe('CommunityMembershipManagementComponent', () => {
       providers: [
         provideRouter([]),
         { provide: CommunityMembershipRepository, useValue: repositoryMock },
+        { provide: CommunityAdminTimelineRepository, useValue: timelineRepositoryMock },
         {
           provide: CommunityMemberManagementRepository,
           useValue: memberManagementRepositoryMock,
@@ -100,6 +105,33 @@ describe('CommunityMembershipManagementComponent', () => {
     fixture.detectChanges();
     fixture.detectChanges();
   }
+
+  it.each(['owner', 'admin'] as const)('habilita o Histórico somente sob demanda para %s', async (role) => {
+    const fixture = createFixture('community', role);
+    expect(fixture.componentInstance.canViewAuditPanel()).toBe(true);
+    expect(fixture.nativeElement.querySelector('app-community-admin-timeline')).toBeNull();
+    expect(timelineRepositoryMock.getPage$).not.toHaveBeenCalled();
+    selectPanel(fixture, 'audit');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('app-community-admin-timeline')).not.toBeNull();
+    expect(timelineRepositoryMock.getPage$).toHaveBeenCalledWith('community-1');
+    selectPanel(fixture, 'overview');
+    expect(fixture.nativeElement.querySelector('app-community-admin-timeline')).toBeNull();
+  });
+
+  it.each([
+    ['community', 'moderator'],
+    ['community', 'member'],
+    ['venue', 'owner'],
+  ] as const)('não monta Histórico para %s/%s, inclusive por seleção direta', (sourceType, role) => {
+    const fixture = createFixture(sourceType, role);
+    expect(fixture.componentInstance.canViewAuditPanel()).toBe(false);
+    expect(fixture.nativeElement.textContent).not.toContain('Histórico administrativo');
+    selectPanel(fixture, 'audit');
+    expect(fixture.nativeElement.querySelector('app-community-admin-timeline')).toBeNull();
+    expect(timelineRepositoryMock.getPage$).not.toHaveBeenCalled();
+  });
 
   function seedPendingRequest(): void {
     repositoryMock.getMembershipRequests$.mockReturnValue(
