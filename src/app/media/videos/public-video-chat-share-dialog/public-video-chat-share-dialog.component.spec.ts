@@ -6,6 +6,7 @@ import {
 import { BehaviorSubject, Subject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { PublicVideoChatShareService } from 'src/app/core/services/media/public-video-chat-share.service';
 import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
@@ -25,11 +26,17 @@ const CHAT = {
 describe('PublicVideoChatShareDialogComponent', () => {
   let close: ReturnType<typeof vi.fn>;
   let allowed$: BehaviorSubject<boolean>;
+  let uid$: BehaviorSubject<string | null>;
+  let state$: BehaviorSubject<any>;
+  let observeCanSendToChat$: ReturnType<typeof vi.fn>;
   let sendToChat$: ReturnType<typeof vi.fn>;
   let showSuccess: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     allowed$ = new BehaviorSubject(true);
+    uid$ = new BehaviorSubject<string | null>('viewer_1');
+    state$ = new BehaviorSubject({ items: [CHAT], selectedChatId: null, loading: false, loaded: true, errorMessage: null });
+    observeCanSendToChat$ = vi.fn(() => allowed$);
     close = vi.fn();
     sendToChat$ = vi.fn(() => of('message_1'));
     showSuccess = vi.fn();
@@ -40,6 +47,7 @@ describe('PublicVideoChatShareDialogComponent', () => {
         {
           provide: MAT_DIALOG_DATA,
           useValue: {
+            expectedActorUid: 'viewer_1',
             video: {
               id: 'video_1',
               ownerUid: 'owner_1',
@@ -48,17 +56,12 @@ describe('PublicVideoChatShareDialogComponent', () => {
           },
         },
         { provide: MatDialogRef, useValue: { close } },
+        { provide: AuthSessionService, useValue: { uid$ } },
         {
           provide: DirectChatFacade,
           useValue: {
-            observeCanSendToChat$: () => allowed$,
-            state$: of({
-              items: [CHAT],
-              selectedChatId: null,
-              loading: false,
-              loaded: true,
-              errorMessage: null,
-            }),
+            observeCanSendToChat$,
+            state$,
           },
         },
         {
@@ -83,6 +86,7 @@ describe('PublicVideoChatShareDialogComponent', () => {
 
     expect(sendToChat$).toHaveBeenCalledWith({
       chatId: 'chat_1',
+      expectedActorUid: 'viewer_1',
       ownerUid: 'owner_1',
       videoId: 'video_1',
     });
@@ -123,5 +127,42 @@ describe('PublicVideoChatShareDialogComponent', () => {
     expect(close).not.toHaveBeenCalled();
     expect(showSuccess).not.toHaveBeenCalled();
     expect(fixture.componentInstance.sendingChatId()).toBeNull();
+  });
+
+  it('limpa o seletor e cancela o envio após trocar de conta, sem rearmar na mesma conta', () => {
+    const fixture = TestBed.createComponent(PublicVideoChatShareDialogComponent);
+    fixture.detectChanges();
+    const pending = new Subject<string>();
+    sendToChat$.mockReturnValue(pending);
+    fixture.componentInstance.sendTo(CHAT);
+    expect(fixture.componentInstance.sendingChatId()).toBe('chat_1');
+    const calls = observeCanSendToChat$.mock.calls.length;
+
+    uid$.next(null);
+    expect(fixture.componentInstance.sendingChatId()).toBeNull();
+    uid$.next('viewer_2');
+    state$.next({ ...state$.value, items: [{ ...CHAT, id: 'chat_2' }] });
+    uid$.next('viewer_1');
+    state$.next({ ...state$.value, items: [CHAT] });
+    pending.next('late-message');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.canSendTo(CHAT)).toBe(false);
+    expect(observeCanSendToChat$.mock.calls.length).toBe(calls);
+    expect(fixture.nativeElement.textContent).toContain('Compartilhamento encerrado');
+    expect(fixture.nativeElement.textContent).not.toContain('Outro perfil');
+    fixture.componentInstance.sendTo(CHAT);
+    expect(sendToChat$).toHaveBeenCalledTimes(1);
+    expect(showSuccess).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it('não consulta conversas se o seletor abrir em outra conta', () => {
+    uid$.next('viewer_2');
+    const fixture = TestBed.createComponent(PublicVideoChatShareDialogComponent);
+    fixture.detectChanges();
+    expect(observeCanSendToChat$).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.canSendTo(CHAT)).toBe(false);
+    fixture.componentInstance.sendTo(CHAT);
+    expect(sendToChat$).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
+import { BehaviorSubject } from 'rxjs';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
@@ -16,15 +19,18 @@ const VIDEO = {
 describe('PublicVideoShareActionsComponent', () => {
   let sharePublicVideo: ReturnType<typeof vi.fn>;
   let openDialog: ReturnType<typeof vi.fn>;
+  let uid$: BehaviorSubject<string | null>;
 
   beforeEach(() => {
     sharePublicVideo = vi.fn().mockResolvedValue('shared');
     openDialog = vi.fn();
+    uid$ = new BehaviorSubject<string | null>('viewer_1');
 
     TestBed.configureTestingModule({
       imports: [PublicVideoShareActionsComponent],
       providers: [
         { provide: MatDialog, useValue: { open: openDialog } },
+        { provide: AuthSessionService, useValue: { uid$ } },
         {
           provide: PublicVideoShareService,
           useValue: { sharePublicVideo },
@@ -116,6 +122,7 @@ describe('PublicVideoShareActionsComponent', () => {
       expect.any(Function),
       expect.objectContaining({
         data: {
+          expectedActorUid: 'viewer_1',
           video: {
             id: 'video_1',
             ownerUid: 'owner_1',
@@ -124,5 +131,27 @@ describe('PublicVideoShareActionsComponent', () => {
         },
       })
     );
+  });
+
+  it('não abre seletor antigo após logout e login no mesmo UID durante o import', async () => {
+    const fixture = TestBed.createComponent(PublicVideoShareActionsComponent);
+    fixture.componentRef.setInput('video', VIDEO);
+    fixture.detectChanges();
+    const action = fixture.componentInstance.sendToConversation();
+    uid$.next(null);
+    uid$.next('viewer_1');
+    await action;
+    expect(openDialog).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.openingConversationPicker()).toBe(false);
+  });
+
+  it('não abre seletor após troca de vídeo durante o import', async () => {
+    const fixture = TestBed.createComponent(PublicVideoShareActionsComponent);
+    fixture.componentRef.setInput('video', VIDEO);
+    fixture.detectChanges();
+    const action = fixture.componentInstance.sendToConversation();
+    fixture.componentRef.setInput('video', { ...VIDEO, id: 'video_2' });
+    await action;
+    expect(openDialog).not.toHaveBeenCalled();
   });
 });

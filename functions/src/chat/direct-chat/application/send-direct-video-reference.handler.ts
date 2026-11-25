@@ -34,6 +34,7 @@ import {
 
 interface SendDirectVideoReferenceRequest {
   chatId?: unknown;
+  expectedActorUid?: unknown;
   clientRequestId?: unknown;
   publicVideoReference?: unknown;
 }
@@ -88,6 +89,12 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
 
     if (!actorUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+    }
+    // Older clients may omit this field during rollout. New clients bind
+    // the intent to their captured actor, never to the video owner.
+    if (request.data?.expectedActorUid !== undefined &&
+        request.data.expectedActorUid !== actorUid) {
+      throw new HttpsError('permission-denied', 'A sessão do compartilhamento mudou.');
     }
     assertDirectChatEmailVerified(
       request.auth?.token?.email_verified, 'Verifique seu e-mail antes de enviar mensagens.'

@@ -1,13 +1,17 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, from, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { catchError, distinctUntilChanged, filter, map, takeUntil } from 'rxjs/operators';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+
 
 import { MediaApplicationErrorService } from './media-application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 interface SendDirectVideoReferenceRequest {
   chatId: string;
+  expectedActorUid: string;
   clientRequestId: string;
   publicVideoReference: {
     ownerUid: string;
@@ -26,6 +30,10 @@ const SAFE_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 @Injectable({ providedIn: 'root' })
 export class PublicVideoChatShareService {
   private readonly functions = inject(Functions);
+  private readonly authSession = inject(AuthSessionService);
+  private readonly session = toSignal(this.authSession.uid$.pipe(
+    distinctUntilChanged(), map(uid => ({ uid }))
+  ), { initialValue: { uid: null } });
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(MediaApplicationErrorService);
   private readonly callable = httpsCallable<
@@ -42,9 +50,13 @@ export class PublicVideoChatShareService {
    */
   sendToChat$(params: {
     chatId: string;
+    expectedActorUid: string;
     ownerUid: string;
     videoId: string;
   }): Observable<string | null> {
+    const session = this.session();
+    const expectedActorUid = this.normalizeId(params.expectedActorUid);
+    if (!expectedActorUid || session.uid !== expectedActorUid) return of(null);
     const chatId = this.normalizeId(params.chatId);
     const ownerUid = this.normalizeId(params.ownerUid);
     const videoId = this.normalizeId(params.videoId);
@@ -56,17 +68,24 @@ export class PublicVideoChatShareService {
       return of(null);
     }
 
-    return defer(() => from(this.callable({
-      chatId,
-      clientRequestId: this.createClientRequestId(),
-      publicVideoReference: { ownerUid, videoId },
-    }))).pipe(
-      map((result) => String(result.data?.messageId ?? '').trim() || null),
-      catchError((error: unknown) => {
-        this.reportError(error, { chatId, ownerUid, videoId });
-        return of(null);
-      })
-    );
+    return defer(() => {
+      // Cold requests prepared by an old session must not dispatch after relogin.
+      if (this.session() !== session) return of(null);
+      return defer(() => from(this.callable({
+        chatId,
+        expectedActorUid,
+        clientRequestId: this.createClientRequestId(),
+        publicVideoReference: { ownerUid, videoId },
+      }))).pipe(
+        takeUntil(this.authSession.uid$.pipe(filter(uid => uid !== expectedActorUid))),
+        map(result => this.session() === session && result.data?.chatId === chatId
+          ? String(result.data?.messageId ?? '').trim() || null : null),
+        catchError((error: unknown) => {
+          if (this.session() === session) this.reportError(error, { chatId, ownerUid, videoId });
+          return of(null);
+        })
+      );
+    });
   }
 
   private normalizeId(value: unknown): string {

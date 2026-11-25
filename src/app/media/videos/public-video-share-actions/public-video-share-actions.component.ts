@@ -1,12 +1,17 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   HostListener,
   inject,
   input,
   signal,
 } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { distinctUntilChanged, map } from 'rxjs/operators';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -29,6 +34,12 @@ export class PublicVideoShareActionsComponent {
   private readonly publicVideoShare = inject(PublicVideoShareService);
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly mediaError = inject(MediaApplicationErrorService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly authSession = inject(AuthSessionService);
+  // A fresh object for every UID transition also distinguishes A -> null -> A.
+  private readonly session = toSignal(this.authSession.uid$.pipe(
+    distinctUntilChanged(), map(uid => ({ uid }))
+  ), { initialValue: { uid: null } });
 
   readonly menuOpen = signal(false);
   readonly sharingExternally = signal(false);
@@ -81,6 +92,8 @@ export class PublicVideoShareActionsComponent {
       return;
     }
 
+    const session = this.session();
+    if (!session.uid) return;
     const video = this.video();
     if (!video?.ownerUid || !video?.id) {
       this.errorNotification.showWarning(
@@ -96,8 +109,11 @@ export class PublicVideoShareActionsComponent {
         '../public-video-chat-share-dialog/public-video-chat-share-dialog.component'
       );
 
+      if (this.destroyRef.destroyed || this.session() !== session ||
+          this.video()?.id !== video.id || this.video()?.ownerUid !== video.ownerUid) return;
       this.dialog.open(PublicVideoChatShareDialogComponent, {
         data: {
+          expectedActorUid: session.uid,
           video: {
             id: video.id,
             ownerUid: video.ownerUid,
@@ -112,6 +128,7 @@ export class PublicVideoShareActionsComponent {
         panelClass: 'public-video-chat-share-dialog',
       });
     } catch (error) {
+      if (this.destroyRef.destroyed || this.session() !== session) return;
       this.mediaError.report(error, {
         operation: 'publicVideoShareActions.openConversationPicker',
         reasonHint: 'media_share_dialog_failed',

@@ -29,3 +29,12 @@ test('direct video chat persists references and not signed playback URLs', () =>
   assert.ok(!handler.includes('publicVideoReference: { url:'));
   assert.ok(!handler.includes('publishedStoragePath:'));
 });
+
+test('direct video reference binds the expected actor before reading or writing chat data', () => {
+  assert.match(handler, /request\.data\?\.expectedActorUid !== undefined/);
+  assert.match(handler, /request\.data\.expectedActorUid !== actorUid/);
+  const guard = handler.indexOf('request.data.expectedActorUid !== actorUid');
+  const deny = handler.indexOf("throw new HttpsError('permission-denied'", guard);
+  assert.ok(guard >= 0 && deny > guard);
+  assert.ok(deny < handler.indexOf('db.runTransaction('));
+});

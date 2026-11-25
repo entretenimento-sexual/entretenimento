@@ -13,7 +13,12 @@
     </button>
   </header>
 
-  @if (state$ | async; as state) {
+  @if (!sessionOwner()) {
+    <div class="video-chat-share__state" role="status">
+      <strong>Compartilhamento encerrado</strong>
+      <span>Abra novamente o vídeo na sessão atual para compartilhar.</span>
+    </div>
+  } @else if (state$ | async; as state) {
     @if (state.loading && !state.loaded) {
       <div class="video-chat-share__state" role="status">
         <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>
