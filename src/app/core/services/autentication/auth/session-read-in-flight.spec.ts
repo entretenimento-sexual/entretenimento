@@ -75,6 +75,22 @@ describe('SessionReadInFlight', () => {
     expect(seen).toEqual([]);
   });
 
+  it('não propaga erro tardio de instância substituída sem alteração do UID', async () => {
+    const { reads, session, user } = setup();
+    let rejectOld!: (error: unknown) => void;
+    const onError = vi.fn();
+    const onComplete = vi.fn();
+    reads.read$('page', () => from(new Promise<string>((_resolve, reject) => {
+      rejectOld = reject;
+    }))).subscribe({ error: onError, complete: onComplete });
+    session.currentAuthUser = user('a');
+    await expect(firstValueFrom(reads.read$('page', () => of('new')))).resolves.toBe('new');
+    rejectOld(new Error('old permission-denied'));
+    await Promise.resolve();
+    expect(onError).not.toHaveBeenCalled();
+    expect(onComplete).toHaveBeenCalledOnce();
+  });
+
   it('propaga erros e libera a chave para nova tentativa', async () => {
     const { reads } = setup();
     const error = new Error('permission-denied');

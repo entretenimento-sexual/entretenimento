@@ -36,3 +36,16 @@ de payload, distinção por cursor/tipo, revogação e nova leitura após conclu
 A medição de POSTs reais por sessão, concorrência e regressões de invalidação
 permanece pendente de homologação. Nenhuma alteração em Rules, quotas,
 backend ou autorização.
+
+## EST-R1.3 — revisão do relatório de 9879083b
+
+Quality Gate 45643578277 e sete workflows visuais aprovados; 3304/3304
+Angular e 390/390 testes da outra suíte. Inventário: 882 TS, 174 callables,
+9 onSnapshot, 7 docSnapshots, 3 collectionSnapshots, 14 docData,
+14 collectionData, 43 timers, 4 intervals, 504 shareReplay e 7
+SessionReadInFlight. Duas definições repetidas: deleteDirectMessage e
+recordPhotoView. São mutações, com pipelines e finalidades distintos;
+não há evidência de POST redundante apenas pela definição. Não coalescer
+mutações ou alterar seu contrato de erro. O helper de leitura agora descarta
+erros tardios de uma instância Auth substituída mesmo sem mudança de UID.
+A aferição de rede em runtime continua pendente de homologação.

@@ -4,6 +4,7 @@ import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import { db } from '../../firebaseApp';
+import { BackendRateLimitQueue, BackendRateLimitQueueBusyError } from './backend-rate-limit-queue';
 import {
   buildBackendFixedWindowRateLimitDecision,
   type BackendFixedWindowRateLimitConfig,
@@ -15,6 +16,7 @@ export const BACKEND_RATE_LIMIT_SCHEMA_VERSION = 1;
 
 const MAX_LOCAL_BLOCK_CACHE_ENTRIES = 2_048;
 const localBlockedUntilByRateLimitId = new Map<string, number>();
+const standaloneQuotaQueue = new BackendRateLimitQueue();
 
 function buildRateLimitDocumentId(action: string, subject: string): string {
   const digest = createHash('sha256')
@@ -66,7 +68,7 @@ export async function consumeBackendRateLimitQuota(input: {
   const message = String(input.message ?? '').trim()
     || 'Muitas solicitações foram feitas em pouco tempo.';
   const suppliedNow = input.now;
-  const now = typeof suppliedNow === 'number' && Number.isFinite(suppliedNow)
+  const readNow = () => typeof suppliedNow === 'number' && Number.isFinite(suppliedNow)
     ? Math.floor(suppliedNow)
     : Date.now();
 
@@ -74,34 +76,50 @@ export async function consumeBackendRateLimitQuota(input: {
     throw new Error('Rate limit requer action e subject válidos.');
   }
 
-  pruneLocalBlockCache(now);
-
   const rateLimitId = buildRateLimitDocumentId(action, subject);
-  const localBlockedUntil = localBlockedUntilByRateLimitId.get(rateLimitId) ?? 0;
-
-  if (localBlockedUntil > now) {
-    throw rateLimitError(localBlockedUntil - now, message);
-  }
-
-  if (localBlockedUntil > 0) {
-    localBlockedUntilByRateLimitId.delete(rateLimitId);
-  }
-
-  await db.runTransaction(async (transaction) => {
-    try {
-      await consumeBackendRateLimitQuotaInTransaction(transaction, {
-        ...input, action, subject, message, now,
-      });
-    } catch (error) {
-      if (error instanceof HttpsError && error.code === 'resource-exhausted') {
-        const retryAfterMs = (error.details as { retryAfterMs?: number } | undefined)?.retryAfterMs;
-        if (typeof retryAfterMs === 'number') {
-          localBlockedUntilByRateLimitId.set(rateLimitId, now + retryAfterMs);
-        }
-      }
-      throw error;
+  const assertNotLocallyBlocked = (now: number): void => {
+    pruneLocalBlockCache(now);
+    const blockedUntil = localBlockedUntilByRateLimitId.get(rateLimitId) ?? 0;
+    if (blockedUntil > now) {
+      throw rateLimitError(blockedUntil - now, message);
     }
-  });
+    if (blockedUntil > 0) localBlockedUntilByRateLimitId.delete(rateLimitId);
+  };
+
+  // Existing denials can be served without creating a local queue.
+  assertNotLocallyBlocked(readNow());
+
+  try {
+    await standaloneQuotaQueue.run(rateLimitId, async () => {
+      // Recheck after waiting: an earlier transaction may have exhausted quota.
+      const now = readNow();
+      assertNotLocallyBlocked(now);
+
+      try {
+        await db.runTransaction((transaction) =>
+          consumeBackendRateLimitQuotaInTransaction(transaction, {
+            ...input, action, subject, message, now,
+          })
+        );
+      } catch (error) {
+        // Only an authoritative quota denial populates the negative cache.
+        // Transient contention/transport failures must never grant a permit.
+        if (error instanceof HttpsError && error.code === 'resource-exhausted') {
+          const retryAfterMs = (error.details as { retryAfterMs?: number } | undefined)?.retryAfterMs;
+          if (typeof retryAfterMs === 'number') {
+            localBlockedUntilByRateLimitId.set(rateLimitId, now + retryAfterMs);
+            pruneLocalBlockCache(now);
+          }
+        }
+        throw error;
+      }
+    });
+  } catch (error) {
+    if (error instanceof BackendRateLimitQueueBusyError) {
+      throw new HttpsError('unavailable', 'Serviço temporariamente ocupado. Tente novamente.');
+    }
+    throw error;
+  }
 }
 
 // For callers that must commit quota and domain effects atomically.

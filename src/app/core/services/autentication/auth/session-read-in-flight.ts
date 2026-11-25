@@ -1,5 +1,5 @@
 import type { User } from 'firebase/auth';
-import { Observable, defer, filter, finalize, shareReplay, takeUntil, tap, throwError } from 'rxjs';
+import { EMPTY, Observable, catchError, defer, filter, finalize, shareReplay, takeUntil, tap, throwError } from 'rxjs';
 import type { AuthSessionService } from './auth-session.service';
 
 type SessionScope = Pick<AuthSessionService,
@@ -53,6 +53,8 @@ export class SessionReadInFlight<T> {
       const stream$ = defer(load).pipe(
         takeUntil(revoked$),
         filter(() => isCurrent()),
+        // A same-UID SDK replacement may not emit on uid$. Never deliver its stale error.
+        catchError(error => isCurrent() ? throwError(() => error) : EMPTY),
         // Remove before forwarding a result/error, including reentrant reads.
         tap({ next: release, error: release, complete: release }),
         finalize(release),
