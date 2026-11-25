@@ -89,7 +89,7 @@ export class DirectChatAvailabilityService {
       return of(false);
     }
 
-    return recoverDirectChatListener$(() => defer(() => runInInjectionContext(this.injector, () => {
+    return recoverDirectChatListener$<{ confirmed: boolean; projection?: DirectChatAccessProjection }>(() => defer(() => runInInjectionContext(this.injector, () => {
       const reference = doc(this.firestore, 'direct_chat_access', owner, 'peers', peer);
       return new Observable<{ confirmed: boolean; projection?: DirectChatAccessProjection }>(sink =>
         onSnapshot(reference, { includeMetadataChanges: true }, snapshot => sink.next({
@@ -97,7 +97,9 @@ export class DirectChatAvailabilityService {
           projection: snapshot.data() as DirectChatAccessProjection | undefined,
         }), error => sink.error(error))
       );
-    })).pipe(
+    })), () => ({ confirmed: false }), undefined, undefined, {
+      isConfirmed: snapshot => snapshot.confirmed,
+    }).pipe(
       switchMap(({ confirmed, projection }) => {
         // Cache misses must not trigger reconciliation or grant permission.
         if (!confirmed) return of(false);
@@ -107,8 +109,7 @@ export class DirectChatAvailabilityService {
         // Apenas a ausência ou formato legado solicita reconciliação.
         // A chamada não libera acesso; aguardamos o novo snapshot validado.
         return this.reconcile$(owner, peer).pipe(catchError(() => of(false)));
-      })
-    ), () => false).pipe(
+      }),
       catchError(() => of(false))
     );
   }

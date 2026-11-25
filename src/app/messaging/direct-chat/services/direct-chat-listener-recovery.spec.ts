@@ -46,6 +46,94 @@ describe('recoverDirectChatListener$', () => {
       expect(failed).toHaveBeenCalledTimes(1);
     } finally { vi.useRealTimers(); }
   });
+  it('makes only one additional slow transport probe and stops without a lifecycle event', async () => {
+    vi.useFakeTimers();
+    try {
+      const resume = new Subject<void>();
+      const observe = vi.fn(() => throwError(() => ({ code: 'unavailable' })));
+      const seen: boolean[] = [];
+      const sub = recoverDirectChatListener$<boolean>(observe, () => false, [], resume).subscribe(v => seen.push(v));
+      await vi.advanceTimersByTimeAsync(119999);
+      expect(observe).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(observe).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(600000);
+      expect(observe).toHaveBeenCalledTimes(2);
+      expect(seen).toEqual([false, false]);
+      resume.next();
+      expect(observe).toHaveBeenCalledTimes(3);
+      sub.unsubscribe();
+      await vi.advanceTimersByTimeAsync(600000);
+      expect(observe).toHaveBeenCalledTimes(3);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('recovers from a prolonged transport outage without a browser lifecycle event', async () => {
+    vi.useFakeTimers();
+    try {
+      const resume = new Subject<void>();
+      const observe = vi.fn().mockReturnValueOnce(throwError(() => ({ code: 'unavailable' })))
+        .mockReturnValueOnce(of(true));
+      const seen: boolean[] = [];
+      const sub = recoverDirectChatListener$<boolean>(observe, () => false, [], resume).subscribe(v => seen.push(v));
+      await vi.advanceTimersByTimeAsync(120000);
+      expect(seen).toEqual([false, true]);
+      expect(observe).toHaveBeenCalledTimes(2);
+      expect(sub.closed).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('resets the finite budget only after a sustained confirmed observation', async () => {
+    vi.useFakeTimers();
+    try {
+      const first = new Subject<boolean>();
+      const recovered = new Subject<boolean>();
+      const resume = new Subject<void>();
+      const observe = vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(recovered)
+        .mockReturnValueOnce(of(true));
+      const seen: boolean[] = [];
+      const sub = recoverDirectChatListener$<boolean>(
+        observe, () => false, [1000], resume, { isConfirmed: value => value }
+      ).subscribe(v => seen.push(v));
+      first.error({code:'permission-denied'});
+      await vi.advanceTimersByTimeAsync(1000);
+      recovered.next(true);
+      await vi.advanceTimersByTimeAsync(30000);
+      recovered.error({code:'permission-denied'});
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(observe).toHaveBeenCalledTimes(3);
+      expect(seen).toEqual([false,true,false,true]);
+      sub.unsubscribe();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('does not reset the budget on cache-like values or a brief confirmed value', async () => {
+    vi.useFakeTimers();
+    try {
+      const first = new Subject<boolean>();
+      const recovered = new Subject<boolean>();
+      const resume = new Subject<void>();
+      const observe = vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(recovered)
+        .mockReturnValueOnce(of(true));
+      const sub = recoverDirectChatListener$<boolean>(
+        observe, () => false, [1000], resume, { isConfirmed: value => value }
+      ).subscribe();
+      first.error({code:'permission-denied'});
+      await vi.advanceTimersByTimeAsync(1000);
+      recovered.next(true);
+      recovered.next(false);
+      await vi.advanceTimersByTimeAsync(30000);
+      recovered.next(true);
+      await vi.advanceTimersByTimeAsync(1);
+      recovered.error({code:'permission-denied'});
+      await vi.advanceTimersByTimeAsync(600000);
+      expect(observe).toHaveBeenCalledTimes(2);
+      resume.next();
+      expect(observe).toHaveBeenCalledTimes(3);
+      sub.unsubscribe();
+    } finally { vi.useRealTimers(); }
+  });
+
   it('restarts an exhausted listener on a lifecycle event without polling', async () => {
     vi.useFakeTimers();
     try {

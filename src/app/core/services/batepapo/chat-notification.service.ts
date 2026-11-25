@@ -151,7 +151,7 @@ export class ChatNotificationService {
       error => {
         this.handleRealtimeError('Não foi possível acompanhar mensagens não lidas.', error, 'countUnreadForChat$');
         return 0;
-      }
+      }, undefined, undefined, { isConfirmed: count => count > 0 }
     ).pipe(
       catchError(error => {
         this.handleRealtimeError('Não foi possível acompanhar mensagens não lidas.', error, 'countUnreadForChat$');

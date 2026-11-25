@@ -163,7 +163,7 @@ export class AppNotificationService {
             this.currentUserReadStateSubject.next('error');
             this.reportReadError(error, 'currentUserNotifications', { uid });
             return [] as IAppNotification[];
-          }
+          }, undefined, undefined, { isConfirmed: items => items.length > 0 }
         ).pipe(
           catchError((error) => {
             if (isFirebasePermissionDeniedError(error)) {
@@ -188,7 +188,8 @@ export class AppNotificationService {
     switchMap(uid => uid
       ? recoverDirectChatListener$(
           () => this.countUnreadForUser$(uid),
-          error => { this.reportReadError(error, 'countUnreadForUser', { uid }); return 0; }
+          error => { this.reportReadError(error, 'countUnreadForUser', { uid }); return 0; },
+           undefined, undefined, { isConfirmed: count => count > 0 }
         ).pipe(
           startWith(0),
           catchError(error => {

@@ -15,3 +15,7 @@ Não é homologação integral: o workflow ainda precisa executar e ser corrigid
 ## CHAT-R1.10.2.1 — Validação da definição do workflow
 
 Execução 45718515472 / bb22a7c4: failure antes de criar jobs (total_count=0), sem logs de teste. A definição usava runner.temp no env do job, contexto não disponível nessa posição. O caminho passa a ser exportado no shell do step via RUNNER_TEMP. A mensagem exata de validação do GitHub não está disponível pela conexão; a correção se baseia na inspeção da definição. Nenhum cenário, asserção, política ou código de produção alterado. Nova execução necessária.
+
+## Homologação da primeira certificação em navegador
+
+Commit de58a5983983302deb504e5ac0fdbe8f63e031cc: workflow 45719417408 success, job 139573670958; logs confirmam sete PASS: login independente e deep link de notificação, envio/recepção bilateral, revogação ao vivo e isolamento de draft, recuperação e histórico autorizado, A→C com B independente, retorno a A sem draft obsoleto, layout mobile e compositor acessível. A asserção final de ausência de pageerror e upload de evidências passaram. Quality Gate 45719417423 success, aggregate success, job 139573802309; logs de E2E confirmam Rules, Media e Comunidades/notificações. Esta homologação cobre somente os cenários descritos, não todos os pontos de entrada da plataforma.

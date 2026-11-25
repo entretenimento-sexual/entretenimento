@@ -149,7 +149,10 @@ export class DirectThreadFacade {
             errorMessage: null,
           }))
         ),
-        describeFailure
+        describeFailure, undefined, undefined, {
+          // An empty thread can also be a cache-miss sentinel.
+          isConfirmed: state => state.messages.length > 0,
+        }
       ).pipe(
         startWith(emptyState),
         catchError(error => of(describeFailure(error)))

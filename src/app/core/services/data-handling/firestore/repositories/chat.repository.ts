@@ -98,7 +98,7 @@ export class ChatRepository {
               !snapshot.metadata.hasPendingWrites
               ? { ...snapshot.data(), id: snapshot.id } as IChat : null);
           }, error => sink.error(error)));
-      }), () => null
+      }), () => null, undefined, undefined, { isConfirmed: chat => chat !== null }
     ).pipe(catchError((error): Observable<IChat | null> => {
       this.applicationError.report(error, {
         feature: 'chat', operation: 'ChatRepository.observeChat$',
