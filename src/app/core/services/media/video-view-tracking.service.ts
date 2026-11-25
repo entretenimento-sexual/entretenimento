@@ -14,6 +14,7 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { MediaApplicationErrorService } from './media-application-error.service';
+import { MediaTrackingSession } from './media-tracking-session';
 
 export type TVideoViewSource =
   | 'discover'
@@ -115,7 +116,7 @@ export class VideoViewTrackingService {
   private readonly inFlight = new Map<string, Observable<boolean>>();
   private readonly inFlightRetention = new Map<string, Observable<boolean>>();
   private playbackSessionStartBlockedUntil = 0;
-  private lastSessionUid: string | null | undefined = undefined;
+  private cacheSession: MediaTrackingSession | null = null;
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
@@ -127,27 +128,41 @@ export class VideoViewTrackingService {
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe((uid) => {
-        const normalizedUid = uid?.trim() || null;
+      .subscribe(() => this.clearSessionCache());
+  }
 
-        if (
-          this.lastSessionUid !== undefined &&
-          this.lastSessionUid !== normalizedUid
-        ) {
-          this.nextEligibleAt.clear();
-          this.playbackSessions.clear();
-          this.retentionGrants.clear();
-          this.inFlightSessionRequests.clear();
-          this.inFlight.clear();
-          this.inFlightRetention.clear();
-          this.playbackSessionStartBlockedUntil = 0;
-        }
+  private clearSessionCache(): void {
+    this.cacheSession = null;
+    this.nextEligibleAt.clear();
+    this.playbackSessions.clear();
+    this.retentionGrants.clear();
+    this.inFlightSessionRequests.clear();
+    this.inFlight.clear();
+    this.inFlightRetention.clear();
+    this.playbackSessionStartBlockedUntil = 0;
+  }
 
-        this.lastSessionUid = normalizedUid;
-      });
+  private syncSession(scope: MediaTrackingSession): void {
+    if (!scope.matches(this.cacheSession)) {
+      this.clearSessionCache();
+      this.cacheSession = scope;
+    }
   }
 
   prepareVideoViewSession$(
+    ownerUid: string,
+    videoId: string
+  ): Observable<void> {
+    const scope = MediaTrackingSession.capture(this.authSession);
+    if (!scope) return of(void 0);
+    return scope.guard$(() => {
+      this.syncSession(scope);
+      return this.prepareForSession$(scope, ownerUid, videoId);
+    });
+  }
+
+  private prepareForSession$(
+    scope: MediaTrackingSession,
     ownerUid: string,
     videoId: string
   ): Observable<void> {
@@ -157,13 +172,13 @@ export class VideoViewTrackingService {
     if (
       !safeOwnerUid ||
       !safeVideoId ||
-      (!!this.lastSessionUid && this.lastSessionUid === safeOwnerUid) ||
+      scope.user.uid === safeOwnerUid ||
       this.playbackSessionStartBlockedUntil > Date.now()
     ) {
       return of(void 0);
     }
 
-    return this.ensurePlaybackSession$(safeOwnerUid, safeVideoId).pipe(
+    return this.ensurePlaybackSession$(scope, safeOwnerUid, safeVideoId).pipe(
       map(() => void 0),
       catchError((error: unknown) => {
         this.reportError(error, {
@@ -184,6 +199,21 @@ export class VideoViewTrackingService {
     source: TVideoViewSource = 'unknown',
     evidence?: VideoViewPlaybackEvidence
   ): Observable<boolean> {
+    const scope = MediaTrackingSession.capture(this.authSession);
+    if (!scope) return of(false);
+    return scope.guard$(() => {
+      this.syncSession(scope);
+      return this.recordViewForSession$(scope, ownerUid, videoId, source, evidence);
+    });
+  }
+
+  private recordViewForSession$(
+    scope: MediaTrackingSession,
+    ownerUid: string,
+    videoId: string,
+    source: TVideoViewSource,
+    evidence?: VideoViewPlaybackEvidence
+  ): Observable<boolean> {
     const safeOwnerUid = (ownerUid ?? '').trim();
     const safeVideoId = (videoId ?? '').trim();
     const safeEvidence = this.normalizeEvidence(evidence);
@@ -192,7 +222,7 @@ export class VideoViewTrackingService {
       !safeOwnerUid ||
       !safeVideoId ||
       !safeEvidence ||
-      (!!this.lastSessionUid && this.lastSessionUid === safeOwnerUid)
+      scope.user.uid === safeOwnerUid
     ) {
       return of(false);
     }
@@ -209,7 +239,8 @@ export class VideoViewTrackingService {
       return pending;
     }
 
-    const request$ = this.ensurePlaybackSession$(
+    const request$: Observable<boolean> = scope.guard$(() => this.ensurePlaybackSession$(
+      scope,
       safeOwnerUid,
       safeVideoId
     ).pipe(
@@ -220,15 +251,16 @@ export class VideoViewTrackingService {
         );
 
         return timer(waitMs).pipe(
-          switchMap(() => this.submitQualifiedView$(
+          switchMap(() => scope.guard$(() => this.submitQualifiedView$(
             safeOwnerUid,
             safeVideoId,
             source,
             session.playbackToken,
             safeEvidence
-          ))
+          )))
         );
-      }),
+      })
+    )).pipe(
       map((response) => {
         const retryAfterMs = Number(response.retryAfterMs ?? 0);
 
@@ -255,7 +287,9 @@ export class VideoViewTrackingService {
 
         return of(false);
       }),
-      finalize(() => this.inFlight.delete(viewKey)),
+      finalize(() => {
+        if (this.inFlight.get(viewKey) === request$) this.inFlight.delete(viewKey);
+      }),
       shareReplay({ bufferSize: 1, refCount: false })
     );
 
@@ -268,6 +302,20 @@ export class VideoViewTrackingService {
     videoId: string,
     evidence?: VideoViewPlaybackEvidence
   ): Observable<boolean> {
+    const scope = MediaTrackingSession.capture(this.authSession);
+    if (!scope) return of(false);
+    return scope.guard$(() => {
+      this.syncSession(scope);
+      return this.recordRetentionForSession$(scope, ownerUid, videoId, evidence);
+    });
+  }
+
+  private recordRetentionForSession$(
+    scope: MediaTrackingSession,
+    ownerUid: string,
+    videoId: string,
+    evidence?: VideoViewPlaybackEvidence
+  ): Observable<boolean> {
     const safeOwnerUid = (ownerUid ?? '').trim();
     const safeVideoId = (videoId ?? '').trim();
     const safeEvidence = this.normalizeEvidence(evidence);
@@ -276,7 +324,7 @@ export class VideoViewTrackingService {
       !safeOwnerUid ||
       !safeVideoId ||
       !safeEvidence ||
-      (!!this.lastSessionUid && this.lastSessionUid === safeOwnerUid)
+      scope.user.uid === safeOwnerUid
     ) {
       return of(false);
     }
@@ -293,19 +341,20 @@ export class VideoViewTrackingService {
       return pendingRetention;
     }
 
-    const request$ = this.resolveRetentionGrant$(viewKey).pipe(
+    const request$: Observable<boolean> = scope.guard$(() => this.resolveRetentionGrant$(viewKey).pipe(
       switchMap((grant) => {
         if (!grant) {
           return of(false);
         }
 
-        return this.submitRetentionProgress$(
+        return scope.guard$(() => this.submitRetentionProgress$(
           safeOwnerUid,
           safeVideoId,
           grant.retentionToken,
           safeEvidence
-        ).pipe(map(() => true));
-      }),
+        )).pipe(map(() => true));
+      })
+    )).pipe(
       catchError((error: unknown) => {
         this.reportError(error, {
           op: 'recordVideoRetention$',
@@ -317,7 +366,11 @@ export class VideoViewTrackingService {
         });
         return of(false);
       }),
-      finalize(() => this.inFlightRetention.delete(retentionRequestKey)),
+      finalize(() => {
+        if (this.inFlightRetention.get(retentionRequestKey) === request$) {
+          this.inFlightRetention.delete(retentionRequestKey);
+        }
+      }),
       shareReplay({ bufferSize: 1, refCount: false })
     );
 
@@ -326,6 +379,7 @@ export class VideoViewTrackingService {
   }
 
   private ensurePlaybackSession$(
+    scope: MediaTrackingSession,
     ownerUid: string,
     videoId: string
   ): Observable<VideoPlaybackSessionGrant> {
@@ -357,14 +411,14 @@ export class VideoViewTrackingService {
       );
     }
 
-    const request$ = this.firestoreCtx.deferPromise$(async () => {
+    const request$: Observable<VideoPlaybackSessionGrant> = scope.guard$(() => this.firestoreCtx.deferPromise$(async () => {
       const callable = httpsCallable<
         StartVideoPlaybackSessionRequest,
         StartVideoPlaybackSessionResponse
       >(this.functions, 'startPublicVideoPlaybackSession');
       const response = await callable({ ownerUid, videoId });
       return response.data;
-    }).pipe(
+    })).pipe(
       map((response) => {
         const grant = this.normalizePlaybackSessionGrant(
           response,
@@ -383,7 +437,9 @@ export class VideoViewTrackingService {
         this.rememberPlaybackSessionRateLimit(error);
         return throwError(() => error);
       }),
-      finalize(() => this.inFlightSessionRequests.delete(viewKey)),
+      finalize(() => {
+        if (this.inFlightSessionRequests.get(viewKey) === request$) this.inFlightSessionRequests.delete(viewKey);
+      }),
       shareReplay({ bufferSize: 1, refCount: false })
     );
 

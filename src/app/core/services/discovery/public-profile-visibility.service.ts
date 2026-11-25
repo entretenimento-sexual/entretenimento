@@ -4,7 +4,7 @@ import {
 } from '@angular/fire/firestore';
 import { Observable, concat, defer, of, timer } from 'rxjs';
 import {
-  catchError, distinctUntilChanged, exhaustMap, filter, map, repeat, switchMap, take, timeout,
+  catchError, distinctUntilChanged, exhaustMap, filter, map, repeat, startWith, switchMap, take, timeout,
 } from 'rxjs/operators';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
@@ -119,16 +119,18 @@ export class PublicProfileVisibilityService {
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid)) return of(UNAVAILABLE_MEDIA_INDEX);
 
     return this.authSession.uid$.pipe(
-      switchMap((viewerUid) => {
+      switchMap((viewerUid, index) => {
         if (!viewerUid) return of(UNAVAILABLE_MEDIA_INDEX);
-        if (viewerUid === uid) return this.watchOwnerProfileIndex$(uid);
-
-        // Troca de conta/bloqueio revogam antes de escutar a projeção.
-        return watchBilateralProfileVisibility$(
-          this.bilateral.watch$(uid, viewerUid),
-          () => this.watchOwnerProfileIndex$(uid),
-          UNAVAILABLE_MEDIA_INDEX
-        );
+        const watch$ = viewerUid === uid
+          ? this.watchOwnerProfileIndex$(uid)
+          : watchBilateralProfileVisibility$(
+              this.bilateral.watch$(uid, viewerUid),
+              () => this.watchOwnerProfileIndex$(uid),
+              UNAVAILABLE_MEDIA_INDEX
+            );
+        // Preserve initial loading semantics, but never carry a previous
+        // viewer's grant through a direct account transition.
+        return index > 0 ? watch$.pipe(startWith(UNAVAILABLE_MEDIA_INDEX)) : watch$;
       }),
       distinctUntilChanged(samePublicProfileMediaIndex),
       catchError(() => of(UNAVAILABLE_MEDIA_INDEX))

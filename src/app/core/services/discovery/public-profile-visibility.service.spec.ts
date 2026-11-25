@@ -1,7 +1,7 @@
 import { assertInInjectionContext } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Firestore, type DocumentReference, type DocumentSnapshot } from '@angular/fire/firestore';
-import { Subject, of } from 'rxjs';
+import { BehaviorSubject, Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { PublicBilateralMediaAvailabilityService } from 'src/app/core/services/media/public-bilateral-media-availability.service';
@@ -154,5 +154,41 @@ describe('PublicProfileVisibilityService injection context', () => {
       vi.useRealTimers();
     }
     expect(restored$.observed).toBe(false);
+  });
+});
+
+describe('PublicProfileVisibilityService session transition', () => {
+  it('revoga a disponibilidade anterior antes da confirmação da nova conta', () => {
+    const uid$ = new BehaviorSubject<string | null>('owner');
+    const snapshot$ = new Subject<DocumentSnapshot>();
+    const bilateral$ = new Subject<boolean>();
+    const watch = vi.fn(() => snapshot$);
+    TestBed.configureTestingModule({ providers: [
+      { provide: Firestore, useValue: {} },
+      { provide: PUBLIC_PROFILE_VISIBILITY_FIRESTORE, useValue: {
+        doc: () => ({} as DocumentReference), docSnapshots: watch,
+      } },
+      { provide: AuthSessionService, useValue: { uid$ } },
+      { provide: PublicProfileReadBoundaryService, useValue: {} },
+      { provide: PublicBilateralMediaAvailabilityService, useValue: { watch$: () => bilateral$ } },
+    ] });
+    const seen: boolean[] = [];
+    const sub = TestBed.inject(PublicProfileVisibilityService).watch$('owner')
+      .subscribe(value => seen.push(value));
+    try {
+      snapshot$.next({
+        metadata: { fromCache: false, hasPendingWrites: false },
+        exists: () => true, data: () => ({ publicMediaRevision: 1 }),
+      } as unknown as DocumentSnapshot);
+      expect(seen).toEqual([true]);
+      uid$.next('other');
+      expect(seen).toEqual([true, false]);
+      expect(snapshot$.observed).toBe(false);
+      bilateral$.next(false);
+      expect(watch).toHaveBeenCalledOnce();
+    } finally {
+      sub.unsubscribe();
+      TestBed.resetTestingModule();
+    }
   });
 });

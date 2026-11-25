@@ -30,6 +30,7 @@ import {
   filter,
   map,
   shareReplay,
+  startWith,
   switchMap,
   take,
   takeUntil,
@@ -163,7 +164,8 @@ export class CommunityNotificationUnreadSummaryService {
               ...EMPTY_GLOBAL_SUMMARY,
               ready: true,
             });
-          })
+          }),
+          startWith(EMPTY_GLOBAL_SUMMARY)
         );
       }),
       shareReplay({ bufferSize: 1, refCount: true })

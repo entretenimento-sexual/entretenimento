@@ -1,8 +1,9 @@
-import { Observable, Subject, of } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { assertInInjectionContext } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Firestore, type DocumentReference, type DocumentSnapshot } from '@angular/fire/firestore';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { PublicProfileVisibilityService } from 'src/app/core/services/discovery/public-profile-visibility.service';
 import {
   PUBLIC_MEDIA_EXPOSURE_FIRESTORE, PublicVideoPlaybackExposureService,
@@ -135,8 +136,10 @@ describe('PublicVideoPlaybackExposureService injection context', () => {
       data: () => ({ visibility: 'PUBLIC', moderationStatus: 'APPROVED' }),
     }) as unknown as DocumentSnapshot;
     const db = {};
+    const uid$ = new BehaviorSubject<string | null>('viewer');
     TestBed.configureTestingModule({ providers: [
       { provide: Firestore, useValue: db },
+      { provide: AuthSessionService, useValue: { uid$ } },
       { provide: PUBLIC_MEDIA_EXPOSURE_FIRESTORE, useValue: {
         doc: createDocument, docSnapshots: watchDocument,
       } },
@@ -164,6 +167,11 @@ describe('PublicVideoPlaybackExposureService injection context', () => {
       expect(seen.at(-1)).toBe(false);
       restored$.next(snapshot(false));
       expect(seen.at(-1)).toBe(true);
+      uid$.next('other-viewer');
+      expect(seen.at(-1)).toBe(false);
+      expect(restored$.observed).toBe(false);
+      restored$.next(snapshot(false));
+      expect(seen.at(-1)).toBe(false);
     } finally {
       sub.unsubscribe();
       TestBed.resetTestingModule();

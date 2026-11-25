@@ -18,6 +18,7 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { MediaApplicationErrorService } from './media-application-error.service';
+import { MediaTrackingSession } from './media-tracking-session';
 
 export type TPhotoViewSource =
   | 'discover'
@@ -48,21 +49,21 @@ export class PhotoViewTrackingService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly recentSuccessfulRecords = new Map<string, number>();
   private readonly inFlightRecords = new Map<string, Observable<void>>();
+  private cacheSession: MediaTrackingSession | null = null;
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
     private readonly errorHandler: MediaApplicationErrorService,
-    authSession: AuthSessionService
+    private readonly authSession: AuthSessionService
   ) {
-    authSession.uid$
+    this.authSession.uid$
       .pipe(
         map((uid) => (uid ?? '').trim()),
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe(() => {
-        this.recentSuccessfulRecords.clear();
-        this.inFlightRecords.clear();
+        this.clearSessionCache();
       });
   }
 
@@ -70,6 +71,23 @@ export class PhotoViewTrackingService {
     ownerUid: string,
     photoId: string,
     source: TPhotoViewSource = 'unknown'
+  ): Observable<void> {
+    const scope = MediaTrackingSession.capture(this.authSession);
+    if (!scope) return of(void 0);
+    return scope.guard$(() => {
+      if (!scope.matches(this.cacheSession)) {
+        this.clearSessionCache();
+        this.cacheSession = scope;
+      }
+      return this.recordForSession$(scope, ownerUid, photoId, source);
+    });
+  }
+
+  private recordForSession$(
+    scope: MediaTrackingSession,
+    ownerUid: string,
+    photoId: string,
+    source: TPhotoViewSource
   ): Observable<void> {
     const safeOwnerUid = (ownerUid ?? '').trim();
     const safePhotoId = (photoId ?? '').trim();
@@ -90,7 +108,7 @@ export class PhotoViewTrackingService {
       return inFlight;
     }
 
-    const request$ = this.firestoreCtx.deferPromise$(async () => {
+    const request$: Observable<void> = scope.guard$(() => this.firestoreCtx.deferPromise$(async () => {
       const callable = httpsCallable<
         IRecordPhotoViewRequest,
         IRecordPhotoViewResponse
@@ -101,7 +119,7 @@ export class PhotoViewTrackingService {
         photoId: safePhotoId,
         source,
       });
-    }).pipe(
+    })).pipe(
       tap(() => {
         this.touchSuccessfulRecord(cacheKey, Date.now());
       }),
@@ -117,13 +135,19 @@ export class PhotoViewTrackingService {
         return of(void 0);
       }),
       finalize(() => {
-        this.inFlightRecords.delete(cacheKey);
+        if (this.inFlightRecords.get(cacheKey) === request$) this.inFlightRecords.delete(cacheKey);
       }),
       shareReplay({ bufferSize: 1, refCount: false })
     );
 
     this.inFlightRecords.set(cacheKey, request$);
     return request$;
+  }
+
+  private clearSessionCache(): void {
+    this.cacheSession = null;
+    this.recentSuccessfulRecords.clear();
+    this.inFlightRecords.clear();
   }
 
   private touchSuccessfulRecord(cacheKey: string, recordedAt: number): void {

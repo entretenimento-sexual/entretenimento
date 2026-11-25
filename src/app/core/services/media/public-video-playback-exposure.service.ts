@@ -6,6 +6,7 @@ import {
 } from 'rxjs/operators';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { PublicProfileVisibilityService } from 'src/app/core/services/discovery/public-profile-visibility.service';
 
 
@@ -52,6 +53,7 @@ export class PublicVideoPlaybackExposureService {
   private readonly firestoreApi = inject(PUBLIC_MEDIA_EXPOSURE_FIRESTORE);
   private readonly context = inject(FirestoreContextService);
   private readonly profileVisibility = inject(PublicProfileVisibilityService);
+  private readonly authSession = inject(AuthSessionService);
 
   watchActiveVideo$(
     ownerUid: string,
@@ -98,13 +100,15 @@ export class PublicVideoPlaybackExposureService {
       );
     });
 
-    return (ownerUid === viewerUid
-      ? watchPublicExposure$()
-      : watchMediaAfterProfileAvailability$(
-          this.profileVisibility.watch$(ownerUid),
-          watchPublicExposure$
-        )
-    ).pipe(
+    return this.authSession.uid$.pipe(
+      switchMap(activeUid => activeUid !== viewerUid ? of(false) :
+        ownerUid === viewerUid
+          ? watchPublicExposure$()
+          : watchMediaAfterProfileAvailability$(
+              this.profileVisibility.watch$(ownerUid),
+              watchPublicExposure$
+            )
+      ),
       distinctUntilChanged(),
       catchError(() => of(false))
     );
