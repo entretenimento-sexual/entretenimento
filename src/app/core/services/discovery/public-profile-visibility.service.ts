@@ -1,5 +1,7 @@
-import { Injectable, inject } from '@angular/core';
-import { Firestore, doc, docSnapshots } from '@angular/fire/firestore';
+import { Injectable, InjectionToken, inject } from '@angular/core';
+import {
+  Firestore, doc, docSnapshots, type DocumentReference, type DocumentSnapshot,
+} from '@angular/fire/firestore';
 import { Observable, concat, defer, of, timer } from 'rxjs';
 import {
   catchError, distinctUntilChanged, exhaustMap, filter, map, repeat, switchMap, take, timeout,
@@ -9,6 +11,22 @@ import { FirestoreContextService } from 'src/app/core/services/data-handling/fir
 import { PublicProfileReadBoundaryService } from 'src/app/core/services/discovery/public-profile-read-boundary.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { PublicBilateralMediaAvailabilityService } from 'src/app/core/services/media/public-bilateral-media-availability.service';
+
+interface PublicProfileVisibilityFirestore {
+  doc(db: Firestore, path: string): DocumentReference;
+  docSnapshots(ref: DocumentReference): Observable<DocumentSnapshot>;
+}
+
+// Keep the production adapter on AngularFire; tests can substitute only the
+// transport while exercising the real injection context and recovery pipeline.
+export const PUBLIC_PROFILE_VISIBILITY_FIRESTORE =
+  new InjectionToken<PublicProfileVisibilityFirestore>('PUBLIC_PROFILE_VISIBILITY_FIRESTORE', {
+    providedIn: 'root',
+    factory: () => ({
+      doc: (db, path) => doc(db, path),
+      docSnapshots: (ref) => docSnapshots(ref),
+    }),
+  });
 
 const RECHECK_INTERVAL_MS = 15_000;
 const RECHECK_TIMEOUT_MS = 5_000;
@@ -78,6 +96,7 @@ export function watchPublicProfileMediaIndexWithRecovery$(
 @Injectable({ providedIn: 'root' })
 export class PublicProfileVisibilityService {
   private readonly db = inject(Firestore);
+  private readonly firestoreApi = inject(PUBLIC_PROFILE_VISIBILITY_FIRESTORE);
   private readonly context = inject(FirestoreContextService);
   private readonly publicRead = inject(PublicProfileReadBoundaryService);
   private readonly authSession = inject(AuthSessionService);
@@ -121,8 +140,8 @@ export class PublicProfileVisibilityService {
   ): Observable<PublicProfileMediaIndexState> {
     // Recovery invokes this factory again outside the original injection context.
     const watchCanonical$ = () => this.context.deferObservable$(() => {
-      const ref = doc(this.db, `public_profiles/${uid}`);
-      return docSnapshots(ref).pipe(
+      const ref = this.firestoreApi.doc(this.db, `public_profiles/${uid}`);
+      return this.firestoreApi.docSnapshots(ref).pipe(
         map((snapshot): PublicProfileMediaIndexState => {
           if (snapshot.metadata.fromCache ||
               snapshot.metadata.hasPendingWrites ||

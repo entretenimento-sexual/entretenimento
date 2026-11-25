@@ -1,18 +1,15 @@
 import { assertInInjectionContext } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Firestore, doc, docSnapshots } from '@angular/fire/firestore';
+import { Firestore, type DocumentReference, type DocumentSnapshot } from '@angular/fire/firestore';
 import { Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { PublicBilateralMediaAvailabilityService } from 'src/app/core/services/media/public-bilateral-media-availability.service';
 import { PublicProfileReadBoundaryService } from './public-profile-read-boundary.service';
-import { PublicProfileVisibilityService, watchBilateralProfileVisibility$, watchPublicProfileMediaIndexWithRecovery$ } from './public-profile-visibility.service';
-
-vi.mock('@angular/fire/firestore', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@angular/fire/firestore')>(),
-  doc: vi.fn(),
-  docSnapshots: vi.fn(),
-}));
+import {
+  PUBLIC_PROFILE_VISIBILITY_FIRESTORE, PublicProfileVisibilityService,
+  watchBilateralProfileVisibility$, watchPublicProfileMediaIndexWithRecovery$,
+} from './public-profile-visibility.service';
 
 describe('watchBilateralProfileVisibility$', () => {
   it('desmonta o perfil no bloqueio e cria nova assinatura após desbloqueio', () => {
@@ -90,26 +87,36 @@ describe('watchPublicProfileMediaIndexWithRecovery$', () => {
 describe('PublicProfileVisibilityService injection context', () => {
   it('creates each canonical listener in the injection context, including recovery', () => {
     vi.useFakeTimers();
-    const first$ = new Subject<never>();
-    const restored$ = new Subject<never>();
+    const first$ = new Subject<DocumentSnapshot>();
+    const restored$ = new Subject<DocumentSnapshot>();
     const readByUids$ = vi.fn(() => of({ items: [{ uid: 'owner-1' }] }));
-    vi.mocked(doc).mockImplementation(() => {
-      assertInInjectionContext(doc);
-      return {} as ReturnType<typeof doc>;
+    const db = {};
+    const firstRef = {} as DocumentReference;
+    const restoredRef = {} as DocumentReference;
+    const contextChecks: string[] = [];
+    const createDocument = vi.fn((_db: Firestore, _path: string): DocumentReference => {
+      assertInInjectionContext(createDocument);
+      contextChecks.push('doc');
+      return contextChecks.length === 1 ? firstRef : restoredRef;
     });
-    vi.mocked(docSnapshots)
-      .mockImplementationOnce(() => {
-        assertInInjectionContext(docSnapshots);
-        return first$;
-      })
-      .mockImplementationOnce(() => {
-        assertInInjectionContext(docSnapshots);
-        return restored$;
-      });
+    const watchDocument = vi.fn((ref: DocumentReference) => {
+      assertInInjectionContext(watchDocument);
+      contextChecks.push('docSnapshots');
+      return ref === firstRef ? first$ : restored$;
+    });
+    const snapshot = (revision: number, fromCache = false): DocumentSnapshot =>
+      ({
+        metadata: { fromCache, hasPendingWrites: false },
+        exists: () => true,
+        data: () => ({ publicMediaRevision: revision }),
+      }) as unknown as DocumentSnapshot;
 
     TestBed.configureTestingModule({
       providers: [
-        { provide: Firestore, useValue: {} },
+        { provide: Firestore, useValue: db },
+        { provide: PUBLIC_PROFILE_VISIBILITY_FIRESTORE, useValue: {
+          doc: createDocument, docSnapshots: watchDocument,
+        } },
         { provide: AuthSessionService, useValue: { uid$: of('owner-1') } },
         { provide: PublicProfileReadBoundaryService, useValue: { readByUids$ } },
         { provide: PublicBilateralMediaAvailabilityService, useValue: {} },
@@ -117,22 +124,33 @@ describe('PublicProfileVisibilityService injection context', () => {
     });
     const service = TestBed.inject(PublicProfileVisibilityService);
     const seen: Array<{ available: boolean; mediaRevision: number }> = [];
+    // Deliberately subscribe outside TestBed.runInInjectionContext.
     const sub = service.watchMediaIndex$('owner-1').subscribe(value => seen.push(value));
     try {
+      expect(contextChecks).toEqual(['doc', 'docSnapshots']);
       expect(first$.observed).toBe(true);
+      expect(createDocument).toHaveBeenCalledWith(db, 'public_profiles/owner-1');
+      expect(watchDocument).toHaveBeenCalledWith(firstRef);
+      first$.next(snapshot(3));
+      expect(seen.at(-1)).toEqual({ available: true, mediaRevision: 3 });
       first$.error(new Error('permission-denied'));
       expect(seen.at(-1)).toEqual({ available: false, mediaRevision: 0 });
+      expect(first$.observed).toBe(false);
       vi.advanceTimersByTime(15000);
       expect(readByUids$).toHaveBeenCalledWith(['owner-1']);
-      expect(doc).toHaveBeenCalledTimes(2);
-      expect(docSnapshots).toHaveBeenCalledTimes(2);
+      expect(createDocument).toHaveBeenCalledTimes(2);
+      expect(watchDocument).toHaveBeenCalledTimes(2);
+      expect(watchDocument).toHaveBeenLastCalledWith(restoredRef);
+      expect(contextChecks).toEqual(['doc', 'docSnapshots', 'doc', 'docSnapshots']);
       expect(restored$.observed).toBe(true);
       expect(seen.at(-1)).toEqual({ available: false, mediaRevision: 0 });
+      restored$.next(snapshot(4, true));
+      expect(seen.at(-1)).toEqual({ available: false, mediaRevision: 0 });
+      restored$.next(snapshot(4));
+      expect(seen.at(-1)).toEqual({ available: true, mediaRevision: 4 });
     } finally {
       sub.unsubscribe();
       TestBed.resetTestingModule();
-      vi.mocked(doc).mockReset();
-      vi.mocked(docSnapshots).mockReset();
       vi.useRealTimers();
     }
     expect(restored$.observed).toBe(false);
