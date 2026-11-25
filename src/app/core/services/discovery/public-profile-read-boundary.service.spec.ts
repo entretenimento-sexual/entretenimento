@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { Auth } from '@angular/fire/auth';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { Functions } from '@angular/fire/functions';
-import { firstValueFrom } from 'rxjs';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -25,14 +25,23 @@ const page = (uid = 'allowed-owner'): PublicProfileReadResponse => ({
 describe('PublicProfileReadBoundaryService: proteção de quota por sessão', () => {
   let auth: { currentUser: { uid: string } | null };
   let service: PublicProfileReadBoundaryService;
+  let uid$: BehaviorSubject<string | null>;
+  let terminationVersion: number;
 
   beforeEach(() => {
     callable.mockReset();
     auth = { currentUser: { uid: 'viewer-a' } };
+    uid$ = new BehaviorSubject<string | null>('viewer-a');
+    terminationVersion = 0;
     TestBed.configureTestingModule({
       providers: [
         PublicProfileReadBoundaryService,
-        { provide: Auth, useValue: auth },
+        { provide: AuthSessionService, useValue: {
+          get currentAuthUser() { return auth.currentUser; },
+          uid$,
+          get terminationVersionSnapshot() { return terminationVersion; },
+          isTerminatingSnapshot: false,
+        } },
         { provide: Functions, useValue: {} },
       ],
     });
@@ -125,12 +134,32 @@ describe('PublicProfileReadBoundaryService: proteção de quota por sessão', ()
     abandoned.unsubscribe();
 
     auth.currentUser = { uid: 'viewer-b' };
+    uid$.next('viewer-b');
     const viewerBResult = firstValueFrom(service.read$(request));
     expect(callable).toHaveBeenCalledTimes(2);
 
     completions[0]({ data: page('owner-1') });
     completions[1]({ data: page('owner-1') });
     await expect(viewerBResult).resolves.toEqual(page('owner-1'));
+  });
+
+  it('descarta resposta anterior à troca de sessão, inclusive retorno ao mesmo UID', async () => {
+    let complete!: (value: { data: PublicProfileReadResponse }) => void;
+    callable.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+    const seen: PublicProfileReadResponse[] = [];
+    const old = service.read$({ uids: ['owner-1'] }).subscribe(value => seen.push(value));
+    terminationVersion++;
+    auth.currentUser = null;
+    uid$.next(null);
+    expect(old.closed).toBe(true);
+    auth.currentUser = { uid: 'viewer-a' };
+    uid$.next('viewer-a');
+    callable.mockResolvedValueOnce({ data: page('fresh') });
+    await expect(firstValueFrom(service.read$({ uids: ['owner-1'] }))).resolves.toEqual(page('fresh'));
+    complete({ data: page('old') });
+    await Promise.resolve();
+    expect(seen).toEqual([]);
+    expect(callable).toHaveBeenCalledTimes(2);
   });
 
   it('respeita retryAfter do servidor e impede novas chamadas do mesmo UID', async () => {
@@ -148,6 +177,7 @@ describe('PublicProfileReadBoundaryService: proteção de quota por sessão', ()
 
     // Um novo usuário nunca herda a quota local da sessão anterior.
     auth.currentUser = { uid: 'viewer-b' };
+    uid$.next('viewer-b');
     callable.mockResolvedValueOnce({ data: page('b') });
     await expect(firstValueFrom(service.read$({ uids: ['b'] })))
       .resolves.toEqual(page('b'));

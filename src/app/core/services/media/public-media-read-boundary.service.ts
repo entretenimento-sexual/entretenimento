@@ -11,6 +11,8 @@ import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, from } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { SessionReadInFlight } from '@core/services/autentication/auth/session-read-in-flight';
 
 export type PublicMediaReadType = 'PHOTO' | 'VIDEO';
 export type PublicMediaReadMode =
@@ -47,6 +49,8 @@ export interface PublicMediaReadResponse {
 @Injectable({ providedIn: 'root' })
 export class PublicMediaReadBoundaryService {
   private readonly functions = inject(Functions);
+  private readonly session = inject(AuthSessionService);
+  private readonly inFlight = new SessionReadInFlight<PublicMediaReadResponse>(this.session);
 
   private readonly callable = httpsCallable<
     PublicMediaReadRequest,
@@ -56,8 +60,11 @@ export class PublicMediaReadBoundaryService {
   read$(
     request: PublicMediaReadRequest
   ): Observable<PublicMediaReadResponse> {
-    return defer(() => from(this.callable(request))).pipe(
-      map((response) => response.data)
-    );
+    return defer(() => this.inFlight.read$(
+      JSON.stringify(request),
+      () => defer(() => from(this.callable(request))).pipe(
+        map((response) => response.data)
+      )
+    ));
   }
 }

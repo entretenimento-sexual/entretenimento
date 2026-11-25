@@ -11,7 +11,11 @@ import {
   map,
   switchMap,
   timer,
+  filter,
+  takeUntil,
 } from 'rxjs';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { SessionReadInFlight } from '@core/services/autentication/auth/session-read-in-flight';
 
 import { FirestoreRepoBase } from './base.repo';
 import { FriendRequest } from '../../../../interfaces/friendship/friend-request.interface';
@@ -25,12 +29,15 @@ import { FriendRequest } from '../../../../interfaces/friendship/friend-request.
  */
 @Injectable({ providedIn: 'root' })
 export class RequestsRepo extends FirestoreRepoBase {
+  private readonly inFlight: SessionReadInFlight<(FriendRequest & { id: string })[]>;
   constructor(
     db: Firestore,
     env: EnvironmentInjector,
-    private readonly functions: Functions
+    private readonly functions: Functions,
+    private readonly session: AuthSessionService
   ) {
     super(db, env);
+    this.inFlight = new SessionReadInFlight(this.session);
   }
 
   private getPendingRequestsCallable() {
@@ -49,41 +56,45 @@ export class RequestsRepo extends FirestoreRepoBase {
   /* =========================
    * LISTAGENS (pendentes)
    * ========================= */
-  listInboundRequests(_uid: string) {
-    return defer(() =>
-      from(
-        this.getPendingRequestsCallable()({
-          direction: 'inbound',
-          limit: 60,
-        })
-      )
-    ).pipe(map((response) => response.data.items ?? []));
+  listInboundRequests(uid: string) {
+    return this.listPendingRequests$(uid, 'inbound');
   }
 
-  listOutboundRequests(_uid: string) {
-    return defer(() =>
-      from(
-        this.getPendingRequestsCallable()({
-          direction: 'outbound',
-          limit: 60,
-        })
-      )
-    ).pipe(map((response) => response.data.items ?? []));
+  listOutboundRequests(uid: string) {
+    return this.listPendingRequests$(uid, 'outbound');
+  }
+
+  private listPendingRequests$(uid: string, direction: 'inbound' | 'outbound') {
+    return this.inFlight.read$(direction, () =>
+      defer(() => from(this.getPendingRequestsCallable()({ direction, limit: 60 })))
+        .pipe(map((response) => response.data.items ?? [])),
+      uid
+    );
   }
 
   /* =========================
    * REALTIME WATCHERS
    * ========================= */
-  watchInboundRequests(_uid: string): Observable<(FriendRequest & { id: string })[]> {
-    return timer(0, 60_000).pipe(
-      switchMap(() => this.listInboundRequests(''))
-    );
+  watchInboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
+    return this.watchPendingRequests$(uid, 'inbound');
   }
 
-  watchOutboundRequests(_uid: string): Observable<(FriendRequest & { id: string })[]> {
-    return timer(0, 60_000).pipe(
-      switchMap(() => this.listOutboundRequests(''))
-    );
+  watchOutboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
+    return this.watchPendingRequests$(uid, 'outbound');
   }
 
+  private watchPendingRequests$(uid: string, direction: 'inbound' | 'outbound') {
+    return defer(() => {
+      const user = this.session.currentAuthUser;
+      const version = this.session.terminationVersionSnapshot;
+      return timer(0, 60_000).pipe(
+        switchMap(() => this.listPendingRequests$(uid, direction)),
+        takeUntil(this.session.uid$.pipe(filter(activeUid =>
+          activeUid !== uid || this.session.currentAuthUser !== user ||
+          this.session.terminationVersionSnapshot !== version ||
+          this.session.isTerminatingSnapshot
+        )))
+      );
+    });
+  }
 }

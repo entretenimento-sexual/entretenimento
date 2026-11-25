@@ -7,10 +7,11 @@
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
-import { Auth } from '@angular/fire/auth';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { SessionReadInFlight } from '@core/services/autentication/auth/session-read-in-flight';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, from, throwError } from 'rxjs';
-import { finalize, map, shareReplay, tap } from 'rxjs/operators';
+import { map, tap } from 'rxjs/operators';
 
 export type PublicProfileReadMode = 'all' | 'compatible';
 
@@ -61,13 +62,11 @@ export interface PublicProfileReadResponse {
 @Injectable({ providedIn: 'root' })
 export class PublicProfileReadBoundaryService {
   private readonly functions = inject(Functions);
-  private readonly auth = inject(Auth);
+  private readonly session = inject(AuthSessionService);
 
   // Compartilha apenas solicitações simultâneas. Respostas concluídas NÃO são
   // armazenadas: a autorização e o ciclo de vida seguem no backend.
-  private readonly pendingByViewerAndRequest = new Map<
-    string, Observable<PublicProfileReadResponse>
-  >();
+  private readonly inFlight = new SessionReadInFlight<PublicProfileReadResponse>(this.session);
   private readonly quotaCooldownByViewer = new Map<
     string, { until: number; error: unknown }
   >();
@@ -82,7 +81,7 @@ export class PublicProfileReadBoundaryService {
     preferencesRevision?: number
   ): Observable<PublicProfileReadResponse> {
     return defer(() => {
-      const viewerUid = this.auth.currentUser?.uid?.trim() ?? '';
+      const viewerUid = this.session.currentAuthUser?.uid?.trim() ?? '';
       const now = Date.now();
 
       // O backend fornece retryAfterMs ao bloquear. Evita novos POSTs durante
@@ -97,39 +96,21 @@ export class PublicProfileReadBoundaryService {
         return throwError(() => cooldown.error);
       }
 
-      const key = viewerUid
-        ? JSON.stringify([viewerUid, request, preferencesRevision])
-        : null;
-      const pending = key
-        ? this.pendingByViewerAndRequest.get(key)
-        : undefined;
-      if (pending) return pending;
-
-      const shared$ = defer(() =>
-        from(this.getPublicProfilesPageCallable(request))
-      ).pipe(
-        map((response) => response.data),
-        tap({
-          error: (error: unknown) => {
-            if (!viewerUid || !this.isRateLimited(error)) return;
-            this.quotaCooldownByViewer.set(viewerUid, {
-              until: Date.now() + this.retryAfterMs(error),
-              error,
-            });
-          },
-        }),
-        finalize(() => {
-          if (key) this.pendingByViewerAndRequest.delete(key);
-        }),
-        // from(Promise) não aborta um POST ao perder o último subscriber.
-        // Manter o voo compartilhado até a Callable resolver impede que
-        // A -> B -> A gere um segundo POST idêntico antes da resposta.
-        // finalize remove a entrada ao concluir/errar: NÃO há cache de acesso.
-        shareReplay({ bufferSize: 1, refCount: false })
+      return this.inFlight.read$(
+        JSON.stringify([request, preferencesRevision]),
+        () => defer(() => from(this.getPublicProfilesPageCallable(request))).pipe(
+          map((response) => response.data),
+          tap({
+            error: (error: unknown) => {
+              if (!viewerUid || !this.isRateLimited(error)) return;
+              this.quotaCooldownByViewer.set(viewerUid, {
+                until: Date.now() + this.retryAfterMs(error),
+                error,
+              });
+            },
+          })
+        )
       );
-
-      if (key) this.pendingByViewerAndRequest.set(key, shared$);
-      return shared$;
     });
   }
 
