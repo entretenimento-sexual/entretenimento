@@ -259,6 +259,10 @@ async function run() {
       creatorClient.functions,
       'getCommunityDiscoveryPage'
     );
+    const getDiscoveryAsVisitor = httpsCallable(
+      incompleteClient.functions,
+      'getCommunityDiscoveryPage'
+    );
     const getPreviewAsCreator = httpsCallable(
       creatorClient.functions,
       'getCommunityPreview'
@@ -537,7 +541,16 @@ async function run() {
     assert.equal(mine.name, payload.name);
     assert.equal(mine.source.type, 'community');
 
-    const discoveryPage = await getDiscoveryAsCreator({
+    const creatorRecommendations = await getDiscoveryAsCreator({
+      sourceType: 'community',
+      limit: 12,
+    });
+    assert.equal(
+      creatorRecommendations.data.items.some((item) => item.communityId === communityId),
+      false,
+      'O proprietário ativo não deve receber sua própria Comunidade em recomendações.'
+    );
+    const discoveryPage = await getDiscoveryAsVisitor({
       sourceType: 'community',
       limit: 12,
     });
@@ -651,6 +664,15 @@ async function run() {
       joinedAt: Date.now(),
       updatedAt: Date.now(),
     });
+    const memberRecommendations = await getDiscoveryAsVisitor({
+      sourceType: 'community',
+      limit: 12,
+    });
+    assert.equal(
+      memberRecommendations.data.items.some((item) => item.communityId === communityId),
+      false,
+      'Membro ativo não deve receber sua Comunidade em recomendações.'
+    );
     const feedBeforeReaction = await getFeedAsIncomplete({
       communityId,
       view: 'feed',
@@ -1004,7 +1026,16 @@ async function run() {
       tagIds: settingsPayload.tagIds,
     });
 
-    const updatedDiscoveryPage = await getDiscoveryAsCreator({
+    const updatedCreatorRecommendations = await getDiscoveryAsCreator({
+      sourceType: 'community',
+      limit: 12,
+    });
+    assert.equal(
+      updatedCreatorRecommendations.data.items.some((item) => item.communityId === communityId),
+      false,
+      'Edição não deve reinserir a Comunidade nas recomendações do proprietário.'
+    );
+    const updatedDiscoveryPage = await getDiscoveryAsVisitor({
       sourceType: 'community',
       limit: 12,
     });
