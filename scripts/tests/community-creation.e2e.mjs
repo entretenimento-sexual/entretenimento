@@ -593,6 +593,7 @@ async function run() {
     assert.equal(preview.data.canInviteCommunityMembers, true);
     assert.equal(preview.data.canManageCommunitySettings, true);
     assert.equal(preview.data.settings.name, payload.name);
+    assert.equal(preview.data.settings.accessTier, 'all');
     assert.deepEqual(preview.data.settings.tagIds, payload.tagIds);
     assert.deepEqual(preview.data.capacity, {
       configuredLimit: 25,
@@ -1097,11 +1098,13 @@ async function run() {
       description: settingsPayload.description,
       rules: settingsPayload.rules,
       joinPolicy: settingsPayload.joinPolicy,
+      accessTier: 'all',
       membersCanInvite: settingsPayload.membersCanInvite,
       memberLimit: settingsPayload.memberLimit,
       tagIds: settingsPayload.tagIds,
     });
 
+    console.log('[CHAT-R1.9] PASS canonical editable settings include normalized access tier');
     const updatedCreatorRecommendations = await getDiscoveryAsCreator({
       sourceType: 'community',
       limit: 12,
