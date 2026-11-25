@@ -372,6 +372,24 @@ jobs:
           set -o pipefail
           npm run test:friendship:bilateral:e2e 2>&1 | tee logs/bilateral-block-two-sessions.log
 
+      - name: Run authenticated Media revocation E2E
+        id: media_revocation_e2e
+        if: steps.app_install.outcome == 'success' && steps.functions_install.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -eo pipefail
+          npm run test:media:callables:e2e 2>&1 | tee logs/chat-r1-9-media-revocation.log
+
+      - name: Run Community and notification E2E
+        id: community_interaction_e2e
+        if: steps.app_install.outcome == 'success' && steps.functions_install.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -eo pipefail
+          npm run test:community:e2e 2>&1 | tee logs/chat-r1-9-community-interaction.log
+
       - name: Resolve aggregate result
         id: aggregate
         if: always()
@@ -390,6 +408,8 @@ jobs:
           FIRESTORE_RULES: ${{ steps.firestore_rules.outcome }}
           CHAT_RECONCILIATION: ${{ steps.chat_reconciliation.outcome }}
           BILATERAL_BLOCK_E2E: ${{ steps.bilateral_block_e2e.outcome }}
+          MEDIA_REVOCATION_E2E: ${{ steps.media_revocation_e2e.outcome }}
+          COMMUNITY_INTERACTION_E2E: ${{ steps.community_interaction_e2e.outcome }}
         run: |
           state='success'
           description='Todos os checks de qualidade passaram.'
@@ -408,6 +428,8 @@ jobs:
             "firestore_rules:$FIRESTORE_RULES"
             "chat_reconciliation:$CHAT_RECONCILIATION"
             "bilateral_block_e2e:$BILATERAL_BLOCK_E2E"
+            "media_revocation_e2e:$MEDIA_REVOCATION_E2E"
+            "community_interaction_e2e:$COMMUNITY_INTERACTION_E2E"
           )
 
           for check in "${checks[@]}"; do
@@ -441,6 +463,8 @@ jobs:
           FIRESTORE_RULES: ${{ steps.firestore_rules.outcome }}
           CHAT_RECONCILIATION: ${{ steps.chat_reconciliation.outcome }}
           BILATERAL_BLOCK_E2E: ${{ steps.bilateral_block_e2e.outcome }}
+          MEDIA_REVOCATION_E2E: ${{ steps.media_revocation_e2e.outcome }}
+          COMMUNITY_INTERACTION_E2E: ${{ steps.community_interaction_e2e.outcome }}
         run: |
           {
             echo '## Canonical Quality Gate'
@@ -460,6 +484,8 @@ jobs:
             echo "| Firestore Rules tests | $FIRESTORE_RULES |"
             echo "| Direct chat reconciliation emulator | $CHAT_RECONCILIATION |"
             echo "| Bilateral block two-session E2E | $BILATERAL_BLOCK_E2E |"
+            echo "| Authenticated Media revocation E2E | $MEDIA_REVOCATION_E2E |"
+            echo "| Community and notification E2E | $COMMUNITY_INTERACTION_E2E |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish aggregate commit status

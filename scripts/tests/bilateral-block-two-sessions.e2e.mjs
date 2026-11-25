@@ -590,6 +590,22 @@ try {
   await assertExistingServerRead(b, 'chats/' + chatId + '/messages/' + firstMessage, 'B after A restored');
   console.log('[bilateral-two-sessions:e2e] PASS EST-R1.5.1 explicit REST authorization, terminal listener revocation, SDK logout, A-to-C-to-A and independent B.');
 
+  // CHAT-R1.9: the restored owner can perform a NEW authorized interaction;
+  // the independent recipient sees it on the server, not an SDK cache.
+  const restoredMessageId = (await httpsCallable(a.functions, 'sendDirectMessage')({
+    chatId, content: 'Mensagem nova após restauração de sessão',
+    clientRequestId: randomUUID().replaceAll('-', ''),
+  })).data.messageId;
+  assert.ok(restoredMessageId);
+  assert.notEqual(restoredMessageId, firstMessage);
+  const restoredMessagePath = 'chats/' + chatId + '/messages/' + restoredMessageId;
+  await assertRestRead(restoredMessagePath, restoredAToken, true, 'CHAT-R1.9 A restored send');
+  await assertRestRead(restoredMessagePath, await b.auth.currentUser.getIdToken(), true, 'CHAT-R1.9 B receive');
+  await assertRestRead(restoredMessagePath, cToken, false, 'CHAT-R1.9 unrelated C');
+  await assertRestRead(restoredMessagePath, null, false, 'CHAT-R1.9 anonymous');
+  await assertExistingServerRead(b, restoredMessagePath, 'CHAT-R1.9 B receive');
+  console.log('[CHAT-R1.9] PASS new authorized send after session restoration, independent receipt and unrelated/anonymous denial');
+
   // Exercise the real self-service lifecycle on the disposable account,
   // with no owned community, active room or subscription.
   const nickname = 'est' + id.slice(0, 9);

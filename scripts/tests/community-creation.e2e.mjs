@@ -726,6 +726,35 @@ async function run() {
     );
     communityNotificationIds.push(commentNotifications[0].id);
 
+    // CHAT-R1.9: exercise Rules using the actual notification emitted by
+    // the community callable, not an Admin-created notification fixture.
+    const notificationDocumentId = commentNotifications[0].id;
+    const notificationUrl = new URL(
+      '/v1/projects/' + PROJECT_ID + '/databases/(default)/documents/notifications/' +
+        encodeURIComponent(notificationDocumentId),
+      'http://' + HOST + ':' + FIRESTORE_PORT
+    );
+    async function assertNotificationRead(token, allowed) {
+      const response = await fetch(notificationUrl, {
+        headers: token ? { Authorization: 'Bearer ' + token } : {},
+        redirect: 'error',
+        signal: AbortSignal.timeout(30_000),
+      });
+      const body = await response.json();
+      assert.equal(response.status, allowed ? 200 : 403, 'CHAT-R1.9 notification ownership');
+      if (allowed) {
+        assert.equal(body.fields?.userId?.stringValue, creatorUid);
+        assert.equal(body.fields?.communityId?.stringValue, communityId);
+      } else {
+        assert.equal(body.error?.status, 'PERMISSION_DENIED');
+      }
+    }
+    const creatorToken = await creatorClient.auth.currentUser.getIdToken();
+    const commenterToken = await incompleteClient.auth.currentUser.getIdToken();
+    await assertNotificationRead(creatorToken, true);
+    await assertNotificationRead(commenterToken, false);
+    await assertNotificationRead(null, false);
+
     await incompleteMembershipRef.delete();
     await expectCallableFailure(
       createFeedCommentAsIncomplete,
@@ -737,6 +766,11 @@ async function run() {
       },
       'permission-denied'
     );
+
+    // The notification is not a capability to write into the destination.
+    // Membership was removed and the real comment callable rejected access.
+    await assertNotificationRead(commenterToken, false);
+    console.log('[CHAT-R1.9] PASS real community notification ownership and revoked destination write');
 
     const publicComments = await getFeedCommentsAsIncomplete({
       communityId,
