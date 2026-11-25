@@ -29,10 +29,19 @@ const AUTH_PORT = 19099;
 const FIRESTORE_PORT = 18080;
 const FUNCTIONS_PORT = 15001;
 
+const STORAGE_PORT = 19199;
+
+// Verify the actual emulator environment before creating any SDK client.
+// Never synthesize missing endpoint variables or override a non-demo project.
+assert.equal(process.env.FIREBASE_AUTH_EMULATOR_HOST, `${HOST}:${AUTH_PORT}`);
+assert.equal(process.env.FIRESTORE_EMULATOR_HOST, `${HOST}:${FIRESTORE_PORT}`);
+assert.equal(process.env.FIREBASE_STORAGE_EMULATOR_HOST, `${HOST}:${STORAGE_PORT}`);
+assert.ok(process.env.FIREBASE_EMULATOR_HUB, 'Use emulators:exec.');
+for (const name of ['GCLOUD_PROJECT', 'GCP_PROJECT']) {
+  assert.equal(process.env[name] ?? PROJECT_ID, PROJECT_ID, name);
+}
 process.env.GCLOUD_PROJECT = PROJECT_ID;
 process.env.GCP_PROJECT = PROJECT_ID;
-process.env.FIRESTORE_EMULATOR_HOST = `${HOST}:${FIRESTORE_PORT}`;
-process.env.FIREBASE_AUTH_EMULATOR_HOST = `${HOST}:${AUTH_PORT}`;
 
 function projection(communityId, rankScore, tagIds) {
   return {
