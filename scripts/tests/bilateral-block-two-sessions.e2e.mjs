@@ -15,7 +15,7 @@ import {
 } from 'firebase/functions';
 import {
   getFirestore as getClientFirestore, connectFirestoreEmulator,
-  collection, doc, getDoc, getDocFromServer, onSnapshot, query, setDoc, updateDoc, where, writeBatch,
+  collection, doc, getDoc, getDocFromCache, getDocFromServer, onSnapshot, query, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 import {
   initializeApp as initializeAdminApp, deleteApp as deleteAdminApp,
@@ -109,11 +109,84 @@ async function waitAvailable(label, states, value) {
     state !== undefined && state?.available === value && state?.version === 1
   );
 }
-async function expectDenied(operation, code) {
+async function expectDenied(operation, code, label = 'protected operation') {
   await assert.rejects(operation(), (error) => {
-    assert.equal(error.code, code);
+    assert.equal(error.code, code, label);
     return true;
+  }, label);
+}
+
+// Independent wire-level oracle: no SDK cache, shared watch target, or
+// Admin SDK credentials. The origin and project are fixed to this demo.
+async function assertRestRead(path, token, allowed, phase) {
+  const url = new URL(
+    '/v1/projects/' + PROJECT + '/databases/(default)/documents/' +
+      path.split('/').map(encodeURIComponent).join('/'),
+    'http://' + HOST + ':' + FIRESTORE_PORT
+  );
+  const response = await fetch(url, {
+    headers: token ? { Authorization: 'Bearer ' + token } : {},
+    redirect: 'error',
+    signal: AbortSignal.timeout(DEADLINE_MS),
   });
+  const body = await response.json();
+  const label = phase + ': REST ' + path;
+  assert.equal(response.status, allowed ? 200 : 403, label);
+  if (allowed) {
+    assert.equal(body.name, 'projects/' + PROJECT + '/databases/(default)/documents/' + path, label);
+  } else {
+    assert.equal(body.error?.status, 'PERMISSION_DENIED', label);
+  }
+}
+
+// Keep a previously server-confirmed private target alive through the
+// transition. Its terminal Rules rejection proves the old watch is no
+// longer usable; merely seeing Auth.currentUser change is insufficient.
+function observeCredentialBoundary(client, path) {
+  let serverConfirmed = false;
+  let terminalError = null;
+  const stop = onSnapshot(doc(client.firestore, path), { includeMetadataChanges: true },
+    snapshot => {
+      if (snapshot.exists() && !snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites) {
+        serverConfirmed = true;
+      }
+    },
+    error => { terminalError = error.code; }
+  );
+  unsubscribe.push(stop);
+  return {
+    async ready() {
+      await until('server-confirmed watch: ' + path, () => {
+        assert.equal(terminalError, null, 'unexpected watch error before transition: ' + path);
+        return serverConfirmed;
+      }, Boolean);
+    },
+    async revoked(phase) {
+      await until(phase + ': terminal watch rejection ' + path,
+        () => terminalError, value => value !== null);
+      assert.equal(terminalError, 'permission-denied', phase + ': ' + path);
+      stop();
+    },
+  };
+}
+
+async function assertExistingServerRead(client, path, phase) {
+  const snapshot = await getDocFromServer(doc(client.firestore, path));
+  assert.equal(snapshot.metadata.fromCache, false, phase + ': cache ' + path);
+  assert.equal(snapshot.metadata.hasPendingWrites, false, phase + ': pending write ' + path);
+  assert.equal(snapshot.exists(), true, phase + ': missing ' + path);
+  return snapshot;
+}
+
+async function reportCacheDiagnostic(client, path) {
+  try {
+    const snapshot = await getDocFromCache(doc(client.firestore, path));
+    assert.equal(snapshot.metadata.fromCache, true);
+    console.log('[EST-R1.5.1] cache-only after logout: exists=' + snapshot.exists());
+  } catch (error) {
+    if (error.code !== 'unavailable') throw error;
+    console.log('[EST-R1.5.1] cache-only after logout: no cached document');
+  }
 }
 async function lookup(call, uid) {
   const response = await call({ uids: [uid] });
@@ -455,31 +528,67 @@ try {
     'chats/' + chatId + '/messages/' + firstMessage,
   ];
   const readServer = (client, path) => getDocFromServer(doc(client.firestore, path));
-  for (const path of privatePaths) assert.equal((await readServer(a, path)).exists(), true, path);
+  const assertPrivateDenied = async (phase, token) => {
+    for (const path of privatePaths) await assertRestRead(path, token, false, phase);
+  };
+  const assertPrivateSdkDenied = async phase => {
+    for (const path of privatePaths) {
+      await expectDenied(() => readServer(a, path), 'permission-denied', phase + ': SDK ' + path);
+    }
+  };
+
+  const aToken = await a.auth.currentUser.getIdToken();
+  for (const path of privatePaths) {
+    await assertRestRead(path, aToken, true, 'A before logout');
+    await assertExistingServerRead(a, path, 'A before logout');
+  }
   assert.equal((await readServer(a, summaryPath(aUid))).data().unreadCount, 7);
+  const aBoundary = observeCredentialBoundary(a, summaryPath(aUid));
+  await aBoundary.ready();
 
   await signOut(a.auth);
   assert.equal(a.auth.currentUser, null);
-  for (const path of privatePaths) {
-    await expectDenied(() => readServer(a, path), 'permission-denied');
+  // No waiting for an SDK permission-denied result before testing Rules:
+  // the anonymous wire requests are strict, one shot, with no retry.
+  await assertPrivateDenied('logout anonymous', null);
+  await reportCacheDiagnostic(a, privatePaths[0]);
+  await aBoundary.revoked('logout');
+  for (const [label, states] of [
+    ['chat', aChat], ['media', aMedia], ['blocks', aOwnBlocks],
+  ]) {
+    await until('logout: old ' + label + ' watch terminated',
+      () => latest(states)?.observationError, value => value !== undefined);
+    assert.equal(latest(states).observationError, 'permission-denied', label);
   }
+  await assertPrivateSdkDenied('logout after credential convergence');
   assert.equal(b.auth.currentUser.uid, bUid);
-  assert.equal((await readServer(b, 'chats/' + chatId + '/messages/' + firstMessage)).exists(), true);
+  await assertExistingServerRead(b, 'chats/' + chatId + '/messages/' + firstMessage, 'B during A logout');
 
   await signInWithEmailAndPassword(a.auth, neutralUid + '@example.test', password);
   assert.equal(a.auth.currentUser.uid, neutralUid);
-  assert.equal((await readServer(a, summaryPath(neutralUid))).data().unreadCount, 2);
-  for (const path of privatePaths) {
-    await expectDenied(() => readServer(a, path), 'permission-denied');
-  }
+  const cToken = await a.auth.currentUser.getIdToken();
+  await assertRestRead(summaryPath(neutralUid), cToken, true, 'C own summary');
+  await assertPrivateDenied('C cross-account', cToken);
+  const cBoundary = observeCredentialBoundary(a, summaryPath(neutralUid));
+  await cBoundary.ready();
+  assert.equal((await assertExistingServerRead(a, summaryPath(neutralUid), 'C own summary')).data().unreadCount, 2);
+  await assertPrivateSdkDenied('C after server-confirmed own summary');
+
+  // Direct C -> A switch without a preceding signOut.
   await signInWithEmailAndPassword(a.auth, aUid + '@example.test', password);
   assert.equal(a.auth.currentUser.uid, aUid);
-  await expectDenied(() => readServer(a, summaryPath(neutralUid)), 'permission-denied');
-  for (const path of privatePaths) assert.equal((await readServer(a, path)).exists(), true, path);
+  const restoredAToken = await a.auth.currentUser.getIdToken();
+  await assertRestRead(summaryPath(neutralUid), restoredAToken, false, 'A cross-account');
+  await cBoundary.revoked('C to A');
+  await expectDenied(() => readServer(a, summaryPath(neutralUid)), 'permission-denied', 'A: SDK C summary');
+  for (const path of privatePaths) {
+    await assertRestRead(path, restoredAToken, true, 'A restored');
+    await assertExistingServerRead(a, path, 'A restored');
+  }
   assert.equal((await readServer(a, summaryPath(aUid))).data().unreadCount, 7);
   assert.equal(b.auth.currentUser.uid, bUid);
-  assert.equal((await readServer(b, 'chats/' + chatId + '/messages/' + firstMessage)).exists(), true);
-  console.log('[bilateral-two-sessions:e2e] PASS EST-R1.5 logout, A-to-C-to-A, private notification, community summary, friendship and chat/media boundaries.');
+  await assertExistingServerRead(b, 'chats/' + chatId + '/messages/' + firstMessage, 'B after A restored');
+  console.log('[bilateral-two-sessions:e2e] PASS EST-R1.5.1 explicit REST authorization, terminal listener revocation, SDK logout, A-to-C-to-A and independent B.');
 
   // Exercise the real self-service lifecycle on the disposable account,
   // with no owned community, active room or subscription.
