@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import {
   deleteApp as deleteClientApp,
@@ -108,6 +109,25 @@ async function expectCallableFailure(callable, payload, expectedCode) {
 async function readData(reference) {
   const snapshot = await reference.get();
   return snapshot.exists ? snapshot.data() : null;
+}
+
+function activityMillis(community) {
+  const value = community?.lifecycle?.lastMeaningfulActivityAt;
+  const millis = typeof value === 'number' ? value : value?.toMillis?.();
+  assert.ok(Number.isFinite(millis) && millis > 0, 'Relógio de atividade inválido.');
+  return millis;
+}
+
+// Wait for an observable backend effect, not an arbitrary sleep. The activity
+// triggers run asynchronously and must finish before editorial invariants are tested.
+async function waitForCommunityActivity(reference, predicate, description) {
+  const deadline = Date.now() + 60_000;
+  do {
+    const current = await readData(reference);
+    if (current && predicate(current)) return current;
+    await delay(250);
+  } while (Date.now() < deadline);
+  assert.fail('Atividade comunitária não convergiu: ' + description);
 }
 
 async function run() {
@@ -657,7 +677,12 @@ async function run() {
       canComment: true,
     });
 
-    const communityAfterFeed = await readData(communityRef);
+    const communityAfterFeed = await waitForCommunityActivity(
+      communityRef,
+      (current) => typeof current.lifecycle?.lastMeaningfulActivityAt?.toMillis === 'function'
+        && activityMillis(current) >= feedAudit.createdAt,
+      'trigger da publicação inicial'
+    );
     const discoveryAfterFeed = await readData(discoveryRef);
     assert.equal(communityAfterFeed.metrics.postCount, 1);
     assert.equal(discoveryAfterFeed.metrics.postCount, 1);
@@ -665,13 +690,19 @@ async function run() {
     const incompleteMembershipRef = db.doc(
       `communities/${communityId}/members/${incompleteUid}`
     );
+    const membershipActivatedAt = Date.now();
     await incompleteMembershipRef.set({
       uid: incompleteUid,
       status: 'active',
       role: 'member',
-      joinedAt: Date.now(),
-      updatedAt: Date.now(),
+      joinedAt: membershipActivatedAt,
+      updatedAt: membershipActivatedAt,
     });
+    await waitForCommunityActivity(
+      communityRef,
+      (current) => activityMillis(current) >= membershipActivatedAt,
+      'primeira ativação do membro'
+    );
     const memberRecommendations = await getDiscoveryAsVisitor({
       sourceType: 'community',
       limit: 12,
@@ -751,6 +782,13 @@ async function run() {
       text: 'Comentário operacional e privado em relação ao UID.',
     });
     assert.equal(repeatedComment.data.deduplicated, true);
+    const communityAfterComment = await waitForCommunityActivity(
+      communityRef,
+      (current) => Number(current.metrics?.interactionCount ?? 0)
+        >= Number(communityAfterFeed.metrics?.interactionCount ?? 0) + 1,
+      'crescimento de comentários'
+    );
+    assert.ok(activityMillis(communityAfterComment) >= activityMillis(communityAfterFeed));
     const creatorNotificationsSnapshot = await db
       .collection('notifications')
       .where('userId', '==', creatorUid)
@@ -973,6 +1011,13 @@ async function run() {
     assert.equal((await readData(communityRef)).metrics.postCount, 0);
     assert.equal((await readData(discoveryRef)).metrics.postCount, 0);
 
+    // The creation snapshot predates legitimate posts, membership and comments.
+    // Compare editorial edits with the actual state immediately before editing.
+    const [communityBeforeSettings, discoveryBeforeSettings] = await Promise.all([
+      readData(communityRef),
+      readData(discoveryRef),
+    ]);
+    assert.ok(activityMillis(communityBeforeSettings) >= activityMillis(communityAfterComment));
     settingsRequestId = randomUUID();
     const settingsPayload = {
       requestId: settingsRequestId,
@@ -1019,15 +1064,21 @@ async function run() {
     assert.equal(updatedCommunity.rules, settingsPayload.rules);
     assert.equal(updatedCommunity.access.join, 'invite_only');
     assert.equal(updatedCommunity.access.invites.membersCanInvite, true);
-    assert.equal(
+    assert.deepEqual(
       updatedCommunity.lifecycle.lastMeaningfulActivityAt,
-      community.lifecycle.lastMeaningfulActivityAt,
+      communityBeforeSettings.lifecycle.lastMeaningfulActivityAt,
       'Edição editorial não deve simular atividade significativa.'
     );
 
     assert.equal(updatedDiscovery.name, settingsPayload.name);
     assert.equal(updatedDiscovery.access.join, 'invite_only');
-    assert.equal(updatedDiscovery.rankScore, discovery.rankScore);
+    assert.equal(updatedDiscovery.rankScore, discoveryBeforeSettings.rankScore);
+    assert.equal(
+      updatedCommunity.metrics.interactionCount,
+      communityBeforeSettings.metrics.interactionCount,
+      'Edição editorial não deve contabilizar interação.'
+    );
+    console.log('[CHAT-R1.9] PASS editorial settings preserve activity clock, interactions and legacy rank');
     assert.equal('rules' in updatedDiscovery, false);
     assert.equal('invites' in updatedDiscovery.access, false);
 
