@@ -8,7 +8,7 @@ import {
   connectStorageEmulator, getDownloadURL, getStorage, ref, uploadBytes,
 } from 'firebase/storage';
 import {
-  getAuth, connectAuthEmulator, signInWithEmailAndPassword,
+  getAuth, connectAuthEmulator, signInWithEmailAndPassword, signOut,
 } from 'firebase/auth';
 import {
   getFunctions, connectFunctionsEmulator, httpsCallable,
@@ -431,6 +431,77 @@ try {
   assert.equal((await getDoc(doc(a.firestore, 'public_profiles', bUid))).exists(), true);
   assert.equal((await db.doc('chats/' + chatId + '/messages/' + firstMessage).get()).exists, true);
   assert.ok((await readAvatar(b, aUid)).data.image);
+  // EST-R1.5: reuse the same SDK instances and references across identities.
+  // Read from the server, never from the SDK cache, to certify Rules.
+  await adminAuth.createUser({
+    uid: neutralUid, email: neutralUid + '@example.test', password, emailVerified: true,
+  });
+  await db.doc('users/' + neutralUid).set({
+    emailVerified: true, loginAllowed: true, accountLocked: false,
+  }, { merge: true });
+  const summaryPath = uid => 'community_notification_summaries/' + uid;
+  const notificationId = 'est-r1-5-' + id;
+  const notificationPath = 'notifications/' + notificationId;
+  await Promise.all([
+    db.doc(summaryPath(aUid)).set({ projectionVersion: 2, unreadCount: 7, priorityUnreadCount: 2, priorityCommunityCount: 1, attentionWindow: [] }),
+    db.doc(summaryPath(neutralUid)).set({ projectionVersion: 2, unreadCount: 2, priorityUnreadCount: 0, priorityCommunityCount: 0, attentionWindow: [] }),
+    db.doc(notificationPath).set({ userId: aUid, read: false }),
+  ]);
+  const privatePaths = [
+    'direct_chat_access/' + aUid + '/peers/' + bUid,
+    'public_media_access/' + aUid + '/owners/' + bUid,
+    'users/' + aUid + '/friends/' + bUid,
+    summaryPath(aUid), notificationPath,
+    'chats/' + chatId + '/messages/' + firstMessage,
+  ];
+  const readServer = (client, path) => getDocFromServer(doc(client.firestore, path));
+  for (const path of privatePaths) assert.equal((await readServer(a, path)).exists(), true, path);
+  assert.equal((await readServer(a, summaryPath(aUid))).data().unreadCount, 7);
+
+  await signOut(a.auth);
+  assert.equal(a.auth.currentUser, null);
+  for (const path of privatePaths) {
+    await expectDenied(() => readServer(a, path), 'permission-denied');
+  }
+  assert.equal(b.auth.currentUser.uid, bUid);
+  assert.equal((await readServer(b, 'chats/' + chatId + '/messages/' + firstMessage)).exists(), true);
+
+  await signInWithEmailAndPassword(a.auth, neutralUid + '@example.test', password);
+  assert.equal(a.auth.currentUser.uid, neutralUid);
+  assert.equal((await readServer(a, summaryPath(neutralUid))).data().unreadCount, 2);
+  for (const path of privatePaths) {
+    await expectDenied(() => readServer(a, path), 'permission-denied');
+  }
+  await signInWithEmailAndPassword(a.auth, aUid + '@example.test', password);
+  assert.equal(a.auth.currentUser.uid, aUid);
+  await expectDenied(() => readServer(a, summaryPath(neutralUid)), 'permission-denied');
+  for (const path of privatePaths) assert.equal((await readServer(a, path)).exists(), true, path);
+  assert.equal((await readServer(a, summaryPath(aUid))).data().unreadCount, 7);
+  assert.equal(b.auth.currentUser.uid, bUid);
+  assert.equal((await readServer(b, 'chats/' + chatId + '/messages/' + firstMessage)).exists(), true);
+  console.log('[bilateral-two-sessions:e2e] PASS EST-R1.5 logout, A-to-C-to-A, private notification, community summary, friendship and chat/media boundaries.');
+
+  // Exercise the real self-service lifecycle on the disposable account,
+  // with no owned community, active room or subscription.
+  const nickname = 'est' + id.slice(0, 9);
+  await db.doc('users/' + aUid).set({ nickname, nicknameNormalized: nickname }, { merge: true });
+  const requestDeletion = httpsCallable(a.functions, 'requestAccountDeletion');
+  const cancelDeletion = httpsCallable(a.functions, 'cancelAccountDeletion');
+  const deletion = (await requestDeletion({ expectedUid: aUid })).data;
+  assert.equal(deletion.accountStatus, 'pending_deletion');
+  assert.equal(deletion.interactionBlocked, true);
+  assert.equal((await db.doc('public_profiles/' + aUid).get()).exists, false);
+  await expectDenied(() => readServer(b, 'public_profiles/' + aUid), 'permission-denied');
+  await expectDenied(() => readAvatar(b, aUid), 'functions/not-found');
+  const restored = (await cancelDeletion({ expectedUid: aUid })).data;
+  assert.equal(restored.accountStatus, 'active');
+  assert.equal(restored.publicVisibility, 'visible');
+  assert.equal(restored.interactionBlocked, false);
+  assert.equal((await readServer(b, 'public_profiles/' + aUid)).exists(), true);
+  assert.ok((await readAvatar(b, aUid)).data.image);
+  assert.equal((await readServer(b, 'chats/' + chatId + '/messages/' + firstMessage)).exists(), true);
+  console.log('[bilateral-two-sessions:e2e] PASS EST-R1.5 self-service deletion cancellation and public profile/avatar restoration.');
+
   await db.doc('users/' + aUid).set({ publicVisibility: 'hidden' }, { merge: true });
   await expectDenied(() => readAvatar(b, aUid), 'functions/not-found');
   await db.doc('users/' + aUid).set({ publicVisibility: 'visible', suspended: true }, { merge: true });
