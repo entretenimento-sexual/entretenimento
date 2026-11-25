@@ -311,6 +311,13 @@ async function run() {
       async () => (await videoRef.get()).get('moderationStatus'),
       (status) => status === 'FLAGGED'
     );
+    // First certify the synchronized denial, then the stale approved projection.
+    // Both must use the same denial regardless of asynchronous trigger timing.
+    await expectError(start, videoPayload, 'not-found');
+    await expectError(retention, retentionPayload, 'not-found');
+    await expectError(reaction, videoPayload, 'not-found');
+    await expectError(comment, { ...videoPayload, content: 'Blocked after synchronized hold' }, 'not-found');
+    await expectError(rate, { ...videoPayload, rating: 5 }, 'not-found');
     await videoRef.update({ moderationStatus: 'APPROVED' });
     await expectError(start, videoPayload, 'not-found');
     const socialBefore = (await videoRef.get()).data();

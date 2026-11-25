@@ -137,8 +137,8 @@ export const startPublicVideoPlaybackSession = onCall<
       publicVideo.moderationStatus !== 'APPROVED'
     ) {
       throw new HttpsError(
-        'failed-precondition',
-        'Vídeo indisponível para visualização pública.'
+        'not-found',
+        'Vídeo público não encontrado.'
       );
     }
 

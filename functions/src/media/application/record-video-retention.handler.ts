@@ -76,8 +76,8 @@ function assertPublicApprovedVideo(
     video?.moderationStatus !== 'APPROVED'
   ) {
     throw new HttpsError(
-      'failed-precondition',
-      'Vídeo indisponível para atualização de retenção.'
+      'not-found',
+      'Vídeo público não encontrado.'
     );
   }
 }

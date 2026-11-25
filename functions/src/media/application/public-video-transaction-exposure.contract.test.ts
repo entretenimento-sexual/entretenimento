@@ -39,3 +39,18 @@ test('CHAT-R1.9 canonical exposure precedes video social preconditions', () => {
     assert.ok(exposure > publicationRead && featureCheck > exposure, file);
   }
 });
+
+test('CHAT-R1.9 playback and accounting preflight mask restricted projections', () => {
+  for (const file of [
+    'record-video-view.handler.ts',
+    'record-video-retention.handler.ts',
+    'start-public-video-playback-session.handler.ts',
+  ]) {
+    const text = source(file);
+    const moderation = text.indexOf("moderationStatus !== 'APPROVED'");
+    assert.ok(moderation >= 0, file);
+    const denial = text.indexOf('throw new HttpsError(', moderation);
+    assert.ok(denial >= 0, file);
+    assert.match(text.slice(denial, denial + 180), /HttpsError\(\s*'not-found'/, file);
+  }
+});

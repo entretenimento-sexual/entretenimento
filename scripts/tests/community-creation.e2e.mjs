@@ -651,7 +651,7 @@ async function run() {
       canDeleteOwn: true,
       canModerate: false,
       canReport: false,
-      canReact: false,
+      canReact: true,
       viewerReacted: false,
       canViewComments: true,
       canComment: true,
@@ -700,9 +700,15 @@ async function run() {
     const addedReaction = await toggleFeedReactionAsIncomplete({
       communityId,
       postId: feedRequestId,
+      reacted: true,
     });
     assert.equal(addedReaction.data.reacted, true);
     assert.equal(addedReaction.data.reactionCount, 1);
+    const repeatedReaction = await toggleFeedReactionAsIncomplete({
+      communityId, postId: feedRequestId, reacted: true,
+    });
+    assert.equal(repeatedReaction.data.reacted, true);
+    assert.equal(repeatedReaction.data.reactionCount, 1);
     const feedAfterReaction = await getFeedAsIncomplete({
       communityId,
       view: 'feed',
@@ -723,6 +729,7 @@ async function run() {
     const removedReaction = await toggleFeedReactionAsIncomplete({
       communityId,
       postId: feedRequestId,
+      reacted: false,
     });
     assert.equal(removedReaction.data.reacted, false);
     assert.equal(removedReaction.data.reactionCount, 0);
@@ -795,6 +802,11 @@ async function run() {
     await assertNotificationRead(null, false);
 
     await incompleteMembershipRef.delete();
+    await expectCallableFailure(
+      toggleFeedReactionAsIncomplete,
+      { communityId, postId: feedRequestId, reacted: true },
+      'permission-denied'
+    );
     await expectCallableFailure(
       createFeedCommentAsIncomplete,
       {
