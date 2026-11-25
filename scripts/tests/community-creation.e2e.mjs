@@ -766,10 +766,10 @@ async function run() {
     assert.equal(commentNotifications.length, 1);
     assert.equal(commentNotifications[0].data().activityCount, 1);
     assert.equal(commentNotifications[0].data().actorUid, incompleteUid);
-    assert.equal(
-      commentNotifications[0].data().route,
-      `/dashboard/comunidades/${communityId}`
-    );
+    const expectedNotificationRoute = `/dashboard/comunidades/${encodeURIComponent(communityId)}`
+      + `?post=${encodeURIComponent(feedRequestId)}&comentario=${encodeURIComponent(feedCommentRequestId)}`;
+    assert.equal(commentNotifications[0].data().commentId, feedCommentRequestId);
+    assert.equal(commentNotifications[0].data().route, expectedNotificationRoute);
     communityNotificationIds.push(commentNotifications[0].id);
 
     // CHAT-R1.9: exercise Rules using the actual notification emitted by
@@ -791,6 +791,10 @@ async function run() {
       if (allowed) {
         assert.equal(body.fields?.userId?.stringValue, creatorUid);
         assert.equal(body.fields?.communityId?.stringValue, communityId);
+        assert.equal(body.fields?.postId?.stringValue, feedRequestId);
+        assert.equal(body.fields?.commentId?.stringValue, feedCommentRequestId);
+        assert.equal(body.fields?.route?.stringValue, expectedNotificationRoute);
+        assert.equal(body.fields?.type?.stringValue, 'community.comment.received');
       } else {
         assert.equal(body.error?.status, 'PERMISSION_DENIED');
       }
@@ -800,6 +804,7 @@ async function run() {
     await assertNotificationRead(creatorToken, true);
     await assertNotificationRead(commenterToken, false);
     await assertNotificationRead(null, false);
+    console.log('[CHAT-R1.9] PASS real notification deep link and recipient-only Rules reads');
 
     await incompleteMembershipRef.delete();
     await expectCallableFailure(
