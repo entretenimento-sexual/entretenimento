@@ -496,6 +496,12 @@
   min-height: max(44px, var(--tap-target, 44px));
 }
 
+/* Preserve the full navigation targets while its container scrolls.
+   The dimensional minimum comes from the administrative rule above. */
+app-community-membership-management .app-segmented > button {
+  flex-shrink: 0;
+}
+
 .app-action:hover,
 .app-action:focus-visible {
   color: var(--text-color);
