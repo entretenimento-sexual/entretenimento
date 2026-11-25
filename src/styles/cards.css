@@ -480,6 +480,22 @@
   cursor: pointer;
 }
 
+/* Administrative surfaces must not inherit the compact 40px action or 30px
+   segmented target. Scope the minimum to management components, leaving the
+   compact design-system variant available elsewhere. */
+:is(
+  app-community-membership-management,
+  app-community-member-roster-management,
+  app-community-ownership-management,
+  app-community-admin-timeline,
+  app-community-invite-management,
+  app-community-settings,
+  app-community-official-claim-panel
+) :is(button, a.app-action, [role="button"]) {
+  min-width: max(44px, var(--tap-target, 44px));
+  min-height: max(44px, var(--tap-target, 44px));
+}
+
 .app-action:hover,
 .app-action:focus-visible {
   color: var(--text-color);

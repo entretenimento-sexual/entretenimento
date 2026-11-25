@@ -31,6 +31,13 @@
   scrollbar-width: none;
 }
 
+/* Keep each action usable while the navigation scrolls horizontally. */
+.community-management-hub__nav button {
+  flex-shrink: 0;
+  min-width: max(44px, var(--tap-target, 44px));
+  min-height: max(44px, var(--tap-target, 44px));
+}
+
 .community-management-hub__nav::-webkit-scrollbar {
   display: none;
 }

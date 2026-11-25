@@ -117,7 +117,7 @@
 }
 
 .official-claim__state button {
-  min-height: 2.5rem;
+  min-height: max(44px, var(--tap-target, 44px));
   padding: 0.55rem 0.8rem;
   border: 1px solid currentColor;
   border-radius: 0.65rem;

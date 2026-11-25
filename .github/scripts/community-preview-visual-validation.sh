@@ -360,14 +360,20 @@ validate_timeline() {
     const metrics = await timeline.evaluate(element => {
       const rect = element.getBoundingClientRect();
       const buttons = Array.from(element.querySelectorAll('button'));
-      const minTarget = Math.min(...buttons.map(button => {
+      const targets = buttons.map(button => {
         const box = button.getBoundingClientRect();
-        return Math.min(box.width, box.height);
-      }));
+        return {
+          label: button.getAttribute('aria-label') || (button.textContent ?? '').trim(),
+          width: box.width,
+          height: box.height,
+        };
+      });
+      const minTarget = Math.min(...targets.map(target => Math.min(target.width, target.height)));
       return {
         insideViewport: rect.left >= -1 && rect.right <= window.innerWidth + 1,
         noOverflow: document.documentElement.scrollWidth <= window.innerWidth + 1,
         minTarget,
+        targets,
         hasPrivacyNotice: (element.textContent ?? '').includes('Dados internos de auditoria e evidências não'),
         timeCount: element.querySelectorAll('time[datetime]').length,
       };
@@ -429,6 +435,15 @@ run_checked "$OUT/management/desktop/overview.metrics.log" "async (page) => {
         document.querySelectorAll('.community-preview__rail-card')
       ).some((card) => (card.textContent ?? '').includes('Administração')),
       hubWidth: hubRect?.width ?? 0,
+      adminTargets: Array.from(hub?.querySelectorAll('button, a.app-action, [role=button]') ?? [])
+        .map(control => {
+          const rect = control.getBoundingClientRect();
+          return {
+            label: control.getAttribute('aria-label') || (control.textContent ?? '').trim(),
+            width: rect.width,
+            height: rect.height,
+          };
+        }).filter(target => target.width > 0 && target.height > 0),
       navLabels,
       cardLabels,
       cardCount: cardLabels.length,
@@ -452,6 +467,8 @@ run_checked "$OUT/management/desktop/overview.metrics.log" "async (page) => {
     || !expectedManagementActions.every((label) => metrics.managementActionLabels.includes(label))
     || metrics.duplicatedAdminRail
     || metrics.hubWidth < 700
+    || metrics.adminTargets.length === 0
+    || metrics.adminTargets.some(target => Math.min(target.width, target.height) < 44)
     || metrics.navLabels.length !== expectedNav.length
     || !expectedNav.every((label, index) => metrics.navLabels[index] === label)
     || metrics.cardCount !== expectedCards.length
@@ -477,6 +494,12 @@ run_checked "$OUT/management/desktop/requests.metrics.log" "async (page) => {
   const metrics = {
     hasTitle: text.includes('Solicitações de entrada'),
     hasContextualEmptyState: text.includes('Nenhuma solicitação de entrada pendente.'),
+    undersizedControls: await page.locator('.community-membership-management button, .community-membership-management a.app-action').evaluateAll(controls =>
+      controls.map(control => {
+        const rect = control.getBoundingClientRect();
+        return { label: control.getAttribute('aria-label') || (control.textContent ?? '').trim(), width: rect.width, height: rect.height };
+      }).filter(target => target.width > 0 && target.height > 0 && Math.min(target.width, target.height) < 44)
+    ),
     scrollWidth: await page.evaluate(() => document.documentElement.scrollWidth),
     heavyChildren: await page.locator(
       'app-community-member-roster-management, app-community-settings, app-community-ownership-management, app-community-admin-timeline'
@@ -485,6 +508,7 @@ run_checked "$OUT/management/desktop/requests.metrics.log" "async (page) => {
   if (
     !metrics.hasTitle
     || !metrics.hasContextualEmptyState
+    || metrics.undersizedControls.length !== 0
     || metrics.scrollWidth > 1441
     || metrics.heavyChildren !== 0
   ) {
@@ -548,6 +572,15 @@ run_checked "$OUT/management/mobile/overview.metrics.log" "async (page) => {
       managementActionLabels: managementButtons.map(
         (button) => (button.textContent ?? '').trim()
       ),
+      adminTargets: Array.from(hub?.querySelectorAll('button, a.app-action, [role=button]') ?? [])
+        .map(control => {
+          const rect = control.getBoundingClientRect();
+          return {
+            label: control.getAttribute('aria-label') || (control.textContent ?? '').trim(),
+            width: rect.width,
+            height: rect.height,
+          };
+        }).filter(target => target.width > 0 && target.height > 0),
       navCount: document.querySelectorAll('.community-management-hub__nav button').length,
       navLabels: Array.from(document.querySelectorAll('.community-management-hub__nav button'))
         .map((button) => (button.textContent ?? '').trim()),
@@ -573,6 +606,8 @@ run_checked "$OUT/management/mobile/overview.metrics.log" "async (page) => {
       metrics.managementActionLabels.some((value) => value.includes(label))
     )
     || metrics.managementActionMinHeight < 44
+    || metrics.adminTargets.length === 0
+    || metrics.adminTargets.some(target => Math.min(target.width, target.height) < 44)
     || metrics.navCount !== ['Visão geral', 'Solicitações', 'Participantes', 'Configurações', 'Histórico', 'Propriedade'].length
     || !['Visão geral', 'Solicitações', 'Participantes', 'Configurações', 'Histórico', 'Propriedade'].every((label, index) => metrics.navLabels[index] === label)
     || metrics.cardCount !== ['Solicitações', 'Participantes', 'Convites', 'Configurações', 'Moderação', 'Capacidade', 'Histórico administrativo', 'Propriedade'].length
