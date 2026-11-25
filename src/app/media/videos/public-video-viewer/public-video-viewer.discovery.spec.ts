@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -108,6 +109,10 @@ describe('PublicVideoViewerComponent discovery context', () => {
       imports: [PublicVideoViewerComponent],
       providers: [
         provideRouter([]),
+        {
+          provide: AuthSessionService,
+          useValue: { uid$: of('viewer-1') },
+        },
         {
           provide: PublicVideoShareService,
           useValue: { sharePublicVideo: vi.fn().mockResolvedValue('failed') },

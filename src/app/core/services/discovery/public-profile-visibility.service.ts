@@ -119,9 +119,10 @@ export class PublicProfileVisibilityService {
   private watchOwnerProfileIndex$(
     uid: string
   ): Observable<PublicProfileMediaIndexState> {
-    return this.context.deferObservable$(() => {
+    // Recovery invokes this factory again outside the original injection context.
+    const watchCanonical$ = () => this.context.deferObservable$(() => {
       const ref = doc(this.db, `public_profiles/${uid}`);
-      const watchCanonical$ = () => docSnapshots(ref).pipe(
+      return docSnapshots(ref).pipe(
         map((snapshot): PublicProfileMediaIndexState => {
           if (snapshot.metadata.fromCache ||
               snapshot.metadata.hasPendingWrites ||
@@ -136,18 +137,18 @@ export class PublicProfileVisibilityService {
           };
         })
       );
+    });
 
-      return watchPublicProfileMediaIndexWithRecovery$(
-        watchCanonical$,
-        () => timer(0, RECHECK_INTERVAL_MS).pipe(
-          exhaustMap(() => this.publicRead.readByUids$([uid]).pipe(
-            timeout({ first: RECHECK_TIMEOUT_MS }),
-            map(({ items }) => items.some((item) => item['uid'] === uid)),
-            catchError(() => of(false))
-          ))
-        )
-      );
-    }).pipe(
+    return watchPublicProfileMediaIndexWithRecovery$(
+      watchCanonical$,
+      () => timer(0, RECHECK_INTERVAL_MS).pipe(
+        exhaustMap(() => this.publicRead.readByUids$([uid]).pipe(
+          timeout({ first: RECHECK_TIMEOUT_MS }),
+          map(({ items }) => items.some((item) => item['uid'] === uid)),
+          catchError(() => of(false))
+        ))
+      )
+    ).pipe(
       catchError(() => of(UNAVAILABLE_MEDIA_INDEX)),
       distinctUntilChanged(samePublicProfileMediaIndex)
     );

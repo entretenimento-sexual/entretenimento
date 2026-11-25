@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
-import { BehaviorSubject, Observable, Subject, of, throwError } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, distinctUntilChanged, map, of, throwError } from 'rxjs';
 import {
   afterEach,
   beforeEach,
@@ -13,6 +13,7 @@ import {
 } from 'vitest';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -171,6 +172,10 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
       imports: [PublicVideoViewerComponent],
       providers: [
         provideRouter([]),
+        {
+          provide: AuthSessionService,
+          useValue: { uid$: viewer$.pipe(map(viewer => viewer?.uid ?? null), distinctUntilChanged()) },
+        },
         {
           provide: PublicVideoShareService,
           useValue: { sharePublicVideo: vi.fn().mockResolvedValue('failed') },
