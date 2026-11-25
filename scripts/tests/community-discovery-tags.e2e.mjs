@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
 
 import {
   deleteApp as deleteClientApp,
@@ -43,6 +44,13 @@ for (const name of ['GCLOUD_PROJECT', 'GCP_PROJECT']) {
 process.env.GCLOUD_PROJECT = PROJECT_ID;
 process.env.GCP_PROJECT = PROJECT_ID;
 
+const require = createRequire(import.meta.url);
+const {
+  TERMS_ACCEPTANCE_VERSION,
+  TERMS_DOCUMENT_VERSION,
+  PRIVACY_NOTICE_VERSION,
+} = require('../../functions/lib/compliance/platform-legal.constants.js');
+
 function projection(communityId, rankScore, tagIds) {
   return {
     communityId,
@@ -76,7 +84,7 @@ async function expectCallableFailure(callable, payload, expectedCode) {
   } catch (error) {
     assert.ok(error, 'A Callable deveria rejeitar a operação.');
     assert.equal(error.code, `functions/${expectedCode}`);
-    return;
+    return error;
   }
 
   assert.fail('A Callable aceitou um filtro que deveria ser rejeitado.');
@@ -130,6 +138,48 @@ async function run() {
     await adminAuth.updateUser(uid, { emailVerified: true });
     await credential.user.getIdToken(true);
 
+    // Auth verification alone is not registration completion. Exercise the
+    // real social-access boundary before preparing an eligible demo account.
+    const userRef = db.doc(`users/${uid}`);
+    const now = Date.now();
+    await userRef.set({
+      uid,
+      email,
+      nickname: `Tags ${runId.slice(0, 8)}`,
+      nicknameNormalized: `tags-${runId.slice(0, 8)}`,
+      role: 'free',
+      tier: 'free',
+      emailVerified: true,
+      accountStatus: 'active',
+      publicVisibility: 'visible',
+      interactionBlocked: false,
+      loginAllowed: true,
+      suspended: false,
+      profileCompleted: false,
+      acceptedTerms: {
+        accepted: true,
+        version: TERMS_ACCEPTANCE_VERSION,
+        termsDocumentVersion: TERMS_DOCUMENT_VERSION,
+        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+        acknowledgedPrivacyNotice: true,
+        acceptedAt: now,
+      },
+      createdAt: now,
+      updatedAt: now,
+    });
+    const getDiscovery = httpsCallable(functions, 'getCommunityDiscoveryPage');
+    const discoveryRequest = {
+      sourceType: 'community',
+      tagId: 'intent:friendship',
+      limit: 12,
+    };
+    const denied = await expectCallableFailure(
+      getDiscovery, discoveryRequest, 'failed-precondition'
+    );
+    assert.equal(denied.details?.reason, 'registration_pending');
+    await userRef.update({ profileCompleted: true, updatedAt: Date.now() });
+    console.log('[CHAT-R1.9] PASS tag discovery denies incomplete registration before eligible fixture');
+
     await Promise.all([
       refs[0].set(projection(
         matchedHighId,
@@ -148,12 +198,7 @@ async function run() {
       )),
     ]);
 
-    const getDiscovery = httpsCallable(functions, 'getCommunityDiscoveryPage');
-    const filtered = await getDiscovery({
-      sourceType: 'community',
-      tagId: 'intent:friendship',
-      limit: 12,
-    });
+    const filtered = await getDiscovery(discoveryRequest);
 
     assert.deepEqual(
       filtered.data.items.map((item) => item.communityId),
@@ -192,6 +237,7 @@ async function run() {
     await Promise.allSettled(refs.map((reference) => reference.delete()));
 
     if (uid) {
+      await db.doc(`users/${uid}`).delete().catch(() => undefined);
       await adminAuth.deleteUser(uid).catch(() => undefined);
     }
 
