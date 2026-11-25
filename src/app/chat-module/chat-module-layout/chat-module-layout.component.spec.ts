@@ -309,6 +309,26 @@ describe('ChatModuleLayoutComponent', () => {
     );
   });
 
+  it('não despacha mensagem quando o acesso é revogado durante o hash', async () => {
+    const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
+    const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;
+    selection.selectedChatId.mockReturnValue('chat-1');
+    selection.selectedType.mockReturnValue('chat');
+    selectedChatId$.next('chat-1');
+    selectedType$.next('chat');
+    component.canSendCurrentMessage.set(true);
+    component.messageContent = 'preservar rascunho';
+    const calls = orchestrator.send$.mock.calls.length;
+    vi.spyOn(component as any, 'hashSendContent').mockImplementation(async () => {
+      component.canSendCurrentMessage.set(false);
+      return 'a'.repeat(64);
+    });
+    await component.sendMessage();
+    expect(orchestrator.send$.mock.calls.length).toBe(calls);
+    expect(component.isSendingMessage()).toBe(false);
+    expect(component.messageContent).toBe('preservar rascunho');
+  });
+
   it('reutiliza chave somente após envio não confirmado da mesma intenção', async () => {
     const selection = fixture.debugElement.injector.get(DirectChatSelectionContextFacade) as any;
     const orchestrator = fixture.debugElement.injector.get(DirectChatSendOrchestrator) as any;

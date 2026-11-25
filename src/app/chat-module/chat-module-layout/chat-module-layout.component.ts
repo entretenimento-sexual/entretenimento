@@ -528,7 +528,8 @@ if (this.isMessageTooLong) {
       return;
     }
     if (this.activeSessionUid !== sendingUid || this.selectedChatId !== selectedChatId ||
-        this.selectedType !== selectedType || this.trimmedMessageContent !== content) {
+        this.selectedType !== selectedType || this.trimmedMessageContent !== content ||
+        !this.canSendCurrentMessage()) {
       this.isSendingMessage.set(false);
       return;
     }

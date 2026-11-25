@@ -5,18 +5,17 @@ import {
   distinctUntilChanged,
   map,
   shareReplay,
-  switchMap,
 } from 'rxjs/operators';
 
-import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
-import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
+import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
 import { DirectThreadFacade } from 'src/app/messaging/direct-chat/application/direct-thread.facade';
 
 export interface DirectChatComposeAccessState {
   canCompose: boolean;
   canSendDirect: boolean;
+  /** Legacy flag: confirmed bilateral availability; false does not prove friendship is absent. */
   hasAcceptedConnection: boolean;
   canSendCurrentMessage: boolean;
   statusMessage: string;
@@ -26,7 +25,7 @@ export interface DirectChatComposeAccessState {
 export class DirectChatComposeAccessFacade {
   constructor(
     private readonly accessControl: AccessControlService,
-    private readonly friendshipService: FriendshipService,
+    private readonly directChatFacade: DirectChatFacade,
     private readonly directThreadFacade: DirectThreadFacade,
     private readonly applicationError: ApplicationErrorService
   ) {}
@@ -37,90 +36,45 @@ export class DirectChatComposeAccessFacade {
     selectedType$: Observable<'chat' | null>,
     selectedChatId$: Observable<string | null>
   ): Observable<DirectChatComposeAccessState> {
-    const canCompose$ = combineLatest([
-      currentUid$,
-      this.accessControl.canListenRealtime$,
-    ]).pipe(
-      map(([uid, canListen]) => !!uid && canListen === true),
-      distinctUntilChanged(),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
-    const hasAcceptedConnection$ = combineLatest([
+    return combineLatest([
       currentUid$,
       peerUid$,
-    ]).pipe(
-      switchMap(([currentUid, peerUid]) => {
-        const safeCurrentUid = (currentUid ?? '').trim();
-        const safePeerUid = (peerUid ?? '').trim();
-
-        if (!safeCurrentUid || !safePeerUid) {
-          return of(false);
-        }
-
-        return this.friendshipService.watchFriends(safeCurrentUid).pipe(
-          map((friends: Friend[]) =>
-            (friends ?? []).some(
-              (friend) =>
-                String(friend?.friendUid ?? '').trim() === safePeerUid
-            )
-          ),
-          catchError((error) => {
-            this.applicationError.report(error, {
-              feature: 'direct-chat',
-              operation: 'DirectChatComposeAccessFacade.watchFriends',
-              fallbackMessage:
-                'Não foi possível verificar a conexão com este perfil.',
-              presentation: { surface: 'none', severity: 'error' },
-              metadata: {
-                scope: 'DirectChatComposeAccessFacade',
-                currentUid: safeCurrentUid,
-                peerUid: safePeerUid,
-              },
-            });
-
-            return of(false);
-          })
-        );
-      }),
-      distinctUntilChanged(),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
-    return combineLatest([
-      canCompose$,
-      this.directThreadFacade.canSend$,
       selectedType$,
-      hasAcceptedConnection$,
       selectedChatId$,
+      this.accessControl.canListenRealtime$,
+      this.directChatFacade.selectedChatAccess$,
+      this.directThreadFacade.canSend$,
     ]).pipe(
-      map(([
-        canCompose,
-        canSendDirect,
-        selectedType,
-        hasAcceptedConnection,
-        selectedChatId,
-      ]) => {
-        const canSendCurrentMessage =
-          selectedType === 'chat' &&
-          !!selectedChatId &&
-          canCompose &&
-          canSendDirect &&
-          hasAcceptedConnection;
-
+      map(([owner, peer, selectedType, selectedChatId, canListen, access, threadCanSend]) => {
+        const canCompose = !!owner && canListen === true;
+        // The server projection already checks both accepted friend edges and
+        // bilateral blocks. Verify its context rather than a replayed boolean.
+        const hasAcceptedConnection = !!owner && !!peer && !!selectedChatId &&
+          selectedType === 'chat' && access?.owner === owner && access.peer === peer &&
+          access.chatId === selectedChatId && access.readable === true &&
+          access.available === true;
+        const canSendDirect = hasAcceptedConnection && threadCanSend === true;
         return {
           canCompose,
           canSendDirect,
           hasAcceptedConnection,
-          canSendCurrentMessage,
-          statusMessage: this.resolveStatusMessage({
-            selectedChatId,
-            selectedType,
-            canCompose,
-            canSendDirect,
-            hasAcceptedConnection,
-          }),
+          canSendCurrentMessage: canCompose && canSendDirect,
+          statusMessage: this.resolveStatusMessage({ selectedChatId, selectedType, canCompose, canSendDirect, hasAcceptedConnection }),
         };
+      }),
+      catchError(error => {
+        this.applicationError.report(error, {
+          feature: 'direct-chat',
+          operation: 'DirectChatComposeAccessFacade.observe$',
+          fallbackMessage: 'Não foi possível verificar a disponibilidade desta conversa.',
+          presentation: { surface: 'none', severity: 'error' },
+          metadata: { scope: 'DirectChatComposeAccessFacade' },
+        });
+        return of({
+          canCompose: false, canSendDirect: false, hasAcceptedConnection: false,
+          canSendCurrentMessage: false,
+          statusMessage: 'Não foi possível verificar a disponibilidade desta conversa.',
+        });
       }),
       distinctUntilChanged(
         (a, b) =>
@@ -147,10 +101,6 @@ export class DirectChatComposeAccessFacade {
 
     if (!input.canCompose) {
       return 'Seu perfil ainda não pode enviar mensagens neste momento.';
-    }
-
-    if (!input.hasAcceptedConnection) {
-      return 'Vocês precisam estar conectados para trocar mensagens.';
     }
 
     if (!input.canSendDirect) {
