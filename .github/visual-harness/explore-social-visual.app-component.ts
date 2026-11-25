@@ -45,6 +45,9 @@ export class AppComponent {
 
   retryVoluntaryLogout(): void {}
 
+  // The isolated visual shell never starts a voluntary logout.
+  canReloadPendingLogout(): boolean { return false; }
+
   reloadAfterPendingLogout(): void {}
 
   readonly showFooter$: Observable<boolean> = this.router.events.pipe(

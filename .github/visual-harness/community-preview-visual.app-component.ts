@@ -334,6 +334,8 @@ const feedRepository = {
     items: feedPage.items.filter((item) => postIds.includes(item.postId)),
   }),
   watchLatestChanges$: () => NEVER,
+  watchPostCommentCount$: (_communityId: string, postId: string) =>
+    of(feedPage.items.find(item => item.postId === postId)?.metrics.commentCount ?? 0),
   createPost$: (request: CommunityFeedPostCreateRequest) => of({
     communityId: request.communityId,
     postId: 'visual-created-post',
@@ -344,7 +346,7 @@ const feedRepository = {
     communityId: request.communityId,
     postId: request.postId,
     action: request.action,
-    status: request.action === 'delete_own' ? 'deleted' : 'removed',
+    status: request.action === 'delete_own' ? 'deleted' as const : 'removed' as const,
     deduplicated: false,
     generatedAt: Date.now(),
   }),
@@ -354,17 +356,15 @@ const feedRepository = {
     reacted: true,
     reactionCount: 14,
   }),
-};
+} satisfies Pick<CommunityFeedRepository, keyof CommunityFeedRepository>;
 
 const commentRepository = {
   getPage$: () => of(comments),
-  getRepliesPage$: () => of(comments),
-  watchCommentCount$: () => of(0),
+  watchCommentCount$: (communityId: string, postId: string) =>
+    feedRepository.watchPostCommentCount$(communityId, postId),
   createComment$: () => NEVER,
-  createReply$: () => NEVER,
   moderateComment$: () => NEVER,
-  moderateReply$: () => NEVER,
-};
+} satisfies Pick<CommunityFeedCommentRepository, keyof CommunityFeedCommentRepository>;
 
 const route = {
   snapshot: {

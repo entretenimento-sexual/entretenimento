@@ -4,6 +4,12 @@ on:
   workflow_dispatch:
   push:
     paths:
+      - 'package-lock.json'
+      - 'src/app/core/services/autentication/auth/**'
+      - 'src/app/app.component.ts'
+      - 'src/app/app.component.html'
+      - 'src/app/app.module.ts'
+      - 'src/app/register-module/**'
       - 'angular.json'
       - 'src/app/preferences/**'
       - 'src/app/shared/form-validation-focus/**'

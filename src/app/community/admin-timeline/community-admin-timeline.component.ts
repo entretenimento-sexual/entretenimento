@@ -58,6 +58,7 @@ type TimelineState =
 @Component({
   selector: 'app-community-admin-timeline',
   standalone: true,
+  host: { class: 'app-admin-controls' },
   imports: [AsyncPipe, DatePipe],
   templateUrl: './community-admin-timeline.component.html',
   styleUrl: './community-admin-timeline.component.css',

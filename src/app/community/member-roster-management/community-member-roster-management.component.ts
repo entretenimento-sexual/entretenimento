@@ -144,6 +144,7 @@ import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar
 @Component({
   selector: 'app-community-member-roster-management',
   standalone: true,
+  host: { class: 'app-admin-controls' },
   imports: [ProfileAvatarDirective,AsyncPipe, DatePipe, ImageFallbackDirective],
   templateUrl: './community-member-roster-management.component.html',
   styleUrl: './community-member-roster-management.component.css',

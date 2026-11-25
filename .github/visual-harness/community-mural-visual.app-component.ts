@@ -120,7 +120,6 @@ const comments: CommunityFeedCommentPage = {
       author: { label: 'Diego', avatarUrl: null },
       text: 'Gostei da proposta. Ficou fácil acompanhar a conversa.',
       replyTo: null,
-      replyCount: 0,
       capabilities: {
         canDeleteOwn: false,
         canModerate: false,
@@ -138,7 +137,6 @@ const comments: CommunityFeedCommentPage = {
         textPreview: 'Gostei da proposta.',
         available: true,
       },
-      replyCount: 0,
       capabilities: {
         canDeleteOwn: false,
         canModerate: false,
@@ -156,6 +154,8 @@ const visualFeedRepository = {
     items: page.items.filter((item) => postIds.includes(item.postId)),
   }),
   watchLatestChanges$: () => NEVER,
+  watchPostCommentCount$: (_communityId: string, postId: string) =>
+    of(page.items.find(item => item.postId === postId)?.metrics.commentCount ?? 0),
   createPost$: (request: CommunityFeedPostCreateRequest) => of({
     communityId: request.communityId,
     postId: 'visual-created-post',
@@ -166,7 +166,7 @@ const visualFeedRepository = {
     communityId: request.communityId,
     postId: request.postId,
     action: request.action,
-    status: request.action === 'delete_own' ? 'deleted' : 'removed',
+    status: request.action === 'delete_own' ? 'deleted' as const : 'removed' as const,
     deduplicated: false,
     generatedAt: Date.now(),
   }),
@@ -176,16 +176,12 @@ const visualFeedRepository = {
     reacted: request.reacted,
     reactionCount: request.reacted ? 9 : 8,
   }),
-};
+} satisfies Pick<CommunityFeedRepository, keyof CommunityFeedRepository>;
 
 const visualCommentRepository = {
   getPage$: () => of(comments),
-  getRepliesPage$: () => of({
-    items: [],
-    nextCursor: null,
-    generatedAt: Date.now(),
-  }),
-  watchCommentCount$: () => of(2),
+  watchCommentCount$: (communityId: string, postId: string) =>
+    visualFeedRepository.watchPostCommentCount$(communityId, postId),
   createComment$: (request: { communityId: string; postId: string }) => of({
     communityId: request.communityId,
     postId: request.postId,
@@ -194,22 +190,8 @@ const visualCommentRepository = {
     created: true,
     deduplicated: false,
   }),
-  createReply$: (request: {
-    communityId: string;
-    postId: string;
-    commentId: string;
-  }) => of({
-    communityId: request.communityId,
-    postId: request.postId,
-    commentId: request.commentId,
-    replyId: 'visual-created-reply',
-    replyCount: 1,
-    created: true,
-    deduplicated: false,
-  }),
   moderateComment$: () => NEVER,
-  moderateReply$: () => NEVER,
-};
+} satisfies Pick<CommunityFeedCommentRepository, keyof CommunityFeedCommentRepository>;
 
 const visualHighlightUi = {
   state$: (communityId: string) => of({

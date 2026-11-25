@@ -63,6 +63,7 @@ import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar
 @Component({
   selector: 'app-community-invite-management',
   standalone: true,
+  host: { class: 'app-admin-controls' },
   imports: [
     ProfileAvatarDirective,
     AsyncPipe,

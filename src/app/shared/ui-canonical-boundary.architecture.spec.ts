@@ -1338,6 +1338,25 @@ describe('Canonical UI boundary', () => {
     }
   });
 
+  it('preserva o alvo administrativo compartilhado sem depender de hosts específicos', () => {
+    const cards = source('src/styles/cards.css');
+    expect(cards).toContain('.app-admin-controls :is(button, a.app-action, [role="button"])');
+    expect(cards).toContain('min-width: max(44px, var(--tap-target, 44px));');
+    expect(cards).toContain('min-height: max(44px, var(--tap-target, 44px));');
+    expect(cards).toContain('.app-admin-controls .app-segmented > button');
+    for (const path of [
+      'src/app/community/membership-management/community-membership-management.component.ts',
+      'src/app/community/member-roster-management/community-member-roster-management.component.ts',
+      'src/app/community/ownership-management/community-ownership-management.component.ts',
+      'src/app/community/admin-timeline/community-admin-timeline.component.ts',
+      'src/app/community/invite-management/community-invite-management.component.ts',
+      'src/app/community/community-settings/community-settings.component.ts',
+      'src/app/community/community-settings/community-official-claim-panel.component.ts',
+    ]) {
+      expect(source(path), path).toContain("host: { class: 'app-admin-controls' }");
+    }
+  });
+
   it('congela overrides globais específicos de componentes', () => {
     const globalStyles = [
       'src/styles.css',

@@ -52,6 +52,7 @@ type SubmissionState = 'idle' | 'loading';
 @Component({
   selector: 'app-community-official-claim-panel',
   standalone: true,
+  host: { class: 'app-admin-controls' },
   imports: [AsyncPipe, DatePipe, NgTemplateOutlet, ReactiveFormsModule],
   templateUrl: './community-official-claim-panel.component.html',
   styleUrl: './community-official-claim-panel.component.css',

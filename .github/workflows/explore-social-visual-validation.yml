@@ -4,6 +4,13 @@ on:
   workflow_dispatch:
   push:
     paths:
+      - 'angular.json'
+      - 'package-lock.json'
+      - 'src/app/core/services/autentication/auth/**'
+      - 'src/app/app.component.ts'
+      - 'src/app/app.component.html'
+      - 'src/app/app.module.ts'
+      - 'src/app/register-module/**'
       - 'src/app/explore/**'
       - 'src/app/shared/content-state/**'
       - 'src/app/core/services/discovery/user-intent-status.service.ts'

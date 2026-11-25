@@ -483,22 +483,14 @@
 /* Administrative surfaces must not inherit the compact 40px action or 30px
    segmented target. Scope the minimum to management components, leaving the
    compact design-system variant available elsewhere. */
-:is(
-  app-community-membership-management,
-  app-community-member-roster-management,
-  app-community-ownership-management,
-  app-community-admin-timeline,
-  app-community-invite-management,
-  app-community-settings,
-  app-community-official-claim-panel
-) :is(button, a.app-action, [role="button"]) {
+.app-admin-controls :is(button, a.app-action, [role="button"]) {
   min-width: max(44px, var(--tap-target, 44px));
   min-height: max(44px, var(--tap-target, 44px));
 }
 
 /* Preserve the full navigation targets while its container scrolls.
    The dimensional minimum comes from the administrative rule above. */
-app-community-membership-management .app-segmented > button {
+.app-admin-controls .app-segmented > button {
   flex-shrink: 0;
 }
 

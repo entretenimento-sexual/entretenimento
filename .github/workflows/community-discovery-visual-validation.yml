@@ -8,6 +8,9 @@ on:
     branches:
       - main
     paths:
+      - 'angular.json'
+      - 'package-lock.json'
+      - 'src/app/core/services/autentication/auth/**'
       - 'src/app/community/discovery/**'
       - 'src/app/community/profile-official-communities/**'
       - 'src/app/community/presentation/**'

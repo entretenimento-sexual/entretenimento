@@ -225,6 +225,8 @@ export class CurrentUserStoreService {
   set(_user: IUserDados): void {}
   patch(_partial: Partial<IUserDados>): void {}
   setUnavailable(): void {}
+  // A fully hydrated synthetic profile is present in this fixture.
+  isMissingForUid(_uid: string): boolean { return false; }
   clear(): void {}
   markUnhydrated(): void {}
 

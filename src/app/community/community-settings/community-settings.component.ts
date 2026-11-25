@@ -100,6 +100,7 @@ function communityTagCountValidator(): ValidatorFn {
 @Component({
   selector: 'app-community-settings',
   standalone: true,
+  host: { class: 'app-admin-controls' },
   imports: [
     AsyncPipe,
     ReactiveFormsModule,

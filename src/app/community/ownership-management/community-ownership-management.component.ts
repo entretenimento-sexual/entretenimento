@@ -93,6 +93,7 @@ import { ProfileAvatarDirective } from 'src/app/shared/directives/profile-avatar
 @Component({
   selector: 'app-community-ownership-management',
   standalone: true,
+  host: { class: 'app-admin-controls' },
   imports: [ProfileAvatarDirective,AsyncPipe, ActionStateDirective],
   templateUrl: './community-ownership-management.component.html',
   styleUrl: './community-ownership-management.component.css',
