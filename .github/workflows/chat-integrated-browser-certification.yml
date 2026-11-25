@@ -31,7 +31,6 @@ jobs:
     env:
       CI: 'true'
       CHAT_BROWSER_ARTIFACTS: artifacts/chat-browser
-      CHAT_BROWSER_PLAYWRIGHT: ${{ runner.temp }}/chat-browser-playwright/node_modules/playwright/index.mjs
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -64,6 +63,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export CHAT_BROWSER_PLAYWRIGHT="$RUNNER_TEMP/chat-browser-playwright/node_modules/playwright/index.mjs"
           npx --no-install firebase emulators:exec --config firebase.chat-browser-ci.json --only auth,firestore,storage,functions,database --project demo-entretenimento-media-e2e "node scripts/tests/chat-integrated-browser.e2e.mjs" 2>&1 | tee "$CHAT_BROWSER_ARTIFACTS/emulator.log"
       - name: Upload browser evidence
         if: always()

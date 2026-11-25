@@ -11,3 +11,7 @@ Teste: login pela UI, notificação fixture lida pela UI e callable real de leit
 ## Limites
 
 Não é homologação integral: o workflow ainda precisa executar e ser corrigido até passar. Não foi executado localmente nesta sessão. Não certifica todos os pontos de entrada de Discovery, Perfil, Amizades, Media ou Comunidades nem notificações produzidas por esses módulos no browser. O Quality Gate canônico continua obrigatório, mas este workflow ainda é independente; sua integração ao agregado depende de evidência de estabilidade. Nenhuma alteração em código de produção, ACL, rate limits ou deploy. Etapas seguintes: ampliar cenários reais de módulos e acessibilidade, validar recuperação de listeners e integrar resultado obrigatório ao gate.
+
+## CHAT-R1.10.2.1 — Validação da definição do workflow
+
+Execução 45718515472 / bb22a7c4: failure antes de criar jobs (total_count=0), sem logs de teste. A definição usava runner.temp no env do job, contexto não disponível nessa posição. O caminho passa a ser exportado no shell do step via RUNNER_TEMP. A mensagem exata de validação do GitHub não está disponível pela conexão; a correção se baseia na inspeção da definição. Nenhum cenário, asserção, política ou código de produção alterado. Nova execução necessária.
