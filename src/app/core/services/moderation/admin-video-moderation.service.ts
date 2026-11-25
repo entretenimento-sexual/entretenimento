@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from, throwError } from 'rxjs';
+import { Observable, throwError } from 'rxjs';
+import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { catchError, map } from 'rxjs/operators';
 
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
@@ -115,16 +116,17 @@ const PROCESSING_JOB_STATES: AdminVideoProcessingJobState[] = [
 @Injectable({ providedIn: 'root' })
 export class AdminVideoModerationService {
   private readonly functions = inject(Functions);
+  private readonly context = inject(FirestoreContextService);
   private readonly mediaError = inject(MediaApplicationErrorService);
 
   getProcessingStatus$(): Observable<IAdminVideoProcessingStatus> {
-    return defer(() => {
+    return this.context.deferPromise$(() => {
       const callable = httpsCallable<
         Record<string, never>,
         IAdminVideoProcessingStatus
       >(this.functions, 'getVideoProcessingOperationalStatus');
 
-      return from(callable({}));
+      return callable({});
     }).pipe(
       map((response) => this.normalizeProcessingStatus(response.data)),
       catchError((error) => {

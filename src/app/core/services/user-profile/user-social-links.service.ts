@@ -15,13 +15,13 @@
 import { Injectable } from '@angular/core';
 import {
   Firestore,
-  deleteField,
   doc,
   docSnapshots,
   getDoc,
-  serverTimestamp,
   writeBatch,
 } from '@angular/fire/firestore';
+// Pure write sentinels are also constructed after await; no AngularFire wrapper needed.
+import { deleteField, serverTimestamp } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import {
   Observable,

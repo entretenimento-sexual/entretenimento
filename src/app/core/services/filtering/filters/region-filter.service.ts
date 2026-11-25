@@ -25,8 +25,9 @@ import {
   query,
   QueryConstraint,
   QueryDocumentSnapshot,
-  where,
 } from '@angular/fire/firestore';
+// Query constraints are pure SDK values; callers may build them outside DI.
+import { where } from 'firebase/firestore';
 import { catchError, map, Observable, of, throwError } from 'rxjs';
 
 import { IBGELocationService } from '../../general/api/ibge-location.service';

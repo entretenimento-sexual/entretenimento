@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from, of } from 'rxjs';
+import { Observable, of } from 'rxjs';
+import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
 import type {
@@ -30,6 +31,7 @@ interface PlacementResponse {
 @Injectable({ providedIn: 'root' })
 export class PhotoPromotionPlacementService {
   private readonly functions = inject(Functions);
+  private readonly context = inject(FirestoreContextService);
   private readonly photoAccess = inject(PublicPhotoAccessService);
   private readonly mediaError = inject(MediaApplicationErrorService);
 
@@ -46,20 +48,19 @@ export class PhotoPromotionPlacementService {
       return of(null);
     }
 
-    const callable = httpsCallable<
-      {
-        organicPhotoKeys: readonly string[];
-        excludedPhotoKeys: readonly string[];
-      },
-      PlacementResponse
-    >(this.functions, 'getPhotoPromotionPlacement');
-
-    return defer(() =>
-      from(callable({
+    return this.context.deferPromise$(() => {
+      const callable = httpsCallable<
+        {
+          organicPhotoKeys: readonly string[];
+          excludedPhotoKeys: readonly string[];
+        },
+        PlacementResponse
+      >(this.functions, 'getPhotoPromotionPlacement');
+      return callable({
         organicPhotoKeys,
         excludedPhotoKeys: [...new Set(excludedKeys)].slice(0, 48),
-      }))
-    ).pipe(
+      });
+    }).pipe(
       map((response) => response.data.placement),
       switchMap((placement) => {
         if (!placement) return of(null);
@@ -93,12 +94,13 @@ export class PhotoPromotionPlacementService {
     placementId: string,
     event: 'qualified_exposure' | 'click'
   ): Observable<boolean> {
-    const callable = httpsCallable<
-      { placementId: string; event: 'qualified_exposure' | 'click' },
-      { accepted: boolean }
-    >(this.functions, 'recordPhotoPromotionEvent');
-
-    return defer(() => from(callable({ placementId, event }))).pipe(
+    return this.context.deferPromise$(() => {
+      const callable = httpsCallable<
+        { placementId: string; event: 'qualified_exposure' | 'click' },
+        { accepted: boolean }
+      >(this.functions, 'recordPhotoPromotionEvent');
+      return callable({ placementId, event });
+    }).pipe(
       map((response) => response.data.accepted === true),
       catchError((error: unknown) => {
         this.mediaError.reportSilently(

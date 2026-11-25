@@ -103,19 +103,19 @@ interface PushDeviceCallableResponse {
 export const PUSH_NOTIFICATION_SDK = new InjectionToken('PushNotificationSdk', {
   factory: () => {
     const functions = inject(Functions);
+    const register = httpsCallable<PushDeviceRegistrationRequest, PushDeviceCallableResponse>(
+      functions, 'registerPushDevice'
+    );
+    const unregister = httpsCallable<PushDeviceUnregistrationRequest, PushDeviceCallableResponse>(
+      functions, 'unregisterPushDevice'
+    );
     return {
       isSupported,
       getMessaging: () => getMessaging(getApp()),
       getToken,
       deleteToken,
-      register: (request: PushDeviceRegistrationRequest) =>
-        httpsCallable<PushDeviceRegistrationRequest, PushDeviceCallableResponse>(
-          functions, 'registerPushDevice'
-        )(request),
-      unregister: (request: PushDeviceUnregistrationRequest) =>
-        httpsCallable<PushDeviceUnregistrationRequest, PushDeviceCallableResponse>(
-          functions, 'unregisterPushDevice'
-        )(request),
+      register: (request: PushDeviceRegistrationRequest) => register(request),
+      unregister: (request: PushDeviceUnregistrationRequest) => unregister(request),
     };
   },
 });

@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from, throwError } from 'rxjs';
+import { Observable, throwError } from 'rxjs';
+import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { catchError, map } from 'rxjs/operators';
 
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
@@ -47,13 +48,14 @@ interface RecheckCommand {
 @Injectable({ providedIn: 'root' })
 export class AdminVideoTerminalTemporaryCleanupService {
   private readonly functions = inject(Functions);
+  private readonly context = inject(FirestoreContextService);
   private readonly mediaError = inject(MediaApplicationErrorService);
 
   listReviews$(limit = 30, cursor: string | null = null): Observable<IAdminVideoTerminalCleanupReviews> {
     const safeLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
-    return defer(() => from(httpsCallable<
+    return this.context.deferPromise$(() => httpsCallable<
       { limit: number; cursor: string | null }, IAdminVideoTerminalCleanupReviews
-    >(this.functions, 'listVideoTerminalTemporaryCleanupReviews')({ limit: safeLimit, cursor }))).pipe(
+    >(this.functions, 'listVideoTerminalTemporaryCleanupReviews')({ limit: safeLimit, cursor })).pipe(
       map(response => ({
         checkedAt: this.nonNegative(response.data?.checkedAt),
         totalReview: this.nonNegative(response.data?.totalReview),
@@ -103,9 +105,9 @@ export class AdminVideoTerminalTemporaryCleanupService {
       return throwError(() => new Error('Dados inválidos para reconferência da limpeza.'));
     }
     const payload = { ...command, reason: command.reason.trim().slice(0, 900) };
-    return defer(() => from(httpsCallable<
+    return this.context.deferPromise$(() => httpsCallable<
       RecheckCommand, IAdminVideoTerminalCleanupRecheckResult
-    >(this.functions, 'recheckVideoTerminalTemporaryCleanup')(payload))).pipe(
+    >(this.functions, 'recheckVideoTerminalTemporaryCleanup')(payload)).pipe(
       map(response => response.data),
       catchError(error => {
         this.mediaError.report(error, {

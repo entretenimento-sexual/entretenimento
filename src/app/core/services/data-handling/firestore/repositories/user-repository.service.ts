@@ -14,7 +14,8 @@ import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { selectUserProfileDataByUid } from 'src/app/store/selectors/selectors.user/user-profile.selectors';
 
-import { serverTimestamp as fsServerTimestamp } from '@angular/fire/firestore';
+// Pure sentinel construction does not require AngularFire scheduling.
+import { serverTimestamp as fsServerTimestamp } from 'firebase/firestore';
 import { FirestoreErrorHandlerService } from '@core/services/error-handler/firestore-error-handler.service';
 
 import { UsersReadRepository } from '@core/services/data-handling/firestore/repositories/users-read.repository';

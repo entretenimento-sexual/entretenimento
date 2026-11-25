@@ -11,6 +11,7 @@ import {
   DestroyRef,
   ElementRef,
   Injector,
+  runInInjectionContext,
   computed,
   inject,
   signal,
@@ -555,7 +556,7 @@ export class RegisterComponent {
   ): Observable<User> {
     return defer(() => {
       const existing = this.auth.currentUser;
-      return existing ? of(existing) : user(this.auth).pipe(
+      return existing ? of(existing) : runInInjectionContext(this.injector, () => user(this.auth)).pipe(
         filter((value): value is User => !!value),
         take(1),
         timeout({ first: timeoutMs })

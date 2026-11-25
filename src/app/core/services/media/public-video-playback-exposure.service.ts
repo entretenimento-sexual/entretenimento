@@ -1,5 +1,5 @@
-import { Injectable, inject } from '@angular/core';
-import { Firestore, doc, docSnapshots } from '@angular/fire/firestore';
+import { Injectable, InjectionToken, inject } from '@angular/core';
+import { Firestore, doc, docSnapshots, type DocumentReference, type DocumentSnapshot } from '@angular/fire/firestore';
 import { Observable, of } from 'rxjs';
 import {
   catchError, distinctUntilChanged, map, switchMap,
@@ -8,6 +8,17 @@ import {
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { PublicProfileVisibilityService } from 'src/app/core/services/discovery/public-profile-visibility.service';
 
+
+export const PUBLIC_MEDIA_EXPOSURE_FIRESTORE = new InjectionToken<{
+  doc(db: Firestore, path: string): DocumentReference;
+  docSnapshots(ref: DocumentReference): Observable<DocumentSnapshot>;
+}>('PUBLIC_MEDIA_EXPOSURE_FIRESTORE', {
+  providedIn: 'root',
+  factory: () => ({
+    doc: (db, path) => doc(db, path),
+    docSnapshots: (ref) => docSnapshots(ref),
+  }),
+});
 
 /**
  * A autorização do perfil governa o ciclo de vida do listener da mídia.
@@ -38,6 +49,7 @@ export function watchMediaAfterProfileAvailability$(
 @Injectable({ providedIn: 'root' })
 export class PublicVideoPlaybackExposureService {
   private readonly db = inject(Firestore);
+  private readonly firestoreApi = inject(PUBLIC_MEDIA_EXPOSURE_FIRESTORE);
   private readonly context = inject(FirestoreContextService);
   private readonly profileVisibility = inject(PublicProfileVisibilityService);
 
@@ -66,11 +78,12 @@ export class PublicVideoPlaybackExposureService {
     const validId = (value: string) => /^[A-Za-z0-9_-]{1,128}$/.test(value);
     if (![ownerUid, mediaId, viewerUid].every(validId)) return of(false);
 
-    return this.context.deferObservable$(() => {
-      const publicRef = doc(
+    // Every availability transition creates a fresh listener inside DI.
+    const watchPublicExposure$ = () => this.context.deferObservable$(() => {
+      const publicRef = this.firestoreApi.doc(
         this.db, `public_profiles/${ownerUid}/${collectionName}/${mediaId}`
       );
-      const watchPublicExposure$ = () => docSnapshots(publicRef).pipe(
+      return this.firestoreApi.docSnapshots(publicRef).pipe(
         map((snapshot) => {
           if (snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) {
             return false;
@@ -83,13 +96,15 @@ export class PublicVideoPlaybackExposureService {
         }),
         catchError(() => of(false))
       );
+    });
 
-      if (ownerUid === viewerUid) return watchPublicExposure$();
-      return watchMediaAfterProfileAvailability$(
-        this.profileVisibility.watch$(ownerUid),
-        watchPublicExposure$
-      );
-    }).pipe(
+    return (ownerUid === viewerUid
+      ? watchPublicExposure$()
+      : watchMediaAfterProfileAvailability$(
+          this.profileVisibility.watch$(ownerUid),
+          watchPublicExposure$
+        )
+    ).pipe(
       distinctUntilChanged(),
       catchError(() => of(false))
     );

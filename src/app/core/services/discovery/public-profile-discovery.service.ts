@@ -6,6 +6,7 @@ import {
   docData,
 } from '@angular/fire/firestore';
 import { Observable, of } from 'rxjs';
+import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { catchError, map, shareReplay } from 'rxjs/operators';
 
 import {
@@ -24,6 +25,7 @@ export interface PublicProfileDiscoveryOptions {
 @Injectable({ providedIn: 'root' })
 export class PublicProfileDiscoveryService {
   private readonly firestore = inject(Firestore);
+  private readonly context = inject(FirestoreContextService);
   private readonly publicProfileRead = inject(
     PublicProfileReadBoundaryService
   );
@@ -60,10 +62,10 @@ export class PublicProfileDiscoveryService {
     const safeUid = String(uid ?? '').trim();
     if (!safeUid) return of(null);
 
-    return docData(
+    return this.context.deferObservable$(() => docData(
       doc(this.firestore, `public_profiles/${safeUid}`),
       { idField: 'uid' }
-    ).pipe(
+    )).pipe(
       map((raw) => {
         const source =
           raw as unknown as Record<string, unknown> | undefined;

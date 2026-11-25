@@ -1,6 +1,13 @@
 import { Observable, Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
-import { watchMediaAfterProfileAvailability$ } from './public-video-playback-exposure.service';
+import { assertInInjectionContext } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { Firestore, type DocumentReference, type DocumentSnapshot } from '@angular/fire/firestore';
+import { PublicProfileVisibilityService } from 'src/app/core/services/discovery/public-profile-visibility.service';
+import {
+  PUBLIC_MEDIA_EXPOSURE_FIRESTORE, PublicVideoPlaybackExposureService,
+  watchMediaAfterProfileAvailability$,
+} from './public-video-playback-exposure.service';
 
 describe('watchMediaAfterProfileAvailability$', () => {
   it('encerra listener na exclusão e readquire permissão após cancelamento', () => {
@@ -98,5 +105,69 @@ describe('watchMediaAfterProfileAvailability$', () => {
     expect(seen).toEqual([true, false]);
     expect(observe).toHaveBeenCalledTimes(2);
     subscription.unsubscribe();
+  });
+});
+
+
+describe('PublicVideoPlaybackExposureService injection context', () => {
+  it('recria a escuta de mídia no contexto em cada liberação do perfil', () => {
+    const profile$ = new Subject<boolean>();
+    const first$ = new Subject<DocumentSnapshot>();
+    const restored$ = new Subject<DocumentSnapshot>();
+    const ref = {} as DocumentReference;
+    const createDocument = vi.fn((_db: Firestore, _path: string) => {
+      assertInInjectionContext(createDocument);
+      return ref;
+    });
+    const watchDocument = vi.fn((_ref: DocumentReference) => {
+      assertInInjectionContext(watchDocument);
+      return first$;
+    }).mockImplementationOnce(() => {
+      assertInInjectionContext(watchDocument);
+      return first$;
+    }).mockImplementationOnce(() => {
+      assertInInjectionContext(watchDocument);
+      return restored$;
+    });
+    const snapshot = (fromCache: boolean) => ({
+      metadata: { fromCache, hasPendingWrites: false },
+      exists: () => true,
+      data: () => ({ visibility: 'PUBLIC', moderationStatus: 'APPROVED' }),
+    }) as unknown as DocumentSnapshot;
+    const db = {};
+    TestBed.configureTestingModule({ providers: [
+      { provide: Firestore, useValue: db },
+      { provide: PUBLIC_MEDIA_EXPOSURE_FIRESTORE, useValue: {
+        doc: createDocument, docSnapshots: watchDocument,
+      } },
+      { provide: PublicProfileVisibilityService, useValue: { watch$: () => profile$ } },
+    ] });
+    const service = TestBed.inject(PublicVideoPlaybackExposureService);
+    const seen: boolean[] = [];
+    const sub = service.watchActiveVideo$('owner', 'video', 'viewer').subscribe(value => seen.push(value));
+    try {
+      profile$.next(false);
+      expect(createDocument).not.toHaveBeenCalled();
+      profile$.next(true);
+      expect(createDocument).toHaveBeenCalledWith(db, 'public_profiles/owner/public_videos/video');
+      expect(first$.observed).toBe(true);
+      first$.next(snapshot(false));
+      expect(seen).toEqual([false, true]);
+      profile$.next(false);
+      expect(first$.observed).toBe(false);
+      expect(seen).toEqual([false, true, false]);
+      profile$.next(true);
+      expect(createDocument).toHaveBeenCalledTimes(2);
+      expect(watchDocument).toHaveBeenCalledTimes(2);
+      expect(restored$.observed).toBe(true);
+      restored$.next(snapshot(true));
+      expect(seen.at(-1)).toBe(false);
+      restored$.next(snapshot(false));
+      expect(seen.at(-1)).toBe(true);
+    } finally {
+      sub.unsubscribe();
+      TestBed.resetTestingModule();
+    }
+    expect(restored$.observed).toBe(false);
   });
 });

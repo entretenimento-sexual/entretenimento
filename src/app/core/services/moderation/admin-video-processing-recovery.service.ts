@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from, throwError } from 'rxjs';
+import { Observable, throwError } from 'rxjs';
+import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { catchError, map } from 'rxjs/operators';
 
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
@@ -119,18 +120,19 @@ const RECOVERY_ACTIONS: AdminVideoProcessingRecoveryAction[] = [
 @Injectable({ providedIn: 'root' })
 export class AdminVideoProcessingRecoveryService {
   private readonly functions = inject(Functions);
+  private readonly context = inject(FirestoreContextService);
   private readonly mediaError = inject(MediaApplicationErrorService);
 
   listRecoveryJobs$(limit = 30, cursor: string | null = null): Observable<IAdminVideoProcessingRecoveryQueue> {
     const safeLimit = Math.max(1, Math.min(60, Math.trunc(limit)));
 
-    return defer(() => {
+    return this.context.deferPromise$(() => {
       const callable = httpsCallable<
         ListRecoveryJobsRequest,
         ListRecoveryJobsResponse
       >(this.functions, 'listVideoProcessingRecoveryJobs');
 
-      return from(callable({ limit: safeLimit, cursor }));
+      return callable({ limit: safeLimit, cursor });
     }).pipe(
       map((response) => ({
         items: Array.isArray(response.data?.items)
@@ -208,13 +210,13 @@ export class AdminVideoProcessingRecoveryService {
       );
     }
 
-    return defer(() => {
+    return this.context.deferPromise$(() => {
       const callable = httpsCallable<
         RecoverVideoProcessingRequest,
         IAdminVideoProcessingRecoveryResult
       >(this.functions, 'recoverVideoProcessingJob');
 
-      return from(callable(payload));
+      return callable(payload);
     }).pipe(
       map((response) => this.normalizeResult(response.data)),
       catchError((error) => {

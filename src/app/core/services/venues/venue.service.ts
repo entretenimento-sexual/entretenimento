@@ -117,24 +117,24 @@ export class VenueService {
     }
 
     const resultLimit = this.normalizeLimit(options.limit);
-    const constraints: QueryConstraint[] = [
-      where('region.uf', '==', normalizedRegion.uf),
-      where('region.city', '==', normalizedRegion.city),
-      where('moderation.state', '==', 'active'),
-      where('visibility', 'in', ['public', 'members_only']),
-    ];
-
-    if (options.kind && options.kind !== 'any') {
-      constraints.push(where('kind', '==', options.kind));
-    }
-
-    if (options.includeSponsoredFirst !== false) {
-      constraints.push(orderBy('sponsorship.priority', 'desc'));
-    }
-
-    constraints.push(orderBy('name', 'asc'), firestoreLimit(resultLimit));
-
     return this.firestoreContext.deferObservable$(() => {
+      const constraints: QueryConstraint[] = [
+        where('region.uf', '==', normalizedRegion.uf),
+        where('region.city', '==', normalizedRegion.city),
+        where('moderation.state', '==', 'active'),
+        where('visibility', 'in', ['public', 'members_only']),
+      ];
+
+      if (options.kind && options.kind !== 'any') {
+        constraints.push(where('kind', '==', options.kind));
+      }
+
+      if (options.includeSponsoredFirst !== false) {
+        constraints.push(orderBy('sponsorship.priority', 'desc'));
+      }
+
+      constraints.push(orderBy('name', 'asc'), firestoreLimit(resultLimit));
+
       const venuesRef = collection(this.firestore, 'venues');
       const venuesQuery = query(venuesRef, ...constraints);
 

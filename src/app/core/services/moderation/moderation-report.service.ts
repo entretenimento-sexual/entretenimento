@@ -26,8 +26,8 @@ import {
   Firestore,
   addDoc,
   collection,
-  serverTimestamp,
 } from '@angular/fire/firestore';
+import { serverTimestamp } from 'firebase/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, from, throwError } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';

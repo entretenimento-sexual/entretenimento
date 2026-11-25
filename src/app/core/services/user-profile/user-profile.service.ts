@@ -14,7 +14,8 @@
 // - o cliente não deve possuir caminho de escrita concorrente para esses campos;
 // - upgrades/downgrades são confirmados e projetados exclusivamente pelo backend.
 // src/app/core/services/user-profile/user-profile.service.ts
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
@@ -24,7 +25,7 @@ import { FirestoreQueryService } from '../data-handling/firestore-query.service'
 import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 
 import { doc, updateDoc } from '@angular/fire/firestore';
-import { Observable, of, from, throwError, firstValueFrom } from 'rxjs';
+import { Observable, of, throwError, firstValueFrom } from 'rxjs';
 import { catchError, tap, map } from 'rxjs/operators';
 
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
@@ -32,6 +33,7 @@ import { ErrorNotificationService } from '../error-handler/error-notification.se
 
 @Injectable({ providedIn: 'root' })
 export class UserProfileService {
+  private readonly context = inject(FirestoreContextService);
   // Se você não usa cache aqui, melhor remover para evitar ruído.
   // private userCache: IUserDados | null = null;
 
@@ -67,7 +69,7 @@ export class UserProfileService {
 
     const fs = this.firestoreQueryService.getFirestoreInstance();
 
-    return from(
+    return this.context.deferPromise$(() =>
       updateDoc(doc(fs, 'users', uid), {
         latitude: location.latitude,
         longitude: location.longitude,
