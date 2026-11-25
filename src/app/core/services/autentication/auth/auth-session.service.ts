@@ -24,12 +24,10 @@ import {
   tap,
   timeout,
 } from 'rxjs/operators';
-import {
-  Auth,
-  onAuthStateChanged,
-  User,
-} from '@angular/fire/auth';
-import { onIdTokenChanged } from 'firebase/auth';
+import { Auth, User } from '@angular/fire/auth';
+// Low-level session observers subscribe lazily, outside Angular DI. Use the
+// same native Auth transport for both listeners; the injected Auth is unchanged.
+import { onAuthStateChanged, onIdTokenChanged } from 'firebase/auth';
 
 import { readAuthInvalidUid } from '@core/firebase/auth-invalid-session-marker';
 import { FIREBASE_AUTH_RESTORE_TIMEOUT_MS } from '@core/firebase/firebase-runtime.constants';

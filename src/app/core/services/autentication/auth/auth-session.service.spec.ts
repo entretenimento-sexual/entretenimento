@@ -51,6 +51,31 @@ describe('AuthSessionService e recuperação transitória', () => {
     sub.unsubscribe();
   });
 
+  it('restaura a sessão pelo listener nativo quando authStateReady não existe', async () => {
+    let notify!: (value: unknown) => void;
+    const unsubscribe = vi.fn();
+    const auth = {
+      currentUser: user('a'),
+      onAuthStateChanged: vi.fn((next: (value: unknown) => void) => {
+        notify = next;
+        return unsubscribe;
+      }),
+    };
+    const service = new AuthSessionService(
+      auth as unknown as Auth,
+      { log: vi.fn() } as unknown as PrivacyDebugLoggerService,
+      new AuthAppBlockService()
+    );
+
+    const pending = service.whenReady();
+    expect(service.whenReady()).toBe(pending);
+    expect(auth.onAuthStateChanged).toHaveBeenCalledOnce();
+    notify(auth.currentUser);
+    await expect(pending).resolves.toBeUndefined();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    expect(service.currentAuthUser).toBe(auth.currentUser);
+  });
+
   it.each(['reload', 'getIdToken'] as const)('separa erro em %s de um e-mail pendente', async (operation) => {
     const { auth, service } = setup();
     const active = auth.currentUser;
