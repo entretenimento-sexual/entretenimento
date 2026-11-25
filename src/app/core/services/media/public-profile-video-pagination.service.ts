@@ -1,5 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { SessionReadInFlight } from '@core/services/autentication/auth/session-read-in-flight';
 import { Observable, of, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
@@ -24,12 +26,20 @@ export interface IPublicProfileVideoPage {
   readonly hasMore: boolean;
 }
 
+interface AuthorizedVideoOwnerPageResponse {
+  readonly items: readonly Record<string, unknown>[];
+  readonly nextCursor: IPublicProfileVideoCursor | null;
+  readonly hasMore: boolean;
+}
+
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 24;
 
 @Injectable({ providedIn: 'root' })
 export class PublicProfileVideoPaginationService {
   private readonly functions = inject(Functions);
+  private readonly session = inject(AuthSessionService);
+  private readonly inFlight = new SessionReadInFlight<AuthorizedVideoOwnerPageResponse>(this.session);
   private readonly firestoreCtx = inject(FirestoreContextService);
   private readonly publicVideoAccess = inject(PublicVideoAccessService);
   private readonly globalErrorHandler = inject(MediaApplicationErrorService);
@@ -49,14 +59,14 @@ export class PublicProfileVideoPaginationService {
       return of({ items: [], nextCursor: null, hasMore: false });
     }
 
-    return this.firestoreCtx.deferPromise$(async () => {
+    const payload = { ownerUid: safeOwnerUid, pageSize, cursor };
+    return this.inFlight.read$(JSON.stringify(payload), () => this.firestoreCtx.deferPromise$(async () => {
       const callable = httpsCallable<
         { ownerUid: string; pageSize: number; cursor: IPublicProfileVideoCursor | null },
-        { items: readonly Record<string, unknown>[];
-          nextCursor: IPublicProfileVideoCursor | null; hasMore: boolean }
+        AuthorizedVideoOwnerPageResponse
       >(this.functions, 'getAuthorizedVideoOwnerPage');
-      return (await callable({ ownerUid: safeOwnerUid, pageSize, cursor })).data;
-    }).pipe(
+      return (await callable(payload)).data;
+    })).pipe(
       map((response) => {
         const projections = (response.items ?? []).flatMap((item) => {
           const projection = mapPublicVideoProjection({

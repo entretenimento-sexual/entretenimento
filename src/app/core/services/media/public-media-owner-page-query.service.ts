@@ -1,5 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { SessionReadInFlight } from '@core/services/autentication/auth/session-read-in-flight';
 import { Observable, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
@@ -72,6 +74,8 @@ const SAFE_PUBLIC_MEDIA_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 @Injectable({ providedIn: 'root' })
 export class PublicMediaOwnerPageQueryService {
   private readonly functions = inject(Functions);
+  private readonly session = inject(AuthSessionService);
+  private readonly inFlight = new SessionReadInFlight<AuthorizedPhotoOwnerPageResponse>(this.session);
   private readonly firestoreCtx = inject(FirestoreContextService);
   private readonly publicMediaRead = inject(PublicMediaReadBoundaryService);
   private readonly photoAccess = inject(PublicPhotoAccessService);
@@ -164,7 +168,7 @@ export class PublicMediaOwnerPageQueryService {
   private loadAuthorizedPhotoPage$(
     request: AuthorizedPhotoOwnerPageRequest
   ): Observable<AuthorizedPhotoOwnerPageResponse> {
-    return this.firestoreCtx.deferPromise$(async () => {
+    return this.inFlight.read$(JSON.stringify(request), () => this.firestoreCtx.deferPromise$(async () => {
       const callable = httpsCallable<
         AuthorizedPhotoOwnerPageRequest,
         AuthorizedPhotoOwnerPageResponse
@@ -178,7 +182,7 @@ export class PublicMediaOwnerPageQueryService {
         nextCursor: response.data?.nextCursor ?? null,
         hasMore: response.data?.hasMore === true,
       };
-    });
+    }));
   }
 
   private loadRawPage$(

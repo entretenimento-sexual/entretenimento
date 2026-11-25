@@ -1,6 +1,8 @@
 // src/app/community/data-access/community-preview.repository.ts
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { SessionReadInFlight } from '@core/services/autentication/auth/session-read-in-flight';
 import { Observable, defer, from, map, of } from 'rxjs';
 
 import { normalizeCommunityDiscoveryPageSize } from './community-discovery.contract';
@@ -21,6 +23,8 @@ import { sanitizeCommunityPublicDiscoveryPage } from './community-public-visibil
 @Injectable({ providedIn: 'root' })
 export class CommunityPreviewRepository {
   private readonly functions = inject(Functions);
+  private readonly session = inject(AuthSessionService);
+  private readonly inFlight = new SessionReadInFlight<unknown>(this.session);
 
   private readonly getDiscoveryPageCallable = httpsCallable<
     CommunityDiscoveryPageRequest,
@@ -50,17 +54,17 @@ export class CommunityPreviewRepository {
   getDiscoveryPage$(
     request: CommunityDiscoveryPageRequest = {}
   ): Observable<CommunityDiscoveryPage> {
-    return defer(() =>
-      from(
-        this.getDiscoveryPageCallable({
-          limit: normalizeCommunityDiscoveryPageSize(request.limit),
-          cursor: request.cursor ?? null,
-          sourceType: request.sourceType ?? null,
-          tagId: request.tagId ?? null,
-        })
-      )
+    const payload = {
+      limit: normalizeCommunityDiscoveryPageSize(request.limit),
+      cursor: request.cursor ?? null,
+      sourceType: request.sourceType ?? null,
+      tagId: request.tagId ?? null,
+    };
+    return this.inFlight.read$(
+      JSON.stringify(['discovery', payload]),
+      () => defer(() => from(this.getDiscoveryPageCallable(payload))).pipe(map(result => result.data))
     ).pipe(
-      map((result) => normalizeCommunityDiscoveryPageResponse(result.data)),
+      map(normalizeCommunityDiscoveryPageResponse),
       map(sanitizeCommunityPublicDiscoveryPage)
     );
   }
@@ -113,15 +117,12 @@ export class CommunityPreviewRepository {
       return of(this.emptyDiscoveryPage());
     }
 
-    return defer(() =>
-      from(
-        this.getOfficialCommunitiesForTargetCallable({
-          target: normalizedTarget,
-          limit: this.normalizeLimit(limit),
-        })
-      )
+    const payload = { target: normalizedTarget, limit: this.normalizeLimit(limit) };
+    return this.inFlight.read$(
+      JSON.stringify(['official', payload]),
+      () => defer(() => from(this.getOfficialCommunitiesForTargetCallable(payload))).pipe(map(result => result.data))
     ).pipe(
-      map((result) => normalizeCommunityDiscoveryPageResponse(result.data)),
+      map(normalizeCommunityDiscoveryPageResponse),
       map(sanitizeCommunityPublicDiscoveryPage),
       map((page) => retainCommunitiesForOfficialTarget(page, normalizedTarget))
     );
