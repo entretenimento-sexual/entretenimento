@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { DirectThreadFacade } from './direct-thread.facade';
 import { DirectChatFacade } from './direct-chat.facade';
+import { DirectChatAvailabilityService } from '../services/direct-chat-availability.service';
 
 
 function keyedAccess(
@@ -19,16 +20,25 @@ describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
     const chats$ = new BehaviorSubject<any[]>([
       { id: 'chat-1', participants: ['user-a', 'peer-b'], isRoom: false },
     ]);
-    // Simula a projeção bilateral observada no Firestore.
+    // Exercita a porta real de sessão/elegibilidade. Apenas a observação
+    // Firestore é simulada, sem DI ou credenciais externas neste teste.
     const availability$ = new BehaviorSubject(false);
-    const observeAccess = vi.fn(() => availability$.asObservable());
+    const canRunChatRealtime$ = new BehaviorSubject(false);
+    const observeAccess = vi.fn((_owner: string, _peer: string) => availability$.asObservable());
+    const availabilityService = Object.assign(
+      Object.create(DirectChatAvailabilityService.prototype) as DirectChatAvailabilityService,
+      {
+        accessControl: { authUid$: uid$.asObservable(), canRunChatRealtime$ },
+        observe$: observeAccess,
+      }
+    );
     const chatFacade = new DirectChatFacade(
       { getMyDirectChatScope$: () => chats$.pipe(map(chats => ({ ownerUid: 'user-a', chats }))) } as any,
       { uid$: uid$.asObservable() } as any,
       { getUsersPublicMap$: () => of({}) } as any,
       { report: vi.fn() } as any,
       { destroyed: false, onDestroy: () => () => undefined } as any,
-      { observe$: observeAccess } as any,
+      availabilityService,
       { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
     const messages$ = new Subject<any[]>();
@@ -52,16 +62,36 @@ describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
     expect(states.at(-1)?.messages).toEqual([]);
     expect(canSend.at(-1)).toBe(false);
     expect(observeMessages$).toHaveBeenCalledTimes(1);
+    expect(observeAccess).not.toHaveBeenCalled();
     messages$.next([{ id: 'read-only-history' }]);
     expect(states.at(-1)?.messages).toEqual([{ id: 'read-only-history' }]);
     threadFacade.sendMessage$('no-connection').subscribe();
     expect(sendMessage$).not.toHaveBeenCalled();
 
+    canRunChatRealtime$.next(true);
+    expect(observeAccess).toHaveBeenCalledExactlyOnceWith('user-a', 'peer-b');
+    expect(canSend.at(-1)).toBe(false);
     availability$.next(true);
     expect(canSend.at(-1)).toBe(true);
     expect(observeMessages$).toHaveBeenCalledTimes(1);
     messages$.next([{ id: 'private-before-block' }]);
     expect(states.at(-1)?.messages).toEqual([{ id: 'private-before-block' }]);
+
+    // Perder elegibilidade de envio revoga a projeção e o comando,
+    // mas preserva o histórico enquanto o escopo de leitura permite.
+    canRunChatRealtime$.next(false);
+    expect(canSend.at(-1)).toBe(false);
+    expect(availability$.observers.length).toBe(0);
+    expect(observeMessages$).toHaveBeenCalledTimes(1);
+    expect(states.at(-1)?.messages).toEqual([{ id: 'private-before-block' }]);
+    threadFacade.sendMessage$('ineligible').subscribe();
+    expect(sendMessage$).not.toHaveBeenCalled();
+    availability$.next(false);
+    canRunChatRealtime$.next(true);
+    expect(canSend.at(-1)).toBe(false);
+    expect(observeAccess).toHaveBeenCalledTimes(2);
+    availability$.next(true);
+    expect(canSend.at(-1)).toBe(true);
 
     // Encerrar amizade não remove histórico nem reinicia o listener.
     availability$.next(false);
@@ -92,7 +122,13 @@ describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
 
     uid$.next(null);
     expect(states.at(-1)).toMatchObject({ chatId: null, messages: [] });
+    expect(canSend.at(-1)).toBe(false);
     expect(messages$.observers.length).toBe(0);
+    expect(availability$.observers.length).toBe(0);
+    uid$.next('user-a');
+    expect(states.at(-1)).toMatchObject({ chatId: null, messages: [] });
+    expect(canSend.at(-1)).toBe(false);
+    expect(observeMessages$).toHaveBeenCalledTimes(2);
     stateSub.unsubscribe();
     canSendSub.unsubscribe();
   });
