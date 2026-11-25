@@ -1,0 +1,74 @@
+name: Chat Integrated Browser Certification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/chat-integrated-browser-certification.yml'
+      - 'scripts/tests/chat-integrated-browser*.mjs'
+      - 'src/**'
+      - 'functions/**'
+      - 'firestore-rules/**'
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
+      - 'storage.rules'
+      - 'firebase.media-e2e.json'
+      - 'angular.json'
+      - 'package*.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chat-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CI: 'true'
+      CHAT_BROWSER_ARTIFACTS: artifacts/chat-browser
+      CHAT_BROWSER_PLAYWRIGHT: ${{ runner.temp }}/chat-browser-playwright/node_modules/playwright/index.mjs
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install application and Functions
+        run: |
+          npm ci
+          npm --prefix functions ci
+      - name: Install isolated Chromium runner
+        run: |
+          npm install --prefix "$RUNNER_TEMP/chat-browser-playwright" --no-save --package-lock=false playwright@1.56.1
+          "$RUNNER_TEMP/chat-browser-playwright/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Prepare disposable demo topology
+        run: |
+          mkdir -p "$CHAT_BROWSER_ARTIFACTS"
+          node scripts/tests/chat-integrated-browser-prepare.mjs
+          npm run rules:build
+          npm run rules:check
+          npm run functions:build
+      - name: Run actual Angular and Firebase browser scenarios
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --no-install firebase emulators:exec --config firebase.chat-browser-ci.json --only auth,firestore,storage,functions,database --project demo-entretenimento-media-e2e "node scripts/tests/chat-integrated-browser.e2e.mjs" 2>&1 | tee "$CHAT_BROWSER_ARTIFACTS/emulator.log"
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-browser-${{ github.sha }}
+          path: artifacts/chat-browser
+          if-no-files-found: error
