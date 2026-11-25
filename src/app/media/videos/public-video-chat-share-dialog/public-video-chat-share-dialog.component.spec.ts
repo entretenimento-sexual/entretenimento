@@ -129,6 +129,46 @@ describe('PublicVideoChatShareDialogComponent', () => {
     expect(fixture.componentInstance.sendingChatId()).toBeNull();
   });
 
+  it('não reinicia o par nem cancela envio quando outra conversa entra ou sai', () => {
+    const other = { ...CHAT, id: 'chat_2', otherParticipantUid: 'viewer_3' };
+    const otherAllowed$ = new BehaviorSubject(true);
+    observeCanSendToChat$.mockImplementation((id: string) =>
+      id === CHAT.id ? allowed$ : otherAllowed$);
+    const fixture = TestBed.createComponent(PublicVideoChatShareDialogComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const pending = new Subject<string>();
+    sendToChat$.mockReturnValue(pending);
+    component.sendTo(CHAT);
+    state$.next({ ...state$.value, items: [CHAT, other] });
+    expect(component.canSendTo(CHAT)).toBe(true);
+    expect(component.sendingChatId()).toBe(CHAT.id);
+    state$.next({ ...state$.value, items: [CHAT] });
+    expect(component.sendingChatId()).toBe(CHAT.id);
+    expect(otherAllowed$.observers.length).toBe(0);
+    expect(observeCanSendToChat$.mock.calls.filter(([id]) => id === CHAT.id)).toHaveLength(1);
+    pending.next('message_1');
+    expect(close).toHaveBeenCalledWith({ chatId: CHAT.id, messageId: 'message_1' });
+  });
+
+  it('revoga o contexto antigo quando o mesmo ID recebe outro participante', () => {
+    const fixture = TestBed.createComponent(PublicVideoChatShareDialogComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const pending = new Subject<string>();
+    sendToChat$.mockReturnValue(pending);
+    component.sendTo(CHAT);
+    const changed = { ...CHAT, otherParticipantUid: 'viewer_3' };
+    state$.next({ ...state$.value, items: [changed] });
+    expect(component.canSendTo(CHAT)).toBe(false);
+    expect(component.sendingChatId()).toBeNull();
+    pending.next('late-message');
+    expect(close).not.toHaveBeenCalled();
+    expect(showSuccess).not.toHaveBeenCalled();
+    component.sendTo(CHAT);
+    expect(sendToChat$).toHaveBeenCalledTimes(1);
+  });
+
   it('limpa o seletor e cancela o envio após trocar de conta, sem rearmar na mesma conta', () => {
     const fixture = TestBed.createComponent(PublicVideoChatShareDialogComponent);
     fixture.detectChanges();

@@ -11,7 +11,7 @@ import {
   MatDialogModule,
   MatDialogRef,
 } from '@angular/material/dialog';
-import { combineLatest, of } from 'rxjs';
+import { Observable, Subscription, of } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, shareReplay, startWith, switchMap, take, takeUntil, takeWhile } from 'rxjs/operators';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
@@ -64,22 +64,73 @@ export class PublicVideoChatShareDialogComponent {
     })),
     shareReplay({ bufferSize: 1, refCount: true })
   );
-  // Preview/unread changes must not restart pair listeners. Unknown denies send.
-  private readonly sendAccess$ = this.state$.pipe(
-    map(state => state.items.filter(item => item.canOpen === true)
-      .map(item => item.id).sort()),
-    distinctUntilChanged((a, b) => a.length === b.length && a.every((id, i) => id === b[i])),
-    switchMap(ids => ids.length
-      ? combineLatest(ids.map(id => this.chats.observeCanSendToChat$(id).pipe(
-          startWith(false), map(allowed => [id, allowed] as const)
-        ))).pipe(map(entries => new Map(entries)))
-      : of(new Map<string, boolean>())),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  // Keep each canonical conversation observation independent. Changes to
+  // another row (including removal) must not interrupt an authorized send.
+  private readonly sendAccess$ = new Observable<ReadonlyMap<string, boolean>>(subscriber => {
+    const subscriptions = new Subscription();
+    subscriber.add(subscriptions);
+    const active = new Map<string, Subscription>();
+    const values = new Map<string, boolean>();
+    const publish = () => subscriber.next(new Map(values));
+
+    subscriptions.add(this.state$.pipe(
+      map(state => state.items.filter(item => item.canOpen === true)
+        .map(item => ({ key: this.sendAccessKey(item), id: item.id }))
+        .filter(target => target.key !== null)),
+      distinctUntilChanged((a, b) => a.length === b.length &&
+        a.every(target => b.some(other => other.key === target.key)))
+    ).subscribe({
+      next: targets => {
+        const requested = new Map(targets.map(target => [target.key!, target.id]));
+        for (const [key, subscription] of active) {
+          if (requested.has(key)) continue;
+          active.delete(key);
+          values.delete(key);
+          subscription.unsubscribe();
+        }
+
+        // Publish removals and new pending rows atomically before subscribing.
+        const additions: Array<{ key: string; id: string; subscription: Subscription }> = [];
+        for (const [key, id] of requested) {
+          if (active.has(key)) continue;
+          const subscription = new Subscription();
+          subscriptions.add(subscription);
+          active.set(key, subscription);
+          values.set(key, false);
+          additions.push({ key, id, subscription });
+        }
+        publish();
+
+        for (const { key, id, subscription } of additions) {
+          if (subscription.closed || subscriber.closed) continue;
+          subscription.add(this.chats.observeCanSendToChat$(id).pipe(
+            startWith(false), distinctUntilChanged()
+          ).subscribe({
+            next: allowed => {
+              if (active.get(key) !== subscription || values.get(key) === allowed) return;
+              values.set(key, allowed === true);
+              publish();
+            },
+            error: error => subscriber.error(error),
+          }));
+        }
+      },
+      error: error => subscriber.error(error),
+    }));
+  }).pipe(shareReplay({ bufferSize: 1, refCount: true }));
+
   private readonly sendAccess = toSignal(this.sendAccess$, { initialValue: new Map<string, boolean>() });
 
+  private sendAccessKey(item: DirectChatListItem): string | null {
+    const id = String(item.id ?? '').trim();
+    const peer = String(item.otherParticipantUid ?? '').trim();
+    return id && peer ? JSON.stringify([id, peer]) : null;
+  }
+
   canSendTo(item: DirectChatListItem): boolean {
-    return !!this.sessionOwner() && item.canOpen === true && this.sendAccess().get(item.id) === true;
+    const key = this.sendAccessKey(item);
+    return !!this.sessionOwner() && item.canOpen === true && key !== null &&
+      this.sendAccess().get(key) === true;
   }
   readonly sendingChatId = signal<string | null>(null);
 
@@ -93,10 +144,12 @@ export class PublicVideoChatShareDialogComponent {
     const chatId = String(item?.id ?? '').trim();
     const video = this.data?.video;
     const expectedActorUid = this.sessionOwner();
+    const accessKey = this.sendAccessKey(item);
 
     if (
       !expectedActorUid ||
       !chatId ||
+      !accessKey ||
       !video?.ownerUid ||
       !video?.id ||
       !this.canSendTo(item) ||
@@ -115,7 +168,7 @@ export class PublicVideoChatShareDialogComponent {
       .pipe(
         take(1),
         takeUntil(this.sessionOwner$.pipe(filter(uid => uid !== expectedActorUid))),
-        takeUntil(this.sendAccess$.pipe(filter(access => access.get(chatId) !== true))),
+        takeUntil(this.sendAccess$.pipe(filter(access => access.get(accessKey) !== true))),
         takeUntilDestroyed(this.destroyRef),
         finalize(() => this.sendingChatId.set(null))
       )

@@ -237,7 +237,7 @@ export class DirectChatFacade {
     }),
     distinctUntilChanged((a, b) => a === b || (!!a && !!b &&
       a.owner === b.owner && a.epoch === b.epoch && a.chatId === b.chatId && a.peer === b.peer)),
-    switchMap(context => context ? this.availabilityService.observe$(context.owner, context.peer).pipe(
+    switchMap(context => context ? this.availabilityService.observeForCurrentUser$(context.peer, context.owner).pipe(
       startWith(false),
       catchError(error => {
         this.reportSilent(error, 'DirectChatFacade.selectedChatCanOpen$');
@@ -309,10 +309,12 @@ export class DirectChatFacade {
   /** Non-selected conversations (e.g. media sharing) require their own
    * canonical read scope and bilateral SEND permission. Never change selection. */
   observeCanSendToChat$(chatId: string): Observable<boolean> {
+    // Capture the intent at creation, not at subscription. A cold observable
+    // from a previous login must not acquire the new session's permission.
+    const session = this.sessionIdentitySubject.value;
+    const id = String(chatId ?? '').trim();
     return defer(() => {
-      const session = this.sessionIdentitySubject.value;
-      const id = String(chatId ?? '').trim();
-      if (!session.uid || !id) return of(false);
+      if (!session.uid || !id || this.sessionIdentitySubject.value !== session) return of(false);
       const owner = session.uid;
       return this.sessionChats$.pipe(
         map(scope => {

@@ -31,17 +31,16 @@
         <span>Conecte-se com outro perfil para enviar o vídeo.</span>
       </div>
     } @else {
-      <div class="video-chat-share__list" role="list">
+      <div class="video-chat-share__list" role="group" aria-label="Conversas">
         @for (item of state.items; track trackByChatId($index, item)) {
           <button
             type="button"
             class="video-chat-share__item"
-            role="listitem"
             (click)="sendTo(item)"
             [disabled]="!canSendTo(item) || !!sendingChatId()"
             [title]="canSendTo(item) ? 'Enviar vídeo' : 'Conversa indisponível para envio'"
             [attr.aria-busy]="sendingChatId() === item.id ? 'true' : null"
-            [attr.aria-label]="'Enviar vídeo para ' + displayName(item)"
+            [attr.aria-label]="'Enviar vídeo para ' + displayName(item) + (canSendTo(item) ? '' : ' — conversa indisponível')"
           >
             @if (item.otherParticipantPhotoURL) {
               <img

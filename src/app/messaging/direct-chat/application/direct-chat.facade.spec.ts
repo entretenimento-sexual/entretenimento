@@ -86,7 +86,7 @@ describe('DirectChatFacade session isolation', () => {
       firestoreUserQuery,
       applicationError.service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any,
+      { observeForCurrentUser$: () => of(true) } as any,
       { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
 
@@ -160,14 +160,16 @@ describe('DirectChatFacade session isolation', () => {
       { getUsersPublicMap$: () => of({}) } as unknown as FirestoreUserQueryService,
       buildApplicationError().service,
       buildDestroyRef(),
-      { observe$ } as any,
+      { observeForCurrentUser$: observe$ } as any,
       { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
     const access: boolean[] = [];
+    const sendAccess: boolean[] = [];
+    const sendSubscription = facade.selectedChatAccess$.subscribe(value => sendAccess.push(value?.available === true));
     const subscription = facade.selectedChatCanOpen$.subscribe(value => access.push(value));
     facade.selectChat('chat-live');
     expect(access.at(-1)).toBe(true);
-    expect(observe$).toHaveBeenCalledWith('user-a', 'peer-b');
+    expect(observe$).toHaveBeenCalledWith('peer-b', 'user-a');
 
     chats$.next([{ ...buildChat('chat-live', ['user-a', 'peer-b']), lastMessage: { content: 'novo preview' } } as IChat]);
     expect(observe$).toHaveBeenCalledTimes(1);
@@ -176,13 +178,16 @@ describe('DirectChatFacade session isolation', () => {
 
     available$.next(false);
     expect(access.at(-1)).toBe(true);
+    expect(sendAccess.at(-1)).toBe(false);
     chats$.next([]);
     expect(access.at(-1)).toBe(false);
     available$.next(true);
     expect(access.at(-1)).toBe(false);
     chats$.next([buildChat('chat-live', ['user-a', 'peer-b'])]);
     expect(access.at(-1)).toBe(true);
+    expect(sendAccess.at(-1)).toBe(true);
     subscription.unsubscribe();
+    sendSubscription.unsubscribe();
   });
 
   it('rejeita chat malformado sem consultar projeção de disponibilidade', () => {
@@ -195,7 +200,7 @@ describe('DirectChatFacade session isolation', () => {
       { getUsersPublicMap$: () => of({}) } as unknown as FirestoreUserQueryService,
       buildApplicationError().service,
       buildDestroyRef(),
-      { observe$ } as any,
+      { observeForCurrentUser$: observe$ } as any,
       { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
     const observed: boolean[] = [];
@@ -214,7 +219,7 @@ describe('DirectChatFacade session isolation', () => {
 
     chats$.next([buildChat('invalid', ['user-a', 'peer-b'])]);
     expect(observed.at(-1)).toBe(true);
-    expect(observe$).toHaveBeenCalledWith('user-a', 'peer-b');
+    expect(observe$).toHaveBeenCalledWith('peer-b', 'user-a');
     sub.unsubscribe();
   });
 
@@ -264,7 +269,7 @@ describe('DirectChatFacade session isolation', () => {
       firestoreUserQuery,
       applicationError.service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any,
+      { observeForCurrentUser$: () => of(true) } as any,
       { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
 
@@ -331,7 +336,7 @@ describe('DirectChatFacade late opening isolation', () => {
       query,
       buildApplicationError().service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any,
+      { observeForCurrentUser$: () => of(true) } as any,
       { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
     const output: Array<string | null> = [];
@@ -372,7 +377,7 @@ describe('DirectChatFacade canonical errors', () => {
       firestoreUserQuery,
       applicationError.service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any,
+      { observeForCurrentUser$: () => of(true) } as any,
       { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
 
@@ -410,7 +415,7 @@ describe('DirectChatFacade canonical errors', () => {
       { getUsersPublicMap$ } as unknown as FirestoreUserQueryService,
       buildApplicationError().service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any,
+      { observeForCurrentUser$: () => of(true) } as any,
       { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
     const values: any[][] = [];
@@ -448,7 +453,7 @@ describe('DirectChatFacade canonical errors', () => {
       firestoreUserQuery,
       applicationError.service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any,
+      { observeForCurrentUser$: () => of(true) } as any,
       { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
 
@@ -499,7 +504,7 @@ describe('DirectChatFacade canonical errors', () => {
       firestoreUserQuery,
       applicationError.service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any,
+      { observeForCurrentUser$: () => of(true) } as any,
       { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
 
@@ -543,7 +548,7 @@ describe('DirectChatFacade canonical errors', () => {
       firestoreUserQuery,
       applicationError.service,
       buildDestroyRef(),
-      { observe$: () => of(true) } as any,
+      { observeForCurrentUser$: () => of(true) } as any,
       { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
     );
 
@@ -566,7 +571,7 @@ it('never relabels a shared replay from the preceding UID', () => {
     { getMyDirectChatScope$: () => scope.asObservable() } as unknown as DirectChatService,
     buildAuthSession(uid), { getUsersPublicMap$: () => of({}) } as any,
     buildApplicationError().service, buildDestroyRef(),
-    { observe$: () => of(true) } as any,
+    { observeForCurrentUser$: () => of(true) } as any,
     { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
   );
   const seen: IChat[][] = [];
@@ -612,9 +617,19 @@ describe('DirectChatFacade non-selected send access', () => {
     expect(values.at(-1)).toBe(false);
     chats$.next([buildChat('media-chat', ['user-a', 'peer-b'])]);
     expect(values.at(-1)).toBe(true);
+    const oldIntent$ = facade.observeCanSendToChat$('media-chat');
     uid$.next(null);
     uid$.next('user-a');
     expect(values.at(-1)).toBe(false);
+    const calls = observeForCurrentUser$.mock.calls.length;
+    const staleValues: boolean[] = [];
+    oldIntent$.subscribe(value => staleValues.push(value)).unsubscribe();
+    expect(staleValues).toEqual([false]);
+    expect(observeForCurrentUser$).toHaveBeenCalledTimes(calls);
+    const freshValues: boolean[] = [];
+    const fresh = facade.observeCanSendToChat$('media-chat').subscribe(value => freshValues.push(value));
+    expect(freshValues.at(-1)).toBe(true);
+    fresh.unsubscribe();
     expect(selection.at(-1)).toBeNull();
     sub.unsubscribe();
     selectedSub.unsubscribe();
