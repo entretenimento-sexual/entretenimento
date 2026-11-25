@@ -1,13 +1,13 @@
 // src/app/shared/user-card/user-card.component.ts
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, input } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { Component, DestroyRef, computed, inject, input } from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { MatDialog } from '@angular/material/dialog';
 import { Router, RouterModule } from '@angular/router';
 
 import { Store } from '@ngrx/store';
 import { of } from 'rxjs';
-import { distinctUntilChanged, map, switchMap, take } from 'rxjs/operators';
+import { distinctUntilChanged, filter, map, switchMap, take, takeUntil } from 'rxjs/operators';
 import { DirectChatAvailabilityService } from 'src/app/messaging/direct-chat/services/direct-chat-availability.service';
 
 import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
@@ -35,6 +35,7 @@ import {
 import { selectCancelingOutboundRequestIds } from 'src/app/store/selectors/selectors.interactions/friends/outbound.selectors';
 import {
   ModalMensagemComponent,
+  ModalMensagemData,
   ModalMensagemResult,
 } from 'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component';
 
@@ -105,6 +106,7 @@ export class UserCardComponent {
   private readonly notifier = inject(ErrorNotificationService);
   private readonly router = inject(Router);
   private readonly chatAvailability = inject(DirectChatAvailabilityService);
+  private readonly destroyRef = inject(DestroyRef);
 
   private readonly currentUser = toSignal(
     this.store.select(selectCurrentUser),
@@ -346,9 +348,14 @@ export class UserCardComponent {
   readonly canMessageNow = computed(() => {
     const relationship = this.relationshipVm();
     const access = this.messageAccess();
-    return relationship.canMessage && access?.available === true &&
+    return relationship.canMessage && !this.isEndingFriendship() && access?.available === true &&
       access.currentUid === relationship.currentUid && access.targetUid === relationship.targetUid;
   });
+
+  private readonly messageContext$ = toObservable(computed(() => {
+    const { currentUid, targetUid } = this.relationshipVm();
+    return { currentUid, targetUid, available: this.canMessageNow() };
+  }));
 
   readonly messageAvailabilityLabel = computed(() => {
     switch (this.relationshipVm().state) {
@@ -377,22 +384,38 @@ export class UserCardComponent {
       return;
     }
 
+    const ownerUid = this.relationshipVm().currentUid;
+    if (!ownerUid) return;
+
     const ref = this.dialog.open<
       ModalMensagemComponent,
-      { profile: IUserDados },
+      ModalMensagemData,
       ModalMensagemResult | true | undefined
     >(ModalMensagemComponent, {
       panelClass: 'direct-message-dialog-panel',
       width: 'min(92vw, 420px)',
       maxWidth: '92vw',
       restoreFocus: true,
-      data: { profile },
+      data: { profile, expectedOwnerUid: ownerUid },
     });
 
     ref.afterClosed()
-      .pipe(take(1))
+      .pipe(
+        take(1),
+        takeUntil(this.chatAvailability.observeSessionOwner$(ownerUid).pipe(
+          filter(matches => !matches)
+        )),
+        takeUntil(this.messageContext$.pipe(
+          filter(context => !context.available || context.currentUid !== ownerUid ||
+            context.targetUid !== targetUid)
+        )),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe((result) => {
-        if (!result || result === true) {
+        const context = this.relationshipVm();
+        if (!result || result === true || result.targetUid !== targetUid ||
+            context.currentUid !== ownerUid || context.targetUid !== targetUid ||
+            !this.canMessageNow()) {
           return;
         }
 

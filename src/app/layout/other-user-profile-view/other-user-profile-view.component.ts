@@ -31,7 +31,9 @@ import {
   combineLatest,
   filter,
   map,
+  merge,
   of,
+  skip,
   shareReplay,
   switchMap,
   take,
@@ -164,6 +166,13 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    // A local optimistic block belongs only to the initiating session.
+    this.authSession.uid$.pipe(
+      distinctUntilChanged(),
+      skip(1),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(() => this.optimisticBlockTarget$.next(null));
+
     // Angular reuses this component when only /outro-perfil/:id changes.
     // A newer route cancels an older public read before it can paint the
     // previous person's identity, media or actions on the new profile.
@@ -192,6 +201,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
         this.userProfile = null;
         // A tela não mantém ações nem escutas sociais de um perfil revogado.
         this.viewedProfileUid$.next(null);
+        this.optimisticBlockTarget$.next(null);
         return;
       }
 
@@ -386,7 +396,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   /** Recheck the current relationship before any destructive mutation. */
   confirmBlockChange(wasBlocked: boolean): void {
     const targetUid = (this.uid ?? '').trim();
-    if (!targetUid || this.blockActionBusy$.value) return;
+    if (!targetUid || this.viewedProfileUid$.value !== targetUid || this.blockActionBusy$.value) return;
 
     const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
       width: 'min(92vw, 28rem)',
@@ -513,10 +523,22 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
    * committed by the backend is not reverted by client cancellation.
    */
   private profileNavigationAwayFrom$(targetUid: string): Observable<string> {
-    return this.bootstrapOrchestrator.observeTargetUid$().pipe(
-      filter((currentUid) => currentUid !== targetUid),
-      take(1)
-    );
+    return merge(
+      this.bootstrapOrchestrator.observeTargetUid$().pipe(
+        filter(currentUid => currentUid !== targetUid)
+      ),
+      this.viewedProfileUid$.pipe(
+        filter(currentUid => currentUid !== targetUid),
+        map(currentUid => currentUid ?? '')
+      ),
+      this.authSession.uid$.pipe(
+        take(1),
+        switchMap(owner => this.authSession.uid$.pipe(
+          filter(current => !owner || current !== owner),
+          map(() => '')
+        ))
+      )
+    ).pipe(take(1));
   }
 
   private buildPublicIntentContextStream(): Observable<VisitedProfileIntentContextVm | null> {
@@ -604,7 +626,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
         friendRequestIcon: 'fas fa-user-check',
         friendRequestLabel: 'Conectados',
         friendRequestAriaLabel: `${this.displayName} já está conectado com você.`,
-        liveStatus: 'Vocês estão conectados. O chat está disponível.',
+        liveStatus: 'Vocês estão conectados.',
       };
     }
 

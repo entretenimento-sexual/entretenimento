@@ -39,12 +39,22 @@ export class DirectChatAvailabilityService {
     private readonly functions: Functions
   ) {}
 
-  /** Entry points use the authenticated owner, never a profile/store identity as authority. */
-  observeForCurrentUser$(peerUid: string, expectedOwnerUid?: string): Observable<boolean> {
-    if (expectedOwnerUid === undefined) {
+  /** A one-shot interaction must never survive a logout or owner transition. */
+  observeSessionOwner$(expectedOwnerUid: string): Observable<boolean> {
+    return this.accessControl.authUid$.pipe(
+      map(owner => !!expectedOwnerUid && owner === expectedOwnerUid),
+      distinctUntilChanged(),
+      takeWhile(matches => matches, true),
+      catchError(() => of(false))
+    );
+  }
+
+  /** Persistent surfaces may revalidate; a dialog binds to its opening session. */
+  observeForCurrentUser$(peerUid: string, expectedOwnerUid?: string, sessionBound = false): Observable<boolean> {
+    if (expectedOwnerUid === undefined || sessionBound) {
       return this.accessControl.authUid$.pipe(
         take(1),
-        switchMap(owner => owner ? combineLatest([
+        switchMap(owner => owner && (expectedOwnerUid === undefined || owner === expectedOwnerUid) ? combineLatest([
           this.accessControl.authUid$,
           this.observeForCurrentUser$(peerUid, owner),
         ]).pipe(

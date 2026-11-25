@@ -71,10 +71,10 @@ describe('ModalMensagemComponent', () => {
       declarations: [ModalMensagemComponent],
       providers: [
         { provide: MatDialogRef, useValue: dialogRefMock },
-        { provide: DirectChatAvailabilityService, useValue: { observeForCurrentUser$: () => available$ } },
+        { provide: DirectChatAvailabilityService, useValue: { observeForCurrentUser$: vi.fn(() => available$) } },
         {
           provide: MAT_DIALOG_DATA,
-          useValue: { profile: { uid: 'u2', nickname: 'Perfil' } },
+          useValue: { profile: { uid: 'u2', nickname: 'Perfil' }, expectedOwnerUid: 'u1' },
         },
         { provide: DirectChatService, useValue: directChatServiceMock },
         { provide: DirectThreadService, useValue: directThreadServiceMock },
@@ -108,5 +108,14 @@ describe('ModalMensagemComponent', () => {
     expect(directChatServiceMock.ensureDirectChatIdWithUser$).toHaveBeenCalledTimes(1);
     available$.next(true);
     expect(component.canSend()).toBe(true);
+  });
+  it('vincula o diálogo ao proprietário e destinatário da abertura', () => {
+    expect(TestBed.inject(DirectChatAvailabilityService).observeForCurrentUser$)
+      .toHaveBeenCalledWith('u2', 'u1', true);
+    component.data.profile = { ...component.data.profile, uid: 'other' };
+    component.mensagem = 'Olá';
+    component.enviarMensagem();
+    expect(directChatServiceMock.ensureDirectChatIdWithUser$).toHaveBeenCalledWith('u2');
+    expect(dialogRefMock.close).toHaveBeenCalledWith(expect.objectContaining({ targetUid: 'u2' }));
   });
 });

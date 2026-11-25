@@ -47,6 +47,11 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { DirectThreadService } from 'src/app/messaging/direct-chat/services/direct-thread.service';
 
+export interface ModalMensagemData {
+  profile: IUserDados;
+  expectedOwnerUid?: string;
+}
+
 export interface ModalMensagemResult {
   ok: true;
   chatId: string;
@@ -66,8 +71,10 @@ export class ModalMensagemComponent {
   readonly isSending = signal(false);
   private readonly destroyRef = inject(DestroyRef);
   private readonly chatAvailability = inject(DirectChatAvailabilityService);
+  private readonly openingData = inject<ModalMensagemData>(MAT_DIALOG_DATA);
+  private readonly targetUid = String(this.openingData?.profile?.uid ?? '').trim();
   private readonly availability$ = this.chatAvailability.observeForCurrentUser$(
-    String(inject<{ profile: IUserDados }>(MAT_DIALOG_DATA)?.profile?.uid ?? '').trim()
+    this.targetUid, this.openingData?.expectedOwnerUid, true
   ).pipe(shareReplay({ bufferSize: 1, refCount: true }));
   readonly canSend = toSignal(this.availability$, { initialValue: false });
 
@@ -75,7 +82,7 @@ export class ModalMensagemComponent {
 
   constructor(
     public readonly dialogRef: MatDialogRef<ModalMensagemComponent>,
-    @Inject(MAT_DIALOG_DATA) public readonly data: { profile: IUserDados },
+    @Inject(MAT_DIALOG_DATA) public readonly data: ModalMensagemData,
     private readonly directChatService: DirectChatService,
     private readonly directThreadService: DirectThreadService,
     private readonly globalError: GlobalErrorHandlerService,
@@ -88,7 +95,7 @@ export class ModalMensagemComponent {
     }
 
     const content = this.mensagem.trim();
-    const profileUid = (this.data?.profile?.uid ?? '').trim();
+    const profileUid = this.targetUid;
 
     if (!content) {
       this.errorNotifier.showWarning('Digite uma mensagem antes de enviar.');

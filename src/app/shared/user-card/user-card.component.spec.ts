@@ -4,7 +4,10 @@ import { By } from '@angular/platform-browser';
 import { RouterTestingModule } from '@angular/router/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { vi } from 'vitest';
-import { of } from 'rxjs';
+import { BehaviorSubject, Subject, of } from 'rxjs';
+import { Router } from '@angular/router';
+import { selectCurrentUser } from 'src/app/store/selectors/selectors.user/user.selectors';
+import { selectAllFriends } from 'src/app/store/selectors/selectors.interactions/friends';
 import { DirectChatAvailabilityService } from '../../messaging/direct-chat/services/direct-chat-availability.service';
 
 import { UserCardComponent } from './user-card.component';
@@ -42,7 +45,10 @@ describe('UserCardComponent', () => {
       ],
       providers: [
         ...provideStoreTestingMock(storeMock),
-        { provide: DirectChatAvailabilityService, useValue: { observeForCurrentUser$: () => of(false) } },
+        { provide: DirectChatAvailabilityService, useValue: {
+          observeForCurrentUser$: vi.fn(() => of(false)),
+          observeSessionOwner$: vi.fn(() => of(true)),
+        } },
         {
           provide: MatDialog,
           useValue: {
@@ -265,5 +271,44 @@ describe('UserCardComponent', () => {
     expect(TestBed.inject(MatDialog).open).not.toHaveBeenCalled();
     expect(TestBed.inject(ErrorNotificationService).showInfo)
       .toHaveBeenCalledWith('Conecte-se para conversar.');
+  });
+  it('descarta resultado de modal antigo após perda de sessão e permite uma nova abertura', () => {
+    const access$ = new BehaviorSubject(true);
+    const session$ = new BehaviorSubject(true);
+    const service = TestBed.inject(DirectChatAvailabilityService);
+    vi.mocked(service.observeForCurrentUser$).mockReturnValue(access$);
+    vi.mocked(service.observeSessionOwner$).mockReturnValue(session$);
+    storeMock.select.mockImplementation((selector: unknown) => {
+      if (selector === selectCurrentUser) return of({ uid: 'owner' });
+      if (selector === selectAllFriends) return of([{ friendUid: 'u1' }]);
+      return of(null);
+    });
+    fixture.destroy();
+    fixture = TestBed.createComponent(UserCardComponent);
+    fixture.componentRef.setInput('user', baseProfile);
+    fixture.detectChanges();
+    TestBed.tick();
+    const card = fixture.componentInstance;
+    expect(card.canMessageNow()).toBe(true);
+    const oldResult$ = new Subject<any>();
+    const dialog = TestBed.inject(MatDialog);
+    vi.mocked(dialog.open).mockReturnValue({ afterClosed: () => oldResult$ } as any);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    card.abrirDM(new Event('click'));
+    expect(dialog.open).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      data: { profile: baseProfile, expectedOwnerUid: 'owner' },
+    }));
+    session$.next(false);
+    session$.next(true);
+    oldResult$.next({ ok: true, chatId: 'old-chat', targetUid: 'u1', messageId: 'old' });
+    expect(navigate).not.toHaveBeenCalled();
+    expect(oldResult$.observers.length).toBe(0);
+    const freshResult$ = new Subject<any>();
+    vi.mocked(dialog.open).mockReturnValue({ afterClosed: () => freshResult$ } as any);
+    card.abrirDM(new Event('click'));
+    freshResult$.next({ ok: true, chatId: 'new-chat', targetUid: 'u1', messageId: 'new' });
+    expect(navigate).toHaveBeenCalledWith(['/chat'], {
+      queryParams: { openChatId: 'new-chat', withUser: 'u1' },
+    });
   });
 });

@@ -44,6 +44,7 @@ describe('OtherUserProfileViewComponent', () => {
   let component: OtherUserProfileViewComponent;
   let routeParamMap$: BehaviorSubject<ParamMap>;
   let profileVisible$: BehaviorSubject<boolean>;
+  let viewerSession$: BehaviorSubject<string | null>;
   let dialogAfterClosed$: Subject<boolean>;
   let dialogOpen: ReturnType<typeof vi.fn>;
   let dialogPrototypeSpy: { mockRestore(): void } | undefined;
@@ -55,6 +56,7 @@ describe('OtherUserProfileViewComponent', () => {
   beforeEach(async () => {
     routeParamMap$ = new BehaviorSubject<ParamMap>(convertToParamMap({ id: targetUid }));
     profileVisible$ = new BehaviorSubject<boolean>(true);
+    viewerSession$ = new BehaviorSubject<string | null>(viewerUid);
     dialogAfterClosed$ = new Subject<boolean>();
     dialogOpen = vi.fn(() => ({
       afterClosed: () => dialogAfterClosed$.asObservable(),
@@ -72,7 +74,7 @@ describe('OtherUserProfileViewComponent', () => {
       ],
       providers: [
         { provide: Firestore, useValue: {} },
-        { provide: DirectChatAvailabilityService, useValue: { observeForCurrentUser$: () => of(true) } },
+        { provide: DirectChatAvailabilityService, useValue: { observeForCurrentUser$: vi.fn(() => of(true)) } },
         { provide: PublicProfileVisibilityService, useValue: {
           watch$: vi.fn(() => profileVisible$.asObservable()),
         } },
@@ -165,7 +167,7 @@ describe('OtherUserProfileViewComponent', () => {
         {
           provide: AuthSessionService,
           useValue: {
-            uid$: of(viewerUid),
+            uid$: viewerSession$.asObservable(),
             authUser$: of({ uid: viewerUid }),
             ready$: of(true),
           },
@@ -1005,5 +1007,50 @@ describe('OtherUserProfileViewComponent', () => {
     expect(
       fixture.debugElement.query(By.css('.other-profile-page__actions-card'))
     ).toBeNull();
+  });
+  it('invalida confirmação de bloqueio se o perfil perde visibilidade e volta', () => {
+    const friendship = TestBed.inject(FriendshipService);
+    component.confirmBlockChange(false);
+    profileVisible$.next(false);
+    fixture.detectChanges();
+    profileVisible$.next(true);
+    fixture.detectChanges();
+    dialogAfterClosed$.next(true);
+    dialogAfterClosed$.complete();
+    expect(friendship.blockUser).not.toHaveBeenCalled();
+    expect(component.blockActionBusy$.value).toBe(false);
+  });
+
+  it('invalida confirmação de bloqueio de sessão anterior mesmo após retorno do UID', () => {
+    const friendship = TestBed.inject(FriendshipService);
+    component.confirmBlockChange(false);
+    viewerSession$.next(null);
+    viewerSession$.next(viewerUid);
+    dialogAfterClosed$.next(true);
+    dialogAfterClosed$.complete();
+    expect(friendship.blockUser).not.toHaveBeenCalled();
+    expect(component.blockActionBusy$.value).toBe(false);
+  });
+
+  it('anuncia disponibilidade de chat apenas após autorização canônica', () => {
+    const friendship = TestBed.inject(FriendshipService);
+    vi.mocked(friendship.watchFriends).mockReturnValue(of([{ friendUid: targetUid }] as any));
+    const available$ = new BehaviorSubject(false);
+    vi.mocked(TestBed.inject(DirectChatAvailabilityService).observeForCurrentUser$)
+      .mockReturnValue(available$);
+    fixture.destroy();
+    fixture = TestBed.createComponent(OtherUserProfileViewComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    const status = () => (fixture.nativeElement.querySelector(
+      '.other-profile-page__hero [aria-live="polite"]'
+    ) as HTMLElement).textContent;
+    expect(status()).toContain('A conversa está indisponível');
+    available$.next(true);
+    fixture.detectChanges();
+    expect(status()).toContain('O chat está disponível');
+    available$.next(false);
+    fixture.detectChanges();
+    expect(status()).toContain('A conversa está indisponível');
   });
 });

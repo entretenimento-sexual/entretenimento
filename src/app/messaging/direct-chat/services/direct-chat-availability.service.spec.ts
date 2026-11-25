@@ -91,3 +91,35 @@ it('an entry point without explicit owner stays revoked after logout and new log
   expect(projection$.observers.length).toBe(0);
   sub.unsubscribe();
 });
+
+it('binds an explicit dialog owner to one session, including same-UID relogin', () => {
+  const authUid$ = new BehaviorSubject<string | null>('owner');
+  const canRunChatRealtime$ = new BehaviorSubject(true);
+  const projection$ = new BehaviorSubject(true);
+  const observe$ = vi.fn(() => projection$);
+  const service = Object.assign(Object.create(DirectChatAvailabilityService.prototype), {
+    accessControl: { authUid$, canRunChatRealtime$ }, observe$,
+  }) as DirectChatAvailabilityService;
+  const values: boolean[] = [];
+  const ownerValues: boolean[] = [];
+  const mismatched: boolean[] = [];
+  service.observeForCurrentUser$('peer', 'other', true).subscribe(value => mismatched.push(value));
+  expect(mismatched).toEqual([false]);
+  expect(observe$).not.toHaveBeenCalled();
+  const sub = service.observeForCurrentUser$('peer', 'owner', true).subscribe(value => values.push(value));
+  const ownerSub = service.observeSessionOwner$('owner').subscribe(value => ownerValues.push(value));
+  expect(values.at(-1)).toBe(true);
+  canRunChatRealtime$.next(false);
+  expect(values.at(-1)).toBe(false);
+  canRunChatRealtime$.next(true);
+  expect(values.at(-1)).toBe(true);
+  authUid$.next(null);
+  expect(values.at(-1)).toBe(false);
+  authUid$.next('owner');
+  expect(values.at(-1)).toBe(false);
+  expect(ownerValues).toEqual([true, false]);
+  expect(projection$.observers.length).toBe(0);
+  expect(observe$).toHaveBeenCalledTimes(2);
+  expect(sub.closed).toBe(true);
+  expect(ownerSub.closed).toBe(true);
+});

@@ -175,6 +175,10 @@
               Enviando interesse.
             } @else if ((directChatBusy$ | async) === true) {
               Preparando conversa.
+            } @else if (interactionState.isFriend) {
+              {{ (directChatAvailable$ | async) === true
+                ? 'Vocês estão conectados. O chat está disponível.'
+                : 'Vocês estão conectados. A conversa está indisponível no momento.' }}
             } @else {
               {{ interactionState.liveStatus }}
             }
