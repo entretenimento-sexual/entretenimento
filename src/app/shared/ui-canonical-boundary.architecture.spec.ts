@@ -737,7 +737,20 @@ describe('Canonical UI boundary', () => {
     expect(navigation).toContain('observeResolvedDeepLinks$');
     expect(navigation).toContain('consumeDeepLinkQueryParams');
     expect(compose).toContain('DirectThreadFacade');
-    expect(compose).toContain('FriendshipService');
+    // CHAT-R1.8.1: the bilateral projection owns composer authorization.
+    expect(compose).toContain('DirectChatFacade');
+    expect(compose).toContain('this.directChatFacade.selectedChatAccess$');
+    expect(compose).toContain('this.directThreadFacade.canSend$');
+    expect(compose).toContain('this.accessControl.canListenRealtime$');
+    expect(compose).toContain('access?.owner === owner');
+    expect(compose).toContain('access.peer === peer');
+    expect(compose).toContain('access.chatId === selectedChatId');
+    expect(compose).toContain('access.readable === true');
+    expect(compose).toContain('access.available === true');
+    expect(compose).toContain('canSendCurrentMessage: canCompose && canSendDirect');
+    expect(compose).toContain('ApplicationErrorService');
+    expect(compose).not.toContain('FriendshipService');
+    expect(compose).not.toMatch(/\bwatchFriends\s*\(/u);
     expect(send).toContain('DirectThreadFacade');
     expect(selection).toContain('DirectChatFacade');
     expect(selection).toContain('syncPeerContext$');
