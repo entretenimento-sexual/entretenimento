@@ -22,6 +22,8 @@ import type {
 } from './community/data-access/community-feed.model';
 import { CommunityMemberRosterRepository } from './community/data-access/community-member-roster.repository';
 import { normalizeCommunityMemberRosterPage } from './community/data-access/community-member-roster.model';
+import { CommunityMemberSearchRepository } from './community/data-access/community-member-search.repository';
+import { normalizeCommunityMemberSearchPage, type CommunityMemberSearchPageRequest } from './community/data-access/community-member-search.model';
 import { CommunityMembershipRepository } from './community/data-access/community-membership.repository';
 import type { CommunityPreviewResponse } from './community/data-access/community-preview.model';
 import { CommunityPreviewRepository } from './community/data-access/community-preview.repository';
@@ -246,6 +248,30 @@ const rosterRepository = {
   })),
 };
 
+// Isolated visual fixture: use the real client contract, without Firebase or private UIDs.
+const memberSearchRepository = {
+  searchPage$: ({ query }: CommunityMemberSearchPageRequest) => {
+    const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
+    const items = rosterIds.map((profileId, index) => ({
+      memberKey: profileId,
+      identity: {
+        profileId,
+        nickname: ['Marina', 'Rafael', 'Bia'][index],
+        avatarUrl: null,
+      },
+      role: index === 0 ? 'owner' : 'member',
+    })).filter(item => item.identity.nickname.toLocaleLowerCase('pt-BR').includes(normalizedQuery));
+    const page = normalizeCommunityMemberSearchPage({
+      items,
+      nextCursor: null,
+      memberCount: 86,
+      generatedAt: now,
+    });
+    if (!page) throw new Error('Invalid visual member search fixture');
+    return of(page);
+  },
+};
+
 const previewRepository = {
   getPreview$: () => of(currentPreview()),
 };
@@ -326,6 +352,7 @@ const route = {
     { provide: ActivatedRoute, useValue: route },
     { provide: MatDialog, useValue: { open: () => ({ afterClosed: () => of(false) }) } },
     { provide: CommunityMemberRosterRepository, useValue: rosterRepository },
+    { provide: CommunityMemberSearchRepository, useValue: memberSearchRepository },
     { provide: CommunityPreviewRepository, useValue: previewRepository },
     { provide: CommunityMembershipRepository, useValue: membershipRepository },
     { provide: CommunityFeedRepository, useValue: feedRepository },

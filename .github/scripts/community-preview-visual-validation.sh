@@ -141,6 +141,34 @@ run_checked "$OUT/desktop/members.metrics.log" "async (page) => {
 }"
 playwright-cli screenshot --full-page --filename="$OUT/desktop/members.full-page.png"
 
+run_checked "$OUT/desktop/member-search.metrics.log" "async (page) => {
+  const panel = page.locator('#community-panel-members');
+  const search = panel.getByRole('searchbox', { name: 'Buscar integrantes' });
+  await search.fill('Mar');
+  const results = panel.getByRole('list', { name: 'Resultados da busca por Mar' });
+  await results.waitFor({ state: 'visible' });
+  const links = results.getByRole('link');
+  const count = await links.count();
+  const href = await links.first().getAttribute('href');
+  const label = await links.first().getAttribute('aria-label');
+  if (count !== 1
+      || href !== '/perfil/profile-00000000-0000-4000-8000-000000000001'
+      || label !== 'Ver perfil de Marina') {
+    throw new Error('Community member search validation failed: ' + JSON.stringify({ count, href, label }));
+  }
+  await search.fill('zzzz');
+  await panel.getByText('Nenhum integrante encontrado para esta busca.', { exact: true }).waitFor({ state: 'visible' });
+  await panel.getByRole('button', { name: 'Limpar busca', exact: true }).click();
+  const roster = panel.getByRole('list', { name: 'Integrantes da Comunidade' });
+  await roster.waitFor({ state: 'visible' });
+  const restoredCount = await roster.getByRole('link').count();
+  if (restoredCount !== 3 || await search.inputValue() !== '') {
+    throw new Error('Community member roster restoration failed: ' + JSON.stringify({ restoredCount }));
+  }
+  return { count, href, label, restoredCount };
+}"
+
+
 run_checked "$OUT/desktop/about.metrics.log" "async (page) => {
   await page.getByRole('button', { name: 'Sobre', exact: true }).click();
   await page.waitForSelector('.community-preview__about', { state: 'visible' });
@@ -267,6 +295,34 @@ run_checked "$OUT/mobile/members.metrics.log" "async (page) => {
   return metrics;
 }"
 playwright-cli screenshot --full-page --filename="$OUT/mobile/members.full-page.png"
+
+run_checked "$OUT/mobile/member-search.metrics.log" "async (page) => {
+  const panel = page.locator('#community-panel-members');
+  const search = panel.getByRole('searchbox', { name: 'Buscar integrantes' });
+  await search.fill('Mar');
+  const results = panel.getByRole('list', { name: 'Resultados da busca por Mar' });
+  await results.waitFor({ state: 'visible' });
+  const links = results.getByRole('link');
+  const count = await links.count();
+  const href = await links.first().getAttribute('href');
+  const label = await links.first().getAttribute('aria-label');
+  if (count !== 1
+      || href !== '/perfil/profile-00000000-0000-4000-8000-000000000001'
+      || label !== 'Ver perfil de Marina') {
+    throw new Error('Community member search validation failed: ' + JSON.stringify({ count, href, label }));
+  }
+  await search.fill('zzzz');
+  await panel.getByText('Nenhum integrante encontrado para esta busca.', { exact: true }).waitFor({ state: 'visible' });
+  await panel.getByRole('button', { name: 'Limpar busca', exact: true }).click();
+  const roster = panel.getByRole('list', { name: 'Integrantes da Comunidade' });
+  await roster.waitFor({ state: 'visible' });
+  const restoredCount = await roster.getByRole('link').count();
+  if (restoredCount !== 3 || await search.inputValue() !== '') {
+    throw new Error('Community member roster restoration failed: ' + JSON.stringify({ restoredCount }));
+  }
+  return { count, href, label, restoredCount };
+}"
+
 
 run_checked "$OUT/mobile/about.metrics.log" "async (page) => {
   await page.getByRole('button', { name: 'Sobre', exact: true }).click();
