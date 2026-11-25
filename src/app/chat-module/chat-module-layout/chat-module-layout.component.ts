@@ -348,7 +348,14 @@ get shouldShowComposerHelp(): boolean {
 
   private observeChatDeepLink(): void {
     this.navigationOrchestrator
-      .observeResolvedDeepLinks$(this.currentUid$, this.route.queryParamMap)
+      .observeResolvedDeepLinks$(this.currentUid$, this.route.queryParamMap, error =>
+        this.reportError(
+          'Não foi possível abrir a conversa automaticamente.',
+          error,
+          { op: 'observeChatDeepLink' },
+          true
+        )
+      )
       .pipe(
         tap((resolved) => {
           if (!resolved?.chatId) {
@@ -359,13 +366,8 @@ get shouldShowComposerHelp(): boolean {
           this.selectionContext.select(resolved.chatId, 'chat');
           this.directMessageBlockedReason.set(null);
 
-          if (resolved.withUser) {
-            this.selectionContext.applyPeer({
-              peerUid: resolved.withUser,
-            });
-          } else {
-            this.selectionContext.clearPeer();
-          }
+          // URL metadata is not peer authority. Selection changes clear the
+          // header; only the canonical chat can resolve the participant.
 
           this.dbg('observeChatDeepLink() -> selected chat', {
             selectedChatId: this.selectedChatId,
@@ -405,7 +407,14 @@ get shouldShowComposerHelp(): boolean {
 
   private observeSelectionPeerContext(): void {
     this.selectionContext
-      .syncPeerContext$(this.currentUid$)
+      .syncPeerContext$(this.currentUid$, error =>
+        this.reportError(
+          'Não foi possível consultar a identidade pública da conversa.',
+          error,
+          { op: 'observeSelectionPeerContext' },
+          false
+        )
+      )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
   }

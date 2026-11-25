@@ -1,7 +1,8 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
-import { Observable, combineLatest, of } from 'rxjs';
+import { Observable, combineLatest, defer, of } from 'rxjs';
 import {
+  catchError,
   distinctUntilChanged,
   map,
   shareReplay,
@@ -162,7 +163,8 @@ export class DirectChatSelectionContextFacade {
   }
 
   syncPeerContext$(
-    currentUid$: Observable<string | null>
+    currentUid$: Observable<string | null>,
+    onError?: (error: unknown) => void
   ): Observable<void> {
     return combineLatest([
       this.selectedType$,
@@ -184,7 +186,14 @@ export class DirectChatSelectionContextFacade {
           return of(void 0);
         }
 
-        return this.resolvePeer$(safePeerUid);
+        return defer(() => this.resolvePeer$(safePeerUid)).pipe(
+          catchError(error => {
+            // Never keep another peer's identity, and keep future selections live.
+            if (this.activePeerUidSignal() === safePeerUid) this.clearPeer();
+            onError?.(error);
+            return of(void 0);
+          })
+        );
       })
     );
   }

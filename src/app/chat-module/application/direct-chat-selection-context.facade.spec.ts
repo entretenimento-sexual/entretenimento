@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { BehaviorSubject, firstValueFrom, Observable, of, Subject } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, Observable, of, Subject, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
@@ -212,6 +212,33 @@ describe('DirectChatSelectionContextFacade', () => {
     expect(facade.activePeerName()).toBe('Segunda pessoa');
     expect(facade.activePeerPhotoURL()).toContain('segunda.jpg');
     subscription.unsubscribe();
+  });
+
+  it('recupera falha de identidade pública ao selecionar outra conversa', async () => {
+    const selectedChat$ = new BehaviorSubject({
+      id: 'chat-1', participants: ['me', 'peer-1'],
+    });
+    const { facade } = setup({
+      selectedChat$,
+      resolvePeer$: uid => uid === 'peer-1'
+        ? throwError(() => new Error('identity unavailable'))
+        : of({ uid, name: 'Segunda pessoa', photoURL: null }),
+    });
+    const onError = vi.fn();
+    facade.select('chat-1', 'chat');
+    const sub = facade.syncPeerContext$(of('me'), onError).subscribe();
+    // Flush signal-to-Observable effects before asserting the first selection.
+    TestBed.tick();
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(facade.activePeerName()).toBeNull();
+
+    facade.select('chat-2', 'chat');
+    selectedChat$.next({ id: 'chat-2', participants: ['me', 'peer-2'] });
+    TestBed.tick();
+    expect(facade.activePeerUid()).toBe('peer-2');
+    expect(facade.activePeerName()).toBe('Segunda pessoa');
+    expect(sub.closed).toBe(false);
+    sub.unsubscribe();
   });
 
   it('clear limpa seleção, contexto e facade canônica', () => {

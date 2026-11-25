@@ -1,12 +1,11 @@
 import { Injectable } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
-import { Observable, of, throwError } from 'rxjs';
+import { EMPTY, Observable, combineLatest, defer, of, throwError } from 'rxjs';
 import {
+  catchError,
   distinctUntilChanged,
   map,
-  shareReplay,
   switchMap,
-  tap,
 } from 'rxjs/operators';
 
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
@@ -30,8 +29,6 @@ export interface DirectChatPeerContext {
 
 @Injectable()
 export class DirectChatNavigationOrchestrator {
-  private appliedDeepLinkKey: string | null = null;
-
   constructor(
     private readonly directChatService: DirectChatService,
     private readonly firestoreUserQuery: FirestoreUserQueryService,
@@ -40,7 +37,8 @@ export class DirectChatNavigationOrchestrator {
 
   observeResolvedDeepLinks$(
     currentUid$: Observable<string | null>,
-    queryParamMap$: Observable<ParamMap>
+    queryParamMap$: Observable<ParamMap>,
+    onError?: (error: unknown) => void
   ): Observable<ResolvedDirectChatDeepLink | null> {
     const queryDeepLink$ = queryParamMap$.pipe(
       map((query): DirectChatDeepLinkPayload => ({
@@ -48,25 +46,36 @@ export class DirectChatNavigationOrchestrator {
         withUser: (query.get('withUser') ?? '').trim() || undefined,
       })),
       distinctUntilChanged(
-        (a, b) =>
-          a.openChatId === b.openChatId &&
-          a.withUser === b.withUser
-      ),
-      tap((payload) => {
-        if (!payload.openChatId && !payload.withUser) {
-          this.appliedDeepLinkKey = null;
-        }
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
-    return currentUid$.pipe(
-      switchMap((uid) =>
-        queryDeepLink$.pipe(
-          switchMap((payload) => this.resolveDeepLink$(uid, payload))
-        )
+        (a, b) => a.openChatId === b.openChatId && a.withUser === b.withUser
       )
     );
+
+    // State belongs to this subscription, not to the injectable instance.
+    // A pending URL is a one-shot intent of the session that received it.
+    return defer(() => {
+      let previous: DirectChatDeepLinkPayload | null = null;
+      return combineLatest([
+        currentUid$.pipe(map(uid => uid?.trim() || null), distinctUntilChanged()),
+        queryDeepLink$,
+      ]).pipe(
+        switchMap(([uid, payload]) => {
+          const repeatedPayload = previous === payload;
+          previous = payload;
+          if (!payload.openChatId && !payload.withUser) return EMPTY;
+
+          // Same payload after an owner transition: cancel the old resolution
+          // and consume the URL, never resolve it under the replacement owner.
+          if (repeatedPayload || !uid) return of(null);
+
+          return defer(() => this.resolveDeepLink$(uid, payload)).pipe(
+            catchError(error => {
+              onError?.(error);
+              return of(null);
+            })
+          );
+        })
+      );
+    });
   }
 
   consumeDeepLinkQueryParams(route: ActivatedRoute): Promise<boolean> {
@@ -106,14 +115,6 @@ export class DirectChatNavigationOrchestrator {
     if (!safeUid || (!payload.openChatId && !payload.withUser)) {
       return of(null);
     }
-
-    const key = `${safeUid}:${payload.openChatId ?? ''}:${payload.withUser ?? ''}`;
-
-    if (this.appliedDeepLinkKey === key) {
-      return of(null);
-    }
-
-    this.appliedDeepLinkKey = key;
 
     if (payload.openChatId) {
       return of({
