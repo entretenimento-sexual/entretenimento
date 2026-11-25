@@ -10,6 +10,7 @@
 // - Manter amizade, chat, erro global e debug fora da camada visual.
 
 import { CommonModule } from '@angular/common';
+import { DirectChatAvailabilityService } from 'src/app/messaging/direct-chat/services/direct-chat-availability.service';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -117,8 +118,10 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   private readonly optimisticBlockTarget$ = new BehaviorSubject<string | null>(null);
   readonly blockActionBusy$ = new BehaviorSubject(false);
   private readonly dialog = inject(MatDialog);
+  private readonly chatAvailability = inject(DirectChatAvailabilityService);
 
   readonly friendshipInteractionState$: Observable<FriendshipInteractionState>;
+  readonly directChatAvailable$: Observable<boolean>;
   readonly publicIntentContext$: Observable<VisitedProfileIntentContextVm | null>;
 
   uid: string | null = null;
@@ -144,6 +147,19 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     private readonly errorNotification: ErrorNotificationService
   ) {
     this.friendshipInteractionState$ = this.buildFriendshipInteractionStateStream();
+    this.directChatAvailable$ = combineLatest([
+      this.viewedProfileUid$, this.friendshipInteractionState$, this.authSession.uid$,
+    ]).pipe(
+      map(([peer, state, owner]) => ({
+        peer, owner, allowed: state.statusVerified && state.isFriend && !state.blockedByViewer,
+      })),
+      distinctUntilChanged((a, b) => a.peer === b.peer && a.owner === b.owner && a.allowed === b.allowed),
+      switchMap(({ peer, owner, allowed }) => peer && owner && allowed
+        ? this.chatAvailability.observeForCurrentUser$(peer, owner)
+        : of(false)),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
     this.publicIntentContext$ = this.buildPublicIntentContextStream();
   }
 
@@ -445,19 +461,14 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
 
     this.directChatBusy$.next(true);
 
-    this.friendshipInteractionState$
+    this.directChatAvailable$
       .pipe(
         take(1),
-        switchMap((state) =>
-          state.statusVerified && state.isFriend && !state.blockedByViewer
-            ? this.interactionOrchestrator.prepareDirectChat$(targetUid)
-            : of(null)
-        ),
-        // An already dispatched callable remains protected by the backend;
-        // suppress stale navigation after a revoked connection.
-        takeUntil(this.friendshipInteractionState$.pipe(
-          filter((state) => !state.statusVerified || !state.isFriend || state.blockedByViewer)
-        )),
+        switchMap(available => available && this.viewedProfileUid$.value === targetUid
+          ? this.interactionOrchestrator.prepareDirectChat$(targetUid)
+          : of(null)),
+        // The backend remains authoritative for an already dispatched callable.
+        takeUntil(this.directChatAvailable$.pipe(filter(available => !available))),
         takeUntil(this.profileNavigationAwayFrom$(targetUid)),
         finalize(() => {
           this.directChatBusy$.next(false);

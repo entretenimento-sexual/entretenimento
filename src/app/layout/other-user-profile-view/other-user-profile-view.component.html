@@ -140,7 +140,8 @@
                 type="button"
                 class="app-action app-action--primary"
                 (click)="startDirectChat()"
-                [disabled]="(directChatBusy$ | async) === true || !uid"
+                [disabled]="(directChatBusy$ | async) === true || !uid || (directChatAvailable$ | async) !== true"
+                [title]="(directChatAvailable$ | async) === true ? 'Conversar' : 'Conversa indisponível no momento'"
                 [attr.aria-busy]="(directChatBusy$ | async) === true ? 'true' : 'false'"
                 [attr.aria-label]="'Conversar com ' + displayName"
               >

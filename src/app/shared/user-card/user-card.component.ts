@@ -1,12 +1,14 @@
 // src/app/shared/user-card/user-card.component.ts
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, input } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { MatDialog } from '@angular/material/dialog';
 import { Router, RouterModule } from '@angular/router';
 
 import { Store } from '@ngrx/store';
-import { take } from 'rxjs/operators';
+import { of } from 'rxjs';
+import { distinctUntilChanged, map, switchMap, take } from 'rxjs/operators';
+import { DirectChatAvailabilityService } from 'src/app/messaging/direct-chat/services/direct-chat-availability.service';
 
 import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
 import { PublicUserPreviewTriggerDirective } from 'src/app/core/components/public-user-preview-popover/public-user-preview-trigger.directive';
@@ -102,6 +104,7 @@ export class UserCardComponent {
   private readonly store = inject(Store) as Store<AppState>;
   private readonly notifier = inject(ErrorNotificationService);
   private readonly router = inject(Router);
+  private readonly chatAvailability = inject(DirectChatAvailabilityService);
 
   private readonly currentUser = toSignal(
     this.store.select(selectCurrentUser),
@@ -327,9 +330,29 @@ export class UserCardComponent {
     return (this.cancelingOutboundRequestIds() ?? []).includes(requestId);
   });
 
+  private readonly messageAccess = toSignal(toObservable(this.relationshipVm).pipe(
+    map(({ currentUid, targetUid, canMessage }) => ({ currentUid, targetUid, canMessage })),
+    distinctUntilChanged((a, b) => a.currentUid === b.currentUid &&
+      a.targetUid === b.targetUid && a.canMessage === b.canMessage),
+    switchMap(({ currentUid, targetUid, canMessage }) =>
+      currentUid && targetUid && canMessage
+        ? this.chatAvailability.observeForCurrentUser$(targetUid, currentUid).pipe(
+            map(available => ({ currentUid, targetUid, available }))
+          )
+        : of(null)
+    )
+  ), { initialValue: null });
+
+  readonly canMessageNow = computed(() => {
+    const relationship = this.relationshipVm();
+    const access = this.messageAccess();
+    return relationship.canMessage && access?.available === true &&
+      access.currentUid === relationship.currentUid && access.targetUid === relationship.targetUid;
+  });
+
   readonly messageAvailabilityLabel = computed(() => {
     switch (this.relationshipVm().state) {
-      case 'friends': return 'Conversar';
+      case 'friends': return this.canMessageNow() ? 'Conversar' : 'Conversa indisponível no momento.';
       case 'incoming_pending': return 'Responda ao interesse antes de conversar.';
       case 'outgoing_pending': return 'Aguarde a resposta ao interesse.';
       case 'none': return 'Conecte-se para conversar.';
@@ -349,9 +372,7 @@ export class UserCardComponent {
       return;
     }
 
-    const relationship = this.relationshipVm();
-
-    if (!relationship.canMessage) {
+    if (!this.canMessageNow()) {
       this.notifier.showInfo(this.messageAvailabilityLabel());
       return;
     }

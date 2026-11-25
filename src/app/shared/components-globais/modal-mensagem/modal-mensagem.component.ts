@@ -21,15 +21,21 @@ import {
   Inject,
   Output,
   signal,
+  DestroyRef,
+  inject,
 } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 
 import { EMPTY, throwError } from 'rxjs';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { DirectChatAvailabilityService } from 'src/app/messaging/direct-chat/services/direct-chat-availability.service';
 import {
   catchError,
   filter,
   finalize,
   map,
+  shareReplay,
+  takeUntil,
   switchMap,
   take,
 } from 'rxjs/operators';
@@ -58,6 +64,12 @@ export class ModalMensagemComponent {
   @Output() readonly mensagemEnviada = new EventEmitter<string>();
 
   readonly isSending = signal(false);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly chatAvailability = inject(DirectChatAvailabilityService);
+  private readonly availability$ = this.chatAvailability.observeForCurrentUser$(
+    String(inject<{ profile: IUserDados }>(MAT_DIALOG_DATA)?.profile?.uid ?? '').trim()
+  ).pipe(shareReplay({ bufferSize: 1, refCount: true }));
+  readonly canSend = toSignal(this.availability$, { initialValue: false });
 
   mensagem = '';
 
@@ -71,7 +83,7 @@ export class ModalMensagemComponent {
   ) {}
 
   enviarMensagem(): void {
-    if (this.isSending()) {
+    if (this.isSending() || !this.canSend()) {
       return;
     }
 
@@ -130,6 +142,8 @@ export class ModalMensagemComponent {
           return throwError(() => error);
         }),
 
+        takeUntil(this.availability$.pipe(filter(available => !available))),
+        takeUntilDestroyed(this.destroyRef),
         finalize(() => {
           this.isSending.set(false);
           this.dialogRef.disableClose = false;

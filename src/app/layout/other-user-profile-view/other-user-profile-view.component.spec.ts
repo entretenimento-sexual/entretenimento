@@ -27,6 +27,7 @@ import { MediaPublicPreviewQueryService } from '../../core/services/media/media-
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 import { UserSocialLinksService } from '../../core/services/user-profile/user-social-links.service';
 import { PublicMixedMediaViewerLauncherService } from '../../media/shared/services/public-mixed-media-viewer-launcher.service';
+import { DirectChatAvailabilityService } from 'src/app/messaging/direct-chat/services/direct-chat-availability.service';
 import { DirectChatService } from '../../messaging/direct-chat/services/direct-chat.service';
 import { UserIntentStatusService } from '../../core/services/discovery/user-intent-status.service';
 import { SocialLinksAccordionComponent } from '../../user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
@@ -71,6 +72,7 @@ describe('OtherUserProfileViewComponent', () => {
       ],
       providers: [
         { provide: Firestore, useValue: {} },
+        { provide: DirectChatAvailabilityService, useValue: { observeForCurrentUser$: () => of(true) } },
         { provide: PublicProfileVisibilityService, useValue: {
           watch$: vi.fn(() => profileVisible$.asObservable()),
         } },

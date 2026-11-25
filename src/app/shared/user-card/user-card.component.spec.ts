@@ -4,6 +4,8 @@ import { By } from '@angular/platform-browser';
 import { RouterTestingModule } from '@angular/router/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { vi } from 'vitest';
+import { of } from 'rxjs';
+import { DirectChatAvailabilityService } from '../../messaging/direct-chat/services/direct-chat-availability.service';
 
 import { UserCardComponent } from './user-card.component';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
@@ -40,6 +42,7 @@ describe('UserCardComponent', () => {
       ],
       providers: [
         ...provideStoreTestingMock(storeMock),
+        { provide: DirectChatAvailabilityService, useValue: { observeForCurrentUser$: () => of(false) } },
         {
           provide: MatDialog,
           useValue: {

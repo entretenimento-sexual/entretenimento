@@ -141,9 +141,9 @@
             <button
               type="button"
               class="user-card__action user-card__action--message app-action"
-              [class.app-action--primary]="relationship.canMessage"
-              [class.app-action--ghost]="!relationship.canMessage"
-              [attr.aria-disabled]="!relationship.canMessage"
+              [class.app-action--primary]="canMessageNow()"
+              [class.app-action--ghost]="!canMessageNow()"
+              [attr.aria-disabled]="!canMessageNow()"
               [attr.aria-label]="'Conversar com ' + (profile.nickname || 'usuário') + '. ' + messageAvailabilityLabel()"
               [title]="messageAvailabilityLabel()"
               (click)="abrirDM($event)"

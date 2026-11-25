@@ -48,9 +48,9 @@
       class="message-textarea"
       placeholder="Digite sua mensagem..."
       maxlength="1000"
-      [readOnly]="isSending()"
-      [attr.aria-readonly]="isSending()"
-      [attr.aria-describedby]="isSending() ? 'direct-message-status' : null"
+      [readOnly]="isSending() || !canSend()"
+      [attr.aria-readonly]="isSending() || !canSend()"
+      aria-describedby="direct-message-status"
     ></textarea>
 
     <div class="direct-message-meta">
@@ -62,6 +62,8 @@
       >
         @if (isSending()) {
           Enviando mensagem...
+        } @else if (!canSend()) {
+          Conversa indisponível no momento.
         }
       </span>
 
@@ -85,7 +87,7 @@
       type="button"
       class="app-action app-action--primary direct-message-action direct-message-submit"
       (click)="enviarMensagem()"
-      [disabled]="isSending() || !mensagem.trim()"
+      [disabled]="isSending() || !canSend() || !mensagem.trim()"
       [attr.aria-busy]="isSending()"
     >
       {{ isSending() ? 'Enviando...' : 'Enviar' }}

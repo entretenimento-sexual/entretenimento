@@ -1,12 +1,14 @@
 import { recoverDirectChatListener$ } from './direct-chat-listener-recovery';
 // Projeção privada derivada. Nunca substitui Rules ou Cloud Functions.
-import { EnvironmentInjector, Injectable, runInInjectionContext } from '@angular/core';
+import { EnvironmentInjector, Injectable, inject, runInInjectionContext } from '@angular/core';
 import { doc, Firestore } from '@angular/fire/firestore';
 import { onSnapshot } from 'firebase/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { defer, from, Observable, of } from 'rxjs';
-import { catchError, switchMap } from 'rxjs/operators';
+import { combineLatest, defer, from, Observable, of } from 'rxjs';
+import { catchError, distinctUntilChanged, startWith, switchMap } from 'rxjs/operators';
 import { DirectChatReconciliationCoordinator } from './direct-chat-reconciliation-coordinator';
+
+import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 
 interface DirectChatAccessProjection {
   available?: unknown;
@@ -15,6 +17,7 @@ interface DirectChatAccessProjection {
 
 @Injectable({ providedIn: 'root' })
 export class DirectChatAvailabilityService {
+  private readonly accessControl = inject(AccessControlService);
   private readonly coordinator = new DirectChatReconciliationCoordinator();
 
   private reconcile$(owner: string, peer: string): Observable<boolean> {
@@ -35,6 +38,24 @@ export class DirectChatAvailabilityService {
     private readonly injector: EnvironmentInjector,
     private readonly functions: Functions
   ) {}
+
+  /** Entry points use the authenticated owner, never a profile/store identity as authority. */
+  observeForCurrentUser$(peerUid: string, expectedOwnerUid?: string): Observable<boolean> {
+    return combineLatest([
+      this.accessControl.authUid$,
+      this.accessControl.canRunChatRealtime$,
+    ]).pipe(
+      distinctUntilChanged(([a, allowedA], [b, allowedB]) => a === b && allowedA === allowedB),
+      switchMap(([owner, allowed]) => {
+        if (!owner || !allowed || (expectedOwnerUid !== undefined && expectedOwnerUid !== owner)) {
+          return of(false);
+        }
+        return this.observe$(owner, peerUid).pipe(startWith(false));
+      }),
+      distinctUntilChanged(),
+      catchError(() => of(false))
+    );
+  }
 
   observe$(ownerUid: string, peerUid: string): Observable<boolean> {
     const owner = String(ownerUid ?? '').trim();

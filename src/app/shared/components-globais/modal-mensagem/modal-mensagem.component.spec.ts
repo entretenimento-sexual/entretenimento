@@ -3,7 +3,8 @@
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
-import { of } from 'rxjs';
+import { BehaviorSubject, Subject, of } from 'rxjs';
+import { DirectChatAvailabilityService } from 'src/app/messaging/direct-chat/services/direct-chat-availability.service';
 import { beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
 import { ModalMensagemComponent } from './modal-mensagem.component';
@@ -15,6 +16,7 @@ import { ErrorNotificationService } from '../../../core/services/error-handler/e
 
 describe('ModalMensagemComponent', () => {
   let component: ModalMensagemComponent;
+  let available$: BehaviorSubject<boolean>;
   let fixture: ComponentFixture<ModalMensagemComponent>;
 
   let dialogRefMock: {
@@ -41,6 +43,7 @@ describe('ModalMensagemComponent', () => {
   };
 
   beforeEach(async () => {
+    available$ = new BehaviorSubject(true);
     dialogRefMock = {
       close: vi.fn(),
       disableClose: false,
@@ -68,6 +71,7 @@ describe('ModalMensagemComponent', () => {
       declarations: [ModalMensagemComponent],
       providers: [
         { provide: MatDialogRef, useValue: dialogRefMock },
+        { provide: DirectChatAvailabilityService, useValue: { observeForCurrentUser$: () => available$ } },
         {
           provide: MAT_DIALOG_DATA,
           useValue: { profile: { uid: 'u2', nickname: 'Perfil' } },
@@ -87,5 +91,22 @@ describe('ModalMensagemComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('revoga composição e descarta abertura pendente após perder acesso bilateral', () => {
+    const pending = new Subject<string>();
+    directChatServiceMock.ensureDirectChatIdWithUser$.mockReturnValue(pending);
+    component.mensagem = 'Olá';
+    component.enviarMensagem();
+    expect(component.isSending()).toBe(true);
+    available$.next(false);
+    expect(component.canSend()).toBe(false);
+    expect(component.isSending()).toBe(false);
+    pending.next('chat-1');
+    expect(directThreadServiceMock.sendMessage$).not.toHaveBeenCalled();
+    component.enviarMensagem();
+    expect(directChatServiceMock.ensureDirectChatIdWithUser$).toHaveBeenCalledTimes(1);
+    available$.next(true);
+    expect(component.canSend()).toBe(true);
   });
 });
