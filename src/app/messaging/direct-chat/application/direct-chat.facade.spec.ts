@@ -579,3 +579,44 @@ it('never relabels a shared replay from the preceding UID', () => {
   expect(last(seen)?.[0]?.id).toBe('private-b');
   sub.unsubscribe();
 });
+
+describe('DirectChatFacade non-selected send access', () => {
+  it('requires canonical history and bilateral projection without changing selection or carrying session', () => {
+    const uid$ = new BehaviorSubject<string | null>('user-a');
+    const chats$ = new BehaviorSubject<IChat[]>([buildChat('media-chat', ['user-a', 'peer-b'])]);
+    const available$ = new BehaviorSubject(false);
+    const observeForCurrentUser$ = vi.fn(() => available$);
+    const facade = new DirectChatFacade(
+      { getMyDirectChatScope$: () => chats$.pipe(map(chats => ({ ownerUid: 'user-a', chats }))) } as unknown as DirectChatService,
+      buildAuthSession(uid$),
+      { getUsersPublicMap$: () => of({}) } as unknown as FirestoreUserQueryService,
+      buildApplicationError().service,
+      buildDestroyRef(),
+      { observeForCurrentUser$ } as any,
+      { unreadState$: of({ ownerUid: null, counts: new Map() }) } as any
+    );
+    const values: boolean[] = [];
+    const selection: Array<string | null> = [];
+    const selectedSub = facade.requestedSelectedChatId$.subscribe(value => selection.push(value));
+    const sub = facade.observeCanSendToChat$('media-chat').subscribe(value => values.push(value));
+    expect(values.at(-1)).toBe(false);
+    expect(observeForCurrentUser$).toHaveBeenCalledWith('peer-b', 'user-a');
+    available$.next(true);
+    expect(values.at(-1)).toBe(true);
+    chats$.next([buildChat('media-chat', ['user-a', 'peer-b'])]);
+    expect(observeForCurrentUser$).toHaveBeenCalledTimes(1);
+    available$.next(false);
+    expect(values.at(-1)).toBe(false);
+    chats$.next([]);
+    available$.next(true);
+    expect(values.at(-1)).toBe(false);
+    chats$.next([buildChat('media-chat', ['user-a', 'peer-b'])]);
+    expect(values.at(-1)).toBe(true);
+    uid$.next(null);
+    uid$.next('user-a');
+    expect(values.at(-1)).toBe(false);
+    expect(selection.at(-1)).toBeNull();
+    sub.unsubscribe();
+    selectedSub.unsubscribe();
+  });
+});

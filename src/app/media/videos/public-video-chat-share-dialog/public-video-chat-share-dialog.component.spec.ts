@@ -3,7 +3,7 @@ import {
   MAT_DIALOG_DATA,
   MatDialogRef,
 } from '@angular/material/dialog';
-import { of } from 'rxjs';
+import { BehaviorSubject, Subject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -24,10 +24,12 @@ const CHAT = {
 
 describe('PublicVideoChatShareDialogComponent', () => {
   let close: ReturnType<typeof vi.fn>;
+  let allowed$: BehaviorSubject<boolean>;
   let sendToChat$: ReturnType<typeof vi.fn>;
   let showSuccess: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    allowed$ = new BehaviorSubject(true);
     close = vi.fn();
     sendToChat$ = vi.fn(() => of('message_1'));
     showSuccess = vi.fn();
@@ -49,6 +51,7 @@ describe('PublicVideoChatShareDialogComponent', () => {
         {
           provide: DirectChatFacade,
           useValue: {
+            observeCanSendToChat$: () => allowed$,
             state$: of({
               items: [CHAT],
               selectedChatId: null,
@@ -102,5 +105,23 @@ describe('PublicVideoChatShareDialogComponent', () => {
     fixture.componentInstance.sendTo({ ...CHAT, canOpen: false });
 
     expect(sendToChat$).not.toHaveBeenCalled();
+  });
+
+  it('preserva histórico sem permitir compartilhar quando a projeção bilateral é revogada', () => {
+    const fixture = TestBed.createComponent(PublicVideoChatShareDialogComponent);
+    fixture.detectChanges();
+    allowed$.next(false);
+    expect(fixture.componentInstance.canSendTo(CHAT)).toBe(false);
+    fixture.componentInstance.sendTo(CHAT);
+    expect(sendToChat$).not.toHaveBeenCalled();
+    allowed$.next(true);
+    const pending = new Subject<string>();
+    sendToChat$.mockReturnValue(pending);
+    fixture.componentInstance.sendTo(CHAT);
+    allowed$.next(false);
+    pending.next('late-message');
+    expect(close).not.toHaveBeenCalled();
+    expect(showSuccess).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.sendingChatId()).toBeNull();
   });
 });

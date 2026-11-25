@@ -70,3 +70,24 @@ describe('DirectChatAvailabilityService session-bound entry points', () => {
     sub.unsubscribe();
   });
 });
+
+it('an entry point without explicit owner stays revoked after logout and new login', () => {
+  const authUid$ = new BehaviorSubject<string | null>('owner');
+  const canRunChatRealtime$ = new BehaviorSubject(true);
+  const projection$ = new BehaviorSubject(true);
+  const observe$ = vi.fn(() => projection$);
+  const service = Object.assign(Object.create(DirectChatAvailabilityService.prototype), {
+    accessControl: { authUid$, canRunChatRealtime$ }, observe$,
+  }) as DirectChatAvailabilityService;
+  const values: boolean[] = [];
+  const sub = service.observeForCurrentUser$('peer').subscribe(value => values.push(value));
+  expect(values.at(-1)).toBe(true);
+  authUid$.next(null);
+  expect(values.at(-1)).toBe(false);
+  authUid$.next('other');
+  authUid$.next('owner');
+  expect(values.at(-1)).toBe(false);
+  expect(observe$).toHaveBeenCalledTimes(1);
+  expect(projection$.observers.length).toBe(0);
+  sub.unsubscribe();
+});

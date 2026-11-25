@@ -5,7 +5,7 @@ import { doc, Firestore } from '@angular/fire/firestore';
 import { onSnapshot } from 'firebase/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { combineLatest, defer, from, Observable, of } from 'rxjs';
-import { catchError, distinctUntilChanged, startWith, switchMap } from 'rxjs/operators';
+import { catchError, distinctUntilChanged, map, startWith, switchMap, take, takeWhile } from 'rxjs/operators';
 import { DirectChatReconciliationCoordinator } from './direct-chat-reconciliation-coordinator';
 
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
@@ -41,6 +41,21 @@ export class DirectChatAvailabilityService {
 
   /** Entry points use the authenticated owner, never a profile/store identity as authority. */
   observeForCurrentUser$(peerUid: string, expectedOwnerUid?: string): Observable<boolean> {
+    if (expectedOwnerUid === undefined) {
+      return this.accessControl.authUid$.pipe(
+        take(1),
+        switchMap(owner => owner ? combineLatest([
+          this.accessControl.authUid$,
+          this.observeForCurrentUser$(peerUid, owner),
+        ]).pipe(
+          takeWhile(([current]) => current === owner, true),
+          map(([current, allowed]) => current === owner && allowed)
+        ) : of(false)),
+        startWith(false),
+        distinctUntilChanged(),
+        catchError(() => of(false))
+      );
+    }
     return combineLatest([
       this.accessControl.authUid$,
       this.accessControl.canRunChatRealtime$,

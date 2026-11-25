@@ -15,7 +15,7 @@
 // ============================================================================
 import { DestroyRef, Injectable } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { BehaviorSubject, combineLatest, Observable, of } from 'rxjs';
+import { BehaviorSubject, combineLatest, defer, Observable, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -304,6 +304,167 @@ export class DirectChatFacade {
           chatId: null,
         });
       });
+  }
+
+  /** Non-selected conversations (e.g. media sharing) require their own
+   * canonical read scope and bilateral SEND permission. Never change selection. */
+  observeCanSendToChat$(chatId: string): Observable<boolean> {
+    return defer(() => {
+      const session = this.sessionIdentitySubject.value;
+      const id = String(chatId ?? '').trim();
+      if (!session.uid || !id) return of(false);
+      const owner = session.uid;
+      return this.sessionChats$.pipe(
+        map(scope => {
+          if (scope.uid !== owner || scope.epoch !== session.epoch) return null;
+          const chat = scope.chats.find(item => item.id === id);
+          const participants = chat?.participants ?? [];
+          if (!chat || Boolean((chat as { isRoom?: boolean }).isRoom) ||
+              participants.length !== 2 || participants[0] === participants[1] ||
+              !participants.includes(owner) ||
+              participants.some(uid => typeof uid !== 'string' || !uid.trim())) return null;
+          return participants.find(uid => uid !== owner) ?? null;
+        }),
+        distinctUntilChanged(),
+        switchMap(peer => peer
+          ? this.availabilityService.observeForCurrentUser$(peer, owner).pipe(startWith(false))
+          : of(false)),
+        distinctUntilChanged(),
+        catchError(error => {
+          this.reportSilent(error, 'DirectChatFacade.observeCanSendToChat
+    const safeChatId = String(chatId ?? '').trim() || null;
+    const session = this.sessionIdentitySubject.value;
+
+    this.selectedChatRequestSubject.next({
+      ownerUid: session.uid,
+      sessionEpoch: session.epoch,
+      chatId: safeChatId && session.uid ? safeChatId : null,
+    });
+  }
+
+  /**
+   * Recebe UID do outro perfil, resolve/cria a conversa e seleciona o chat real.
+   */
+  openChatWithUser$(otherUserUid: string): Observable<string | null> {
+    const session = this.sessionIdentitySubject.value;
+    if (!session.uid) return of(null);
+
+    return this.directChatService.ensureDirectChatIdWithUser$(otherUserUid).pipe(
+      takeUntil(this.sessionIdentity$.pipe(
+        filter((current) =>
+          current.uid !== session.uid || current.epoch !== session.epoch
+        )
+      )),
+      tap((chatId) => {
+        if (chatId) {
+          this.selectChat(chatId);
+        }
+      }),
+      catchError((error) => {
+        this.reportSilent(error, 'DirectChatFacade.openChatWithUser$');
+        return of(null);
+      }),
+      take(1)
+    );
+  }
+
+  clearSelection(): void {
+    const session = this.sessionIdentitySubject.value;
+
+    this.selectedChatRequestSubject.next({
+      ownerUid: session.uid,
+      sessionEpoch: session.epoch,
+      chatId: null,
+    });
+  }
+
+  /**
+   * Resolve somente informações públicas necessárias à apresentação da lista.
+   *
+   * Segurança:
+   * - não consulta o documento privado /users do participante;
+   * - não grava snapshot do perfil dentro do documento de chat;
+   * - mantém fallback somente de leitura para conversas legadas já existentes;
+   * - normaliza identidade e prévia pelo contrato universal do perfil público;
+   * - UID localiza o participante, mas nunca substitui o profileId público.
+   */
+  private applyPublicProfiles(
+    items: DirectChatListItem[],
+    publicProfiles: Record<string, UserPublic>
+  ): DirectChatListItem[] {
+    return items.map((item) => {
+      const participantUid = String(item.otherParticipantUid ?? '').trim();
+      const publicProfile = participantUid ? publicProfiles[participantUid] : undefined;
+      const preview = publicProfile ? normalizePublicUserPreview(publicProfile) : null;
+      const identity = preview?.identity ??
+        (publicProfile ? normalizePublicUserIdentity(publicProfile) : null);
+      return {
+        ...item,
+        otherParticipantIdentity: identity,
+        otherParticipantPreview: preview,
+        otherParticipantNickname: identity?.nickname ?? null,
+        otherParticipantPhotoURL: identity?.avatarUrl ?? null,
+      };
+    });
+  }
+
+  private toListItem(
+    chat: IChat,
+    currentUid: string | null
+  ): DirectChatListItem {
+    const safeCurrentUid = String(currentUid ?? '').trim() || null;
+
+    const otherParticipantUid =
+      (chat?.participants ?? []).find(
+        (uid: string) => uid !== safeCurrentUid
+      ) ?? null;
+
+    const lastMessagePreview =
+      (chat?.lastMessage?.content ?? '').trim() || null;
+
+    return {
+      id: (chat?.id ?? '').trim(),
+      chat,
+      otherParticipantUid,
+      otherParticipantIdentity: null,
+      otherParticipantPreview: null,
+      otherParticipantNickname: null,
+      otherParticipantPhotoURL: null,
+      unreadCount: 0,
+      lastMessagePreview,
+      lastMessageAt:
+        chat?.lastMessage?.timestamp?.toDate?.()?.getTime?.() ?? null,
+      canOpen: !!chat?.id,
+      availability: 'open',
+      blockedReason: null,
+      compatibilityLabel: null,
+      isDesiredProfileMatch: null,
+    };
+  }
+
+  private reportSilent(error: unknown, context: string): void {
+    try {
+      this.applicationError.report(error, {
+        feature: 'direct-chat',
+        operation: context,
+        fallbackMessage:
+          'Não foi possível concluir uma operação interna do chat direto.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'DirectChatFacade',
+          context,
+        },
+      });
+    } catch {
+      // Diagnóstico secundário nunca interrompe os fallbacks reativos da facade.
+    }
+  }
+}
+);
+          return of(false);
+        })
+      );
+    });
   }
 
   selectChat(chatId: string | null | undefined): void {

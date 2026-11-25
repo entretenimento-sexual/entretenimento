@@ -33,7 +33,8 @@
             class="video-chat-share__item"
             role="listitem"
             (click)="sendTo(item)"
-            [disabled]="item.canOpen === false || !!sendingChatId()"
+            [disabled]="!canSendTo(item) || !!sendingChatId()"
+            [title]="canSendTo(item) ? 'Enviar vídeo' : 'Conversa indisponível para envio'"
             [attr.aria-busy]="sendingChatId() === item.id ? 'true' : null"
             [attr.aria-label]="'Enviar vídeo para ' + displayName(item)"
           >
