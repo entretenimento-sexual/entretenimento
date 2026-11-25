@@ -580,6 +580,14 @@ async function run() {
       memberCount: 1,
       acceptingNewMembers: true,
       restrictedByOwnerPlan: false,
+      memberLimitOptions: [
+        { memberLimit: 25, requirement: 'basic', allowed: true },
+        { memberLimit: 50, requirement: 'basic', allowed: true },
+        { memberLimit: 100, requirement: 'basic', allowed: true },
+        { memberLimit: 250, requirement: 'premium', allowed: false },
+        { memberLimit: 500, requirement: 'vip', allowed: false },
+        { memberLimit: 1000, requirement: 'special_access', allowed: false },
+      ],
       allowedMemberLimits: [25, 50, 100],
     });
 

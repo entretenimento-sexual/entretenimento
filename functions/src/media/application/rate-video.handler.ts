@@ -149,12 +149,14 @@ export const rateVideo = onCall<RateVideoRequest>(
         throw new HttpsError('failed-precondition', 'Vídeo inconsistente.');
       }
 
-      assertRateableVideo(video);
+      // Resolve canonical exposure before feature-specific preconditions so
+      // revocation is indistinguishable from absence even during projection lag.
       assertCurrentPublicVideoTransactionExposure({
         publicVideo: video as Record<string, unknown>,
         publication: publicationSnap.data(),
         nowMs: Date.now(),
       });
+      assertRateableVideo(video);
 
       const currentRating = ratingSnap.exists
         ? ratingSnap.data() as VideoRatingDoc

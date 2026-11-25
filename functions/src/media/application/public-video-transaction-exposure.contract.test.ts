@@ -23,3 +23,19 @@ test('VF1-B2 session, view and retention share signer publication authority', ()
   assert.ok(source('public-video-transaction-exposure.policy.ts')
     .includes('isCurrentPublicMediaAssetExposure({'));
 });
+
+test('CHAT-R1.9 canonical exposure precedes video social preconditions', () => {
+  for (const [file, precondition] of [
+    ['manage-video-comment.handler.ts', 'assertVideoAllowsComments(video);'],
+    ['rate-video.handler.ts', 'assertRateableVideo(video);'],
+    ['toggle-video-reaction.handler.ts', "if (video.visibility !== 'PUBLIC')"],
+  ]) {
+    const text = source(file);
+    const transaction = text.indexOf('db.runTransaction(');
+    const publicationRead = text.indexOf('transaction.get(publicationRef)', transaction);
+    const exposure = text.indexOf('assertCurrentPublicVideoTransactionExposure({', transaction);
+    const featureCheck = text.indexOf(precondition, transaction);
+    assert.ok(transaction >= 0 && publicationRead > transaction, file);
+    assert.ok(exposure > publicationRead && featureCheck > exposure, file);
+  }
+});

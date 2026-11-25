@@ -57,9 +57,13 @@ describe('VF1-B2 video transaction exposure policy', () => {
     });
     it('rejects projection ' + state, () => {
       const f = currentVideo();
-      assert.throws(() => assertCurrentPublicVideoTransactionExposure({
-        ...f, publicVideo: { ...f.publicVideo, moderationStatus: state },
-      }));
+      assert.throws(
+        () => assertCurrentPublicVideoTransactionExposure({
+          ...f, publicVideo: { ...f.publicVideo, moderationStatus: state },
+        }),
+        (e: unknown) => !!e && typeof e === 'object' &&
+          'code' in e && e.code === 'not-found'
+      );
     });
   }
 

@@ -112,6 +112,14 @@ export const toggleVideoReaction = onCall<ToggleVideoReactionRequest>(
         throw new HttpsError('failed-precondition', 'Vídeo inconsistente.');
       }
 
+      // Resolve canonical exposure before feature-specific preconditions so
+      // revocation is indistinguishable from absence even during projection lag.
+      assertCurrentPublicVideoTransactionExposure({
+        publicVideo: video as Record<string, unknown>,
+        publication: publicationSnap.data(),
+        nowMs: Date.now(),
+      });
+
       if (video.visibility !== 'PUBLIC') {
         throw new HttpsError('failed-precondition', 'Este vídeo não está público.');
       }
@@ -122,12 +130,6 @@ export const toggleVideoReaction = onCall<ToggleVideoReactionRequest>(
           'Este vídeo ainda não está aprovado para curtidas.'
         );
       }
-
-      assertCurrentPublicVideoTransactionExposure({
-        publicVideo: video as Record<string, unknown>,
-        publication: publicationSnap.data(),
-        nowMs: Date.now(),
-      });
 
       if (video.reactionsEnabled !== true) {
         throw new HttpsError(

@@ -186,12 +186,14 @@ export const createVideoComment = onCall<CreateVideoCommentRequest>(
         throw new HttpsError('failed-precondition', 'Vídeo inconsistente.');
       }
 
-      assertVideoAllowsComments(video);
+      // Resolve canonical exposure before feature-specific preconditions so
+      // revocation is indistinguishable from absence even during projection lag.
       assertCurrentPublicVideoTransactionExposure({
         publicVideo: video as Record<string, unknown>,
         publication: publicationSnap.data(),
         nowMs: Date.now(),
       });
+      assertVideoAllowsComments(video);
 
       const authorNickname = resolveNickname(
         authorProfileSnap.exists
