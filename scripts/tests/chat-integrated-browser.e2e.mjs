@@ -590,6 +590,12 @@ try {
   assert.ok(discoveryTotal>0,'Discovery instrumentation captured no requests');
   assert.ok(discoveryTotal<60,'Discovery must improve on the 60-request certified baseline');
   assert.equal(discovery429,0,'Discovery must not exhaust quota in the certified workload');
+  const pendingRequests = [...callableCounts.values()].filter(row=>row.endpoint==='getPendingFriendRequests');
+  const pendingTotal = pendingRequests.reduce((sum,row)=>sum+row.total,0);
+  const pending429 = pendingRequests.reduce((sum,row)=>sum+row.rateLimited,0);
+  console.log('Pending friendship reads '+JSON.stringify({total:pendingTotal,rateLimited:pending429,contexts:pendingRequests}));
+  assert.ok(pendingTotal>0,'Pending friendship instrumentation captured no requests');
+  assert.equal(pending429,0,'Pending friendship reads must not exhaust quota in the certified workload');
   writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,baselineComparison:baselineComparison(),
     performanceSummary:{budgetMs:PHASE_BUDGET_MS,sendReceive:sampleSummary(performanceSamples.roundTrips.map(row=>row.ms)),
       conversationSwitch:sampleSummary(performanceSamples.switches.map(row=>row.ms))}},null,2));

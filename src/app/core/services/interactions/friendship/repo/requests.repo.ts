@@ -13,12 +13,30 @@ import {
   timer,
   filter,
   takeUntil,
+  Subject,
+  share,
+  finalize,
+  exhaustMap,
+  catchError,
+  throwError,
+  EMPTY,
+  merge,
 } from 'rxjs';
+import type { User } from 'firebase/auth';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { SessionReadInFlight } from '@core/services/autentication/auth/session-read-in-flight';
 
 import { FirestoreRepoBase } from './base.repo';
 import { FriendRequest } from '../../../../interfaces/friendship/friend-request.interface';
+
+type PendingRequests = (FriendRequest & { id: string })[];
+type RequestDirection = 'inbound' | 'outbound';
+interface PendingWatch {
+  readonly user: User;
+  readonly version: number;
+  readonly refresh: Subject<void>;
+  readonly stream$: Observable<PendingRequests>;
+}
 
 /**
  * Repositório de leitura das solicitações de amizade.
@@ -29,7 +47,8 @@ import { FriendRequest } from '../../../../interfaces/friendship/friend-request.
  */
 @Injectable({ providedIn: 'root' })
 export class RequestsRepo extends FirestoreRepoBase {
-  private readonly inFlight: SessionReadInFlight<(FriendRequest & { id: string })[]>;
+  private readonly inFlight: SessionReadInFlight<PendingRequests>;
+  private readonly watches = new Map<string, PendingWatch>();
   constructor(
     db: Firestore,
     env: EnvironmentInjector,
@@ -83,18 +102,57 @@ export class RequestsRepo extends FirestoreRepoBase {
     return this.watchPendingRequests$(uid, 'outbound');
   }
 
-  private watchPendingRequests$(uid: string, direction: 'inbound' | 'outbound') {
+  private watchPendingRequests$(uid: string, direction: RequestDirection): Observable<PendingRequests> {
     return defer(() => {
       const user = this.session.currentAuthUser;
       const version = this.session.terminationVersionSnapshot;
-      return timer(0, 60_000).pipe(
-        switchMap(() => this.listPendingRequests$(uid, direction)),
-        takeUntil(this.session.uid$.pipe(filter(activeUid =>
-          activeUid !== uid || this.session.currentAuthUser !== user ||
-          this.session.terminationVersionSnapshot !== version ||
-          this.session.isTerminatingSnapshot
-        )))
-      );
+      if (!user || user.uid !== uid || this.session.isTerminatingSnapshot) {
+        // Preserve the existing session boundary and its typed error.
+        return this.listPendingRequests$(uid, direction);
+      }
+
+      const key = JSON.stringify([uid, direction]);
+      const isCurrent = () => this.session.currentAuthUser === user &&
+        this.session.terminationVersionSnapshot === version &&
+        !this.session.isTerminatingSnapshot;
+      let entry = this.watches.get(key);
+      if (!entry || entry.user !== user || entry.version !== version) {
+        const refresh = new Subject<void>();
+        const revoked$ = merge(
+          this.session.uid$.pipe(filter(activeUid => activeUid !== uid || !isCurrent())),
+          this.session.authUser$.pipe(filter(activeUser => activeUser?.uid !== uid || !isCurrent()))
+        );
+        const release = () => {
+          if (this.watches.get(key) === created) this.watches.delete(key);
+        };
+        // One clock per live session and direction. Joining starts a fresh
+        // check (or joins an in-flight callable), never replays a completed
+        // response as authorization. The next periodic tick is measured from
+        // that check instead of creating another independent timer.
+        const stream$ = refresh.pipe(
+          switchMap(() => timer(0, 60_000).pipe(
+            exhaustMap(() => isCurrent()
+              ? this.listPendingRequests$(uid, direction)
+              : EMPTY)
+          )),
+          takeUntil(revoked$),
+          filter(() => isCurrent()),
+          catchError(error => isCurrent() ? throwError(() => error) : EMPTY),
+          finalize(release),
+          share({ connector: () => new Subject<PendingRequests>(),
+            resetOnError: true, resetOnComplete: true, resetOnRefCountZero: true })
+        );
+        const created: PendingWatch = { user, version, refresh, stream$ };
+        entry = created;
+        this.watches.set(key, created);
+      }
+
+      const watch = entry;
+      return new Observable<PendingRequests>(subscriber => {
+        const subscription = watch.stream$.subscribe(subscriber);
+        if (!subscriber.closed) watch.refresh.next();
+        return subscription;
+      });
     });
   }
 }

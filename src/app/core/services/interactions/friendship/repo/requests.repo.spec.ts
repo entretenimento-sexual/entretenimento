@@ -7,10 +7,12 @@ describe('RequestsRepo', () => {
   let RequestsRepoToken: any;
   let repo: any;
   let uid$: BehaviorSubject<string | null>;
-  let session: { currentAuthUser: { uid: string } | null; uid$: BehaviorSubject<string | null>; terminationVersionSnapshot: number; isTerminatingSnapshot: boolean };
+  let authUser$: BehaviorSubject<{ uid: string } | null>;
+  let session: { currentAuthUser: { uid: string } | null; uid$: BehaviorSubject<string | null>; authUser$: BehaviorSubject<{ uid: string } | null>; terminationVersionSnapshot: number; isTerminatingSnapshot: boolean };
 
   function setUser(uid: string) {
     session.currentAuthUser = { uid };
+    authUser$.next(session.currentAuthUser);
     uid$.next(uid);
   }
 
@@ -45,7 +47,8 @@ describe('RequestsRepo', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     uid$ = new BehaviorSubject<string | null>('bob');
-    session = { currentAuthUser: { uid: 'bob' }, uid$, terminationVersionSnapshot: 0, isTerminatingSnapshot: false };
+    authUser$ = new BehaviorSubject<{ uid: string } | null>({ uid: 'bob' });
+    session = { currentAuthUser: authUser$.value, uid$, authUser$, terminationVersionSnapshot: 0, isTerminatingSnapshot: false };
     repo = new RequestsRepoToken(db, env, functions, session);
   });
 
@@ -121,6 +124,105 @@ describe('RequestsRepo', () => {
       code: 'functions/permission-denied',
     });
     expect(callable).not.toHaveBeenCalled();
+  });
+
+  it('compartilha um relógio entre consumidores sem replay de resposta concluída', async () => {
+    vi.useFakeTimers();
+    const subscriptions: { unsubscribe(): void }[] = [];
+    try {
+      callable.mockResolvedValue({ data: { items: [{ id: 'first' }] } });
+      const first: unknown[] = [], second: unknown[] = [], third: unknown[] = [];
+      subscriptions.push(repo.watchOutboundRequests('bob').subscribe((value: unknown) => first.push(value)));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(first).toEqual([[{ id: 'first' }]]);
+      await vi.advanceTimersByTimeAsync(10_000);
+      callable.mockResolvedValue({ data: { items: [{ id: 'fresh' }] } });
+      subscriptions.push(repo.watchOutboundRequests('bob').subscribe((value: unknown) => second.push(value)));
+      expect(second).toEqual([]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(second).toEqual([[{ id: 'fresh' }]]);
+      expect(first.at(-1)).toEqual(second[0]);
+      subscriptions.push(repo.watchOutboundRequests('bob').subscribe((value: unknown) => third.push(value)));
+      expect(third).toEqual([]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callable).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(50_000);
+      expect(callable).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(callable).toHaveBeenCalledTimes(4);
+      subscriptions.forEach(sub => sub.unsubscribe());
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(callable).toHaveBeenCalledTimes(4);
+      subscriptions.push(repo.watchOutboundRequests('bob').subscribe());
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callable).toHaveBeenCalledTimes(5);
+    } finally {
+      subscriptions.forEach(sub => sub.unsubscribe());
+      vi.useRealTimers();
+    }
+  });
+
+  it('separa direções, descarta respostas tardias e reinicia para nova sessão do mesmo UID', async () => {
+    vi.useFakeTimers();
+    const subscriptions: { unsubscribe(): void }[] = [];
+    try {
+      let complete!: (value: unknown) => void;
+      callable.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+      callable.mockResolvedValue({ data: { items: [{ id: 'new' }] } });
+      const old: unknown[] = [], fresh: unknown[] = [];
+      const done = vi.fn();
+      subscriptions.push(repo.watchOutboundRequests('bob').subscribe({next: (v: unknown) => old.push(v), complete: done}));
+      await vi.advanceTimersByTimeAsync(0);
+      subscriptions.push(repo.watchOutboundRequests('bob').subscribe({next: (v: unknown) => old.push(v), complete: done}));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callable).toHaveBeenCalledTimes(1);
+      subscriptions.push(repo.watchInboundRequests('bob').subscribe());
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callable).toHaveBeenCalledTimes(2);
+      setUser('bob'); // same UID, different SDK User object
+      expect(done).toHaveBeenCalledTimes(2);
+      subscriptions.push(repo.watchOutboundRequests('bob').subscribe((v: unknown) => fresh.push(v)));
+      await vi.advanceTimersByTimeAsync(0);
+      complete({ data: { items: [{ id: 'stale' }] } });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(old).toEqual([]);
+      expect(fresh).toEqual([[{ id: 'new' }]]);
+      expect(callable).toHaveBeenCalledTimes(3);
+      session.isTerminatingSnapshot = true;
+      session.terminationVersionSnapshot++;
+      authUser$.next(null);
+      uid$.next(null);
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(callable).toHaveBeenCalledTimes(3);
+    } finally {
+      subscriptions.forEach(sub => sub.unsubscribe());
+      vi.useRealTimers();
+    }
+  });
+
+  it('propaga falha aos consumidores e permite nova leitura sem cache', async () => {
+    vi.useFakeTimers();
+    const subscriptions: { unsubscribe(): void }[] = [];
+    try {
+      const error = Object.assign(new Error('unavailable'), { code: 'functions/unavailable' });
+      callable.mockRejectedValueOnce(error);
+      const errors = vi.fn();
+      subscriptions.push(repo.watchInboundRequests('bob').subscribe({error: errors}));
+      subscriptions.push(repo.watchInboundRequests('bob').subscribe({error: errors}));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(errors).toHaveBeenCalledTimes(2);
+      expect(errors).toHaveBeenCalledWith(error);
+      expect(callable).toHaveBeenCalledTimes(1);
+      callable.mockResolvedValue({ data: { items: [] } });
+      const values = vi.fn();
+      subscriptions.push(repo.watchInboundRequests('bob').subscribe(values));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(values).toHaveBeenCalledWith([]);
+      expect(callable).toHaveBeenCalledTimes(2);
+    } finally {
+      subscriptions.forEach(sub => sub.unsubscribe());
+      vi.useRealTimers();
+    }
   });
 
   it('watch inbound reutiliza a leitura backend-only sem write Firestore', async () => {
