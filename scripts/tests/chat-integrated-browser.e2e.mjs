@@ -46,6 +46,9 @@ const browserErrors = [];
 const phases = [];
 // Diagnostic-only counters: no request body, auth header, UID or URL query recorded.
 const callableCounts = new Map();
+const pendingReadTrace = [], friendshipSamples = [];
+const requestStarts = new WeakMap();
+let currentPhase = 'initial';
 const callableTransportFailures = new Map();
 function recordCallableTransportFailure(name, request) {
   const url = new URL(request.url());
@@ -68,6 +71,10 @@ function recordCallable(name, response) {
   const key = name+':'+endpoint;
   const row = callableCounts.get(key) ?? {context:name,endpoint,total:0,rateLimited:0,failed:0};
   row.total++;
+  if(endpoint==='getPendingFriendRequests') {
+    const timing=requestStarts.get(response.request());
+    pendingReadTrace.push({context:name,phase:timing?.phase??'unknown',direction:timing?.direction??'unknown',status:response.status(),startMs:timing?.startMs??null,latencyMs:timing?elapsed(timing.startMs):null});
+  }
   if(response.status()===429) row.rateLimited++;
   if(response.status()>=400) row.failed++;
   callableCounts.set(key,row);
@@ -107,7 +114,7 @@ function sampleSummary(values) {
   if (!values.length) return null;
   const sorted = [...values].sort((a,b)=>a-b);
   return {count: sorted.length, p50: sorted[Math.ceil(sorted.length*0.5)-1],
-    p95: sorted[Math.ceil(sorted.length*0.95)-1], max: sorted.at(-1)};
+    p95: sorted[Math.ceil(sorted.length*0.95)-1], p99: sorted[Math.ceil(sorted.length*0.99)-1], max: sorted.at(-1)};
 }
 const sleep = ms => new Promise(r => setTimeout(r,ms));
 async function until(label, read, accepts, timeout=60_000) {
@@ -122,6 +129,7 @@ async function until(label, read, accepts, timeout=60_000) {
 function pass(phase) {
   phases.push(phase);
   console.log('PASS ' + phase);
+  currentPhase='after: '+phase;
 }
 async function newPage(name, viewport={width:1440,height:1000}) {
   const context = await browser.newContext({viewport,serviceWorkers:'block'});
@@ -132,6 +140,15 @@ async function newPage(name, viewport={width:1440,height:1000}) {
   });
   const page = await context.newPage();
   page.setDefaultTimeout(60_000);
+  page.on('request',request=>{
+    const url=new URL(request.url());
+    if(url.hostname!=='127.0.0.1'||url.port!=='15001'||request.method()!=='POST'||url.pathname.split('/').at(-1)!=='getPendingFriendRequests') return;
+    let direction='unknown';
+    try { const value=request.postDataJSON()?.data?.direction;
+      if(value==='inbound'||value==='outbound') direction=value;
+    } catch { /* diagnostics only; never store request body */ }
+    requestStarts.set(request,{phase:currentPhase,direction,startMs:performance.now()});
+  });
   page.on('response', response => recordCallable(name,response));
   page.on('requestfailed', request => recordCallableTransportFailure(name,request));
   page.on('pageerror', error => browserErrors.push({name,type:'pageerror',message:error.message}));
@@ -212,6 +229,83 @@ async function loadHistoryPage(page, control, label) {
   withinBudget(label,ms);
   return ms;
 }
+// D.2: separate principals preserve the original workload and real quotas.
+// Passive observers exclude optimistic local actions from the DOM proof.
+async function certifyFriendshipPair(label,keys,actions) {
+  const [sender,receiver]=keys.map(uid);
+  for(const user of [sender,receiver]) {
+    await adminAuth.createUser({uid:user,email:email(user),password,emailVerified:true});
+    await until('reactive registration seed',()=>db.doc('users/'+user).get(),s=>s.exists);
+  }
+  await seedPublicMediaCompliance(db,[sender,receiver]);
+  for(const [user,nickname] of [[sender,'Browser Reactive Sender '+label],[receiver,'Browser Reactive Receiver '+label]]) {
+    const profile={uid:user,nickname,nicknameNormalized:nickname.toLowerCase(),gender:'mulher',
+      identityCode:'mulher',identityCatalogVersion:1,orientation:'bissexual',role:'free',
+      municipio:'Rio de Janeiro',estado:'RJ',createdAt:new Date(),updatedAt:new Date()};
+    await db.doc('users/'+user).set({...profile,emailVerified:true,loginAllowed:true,accountLocked:false},{merge:true});
+    await db.doc('public_profiles/'+user).set(profile);
+    await db.doc('preferences/'+user).set({notificationPreferences:{connections:false}},{merge:true});
+  }
+  const senderName=label+'-sender',receiverName=label+'-receiver';
+  const s=await newPage(senderName),t=await newPage(receiverName);
+  const requestId=sender+'_'+receiver;
+  const outbound=s.locator('.request-card--outbound[aria-labelledby="request-outbound-'+requestId+'"]');
+  const inbound=t.locator('.request-card--inbound[aria-labelledby="request-inbound-'+requestId+'"]');
+  const reads=(context,direction)=>pendingReadTrace.filter(row=>row.context===context&&row.direction===direction&&row.status===200&&row.startMs!==null);
+  const notifyRef=db.doc('notifications/friend_request_received_'+requestId);
+  try {
+    currentPhase=label+': mount';
+    await Promise.all([login(s,sender),login(t,receiver)]);
+    await Promise.all([s.goto(BASE+'/friends/requests'),t.goto(BASE+'/friends/requests')]);
+    await s.getByRole('tab',{name:/Enviadas/}).click();
+    await t.getByRole('tab',{name:/Recebidas/}).waitFor({state:'visible'});
+    for(const page of [s,t]) await page.evaluate(()=>{window.__chatFriendshipCertificationDocument=true;});
+    await until(label+' initial canonical reads',()=>reads(senderName,'outbound').length>0&&reads(receiverName,'inbound').length>0,Boolean);
+    await s.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'});
+    await t.getByText('Nenhuma solicitação recebida',{exact:true}).waitFor({state:'visible'});
+    for(const action of actions) {
+      const sending=action==='send'||action==='offline-send',offline=action==='offline-send';
+      await signInWithEmailAndPassword(auth,email(sending||action==='cancel'?sender:receiver),password);
+      const prevS=reads(senderName,'outbound').at(-1),prevT=reads(receiverName,'inbound').at(-1);
+      currentPhase=label+': '+action;
+      if(offline) await t.context().setOffline(true);
+      const start=performance.now();
+      try {
+        const endpoint=sending?'sendFriendRequest':action==='cancel'?'cancelFriendRequest':action==='decline'?'declineFriendRequest':'acceptFriendRequest';
+        const result=(await httpsCallable(functions,endpoint)(sending?{targetUid:receiver}:{requestId})).data;
+        assert.equal(result.requestId,requestId);
+        assert.equal(result.status,sending?'pending':action==='cancel'?'canceled':action==='decline'?'declined':'accepted');
+        if(sending) assert.equal((await notifyRef.get()).exists,false,'Connection notifications disabled');
+        const state=sending?'visible':'hidden';
+        // Online assertion precedes the existing 60s periodic deadline.
+        await outbound.waitFor({state,timeout:20_000});
+        const senderMs=elapsed(start);
+        assert.ok(performance.now()-prevS.startMs<60_000,'Sender converged before prior polling deadline');
+        let reconnectStart=null;
+        if(offline) {
+          assert.equal(await inbound.count(),0,'Offline observer received new request');
+          reconnectStart=performance.now();
+          await t.context().setOffline(false);
+        }
+        await inbound.waitFor({state,timeout:offline?60_000:20_000});
+        const receiverMs=elapsed(reconnectStart??start);
+        if(!offline) assert.ok(performance.now()-prevT.startMs<60_000,'Receiver converged before prior polling deadline');
+        assert.ok(reads(senderName,'outbound').some(row=>row.startMs>=start),'Sender performed fresh canonical read');
+        assert.ok(reads(receiverName,'inbound').some(row=>row.startMs>=start),'Receiver performed fresh canonical read');
+        for(const page of [s,t]) {
+          assert.equal(await page.evaluate(()=>window.__chatFriendshipCertificationDocument),true,'No document reload');
+          assert.equal(new URL(page.url()).pathname,'/friends/requests');
+        }
+        friendshipSamples.push({scenario:label,action,senderMs,receiverMs,reconnect:offline});
+      } finally { if(offline) await t.context().setOffline(false); }
+    }
+    pass('mounted independent friendship observers '+label);
+  } catch(error) {
+    await Promise.allSettled([screenshot(s,label+'-sender-failure'),screenshot(t,label+'-receiver-failure')]);
+    throw error;
+  } finally { await Promise.all([s.context().close(),t.context().close()]); }
+}
+
 try {
   for (const user of [aUid,bUid,cUid]) {
     await adminAuth.createUser({uid:user,email:email(user),password,emailVerified:true});
@@ -621,7 +715,20 @@ try {
   console.log('Pending friendship reads '+JSON.stringify({total:pendingTotal,rateLimited:pending429,contexts:pendingRequests}));
   assert.ok(pendingTotal>0,'Pending friendship instrumentation captured no requests');
   assert.equal(pending429,0,'Pending friendship reads must not exhaust quota in the certified workload');
-  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,baselineComparison:baselineComparison(),
+  const originalWorkload={discovery:discoveryTotal,pending:pendingTotal};
+  assert.equal(pendingRequests.reduce((sum,row)=>sum+row.failed,0),0,'Original pending workload HTTP failures');
+  await Promise.all([a.context().close(),b.context().close(),d.context().close()]);
+  await certifyFriendshipPair('cancel-decline',['f','g'],['send','cancel','send','decline']);
+  await certifyFriendshipPair('offline-accept',['h','i'],['offline-send','accept']);
+  assert.equal(browserErrors.filter(e=>e.type==='pageerror').length,0,'Unhandled browser exceptions including friendship');
+  for(const endpoint of ['getPendingFriendRequests','listDirectChatCandidates']) {
+    const rows=[...callableCounts.values()].filter(row=>row.endpoint===endpoint);
+    assert.equal(rows.reduce((sum,row)=>sum+row.rateLimited,0),0,'No HTTP 429 including reactive workload: '+endpoint);
+  }
+  console.log('Friendship reactive measurements '+JSON.stringify({originalWorkload,samples:friendshipSamples,
+    online:sampleSummary(friendshipSamples.filter(row=>!row.reconnect).flatMap(row=>[row.senderMs,row.receiverMs])),
+    reconnect:sampleSummary(friendshipSamples.filter(row=>row.reconnect).map(row=>row.receiverMs))}));
+  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,baselineComparison:baselineComparison(),
     performanceSummary:{budgetMs:PHASE_BUDGET_MS,sendReceive:sampleSummary(performanceSamples.roundTrips.map(row=>row.ms)),
       conversationSwitch:sampleSummary(performanceSamples.switches.map(row=>row.ms))}},null,2));
 } catch(error) {
@@ -629,6 +736,8 @@ try {
   for(const {name,page} of pages) await screenshot(page,name+'-failure').catch(()=>{});
   throw error;
 } finally {
+  writeFileSync(resolve(out,'pending-read-trace.json'),JSON.stringify(pendingReadTrace,null,2));
+  writeFileSync(resolve(out,'friendship-reactive-samples.json'),JSON.stringify(friendshipSamples,null,2));
   writeFileSync(resolve(out,'browser-diagnostics.json'),JSON.stringify(browserErrors,null,2));
   writeFileSync(resolve(out,'callable-counts.json'),JSON.stringify([...callableCounts.values()].sort((a,b)=>b.total-a.total),null,2));
   writeFileSync(resolve(out,'callable-transport-failures.json'),JSON.stringify([...callableTransportFailures.values()].sort((a,b)=>b.total-a.total),null,2));
