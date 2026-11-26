@@ -107,7 +107,7 @@ export class RequestsRepo extends FirestoreRepoBase {
     );
   }
 
-  private trace(event: 'start' | 'subscribe' | 'join' | 'signal', direction: RequestDirection, reason: ReadReason): void {
+  private trace(event: 'start' | 'subscribe' | 'join' | 'signal' | 'unsubscribe', direction: RequestDirection, reason: ReadReason): void {
     // Fixed allowlisted labels only. Never log UID, revision, request data or token.
     this.privacyDebug?.log('friends', 'pending-read ' + event + ' ' + direction + ' ' + reason);
   }
@@ -303,7 +303,10 @@ export class RequestsRepo extends FirestoreRepoBase {
           if (joining) this.trace('join', direction, reason);
           else watch.refresh.next(reason);
         }
-        return subscription;
+        return () => {
+          subscription.unsubscribe();
+          this.trace('unsubscribe', direction, reason);
+        };
       });
     });
   }

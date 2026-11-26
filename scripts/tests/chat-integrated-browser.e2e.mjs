@@ -51,6 +51,9 @@ const pendingReadTrace = [], friendshipSamples = [], pendingOrigins = [];
 const requestStarts = new WeakMap();
 const pendingAttempts = [];
 const originalContexts = new Set(['a','b','d-history']);
+const spaContext = 'spa-lifecycle';
+const spaSamples = [];
+const isComplementary = row => !originalContexts.has(row.context) && row.context!==spaContext;
 let currentPhase = 'initial';
 const callableTransportFailures = new Map();
 function recordCallableTransportFailure(name, request) {
@@ -179,7 +182,7 @@ async function newPage(name, viewport={width:1440,height:1000}) {
   page.on('requestfailed', request => recordCallableTransportFailure(name,request));
   page.on('pageerror', error => browserErrors.push({name,type:'pageerror',message:error.message}));
   page.on('console', message => {
-    const match=/^\[Friends\] pending-read (start|subscribe|join|signal) (inbound|outbound) (session|profile|post-mutation|explicit|other|session-retry|subscriber-join|canonical-event|listener-recovery|poll)\s*$/.exec(message.text());
+    const match=/^\[Friends\] pending-read (start|subscribe|join|signal|unsubscribe) (inbound|outbound) (session|profile|post-mutation|explicit|other|session-retry|subscriber-join|canonical-event|listener-recovery|poll)\s*$/.exec(message.text());
     if(match) pendingOrigins.push({context:name,event:match[1],direction:match[2],reason:match[3],route:routeCategory(),document:documentNumber,phase:currentPhase,atMs:performance.now()});
     if (message.type()==='error' || message.type()==='warning') {
       browserErrors.push({name,type:message.type(),message:message.text().slice(0,600)});
@@ -190,6 +193,9 @@ async function newPage(name, viewport={width:1440,height:1000}) {
 }
 async function login(page,user) {
   await page.goto(BASE+'/login');
+  await loginFromCurrentPage(page,user);
+}
+async function loginFromCurrentPage(page,user) {
   await page.locator('#email').fill(email(user));
   await page.locator('#password').fill(password);
   await page.getByRole('button',{name:'Entrar',exact:true}).click();
@@ -332,6 +338,162 @@ async function certifyFriendshipPair(label,keys,actions) {
     await Promise.allSettled([screenshot(s,label+'-sender-failure'),screenshot(t,label+'-receiver-failure')]);
     throw error;
   } finally { await Promise.all([s.context().close(),t.context().close()]); }
+}
+
+async function certifySpaLifecycle() {
+  const [viewer,peerA,peerB,pendingPeer]=['j','k','l','m'].map(uid);
+  const names=['Browser SPA Viewer','Browser SPA Alpha','Browser SPA Beta','Browser SPA Pending'];
+  for(const [index,user] of [viewer,peerA,peerB,pendingPeer].entries()) {
+    await adminAuth.createUser({uid:user,email:email(user),password,emailVerified:true});
+    await until('SPA registration seed',()=>db.doc('users/'+user).get(),snap=>snap.exists);
+    await seedPublicMediaCompliance(db,[user]);
+    const profile={uid:user,nickname:names[index],nicknameNormalized:names[index].toLowerCase(),
+      gender:'mulher',identityCode:'mulher',identityCatalogVersion:1,orientation:'bissexual',role:'free',
+      municipio:'Rio de Janeiro',estado:'RJ',createdAt:new Date(),updatedAt:new Date()};
+    await db.doc('users/'+user).set({...profile,emailVerified:true,loginAllowed:true,accountLocked:false},{merge:true});
+    await db.doc('public_profiles/'+user).set(profile);
+    await db.doc('preferences/'+user).set({notificationPreferences:{connections:false}},{merge:true});
+  }
+  // Real callable-created edges include ordering fields and bilateral projections.
+  for(const peer of [peerA,peerB]) {
+    await signInWithEmailAndPassword(auth,email(viewer),password);
+    const request=(await httpsCallable(functions,'sendFriendRequest')({targetUid:peer})).data;
+    await signInWithEmailAndPassword(auth,email(peer),password);
+    const accepted=(await httpsCallable(functions,'acceptFriendRequest')({requestId:request.requestId})).data;
+    assert.equal(accepted.status,'accepted');
+  }
+  const page=await newPage(spaContext);
+  const attempts=()=>pendingAttempts.filter(row=>row.context===spaContext);
+  const origins=()=>pendingOrigins.filter(row=>row.context===spaContext);
+  const documents=()=>origins().filter(row=>row.event==='document-request').length;
+  const starts=(reason,direction,since=0)=>origins().filter(row=>row.event==='start'&&row.reason===reason&&(!direction||row.direction===direction)&&row.atMs>=since);
+  const completed=(direction,since)=>attempts().some(row=>row.direction===direction&&row.httpStatus===200&&row.startMs>=since);
+  const sessionReads=since=>until('SPA authenticated directional bootstrap',()=>completed('inbound',since)&&completed('outbound',since),Boolean);
+  const side=name=>page.locator('#app-sidebar').getByRole('link',{name,exact:true});
+  const activity=route=>page.locator('app-user-activity-hub a[href="'+route+'"]');
+  const home=()=>side('Ir para Hoje');
+  const requests=()=>activity('/friends/requests');
+  const cards=()=>page.getByRole('listitem',{name:'Ver todas as conexões',exact:true});
+  const marker='spa-document-'+id; // ephemeral browser-only test sentinel
+  const sameDocument=async()=>assert.equal(await page.evaluate(()=>window.__chatSpaLifecycleDocument),marker,'SPA navigation replaced document');
+  const mark=()=>page.evaluate(value=>{window.__chatSpaLifecycleDocument=value;},marker);
+  async function stage(label,work,{internal=false}={}) {
+    currentPhase='spa: '+label;
+    const begin=performance.now(),beforeDocs=documents(),before=attempts().length;
+    const originOffset=origins().length;
+    try {
+      await work(begin);
+      if(internal) { await sameDocument(); assert.equal(documents(),beforeDocs,'Unexpected document navigation: '+label); }
+    } finally {
+      spaSamples.push({phase:label,elapsedMs:elapsed(begin),documentRequests:documents()-beforeDocs,
+        attemptsStarted:attempts().length-before,origins:origins().slice(originOffset).filter(row=>row.event!=='navigation'&&row.event!=='document-request').map(({event,direction,reason})=>({event,direction,reason}))});
+    }
+  }
+  async function navigate(link,path,visible) {
+    await link.click();
+    await page.waitForURL(url=>url.pathname===path);
+    if(visible) await visible.waitFor({state:'visible'});
+  }
+  async function toHome() { await navigate(home(),'/dashboard/principal',page.locator('.principal-page')); }
+  async function toFriends() {
+    // The dashboard renders an accessible connection-list anchor with role=listitem.
+    await navigate(cards(),'/dashboard/friends/list',page.locator('app-friend-list-page'));
+  }
+  async function openProfile(peer,name) {
+    const link=page.getByRole('link',{name:'Ver perfil adulto de '+name,exact:true});
+    await navigate(link,'/perfil/'+peer,page.locator('#profile-heading'));
+    await until('correct visited profile',()=>page.locator('#profile-heading').textContent(),value=>value?.trim()===name);
+  }
+  async function toRequests() {
+    await navigate(requests(),'/friends/requests',page.getByRole('tab',{name:/Recebidas/}));
+  }
+  const pendingCard=page.locator('.request-card--outbound[aria-labelledby="request-outbound-'+viewer+'_'+pendingPeer+'"]');
+  try {
+    await stage('bootstrap',async begin=>{
+      await login(page,viewer);
+      await sessionReads(begin);
+      await page.locator('#app-sidebar').waitFor({state:'visible'});
+      await mark();
+    });
+    await stage('home',async()=>{ if(new URL(page.url()).pathname!=='/dashboard/principal') await toHome(); },{internal:true});
+    await stage('chat',()=>navigate(side('Abrir mensagens diretas'),'/chat',page.locator('app-chat-shell')),{internal:true});
+    await stage('chat-to-home',toHome,{internal:true});
+    await stage('friend-requests',toRequests,{internal:true});
+    await stage('notifications',()=>navigate(activity('/notificacoes'),'/notificacoes',page.getByRole('heading',{name:'Notificações',exact:true})),{internal:true});
+    await stage('communities',()=>navigate(side('Descobrir grupos permanentes de pessoas'),'/dashboard/comunidades',page.locator('app-community-discovery-page')),{internal:true});
+    await stage('friends-list',async()=>{await toHome();await toFriends();},{internal:true});
+    await stage('profile-alpha',async begin=>{
+      await openProfile(peerA,names[1]);
+      await until('profile alpha subscribes outbound',()=>origins().some(row=>row.atMs>=begin&&row.event==='subscribe'&&row.direction==='outbound'&&row.reason==='profile'),Boolean);
+    },{internal:true});
+    await stage('close-alpha',async begin=>{
+      await navigate(page.getByRole('link',{name:'Voltar para os perfis',exact:true}),'/dashboard/explorar',page.locator('.profiles-discovery-page'));
+      await until('profile alpha subscription disposed',()=>origins().some(row=>row.atMs>=begin&&row.event==='unsubscribe'&&row.direction==='outbound'&&row.reason==='profile'),Boolean);
+    },{internal:true});
+    await stage('profile-beta',async begin=>{
+      await toHome();await toFriends();await openProfile(peerB,names[2]);
+      await until('profile beta subscribes outbound',()=>origins().some(row=>row.atMs>=begin&&row.event==='subscribe'&&row.direction==='outbound'&&row.reason==='profile'),Boolean);
+    },{internal:true});
+    await stage('return-requests',async()=>{
+      await navigate(page.getByRole('link',{name:'Voltar para os perfis',exact:true}),'/dashboard/explorar',page.locator('.profiles-discovery-page'));
+      await toRequests();
+      await page.getByRole('tab',{name:/Enviadas/}).click();
+      await page.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'});
+    },{internal:true});
+    // A healthy session retains its original subscriptions during route changes.
+    const beforePoll=origins().filter(row=>row.event==='subscribe'&&(row.reason==='session'||row.reason==='session-retry'));
+    spaSamples.push({phase:'session-subscription-audit',subscriptions:beforePoll.map(({direction,reason})=>({direction,reason}))});
+    assert.equal(beforePoll.filter(row=>row.direction==='inbound').length,1,'Repeated inbound session subscription during SPA navigation');
+    assert.equal(beforePoll.filter(row=>row.direction==='outbound').length,1,'Repeated outbound session subscription during SPA navigation');
+    await stage('poll',async begin=>{
+      // Real 60s clock; no fake time or change to production cadence.
+      await until('both directional contingency polls',()=>starts('poll','inbound',begin).length>0&&starts('poll','outbound',begin).length>0,Boolean,85_000);
+    },{internal:true});
+    await stage('canonical-event',async begin=>{
+      await signInWithEmailAndPassword(auth,email(viewer),password);
+      const result=(await httpsCallable(functions,'sendFriendRequest')({targetUid:pendingPeer})).data;
+      assert.equal(result.status,'pending');
+      await pendingCard.waitFor({state:'visible',timeout:20_000});
+      assert.ok(starts('canonical-event','outbound',begin).length>0,'Missing canonical outbound read');
+      assert.equal(starts('canonical-event','inbound',begin).length,0,'Unrelated inbound canonical refresh');
+    },{internal:true});
+    await stage('deep-link',async begin=>{
+      // Intentional full document, separate from SPA transitions.
+      const prior=documents();
+      await page.goto(BASE+'/friends/requests');
+      await sessionReads(begin);
+      await page.getByRole('tab',{name:/Enviadas/}).click();
+      await pendingCard.waitFor({state:'visible'});
+      assert.ok(documents()>prior,'Deep link must create a document');
+      assert.notEqual(await page.evaluate(()=>window.__chatSpaLifecycleDocument),marker);
+    });
+    await stage('reload',async begin=>{
+      const prior=documents();
+      await page.reload();
+      await sessionReads(begin);
+      await page.getByRole('tab',{name:/Enviadas/}).click();
+      await pendingCard.waitFor({state:'visible'});
+      assert.ok(documents()>prior,'Reload must create a document');
+    });
+    await stage('logout',async()=>{
+      await logout(page);
+      await pendingCard.waitFor({state:'hidden'});
+      const prior=attempts().length;
+      await sleep(1_000);
+      assert.equal(attempts().length,prior,'Pending callable started after logout');
+    });
+    await stage('identity-switch',async begin=>{
+      // Login through the existing form, not a new document or SDK injection.
+      await loginFromCurrentPage(page,peerA);
+      await sessionReads(begin);
+      if(new URL(page.url()).pathname!=='/dashboard/principal') await toHome();
+      await toRequests();
+      await page.getByRole('tab',{name:/Enviadas/}).click();
+      await page.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'});
+      assert.equal(await pendingCard.count(),0,'Prior identity request leaked into new session');
+    });
+    pass('controlled SPA lifecycle, profile consumers, real polling, deep links and identity switch');
+  } finally { await page.context().close(); }
 }
 
 try {
@@ -751,6 +913,7 @@ try {
   console.log('Pending friendship original attempt accounting '+JSON.stringify(originalAttempts));
   await certifyFriendshipPair('cancel-decline',['f','g'],['send','cancel','send','decline']);
   await certifyFriendshipPair('offline-accept',['h','i'],['offline-send','accept']);
+  await certifySpaLifecycle();
   assert.equal(browserErrors.filter(e=>e.type==='pageerror').length,0,'Unhandled browser exceptions including friendship');
   for(const endpoint of ['getPendingFriendRequests','listDirectChatCandidates']) {
     const rows=[...callableCounts.values()].filter(row=>row.endpoint===endpoint);
@@ -759,12 +922,14 @@ try {
   assert.ok(pendingOrigins.some(row=>row.event==='start'&&row.reason==='session'),'Session origin tracing unavailable');
   assert.ok(pendingOrigins.some(row=>row.event==='start'&&row.reason==='canonical-event'),'Canonical origin tracing unavailable');
   const fullAttempts=summarizePendingAttempts(pendingAttempts);
-  const complementaryAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>!originalContexts.has(row.context)));
+  const complementaryAttempts=summarizePendingAttempts(pendingAttempts.filter(isComplementary));
+  const spaAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context===spaContext));
+  console.log('Pending friendship SPA accounting '+JSON.stringify({attempts:spaAttempts,stages:spaSamples}));
   console.log('Pending friendship complete attempt accounting '+JSON.stringify(fullAttempts));
   console.log('Friendship reactive measurements '+JSON.stringify({originalWorkload,originalAttempts,complementaryAttempts,fullAttempts,samples:friendshipSamples,
     online:sampleSummary(friendshipSamples.filter(row=>!row.reconnect).flatMap(row=>[row.senderMs,row.receiverMs])),
     reconnect:sampleSummary(friendshipSamples.filter(row=>row.reconnect).map(row=>row.receiverMs))}));
-  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,originalAttempts,complementaryAttempts,fullAttempts,baselineComparison:baselineComparison(),
+  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,originalAttempts,complementaryAttempts,spaAttempts,spaSamples,fullAttempts,baselineComparison:baselineComparison(),
     performanceSummary:{budgetMs:PHASE_BUDGET_MS,sendReceive:sampleSummary(performanceSamples.roundTrips.map(row=>row.ms)),
       conversationSwitch:sampleSummary(performanceSamples.switches.map(row=>row.ms))}},null,2));
 } catch(error) {
@@ -775,8 +940,9 @@ try {
   writeFileSync(resolve(out,'pending-read-trace.json'),JSON.stringify(pendingReadTrace,null,2));
   writeFileSync(resolve(out,'pending-read-origins.json'),JSON.stringify(pendingOrigins,null,2));
   writeFileSync(resolve(out,'pending-read-attempts.json'),JSON.stringify(pendingAttempts,null,2));
-  writeFileSync(resolve(out,'pending-read-accounting.json'),JSON.stringify({original:summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context))),complementary:summarizePendingAttempts(pendingAttempts.filter(row=>!originalContexts.has(row.context))),all:summarizePendingAttempts(pendingAttempts)},null,2));
+  writeFileSync(resolve(out,'pending-read-accounting.json'),JSON.stringify({original:summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context))),complementary:summarizePendingAttempts(pendingAttempts.filter(isComplementary)),spa:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===spaContext)),all:summarizePendingAttempts(pendingAttempts)},null,2));
   console.log('Pending friendship origins '+JSON.stringify(pendingOrigins.filter(row=>row.event==='start').reduce((counts,row)=>{ const key=row.context+':'+row.direction+':'+row.reason; counts[key]=(counts[key]??0)+1; return counts; },{})));
+  writeFileSync(resolve(out,'spa-lifecycle-samples.json'),JSON.stringify(spaSamples,null,2));
   writeFileSync(resolve(out,'friendship-reactive-samples.json'),JSON.stringify(friendshipSamples,null,2));
   writeFileSync(resolve(out,'browser-diagnostics.json'),JSON.stringify(browserErrors,null,2));
   writeFileSync(resolve(out,'callable-counts.json'),JSON.stringify([...callableCounts.values()].sort((a,b)=>b.total-a.total),null,2));
