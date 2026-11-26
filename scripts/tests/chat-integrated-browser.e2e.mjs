@@ -46,6 +46,20 @@ const browserErrors = [];
 const phases = [];
 // Diagnostic-only counters: no request body, auth header, UID or URL query recorded.
 const callableCounts = new Map();
+const callableTransportFailures = new Map();
+function recordCallableTransportFailure(name, request) {
+  const url = new URL(request.url());
+  if(url.hostname!=='127.0.0.1' || url.port!=='15001' || request.method()!=='POST') return;
+  const endpoint = url.pathname.split('/').at(-1);
+  if(!endpoint || !/^[A-Za-z][A-Za-z0-9]*$/.test(endpoint)) return;
+  const error = request.failure()?.errorText ?? '';
+  const category = /^net::ERR_[A-Z_]+$/.test(error) ? error : 'other';
+  const key = name+':'+endpoint+':'+category;
+  const row = callableTransportFailures.get(key) ?? {context:name,endpoint,category,total:0};
+  row.total++;
+  callableTransportFailures.set(key,row);
+}
+const historyFixtureChecks = {publicProfileAuthorized:false, bilateralProjectionConfirmed:false};
 function recordCallable(name, response) {
   const url = new URL(response.url());
   if(url.hostname!=='127.0.0.1' || url.port!=='15001' || response.request().method()!=='POST') return;
@@ -119,6 +133,7 @@ async function newPage(name, viewport={width:1440,height:1000}) {
   const page = await context.newPage();
   page.setDefaultTimeout(60_000);
   page.on('response', response => recordCallable(name,response));
+  page.on('requestfailed', request => recordCallableTransportFailure(name,request));
   page.on('pageerror', error => browserErrors.push({name,type:'pageerror',message:error.message}));
   page.on('console', message => {
     if (message.type()==='error' || message.type()==='warning') {
@@ -445,8 +460,6 @@ try {
   const historyMarker = 'Browser canonical history '+id;
   await httpsCallable(functions,'sendDirectMessage')({chatId:historyChat,content:historyMarker,
     clientRequestId:randomUUID()});
-  const d = await newPage('d-history');
-  await login(d,dUid);
   const initialSecond = await db.collection('chats/'+historyChat+'/messages').get();
   assert.equal(initialSecond.size,1);
   const initialMessage = initialSecond.docs[0];
@@ -455,6 +468,26 @@ try {
   const seeded = await seedHistory(historyChat,'history',104,initialMs-120_000,eUid,dUid);
   const initialExpected = [...seeded,initialMessage.id];
   assert.deepEqual(await canonicalIds(historyChat),initialExpected);
+  // Complete the synthetic fixture BEFORE starting browser D. The same
+  // authenticated backend boundary used by the application must see E,
+  // and the real reconciliation transaction must materialize the viewer's
+  // bilateral projection. No admin grant, mocked response or quota reset.
+  // Legacy missing-projection recovery is covered by the independent Media
+  // and Rules suites; this scenario starts from an established connection.
+  const authorizedProfile = (await httpsCallable(functions,'getPublicProfilesPage')({uids:[eUid]})).data;
+  assert.ok(Array.isArray(authorizedProfile.items) &&
+    authorizedProfile.items.some(item=>item.uid===eUid),'History fixture: backend must authorize connected public profile');
+  historyFixtureChecks.publicProfileAuthorized = true;
+  const reconciled = (await httpsCallable(functions,'reconcilePublicMediaAccess')({ownerUid:eUid})).data;
+  assert.equal(reconciled.reconciled,true,'History fixture: canonical bilateral reconciliation');
+  const projection = await db.doc('public_media_access/'+dUid+'/owners/'+eUid).get();
+  assert.equal(projection.get('version'),1,'History fixture: canonical bilateral version');
+  assert.equal(projection.get('ownerUid'),eUid,'History fixture: correct projection owner');
+  assert.equal(projection.get('available'),true,'History fixture: backend-confirmed bilateral access');
+  historyFixtureChecks.bilateralProjectionConfirmed = true;
+  console.log('History fixture prerequisites '+JSON.stringify(historyFixtureChecks));
+  const d = await newPage('d-history');
+  await login(d,dUid);
   // Real connected-profile CTA (no direct navigation to Chat or mocked callable).
   await d.goto(BASE+'/perfil/'+encodeURIComponent(eUid));
   const profileChat = d.getByRole('button',{name:'Conversar com Browser Pessoa E',exact:true});
@@ -567,6 +600,8 @@ try {
 } finally {
   writeFileSync(resolve(out,'browser-diagnostics.json'),JSON.stringify(browserErrors,null,2));
   writeFileSync(resolve(out,'callable-counts.json'),JSON.stringify([...callableCounts.values()].sort((a,b)=>b.total-a.total),null,2));
+  writeFileSync(resolve(out,'callable-transport-failures.json'),JSON.stringify([...callableTransportFailures.values()].sort((a,b)=>b.total-a.total),null,2));
+  writeFileSync(resolve(out,'history-fixture-checks.json'),JSON.stringify(historyFixtureChecks,null,2));
   await browser?.close();
   if(server) server.kill('SIGTERM');
   log.end();
