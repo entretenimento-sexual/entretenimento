@@ -104,8 +104,8 @@ export class DirectReceiptsService {
       return of(0);
     }
 
-    const transitions = this.pickReceiptTransitions(safeUid, safeMessages);
-    if (!transitions.length) {
+    const candidates = this.pickReceiptTransitions(safeUid, safeMessages);
+    if (!candidates.length) {
       return of(0);
     }
 
@@ -123,19 +123,20 @@ export class DirectReceiptsService {
         }
         if (uid !== safeUid || !canListen) return of(0);
 
+        // Do not let already confirmed/in-flight entries consume the bounded
+        // batch ahead of fresh receipts. Recheck again at actual dispatch.
+        const transitions = candidates.filter(transition =>
+          !this.isTransitionCovered(this.transitionKey(safeUid, safeChatId, transition))
+        ).slice(0, this.maxUpdatesPerTick);
+        if (!transitions.length) return of(0);
+
         return from(transitions.map((transition, index) => ({ transition, index }))).pipe(
           mergeMap(({ transition, index }) =>
             defer(() => {
               // Coalesce apenas a MESMA transição. delivered -> read deve
               // continuar possível quando o snapshot local avançar de status.
-              const key = JSON.stringify([
-                safeUid, safeChatId, transition.messageId, transition.nextStatus,
-              ]);
-              const confirmedAt = this.confirmedTransitions.get(key);
-              if (confirmedAt !== undefined && Date.now() - confirmedAt < this.confirmationTtlMs) {
-                return of({ index, confirmed: false });
-              }
-              if (this.pendingTransitions.has(key)) {
+              const key = this.transitionKey(safeUid, safeChatId, transition);
+              if (this.isTransitionCovered(key)) {
                 return of({ index, confirmed: false });
               }
               this.pendingTransitions.add(key);
@@ -248,8 +249,17 @@ export class DirectReceiptsService {
         if (!transition || seen.has(transition.messageId)) return false;
         seen.add(transition.messageId);
         return true;
-      })
-      .slice(0, this.maxUpdatesPerTick);
+      });
+  }
+
+  private transitionKey(uid: string, chatId: string, transition: ReceiptTransition): string {
+    return JSON.stringify([uid, chatId, transition.messageId, transition.nextStatus]);
+  }
+
+  private isTransitionCovered(key: string): boolean {
+    const confirmedAt = this.confirmedTransitions.get(key);
+    return this.pendingTransitions.has(key) ||
+      (confirmedAt !== undefined && Date.now() - confirmedAt < this.confirmationTtlMs);
   }
 
   private dbg(message: string, extra?: unknown): void {

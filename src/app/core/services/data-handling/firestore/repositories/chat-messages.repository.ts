@@ -33,6 +33,7 @@ import {
 
 import { Timestamp, onSnapshot, getDocsFromServer } from 'firebase/firestore';
 import { Message } from '@core/interfaces/interfaces-chat/message.interface';
+import { createChatMessageSnapshotProjector } from './chat-message-snapshot-projection';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 
@@ -223,16 +224,15 @@ export class ChatMessagesRepository {
       // A janela realtime precisa acompanhar as mensagens MAIS RECENTES, inclusive
       // depois de um intervalo offline; não a primeira página histórica.
       const q = this.buildLatestQuery(cid, boundedChatMessagePageSize(pageSize, 60));
-      return new Observable<Message[]>(sink => this.ctx.run(() =>
-        onSnapshot(q, { includeMetadataChanges: true }, snapshot => {
-          if (snapshot.metadata.fromCache) {
-            sink.next([]);
-            return;
-          }
-          // Preserve local pending receipt transitions for authorized server snapshots.
-          sink.next(snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Message)));
-        }, error => sink.error(error))
-      ));
+      return new Observable<Message[]>(sink => {
+        const project = createChatMessageSnapshotProjector();
+        return this.ctx.run(() =>
+          onSnapshot(q, { includeMetadataChanges: true }, snapshot => {
+            const projected = project(snapshot);
+            if (projected !== null) sink.next(projected);
+          }, error => sink.error(error))
+        );
+      });
     }).pipe(
       // A consulta limita pelos últimos timestamps; a UI continua em ordem
       // cronológica crescente, sem alterar o contrato de monitorChat.

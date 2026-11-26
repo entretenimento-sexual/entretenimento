@@ -395,6 +395,35 @@ describe('DirectReceiptsService', () => {
     expect(canListen.observers.length).toBe(0);
   });
 
+  it('não deixa recibos já confirmados ocuparem o limite à frente de mensagens novas', async () => {
+    const { service, updateMessageStatus } = setup();
+    const old = Array.from({ length: 50 }, (_, i) => ({
+      id: 'old-' + i, senderId: 'peer', status: 'sent',
+    })) as any[];
+    const fresh = { id: 'fresh', senderId: 'peer', status: 'sent' } as any;
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', old))).toBe(50);
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', [...old, fresh]))).toBe(1);
+    expect(updateMessageStatus).toHaveBeenCalledTimes(51);
+    expect(updateMessageStatus).toHaveBeenLastCalledWith('chat-1', 'fresh', 'delivered');
+  });
+
+  it('não deixa recibos em voo ocuparem o limite de uma nova chamada', async () => {
+    const { service, updateMessageStatus } = setup();
+    const pending = new Subject<void>();
+    const old = Array.from({ length: 5 }, (_, i) => ({
+      id: 'pending-' + i, senderId: 'peer', status: 'sent',
+    })) as any[];
+    updateMessageStatus.mockImplementation((_chatId: string, id: string) =>
+      id.startsWith('pending-') ? pending.asObservable() : of(void 0));
+    const first = service.markDeliveredAsRead$('chat-1', 'me', old).subscribe();
+    const fresh = Array.from({ length: 50 }, (_, i) => ({
+      id: 'fresh-' + i, senderId: 'peer', status: 'sent',
+    })) as any[];
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', [...old, ...fresh]))).toBe(50);
+    expect(updateMessageStatus).toHaveBeenCalledTimes(55);
+    first.unsubscribe();
+  });
+
   it('ignora input inválido sem tocar no adapter', async () => {
     const { service, updateMessageStatus, report } = setup();
 
