@@ -102,7 +102,7 @@ export class ChatRepository {
     return combineLatest([this.access.authUid$, this.access.canRunChatRealtime$]).pipe(
       map(([active, allowed]) => active === owner && allowed),
       distinctUntilChanged(),
-      switchMap(allowed => allowed ? recoverDirectChatListener$<IChat | null>(
+      switchMap((allowed): Observable<IChat | null> => allowed ? recoverDirectChatListener$<IChat | null>(
         () => revalidateDiscoveryOnRevision$(this.observeRevision$(owner), null as IChat | null, () =>
           recoverDirectChatListener$<IChat | null>(() => this.ctx.deferPromise$(() =>
             httpsCallable<{ chatId: string }, { chatIds: string[] }>(
@@ -124,7 +124,7 @@ export class ChatRepository {
         this.failedScope(owner, error);
         return of(null);
       })) : of(null)),
-      startWith(null)
+      startWith<IChat | null>(null)
     );
   }
 
