@@ -22,6 +22,7 @@ import {
 } from '../../account_lifecycle/interaction-access.policy';
 import { db, FieldValue } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import { stagePendingFriendRequestInvalidation } from './pending-friend-request-invalidation';
 import { isBilateralBlockActive } from './bilateral-block-access.policy';
 
 interface SendFriendRequestPayload {
@@ -265,6 +266,7 @@ export const sendFriendRequest = onCall<SendFriendRequestPayload>(
       }
 
       const now = FieldValue.serverTimestamp();
+      stagePendingFriendRequestInvalidation(transaction, requesterSnapshot, targetSnapshot);
       const requesterNickname = displayNickname(requester);
 
       transaction.set(requestRef, {

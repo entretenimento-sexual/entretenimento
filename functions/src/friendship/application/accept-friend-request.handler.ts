@@ -20,6 +20,7 @@ import {
 } from '../../account_lifecycle/interaction-access.policy';
 import { db, FieldValue } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import { stagePendingFriendRequestInvalidation } from './pending-friend-request-invalidation';
 
 interface AcceptFriendRequestPayload {
   requestId?: unknown;
@@ -237,6 +238,7 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
       }
 
       const now = FieldValue.serverTimestamp();
+      stagePendingFriendRequestInvalidation(transaction, requesterSnapshot, targetSnapshot);
       // Preservar o primeiro vínculo como fato privado e não editável pelo cliente.
       if (!requester?.socialConnectionsEstablishedAt) {
         transaction.update(requesterRef, { socialConnectionsEstablishedAt: now });

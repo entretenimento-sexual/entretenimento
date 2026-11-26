@@ -16,6 +16,18 @@ describe('RequestsRepo', () => {
     uid$.next(uid);
   }
 
+  type Snapshot = { metadata: { fromCache: boolean; hasPendingWrites: boolean }; exists(): boolean; data(): Record<string, unknown> };
+  function revision(inbound = 0, outbound = 0, fromCache = false): Snapshot {
+    return { metadata: { fromCache, hasPendingWrites: false }, exists: () => true,
+      data: () => ({ pendingFriendRequestsInboundRevision: inbound, pendingFriendRequestsOutboundRevision: outbound }) };
+  }
+  let revision$: BehaviorSubject<Snapshot>;
+  const onSnapshot = vi.fn((_ref: unknown, _opts: unknown, next: (snapshot: Snapshot) => void) => {
+    const sub = revision$.subscribe(next);
+    return () => sub.unsubscribe();
+  });
+  const doc = vi.fn((_db: unknown, ...path: string[]) => path.join('/'));
+  const report = vi.fn();
   const callable = vi.fn();
   const httpsCallable = vi.fn(() => callable);
   const db = {} as any;
@@ -32,6 +44,8 @@ describe('RequestsRepo', () => {
     }));
     vi.doMock('@angular/fire/firestore', () => ({
       Firestore: class Firestore {},
+      doc,
+      onSnapshot,
     }));
 
     const repoModule = await import('./requests.repo');
@@ -49,7 +63,8 @@ describe('RequestsRepo', () => {
     uid$ = new BehaviorSubject<string | null>('bob');
     authUser$ = new BehaviorSubject<{ uid: string } | null>({ uid: 'bob' });
     session = { currentAuthUser: authUser$.value, uid$, authUser$, terminationVersionSnapshot: 0, isTerminatingSnapshot: false };
-    repo = new RequestsRepoToken(db, env, functions, session);
+    revision$ = new BehaviorSubject(revision());
+    repo = new RequestsRepoToken(db, env, functions, session, { report });
   });
 
   it('lista solicitações recebidas pela callable canônica', async () => {
@@ -223,6 +238,54 @@ describe('RequestsRepo', () => {
       subscriptions.forEach(sub => sub.unsubscribe());
       vi.useRealTimers();
     }
+  });
+
+  it('invalida imediatamente somente a direção alterada e descarta resposta anterior', async () => {
+    vi.useFakeTimers();
+    const subs: { unsubscribe(): void }[] = [];
+    try {
+      let complete!: (value: unknown) => void;
+      callable.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+      callable.mockResolvedValue({ data: { items: [{ id: 'fresh' }] } });
+      const outbound: unknown[] = [], inbound: unknown[] = [];
+      subs.push(repo.watchOutboundRequests('bob').subscribe((v: unknown) => outbound.push(v)));
+      await vi.advanceTimersByTimeAsync(0);
+      subs.push(repo.watchInboundRequests('bob').subscribe((v: unknown) => inbound.push(v)));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(onSnapshot).toHaveBeenCalledTimes(1);
+      expect(callable).toHaveBeenCalledTimes(2);
+      revision$.next(revision(0, 1, true));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callable).toHaveBeenCalledTimes(2);
+      revision$.next(revision(0, 1));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callable).toHaveBeenCalledTimes(3);
+      expect(outbound).toEqual([[{ id: 'fresh' }]]);
+      expect(inbound).toEqual([[{ id: 'fresh' }]]);
+      complete({ data: { items: [{ id: 'stale' }] } });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(outbound).toEqual([[{ id: 'fresh' }]]);
+      revision$.next(revision(0, 1));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callable).toHaveBeenCalledTimes(3);
+      subs.forEach(sub => sub.unsubscribe());
+      expect(revision$.observers).toHaveLength(0);
+    } finally {
+      subs.forEach(sub => sub.unsubscribe());
+      vi.useRealTimers();
+    }
+  });
+
+  it('a listagem pontual não emite resposta de geração anterior após mutação', async () => {
+    let complete!: (value: unknown) => void;
+    callable.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+    callable.mockResolvedValue({ data: { items: [{ id: 'new' }] } });
+    const result = firstValueFrom(repo.listOutboundRequests('bob'));
+    expect(callable).toHaveBeenCalledTimes(1);
+    revision$.next(revision(0, 1));
+    expect(callable).toHaveBeenCalledTimes(2);
+    complete({ data: { items: [{ id: 'old' }] } });
+    expect(await result).toEqual([{ id: 'new' }]);
   });
 
   it('watch inbound reutiliza a leitura backend-only sem write Firestore', async () => {

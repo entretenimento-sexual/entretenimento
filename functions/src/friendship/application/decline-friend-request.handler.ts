@@ -31,6 +31,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { db, FieldValue } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import { stagePendingFriendRequestInvalidation } from './pending-friend-request-invalidation';
 
 interface DeclineFriendRequestPayload {
   requestId?: unknown;
@@ -143,7 +144,14 @@ export const declineFriendRequest = onCall<DeclineFriendRequestPayload>(
         );
       }
 
+      // Keep cancellation/decline available even if the counterpart has
+      // been purged; read before writing and never recreate a missing user.
+      const [requesterSnapshot, targetSnapshot] = await Promise.all([
+        transaction.get(db.collection('users').doc(requesterUid)),
+        transaction.get(db.collection('users').doc(targetUid)),
+      ]);
       const now = FieldValue.serverTimestamp();
+      stagePendingFriendRequestInvalidation(transaction, requesterSnapshot, targetSnapshot);
 
       /**
        * Preservamos o documento como declined.

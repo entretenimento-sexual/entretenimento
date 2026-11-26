@@ -145,6 +145,8 @@ match /users/{userId} {
       "email",
       "profileId",
       "socialConnectionsEstablishedAt",
+      "pendingFriendRequestsInboundRevision",
+      "pendingFriendRequestsOutboundRevision",
       "showOrientationPublicly",
       "adultConsent",
       "acceptedTerms",

@@ -100,6 +100,22 @@ describe('Firestore Rules / friend request read boundary', () => {
     await testEnv.cleanup();
   });
 
+  it('mantém as revisões privadas e exclusivamente backend-only', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await setDoc(doc(context.firestore(), 'users', VIEWER_UID), {
+        pendingFriendRequestsInboundRevision: 1,
+        pendingFriendRequestsOutboundRevision: 2,
+      }, { merge: true });
+    });
+    const owner = testEnv.authenticatedContext(VIEWER_UID).firestore();
+    const other = testEnv.authenticatedContext(TARGET_UID).firestore();
+    const ref = doc(owner, 'users', VIEWER_UID);
+    await assertSucceeds(getDoc(ref));
+    await assertFails(getDoc(doc(other, 'users', VIEWER_UID)));
+    await assertFails(setDoc(ref, { pendingFriendRequestsInboundRevision: 99 }, { merge: true }));
+    await assertFails(setDoc(ref, { pendingFriendRequestsOutboundRevision: 99 }, { merge: true }));
+  });
+
   it('permite get participante e bloqueia qualquer listagem client-side', async () => {
     const db = testEnv.authenticatedContext(VIEWER_UID).firestore();
 
