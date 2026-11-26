@@ -245,6 +245,55 @@ describe('RequestsRepo', () => {
     }
   });
 
+  it('encerra listeners no logout e descarta sucesso e erro antigos após login B', async () => {
+    vi.useFakeTimers();
+    const subs: { unsubscribe(): void }[] = [];
+    try {
+      let resolveOld!: (value: unknown) => void;
+      let rejectOld!: (error: unknown) => void;
+      callable.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }));
+      callable.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectOld = reject; }));
+      callable.mockResolvedValue({ data: { items: [{ id: 'new-b' }] } });
+      const oldNext = vi.fn(), oldError = vi.fn(), oldComplete = vi.fn();
+      for (const direction of ['Inbound', 'Outbound']) {
+        subs.push(repo['watch' + direction + 'Requests']('bob', 'session').subscribe({
+          next: oldNext, error: oldError, complete: oldComplete,
+        }));
+      }
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callable).toHaveBeenCalledTimes(2);
+      expect(revision$.observers).toHaveLength(1);
+      session.isTerminatingSnapshot = true;
+      session.terminationVersionSnapshot++;
+      authUser$.next(null);
+      uid$.next(null);
+      expect(oldComplete).toHaveBeenCalledTimes(2);
+      expect(revision$.observers).toHaveLength(0);
+      session.isTerminatingSnapshot = false;
+      setUser('alice');
+      const fresh = vi.fn();
+      subs.push(repo.watchOutboundRequests('alice', 'session').subscribe(fresh));
+      await vi.advanceTimersByTimeAsync(0);
+      resolveOld({ data: { items: [{ id: 'old-a' }] } });
+      rejectOld(Object.assign(new Error('old error'), { code: 'functions/unavailable' }));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(oldNext).not.toHaveBeenCalled();
+      expect(oldError).not.toHaveBeenCalled();
+      expect(fresh).toHaveBeenCalledTimes(1);
+      expect(fresh).toHaveBeenCalledWith([{ id: 'new-b' }]);
+      expect(callable).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(61_000);
+      expect(callable).toHaveBeenCalledTimes(4);
+      subs.forEach(sub => sub.unsubscribe());
+      expect(revision$.observers).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(121_000);
+      expect(callable).toHaveBeenCalledTimes(4);
+    } finally {
+      subs.forEach(sub => sub.unsubscribe());
+      vi.useRealTimers();
+    }
+  });
+
   it('propaga falha aos consumidores e permite nova leitura sem cache', async () => {
     vi.useFakeTimers();
     const subscriptions: { unsubscribe(): void }[] = [];

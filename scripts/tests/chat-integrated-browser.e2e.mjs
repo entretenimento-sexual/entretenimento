@@ -53,7 +53,10 @@ const pendingAttempts = [];
 const originalContexts = new Set(['a','b','d-history']);
 const spaContext = 'spa-lifecycle';
 const spaSamples = [];
-const isComplementary = row => !originalContexts.has(row.context) && row.context!==spaContext;
+const resilienceContext = 'resilience';
+const resilienceSamples = {};
+const isComplementary = row => !originalContexts.has(row.context) && row.context!==spaContext && row.context!==resilienceContext;
+const accountingTasks = new Set();
 let currentPhase = 'initial';
 const callableTransportFailures = new Map();
 function recordCallableTransportFailure(name, request) {
@@ -79,6 +82,8 @@ function recordCallable(name, response) {
   const endpoint = url.pathname.split('/').at(-1);
   if(!endpoint || !/^[A-Za-z][A-Za-z0-9]*$/.test(endpoint)) return;
   const key = name+':'+endpoint;
+  const timingForDedup=requestStarts.get(response.request());
+  if(endpoint==='getPendingFriendRequests' && timingForDedup && timingForDedup.httpStatus!==null) return;
   const row = callableCounts.get(key) ?? {context:name,endpoint,total:0,rateLimited:0,failed:0};
   row.total++;
   if(endpoint==='getPendingFriendRequests') {
@@ -179,7 +184,23 @@ async function newPage(name, viewport={width:1440,height:1000}) {
     requestStarts.set(request,attempt);
   });
   page.on('response', response => recordCallable(name,response));
+  page.on('requestfinished', request => {
+    const row=requestStarts.get(request);
+    if(!row) return;
+    row.finishedMs=elapsed(row.startMs);
+    const task=request.response().then(response=>{
+      if(response && row.httpStatus===null) {
+        row.responseRecoveredAtFinish=true;
+        recordCallable(name,response);
+      }
+    }).catch(()=>{});
+    accountingTasks.add(task);
+    void task.finally(()=>accountingTasks.delete(task));
+  });
   page.on('requestfailed', request => recordCallableTransportFailure(name,request));
+  page.on('close',()=>{
+    for(const row of pendingAttempts) if(row.context===name && row.httpStatus===null && !row.transportFailure) row.contextClosedWithoutTerminalEvent=true;
+  });
   page.on('pageerror', error => browserErrors.push({name,type:'pageerror',message:error.message}));
   page.on('console', message => {
     const match=/^\[Friends\] pending-read (start|subscribe|join|signal|unsubscribe) (inbound|outbound) (session|profile|post-mutation|explicit|other|session-retry|subscriber-join|canonical-event|listener-recovery|poll)\s*$/.exec(message.text());
@@ -496,6 +517,124 @@ async function certifySpaLifecycle() {
     });
     pass('controlled SPA lifecycle, profile consumers, real polling, deep links and identity switch');
   } finally { await page.context().close(); }
+}
+
+async function certifyResilience() {
+  const [oldUser,newUser,target]=['n','o','p'].map(uid);
+  for(const [index,user] of [oldUser,newUser,target].entries()) {
+    await adminAuth.createUser({uid:user,email:email(user),password,emailVerified:true});
+    await until('resilience registration seed',()=>db.doc('users/'+user).get(),snap=>snap.exists);
+    await seedPublicMediaCompliance(db,[user]);
+    const nickname='Browser Resilience '+index;
+    const profile={uid:user,nickname,nicknameNormalized:nickname.toLowerCase(),gender:'mulher',
+      identityCode:'mulher',identityCatalogVersion:1,orientation:'bissexual',role:'free',
+      municipio:'Rio de Janeiro',estado:'RJ',createdAt:new Date(),updatedAt:new Date()};
+    await db.doc('users/'+user).set({...profile,emailVerified:true,loginAllowed:true,accountLocked:false},{merge:true});
+    await db.doc('public_profiles/'+user).set(profile);
+    await db.doc('preferences/'+user).set({notificationPreferences:{connections:false}},{merge:true});
+  }
+  const page=await newPage(resilienceContext);
+  const rows=()=>pendingAttempts.filter(row=>row.context===resilienceContext);
+  const origins=()=>pendingOrigins.filter(row=>row.context===resilienceContext);
+  const card=owner=>page.locator('.request-card--outbound[aria-labelledby="request-outbound-'+owner+'_'+target+'"]');
+  const requests=async()=>{
+    await page.locator('app-user-activity-hub a[href="/friends/requests"]').click();
+    await page.waitForURL(url=>url.pathname==='/friends/requests');
+    await page.getByRole('tab',{name:/Enviadas/}).click();
+  };
+  const bootstrap=since=>until('resilience directional bootstrap',()=>['inbound','outbound'].every(direction=>
+    rows().some(row=>row.direction===direction&&row.startMs>=since&&row.httpStatus===200)),Boolean);
+  let mode='pass', held=null, holdError=null, releaseHold, delivered=null, failed=null;
+  const gate=new Promise(resolve=>{releaseHold=resolve;});
+  // Real emulator response, held in transport only; no synthetic authorization.
+  await page.route('**/getPendingFriendRequests',async route=>{
+    const req=route.request(), url=new URL(req.url());
+    if(url.hostname!=='127.0.0.1'||url.port!=='15001'||req.method()!=='POST'||
+        req.postDataJSON()?.data?.direction!=='outbound') return route.fallback();
+    if(mode==='hold') {
+      mode='pass';
+      try {
+        const response=await route.fetch({timeout:20_000});
+        assert.equal(response.status(),200);
+        const body=await response.json();
+        assert.ok((body.result??body.data)?.items?.some(item=>item.id===oldUser+'_'+target),'Real old pending request');
+        held={at:performance.now(),attempt:requestStarts.get(req)};
+        await gate;
+        try { await route.fulfill({response}); delivered='fulfilled'; }
+        catch { delivered='transport-canceled'; }
+      } catch(error) {
+        holdError=error;
+        await route.abort().catch(()=>{});
+      }
+      return;
+    }
+    if(mode==='fail') {
+      mode='pass';
+      failed={at:performance.now(),attempt:requestStarts.get(req)};
+      await route.abort('connectionreset');
+      return;
+    }
+    return route.fallback();
+  });
+  try {
+    currentPhase='resilience: old bootstrap';
+    let begin=performance.now();
+    await login(page,oldUser);
+    await bootstrap(begin);
+    await requests();
+    await page.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'});
+    currentPhase='resilience: hold old response';
+    await signInWithEmailAndPassword(auth,email(oldUser),password);
+    mode='hold';
+    assert.equal((await httpsCallable(functions,'sendFriendRequest')({targetUid:target})).data.status,'pending');
+    await until('real backend old response held',()=>{if(holdError) throw holdError; return held;},Boolean,30_000);
+    assert.ok(held.attempt);
+    assert.equal(await card(oldUser).count(),0);
+    currentPhase='resilience: logout old';
+    begin=performance.now();
+    await logout(page);
+    await until('old session disposed',()=>['inbound','outbound'].every(direction=>origins().some(row=>row.atMs>=begin&&row.event==='unsubscribe'&&row.reason==='session'&&row.direction===direction)),Boolean);
+    currentPhase='resilience: new identity';
+    begin=performance.now();
+    await loginFromCurrentPage(page,newUser);
+    await bootstrap(begin);
+    await requests();
+    await page.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'});
+    currentPhase='resilience: release old response';
+    const releaseAt=performance.now();
+    releaseHold();
+    await until('late transport release',()=>delivered,Boolean,20_000);
+    await until('late transport terminal event',()=>held.attempt.httpStatus!==null||!!held.attempt.transportFailure,Boolean,20_000);
+    await sleep(500);
+    assert.equal(await card(oldUser).count(),0);
+    await page.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'});
+    resilienceSamples.late={backendStatus:200,heldMs:Math.round(releaseAt-held.at),release:delivered,
+      browserStatus:held.attempt.httpStatus,transportFailure:held.attempt.transportFailure,oldCardVisible:false};
+    currentPhase='resilience: transient outbound failure';
+    await signInWithEmailAndPassword(auth,email(newUser),password);
+    mode='fail';
+    assert.equal((await httpsCallable(functions,'sendFriendRequest')({targetUid:target})).data.status,'pending');
+    await until('controlled outbound transport failure',()=>failed?.attempt?.transportFailure,Boolean,20_000);
+    assert.equal(await card(newUser).count(),0);
+    currentPhase='resilience: recovery';
+    await card(newUser).waitFor({state:'visible',timeout:85_000});
+    assert.ok(rows().some(row=>row.direction==='outbound'&&row.startMs>failed.at&&row.httpStatus===200));
+    assert.equal(await card(oldUser).count(),0);
+    resilienceSamples.transient={transportFailure:failed.attempt.transportFailure,recoveredMs:elapsed(failed.at)};
+    currentPhase='resilience: final logout';
+    begin=performance.now();
+    await logout(page);
+    await until('new session disposed',()=>['inbound','outbound'].every(direction=>origins().some(row=>row.atMs>=begin&&row.event==='unsubscribe'&&row.reason==='session'&&row.direction===direction)),Boolean);
+    const before=rows().length, start=performance.now();
+    await sleep(65_000);
+    assert.equal(rows().length,before,'No callable after logout beyond contingency interval');
+    assert.equal(origins().filter(row=>row.atMs>=start&&row.event==='start').length,0);
+    resilienceSamples.anonymous={observedMs:elapsed(start),attemptsStarted:0};
+    pass('resilience real delayed backend response, transient failure recovery and final logout');
+  } finally {
+    releaseHold();
+    await page.context().close();
+  }
 }
 
 try {
@@ -920,6 +1059,7 @@ try {
   await certifyFriendshipPair('cancel-decline',['f','g'],['send','cancel','send','decline']);
   await certifyFriendshipPair('offline-accept',['h','i'],['offline-send','accept']);
   await certifySpaLifecycle();
+  await certifyResilience();
   assert.equal(browserErrors.filter(e=>e.type==='pageerror').length,0,'Unhandled browser exceptions including friendship');
   for(const endpoint of ['getPendingFriendRequests','listDirectChatCandidates']) {
     const rows=[...callableCounts.values()].filter(row=>row.endpoint===endpoint);
@@ -927,7 +1067,10 @@ try {
   }
   assert.ok(pendingOrigins.some(row=>row.event==='start'&&row.reason==='session'),'Session origin tracing unavailable');
   assert.ok(pendingOrigins.some(row=>row.event==='start'&&row.reason==='canonical-event'),'Canonical origin tracing unavailable');
-  const fullAttempts=summarizePendingAttempts(pendingAttempts);
+  await Promise.allSettled([...accountingTasks]);
+  const fullAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==resilienceContext));
+  const resilienceAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context===resilienceContext));
+  console.log('Resilience evidence '+JSON.stringify({attempts:resilienceAttempts,samples:resilienceSamples}));
   const complementaryAttempts=summarizePendingAttempts(pendingAttempts.filter(isComplementary));
   const spaAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context===spaContext));
   console.log('Pending friendship SPA accounting '+JSON.stringify({attempts:spaAttempts,stages:spaSamples}));
@@ -935,7 +1078,7 @@ try {
   console.log('Friendship reactive measurements '+JSON.stringify({originalWorkload,originalAttempts,complementaryAttempts,fullAttempts,samples:friendshipSamples,
     online:sampleSummary(friendshipSamples.filter(row=>!row.reconnect).flatMap(row=>[row.senderMs,row.receiverMs])),
     reconnect:sampleSummary(friendshipSamples.filter(row=>row.reconnect).map(row=>row.receiverMs))}));
-  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,originalAttempts,complementaryAttempts,spaAttempts,spaSamples,fullAttempts,baselineComparison:baselineComparison(),
+  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,originalAttempts,complementaryAttempts,spaAttempts,spaSamples,fullAttempts,resilienceAttempts,resilienceSamples,baselineComparison:baselineComparison(),
     performanceSummary:{budgetMs:PHASE_BUDGET_MS,sendReceive:sampleSummary(performanceSamples.roundTrips.map(row=>row.ms)),
       conversationSwitch:sampleSummary(performanceSamples.switches.map(row=>row.ms))}},null,2));
 } catch(error) {
@@ -943,10 +1086,12 @@ try {
   for(const {name,page} of pages) await screenshot(page,name+'-failure').catch(()=>{});
   throw error;
 } finally {
+  await Promise.allSettled([...accountingTasks]);
+  writeFileSync(resolve(out,'resilience-samples.json'),JSON.stringify(resilienceSamples,null,2));
   writeFileSync(resolve(out,'pending-read-trace.json'),JSON.stringify(pendingReadTrace,null,2));
   writeFileSync(resolve(out,'pending-read-origins.json'),JSON.stringify(pendingOrigins,null,2));
   writeFileSync(resolve(out,'pending-read-attempts.json'),JSON.stringify(pendingAttempts,null,2));
-  const finalAccounting={original:summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context))),complementary:summarizePendingAttempts(pendingAttempts.filter(isComplementary)),spa:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===spaContext)),all:summarizePendingAttempts(pendingAttempts)};
+  const finalAccounting={original:summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context))),complementary:summarizePendingAttempts(pendingAttempts.filter(isComplementary)),spa:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===spaContext)),resilience:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===resilienceContext)),legacyTotal:summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==resilienceContext)),all:summarizePendingAttempts(pendingAttempts)};
   writeFileSync(resolve(out,'pending-read-accounting.json'),JSON.stringify(finalAccounting,null,2));
   console.log('Pending friendship final accounting '+JSON.stringify(finalAccounting));
   console.log('SPA lifecycle stage evidence '+JSON.stringify(spaSamples));

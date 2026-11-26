@@ -85,7 +85,7 @@ describe('FriendsRequestsRealtimeEffects / isolamento de sessão', () => {
     const uid = new BehaviorSubject<string | null>('user-a');
     const error = new Error('unavailable');
     let attempts = 0;
-    const watcher = vi.fn(() => defer(() => ++attempts === 1 ? throwError(() => error) : of([])));
+    const watcher = vi.fn(() => defer(() => ++attempts <= 2 ? throwError(() => error) : of([])));
     TestBed.configureTestingModule({
       providers: [
         FriendsRequestsRealtimeEffects,
@@ -107,7 +107,10 @@ describe('FriendsRequestsRealtimeEffects / isolamento de sessão', () => {
       await vi.advanceTimersByTimeAsync(1);
       expect(attempts).toBe(2);
       expect(output).toHaveLength(2);
-      expect(output[1]).toEqual(direction === 'inbound'
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(attempts).toBe(3);
+      expect(output).toHaveLength(3);
+      expect(output[2]).toEqual(direction === 'inbound'
         ? RT.inboundRequestsChanged({ requests: [] })
         : RT.outboundRequestsChanged({ requests: [] }));
       attempts = 0;

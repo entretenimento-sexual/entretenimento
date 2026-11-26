@@ -1,5 +1,5 @@
 import type { User } from 'firebase/auth';
-import { BehaviorSubject, defer, firstValueFrom, from, of } from 'rxjs';
+import { BehaviorSubject, defer, firstValueFrom, from, Observable, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { SessionReadInFlight } from './session-read-in-flight';
 
@@ -89,6 +89,23 @@ describe('SessionReadInFlight', () => {
     await Promise.resolve();
     expect(onError).not.toHaveBeenCalled();
     expect(onComplete).toHaveBeenCalledOnce();
+  });
+
+  it('libera leitura retida quando authUser emite outra instância do mesmo UID', async () => {
+    const { session, user } = setup();
+    const authUser$ = new BehaviorSubject<User | null>(session.currentAuthUser);
+    const reads = new SessionReadInFlight<string>({ ...session, authUser$,
+      get currentAuthUser() { return session.currentAuthUser; } });
+    const cleanup = vi.fn();
+    const old = reads.read$('page', () => new Observable<string>(() => cleanup)).subscribe();
+    old.unsubscribe();
+    expect(cleanup).not.toHaveBeenCalled();
+    session.currentAuthUser = user('a');
+    authUser$.next(session.currentAuthUser);
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(authUser$.observers).toHaveLength(0);
+    await expect(firstValueFrom(reads.read$('page', () => of('new')))).resolves.toBe('new');
+    expect(authUser$.observers).toHaveLength(0);
   });
 
   it('propaga erros e libera a chave para nova tentativa', async () => {

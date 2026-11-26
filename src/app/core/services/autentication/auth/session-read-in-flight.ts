@@ -1,9 +1,10 @@
 import type { User } from 'firebase/auth';
-import { EMPTY, Observable, catchError, defer, filter, finalize, shareReplay, takeUntil, tap, throwError } from 'rxjs';
+import { EMPTY, Observable, catchError, defer, filter, finalize, merge, shareReplay, takeUntil, tap, throwError } from 'rxjs';
 import type { AuthSessionService } from './auth-session.service';
 
 type SessionScope = Pick<AuthSessionService,
-  'uid$' | 'currentAuthUser' | 'terminationVersionSnapshot' | 'isTerminatingSnapshot'>;
+  'uid$' | 'currentAuthUser' | 'terminationVersionSnapshot' | 'isTerminatingSnapshot'> &
+  Partial<Pick<AuthSessionService, 'authUser$'>>;
 
 interface PendingRead<T> {
   readonly user: User;
@@ -49,7 +50,11 @@ export class SessionReadInFlight<T> {
       const release = () => {
         if (this.pending.get(key) === entry) this.pending.delete(key);
       };
-      const revoked$ = this.session.uid$.pipe(filter(uid => uid !== user.uid || !isCurrent()));
+      const uidRevoked$ = this.session.uid$.pipe(filter(uid => uid !== user.uid || !isCurrent()));
+      // UID streams may suppress same-UID emissions. Release retained reads
+      // when the operational authentication authority reports a replacement.
+      const revoked$ = this.session.authUser$ ? merge(uidRevoked$,
+        this.session.authUser$.pipe(filter(active => active !== user || !isCurrent()))) : uidRevoked$;
       const stream$ = defer(load).pipe(
         takeUntil(revoked$),
         filter(() => isCurrent()),
