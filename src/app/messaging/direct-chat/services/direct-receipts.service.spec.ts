@@ -419,9 +419,98 @@ describe('DirectReceiptsService', () => {
     const fresh = Array.from({ length: 50 }, (_, i) => ({
       id: 'fresh-' + i, senderId: 'peer', status: 'sent',
     })) as any[];
-    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', [...old, ...fresh]))).toBe(50);
+    const second = firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', [...old, ...fresh]));
+    expect(updateMessageStatus).toHaveBeenCalledTimes(5);
+    pending.next();
+    pending.complete();
+    expect(await second).toBe(50);
     expect(updateMessageStatus).toHaveBeenCalledTimes(55);
     first.unsubscribe();
+  });
+
+  it('limita cinco gravações no conjunto de lotes e conversas e deduplica itens na fila', async () => {
+    const { service, updateMessageStatus } = setup();
+    const pending = Array.from({ length: 10 }, () => new Subject<void>());
+    let started = 0;
+    updateMessageStatus.mockImplementation(() => pending[started++].asObservable());
+    const make = (prefix: string) => Array.from({ length: 5 }, (_, i) =>
+      ({ id: prefix + i, senderId: 'peer', status: 'sent' }) as any);
+    const a = make('a'), b = make('b');
+    const first = firstValueFrom(service.markDeliveredAsRead$('chat-1', 'me', a));
+    const second = firstValueFrom(service.markDeliveredAsRead$('chat-2', 'me', b));
+    expect(started).toBe(5);
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-2', 'me', b))).toBe(0);
+    expect(started).toBe(5);
+    for (let i = 0; i < 10; i++) {
+      pending[i].next();
+      pending[i].complete();
+      expect(started).toBe(Math.min(10, i + 6));
+    }
+    expect(await first).toBe(5);
+    expect(await second).toBe(5);
+  });
+
+  it('revogação global cancela lotes ativos e em espera sem despachar no teardown', async () => {
+    const { service, updateMessageStatus, uid, canListen } = setup();
+    const pending = new Subject<void>();
+    updateMessageStatus.mockReturnValue(pending.asObservable());
+    const messages = Array.from({ length: 10 }, (_, i) =>
+      ({ id: 'msg-' + i, senderId: 'peer', status: 'sent' }) as any);
+    const values: number[] = [];
+    const first = service.markDeliveredAsRead$('chat-1', 'me', messages).subscribe(v => values.push(v));
+    const second = service.markDeliveredAsRead$('chat-2', 'me', messages).subscribe(v => values.push(v));
+    expect(updateMessageStatus).toHaveBeenCalledTimes(5);
+    canListen.next(false);
+    uid.next(null);
+    pending.next();
+    pending.complete();
+    await Promise.resolve();
+    expect(updateMessageStatus).toHaveBeenCalledTimes(5);
+    expect(pending.observers).toHaveLength(0);
+    expect(values).toEqual([]);
+    uid.next('me');
+    canListen.next(true);
+    updateMessageStatus.mockReturnValue(of(void 0));
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-2', 'me', messages))).toBe(10);
+    first.unsubscribe();
+    second.unsubscribe();
+  });
+
+  it('cancelamento de um consumidor não despacha sua fila e libera capacidade para outro', async () => {
+    const { service, updateMessageStatus } = setup();
+    const pending = new Subject<void>();
+    updateMessageStatus.mockImplementation((chatId: string) =>
+      chatId === 'chat-1' ? pending.asObservable() : of(void 0));
+    const messages = Array.from({ length: 10 }, (_, i) =>
+      ({ id: 'msg-' + i, senderId: 'peer', status: 'sent' }) as any);
+    const cancelled: number[] = [];
+    const first = service.markDeliveredAsRead$('chat-1', 'me', messages).subscribe(v => cancelled.push(v));
+    const second = firstValueFrom(service.markDeliveredAsRead$('chat-2', 'me', messages));
+    expect(updateMessageStatus).toHaveBeenCalledTimes(5);
+    first.unsubscribe();
+    expect(await second).toBe(10);
+    expect(cancelled).toEqual([]);
+    expect(updateMessageStatus.mock.calls.filter(([chat]) => chat === 'chat-1')).toHaveLength(5);
+    expect(pending.observers).toHaveLength(0);
+  });
+
+  it('destruição do serviço cancela todos os lotes e impede novas gravações', async () => {
+    const { service, updateMessageStatus, destroy } = setup();
+    const pending = new Subject<void>();
+    updateMessageStatus.mockReturnValue(pending.asObservable());
+    const messages = Array.from({ length: 8 }, (_, i) =>
+      ({ id: 'msg-' + i, senderId: 'peer', status: 'sent' }) as any);
+    const counts: number[] = [];
+    const first = service.markDeliveredAsRead$('chat-1', 'me', messages).subscribe(v => counts.push(v));
+    const second = service.markDeliveredAsRead$('chat-2', 'me', messages).subscribe(v => counts.push(v));
+    destroy();
+    await Promise.resolve();
+    expect(updateMessageStatus).toHaveBeenCalledTimes(5);
+    expect(pending.observers).toHaveLength(0);
+    expect(counts).toEqual([]);
+    expect(await firstValueFrom(service.markDeliveredAsRead$('chat-3', 'me', messages))).toBe(0);
+    first.unsubscribe();
+    second.unsubscribe();
   });
 
   it('ignora input inválido sem tocar no adapter', async () => {

@@ -18,7 +18,8 @@ import { DestroyRef, Injectable } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { combineLatest, defer, from, Observable, of } from 'rxjs';
-import { catchError, filter, finalize, map, mergeMap, switchMap, take, takeUntil, tap, toArray } from 'rxjs/operators';
+import { catchError, defaultIfEmpty, filter, finalize, map, mergeMap, switchMap, take, takeUntil, tap, toArray } from 'rxjs/operators';
+import { DirectReceiptWriteQueue } from './direct-receipt-write-queue';
 
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
@@ -38,11 +39,14 @@ type ReceiptTransition = {
 export class DirectReceiptsService {
   private readonly maxUpdatesPerTick = 50;
   private readonly maxConcurrentUpdates = 5;
+  private readonly writeQueue = new DirectReceiptWriteQueue(this.maxConcurrentUpdates, 250);
   private readonly pendingTransitions = new Set<string>();
   private readonly confirmedTransitions = new Map<string, number>();
   private readonly confirmationTtlMs = 30_000;
   private readonly maxConfirmedEntries = 512;
   private receiptSessionUid: string | null = null;
+  private receiptSessionEpoch = 0;
+  private destroyed = false;
 
   private rememberConfirmed(key: string): void {
     const now = Date.now();
@@ -62,17 +66,25 @@ export class DirectReceiptsService {
     private readonly applicationError: ApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService,
     private readonly accessControl: AccessControlService,
-    destroyRef: DestroyRef
+    private readonly destroyRef: DestroyRef
   ) {
     // Limpa confirmações mesmo sem novas chamadas após logout/revogação.
     combineLatest([
       this.accessControl.authUid$,
       this.accessControl.canListenRealtime$,
     ]).pipe(takeUntilDestroyed(destroyRef)).subscribe(([uid, allowed]) => {
-      if (this.receiptSessionUid !== uid || !allowed) {
+      const activeUid = allowed ? uid : null;
+      if (this.receiptSessionUid !== activeUid) {
+        this.receiptSessionEpoch++;
         this.confirmedTransitions.clear();
-        this.receiptSessionUid = uid;
+        this.receiptSessionUid = activeUid;
       }
+    });
+    destroyRef.onDestroy(() => {
+      this.destroyed = true;
+      this.receiptSessionEpoch++;
+      this.receiptSessionUid = null;
+      this.confirmedTransitions.clear();
     });
   }
 
@@ -117,11 +129,9 @@ export class DirectReceiptsService {
     return access$.pipe(
       take(1),
       switchMap(([uid, canListen]) => {
-        if (this.receiptSessionUid !== uid || !canListen) {
-          this.confirmedTransitions.clear();
-          this.receiptSessionUid = uid;
-        }
-        if (uid !== safeUid || !canListen) return of(0);
+        if (this.destroyed || uid !== safeUid || !canListen ||
+            this.receiptSessionUid !== safeUid) return of(0);
+        const epoch = this.receiptSessionEpoch;
 
         // Do not let already confirmed/in-flight entries consume the bounded
         // batch ahead of fresh receipts. Recheck again at actual dispatch.
@@ -136,22 +146,31 @@ export class DirectReceiptsService {
               // Coalesce apenas a MESMA transição. delivered -> read deve
               // continuar possível quando o snapshot local avançar de status.
               const key = this.transitionKey(safeUid, safeChatId, transition);
-              if (this.isTransitionCovered(key)) {
+              if (this.destroyed || epoch !== this.receiptSessionEpoch ||
+                  this.receiptSessionUid !== safeUid || this.isTransitionCovered(key)) {
                 return of({ index, confirmed: false });
               }
               this.pendingTransitions.add(key);
 
-              return defer(() =>
-                this.chatService.updateMessageStatus(
+              return this.writeQueue.schedule$(() => {
+                // A fila pode sobreviver a vários ticks. Nunca despachar com
+                // o contexto de sessão obsoleto, mesmo durante teardown.
+                if (this.destroyed || epoch !== this.receiptSessionEpoch ||
+                    this.receiptSessionUid !== safeUid) return of({ index, confirmed: false });
+                return this.chatService.updateMessageStatus(
                   safeChatId,
                   transition.messageId,
                   transition.nextStatus
-                )
-              ).pipe(
-                map(() => {
-                  this.rememberConfirmed(key);
-                  return { index, confirmed: true };
-                }),
+                ).pipe(map(() => {
+                  const confirmed = !this.destroyed && epoch === this.receiptSessionEpoch &&
+                    this.receiptSessionUid === safeUid;
+                  if (confirmed) this.rememberConfirmed(key);
+                  return { index, confirmed };
+                }));
+              }).pipe(
+                // Queue overflow or a write completing without acknowledgement
+                // is not success. A later eligible snapshot may retry.
+                defaultIfEmpty({ index, confirmed: false }),
                 catchError((error) => {
                   this.reportIfUnreported(
                     error,
@@ -169,9 +188,9 @@ export class DirectReceiptsService {
             }), this.maxConcurrentUpdates),
           toArray(),
           takeUntil(access$.pipe(
-            filter(([activeUid, allowed]) => activeUid !== safeUid || !allowed),
-            tap(() => this.confirmedTransitions.clear())
+            filter(([activeUid, allowed]) => activeUid !== safeUid || !allowed)
           )),
+          takeUntilDestroyed(this.destroyRef),
           tap((results) => {
             const confirmed = results
               .filter((result) => result.confirmed)
