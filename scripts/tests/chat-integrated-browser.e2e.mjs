@@ -57,7 +57,10 @@ const resilienceContext = 'resilience';
 const resilienceSamples = {};
 const adaptiveContext = 'adaptive-polling';
 const adaptiveSamples = {};
-const isComplementary = row => !originalContexts.has(row.context) && row.context!==spaContext && row.context!==resilienceContext && row.context!==adaptiveContext;
+const concurrencyContexts = new Set(['concurrency-tab-a','concurrency-tab-b','concurrency-peer']);
+const concurrencySamples = {stages:[], resources:[], convergences:[]};
+const pendingResources = [];
+const isComplementary = row => !originalContexts.has(row.context) && row.context!==spaContext && row.context!==resilienceContext && row.context!==adaptiveContext && !concurrencyContexts.has(row.context);
 const accountingTasks = new Set();
 let currentPhase = 'initial';
 const callableTransportFailures = new Map();
@@ -149,14 +152,16 @@ function pass(phase) {
   console.log('PASS ' + phase);
   currentPhase='after: '+phase;
 }
-async function newPage(name, viewport={width:1440,height:1000}) {
-  const context = await browser.newContext({viewport,serviceWorkers:'block'});
+async function newPage(name, viewport={width:1440,height:1000}, existingContext=null) {
+  const context = existingContext ?? await browser.newContext({viewport,serviceWorkers:'block'});
+  if(!existingContext) {
   // Browser traffic cannot reach a cloud Firebase service or external provider.
   await context.route('**/*', route => {
     const url = new URL(route.request().url());
     return ['127.0.0.1','localhost'].includes(url.hostname) ? route.continue() : route.abort();
   });
   await context.addInitScript(() => localStorage.setItem('DEBUG_FRIENDS', '1'));
+  }
   const page = await context.newPage();
   const routeCategory = () => {
     const route = new URL(page.url()).pathname.split('/')[1];
@@ -207,6 +212,8 @@ async function newPage(name, viewport={width:1440,height:1000}) {
   page.on('console', message => {
     const match=/^\[Friends\] pending-read (start|subscribe|join|signal|unsubscribe) (inbound|outbound) (session|profile|post-mutation|explicit|other|session-retry|subscriber-join|canonical-event|listener-recovery|poll)\s*$/.exec(message.text());
     if(match) pendingOrigins.push({context:name,event:match[1],direction:match[2],reason:match[3],route:routeCategory(),document:documentNumber,phase:currentPhase,atMs:performance.now()});
+    const resource=/^\[Friends\] pending-resource (listener|inbound|outbound) (open|close)\s*$/.exec(message.text());
+    if(resource) pendingResources.push({context:name,document:documentNumber,resource:resource[1],event:resource[2],phase:currentPhase,atMs:performance.now()});
     if (message.type()==='error' || message.type()==='warning') {
       browserErrors.push({name,type:message.type(),message:message.text().slice(0,600)});
     }
@@ -737,6 +744,187 @@ async function certifyAdaptivePolling() {
   }
 }
 
+
+async function certifyConcurrency() {
+  const [viewer,target,independent]=['s','t','u'].map(uid);
+  for(const [index,user] of [viewer,target,independent].entries()) {
+    await adminAuth.createUser({uid:user,email:email(user),password,emailVerified:true});
+    await until('concurrency registration seed',()=>db.doc('users/'+user).get(),snap=>snap.exists);
+    await seedPublicMediaCompliance(db,[user]);
+    const nickname='Browser Concurrent '+index;
+    const profile={uid:user,nickname,nicknameNormalized:nickname.toLowerCase(),gender:'mulher',
+      identityCode:'mulher',identityCatalogVersion:1,orientation:'bissexual',role:'free',
+      municipio:'Rio de Janeiro',estado:'RJ',createdAt:new Date(),updatedAt:new Date()};
+    await db.doc('users/'+user).set({...profile,emailVerified:true,loginAllowed:true,accountLocked:false},{merge:true});
+    await db.doc('public_profiles/'+user).set(profile);
+    await db.doc('preferences/'+user).set({notificationPreferences:{connections:false}},{merge:true});
+  }
+
+  const a=await newPage('concurrency-tab-a');
+  const b=await newPage('concurrency-tab-b',undefined,a.context());
+  const c=await newPage('concurrency-peer');
+  const tabs=[a,b,c];
+  const names=['concurrency-tab-a','concurrency-tab-b','concurrency-peer'];
+  const rows=()=>pendingAttempts.filter(row=>concurrencyContexts.has(row.context));
+  const origins=()=>pendingOrigins.filter(row=>concurrencyContexts.has(row.context));
+  const resources=()=>pendingResources.filter(row=>concurrencyContexts.has(row.context));
+  const side=(page,name)=>page.locator('#app-sidebar').getByRole('link',{name,exact:true});
+  const activity=(page,path)=>page.locator('app-user-activity-hub a[href="'+path+'"]');
+  const requestList=async page=>{
+    if(new URL(page.url()).pathname!=='/friends/requests') {
+      await activity(page,'/friends/requests').click();
+      await page.waitForURL(url=>url.pathname==='/friends/requests');
+    }
+    await page.getByRole('tab',{name:/Enviadas/}).click();
+  };
+  const card=page=>page.locator('.request-card--outbound[aria-labelledby="request-outbound-'+viewer+'_'+target+'"]');
+  const takeStage=async(label,work)=>{
+    currentPhase='concurrency: '+label;
+    const begin=performance.now(),before=rows().length;
+    await work(begin);
+    concurrencySamples.stages.push({phase:label,elapsedMs:elapsed(begin),attempts:rows().length-before});
+  };
+  const capture=async(label)=>{
+    for(const [i,page] of tabs.entries()) {
+      const session=await page.context().newCDPSession(page);
+      try {
+        await session.send('Performance.enable');
+        const {metrics}=await session.send('Performance.getMetrics');
+        const selected=Object.fromEntries(metrics.filter(m=>['JSHeapUsedSize','JSHeapTotalSize','Nodes','Documents','JSEventListeners','TaskDuration'].includes(m.name)).map(m=>[m.name,m.value]));
+        concurrencySamples.resources.push({phase:label,context:names[i],metrics:selected});
+      } finally {await session.detach();}
+    }
+  };
+  const waitBootstrap=begin=>until('all three directional bootstraps',()=>names.every(context=>['inbound','outbound'].every(direction=>
+    rows().some(row=>row.context===context&&row.direction===direction&&row.startMs>=begin&&row.httpStatus===200))),Boolean,45_000);
+  let releaseHold;
+  const gate=new Promise(resolve=>{releaseHold=resolve;});
+  let held=null,holdError=null,mode='pass';
+  await a.route('**/getPendingFriendRequests',async route=>{
+    const req=route.request(),url=new URL(req.url());
+    if(mode!=='hold'||url.hostname!=='127.0.0.1'||url.port!=='15001'||req.method()!=='POST'||
+        req.postDataJSON()?.data?.direction!=='outbound') return route.fallback();
+    mode='pass';
+    try {
+      const response=await route.fetch({timeout:20_000});
+      assert.equal(response.status(),200);
+      const body=await response.json();
+      assert.ok((body.result??body.data)?.items?.some(item=>item.id===viewer+'_'+target));
+      held={attempt:requestStarts.get(req),at:performance.now()};
+      await gate;
+      await route.fulfill({response});
+    } catch(error) {
+      holdError=error;
+      await route.abort().catch(()=>{});
+    }
+  });
+  try {
+    await takeStage('three tabs, two identities',async begin=>{
+      await Promise.all([login(a,viewer),login(c,independent)]);
+      // A second tab in the same browser context. Respect actual auth persistence:
+      // if this environment uses tab-local auth, authenticate using the real form.
+      await b.goto(BASE+'/friends/requests');
+      await until('second tab route or login',()=>new URL(b.url()).pathname,path=>path==='/login'||path==='/friends/requests');
+      if(new URL(b.url()).pathname==='/login') await loginFromCurrentPage(b,viewer);
+      await waitBootstrap(begin);
+      await Promise.all(tabs.map(requestList));
+      await Promise.all(tabs.map(page=>page.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'})));
+      await capture('bootstrap');
+    });
+    await takeStage('concurrent modules',async()=>{
+      await Promise.all([
+        side(a,'Abrir mensagens diretas').click(),
+        activity(b,'/notificacoes').click(),
+        side(c,'Grupo coletivo persistente com membros, regras, mural, moderação e recursos de interação próprios.').click()
+      ]);
+      await Promise.all([a.locator('.chat-shell').waitFor(),b.getByRole('heading',{name:'Notificações',exact:true}).waitFor(),c.locator('app-community-discovery-page').waitFor()]);
+      // A direct profile link is explicitly counted as a document load, not SPA.
+      await b.goto(BASE+'/perfil/'+target);
+      await b.locator('#profile-heading').waitFor();
+      await Promise.all(tabs.map(requestList));
+      await capture('modules');
+    });
+    await takeStage('canonical burst with held old epoch',async begin=>{
+      await signInWithEmailAndPassword(auth,email(viewer),password);
+      mode='hold';
+      const sent=(await httpsCallable(functions,'sendFriendRequest')({targetUid:target})).data;
+      assert.equal(sent.status,'pending');
+      await until('held actual first epoch',()=>{if(holdError)throw holdError;return held;},Boolean,30_000);
+      assert.ok(held.attempt);
+      await card(b).waitFor({state:'visible',timeout:20_000});
+      concurrencySamples.convergences.push({event:'send',context:names[1],ms:elapsed(begin)});
+      assert.equal(await card(c).count(),0);
+      const cancelAt=performance.now();
+      assert.equal((await httpsCallable(functions,'cancelFriendRequest')({requestId:sent.requestId})).data.status,'canceled');
+      await card(b).waitFor({state:'hidden',timeout:20_000});
+      await a.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'});
+      await until('new epoch HTTP on held tab',()=>rows().some(row=>row.context===names[0]&&row.direction==='outbound'&&row.startMs>=cancelAt&&row.httpStatus===200),Boolean,20_000);
+      concurrencySamples.convergences.push({event:'cancel',context:names[0],ms:elapsed(cancelAt)},{event:'cancel',context:names[1],ms:elapsed(cancelAt)});
+      releaseHold();
+      await until('held epoch delivered',()=>{if(holdError)throw holdError;return held.attempt.httpStatus===200;},Boolean,20_000);
+      await sleep(500);
+      for(const page of tabs) assert.equal(await card(page).count(),0,'Stale or cross-identity request visible');
+      const starts=origins().filter(row=>row.atMs>=begin&&row.event==='start'&&row.reason==='canonical-event');
+      assert.equal(starts.filter(row=>row.context===names[0]&&row.direction==='outbound').length,2);
+      assert.equal(starts.filter(row=>row.context===names[1]&&row.direction==='outbound').length,2);
+      assert.equal(starts.filter(row=>row.direction==='inbound'||row.context===names[2]).length,0);
+      concurrencySamples.held={durationMs:elapsed(held.at),httpStatus:held.attempt.httpStatus,obsoleteVisible:false};
+    });
+    await takeStage('simultaneous reconnect',async()=>{
+      await Promise.all([a.context().setOffline(true),c.context().setOffline(true)]);
+      await sleep(1_000);
+      const begin=performance.now();
+      await Promise.all([a.context().setOffline(false),c.context().setOffline(false)]);
+      await waitBootstrap(begin);
+      concurrencySamples.convergences.push({event:'reconnect-all',context:'all',ms:elapsed(begin)});
+      await capture('reconnected');
+    });
+    // Verify the logical listener/clock balance per live document. Disposed
+    // documents can disappear without a JS teardown event: do not infer one.
+    for(const name of names) {
+      const doc=Math.max(...resources().filter(row=>row.context===name).map(row=>row.document));
+      assert.ok(Number.isFinite(doc),'Resource tracing unavailable: '+name);
+      const balance={listener:0,inbound:0,outbound:0},peak={listener:0,inbound:0,outbound:0};
+      for(const row of resources().filter(row=>row.context===name&&row.document===doc)) {
+        balance[row.resource]+=row.event==='open'?1:-1;
+        assert.ok(balance[row.resource]>=0,'Unmatched resource closure');
+        peak[row.resource]=Math.max(peak[row.resource],balance[row.resource]);
+      }
+      assert.ok(Object.values(peak).every(value=>value<=1),'Multiple logical clocks/listeners per live document');
+      concurrencySamples.resources.push({context:name,document:doc,balance,peak});
+    }
+    await takeStage('logout all contexts',async begin=>{
+      await logout(a);
+      // Shared local auth may already have signed B out; tab-local auth may not.
+      await until('second tab authenticated or logged out',()=>new URL(b.url()).pathname,path=>path==='/login'||path==='/friends/requests',20_000);
+      if(new URL(b.url()).pathname!=='/login'&&await b.locator('.account-menu__summary').isVisible()) {
+        await logout(b).catch(async error=>{if(new URL(b.url()).pathname!=='/login')throw error;});
+      }
+      await logout(c);
+      await Promise.all(tabs.map(page=>page.locator('#email').waitFor({state:'visible'})));
+      await until('consumer teardown each tab',()=>names.every(context=>['inbound','outbound'].every(direction=>
+        origins().some(row=>row.context===context&&row.direction===direction&&row.event==='unsubscribe'&&row.atMs>=begin))),Boolean,20_000);
+      const before=rows().length;
+      await sleep(185_000);
+      assert.equal(rows().length,before,'Orphan concurrent polling after logout');
+      concurrencySamples.anonymous={observedMs:185_000,attempts:0};
+    });
+    pass('concurrent tabs and modules, directional burst, stale epoch discard, reconnect and teardown');
+  } finally {
+    releaseHold();
+    await Promise.allSettled([a.context().close(),c.context().close()]);
+    const events=rows().flatMap(row=>{
+      const terminal=row.responseMs??row.failureMs;
+      return [{at:row.startMs,delta:1},...(terminal===null?[]:[{at:row.startMs+terminal,delta:-1}])];
+    }).sort((a,b)=>a.at-b.at||b.delta-a.delta);
+    let active=0,peak=0;
+    for(const event of events){active+=event.delta;peak=Math.max(peak,active);}
+    concurrencySamples.transport={peakObservedOpenAttempts:peak,unsettled:rows().filter(row=>row.httpStatus===null&&!row.transportFailure).length,
+      httpLatency:sampleSummary(rows().filter(row=>row.responseMs!==null).map(row=>row.responseMs)),
+      convergence:sampleSummary(concurrencySamples.convergences.map(row=>row.ms))};
+  }
+}
+
 try {
   for (const user of [aUid,bUid,cUid]) {
     await adminAuth.createUser({uid:user,email:email(user),password,emailVerified:true});
@@ -1161,6 +1349,7 @@ try {
   await certifySpaLifecycle();
   await certifyResilience();
   await certifyAdaptivePolling();
+  await certifyConcurrency();
   assert.equal(browserErrors.filter(e=>e.type==='pageerror').length,0,'Unhandled browser exceptions including friendship');
   for(const endpoint of ['getPendingFriendRequests','listDirectChatCandidates']) {
     const rows=[...callableCounts.values()].filter(row=>row.endpoint===endpoint);
@@ -1169,8 +1358,9 @@ try {
   assert.ok(pendingOrigins.some(row=>row.event==='start'&&row.reason==='session'),'Session origin tracing unavailable');
   assert.ok(pendingOrigins.some(row=>row.event==='start'&&row.reason==='canonical-event'),'Canonical origin tracing unavailable');
   await Promise.allSettled([...accountingTasks]);
-  const fullAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==resilienceContext&&row.context!==adaptiveContext));
+  const fullAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==resilienceContext&&row.context!==adaptiveContext&&!concurrencyContexts.has(row.context)));
   const adaptiveAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context===adaptiveContext));
+  const concurrencyAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>concurrencyContexts.has(row.context)));
   const resilienceAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context===resilienceContext));
   console.log('Resilience evidence '+JSON.stringify({attempts:resilienceAttempts,samples:resilienceSamples}));
   const complementaryAttempts=summarizePendingAttempts(pendingAttempts.filter(isComplementary));
@@ -1180,7 +1370,7 @@ try {
   console.log('Friendship reactive measurements '+JSON.stringify({originalWorkload,originalAttempts,complementaryAttempts,fullAttempts,samples:friendshipSamples,
     online:sampleSummary(friendshipSamples.filter(row=>!row.reconnect).flatMap(row=>[row.senderMs,row.receiverMs])),
     reconnect:sampleSummary(friendshipSamples.filter(row=>row.reconnect).map(row=>row.receiverMs))}));
-  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,originalAttempts,complementaryAttempts,spaAttempts,spaSamples,fullAttempts,resilienceAttempts,resilienceSamples,adaptiveAttempts,adaptiveSamples,baselineComparison:baselineComparison(),
+  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,originalAttempts,complementaryAttempts,spaAttempts,spaSamples,fullAttempts,resilienceAttempts,resilienceSamples,adaptiveAttempts,adaptiveSamples,concurrencyAttempts,concurrencySamples,baselineComparison:baselineComparison(),
     performanceSummary:{budgetMs:PHASE_BUDGET_MS,sendReceive:sampleSummary(performanceSamples.roundTrips.map(row=>row.ms)),
       conversationSwitch:sampleSummary(performanceSamples.switches.map(row=>row.ms))}},null,2));
 } catch(error) {
@@ -1191,15 +1381,18 @@ try {
   await Promise.allSettled([...accountingTasks]);
   writeFileSync(resolve(out,'resilience-samples.json'),JSON.stringify(resilienceSamples,null,2));
   writeFileSync(resolve(out,'adaptive-polling-samples.json'),JSON.stringify(adaptiveSamples,null,2));
+  writeFileSync(resolve(out,'concurrency-samples.json'),JSON.stringify(concurrencySamples,null,2));
+  writeFileSync(resolve(out,'pending-resource-trace.json'),JSON.stringify(pendingResources,null,2));
   writeFileSync(resolve(out,'pending-read-trace.json'),JSON.stringify(pendingReadTrace,null,2));
   writeFileSync(resolve(out,'pending-read-origins.json'),JSON.stringify(pendingOrigins,null,2));
   writeFileSync(resolve(out,'pending-read-attempts.json'),JSON.stringify(pendingAttempts,null,2));
-  const finalAccounting={original:summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context))),complementary:summarizePendingAttempts(pendingAttempts.filter(isComplementary)),spa:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===spaContext)),resilience:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===resilienceContext)),adaptive:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===adaptiveContext)),legacyTotal:summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==resilienceContext&&row.context!==adaptiveContext)),previousFour:summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==adaptiveContext)),all:summarizePendingAttempts(pendingAttempts)};
+  const finalAccounting={original:summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context))),complementary:summarizePendingAttempts(pendingAttempts.filter(isComplementary)),spa:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===spaContext)),resilience:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===resilienceContext)),adaptive:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===adaptiveContext)),legacyTotal:summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==resilienceContext&&row.context!==adaptiveContext&&!concurrencyContexts.has(row.context))),previousFour:summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==adaptiveContext&&!concurrencyContexts.has(row.context))),previousFive:summarizePendingAttempts(pendingAttempts.filter(row=>!concurrencyContexts.has(row.context))),concurrency:summarizePendingAttempts(pendingAttempts.filter(row=>concurrencyContexts.has(row.context))),all:summarizePendingAttempts(pendingAttempts)};
   writeFileSync(resolve(out,'pending-read-accounting.json'),JSON.stringify(finalAccounting,null,2));
   console.log('Pending friendship final accounting '+JSON.stringify(finalAccounting));
   console.log('SPA lifecycle stage evidence '+JSON.stringify(spaSamples));
   console.log('Resilience stage evidence '+JSON.stringify(resilienceSamples));
   console.log('Adaptive polling stage evidence '+JSON.stringify(adaptiveSamples));
+  console.log('Concurrency stage evidence '+JSON.stringify(concurrencySamples));
   console.log('Pending friendship origins '+JSON.stringify(pendingOrigins.filter(row=>row.event==='start').reduce((counts,row)=>{ const key=row.context+':'+row.direction+':'+row.reason; counts[key]=(counts[key]??0)+1; return counts; },{})));
   writeFileSync(resolve(out,'spa-lifecycle-samples.json'),JSON.stringify(spaSamples,null,2));
   writeFileSync(resolve(out,'friendship-reactive-samples.json'),JSON.stringify(friendshipSamples,null,2));

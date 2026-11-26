@@ -408,16 +408,70 @@ describe('RequestsRepo', () => {
       expect(callable).toHaveBeenCalledTimes(8);
       show('visible');
       await vi.advanceTimersByTimeAsync(5_000);
-      expect(callable).toHaveBeenCalledTimes(10);
+      expect(callable).toHaveBeenCalledTimes(8); // recent healthy reconnection already reconciled
       revision$.next(revision(0, 1));
       await vi.advanceTimersByTimeAsync(0);
-      expect([count('inbound'), count('outbound')]).toEqual([5, 6]);
+      expect([count('inbound'), count('outbound')]).toEqual([4, 5]);
       expect(onSnapshot).toHaveBeenCalledTimes(1);
       subs.forEach(sub => sub.unsubscribe());
       expect(revision$.observers).toHaveLength(0);
       expect(online$.observers).toHaveLength(0);
       await vi.advanceTimersByTimeAsync(181_000);
-      expect(callable).toHaveBeenCalledTimes(11);
+      expect(callable).toHaveBeenCalledTimes(9);
+    } finally {
+      subs.forEach(sub => sub.unsubscribe());
+      vi.useRealTimers();
+    }
+  });
+
+  it('coalesce retornos recentes, mantém reconexão e invalida gerações concorrentes sem replay', async () => {
+    vi.useFakeTimers();
+    const subs: { unsubscribe(): void }[] = [];
+    const show = (state: 'visible' | 'hidden') => {
+      visibility = state;
+      visibilityEvents.dispatchEvent(new Event('visibilitychange'));
+    };
+    try {
+      let resolveOld!: (value: unknown) => void;
+      callable.mockResolvedValue({ data: { items: [{ id: 'fresh' }] } });
+      const inbound = vi.fn(), outbound = vi.fn();
+      for (let i = 0; i < 6; i++) {
+        subs.push(repo.watchInboundRequests('bob', 'other').subscribe(inbound));
+        subs.push(repo.watchOutboundRequests('bob', 'profile').subscribe(outbound));
+      }
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callable).toHaveBeenCalledTimes(2);
+      expect(onSnapshot).toHaveBeenCalledTimes(1);
+      for (let i = 0; i < 4; i++) {
+        show('hidden');
+        await vi.advanceTimersByTimeAsync(2_000);
+        show('visible');
+        await vi.advanceTimersByTimeAsync(2_000);
+      }
+      expect(callable).toHaveBeenCalledTimes(2);
+      online$.next(false);
+      await vi.advanceTimersByTimeAsync(1_000);
+      online$.next(true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callable).toHaveBeenCalledTimes(4);
+      // Burst of two confirmed epochs while first callable is held.
+      callable.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }));
+      revision$.next(revision(0, 1));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callable).toHaveBeenCalledTimes(5);
+      revision$.next(revision(0, 2));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callable).toHaveBeenCalledTimes(6);
+      resolveOld({ data: { items: [{ id: 'obsolete' }] } });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(outbound.mock.calls.some(([items]) => items.some((item: { id: string }) => item.id === 'obsolete'))).toBe(false);
+      expect(inbound).toHaveBeenCalledTimes(12);
+      // All consumers closed; no clock or canonical listener survives.
+      subs.forEach(sub => sub.unsubscribe());
+      expect(revision$.observers).toHaveLength(0);
+      expect(online$.observers).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(181_000);
+      expect(callable).toHaveBeenCalledTimes(6);
     } finally {
       subs.forEach(sub => sub.unsubscribe());
       vi.useRealTimers();

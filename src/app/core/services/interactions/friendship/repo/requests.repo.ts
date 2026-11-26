@@ -57,8 +57,10 @@ const DEGRADED_POLL_MS = 60_000;
 const VISIBLE_POLL_MS = 120_000;
 const HIDDEN_POLL_MS = 180_000;
 const WAKE_COALESCE_MS = 5_000;
+// Only a successful read in this same live epoch can suppress a foreground wake.
+const RECENT_CONFIRMED_READ_MS = 60_000;
 interface RevisionObservation { readonly revisions: Revisions | null; readonly confirmed: boolean }
-interface PollingPolicy { readonly online: boolean; readonly visible: boolean; readonly interval: number }
+interface PollingPolicy { readonly online: boolean; readonly visible: boolean; readonly healthy: boolean; readonly interval: number }
 interface RevisionEpoch { readonly value: number | null; readonly key: number }
 interface RevisionScope {
   readonly user: User;
@@ -133,6 +135,10 @@ export class RequestsRepo extends FirestoreRepoBase {
     this.privacyDebug?.log('friends', 'pending-read ' + event + ' ' + direction + ' ' + reason);
   }
 
+  private traceResource(resource: 'listener' | RequestDirection, event: 'open' | 'close'): void {
+    this.privacyDebug?.log('friends', 'pending-resource ' + resource + ' ' + event);
+  }
+
   private observeRevisions$(uid: string): Observable<RevisionObservation> {
     const readRevision = (value: unknown): number | null =>
       value === undefined ? 0 : typeof value === 'number' &&
@@ -140,7 +146,7 @@ export class RequestsRepo extends FirestoreRepoBase {
     return new Observable<RevisionObservation>(sink => {
       let unconfirmed = false;
       let confirmedOnce = false;
-      return this.inCtxSync(() =>
+      const unsubscribe = this.inCtxSync(() =>
       onSnapshot(doc(this.db, 'users', uid), { includeMetadataChanges: true }, snapshot => {
         // Ignore cache/pending writes; neither may invalidate from a forged
         // local value. On reconnect the confirmed snapshot is authoritative
@@ -163,6 +169,11 @@ export class RequestsRepo extends FirestoreRepoBase {
         } : UNKNOWN_REVISIONS });
       }, error => sink.error(error))
       );
+      this.traceResource('listener', 'open');
+      return () => {
+        unsubscribe();
+        this.traceResource('listener', 'close');
+      };
     }).pipe(
       timeout({ first: 5_000 }),
       catchError(error => {
@@ -209,10 +220,10 @@ export class RequestsRepo extends FirestoreRepoBase {
       : of(true));
     return combineLatest([healthy$, online$, visible$]).pipe(
       map(([healthy, online, visible]) => ({
-        online, visible,
+        online, visible, healthy,
         interval: !healthy ? DEGRADED_POLL_MS : visible ? VISIBLE_POLL_MS : HIDDEN_POLL_MS,
       })),
-      distinctUntilChanged((a, b) => a.online === b.online && a.visible === b.visible && a.interval === b.interval)
+      distinctUntilChanged((a, b) => a.online === b.online && a.visible === b.visible && a.healthy === b.healthy && a.interval === b.interval)
     );
   }
 
@@ -318,20 +329,35 @@ export class RequestsRepo extends FirestoreRepoBase {
             previousEpoch = epoch;
             pending = true; // scheduled or actively reading, not a response cache
             let lastStarted: number | null = null;
+            let lastSucceeded: number | null = null;
             let previousPolicy: PollingPolicy | undefined;
             let wakeDeadline: number | null = null;
             return this.pollingPolicy$(user, version, direction).pipe(
               switchMap(policy => {
                 const now = Date.now();
-                if (previousPolicy && policy.online &&
-                    (!previousPolicy.online || (!previousPolicy.visible && policy.visible))) {
-                  wakeDeadline = Math.max(now, (lastStarted ?? now) + WAKE_COALESCE_MS);
+                if (previousPolicy && policy.online) {
+                  const reconnect = !previousPolicy.online;
+                  const foreground = !previousPolicy.visible && policy.visible;
+                  const recentlyConfirmed = previousPolicy.healthy && policy.healthy &&
+                    lastSucceeded !== null && now - lastSucceeded < RECENT_CONFIRMED_READ_MS;
+                  // Never suppress reconnection, canonical changes, degraded health,
+                  // bootstrap or explicit reads. A recent result is timing metadata
+                  // only: no response replay, no permission decision, no cross-tab cache.
+                  if (reconnect || (foreground && !recentlyConfirmed)) {
+                    const nextWake = Math.max(now, (lastStarted ?? now) + WAKE_COALESCE_MS);
+                    wakeDeadline = Math.min(wakeDeadline ?? Infinity, nextWake);
+                  }
                 }
                 previousPolicy = policy;
                 if (!policy.online) return EMPTY;
                 const deadline = lastStarted === null ? now :
                   Math.min(lastStarted + policy.interval, wakeDeadline ?? Infinity);
-                return timer(Math.max(0, deadline - now), policy.interval);
+                return defer(() => {
+                  this.traceResource(direction, 'open');
+                  return timer(Math.max(0, deadline - now), policy.interval).pipe(
+                    finalize(() => this.traceResource(direction, 'close'))
+                  );
+                });
               }),
               // Policy changes replace only the clock, not the in-flight callable.
               exhaustMap(() => {
@@ -342,7 +368,7 @@ export class RequestsRepo extends FirestoreRepoBase {
                 pending = true;
                 return this.loadPendingRequests$(uid, direction, epoch.key, readReason).pipe(
                   // Clear before forwarding; a late consumer must get a fresh read.
-                  tap({ next: () => { pending = false; } }),
+                  tap({ next: () => { lastSucceeded = Date.now(); pending = false; } }),
                   finalize(() => { pending = false; })
                 );
               }),
