@@ -17,9 +17,14 @@ function keyedAccess(
 describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
   it('revoga histórico e comandos no bloqueio e só reabre após novo snapshot autorizado', () => {
     const uid$ = new BehaviorSubject<string | null>('user-a');
-    const chats$ = new BehaviorSubject<any[]>([
-      { id: 'chat-1', participants: ['user-a', 'peer-b'], isRoom: false },
+    const page$ = new BehaviorSubject<any[]>([
+      { id: 'other-chat', participants: ['user-a', 'peer-c'], isRoom: false },
     ]);
+    const history$ = new BehaviorSubject<any>(
+      { id: 'chat-1', participants: ['user-a', 'peer-b'], isRoom: false }
+    );
+    const observeDirectChatForOwner$ = vi.fn((owner: string, id: string) =>
+      owner === 'user-a' && id === 'chat-1' ? history$.asObservable() : of(null));
     // Exercita a porta real de sessão/elegibilidade. Apenas a observação
     // Firestore é simulada, sem DI ou credenciais externas neste teste.
     const availability$ = new BehaviorSubject(false);
@@ -33,7 +38,10 @@ describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
       }
     );
     const chatFacade = new DirectChatFacade(
-      { getMyDirectChatScope$: () => chats$.pipe(map(chats => ({ ownerUid: 'user-a', chats }))) } as any,
+      {
+        getMyDirectChatScope$: () => page$.pipe(map(chats => ({ ownerUid: 'user-a', chats }))),
+        observeDirectChatForOwner$,
+      } as any,
       { uid$: uid$.asObservable() } as any,
       { getUsersPublicMap$: () => of({}) } as any,
       { report: vi.fn() } as any,
@@ -58,13 +66,19 @@ describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
     const stateSub = threadFacade.state$.subscribe(state => states.push(state));
     const canSendSub = threadFacade.canSend$.subscribe(allowed => canSend.push(allowed));
 
+    const listSub = chatFacade.chats$.subscribe();
     chatFacade.selectChat('chat-1');
+    expect(observeDirectChatForOwner$).toHaveBeenCalledExactlyOnceWith('user-a', 'chat-1');
     expect(states.at(-1)?.messages).toEqual([]);
     expect(canSend.at(-1)).toBe(false);
     expect(observeMessages$).toHaveBeenCalledTimes(1);
     expect(observeAccess).not.toHaveBeenCalled();
     messages$.next([{ id: 'read-only-history' }]);
     expect(states.at(-1)?.messages).toEqual([{ id: 'read-only-history' }]);
+    // A visible page change must not invalidate an independently authorized history.
+    page$.next([]);
+    expect(states.at(-1)?.messages).toEqual([{ id: 'read-only-history' }]);
+    expect(observeMessages$).toHaveBeenCalledTimes(1);
     threadFacade.sendMessage$('no-connection').subscribe();
     expect(sendMessage$).not.toHaveBeenCalled();
 
@@ -99,7 +113,7 @@ describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
     expect(observeMessages$).toHaveBeenCalledTimes(1);
     expect(canSend.at(-1)).toBe(false);
     // Bloqueio revoga a descoberta canônica e cancela o listener.
-    chats$.next([]);
+    history$.next(null);
     expect(canSend.at(-1)).toBe(false);
     expect(states.at(-1)).toMatchObject({ chatId: null, messages: [] });
     expect(messages$.observers.length).toBe(0);
@@ -115,7 +129,7 @@ describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
     expect(canSend.at(-1)).toBe(false);
     availability$.next(true);
     expect(states.at(-1)).toMatchObject({ chatId: null, messages: [] });
-    chats$.next([{ id: 'chat-1', participants: ['user-a', 'peer-b'], isRoom: false }]);
+    history$.next({ id: 'chat-1', participants: ['user-a', 'peer-b'], isRoom: false });
     expect(states.at(-1)).toMatchObject({ chatId: 'chat-1', messages: [] });
     expect(observeMessages$).toHaveBeenCalledTimes(2);
     expect(canSend.at(-1)).toBe(true);
@@ -131,6 +145,7 @@ describe('DirectChatFacade → DirectThreadFacade access lifecycle', () => {
     expect(observeMessages$).toHaveBeenCalledTimes(2);
     stateSub.unsubscribe();
     canSendSub.unsubscribe();
+    listSub.unsubscribe();
   });
 });
 
