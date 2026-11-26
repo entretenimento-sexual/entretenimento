@@ -9,6 +9,9 @@ import { createChatDiscoveryScope$, type ChatDiscoveryScope } from './chat-disco
 import { revalidateDiscoveryOnRevision$ } from './chat-discovery-invalidation';
 import { createSharedChatRevision$, type SharedChatRevision } from './chat-shared-revision';
 import { createSharedChatSnapshots } from './chat-shared-snapshots';
+import { createAuthorizedSharedChatMessages } from './chat-shared-message-window';
+import { ChatMessagesRepository } from './chat-messages.repository';
+import type { Message } from '@core/interfaces/interfaces-chat/message.interface';
 import { observeDirectChatPages$, type DirectChatPageResponse, type DirectChatPageState } from './chat-discovery-pages';
 import { observeSharedDirectChatInbox$, revokedDirectChatInbox, type DirectChatInboxScope } from './chat-inbox-projection';
 import { recoverDirectChatListener$ } from 'src/app/messaging/direct-chat/services/direct-chat-listener-recovery';
@@ -30,6 +33,7 @@ export class ChatRepository {
   private readonly ctx = inject(FirestoreContextService);
   private readonly access = inject(AccessControlService);
   private readonly applicationError = inject(ApplicationErrorService);
+  private readonly messagesRepo = inject(ChatMessagesRepository);
 
   private readonly sharedRevision$ = createSharedChatRevision$(
     this.access.authUid$,
@@ -39,6 +43,12 @@ export class ChatRepository {
 
   private readonly sharedSnapshots = createSharedChatSnapshots<IChat>(
     this.sharedRevision$, id => this.observeChat$(id)
+  );
+
+  private readonly sharedMessageWindow = createAuthorizedSharedChatMessages(
+    this.sharedRevision$,
+    id => this.authorizeDirectChatCandidate$(id),
+    id => this.messagesRepo.watchMessages$(id, 60)
   );
 
   readonly discoveryScope$ = createChatDiscoveryScope$(
@@ -168,6 +178,21 @@ export class ChatRepository {
     );
   }
 
+  // Each invocation authorizes the individual candidate independently.
+  // Only the confirmed-generation message transport may be shared.
+  watchDirectMessagesForOwner$(uid: string, chatId: string): Observable<Message[]> {
+    return this.sharedMessageWindow(uid, chatId);
+  }
+
+  private authorizeDirectChatCandidate$(id: string): Observable<boolean> {
+    return this.ctx.deferPromise$(() =>
+      httpsCallable<{ chatId: string }, { chatIds: string[] }>(
+        this.functions, 'listDirectChatCandidates'
+      )({ chatId: id })
+    ).pipe(map(({ data }) => Array.isArray(data?.chatIds) &&
+      data.chatIds.length === 1 && data.chatIds[0] === id));
+  }
+
   // A selected history is not a member of a visible page. Revalidate the
   // canonical individual candidate on every owner revision, before Rules reads.
   watchDirectChatForOwner$(uid: string, chatId: string): Observable<IChat | null> {
@@ -180,14 +205,9 @@ export class ChatRepository {
       distinctUntilChanged(),
       switchMap((allowed): Observable<IChat | null> => allowed ? recoverDirectChatListener$<IChat | null>(
         () => revalidateDiscoveryOnRevision$(this.observeRevisionGeneration$(owner), null as IChat | null, generation =>
-          recoverDirectChatListener$<IChat | null>(() => this.ctx.deferPromise$(() =>
-            httpsCallable<{ chatId: string }, { chatIds: string[] }>(
-              this.functions, 'listDirectChatCandidates'
-            )({ chatId: id })
-          ).pipe(
-            switchMap(({data}) => Array.isArray(data.chatIds) &&
-              data.chatIds.length === 1 && data.chatIds[0] === id
-                ? this.sharedSnapshots(generation, id) : of(null))
+          recoverDirectChatListener$<IChat | null>(() => this.authorizeDirectChatCandidate$(id).pipe(
+            switchMap(allowed => allowed
+              ? this.sharedSnapshots(generation, id) : of(null))
           ), error => {
             this.failedScope(owner, error);
             return null;

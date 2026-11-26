@@ -30,6 +30,7 @@ function createHarness() {
     updateChat$: vi.fn(),
     deleteChat$: vi.fn(),
     watchChats$: vi.fn(),
+    watchDirectMessagesForOwner$: vi.fn(),
   };
   const msgsRepo = {
     addMessage$: vi.fn(),
@@ -39,6 +40,10 @@ function createHarness() {
     watchMessages$: vi.fn(),
     getMessagesPageOnce$: vi.fn(),
   };
+
+  chatsRepo.watchDirectMessagesForOwner$.mockImplementation(
+    (_owner: string, chatId: string) => msgsRepo.watchMessages$(chatId, 60)
+  );
 
   const applicationError = {
     report: vi.fn(),
@@ -69,6 +74,18 @@ describe('ChatService canonical errors', () => {
     expect(msgsRepo.watchMessages$).toHaveBeenCalledTimes(1);
     subscription.unsubscribe();
     expect(snapshots.observers).toHaveLength(0);
+  });
+
+  it('encaminha a identidade da sessão ao transporte autorizado de mensagens', () => {
+    const { service, chatsRepo, msgsRepo, uid$ } = createHarness();
+    const source$ = new Subject<any[]>();
+    msgsRepo.watchMessages$.mockReturnValue(source$);
+    const sub = service.monitorChat(' chat-1 ').subscribe();
+    expect(chatsRepo.watchDirectMessagesForOwner$).toHaveBeenCalledWith('user-1', 'chat-1');
+    uid$.next('user-2');
+    expect(chatsRepo.watchDirectMessagesForOwner$).toHaveBeenCalledTimes(1);
+    expect(source$.observers).toHaveLength(0);
+    sub.unsubscribe();
   });
 
   it('encaminha cursor composto e mantém carregamento inicial compatível', async () => {

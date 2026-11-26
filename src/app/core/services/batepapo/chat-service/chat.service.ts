@@ -254,8 +254,9 @@ export class ChatService implements OnDestroy {
       distinctUntilChanged(),
       switchMap(listeningUid => {
         if (!listeningUid) return of([] as Message[]);
-        // Janela recente limitada; histórico anterior é recuperado por cursor em páginas de 20.
-        return this.msgsRepo.watchMessages$(cid, 60);
+        // Cada consumidor confirma seu acesso ao candidato. Só o transporte
+        // da janela recente é compartilhado na geração autorizada.
+        return this.chatsRepo.watchDirectMessagesForOwner$(listeningUid, cid);
       }),
       catchError(err => this.reportSilent('monitorChat', err))
     );
