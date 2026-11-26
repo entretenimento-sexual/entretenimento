@@ -93,6 +93,7 @@ export class RequestsRepo extends FirestoreRepoBase {
   private readonly watches = new Map<string, PendingWatch>();
   private readonly revisions$: Observable<RevisionScope | null>;
   private nextEpoch = 0;
+  private nextAdmissionOperation = 0;
   constructor(
     db: Firestore,
     env: EnvironmentInjector,
@@ -136,6 +137,12 @@ export class RequestsRepo extends FirestoreRepoBase {
   private trace(event: 'start' | 'subscribe' | 'join' | 'signal' | 'unsubscribe', direction: RequestDirection, reason: ReadReason): void {
     // Fixed allowlisted labels only. Never log UID, revision, request data or token.
     this.privacyDebug?.log('friends', 'pending-read ' + event + ' ' + direction + ' ' + reason);
+  }
+
+  private traceAdmission(operation: number, direction: RequestDirection,
+    event: 'queued' | 'waiting' | 'admitted' | 'expired' | 'failed' | 'cancelled' | 'transport-started'): void {
+    // Document-local sequence only; no UID, revision, request ID or payload.
+    this.privacyDebug?.log('friends', 'pending-admission ' + operation + ' ' + direction + ' ' + event);
   }
 
   private traceResource(resource: 'listener' | RequestDirection, event: 'open' | 'close'): void {
@@ -260,13 +267,32 @@ export class RequestsRepo extends FirestoreRepoBase {
       const version = this.session.terminationVersionSnapshot;
       const isCurrent = () => this.session.currentAuthUser === user &&
         this.session.terminationVersionSnapshot === version && !this.session.isTerminatingSnapshot;
-      return this.admission.wait$(uid, isCurrent, () => this.trace('signal', direction, 'quota-wait')).pipe(
+      const operation = ++this.nextAdmissionOperation;
+      let terminal = false;
+      this.traceAdmission(operation, direction, 'queued');
+      return defer(() => this.admission.wait$(uid, isCurrent, () => {
+        this.trace('signal', direction, 'quota-wait');
+        this.traceAdmission(operation, direction, 'waiting');
+      })).pipe(
+        tap({
+          next: () => this.traceAdmission(operation, direction, 'admitted'),
+          error: error => {
+            terminal = true;
+            this.traceAdmission(operation, direction,
+              error?.code === 'functions/resource-exhausted' ? 'expired' : 'failed');
+          }
+        }),
         switchMap(() => defer(() => {
           markStarted();
+          terminal = true;
+          this.traceAdmission(operation, direction, 'transport-started');
           this.trace('start', direction, reason);
           return from(this.getPendingRequestsCallable()({ direction, limit: 60 }));
         })),
-        map(response => response.data.items ?? [])
+        map(response => response.data.items ?? []),
+        finalize(() => {
+          if (!terminal) this.traceAdmission(operation, direction, 'cancelled');
+        })
       );
     }, uid, true);
   }

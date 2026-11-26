@@ -60,6 +60,9 @@ const adaptiveSamples = {};
 const concurrencyContexts = new Set(['concurrency-tab-a','concurrency-tab-b','concurrency-peer']);
 const concurrencySamples = {stages:[], resources:[], convergences:[]};
 const pendingResources = [];
+const pendingAdmission = [];
+const admissionCancellationContext = 'admission-cancellation';
+const admissionCancellationSamples = {};
 // Independent transport barrier for the complementary offline proof.
 const offlineContexts = new WeakSet();
 const isComplementary = row => !originalContexts.has(row.context) && row.context!==spaContext && row.context!==resilienceContext && row.context!==adaptiveContext && !concurrencyContexts.has(row.context);
@@ -217,6 +220,8 @@ async function newPage(name, viewport={width:1440,height:1000}, existingContext=
   page.on('console', message => {
     const match=/^\[Friends\] pending-read (start|subscribe|join|signal|unsubscribe) (inbound|outbound) (session|profile|post-mutation|explicit|other|session-retry|subscriber-join|canonical-event|listener-recovery|poll|quota-wait)\s*$/.exec(message.text());
     if(match) pendingOrigins.push({context:name,event:match[1],direction:match[2],reason:match[3],route:routeCategory(),document:documentNumber,phase:currentPhase,atMs:performance.now()});
+    const admission=/^\[Friends\] pending-admission (\d+) (inbound|outbound) (queued|waiting|admitted|expired|failed|cancelled|transport-started)\s*$/.exec(message.text());
+    if(admission) pendingAdmission.push({context:name,document:documentNumber,operation:Number(admission[1]),direction:admission[2],event:admission[3],phase:currentPhase,atMs:performance.now()});
     const resource=/^\[Friends\] pending-resource (listener|inbound|outbound) (open|close)\s*$/.exec(message.text());
     if(resource) pendingResources.push({context:name,document:documentNumber,resource:resource[1],event:resource[2],phase:currentPhase,atMs:performance.now()});
     if (message.type()==='error' || message.type()==='warning') {
@@ -1392,6 +1397,42 @@ try {
   await certifyResilience();
   await certifyAdaptivePolling();
   await certifyConcurrency();
+  // Separate controlled precondition: never add pacing to the six preserved loads.
+  // Use a disposable browser context and the real application ledger, not mocked HTTP.
+  currentPhase='admission cancellation';
+  {
+    const page=await newPage(admissionCancellationContext);
+    const owner=uid('s');
+    const rows=()=>pendingAttempts.filter(row=>row.context===admissionCancellationContext);
+    const events=()=>pendingAdmission.filter(row=>row.context===admissionCancellationContext);
+    try {
+      await page.goto(BASE+'/login');
+      const expiresAt=await page.evaluate(async user=>{
+        const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(user));
+        const key=Array.from(new Uint8Array(bytes),value=>value.toString(16).padStart(2,'0')).join('');
+        const now=Date.now();
+        localStorage.setItem('friendship.pending-read-admission.v1',JSON.stringify({[key]:Array(10).fill(now)}));
+        return now+65_000;
+      },owner);
+      await loginFromCurrentPage(page,owner);
+      await until('actual waiting admission before logout',()=>events().some(row=>row.event==='waiting'),Boolean,20_000);
+      const waiting=events().filter(row=>row.event==='waiting');
+      const key=row=>row.document+':'+row.operation+':'+row.direction;
+      const waitingKeys=[...new Set(waiting.map(key))];
+      assert.ok(waitingKeys.length>0);
+      assert.equal(rows().length,0,'Unexpected transport while quota is saturated');
+      await logout(page);
+      assert.ok(Date.now()<expiresAt,'Logout did not occur during the admission window');
+      await until('each observed waiting operation cancelled',()=>waitingKeys.every(id=>events().some(row=>key(row)===id&&row.event==='cancelled')),Boolean,20_000);
+      assert.ok(waitingKeys.every(id=>!events().some(row=>key(row)===id&&row.event==='transport-started')));
+      await sleep(Math.max(0,expiresAt-Date.now())+5_000);
+      assert.equal(rows().length,0,'Cancelled admission started transport after quota renewed');
+      Object.assign(admissionCancellationSamples,{waitingOperations:waitingKeys.length,cancelledOperations:waitingKeys.length,transportAttempts:rows().length,observedPastRenewalMs:5_000,controlledLedger:true});
+      pass('logout cancels individually traced quota waits before transport and after renewal');
+    } finally {
+      await page.context().close();
+    }
+  }
   assert.equal(browserErrors.filter(e=>e.type==='pageerror').length,0,'Unhandled browser exceptions including friendship');
   for(const endpoint of ['getPendingFriendRequests','listDirectChatCandidates']) {
     const rows=[...callableCounts.values()].filter(row=>row.endpoint===endpoint);
@@ -1425,6 +1466,9 @@ try {
   writeFileSync(resolve(out,'adaptive-polling-samples.json'),JSON.stringify(adaptiveSamples,null,2));
   writeFileSync(resolve(out,'concurrency-samples.json'),JSON.stringify(concurrencySamples,null,2));
   writeFileSync(resolve(out,'pending-resource-trace.json'),JSON.stringify(pendingResources,null,2));
+  writeFileSync(resolve(out,'pending-admission-trace.json'),JSON.stringify(pendingAdmission,null,2));
+  writeFileSync(resolve(out,'admission-cancellation-samples.json'),JSON.stringify(admissionCancellationSamples,null,2));
+  console.log('Admission cancellation evidence '+JSON.stringify(admissionCancellationSamples));
   writeFileSync(resolve(out,'pending-read-trace.json'),JSON.stringify(pendingReadTrace,null,2));
   writeFileSync(resolve(out,'pending-read-origins.json'),JSON.stringify(pendingOrigins,null,2));
   writeFileSync(resolve(out,'pending-read-attempts.json'),JSON.stringify(pendingAttempts,null,2));
