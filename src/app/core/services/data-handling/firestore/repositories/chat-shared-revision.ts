@@ -21,7 +21,8 @@ export function createSharedChatRevision$(
       if (!ownerUid) return of(revoked);
       return defer(() => observe(ownerUid)).pipe(
         map(revision => ({ ownerUid, revision })),
-        startWith({ ownerUid, revision: null })
+        startWith({ ownerUid, revision: null }),
+        distinctUntilChanged((previous, current) => previous.revision === current.revision)
       );
     }),
     share({

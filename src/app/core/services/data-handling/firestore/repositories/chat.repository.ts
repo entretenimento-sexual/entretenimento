@@ -7,7 +7,8 @@ import { AccessControlService } from '@core/services/autentication/auth/access-c
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { createChatDiscoveryScope$, type ChatDiscoveryScope } from './chat-discovery-scope';
 import { revalidateDiscoveryOnRevision$ } from './chat-discovery-invalidation';
-import { createSharedChatRevision$ } from './chat-shared-revision';
+import { createSharedChatRevision$, type SharedChatRevision } from './chat-shared-revision';
+import { createSharedChatSnapshots } from './chat-shared-snapshots';
 import { observeDirectChatPages$, type DirectChatPageResponse, type DirectChatPageState } from './chat-discovery-pages';
 import { observeConfirmedDirectChatInbox$, revokedDirectChatInbox, type DirectChatInboxScope } from './chat-inbox-projection';
 import { recoverDirectChatListener$ } from 'src/app/messaging/direct-chat/services/direct-chat-listener-recovery';
@@ -36,6 +37,10 @@ export class ChatRepository {
     uid => this.observeRevisionDocument$(uid)
   );
 
+  private readonly sharedSnapshots = createSharedChatSnapshots<IChat>(
+    this.sharedRevision$, id => this.observeChat$(id)
+  );
+
   readonly discoveryScope$ = createChatDiscoveryScope$(
     this.access.authUid$,
     this.access.canRunChatRealtime$,
@@ -60,6 +65,13 @@ export class ChatRepository {
   private observeRevision$(uid: string): Observable<number | null> {
     return this.sharedRevision$.pipe(
       map(scope => scope.ownerUid === uid ? scope.revision : null),
+      distinctUntilChanged()
+    );
+  }
+
+  private observeRevisionGeneration$(uid: string): Observable<SharedChatRevision | null> {
+    return this.sharedRevision$.pipe(
+      map(scope => scope.ownerUid === uid && scope.revision !== null ? scope : null),
       distinctUntilChanged()
     );
   }
@@ -122,9 +134,9 @@ export class ChatRepository {
   }
 
   private observeTransport$(uid: string): Observable<ChatDiscoveryScope> {
-    const revision$ = this.observeRevision$(uid);
+    const revision$ = this.observeRevisionGeneration$(uid);
     const loading: ChatDiscoveryScope = { ownerUid: uid, status: 'loading', chats: [] };
-    return revalidateDiscoveryOnRevision$(revision$, loading, () =>
+    return revalidateDiscoveryOnRevision$(revision$, loading, generation =>
       this.ctx.deferPromise$(() =>
         httpsCallable<Record<string, never>, { chatIds: string[] }>(
           this.functions, 'listDirectChatCandidates'
@@ -137,7 +149,7 @@ export class ChatRepository {
           }
           const ids = [...new Set(data.chatIds)];
           if (!ids.length) return of({ ownerUid: uid, status: 'ready', chats: [] } as ChatDiscoveryScope);
-          return combineLatest(ids.map(id => this.observeChat$(id))).pipe(
+          return combineLatest(ids.map(id => this.sharedSnapshots(generation, id))).pipe(
             map(chats => ({ ownerUid: uid, status: 'ready' as const,
               chats: chats.filter((chat): chat is IChat => chat !== null) }))
           );
@@ -158,7 +170,7 @@ export class ChatRepository {
       map(([active, allowed]) => active === owner && allowed),
       distinctUntilChanged(),
       switchMap((allowed): Observable<IChat | null> => allowed ? recoverDirectChatListener$<IChat | null>(
-        () => revalidateDiscoveryOnRevision$(this.observeRevision$(owner), null as IChat | null, () =>
+        () => revalidateDiscoveryOnRevision$(this.observeRevisionGeneration$(owner), null as IChat | null, generation =>
           recoverDirectChatListener$<IChat | null>(() => this.ctx.deferPromise$(() =>
             httpsCallable<{ chatId: string }, { chatIds: string[] }>(
               this.functions, 'listDirectChatCandidates'
@@ -166,7 +178,7 @@ export class ChatRepository {
           ).pipe(
             switchMap(({data}) => Array.isArray(data.chatIds) &&
               data.chatIds.length === 1 && data.chatIds[0] === id
-                ? this.observeChat$(id) : of(null))
+                ? this.sharedSnapshots(generation, id) : of(null))
           ), error => {
             this.failedScope(owner, error);
             return null;
