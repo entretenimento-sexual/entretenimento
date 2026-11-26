@@ -29,7 +29,7 @@ const { chromium } = await import(pathToFileURL(resolve(process.env.CHAT_BROWSER
 const id = randomUUID().replaceAll('-', '').slice(0, 12);
 const password = 'Emulator-Only-123Aa!';
 const uid = key => 'chat-browser-' + key + '-' + id;
-const [aUid,bUid,cUid] = ['a','b','c'].map(uid);
+const [aUid,bUid,cUid,dUid,eUid] = ['a','b','c','d','e'].map(uid);
 const email = user => user + '@example.test';
 const admin = initializeAdminApp({ projectId: PROJECT, storageBucket: PROJECT + '.appspot.com' }, 'browser-admin');
 const db = getAdminFirestore(admin);
@@ -162,7 +162,7 @@ async function seedHistory(chatId, prefix, count, baseMs, sender, recipient) {
     const key = prefix+'-'+String(i).padStart(3,'0');
     const timestamp = new Date(baseMs+Math.floor(i/4)*1000);
     batch.create(ref.doc(key),{messageId:key,content:'Browser history '+id+' '+key,
-      senderId:sender,senderUid:sender,recipientUid:recipient,nickname:'Browser Pessoa C',
+      senderId:sender,senderUid:sender,recipientUid:recipient,nickname:'Browser Pessoa E',
       timestamp,createdAt:timestamp,status:'read',messageType:'text',clientRequestId:key});
     ids.push(key);
   }
@@ -392,102 +392,126 @@ try {
 
   // Keep all 4.3A measurements above unchanged. The following independent
   // workload intentionally exceeds the 60-document realtime window.
-  await a.setViewportSize({width:1440,height:1000});
-  const initialSecond = await db.collection('chats/'+secondChat+'/messages').get();
+  // Separate principals preserve the real per-user quotas. The preceding
+  // burst can exhaust chat discovery and pending-request read budgets.
+  // No ledger reset, quota increase, mocked authorization or retry bypass.
+  for (const [user,nickname] of [[dUid,'Browser Pessoa D'],[eUid,'Browser Pessoa E']]) {
+    await adminAuth.createUser({uid:user,email:email(user),password,emailVerified:true});
+    await until('history registration seed',()=>db.doc('users/'+user).get(),s=>s.exists);
+    const profile = {uid:user,nickname,nicknameNormalized:nickname.toLowerCase(),
+      gender:'mulher',identityCode:'mulher',identityCatalogVersion:1,orientation:'bissexual',
+      role:'free',municipio:'Rio de Janeiro',estado:'RJ',createdAt:new Date(),updatedAt:new Date()};
+    await db.doc('users/'+user).set({...profile,emailVerified:true,loginAllowed:true,accountLocked:false},{merge:true});
+    await db.doc('public_profiles/'+user).set(profile);
+  }
+  await seedPublicMediaCompliance(db,[dUid,eUid]);
+  await Promise.all([
+    db.doc('users/'+dUid+'/friends/'+eUid).set({accepted:true}),
+    db.doc('users/'+eUid+'/friends/'+dUid).set({accepted:true}),
+  ]);
+  await signInWithEmailAndPassword(auth,email(dUid),password);
+  const historyChat = (await httpsCallable(functions,'ensureDirectChat')({otherUserUid:eUid})).data.chatId;
+  assert.ok(historyChat && historyChat!==chatId && historyChat!==secondChat);
+  const historyMarker = 'Browser canonical history '+id;
+  await httpsCallable(functions,'sendDirectMessage')({chatId:historyChat,content:historyMarker,
+    clientRequestId:randomUUID()});
+  const d = await newPage('d-history');
+  await login(d,dUid);
+  const initialSecond = await db.collection('chats/'+historyChat+'/messages').get();
   assert.equal(initialSecond.size,1);
   const initialMessage = initialSecond.docs[0];
-  assert.equal(initialMessage.get('content'),secondMarker);
+  assert.equal(initialMessage.get('content'),historyMarker);
   const initialMs = initialMessage.get('timestamp').toMillis();
-  const seeded = await seedHistory(secondChat,'history',104,initialMs-120_000,cUid,aUid);
+  const seeded = await seedHistory(historyChat,'history',104,initialMs-120_000,eUid,dUid);
   const initialExpected = [...seeded,initialMessage.id];
-  assert.deepEqual(await canonicalIds(secondChat),initialExpected);
+  assert.deepEqual(await canonicalIds(historyChat),initialExpected);
   // Real connected-profile CTA (no direct navigation to Chat or mocked callable).
-  await a.goto(BASE+'/perfil/'+encodeURIComponent(cUid));
-  const profileChat = a.getByRole('button',{name:'Conversar com Browser Pessoa C',exact:true});
+  await d.goto(BASE+'/perfil/'+encodeURIComponent(eUid));
+  const profileChat = d.getByRole('button',{name:'Conversar com Browser Pessoa E',exact:true});
   await profileChat.waitFor({state:'visible'});
   const profileStart = performance.now();
   await profileChat.click();
-  await ready(a);
-  await expectThread(a,initialExpected.slice(-60),'initial bounded window');
+  await ready(d);
+  await expectThread(d,initialExpected.slice(-60),'initial bounded window');
   historySamples.profileEntryMs = elapsed(profileStart);
-  historySamples.initialCount = (await threadIds(a)).length;
+  historySamples.initialCount = (await threadIds(d)).length;
   withinBudget('profile entry',historySamples.profileEntryMs);
-  assert.equal(await message(a,offlineMessage).count(),0);
+  assert.equal(await message(d,offlineMessage).count(),0);
   pass('connected profile opens authorized chat and bounded 60-message window');
 
-  await composer(a).fill('Draft during history pagination');
+  await composer(d).fill('Draft during history pagination');
   for(const size of [80,100,105]) {
-    const ms = await loadHistoryPage(a,older(a),'older history '+size);
-    await expectThread(a,initialExpected.slice(-size),'ordered history '+size);
-    assert.equal(await composer(a).inputValue(),'Draft during history pagination');
+    const ms = await loadHistoryPage(d,older(d),'older history '+size);
+    await expectThread(d,initialExpected.slice(-size),'ordered history '+size);
+    assert.equal(await composer(d).inputValue(),'Draft during history pagination');
     historySamples.pagination.push({count:size,ms});
   }
-  await older(a).waitFor({state:'hidden'});
+  await older(d).waitFor({state:'hidden'});
   pass('105 messages through three cursor pages including equal timestamps and no duplicates');
 
   // New canonical message through real UI while the complete historical
   // pages remain mounted. This must not evict or reorder the loaded history.
   const liveMarker = 'Browser paginated live '+id;
   const liveStart = performance.now();
-  await composer(a).fill(liveMarker);
-  await composer(a).press('Enter');
-  await message(a,liveMarker).waitFor({state:'visible'});
-  const beforeOffline = await canonicalIds(secondChat);
+  await composer(d).fill(liveMarker);
+  await composer(d).press('Enter');
+  await message(d,liveMarker).waitFor({state:'visible'});
+  const beforeOffline = await canonicalIds(historyChat);
   assert.equal(beforeOffline.length,106);
   assert.deepEqual(beforeOffline.slice(0,-1),initialExpected);
-  await expectThread(a,beforeOffline,'live update with loaded history');
+  await expectThread(d,beforeOffline,'live update with loaded history');
   historySamples.liveArrivalMs = elapsed(liveStart);
   withinBudget('live update with history',historySamples.liveArrivalMs);
   pass('real-time send retains previously paginated history');
 
-  // Reenter the thread with a clean window; then exceed the window while A
+  // Reenter the thread with a clean window; then exceed the window while D
   // alone is offline. Fixture write is atomic and all rows are synthetic.
-  await openChat(a,secondChat);
-  await expectThread(a,beforeOffline.slice(-60),'pre-interruption bounded window');
-  const newestBefore = await db.doc('chats/'+secondChat+'/messages/'+beforeOffline.at(-1)).get();
+  await openChat(d,historyChat);
+  await expectThread(d,beforeOffline.slice(-60),'pre-interruption bounded window');
+  const newestBefore = await db.doc('chats/'+historyChat+'/messages/'+beforeOffline.at(-1)).get();
   const offlineBase = newestBefore.get('timestamp').toMillis()+1000;
   let missed;
-  await a.context().setOffline(true);
+  await d.context().setOffline(true);
   try {
-    missed = await seedHistory(secondChat,'offline',75,offlineBase,cUid,aUid);
+    missed = await seedHistory(historyChat,'offline',75,offlineBase,eUid,dUid);
     historySamples.offlineAdded = missed.length;
-    assert.equal((await threadIds(a)).some(key=>missed.includes(key)),false,
+    assert.equal((await threadIds(d)).some(key=>missed.includes(key)),false,
       'New remote fixture unexpectedly visible while offline');
   } finally {
-    await a.context().setOffline(false);
+    await d.context().setOffline(false);
   }
   const recoveryStart2 = performance.now();
-  await until('latest offline message restored',()=>threadIds(a),ids=>ids.includes(missed.at(-1)));
+  await until('latest offline message restored',()=>threadIds(d),ids=>ids.includes(missed.at(-1)));
   historySamples.offlineRecoveryMs = elapsed(recoveryStart2);
   withinBudget('bulk offline latest recovery',historySamples.offlineRecoveryMs);
   // A confirmed transport reset may intentionally clear the previous window.
   // Recover via the explicit gap action when present; otherwise the ordinary
   // historical cursor must expose the complete contiguous history.
   const completeHistory = [...beforeOffline,...missed];
-  assert.deepEqual(await canonicalIds(secondChat),completeHistory);
-  while(await gap(a).isVisible()) {
+  assert.deepEqual(await canonicalIds(historyChat),completeHistory);
+  while(await gap(d).isVisible()) {
     assert.ok(historySamples.gapPages<10,'Unbounded gap recovery');
-    await loadHistoryPage(a,gap(a),'gap recovery');
+    await loadHistoryPage(d,gap(d),'gap recovery');
     historySamples.gapPages++;
   }
-  while((await threadIds(a)).length<completeHistory.length) {
+  while((await threadIds(d)).length<completeHistory.length) {
     assert.ok(historySamples.recoveryPages<12,'Unbounded history recovery');
-    await loadHistoryPage(a,older(a),'post-reconnect older history');
+    await loadHistoryPage(d,older(d),'post-reconnect older history');
     historySamples.recoveryPages++;
   }
-  await expectThread(a,completeHistory,'complete 181-message history after reconnect');
-  await gap(a).waitFor({state:'hidden'});
-  historySamples.recoveredCount = (await threadIds(a)).length;
+  await expectThread(d,completeHistory,'complete 181-message history after reconnect');
+  await gap(d).waitFor({state:'hidden'});
+  historySamples.recoveredCount = (await threadIds(d)).length;
   pass('75 remote messages during offline interval and complete 181-message history after reconnect');
-  await screenshot(a,'a-history-recovered');
+  await screenshot(d,'d-history-recovered');
 
   // Revoke access after history is fully materialized; no historical rows
   // may survive in the mounted UI, while B retains its unrelated conversation.
   const revokeStart = performance.now();
-  await httpsCallable(functions,'blockUser')({targetUid:cUid});
+  await httpsCallable(functions,'blockUser')({targetUid:eUid});
   const privateIds = new Set(completeHistory);
-  await until('bulk history revoked',()=>threadIds(a),ids=>ids.every(key=>!privateIds.has(key)));
-  await a.locator('.conversation-card').filter({hasText:'Browser Pessoa C'}).waitFor({state:'hidden'});
+  await until('bulk history revoked',()=>threadIds(d),ids=>ids.every(key=>!privateIds.has(key)));
+  await d.locator('.conversation-card').filter({hasText:'Browser Pessoa E'}).waitFor({state:'hidden'});
   historySamples.revocationMs = elapsed(revokeStart);
   withinBudget('bulk history revocation',historySamples.revocationMs);
   await message(b,offlineMessage).waitFor({state:'visible'});

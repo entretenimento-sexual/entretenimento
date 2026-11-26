@@ -1,0 +1,7 @@
+# CHAT-R1.10.3.4.3B.1 — Isolamento dos workloads de certificação
+
+Commit 7e5ea551, Chromium 45816142043, job 139896262719, artifact 15115088396: onze cenários anteriores PASS; falha antes da paginação volumosa, locator Conversar com Browser Pessoa C expirou em 60 s. Screenshot mostra Verificar conexão. browser-diagnostics.json confirma HTTP 429 em ChatRepository.discoveryScope$ (Muitas solicitações de conversas) e VisitedProfileFriendshipFacade.watchOutboundRequests (Muitas consultas de solicitações). O backend preservou fail-closed.
+
+Correção da topologia de teste: conservar A/B/C e a sequência de medição 4.3A; executar o workload de 181 mensagens em novos usuários D/E e contexto independente, com amizade sintética, callable de criação/envio e ação real de perfil. B continua independente. Nenhuma limpeza de ledger, aumento de quota, alteração de política, mock de autorização ou relaxamento das asserções. A hipótese de exaustão por composição de workloads é sustentada pelos 429 e pelos limites por usuário; a nova CI precisa confirmar a correção. Não se afirma que a frequência de chamadas da aplicação foi otimizada; a pressão sobre as quotas permanece tema de auditoria separado.
+
+Métricas parciais efetivamente coletadas em 7e5ea551 (ms): envio P50/P95 236/289; alternância 114/151; reconexão 2833; recibos residuais 12. Histórico volumoso não executado. Baseline 4.3A intacta. Teste não executado localmente. Homologação 4.3B bloqueada até todos os workflows e agregado passarem.
