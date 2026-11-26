@@ -622,14 +622,37 @@ async function certifyResilience() {
     assert.equal(await card(oldUser).count(),0);
     resilienceSamples.transient={transportFailure:failed.attempt.transportFailure,recoveredMs:elapsed(failed.at)};
     currentPhase='resilience: final logout';
+    // The retry is a new subscription of the same operational session.
+    // Match its actual direction and reason, not the original bootstrap label.
+    const activeConsumers=()=>{
+      const balances={};
+      for(const row of origins()) {
+        if(row.event!=='subscribe'&&row.event!=='unsubscribe') continue;
+        const key=row.direction+':'+row.reason;
+        balances[key]=(balances[key]??0)+(row.event==='subscribe'?1:-1);
+        assert.ok(balances[key]>=0,'Unmatched consumer teardown: '+key);
+      }
+      return Object.fromEntries(Object.entries(balances).filter(([,count])=>count!==0));
+    };
+    const activeBefore=activeConsumers();
+    assert.deepEqual(activeBefore,{'inbound:session':1,'outbound:session-retry':1},
+      'Only the two expected new-session consumers may remain after recovery');
     begin=performance.now();
     await logout(page);
-    await until('new session disposed',()=>['inbound','outbound'].every(direction=>origins().some(row=>row.atMs>=begin&&row.event==='unsubscribe'&&row.reason==='session'&&row.direction===direction)),Boolean);
+    await until('new session disposed',()=>{
+      const closed=origins().filter(row=>row.atMs>=begin&&row.event==='unsubscribe');
+      return Object.keys(activeConsumers()).length===0 &&
+        Object.keys(activeBefore).every(key=>closed.filter(row=>row.direction+':'+row.reason===key).length===activeBefore[key]);
+    },Boolean);
+    resilienceSamples.teardown={activeBefore,activeAfter:activeConsumers(),events:origins()
+      .filter(row=>row.atMs>=begin&&row.event==='unsubscribe').map(({direction,reason})=>({direction,reason}))};
     const before=rows().length, start=performance.now();
     await sleep(65_000);
     assert.equal(rows().length,before,'No callable after logout beyond contingency interval');
     assert.equal(origins().filter(row=>row.atMs>=start&&row.event==='start').length,0);
-    resilienceSamples.anonymous={observedMs:elapsed(start),attemptsStarted:0};
+    assert.deepEqual(activeConsumers(),{},'No remaining consumers after anonymous observation');
+    assert.equal(origins().filter(row=>row.atMs>=start&&row.event==='subscribe').length,0,'No orphan resubscriptions');
+    resilienceSamples.anonymous={observedMs:elapsed(start),attemptsStarted:0,activeConsumers:activeConsumers()};
     pass('resilience real delayed backend response, transient failure recovery and final logout');
   } finally {
     releaseHold();
@@ -1095,6 +1118,7 @@ try {
   writeFileSync(resolve(out,'pending-read-accounting.json'),JSON.stringify(finalAccounting,null,2));
   console.log('Pending friendship final accounting '+JSON.stringify(finalAccounting));
   console.log('SPA lifecycle stage evidence '+JSON.stringify(spaSamples));
+  console.log('Resilience stage evidence '+JSON.stringify(resilienceSamples));
   console.log('Pending friendship origins '+JSON.stringify(pendingOrigins.filter(row=>row.event==='start').reduce((counts,row)=>{ const key=row.context+':'+row.direction+':'+row.reason; counts[key]=(counts[key]??0)+1; return counts; },{})));
   writeFileSync(resolve(out,'spa-lifecycle-samples.json'),JSON.stringify(spaSamples,null,2));
   writeFileSync(resolve(out,'friendship-reactive-samples.json'),JSON.stringify(friendshipSamples,null,2));
