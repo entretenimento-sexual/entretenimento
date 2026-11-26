@@ -7,6 +7,7 @@ import { AccessControlService } from '@core/services/autentication/auth/access-c
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { createChatDiscoveryScope$, type ChatDiscoveryScope } from './chat-discovery-scope';
 import { revalidateDiscoveryOnRevision$ } from './chat-discovery-invalidation';
+import { observeDirectChatPages$, type DirectChatPageResponse, type DirectChatPageState } from './chat-discovery-pages';
 import { recoverDirectChatListener$ } from 'src/app/messaging/direct-chat/services/direct-chat-listener-recovery';
 
 import {
@@ -64,6 +65,30 @@ export class ChatRepository {
           } else sink.error(new Error('Sinal de descoberta inválido.'));
         }, error => sink.error(error)));
     });
+  }
+
+  // Additive paged transport; the legacy global notification scope remains
+  // unchanged until the paged UI and unread projection have been certified.
+  watchDirectChatPagesForOwner$(uid: string, loadMore$: Observable<unknown>): Observable<DirectChatPageState> {
+    const owner = String(uid ?? '').trim();
+    const revoked: DirectChatPageState = { ownerUid: null, status: 'revoked', chatIds: [], hasMore: false };
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(owner)) return of(revoked);
+    return combineLatest([this.access.authUid$, this.access.canRunChatRealtime$]).pipe(
+      map(([active, allowed]) => active === owner && allowed),
+      distinctUntilChanged(),
+      switchMap((allowed): Observable<DirectChatPageState> => allowed
+        ? observeDirectChatPages$(owner, this.observeRevision$(owner), loadMore$, cursor =>
+          this.ctx.deferPromise$(() => httpsCallable<
+            { pageSize: number; cursor: string | null }, DirectChatPageResponse
+          >(this.functions, 'listDirectChatCandidates')({ pageSize: 50, cursor })).pipe(map(result => result.data)),
+          error => { this.failedScope(owner, error); }
+        ).pipe(catchError(error => {
+          this.failedScope(owner, error);
+          return of({ ownerUid: owner, status: 'error', chatIds: [], hasMore: false } as DirectChatPageState);
+        }))
+        : of(revoked)),
+      startWith<DirectChatPageState>(revoked)
+    );
   }
 
   private observeTransport$(uid: string): Observable<ChatDiscoveryScope> {
