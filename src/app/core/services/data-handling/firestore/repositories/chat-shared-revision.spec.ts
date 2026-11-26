@@ -1,0 +1,83 @@
+import { BehaviorSubject, Subject } from 'rxjs';
+import { describe, expect, it, vi } from 'vitest';
+import { createSharedChatRevision$, type SharedChatRevision } from './chat-shared-revision';
+
+describe('createSharedChatRevision$', () => {
+  it('shares one revision listener and drops its replay when the last consumer leaves', () => {
+    const uid$ = new BehaviorSubject<string | null>('owner');
+    const allowed$ = new BehaviorSubject(true);
+    const source$ = new Subject<number | null>();
+    const observe = vi.fn((_uid: string) => source$);
+    const shared$ = createSharedChatRevision$(uid$, allowed$, observe);
+    const a: SharedChatRevision[] = [];
+    const b: SharedChatRevision[] = [];
+    const first = shared$.subscribe(value => a.push(value));
+    source$.next(7);
+    const second = shared$.subscribe(value => b.push(value));
+    expect(observe).toHaveBeenCalledTimes(1);
+    expect(source$.observers).toHaveLength(1);
+    expect(b.at(-1)).toEqual({ ownerUid: 'owner', revision: 7 });
+    source$.next(null);
+    expect(a.at(-1)?.revision).toBeNull();
+    expect(b.at(-1)?.revision).toBeNull();
+    source$.next(8);
+    first.unsubscribe();
+    expect(source$.observers).toHaveLength(1);
+    second.unsubscribe();
+    expect(source$.observers).toHaveLength(0);
+    const third = shared$.subscribe(value => b.push(value));
+    expect(observe).toHaveBeenCalledTimes(2);
+    expect(b.at(-1)).toEqual({ ownerUid: 'owner', revision: null });
+    third.unsubscribe();
+  });
+
+  it('cancels the previous owner and resets after gate revocation or same-UID login', () => {
+    const uid$ = new BehaviorSubject<string | null>('a');
+    const allowed$ = new BehaviorSubject(true);
+    const a$ = new Subject<number | null>();
+    const b$ = new Subject<number | null>();
+    const observe = vi.fn((uid: string) => uid === 'a' ? a$ : b$);
+    const values: SharedChatRevision[] = [];
+    const sub = createSharedChatRevision$(uid$, allowed$, observe).subscribe(value => values.push(value));
+    a$.next(12);
+    uid$.next('b');
+    expect(a$.observers).toHaveLength(0);
+    expect(values.at(-1)).toEqual({ ownerUid: 'b', revision: null });
+    a$.next(13);
+    expect(values.at(-1)?.revision).toBeNull();
+    b$.next(3);
+    allowed$.next(false);
+    expect(b$.observers).toHaveLength(0);
+    expect(values.at(-1)).toEqual({ ownerUid: null, revision: null });
+    allowed$.next(true);
+    expect(values.at(-1)).toEqual({ ownerUid: 'b', revision: null });
+    b$.next(4);
+    uid$.next(null);
+    expect(b$.observers).toHaveLength(0);
+    uid$.next('b');
+    expect(values.at(-1)).toEqual({ ownerUid: 'b', revision: null });
+    expect(observe.mock.calls).toEqual([['a'], ['b'], ['b'], ['b']]);
+    sub.unsubscribe();
+  });
+
+  it('does not replay a confirmed revision following a transport error', () => {
+    const uid$ = new BehaviorSubject<string | null>('owner');
+    const allowed$ = new BehaviorSubject(true);
+    const first$ = new Subject<number | null>();
+    const second$ = new Subject<number | null>();
+    const observe = vi.fn((_uid: string) => first$).mockReturnValueOnce(first$).mockReturnValueOnce(second$);
+    const shared$ = createSharedChatRevision$(uid$, allowed$, observe);
+    const error = new Error('transport unavailable');
+    const onError = vi.fn();
+    shared$.subscribe({ error: onError });
+    first$.next(9);
+    first$.error(error);
+    expect(onError).toHaveBeenCalledWith(error);
+    const values: SharedChatRevision[] = [];
+    const sub = shared$.subscribe(value => values.push(value));
+    expect(values).toEqual([{ ownerUid: 'owner', revision: null }]);
+    second$.next(10);
+    expect(values.at(-1)?.revision).toBe(10);
+    sub.unsubscribe();
+  });
+});

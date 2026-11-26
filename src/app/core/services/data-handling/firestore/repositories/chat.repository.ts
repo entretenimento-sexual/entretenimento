@@ -7,6 +7,7 @@ import { AccessControlService } from '@core/services/autentication/auth/access-c
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { createChatDiscoveryScope$, type ChatDiscoveryScope } from './chat-discovery-scope';
 import { revalidateDiscoveryOnRevision$ } from './chat-discovery-invalidation';
+import { createSharedChatRevision$ } from './chat-shared-revision';
 import { observeDirectChatPages$, type DirectChatPageResponse, type DirectChatPageState } from './chat-discovery-pages';
 import { observeConfirmedDirectChatInbox$, revokedDirectChatInbox, type DirectChatInboxScope } from './chat-inbox-projection';
 import { recoverDirectChatListener$ } from 'src/app/messaging/direct-chat/services/direct-chat-listener-recovery';
@@ -28,6 +29,12 @@ export class ChatRepository {
   private readonly ctx = inject(FirestoreContextService);
   private readonly access = inject(AccessControlService);
   private readonly applicationError = inject(ApplicationErrorService);
+
+  private readonly sharedRevision$ = createSharedChatRevision$(
+    this.access.authUid$,
+    this.access.canRunChatRealtime$,
+    uid => this.observeRevisionDocument$(uid)
+  );
 
   readonly discoveryScope$ = createChatDiscoveryScope$(
     this.access.authUid$,
@@ -51,6 +58,13 @@ export class ChatRepository {
 
   // Only the backend discovers IDs. Each individual listener still uses Rules.
   private observeRevision$(uid: string): Observable<number | null> {
+    return this.sharedRevision$.pipe(
+      map(scope => scope.ownerUid === uid ? scope.revision : null),
+      distinctUntilChanged()
+    );
+  }
+
+  private observeRevisionDocument$(uid: string): Observable<number | null> {
     return this.ctx.deferObservable$(() => {
       const ref = doc(this.db, 'direct_chat_discovery', uid);
       return new Observable<number | null>(sink => onSnapshot(ref,
