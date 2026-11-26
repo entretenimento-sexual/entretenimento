@@ -1,7 +1,7 @@
 //src\app\store\effects\effects.interactions\friends\requests-realtime.effects.ts
 import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { of } from 'rxjs';
+import { concat, of, timer } from 'rxjs';
 import { catchError, filter, map, switchMap, takeUntil, withLatestFrom } from 'rxjs/operators';
 import * as A from '../../../actions/actions.interactions/actions.friends';
 import * as RT from '../../../actions/actions.interactions/friends/friends-realtime.actions';
@@ -39,7 +39,12 @@ export class FriendsRequestsRealtimeEffects {
     switchMap(([{ uid }]) =>
         this.svc.watchInboundRequests(uid).pipe(
           map(requests => RT.inboundRequestsChanged({ requests })),
-          catchError(err => of(A.loadInboundRequestsFailure({ error: String(err?.message ?? err) }))),
+          // Uma falha da callable não pode encerrar a observação da sessão.
+          // Reutiliza o intervalo de contingência existente (sem novo tuning).
+          catchError((err, source) => concat(
+            of(A.loadInboundRequestsFailure({ error: String(err?.message ?? err) })),
+            timer(60_000).pipe(switchMap(() => source))
+          )),
           takeUntil(this.actions$.pipe(ofType(RT.stopInboundRequestsListener))),
         takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== uid)))
         )
@@ -55,7 +60,12 @@ export class FriendsRequestsRealtimeEffects {
     switchMap(([{ uid }]) =>
         this.svc.watchOutboundRequests(uid).pipe(
           map(requests => RT.outboundRequestsChanged({ requests })),
-          catchError(err => of(A.loadOutboundRequestsFailure({ error: String(err?.message ?? err) }))),
+          // Uma falha da callable não pode encerrar a observação da sessão.
+          // Reutiliza o intervalo de contingência existente (sem novo tuning).
+          catchError((err, source) => concat(
+            of(A.loadOutboundRequestsFailure({ error: String(err?.message ?? err) })),
+            timer(60_000).pipe(switchMap(() => source))
+          )),
           takeUntil(this.actions$.pipe(ofType(RT.stopOutboundRequestsListener))),
         takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== uid)))
         )

@@ -9,6 +9,7 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import * as A from '../../../actions/actions.interactions/actions.friends';
 import { FriendsNetworkEffects } from './network.effects';
+import * as RT from '../../../actions/actions.interactions/friends/friends-realtime.actions';
 
 describe('FriendsNetworkEffects / isolamento entre UIDs', () => {
   let actions: Subject<ReturnType<typeof A.loadFriends> | ReturnType<typeof A.loadBlockedUsers> | ReturnType<typeof A.blockUser> | ReturnType<typeof A.unblockUser> | ReturnType<typeof A.endFriendship>>;
@@ -47,6 +48,30 @@ describe('FriendsNetworkEffects / isolamento entre UIDs', () => {
       ],
     });
     effects = TestBed.inject(FriendsNetworkEffects);
+  });
+
+  it('inicializa solicitações apenas pelos listeners, preservando amigos e bloqueados', () => {
+    const output: unknown[] = [];
+    const sub = effects.bootstrapOnEligibleUser$.subscribe(action => output.push(action));
+    expect(output).toEqual([
+      A.loadFriends({ uid: 'user-a' }),
+      A.loadBlockedUsers({ uid: 'user-a' }),
+      RT.startFriendsListener({ uid: 'user-a' }),
+      RT.startInboundRequestsListener({ uid: 'user-a' }),
+      RT.startOutboundRequestsListener({ uid: 'user-a' }),
+    ]);
+    output.length = 0;
+    uid.next(null);
+    expect(output).toEqual([
+      RT.stopFriendsListener(),
+      RT.stopInboundRequestsListener(),
+      RT.stopOutboundRequestsListener(),
+      A.loadFriendsSuccess({ friends: [] }),
+      A.loadInboundRequestsSuccess({ requests: [] }),
+      A.loadOutboundRequestsSuccess({ requests: [] }),
+      A.loadBlockedUsersSuccess({ blocked: [] }),
+    ]);
+    sub.unsubscribe();
   });
 
   it('cancela resultado de lista de amigos A ao trocar para B', () => {

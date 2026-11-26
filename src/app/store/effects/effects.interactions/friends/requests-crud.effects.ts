@@ -232,22 +232,11 @@ export class FriendsRequestsCrudEffects {
   );
 
   /**
- * Sincronização curta após mutações sociais de solicitação.
- *
- * Motivo:
- * - o realtime continua sendo a fonte principal;
- * - mas, após uma ação social sensível, a UI precisa reagir imediatamente;
- * - isso reduz atraso visual entre enviar, cancelar, aceitar e recusar;
- * - também mantém badges e abas coerentes sem depender apenas da ordem
- *   em que os snapshots realtime chegam.
- *
- * Atualiza sempre:
- * - RECEBIDAS;
- * - ENVIADAS.
- *
- * Atualiza também AMIGOS quando:
- * - uma solicitação é aceita.
- */
+   * A revisão canônica invalida a direção afetada. A leitura explícita
+   * pós-mutação permanece como contingência local, mas não solicita a
+   * direção oposta, que a transação não modificou. Aceite também atualiza
+   * a lista de amigos.
+   */
 syncAfterRequestMutation$ = createEffect(() =>
   this.actions$.pipe(
     ofType(
@@ -261,19 +250,20 @@ syncAfterRequestMutation$ = createEffect(() =>
     mergeMap(([action, uid]) => {
       const safeUid = uid!;
 
-      const refreshRequests = [
-        A.loadInboundRequests({ uid: safeUid }),
-        A.loadOutboundRequests({ uid: safeUid }),
-      ];
+      const refreshRequests =
+        action.type === A.sendFriendRequestSuccess.type ||
+        action.type === A.cancelFriendRequestSuccess.type
+          ? A.loadOutboundRequests({ uid: safeUid })
+          : A.loadInboundRequests({ uid: safeUid });
 
       if (action.type === A.acceptFriendRequestSuccess.type) {
         return of(
-          ...refreshRequests,
+          refreshRequests,
           A.loadFriends({ uid: safeUid })
         );
       }
 
-      return of(...refreshRequests);
+      return of(refreshRequests);
     })
   )
 );

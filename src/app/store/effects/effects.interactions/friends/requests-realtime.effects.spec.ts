@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Actions } from '@ngrx/effects';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
+import { BehaviorSubject, defer, Observable, of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
@@ -79,4 +79,46 @@ describe('FriendsRequestsRealtimeEffects / isolamento de sessão', () => {
     subscription.unsubscribe();
   });
 
+  it.each(['inbound', 'outbound'] as const)('recupera %s após falha sem repetir fora da sessão', async direction => {
+    vi.useFakeTimers();
+    const actions = new Subject<ReturnType<typeof RT.startInboundRequestsListener> | ReturnType<typeof RT.startOutboundRequestsListener>>();
+    const uid = new BehaviorSubject<string | null>('user-a');
+    const error = new Error('unavailable');
+    let attempts = 0;
+    const watcher = vi.fn(() => defer(() => ++attempts === 1 ? throwError(() => error) : of([])));
+    TestBed.configureTestingModule({
+      providers: [
+        FriendsRequestsRealtimeEffects,
+        { provide: Actions, useValue: new Actions(actions) },
+        { provide: AccessControlService, useValue: { authUid$: uid.asObservable() } },
+        { provide: FriendshipService, useValue: { watchInboundRequests: watcher, watchOutboundRequests: watcher } },
+      ],
+    });
+    const effects = TestBed.inject(FriendsRequestsRealtimeEffects);
+    const stream = direction === 'inbound' ? effects.listenInboundRequests$ : effects.listenOutboundRequests$;
+    const output: unknown[] = [];
+    const subscription = (stream as Observable<unknown>).subscribe(action => output.push(action));
+    try {
+      const start = direction === 'inbound' ? RT.startInboundRequestsListener : RT.startOutboundRequestsListener;
+      actions.next(start({ uid: 'user-a' }));
+      expect(attempts).toBe(1);
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(attempts).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(attempts).toBe(2);
+      expect(output).toHaveLength(2);
+      expect(output[1]).toEqual(direction === 'inbound'
+        ? RT.inboundRequestsChanged({ requests: [] })
+        : RT.outboundRequestsChanged({ requests: [] }));
+      attempts = 0;
+      actions.next(start({ uid: 'user-a' }));
+      expect(attempts).toBe(1);
+      uid.next('user-b');
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(attempts).toBe(1);
+    } finally {
+      subscription.unsubscribe();
+      vi.useRealTimers();
+    }
+  });
 });

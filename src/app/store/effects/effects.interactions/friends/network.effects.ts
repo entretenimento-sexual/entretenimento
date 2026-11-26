@@ -81,8 +81,8 @@ private dbg(msg: string, extra?: unknown): void {
 
         return of(
           A.loadFriends({ uid: gate.uid }),
-          A.loadInboundRequests({ uid: gate.uid }),
-          A.loadOutboundRequests({ uid: gate.uid }),
+          // Os listeners de solicitações já realizam a leitura canônica inicial.
+          // Não iniciar uma segunda listagem para a mesma direção.
           A.loadBlockedUsers({ uid: gate.uid }),
           RT.startFriendsListener({ uid: gate.uid }),
           RT.startInboundRequestsListener({ uid: gate.uid }),
