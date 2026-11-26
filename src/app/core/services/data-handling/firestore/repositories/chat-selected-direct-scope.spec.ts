@@ -1,4 +1,4 @@
-import { BehaviorSubject, Subject, of } from 'rxjs';
+import { BehaviorSubject, Subject, of, type Observable } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import type { IChat } from '@core/interfaces/interfaces-chat/chat.interface';
 import type { Message } from '@core/interfaces/interfaces-chat/message.interface';
@@ -90,7 +90,7 @@ describe('selected direct chat live authorization boundary', () => {
     const generation = g('owner', 1);
     const active$ = new BehaviorSubject(generation);
     const late = new Subject<boolean>();
-    const authorize = vi.fn((_id: string) => late).mockReturnValueOnce(of(false));
+    const authorize = vi.fn((_id: string): Observable<boolean> => late).mockReturnValueOnce(of(false));
     const observe = vi.fn(() => new Subject<IChat|null>());
     const scope = createSelectedDirectChatScope(active$, authorize, observe);
     const first = scope(generation, 'a').subscribe();

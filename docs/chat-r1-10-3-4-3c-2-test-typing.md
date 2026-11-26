@@ -1,0 +1,7 @@
+# CHAT-R1.10.3.4.3C.2 — Correção de tipagem e critério de redução
+
+Base 1ba7296ba3bfb773cdc5d7047f1364677baee084. Chromium 45821081386 success, artefato 15117822841: 17/17 cenários, 181/181 mensagens, 48 chamadas de descoberta versus 60 da baseline 4.3B (redução de 20%), zero 429. Quality Gate 45821081486 agregado failure: angular_tests=failure, apesar da conclusão aparente success da etapa com continue-on-error. Logs do job 139913339073: TS2345 em chat-selected-direct-scope.spec.ts:93:71, inferência Subject<boolean> incompatível com Observable<boolean> de of(false). Demais etapas integradas, inclusive Comunidades/Notificações, revogação de mídia e bloqueio bilateral, aprovadas.
+
+Correção mínima: tipar explicitamente o retorno do mock como Observable<boolean>, preservando os cenários de negativa e revogação. Nenhuma alteração em código operacional, backend, regras, quotas ou dependências. O Chromium passa a exigir também redução estrita em relação às 60 chamadas da baseline, além de zero 429 e dos cenários existentes. Trata-se de critério da carga de certificação, não de limite universal de produção; variações de execução precisam ser examinadas se o critério falhar. A mudança no script de certificação também corresponde ao filtro scripts/tests/** do Media E2E, permitindo nova execução dos três workflows.
+
+Homologação da 4.3C e liberação da 4.3D somente após nova CI integralmente aprovada. Testes não executados localmente.
