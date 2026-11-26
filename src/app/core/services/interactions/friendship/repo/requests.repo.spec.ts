@@ -22,6 +22,9 @@ describe('RequestsRepo', () => {
       data: () => ({ pendingFriendRequestsInboundRevision: inbound, pendingFriendRequestsOutboundRevision: outbound }) };
   }
   let revision$: BehaviorSubject<Snapshot>;
+  let online$: BehaviorSubject<boolean>;
+  let visibility: 'visible' | 'hidden';
+  let visibilityEvents: EventTarget;
   const onSnapshot = vi.fn((_ref: unknown, _opts: unknown, next: (snapshot: Snapshot) => void) => {
     const sub = revision$.subscribe(next);
     return () => sub.unsubscribe();
@@ -65,7 +68,11 @@ describe('RequestsRepo', () => {
     authUser$ = new BehaviorSubject<{ uid: string } | null>({ uid: 'bob' });
     session = { currentAuthUser: authUser$.value, uid$, authUser$, terminationVersionSnapshot: 0, isTerminatingSnapshot: false };
     revision$ = new BehaviorSubject(revision());
-    repo = new RequestsRepoToken(db, env, functions, session, { report }, { log });
+    online$ = new BehaviorSubject(true);
+    visibility = 'visible';
+    visibilityEvents = new EventTarget();
+    Object.defineProperty(visibilityEvents, 'visibilityState', { get: () => visibility });
+    repo = new RequestsRepoToken(db, env, functions, session, { report }, { log }, { isOnline$: online$ }, visibilityEvents);
   });
 
   it('lista solicitações recebidas pela callable canônica', async () => {
@@ -162,12 +169,12 @@ describe('RequestsRepo', () => {
       expect(third).toEqual([]);
       await vi.advanceTimersByTimeAsync(0);
       expect(callable).toHaveBeenCalledTimes(3);
-      await vi.advanceTimersByTimeAsync(50_000);
+      await vi.advanceTimersByTimeAsync(110_000);
       expect(callable).toHaveBeenCalledTimes(3);
       await vi.advanceTimersByTimeAsync(10_000);
       expect(callable).toHaveBeenCalledTimes(4);
       subscriptions.forEach(sub => sub.unsubscribe());
-      await vi.advanceTimersByTimeAsync(120_000);
+      await vi.advanceTimersByTimeAsync(181_000);
       expect(callable).toHaveBeenCalledTimes(4);
       subscriptions.push(repo.watchOutboundRequests('bob').subscribe());
       await vi.advanceTimersByTimeAsync(0);
@@ -196,8 +203,8 @@ describe('RequestsRepo', () => {
       expect(first).toHaveBeenCalledWith([{ id: 'fresh' }]);
       expect(second).toHaveBeenCalledWith([{ id: 'fresh' }]);
       expect(callable).toHaveBeenCalledTimes(1);
-      await vi.advanceTimersByTimeAsync(50_000);
-      expect(callable).toHaveBeenCalledTimes(2); // original clock, not 70s
+      await vi.advanceTimersByTimeAsync(110_000);
+      expect(callable).toHaveBeenCalledTimes(2); // original clock, not 130s
       expect(log).toHaveBeenCalledWith('friends', 'pending-read start outbound session');
       expect(log).toHaveBeenCalledWith('friends', 'pending-read join outbound profile');
       expect(log).toHaveBeenCalledWith('friends', 'pending-read start outbound poll');
@@ -237,7 +244,7 @@ describe('RequestsRepo', () => {
       session.terminationVersionSnapshot++;
       authUser$.next(null);
       uid$.next(null);
-      await vi.advanceTimersByTimeAsync(120_000);
+      await vi.advanceTimersByTimeAsync(181_000);
       expect(callable).toHaveBeenCalledTimes(3);
     } finally {
       subscriptions.forEach(sub => sub.unsubscribe());
@@ -282,11 +289,11 @@ describe('RequestsRepo', () => {
       expect(fresh).toHaveBeenCalledTimes(1);
       expect(fresh).toHaveBeenCalledWith([{ id: 'new-b' }]);
       expect(callable).toHaveBeenCalledTimes(3);
-      await vi.advanceTimersByTimeAsync(61_000);
+      await vi.advanceTimersByTimeAsync(121_000);
       expect(callable).toHaveBeenCalledTimes(4);
       subs.forEach(sub => sub.unsubscribe());
       expect(revision$.observers).toHaveLength(0);
-      await vi.advanceTimersByTimeAsync(121_000);
+      await vi.advanceTimersByTimeAsync(181_000);
       expect(callable).toHaveBeenCalledTimes(4);
     } finally {
       subs.forEach(sub => sub.unsubscribe());
@@ -365,6 +372,56 @@ describe('RequestsRepo', () => {
     expect(callable).toHaveBeenCalledTimes(2);
     complete({ data: { items: [{ id: 'old' }] } });
     expect(await result).toEqual([{ id: 'new' }]);
+  });
+
+  it('adapta relógios direcionais à saúde, visibilidade e conectividade sem reiniciar consumidores', async () => {
+    vi.useFakeTimers();
+    const subs: { unsubscribe(): void }[] = [];
+    const count = (direction: string) => callable.mock.calls.filter(([data]) => data.direction === direction).length;
+    const show = (state: 'visible' | 'hidden') => {
+      visibility = state;
+      visibilityEvents.dispatchEvent(new Event('visibilitychange'));
+    };
+    try {
+      callable.mockResolvedValue({ data: { items: [] } });
+      subs.push(repo.watchInboundRequests('bob', 'session').subscribe());
+      subs.push(repo.watchOutboundRequests('bob', 'session').subscribe());
+      await vi.advanceTimersByTimeAsync(0);
+      expect([count('inbound'), count('outbound')]).toEqual([1, 1]);
+      await vi.advanceTimersByTimeAsync(65_000);
+      expect(callable).toHaveBeenCalledTimes(2);
+      show('hidden');
+      await vi.advanceTimersByTimeAsync(65_000);
+      expect(callable).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(50_000);
+      expect(callable).toHaveBeenCalledTimes(4); // maximum hidden deadline
+      await vi.advanceTimersByTimeAsync(60_000);
+      revision$.next(revision(9, 9, true)); // cache cannot advance canonical epochs
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callable).toHaveBeenCalledTimes(6); // degraded cadence
+      online$.next(false);
+      await vi.advanceTimersByTimeAsync(181_000);
+      expect(callable).toHaveBeenCalledTimes(6);
+      revision$.next(revision());
+      online$.next(true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callable).toHaveBeenCalledTimes(8);
+      show('visible');
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(callable).toHaveBeenCalledTimes(10);
+      revision$.next(revision(0, 1));
+      await vi.advanceTimersByTimeAsync(0);
+      expect([count('inbound'), count('outbound')]).toEqual([5, 6]);
+      expect(onSnapshot).toHaveBeenCalledTimes(1);
+      subs.forEach(sub => sub.unsubscribe());
+      expect(revision$.observers).toHaveLength(0);
+      expect(online$.observers).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(181_000);
+      expect(callable).toHaveBeenCalledTimes(11);
+    } finally {
+      subs.forEach(sub => sub.unsubscribe());
+      vi.useRealTimers();
+    }
   });
 
   it('watch inbound reutiliza a leitura backend-only sem write Firestore', async () => {

@@ -8,7 +8,7 @@
 // -----------------------------------------------------------------------------
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import { Injectable, PLATFORM_ID, inject } from '@angular/core';
-import { Observable, fromEvent, merge, of } from 'rxjs';
+import { Observable, defer, fromEvent, merge, of } from 'rxjs';
 import {
   distinctUntilChanged,
   filter,
@@ -66,12 +66,12 @@ export class NetworkStatusService {
   }
 
   private buildConnectionState$(): Observable<NetworkConnectionState> {
-    const initial = this.createState(
+    const initial = () => this.createState(
       this.isOnlineSnapshot(),
       this.browserWindow ? 'initial' : 'server'
     );
 
-    if (!this.browserWindow) return of(initial);
+    if (!this.browserWindow) return defer(() => of(initial()));
 
     const online$ = fromEvent(this.browserWindow, 'online').pipe(
       map(() => this.createState(true, 'browser-online'))
@@ -80,7 +80,7 @@ export class NetworkStatusService {
       map(() => this.createState(false, 'browser-offline'))
     );
 
-    return merge(online$, offline$).pipe(startWith(initial));
+    return defer(() => merge(online$, offline$).pipe(startWith(initial())));
   }
 
   private createState(

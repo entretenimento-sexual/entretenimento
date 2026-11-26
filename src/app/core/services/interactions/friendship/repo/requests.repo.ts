@@ -1,5 +1,6 @@
 // src/app/core/services/interactions/friendship/repo/requests.repo.ts
-import { Injectable, EnvironmentInjector, Optional } from '@angular/core';
+import { Injectable, EnvironmentInjector, Optional, Inject } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import {
   Firestore,
   doc,
@@ -9,6 +10,8 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import {
   Observable,
   defer,
+  fromEvent,
+  startWith,
   from,
   map,
   switchMap,
@@ -40,6 +43,8 @@ import { SessionReadInFlight } from '@core/services/autentication/auth/session-r
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 
+import { NetworkStatusService } from '@core/services/network/network-status.service';
+
 import { FirestoreRepoBase } from './base.repo';
 import { FriendRequest } from '../../../../interfaces/friendship/friend-request.interface';
 
@@ -48,12 +53,19 @@ type RequestDirection = 'inbound' | 'outbound';
 export type PendingRequestConsumer = 'session' | 'profile' | 'post-mutation' | 'explicit' | 'other';
 type ReadReason = PendingRequestConsumer | 'session-retry' | 'subscriber-join' | 'canonical-event' | 'listener-recovery' | 'poll';
 type Revisions = Record<RequestDirection, number | null>;
+const DEGRADED_POLL_MS = 60_000;
+const VISIBLE_POLL_MS = 120_000;
+const HIDDEN_POLL_MS = 180_000;
+const WAKE_COALESCE_MS = 5_000;
+interface RevisionObservation { readonly revisions: Revisions | null; readonly confirmed: boolean }
+interface PollingPolicy { readonly online: boolean; readonly visible: boolean; readonly interval: number }
 interface RevisionEpoch { readonly value: number | null; readonly key: number }
 interface RevisionScope {
   readonly user: User;
   readonly version: number;
   readonly inbound: RevisionEpoch;
   readonly outbound: RevisionEpoch;
+  readonly confirmed: boolean;
 }
 const UNKNOWN_REVISIONS: Revisions = { inbound: null, outbound: null };
 interface PendingWatch {
@@ -83,7 +95,9 @@ export class RequestsRepo extends FirestoreRepoBase {
     private readonly functions: Functions,
     private readonly session: AuthSessionService,
     private readonly applicationError: ApplicationErrorService,
-    @Optional() private readonly privacyDebug?: PrivacyDebugLoggerService
+    @Optional() private readonly privacyDebug?: PrivacyDebugLoggerService,
+    @Optional() private readonly network?: NetworkStatusService,
+    @Optional() @Inject(DOCUMENT) private readonly document?: Document
   ) {
     super(db, env);
     this.inFlight = new SessionReadInFlight(this.session);
@@ -93,13 +107,20 @@ export class RequestsRepo extends FirestoreRepoBase {
       switchMap(({ user, version }): Observable<RevisionScope | null> => {
         if (!user?.uid || this.session.isTerminatingSnapshot) return of(null);
         return this.observeRevisions$(user.uid).pipe(
-          scan((previous: RevisionScope | null, revision): RevisionScope => ({
-            user, version,
-            inbound: previous?.inbound.value === revision.inbound
-              ? previous.inbound : { value: revision.inbound, key: ++this.nextEpoch },
-            outbound: previous?.outbound.value === revision.outbound
-              ? previous.outbound : { value: revision.outbound, key: ++this.nextEpoch },
-          }), null as RevisionScope | null)
+          scan((previous: RevisionScope | null, observation): RevisionScope => {
+            // Metadata changes affect health, never manufacture a new revision.
+            const revision = observation.revisions ?? {
+              inbound: previous?.inbound.value ?? null,
+              outbound: previous?.outbound.value ?? null,
+            };
+            return {
+              user, version, confirmed: observation.confirmed,
+              inbound: previous?.inbound.value === revision.inbound
+                ? previous.inbound : { value: revision.inbound, key: ++this.nextEpoch },
+              outbound: previous?.outbound.value === revision.outbound
+                ? previous.outbound : { value: revision.outbound, key: ++this.nextEpoch },
+            };
+          }, null as RevisionScope | null)
         );
       }),
       share({ connector: () => new ReplaySubject<RevisionScope | null>(1),
@@ -112,12 +133,13 @@ export class RequestsRepo extends FirestoreRepoBase {
     this.privacyDebug?.log('friends', 'pending-read ' + event + ' ' + direction + ' ' + reason);
   }
 
-  private observeRevisions$(uid: string): Observable<Revisions> {
+  private observeRevisions$(uid: string): Observable<RevisionObservation> {
     const readRevision = (value: unknown): number | null =>
       value === undefined ? 0 : typeof value === 'number' &&
         Number.isSafeInteger(value) && value >= 0 ? value : null;
-    return new Observable<Revisions>(sink => {
+    return new Observable<RevisionObservation>(sink => {
       let unconfirmed = false;
+      let confirmedOnce = false;
       return this.inCtxSync(() =>
       onSnapshot(doc(this.db, 'users', uid), { includeMetadataChanges: true }, snapshot => {
         // Ignore cache/pending writes; neither may invalidate from a forged
@@ -125,6 +147,7 @@ export class RequestsRepo extends FirestoreRepoBase {
         // only as an invalidation signal, never as permission or list data.
         if (snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) {
           unconfirmed = true;
+          if (confirmedOnce) sink.next({ revisions: null, confirmed: false });
           return;
         }
         if (unconfirmed) {
@@ -133,10 +156,11 @@ export class RequestsRepo extends FirestoreRepoBase {
           unconfirmed = false;
         }
         const data = snapshot.data();
-        sink.next(snapshot.exists() && data ? {
+        confirmedOnce = true;
+        sink.next({ confirmed: snapshot.exists() && !!data, revisions: snapshot.exists() && data ? {
           inbound: readRevision(data['pendingFriendRequestsInboundRevision']),
           outbound: readRevision(data['pendingFriendRequestsOutboundRevision']),
-        } : UNKNOWN_REVISIONS);
+        } : UNKNOWN_REVISIONS });
       }, error => sink.error(error))
       );
     }).pipe(
@@ -150,10 +174,11 @@ export class RequestsRepo extends FirestoreRepoBase {
           presentation: { surface: 'none', severity: 'error' },
         });
         // Polling remains available; retry the signal with a bounded cadence.
-        return concat(of(UNKNOWN_REVISIONS), throwError(() => error));
+        return concat(of<RevisionObservation>({ revisions: UNKNOWN_REVISIONS, confirmed: false }), throwError(() => error));
       }),
       retry({ delay: 60_000 }),
-      distinctUntilChanged((a, b) => a.inbound === b.inbound && a.outbound === b.outbound)
+      distinctUntilChanged((a, b) => a.confirmed === b.confirmed &&
+        a.revisions?.inbound === b.revisions?.inbound && a.revisions?.outbound === b.revisions?.outbound)
     );
   }
 
@@ -165,6 +190,29 @@ export class RequestsRepo extends FirestoreRepoBase {
       distinctUntilChanged(),
       filter(() => this.session.currentAuthUser === user &&
         this.session.terminationVersionSnapshot === version && !this.session.isTerminatingSnapshot)
+    );
+  }
+
+  private pollingPolicy$(user: User, version: number, direction: RequestDirection): Observable<PollingPolicy> {
+    const healthy$ = this.revisions$.pipe(
+      filter((scope): scope is RevisionScope => scope !== null && scope.user === user && scope.version === version),
+      map(scope => scope.confirmed && scope[direction].value !== null),
+      distinctUntilChanged()
+    );
+    const online$ = this.network?.isOnline$ ?? of(true);
+    const visible$ = defer(() => this.document
+      ? fromEvent(this.document, 'visibilitychange').pipe(
+          map(() => this.document?.visibilityState !== 'hidden'),
+          startWith(this.document.visibilityState !== 'hidden'),
+          distinctUntilChanged()
+        )
+      : of(true));
+    return combineLatest([healthy$, online$, visible$]).pipe(
+      map(([healthy, online, visible]) => ({
+        online, visible,
+        interval: !healthy ? DEGRADED_POLL_MS : visible ? VISIBLE_POLL_MS : HIDDEN_POLL_MS,
+      })),
+      distinctUntilChanged((a, b) => a.online === b.online && a.visible === b.visible && a.interval === b.interval)
     );
   }
 
@@ -269,11 +317,30 @@ export class RequestsRepo extends FirestoreRepoBase {
               : trigger;
             previousEpoch = epoch;
             pending = true; // scheduled or actively reading, not a response cache
-            return timer(0, 60_000).pipe(
-              exhaustMap(tick => {
+            let lastStarted: number | null = null;
+            let previousPolicy: PollingPolicy | undefined;
+            let wakeDeadline: number | null = null;
+            return this.pollingPolicy$(user, version, direction).pipe(
+              switchMap(policy => {
+                const now = Date.now();
+                if (previousPolicy && policy.online &&
+                    (!previousPolicy.online || (!previousPolicy.visible && policy.visible))) {
+                  wakeDeadline = Math.max(now, (lastStarted ?? now) + WAKE_COALESCE_MS);
+                }
+                previousPolicy = policy;
+                if (!policy.online) return EMPTY;
+                const deadline = lastStarted === null ? now :
+                  Math.min(lastStarted + policy.interval, wakeDeadline ?? Infinity);
+                return timer(Math.max(0, deadline - now), policy.interval);
+              }),
+              // Policy changes replace only the clock, not the in-flight callable.
+              exhaustMap(() => {
                 if (!isCurrent()) return EMPTY;
+                const readReason = lastStarted === null ? initial : 'poll';
+                lastStarted = Date.now();
+                wakeDeadline = null;
                 pending = true;
-                return this.loadPendingRequests$(uid, direction, epoch.key, tick === 0 ? initial : 'poll').pipe(
+                return this.loadPendingRequests$(uid, direction, epoch.key, readReason).pipe(
                   // Clear before forwarding; a late consumer must get a fresh read.
                   tap({ next: () => { pending = false; } }),
                   finalize(() => { pending = false; })

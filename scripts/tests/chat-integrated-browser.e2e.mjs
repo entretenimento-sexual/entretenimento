@@ -55,7 +55,9 @@ const spaContext = 'spa-lifecycle';
 const spaSamples = [];
 const resilienceContext = 'resilience';
 const resilienceSamples = {};
-const isComplementary = row => !originalContexts.has(row.context) && row.context!==spaContext && row.context!==resilienceContext;
+const adaptiveContext = 'adaptive-polling';
+const adaptiveSamples = {};
+const isComplementary = row => !originalContexts.has(row.context) && row.context!==spaContext && row.context!==resilienceContext && row.context!==adaptiveContext;
 const accountingTasks = new Set();
 let currentPhase = 'initial';
 const callableTransportFailures = new Map();
@@ -470,7 +472,7 @@ async function certifySpaLifecycle() {
     assert.equal(beforePoll.filter(row=>row.direction==='outbound').length,1,'Repeated outbound session subscription during SPA navigation');
     await stage('poll',async begin=>{
       // Real 60s clock; no fake time or change to production cadence.
-      await until('both directional contingency polls',()=>starts('poll','inbound',begin).length>0&&starts('poll','outbound',begin).length>0,Boolean,85_000);
+      await until('both directional contingency polls',()=>starts('poll','inbound',begin).length>0&&starts('poll','outbound',begin).length>0,Boolean,205_000);
     },{internal:true});
     await stage('canonical-event',async begin=>{
       await signInWithEmailAndPassword(auth,email(viewer),password);
@@ -647,8 +649,8 @@ async function certifyResilience() {
     resilienceSamples.teardown={activeBefore,activeAfter:activeConsumers(),events:origins()
       .filter(row=>row.atMs>=begin&&row.event==='unsubscribe').map(({direction,reason})=>({direction,reason}))};
     const before=rows().length, start=performance.now();
-    await sleep(65_000);
-    assert.equal(rows().length,before,'No callable after logout beyond contingency interval');
+    await sleep(185_000);
+    assert.equal(rows().length,before,'No callable after logout beyond maximum adaptive interval');
     assert.equal(origins().filter(row=>row.atMs>=start&&row.event==='start').length,0);
     assert.deepEqual(activeConsumers(),{},'No remaining consumers after anonymous observation');
     assert.equal(origins().filter(row=>row.atMs>=start&&row.event==='subscribe').length,0,'No orphan resubscriptions');
@@ -656,6 +658,81 @@ async function certifyResilience() {
     pass('resilience real delayed backend response, transient failure recovery and final logout');
   } finally {
     releaseHold();
+    await page.context().close();
+  }
+}
+
+async function certifyAdaptivePolling() {
+  const [viewer,target]=['q','r'].map(uid);
+  for(const [index,user] of [viewer,target].entries()) {
+    await adminAuth.createUser({uid:user,email:email(user),password,emailVerified:true});
+    await until('adaptive registration seed',()=>db.doc('users/'+user).get(),snap=>snap.exists);
+    await seedPublicMediaCompliance(db,[user]);
+    const nickname='Browser Adaptive '+index;
+    const profile={uid:user,nickname,nicknameNormalized:nickname.toLowerCase(),gender:'mulher',
+      identityCode:'mulher',identityCatalogVersion:1,orientation:'bissexual',role:'free',
+      municipio:'Rio de Janeiro',estado:'RJ',createdAt:new Date(),updatedAt:new Date()};
+    await db.doc('users/'+user).set({...profile,emailVerified:true,loginAllowed:true,accountLocked:false},{merge:true});
+    await db.doc('public_profiles/'+user).set(profile);
+    await db.doc('preferences/'+user).set({notificationPreferences:{connections:false}},{merge:true});
+  }
+  const page=await newPage(adaptiveContext);
+  const rows=()=>pendingAttempts.filter(row=>row.context===adaptiveContext);
+  const origins=()=>pendingOrigins.filter(row=>row.context===adaptiveContext);
+  const reads=since=>['inbound','outbound'].every(direction=>rows().some(row=>row.direction===direction&&row.startMs>=since&&row.httpStatus===200));
+  const visible=state=>page.evaluate(value=>{
+    Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>value});
+    document.dispatchEvent(new Event('visibilitychange'));
+  },state);
+  const observe=async(label,duration,expected)=>{
+    currentPhase='adaptive: '+label;
+    const begin=performance.now(),before=rows().length;
+    await sleep(duration);
+    const actual=rows().length-before;
+    adaptiveSamples[label]={observedMs:elapsed(begin),attempts:actual,expected};
+    assert.equal(actual,expected,label+' callable count');
+  };
+  try {
+    currentPhase='adaptive: bootstrap';
+    await page.addInitScript(()=>Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'visible'}));
+    const start=performance.now();
+    await login(page,viewer);
+    await until('adaptive directional bootstrap',()=>reads(start),Boolean,30_000);
+    await page.locator('app-user-activity-hub a[href="/friends/requests"]').click();
+    await page.waitForURL(url=>url.pathname==='/friends/requests');
+    await page.getByRole('tab',{name:/Enviadas/}).click();
+    await page.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'});
+    await observe('visible',65_000,0);
+    await visible('hidden');
+    await observe('hidden',65_000,0);
+    currentPhase='adaptive: foreground';
+    let begin=performance.now();
+    await visible('visible');
+    await until('adaptive foreground reconciliation',()=>reads(begin),Boolean,20_000);
+    adaptiveSamples.foreground={convergenceMs:elapsed(begin)};
+    await page.context().setOffline(true);
+    await observe('offline',65_000,0);
+    currentPhase='adaptive: reconnect';
+    begin=performance.now();
+    await page.context().setOffline(false);
+    await until('adaptive reconnect reconciliation',()=>reads(begin),Boolean,30_000);
+    adaptiveSamples.reconnect={convergenceMs:elapsed(begin)};
+    await signInWithEmailAndPassword(auth,email(viewer),password);
+    currentPhase='adaptive: canonical outbound';
+    begin=performance.now();
+    assert.equal((await httpsCallable(functions,'sendFriendRequest')({targetUid:target})).data.status,'pending');
+    const card=page.locator('.request-card--outbound[aria-labelledby="request-outbound-'+viewer+'_'+target+'"]');
+    await card.waitFor({state:'visible',timeout:20_000});
+    const canonical=origins().filter(row=>row.atMs>=begin&&row.event==='start'&&row.reason==='canonical-event');
+    assert.equal(canonical.filter(row=>row.direction==='outbound').length,1);
+    assert.equal(canonical.filter(row=>row.direction==='inbound').length,0);
+    adaptiveSamples.canonical={convergenceMs:elapsed(begin),outbound:1,inbound:0};
+    currentPhase='adaptive: logout';
+    await logout(page);
+    await observe('anonymous',185_000,0);
+    pass('adaptive polling healthy foreground, controlled hidden input, offline, recovery and directional invalidation');
+  } finally {
+    await page.context().setOffline(false).catch(()=>{});
     await page.context().close();
   }
 }
@@ -1083,6 +1160,7 @@ try {
   await certifyFriendshipPair('offline-accept',['h','i'],['offline-send','accept']);
   await certifySpaLifecycle();
   await certifyResilience();
+  await certifyAdaptivePolling();
   assert.equal(browserErrors.filter(e=>e.type==='pageerror').length,0,'Unhandled browser exceptions including friendship');
   for(const endpoint of ['getPendingFriendRequests','listDirectChatCandidates']) {
     const rows=[...callableCounts.values()].filter(row=>row.endpoint===endpoint);
@@ -1091,7 +1169,8 @@ try {
   assert.ok(pendingOrigins.some(row=>row.event==='start'&&row.reason==='session'),'Session origin tracing unavailable');
   assert.ok(pendingOrigins.some(row=>row.event==='start'&&row.reason==='canonical-event'),'Canonical origin tracing unavailable');
   await Promise.allSettled([...accountingTasks]);
-  const fullAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==resilienceContext));
+  const fullAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==resilienceContext&&row.context!==adaptiveContext));
+  const adaptiveAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context===adaptiveContext));
   const resilienceAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context===resilienceContext));
   console.log('Resilience evidence '+JSON.stringify({attempts:resilienceAttempts,samples:resilienceSamples}));
   const complementaryAttempts=summarizePendingAttempts(pendingAttempts.filter(isComplementary));
@@ -1101,7 +1180,7 @@ try {
   console.log('Friendship reactive measurements '+JSON.stringify({originalWorkload,originalAttempts,complementaryAttempts,fullAttempts,samples:friendshipSamples,
     online:sampleSummary(friendshipSamples.filter(row=>!row.reconnect).flatMap(row=>[row.senderMs,row.receiverMs])),
     reconnect:sampleSummary(friendshipSamples.filter(row=>row.reconnect).map(row=>row.receiverMs))}));
-  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,originalAttempts,complementaryAttempts,spaAttempts,spaSamples,fullAttempts,resilienceAttempts,resilienceSamples,baselineComparison:baselineComparison(),
+  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,originalAttempts,complementaryAttempts,spaAttempts,spaSamples,fullAttempts,resilienceAttempts,resilienceSamples,adaptiveAttempts,adaptiveSamples,baselineComparison:baselineComparison(),
     performanceSummary:{budgetMs:PHASE_BUDGET_MS,sendReceive:sampleSummary(performanceSamples.roundTrips.map(row=>row.ms)),
       conversationSwitch:sampleSummary(performanceSamples.switches.map(row=>row.ms))}},null,2));
 } catch(error) {
@@ -1111,14 +1190,16 @@ try {
 } finally {
   await Promise.allSettled([...accountingTasks]);
   writeFileSync(resolve(out,'resilience-samples.json'),JSON.stringify(resilienceSamples,null,2));
+  writeFileSync(resolve(out,'adaptive-polling-samples.json'),JSON.stringify(adaptiveSamples,null,2));
   writeFileSync(resolve(out,'pending-read-trace.json'),JSON.stringify(pendingReadTrace,null,2));
   writeFileSync(resolve(out,'pending-read-origins.json'),JSON.stringify(pendingOrigins,null,2));
   writeFileSync(resolve(out,'pending-read-attempts.json'),JSON.stringify(pendingAttempts,null,2));
-  const finalAccounting={original:summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context))),complementary:summarizePendingAttempts(pendingAttempts.filter(isComplementary)),spa:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===spaContext)),resilience:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===resilienceContext)),legacyTotal:summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==resilienceContext)),all:summarizePendingAttempts(pendingAttempts)};
+  const finalAccounting={original:summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context))),complementary:summarizePendingAttempts(pendingAttempts.filter(isComplementary)),spa:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===spaContext)),resilience:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===resilienceContext)),adaptive:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===adaptiveContext)),legacyTotal:summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==resilienceContext&&row.context!==adaptiveContext)),previousFour:summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==adaptiveContext)),all:summarizePendingAttempts(pendingAttempts)};
   writeFileSync(resolve(out,'pending-read-accounting.json'),JSON.stringify(finalAccounting,null,2));
   console.log('Pending friendship final accounting '+JSON.stringify(finalAccounting));
   console.log('SPA lifecycle stage evidence '+JSON.stringify(spaSamples));
   console.log('Resilience stage evidence '+JSON.stringify(resilienceSamples));
+  console.log('Adaptive polling stage evidence '+JSON.stringify(adaptiveSamples));
   console.log('Pending friendship origins '+JSON.stringify(pendingOrigins.filter(row=>row.event==='start').reduce((counts,row)=>{ const key=row.context+':'+row.direction+':'+row.reason; counts[key]=(counts[key]??0)+1; return counts; },{})));
   writeFileSync(resolve(out,'spa-lifecycle-samples.json'),JSON.stringify(spaSamples,null,2));
   writeFileSync(resolve(out,'friendship-reactive-samples.json'),JSON.stringify(friendshipSamples,null,2));
