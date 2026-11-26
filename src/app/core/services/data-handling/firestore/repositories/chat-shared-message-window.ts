@@ -1,12 +1,12 @@
 import { Observable, defer, of } from 'rxjs';
-import { distinctUntilChanged, map, startWith, switchMap, take } from 'rxjs/operators';
+import { distinctUntilChanged, map, startWith, switchMap } from 'rxjs/operators';
 import type { Message } from '@core/interfaces/interfaces-chat/message.interface';
 import type { SharedChatRevision } from './chat-shared-revision';
 import { createSharedChatSnapshots } from './chat-shared-snapshots';
 
-// Each subscription validates the candidate response for its generation.
-// The repository may coalesce identical one-shot requests in flight; it
-// does not cache completed decisions. A new generation cancels check and window.
+// The authorization stream is live: losing canonical confirmation clears
+// the window immediately even without a revision change. A new generation
+// also cancels the previous authorization and message transport.
 export function createAuthorizedSharedChatMessages(
   active$: Observable<SharedChatRevision>,
   authorize: (id: string, generation: SharedChatRevision) => Observable<boolean>,
@@ -29,7 +29,7 @@ export function createAuthorizedSharedChatMessages(
           return of([] as Message[]);
         }
         return defer(() => authorize(id, generation)).pipe(
-          take(1),
+          distinctUntilChanged(),
           switchMap(allowed => allowed === true
             ? read(generation, id).pipe(map(messages => messages ?? []))
             : of([] as Message[])),

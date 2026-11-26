@@ -10,6 +10,7 @@ import { revalidateDiscoveryOnRevision$ } from './chat-discovery-invalidation';
 import { createSharedChatRevision$, type SharedChatRevision } from './chat-shared-revision';
 import { createSharedChatSnapshots } from './chat-shared-snapshots';
 import { createChatGenerationInFlight } from './chat-generation-in-flight';
+import { createSelectedDirectChatScope } from './chat-selected-direct-scope';
 import { createAuthorizedSharedChatMessages } from './chat-shared-message-window';
 import { ChatMessagesRepository } from './chat-messages.repository';
 import type { Message } from '@core/interfaces/interfaces-chat/message.interface';
@@ -50,9 +51,15 @@ export class ChatRepository {
     this.sharedRevision$, id => this.observeChat$(id)
   );
 
-  private readonly sharedMessageWindow = createAuthorizedSharedChatMessages(
+  private readonly selectedDirectScope = createSelectedDirectChatScope(
     this.sharedRevision$,
     (id, generation) => this.authorizeDirectChatCandidate$(id, generation),
+    (generation, id) => this.sharedSnapshots(generation, id)
+  );
+
+  private readonly sharedMessageWindow = createAuthorizedSharedChatMessages(
+    this.sharedRevision$,
+    (id, generation) => this.selectedDirectScope(generation, id).pipe(map(chat => chat !== null)),
     id => this.messagesRepo.watchMessages$(id, 60)
   );
 
@@ -179,8 +186,8 @@ export class ChatRepository {
     );
   }
 
-  // Every consumer validates the exact candidate response. Only identical
-  // in-flight reads within one confirmed generation may be coalesced.
+  // Message transport joins only the live, individually authorized canonical
+  // document scope. No standalone completed permission is retained.
   watchDirectMessagesForOwner$(uid: string, chatId: string): Observable<Message[]> {
     return this.sharedMessageWindow(uid, chatId);
   }
@@ -206,10 +213,7 @@ export class ChatRepository {
       distinctUntilChanged(),
       switchMap((allowed): Observable<IChat | null> => allowed ? recoverDirectChatListener$<IChat | null>(
         () => revalidateDiscoveryOnRevision$(this.observeRevisionGeneration$(owner), null as IChat | null, generation =>
-          recoverDirectChatListener$<IChat | null>(() => this.authorizeDirectChatCandidate$(id, generation).pipe(
-            switchMap(allowed => allowed
-              ? this.sharedSnapshots(generation, id) : of(null))
-          ), error => {
+          recoverDirectChatListener$<IChat | null>(() => this.selectedDirectScope(generation, id), error => {
             this.failedScope(owner, error);
             return null;
           })
