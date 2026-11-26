@@ -37,12 +37,12 @@ describe('ChatListComponent', () => {
   let selectChatMock: ReturnType<typeof vi.fn>;
   let applicationErrorReportMock: ReturnType<typeof vi.fn>;
   let inbox$: BehaviorSubject<DirectChatInboxState>;
-  let loadMoreMock: ReturnType<typeof vi.fn>;
+  let loadMoreMock: ReturnType<typeof vi.fn<() => void>>;
 
   beforeEach(() => {
     selectChatMock = vi.fn();
     applicationErrorReportMock = vi.fn();
-    loadMoreMock = vi.fn();
+    loadMoreMock = vi.fn<() => void>();
     inbox$ = new BehaviorSubject<DirectChatInboxState>({
       items: [], status: 'ready', hasMore: false, unconfirmedCount: 0, directUnreadCount: 0,
     });
@@ -73,7 +73,7 @@ describe('ChatListComponent', () => {
           useValue: {
             items$: of([]),
             observeProgressiveInbox$: (more$: import('rxjs').Observable<unknown>) => {
-              more$.subscribe(loadMoreMock);
+              more$.subscribe(() => loadMoreMock());
               return inbox$;
             },
             selectChat: selectChatMock,
