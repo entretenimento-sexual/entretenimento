@@ -10,7 +10,7 @@ import { revalidateDiscoveryOnRevision$ } from './chat-discovery-invalidation';
 import { createSharedChatRevision$, type SharedChatRevision } from './chat-shared-revision';
 import { createSharedChatSnapshots } from './chat-shared-snapshots';
 import { observeDirectChatPages$, type DirectChatPageResponse, type DirectChatPageState } from './chat-discovery-pages';
-import { observeConfirmedDirectChatInbox$, revokedDirectChatInbox, type DirectChatInboxScope } from './chat-inbox-projection';
+import { observeSharedDirectChatInbox$, revokedDirectChatInbox, type DirectChatInboxScope } from './chat-inbox-projection';
 import { recoverDirectChatListener$ } from 'src/app/messaging/direct-chat/services/direct-chat-listener-recovery';
 
 import {
@@ -105,9 +105,7 @@ export class ChatRepository {
       distinctUntilChanged(),
       switchMap((allowed): Observable<DirectChatPageState> => allowed
         ? observeDirectChatPages$(owner, this.observeRevision$(owner), loadMore$, cursor =>
-          this.ctx.deferPromise$(() => httpsCallable<
-            { pageSize: number; cursor: string | null; order: 'activity' }, DirectChatPageResponse
-          >(this.functions, 'listDirectChatCandidates')({ pageSize: 50, cursor, order: 'activity' })).pipe(map(result => result.data)),
+          this.fetchDirectChatPage$(cursor),
           error => { this.failedScope(owner, error); }
         ).pipe(catchError(error => {
           this.failedScope(owner, error);
@@ -118,16 +116,27 @@ export class ChatRepository {
     );
   }
 
+  private fetchDirectChatPage$(cursor: string | null): Observable<DirectChatPageResponse> {
+    return this.ctx.deferPromise$(() => httpsCallable<
+      { pageSize: number; cursor: string | null; order: 'activity' }, DirectChatPageResponse
+    >(this.functions, 'listDirectChatCandidates')({ pageSize: 50, cursor, order: 'activity' }))
+      .pipe(map(result => result.data));
+  }
+
   watchDirectChatInboxForOwner$(
     uid: string, loadMore$: Observable<unknown>, refresh$: Observable<unknown>
   ): Observable<DirectChatInboxScope> {
+    const owner = String(uid ?? '').trim();
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(owner)) return of(revokedDirectChatInbox());
     return refresh$.pipe(startWith(null), switchMap(() =>
-      observeConfirmedDirectChatInbox$(uid, this.watchDirectChatPagesForOwner$(uid, loadMore$),
-        id => this.observeChat$(id)).pipe(
+      observeSharedDirectChatInbox$(owner, this.sharedRevision$, loadMore$,
+        cursor => this.fetchDirectChatPage$(cursor),
+        (generation, id) => this.sharedSnapshots(generation, id),
+        error => { this.failedScope(owner, error); }).pipe(
         startWith(revokedDirectChatInbox()),
         catchError(error => {
-          this.failedScope(uid, error);
-          return of({ ...revokedDirectChatInbox(), ownerUid: uid, status: 'error' as const });
+          this.failedScope(owner, error);
+          return of({ ...revokedDirectChatInbox(), ownerUid: owner, status: 'error' as const });
         })
       )
     ));

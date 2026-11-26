@@ -1,6 +1,8 @@
-import { Observable, Subscription } from 'rxjs';
+import { Observable, Subscription, of } from 'rxjs';
+import { distinctUntilChanged, startWith, switchMap } from 'rxjs/operators';
 import type { IChat } from '@core/interfaces/interfaces-chat/chat.interface';
-import type { DirectChatPageState } from './chat-discovery-pages';
+import { observeDirectChatPages$, type DirectChatPageResponse, type DirectChatPageState } from './chat-discovery-pages';
+import type { SharedChatRevision } from './chat-shared-revision';
 
 export interface DirectChatInboxScope extends DirectChatPageState {
   chats: IChat[];
@@ -82,4 +84,31 @@ export function observeConfirmedDirectChatInbox$(
     });
     return () => { pagesSub.unsubscribe(); clear(); };
   });
+}
+
+// A page and its document listeners must capture the same generation object.
+// Never bind a late page to whichever generation happens to be active when it
+// returns. Each generation independently validates its backend cursor chain.
+export function observeSharedDirectChatInbox$(
+  owner: string,
+  active$: Observable<SharedChatRevision>,
+  loadMore$: Observable<unknown>,
+  fetchPage: (cursor: string | null) => Observable<DirectChatPageResponse>,
+  observe: (generation: SharedChatRevision, id: string) => Observable<IChat | null>,
+  report: (error: unknown) => void
+): Observable<DirectChatInboxScope> {
+  return active$.pipe(
+    distinctUntilChanged(),
+    switchMap((generation): Observable<DirectChatInboxScope> => {
+      if (generation.ownerUid !== owner) return of(revokedDirectChatInbox());
+      const loading: DirectChatInboxScope = {
+        ...revokedDirectChatInbox(), ownerUid: owner, status: 'loading',
+      };
+      if (generation.revision === null) return of(loading);
+      return observeConfirmedDirectChatInbox$(owner,
+        observeDirectChatPages$(owner, of(generation.revision), loadMore$, fetchPage, report),
+        id => observe(generation, id)
+      ).pipe(startWith(loading));
+    })
+  );
 }
