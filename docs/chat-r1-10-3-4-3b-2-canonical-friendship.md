@@ -1,0 +1,9 @@
+# CHAT-R1.10.3.4.3B.2 — Amizade canônica no teste de histórico
+
+Base 8a7f7a93. Chromium 45817461321, job 139900779250, artefato 15115813907. Onze cenários anteriores PASS. Timeout no botão Conversar com Browser Pessoa E. Captura d-history-failure mostra Mostrar interesse. Sem 429 em D; ainda há 429 na sessão A (Muitas solicitações de conversas).
+
+Causa identificada por inspeção: a fixture D/E tinha somente accepted:true. FriendsRepo.watchFriends ordena por lastInteractionAt, e Firestore exclui documentos sem o campo ordenado. A existência das arestas bastava ao callable de criação do chat, mas não para a lista reativa de amizade. Substituição da fixture D/E por sendFriendRequest autenticado por D e acceptFriendRequest autenticado por E, validando ambas as arestas canônicas (friendUid, lastInteractionAt e source). Preservação do CTA real, todas as asserções de histórico, revogação e isolamento. A/B/C e baseline permanecem inalterados.
+
+Auditoria inicial de redundâncias: arquivo callable-counts.json emitido inclusive em falha, contabiliza respostas POST de Functions loopback por contexto e endpoint, total/429/HTTP >=400, sem dados de requisição ou credenciais. Não mede chamadas SDK de controle, requisições abortadas nem leituras faturadas. RequestsRepo já coalesce leituras simultâneas por direção via SessionReadInFlight, mas cada watcher inicia timer(0,60000); sucessivas montagens podem disparar novas leituras. Descoberta Chat também apresenta pressão sobre a quota; não se altera quota nem autorização. A redução efetiva de redundâncias deve ser certificada separadamente, não se declara corrigida aqui.
+
+Métricas parciais verificadas no result.json de 8a7f7a93: envio P50/P95 258/371 ms; alternância 118/3854 ms; reconexão 3341 ms; recibos residuais 17 ms. Histórico não alcançado. Nenhum teste local; nova CI obrigatória. Sem mudança de código produtivo ou deploy.
