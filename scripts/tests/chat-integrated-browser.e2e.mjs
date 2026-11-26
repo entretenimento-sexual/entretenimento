@@ -60,6 +60,8 @@ const adaptiveSamples = {};
 const concurrencyContexts = new Set(['concurrency-tab-a','concurrency-tab-b','concurrency-peer']);
 const concurrencySamples = {stages:[], resources:[], convergences:[]};
 const pendingResources = [];
+// Independent transport barrier for the complementary offline proof.
+const offlineContexts = new WeakSet();
 const isComplementary = row => !originalContexts.has(row.context) && row.context!==spaContext && row.context!==resilienceContext && row.context!==adaptiveContext && !concurrencyContexts.has(row.context);
 const accountingTasks = new Set();
 let currentPhase = 'initial';
@@ -158,7 +160,10 @@ async function newPage(name, viewport={width:1440,height:1000}, existingContext=
   // Browser traffic cannot reach a cloud Firebase service or external provider.
   await context.route('**/*', route => {
     const url = new URL(route.request().url());
-    return ['127.0.0.1','localhost'].includes(url.hostname) ? route.continue() : route.abort();
+    if (!['127.0.0.1','localhost'].includes(url.hostname)) return route.abort();
+    // Intercepted requests must not bypass an offline emulation boundary.
+    if (offlineContexts.has(context)) return route.abort('internetdisconnected');
+    return route.continue();
   });
   await context.addInitScript(() => localStorage.setItem('DEBUG_FRIENDS', '1'));
   }
@@ -220,6 +225,13 @@ async function newPage(name, viewport={width:1440,height:1000}, existingContext=
   });
   pages.push({name,page});
   return page;
+}
+async function setVerifiedOffline(page, offline) {
+  const context=page.context();
+  if(offline) offlineContexts.add(context);
+  else offlineContexts.delete(context);
+  await context.setOffline(offline);
+  await page.waitForFunction(value=>navigator.onLine===!value,offline,{timeout:10_000});
 }
 async function login(page,user) {
   await page.goto(BASE+'/login');
@@ -324,7 +336,11 @@ async function certifyFriendshipPair(label,keys,actions) {
     await s.getByRole('tab',{name:/Enviadas/}).click();
     await t.getByRole('tab',{name:/Recebidas/}).waitFor({state:'visible'});
     for(const page of [s,t]) await page.evaluate(()=>{window.__chatFriendshipCertificationDocument=true;});
-    await until(label+' initial canonical reads',()=>reads(senderName,'outbound').length>0&&reads(receiverName,'inbound').length>0,Boolean);
+    // The login document may already have completed reads. Wait for BOTH
+    // directions in the mounted requests document before interrupting transport.
+    await until(label+' initial canonical reads in mounted documents',()=>[senderName,receiverName].every(context=>
+      ['inbound','outbound'].every(direction=>pendingAttempts.some(row=>row.context===context&&
+        row.route==='friends'&&row.document===2&&row.direction===direction&&row.httpStatus===200))),Boolean);
     await s.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'});
     await t.getByText('Nenhuma solicitação recebida',{exact:true}).waitFor({state:'visible'});
     for(const action of actions) {
@@ -332,7 +348,7 @@ async function certifyFriendshipPair(label,keys,actions) {
       await signInWithEmailAndPassword(auth,email(sending||action==='cancel'?sender:receiver),password);
       const prevS=reads(senderName,'outbound').at(-1),prevT=reads(receiverName,'inbound').at(-1);
       currentPhase=label+': '+action;
-      if(offline) await t.context().setOffline(true);
+      if(offline) await setVerifiedOffline(t,true);
       const start=performance.now();
       try {
         const endpoint=sending?'sendFriendRequest':action==='cancel'?'cancelFriendRequest':action==='decline'?'declineFriendRequest':'acceptFriendRequest';
@@ -347,9 +363,10 @@ async function certifyFriendshipPair(label,keys,actions) {
         assert.ok(performance.now()-prevS.startMs<60_000,'Sender converged before prior polling deadline');
         let reconnectStart=null;
         if(offline) {
+          assert.equal(await t.evaluate(()=>navigator.onLine),false,'Receiver must remain offline before observation');
           assert.equal(await inbound.count(),0,'Offline observer received new request');
           reconnectStart=performance.now();
-          await t.context().setOffline(false);
+          await setVerifiedOffline(t,false);
         }
         await inbound.waitFor({state,timeout:offline?60_000:20_000});
         const receiverMs=elapsed(reconnectStart??start);
@@ -361,7 +378,7 @@ async function certifyFriendshipPair(label,keys,actions) {
           assert.equal(new URL(page.url()).pathname,'/friends/requests');
         }
         friendshipSamples.push({scenario:label,action,senderMs,receiverMs,reconnect:offline});
-      } finally { if(offline) await t.context().setOffline(false); }
+      } finally { if(offline) await setVerifiedOffline(t,false); }
     }
     pass('mounted independent friendship observers '+label);
   } catch(error) {
@@ -772,7 +789,9 @@ async function certifyConcurrency() {
   const activity=(page,path)=>page.locator('app-user-activity-hub a[href="'+path+'"]');
   const requestList=async page=>{
     if(new URL(page.url()).pathname!=='/friends/requests') {
-      await activity(page,'/friends/requests').click();
+      // Chat has no activity hub. The actual sidebar requests link works
+      // across authenticated modules, including the profile destination.
+      await page.locator('#app-sidebar a[href="/friends/requests"]').click();
       await page.waitForURL(url=>url.pathname==='/friends/requests');
     }
     await page.getByRole('tab',{name:/Enviadas/}).click();
@@ -831,7 +850,7 @@ async function certifyConcurrency() {
       await Promise.all(tabs.map(page=>page.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'})));
       await capture('bootstrap');
     });
-    await takeStage('concurrent modules',async()=>{
+    await takeStage('concurrent modules',async begin=>{
       await Promise.all([
         side(a,'Abrir mensagens diretas').click(),
         activity(b,'/notificacoes').click(),
@@ -842,6 +861,9 @@ async function certifyConcurrency() {
       await b.goto(BASE+'/perfil/'+target);
       await b.locator('#profile-heading').waitFor();
       await Promise.all(tabs.map(requestList));
+      await until('profile document directional reads',()=>['inbound','outbound'].every(direction=>
+        rows().some(row=>row.context===names[1]&&row.direction===direction&&row.startMs>=begin&&row.httpStatus===200)),Boolean,30_000);
+      await Promise.all(tabs.map(page=>page.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'})));
       await capture('modules');
     });
     await takeStage('canonical burst with held old epoch',async begin=>{
@@ -910,6 +932,9 @@ async function certifyConcurrency() {
       concurrencySamples.anonymous={observedMs:185_000,attempts:0};
     });
     pass('concurrent tabs and modules, directional burst, stale epoch discard, reconnect and teardown');
+  } catch(error) {
+    await Promise.allSettled(tabs.map((page,index)=>screenshot(page,names[index]+'-failure')));
+    throw error;
   } finally {
     releaseHold();
     await Promise.allSettled([a.context().close(),c.context().close()]);
