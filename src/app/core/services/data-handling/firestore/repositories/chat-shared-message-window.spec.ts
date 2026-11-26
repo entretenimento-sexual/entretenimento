@@ -115,6 +115,40 @@ describe('createAuthorizedSharedChatMessages', () => {
     retry.unsubscribe();
   });
 
+  it('isolates 24 consumers across repeated generation changes and releases both transports', () => {
+    const active$ = new BehaviorSubject(scope('owner', 1));
+    const sources: Subject<Message[]>[] = [];
+    const authorize = vi.fn((_id: string) => of(true));
+    const observe = vi.fn((_id: string) => {
+      const source = new Subject<Message[]>();
+      sources.push(source);
+      return source;
+    });
+    const read = createAuthorizedSharedChatMessages(active$, authorize, observe);
+    const values: Message[][] = Array.from({ length: 24 }, () => []);
+    const subs = values.map((_, index) => read('owner', index % 2 ? 'b' : 'a')
+      .subscribe(messages => { values[index] = messages; }));
+    for (let revision = 1; revision <= 6; revision++) {
+      if (revision > 1) active$.next(scope('owner', revision));
+      expect(observe).toHaveBeenCalledTimes(revision * 2);
+      expect(authorize).toHaveBeenCalledTimes(revision * 24);
+      expect(values.every(messages => messages.length === 0)).toBe(true);
+      const current = sources.slice(-2);
+      expect(current.map(source => source.observers.length)).toEqual([1, 1]);
+      for (const old of sources.slice(0, -2)) {
+        expect(old.observers).toHaveLength(0);
+        old.next(windowOf('stale'));
+      }
+      current[0].next(windowOf('a-' + revision));
+      current[1].next(windowOf('b-' + revision));
+      values.forEach((messages, index) =>
+        expect(messages).toEqual(windowOf((index % 2 ? 'b-' : 'a-') + revision)));
+    }
+    subs.forEach(sub => sub.unsubscribe());
+    expect(sources.every(source => source.observers.length === 0)).toBe(true);
+    expect(active$.observers).toHaveLength(0);
+  });
+
   it('does not authorize invalid IDs, another owner or unconfirmed generations', () => {
     const active$ = new BehaviorSubject(scope('owner', null));
     const authorize = vi.fn((_id: string) => of(true));

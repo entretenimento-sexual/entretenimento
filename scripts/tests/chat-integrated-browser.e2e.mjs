@@ -4,6 +4,7 @@ import { createWriteStream, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import { initializeApp as initializeAdminApp, deleteApp as deleteAdminApp } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
@@ -43,6 +44,18 @@ let server, browser;
 const pages = [];
 const browserErrors = [];
 const phases = [];
+const performanceSamples = {roundTrips: [], recoveryMs: null, switches: [], receiptConvergenceMs: null};
+const PHASE_BUDGET_MS = 60_000;
+function elapsed(start) { return Math.round(performance.now() - start); }
+function withinBudget(label, ms) {
+  assert.ok(ms <= PHASE_BUDGET_MS, label + ': ' + ms + 'ms exceeds ' + PHASE_BUDGET_MS + 'ms');
+}
+function sampleSummary(values) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a,b)=>a-b);
+  return {count: sorted.length, p50: sorted[Math.ceil(sorted.length*0.5)-1],
+    p95: sorted[Math.ceil(sorted.length*0.95)-1], max: sorted.at(-1)};
+}
 const sleep = ms => new Promise(r => setTimeout(r,ms));
 async function until(label, read, accepts, timeout=60_000) {
   const end = Date.now()+timeout;
@@ -167,6 +180,40 @@ try {
   await message(a,second).waitFor({state:'visible'});
   await message(b,second).waitFor({state:'visible'});
   pass('bilateral send and receive through real composer');
+  // Sequential bidirectional UI workload below the production sender quota.
+  // The receiving context remains independently authenticated throughout.
+  const burst = [];
+  for (let i=0;i<8;i++) {
+    const sender = i%2===0 ? a : b;
+    const receiver = i%2===0 ? b : a;
+    const content = 'Browser perf '+id+' '+i;
+    const start = performance.now();
+    await composer(sender).fill(content);
+    if(i%2===0) await send(sender).click(); else await composer(sender).press('Enter');
+    await Promise.all([message(sender,content).waitFor({state:'visible'}),
+      message(receiver,content).waitFor({state:'visible'})]);
+    const ms = elapsed(start);
+    performanceSamples.roundTrips.push({index:i, direction:i%2===0?'A-B':'B-A',ms});
+    withinBudget('send and receive '+i,ms);
+    burst.push(content);
+  }
+  // Use the actual rendered thread, excluding inbox previews, and verify order
+  // and uniqueness, not merely the presence of the last message.
+  for (const page of [a,b]) {
+    const rendered = (await page.locator('app-chat-message .thread-message__content').allTextContents())
+      .map(content=>content.trim()).filter(content=>burst.includes(content));
+    assert.deepEqual(rendered,burst,'Ordered unique rendered workload');
+  }
+  const receiptStart = performance.now();
+  await until('all workload receipts confirmed by Firestore',async()=>{
+    const snap = await db.collection('chats/'+chatId+'/messages').get();
+    const rows = snap.docs.map(doc=>doc.data()).filter(row=>burst.includes(row.content));
+    return rows.length===burst.length && new Set(rows.map(row=>row.content)).size===burst.length &&
+      rows.every(row=>row.status==='read');
+  },Boolean,PHASE_BUDGET_MS);
+  performanceSamples.receiptConvergenceMs = elapsed(receiptStart);
+  withinBudget('receipt convergence',performanceSamples.receiptConvergenceMs);
+  pass('ordered bidirectional workload and canonical read receipts');
   await screenshot(a,'a-desktop');
   // Test revocation while both UI contexts remain mounted. The real callable
   // is invoked by B's separate authenticated control SDK, not an Admin write.
@@ -212,6 +259,58 @@ try {
   await message(a,first).waitFor({state:'visible'});
   assert.equal(await composer(a).inputValue(),'');
   pass('A return with canonical history and no stale draft');
+  // Simulate transport interruption in B only; the sender remains online.
+  const offlineMessage = 'Browser offline recovery '+id;
+  await b.context().setOffline(true);
+  try {
+    await composer(a).fill(offlineMessage);
+    await send(a).click();
+    await message(a,offlineMessage).waitFor({state:'visible'});
+    assert.equal(await message(b,offlineMessage).count(),0,'Offline peer received unexpected new DOM content');
+  } finally {
+    await b.context().setOffline(false);
+  }
+  const recoveryStart = performance.now();
+  // No refresh, navigation or SDK sign-in is performed in B.
+  await message(b,offlineMessage).waitFor({state:'visible'});
+  performanceSamples.recoveryMs = elapsed(recoveryStart);
+  withinBudget('offline recovery',performanceSamples.recoveryMs);
+  assert.equal(await message(b,offlineMessage).count(),1);
+  pass('independent network recovery without reload or duplicate message');
+  // Only after the original unauthorized C scenario, grant a second synthetic
+  // friendship to exercise actual in-app switching between distinct histories.
+  await Promise.all([
+    db.doc('users/'+aUid+'/friends/'+cUid).set({accepted:true}),
+    db.doc('users/'+cUid+'/friends/'+aUid).set({accepted:true}),
+  ]);
+  await signInWithEmailAndPassword(auth,email(aUid),password);
+  const secondChat = (await httpsCallable(functions,'ensureDirectChat')({otherUserUid:cUid})).data.chatId;
+  assert.ok(secondChat && secondChat!==chatId);
+  const secondMarker = 'Browser alternate history '+id;
+  await httpsCallable(functions,'sendDirectMessage')({chatId:secondChat,content:secondMarker,
+    clientRequestId:randomUUID()});
+  const cardB = a.locator('.conversation-card').filter({hasText:'Browser Pessoa B'});
+  const cardC = a.locator('.conversation-card').filter({hasText:'Browser Pessoa C'});
+  await cardB.waitFor({state:'visible'});
+  await cardC.waitFor({state:'visible'});
+  for (let i=0;i<6;i++) {
+    const alternate = i%2===0;
+    const target = alternate ? cardC : cardB;
+    const expected = alternate ? secondMarker : offlineMessage;
+    const forbidden = alternate ? offlineMessage : secondMarker;
+    const start = performance.now();
+    await target.click();
+    await message(a,expected).waitFor({state:'visible'});
+    await message(a,forbidden).waitFor({state:'hidden'});
+    await until('selected conversation',()=>target.getAttribute('aria-pressed'),value=>value==='true');
+    const ms = elapsed(start);
+    performanceSamples.switches.push({index:i,ms});
+    withinBudget('conversation switch '+i,ms);
+    assert.equal(await message(a,expected).count(),1);
+  }
+  await message(b,offlineMessage).waitFor({state:'visible'});
+  assert.equal(await message(b,secondMarker).count(),0,'Other account exposed alternate history');
+  pass('six in-app conversation switches with isolated histories and independent peer');
   await a.setViewportSize({width:390,height:844});
   await screenshot(a,'a-mobile');
   const metrics=await a.evaluate(()=>{
@@ -225,9 +324,11 @@ try {
   assert.ok(metrics.sendHeight>=44,'Send action minimum touch target');
   pass('mobile layout and accessible composer');
   assert.equal(browserErrors.filter(e=>e.type==='pageerror').length,0,'Unhandled browser exceptions');
-  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics},null,2));
+  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,
+    performanceSummary:{budgetMs:PHASE_BUDGET_MS,sendReceive:sampleSummary(performanceSamples.roundTrips.map(row=>row.ms)),
+      conversationSwitch:sampleSummary(performanceSamples.switches.map(row=>row.ms))}},null,2));
 } catch(error) {
-  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'FAIL',phases,error:String(error)},null,2));
+  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'FAIL',phases,performanceSamples,error:String(error)},null,2));
   for(const {name,page} of pages) await screenshot(page,name+'-failure').catch(()=>{});
   throw error;
 } finally {

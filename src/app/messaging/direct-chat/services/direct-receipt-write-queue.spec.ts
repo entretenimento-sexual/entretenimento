@@ -48,6 +48,30 @@ describe('DirectReceiptWriteQueue', () => {
     expect(pending.observers).toHaveLength(0);
   });
 
+  it('processes 200 jobs over repeated saturation cycles, without duplicates or lost slots', async () => {
+    const queue = new DirectReceiptWriteQueue(5, 250);
+    for (let cycle = 0; cycle < 4; cycle++) {
+      const subjects = Array.from({ length: 50 }, () => new Subject<number>());
+      const started: number[] = [];
+      const results: number[] = [];
+      const subscriptions = subjects.map((source, index) => queue.schedule$(() => {
+        started.push(index);
+        return source;
+      }).subscribe(value => results.push(value)));
+      expect(started).toEqual([0, 1, 2, 3, 4]);
+      for (let index = 0; index < subjects.length; index++) {
+        expect(subjects.filter(source => source.observers.length > 0)).toHaveLength(Math.min(5, 50 - index));
+        subjects[index].next(index);
+        subjects[index].complete();
+        expect(started).toHaveLength(Math.min(50, index + 6));
+      }
+      expect(started).toEqual(Array.from({ length: 50 }, (_, index) => index));
+      expect(results).toEqual(started);
+      expect(subjects.every(source => source.observers.length === 0)).toBe(true);
+      expect(subscriptions.every(subscription => subscription.closed)).toBe(true);
+    }
+  });
+
   it('handles synchronous source failure without losing a slot', async () => {
     const queue = new DirectReceiptWriteQueue(1, 10);
     const error = new Error('sync');
