@@ -93,7 +93,7 @@ export function observeSharedDirectChatInbox$(
   owner: string,
   active$: Observable<SharedChatRevision>,
   loadMore$: Observable<unknown>,
-  fetchPage: (cursor: string | null) => Observable<DirectChatPageResponse>,
+  fetchPage: (cursor: string | null, generation: SharedChatRevision) => Observable<DirectChatPageResponse>,
   observe: (generation: SharedChatRevision, id: string) => Observable<IChat | null>,
   report: (error: unknown) => void
 ): Observable<DirectChatInboxScope> {
@@ -106,7 +106,8 @@ export function observeSharedDirectChatInbox$(
       };
       if (generation.revision === null) return of(loading);
       return observeConfirmedDirectChatInbox$(owner,
-        observeDirectChatPages$(owner, of(generation.revision), loadMore$, fetchPage, report),
+        observeDirectChatPages$(owner, of(generation.revision), loadMore$,
+          cursor => fetchPage(cursor, generation), report),
         id => observe(generation, id)
       ).pipe(startWith(loading));
     })

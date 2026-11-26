@@ -548,6 +548,14 @@ try {
   assert.equal((await threadIds(b)).some(key=>privateIds.has(key)),false);
   pass('live revocation purges loaded history without affecting independent chat');
   assert.equal(browserErrors.filter(e=>e.type==='pageerror').length,0,'Unhandled browser exceptions');
+  const discovery = [...callableCounts.values()].filter(row=>row.endpoint==='listDirectChatCandidates');
+  const discoveryTotal = discovery.reduce((sum,row)=>sum+row.total,0);
+  const discovery429 = discovery.reduce((sum,row)=>sum+row.rateLimited,0);
+  console.log('Discovery response comparison '+JSON.stringify({
+    baseline:60, baseline429:1, actual:discoveryTotal, delta:discoveryTotal-60, rateLimited:discovery429
+  }));
+  assert.ok(discoveryTotal>0,'Discovery instrumentation captured no requests');
+  assert.equal(discovery429,0,'Discovery must not exhaust quota in the certified workload');
   writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,baselineComparison:baselineComparison(),
     performanceSummary:{budgetMs:PHASE_BUDGET_MS,sendReceive:sampleSummary(performanceSamples.roundTrips.map(row=>row.ms)),
       conversationSwitch:sampleSummary(performanceSamples.switches.map(row=>row.ms))}},null,2));

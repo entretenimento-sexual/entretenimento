@@ -4,12 +4,12 @@ import type { Message } from '@core/interfaces/interfaces-chat/message.interface
 import type { SharedChatRevision } from './chat-shared-revision';
 import { createSharedChatSnapshots } from './chat-shared-snapshots';
 
-// Share only the canonical 60-message transport, never a candidate decision.
-// Each subscription must complete its own backend check for the active
-// confirmed generation. A new generation cancels the old check AND window.
+// Each subscription validates the candidate response for its generation.
+// The repository may coalesce identical one-shot requests in flight; it
+// does not cache completed decisions. A new generation cancels check and window.
 export function createAuthorizedSharedChatMessages(
   active$: Observable<SharedChatRevision>,
-  authorize: (id: string) => Observable<boolean>,
+  authorize: (id: string, generation: SharedChatRevision) => Observable<boolean>,
   observe: (id: string) => Observable<Message[]>
 ): (ownerUid: string, chatId: string) => Observable<Message[]> {
   const read = createSharedChatSnapshots<Message[]>(active$, observe);
@@ -28,7 +28,7 @@ export function createAuthorizedSharedChatMessages(
         if (generation.ownerUid !== owner || generation.revision === null) {
           return of([] as Message[]);
         }
-        return defer(() => authorize(id)).pipe(
+        return defer(() => authorize(id, generation)).pipe(
           take(1),
           switchMap(allowed => allowed === true
             ? read(generation, id).pipe(map(messages => messages ?? []))

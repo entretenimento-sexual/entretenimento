@@ -42,7 +42,7 @@ describe('observeSharedDirectChatInbox$', () => {
     b$.next(chat('b', 3));
     expect(values.at(-1)?.chats.map(c => c.id)).toEqual(['b', 'a']);
     expect(transport.mock.calls).toEqual([['a'], ['b']]);
-    expect(fetch.mock.calls).toEqual([[null], [cursor]]);
+    expect(fetch.mock.calls).toEqual([[null, generation], [cursor, generation]]);
     a$.next(null);
     expect(values.at(-1)?.chats.map(c => c.id)).toEqual(['b']);
     expect(values.at(-1)?.unconfirmedCount).toBe(1);
@@ -78,7 +78,7 @@ describe('observeSharedDirectChatInbox$', () => {
     oldPage$.next(page(['a']));
     const fresh = scope('owner', 1);
     active$.next(fresh);
-    expect(fetch.mock.calls).toEqual([[null], [null]]);
+    expect(fetch.mock.calls).toEqual([[null, original], [null, fresh]]);
     newPage$.next(page(['a']));
     newPage$.complete();
     expect(values.at(-1)?.chats).toEqual([]);

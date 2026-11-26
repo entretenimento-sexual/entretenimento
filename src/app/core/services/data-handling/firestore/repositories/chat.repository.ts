@@ -9,6 +9,7 @@ import { createChatDiscoveryScope$, type ChatDiscoveryScope } from './chat-disco
 import { revalidateDiscoveryOnRevision$ } from './chat-discovery-invalidation';
 import { createSharedChatRevision$, type SharedChatRevision } from './chat-shared-revision';
 import { createSharedChatSnapshots } from './chat-shared-snapshots';
+import { createChatGenerationInFlight } from './chat-generation-in-flight';
 import { createAuthorizedSharedChatMessages } from './chat-shared-message-window';
 import { ChatMessagesRepository } from './chat-messages.repository';
 import type { Message } from '@core/interfaces/interfaces-chat/message.interface';
@@ -41,13 +42,17 @@ export class ChatRepository {
     uid => this.observeRevisionDocument$(uid)
   );
 
+  private readonly candidateInFlight = createChatGenerationInFlight<{ chatIds: string[] }>(this.sharedRevision$);
+  private readonly legacyInFlight = createChatGenerationInFlight<{ chatIds: string[] }>(this.sharedRevision$);
+  private readonly pageInFlight = createChatGenerationInFlight<DirectChatPageResponse>(this.sharedRevision$);
+
   private readonly sharedSnapshots = createSharedChatSnapshots<IChat>(
     this.sharedRevision$, id => this.observeChat$(id)
   );
 
   private readonly sharedMessageWindow = createAuthorizedSharedChatMessages(
     this.sharedRevision$,
-    id => this.authorizeDirectChatCandidate$(id),
+    (id, generation) => this.authorizeDirectChatCandidate$(id, generation),
     id => this.messagesRepo.watchMessages$(id, 60)
   );
 
@@ -72,13 +77,6 @@ export class ChatRepository {
   }
 
   // Only the backend discovers IDs. Each individual listener still uses Rules.
-  private observeRevision$(uid: string): Observable<number | null> {
-    return this.sharedRevision$.pipe(
-      map(scope => scope.ownerUid === uid ? scope.revision : null),
-      distinctUntilChanged()
-    );
-  }
-
   private observeRevisionGeneration$(uid: string): Observable<SharedChatRevision | null> {
     return this.sharedRevision$.pipe(
       map(scope => scope.ownerUid === uid && scope.revision !== null ? scope : null),
@@ -114,10 +112,12 @@ export class ChatRepository {
       map(([active, allowed]) => active === owner && allowed),
       distinctUntilChanged(),
       switchMap((allowed): Observable<DirectChatPageState> => allowed
-        ? observeDirectChatPages$(owner, this.observeRevision$(owner), loadMore$, cursor =>
-          this.fetchDirectChatPage$(cursor),
-          error => { this.failedScope(owner, error); }
-        ).pipe(catchError(error => {
+        ? this.observeRevisionGeneration$(owner).pipe(switchMap(generation =>
+          observeDirectChatPages$(owner, of(generation?.revision ?? null), loadMore$,
+            cursor => generation ? this.fetchDirectChatPage$(cursor, generation) : throwError(() =>
+              new Error('Geração de descoberta indisponível.')),
+            error => { this.failedScope(owner, error); })
+        ), catchError(error => {
           this.failedScope(owner, error);
           return of({ ownerUid: owner, status: 'error', chatIds: [], hasMore: false } as DirectChatPageState);
         }))
@@ -126,11 +126,12 @@ export class ChatRepository {
     );
   }
 
-  private fetchDirectChatPage$(cursor: string | null): Observable<DirectChatPageResponse> {
-    return this.ctx.deferPromise$(() => httpsCallable<
-      { pageSize: number; cursor: string | null; order: 'activity' }, DirectChatPageResponse
-    >(this.functions, 'listDirectChatCandidates')({ pageSize: 50, cursor, order: 'activity' }))
-      .pipe(map(result => result.data));
+  private fetchDirectChatPage$(cursor: string | null, generation: SharedChatRevision): Observable<DirectChatPageResponse> {
+    return this.pageInFlight(generation, JSON.stringify([50, cursor, 'activity']), () =>
+      this.ctx.deferPromise$(() => httpsCallable<
+        { pageSize: number; cursor: string | null; order: 'activity' }, DirectChatPageResponse
+      >(this.functions, 'listDirectChatCandidates')({ pageSize: 50, cursor, order: 'activity' }))
+        .pipe(map(result => result.data)));
   }
 
   watchDirectChatInboxForOwner$(
@@ -140,7 +141,7 @@ export class ChatRepository {
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(owner)) return of(revokedDirectChatInbox());
     return refresh$.pipe(startWith(null), switchMap(() =>
       observeSharedDirectChatInbox$(owner, this.sharedRevision$, loadMore$,
-        cursor => this.fetchDirectChatPage$(cursor),
+        (cursor, generation) => this.fetchDirectChatPage$(cursor, generation),
         (generation, id) => this.sharedSnapshots(generation, id),
         error => { this.failedScope(owner, error); }).pipe(
         startWith(revokedDirectChatInbox()),
@@ -156,12 +157,12 @@ export class ChatRepository {
     const revision$ = this.observeRevisionGeneration$(uid);
     const loading: ChatDiscoveryScope = { ownerUid: uid, status: 'loading', chats: [] };
     return revalidateDiscoveryOnRevision$(revision$, loading, generation =>
-      this.ctx.deferPromise$(() =>
+      this.legacyInFlight(generation, 'all', () => this.ctx.deferPromise$(() =>
         httpsCallable<Record<string, never>, { chatIds: string[] }>(
           this.functions, 'listDirectChatCandidates'
         )({})
-      ).pipe(
-        switchMap(({ data }) => {
+      ).pipe(map(result => result.data))).pipe(
+        switchMap(data => {
           if (!Array.isArray(data.chatIds) || data.chatIds.some(id =>
             typeof id !== 'string' || !id || id.includes('/'))) {
             throw new Error('Resposta de descoberta inválida.');
@@ -178,18 +179,18 @@ export class ChatRepository {
     );
   }
 
-  // Each invocation authorizes the individual candidate independently.
-  // Only the confirmed-generation message transport may be shared.
+  // Every consumer validates the exact candidate response. Only identical
+  // in-flight reads within one confirmed generation may be coalesced.
   watchDirectMessagesForOwner$(uid: string, chatId: string): Observable<Message[]> {
     return this.sharedMessageWindow(uid, chatId);
   }
 
-  private authorizeDirectChatCandidate$(id: string): Observable<boolean> {
-    return this.ctx.deferPromise$(() =>
+  private authorizeDirectChatCandidate$(id: string, generation: SharedChatRevision): Observable<boolean> {
+    return this.candidateInFlight(generation, id, () => this.ctx.deferPromise$(() =>
       httpsCallable<{ chatId: string }, { chatIds: string[] }>(
         this.functions, 'listDirectChatCandidates'
       )({ chatId: id })
-    ).pipe(map(({ data }) => Array.isArray(data?.chatIds) &&
+    ).pipe(map(result => result.data))).pipe(map(data => Array.isArray(data?.chatIds) &&
       data.chatIds.length === 1 && data.chatIds[0] === id));
   }
 
@@ -205,7 +206,7 @@ export class ChatRepository {
       distinctUntilChanged(),
       switchMap((allowed): Observable<IChat | null> => allowed ? recoverDirectChatListener$<IChat | null>(
         () => revalidateDiscoveryOnRevision$(this.observeRevisionGeneration$(owner), null as IChat | null, generation =>
-          recoverDirectChatListener$<IChat | null>(() => this.authorizeDirectChatCandidate$(id).pipe(
+          recoverDirectChatListener$<IChat | null>(() => this.authorizeDirectChatCandidate$(id, generation).pipe(
             switchMap(allowed => allowed
               ? this.sharedSnapshots(generation, id) : of(null))
           ), error => {
