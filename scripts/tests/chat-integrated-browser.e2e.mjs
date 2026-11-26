@@ -12,6 +12,7 @@ import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
 import { seedPublicMediaCompliance } from './media-e2e-compliance-fixture.mjs';
+import { summarizePendingAttempts } from './chat-integrated-browser-metrics.mjs';
 
 const PROJECT = 'demo-entretenimento-media-e2e';
 const BASE = 'http://127.0.0.1:4200';
@@ -48,6 +49,8 @@ const phases = [];
 const callableCounts = new Map();
 const pendingReadTrace = [], friendshipSamples = [], pendingOrigins = [];
 const requestStarts = new WeakMap();
+const pendingAttempts = [];
+const originalContexts = new Set(['a','b','d-history']);
 let currentPhase = 'initial';
 const callableTransportFailures = new Map();
 function recordCallableTransportFailure(name, request) {
@@ -57,6 +60,10 @@ function recordCallableTransportFailure(name, request) {
   if(!endpoint || !/^[A-Za-z][A-Za-z0-9]*$/.test(endpoint)) return;
   const error = request.failure()?.errorText ?? '';
   const category = /^net::ERR_[A-Z_]+$/.test(error) ? error : 'other';
+  if(endpoint==='getPendingFriendRequests') {
+    const attempt=requestStarts.get(request);
+    if(attempt) { attempt.transportFailure=category; attempt.failureMs=elapsed(attempt.startMs); }
+  }
   const key = name+':'+endpoint+':'+category;
   const row = callableTransportFailures.get(key) ?? {context:name,endpoint,category,total:0};
   row.total++;
@@ -73,6 +80,7 @@ function recordCallable(name, response) {
   row.total++;
   if(endpoint==='getPendingFriendRequests') {
     const timing=requestStarts.get(response.request());
+    if(timing) { timing.httpStatus=response.status(); timing.responseMs=elapsed(timing.startMs); }
     pendingReadTrace.push({context:name,phase:timing?.phase??'unknown',direction:timing?.direction??'unknown',status:response.status(),startMs:timing?.startMs??null,latencyMs:timing?elapsed(timing.startMs):null});
   }
   if(response.status()===429) row.rateLimited++;
@@ -152,12 +160,20 @@ async function newPage(name, viewport={width:1440,height:1000}) {
   page.setDefaultTimeout(60_000);
   page.on('request',request=>{
     const url=new URL(request.url());
+    if(request.isNavigationRequest() && request.resourceType()==='document' && request.frame()===page.mainFrame()) {
+      // This is a document request, not merely an Angular URL change.
+      const first=url.pathname.split('/')[1];
+      const route=['login','perfil','friends','chat','notificacoes','dashboard'].includes(first)?first:'other';
+      pendingOrigins.push({context:name,event:'document-request',route,phase:currentPhase,atMs:performance.now()});
+    }
     if(url.hostname!=='127.0.0.1'||url.port!=='15001'||request.method()!=='POST'||url.pathname.split('/').at(-1)!=='getPendingFriendRequests') return;
     let direction='unknown';
     try { const value=request.postDataJSON()?.data?.direction;
       if(value==='inbound'||value==='outbound') direction=value;
     } catch { /* diagnostics only; never store request body */ }
-    requestStarts.set(request,{phase:currentPhase,direction,startMs:performance.now()});
+    const attempt={context:name,phase:currentPhase,direction,route:routeCategory(),document:documentNumber,startMs:performance.now(),httpStatus:null,responseMs:null,transportFailure:null,failureMs:null};
+    pendingAttempts.push(attempt);
+    requestStarts.set(request,attempt);
   });
   page.on('response', response => recordCallable(name,response));
   page.on('requestfailed', request => recordCallableTransportFailure(name,request));
@@ -730,6 +746,9 @@ try {
   const originalWorkload={discovery:discoveryTotal,pending:pendingTotal};
   assert.equal(pendingRequests.reduce((sum,row)=>sum+row.failed,0),0,'Original pending workload HTTP failures');
   await Promise.all([a.context().close(),b.context().close(),d.context().close()]);
+  const originalAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context)));
+  assert.ok(originalAttempts.started>=pendingTotal,'Attempt counting must include completed responses');
+  console.log('Pending friendship original attempt accounting '+JSON.stringify(originalAttempts));
   await certifyFriendshipPair('cancel-decline',['f','g'],['send','cancel','send','decline']);
   await certifyFriendshipPair('offline-accept',['h','i'],['offline-send','accept']);
   assert.equal(browserErrors.filter(e=>e.type==='pageerror').length,0,'Unhandled browser exceptions including friendship');
@@ -739,10 +758,13 @@ try {
   }
   assert.ok(pendingOrigins.some(row=>row.event==='start'&&row.reason==='session'),'Session origin tracing unavailable');
   assert.ok(pendingOrigins.some(row=>row.event==='start'&&row.reason==='canonical-event'),'Canonical origin tracing unavailable');
-  console.log('Friendship reactive measurements '+JSON.stringify({originalWorkload,samples:friendshipSamples,
+  const fullAttempts=summarizePendingAttempts(pendingAttempts);
+  const complementaryAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>!originalContexts.has(row.context)));
+  console.log('Pending friendship complete attempt accounting '+JSON.stringify(fullAttempts));
+  console.log('Friendship reactive measurements '+JSON.stringify({originalWorkload,originalAttempts,complementaryAttempts,fullAttempts,samples:friendshipSamples,
     online:sampleSummary(friendshipSamples.filter(row=>!row.reconnect).flatMap(row=>[row.senderMs,row.receiverMs])),
     reconnect:sampleSummary(friendshipSamples.filter(row=>row.reconnect).map(row=>row.receiverMs))}));
-  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,baselineComparison:baselineComparison(),
+  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,originalAttempts,complementaryAttempts,fullAttempts,baselineComparison:baselineComparison(),
     performanceSummary:{budgetMs:PHASE_BUDGET_MS,sendReceive:sampleSummary(performanceSamples.roundTrips.map(row=>row.ms)),
       conversationSwitch:sampleSummary(performanceSamples.switches.map(row=>row.ms))}},null,2));
 } catch(error) {
@@ -752,6 +774,8 @@ try {
 } finally {
   writeFileSync(resolve(out,'pending-read-trace.json'),JSON.stringify(pendingReadTrace,null,2));
   writeFileSync(resolve(out,'pending-read-origins.json'),JSON.stringify(pendingOrigins,null,2));
+  writeFileSync(resolve(out,'pending-read-attempts.json'),JSON.stringify(pendingAttempts,null,2));
+  writeFileSync(resolve(out,'pending-read-accounting.json'),JSON.stringify({original:summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context))),complementary:summarizePendingAttempts(pendingAttempts.filter(row=>!originalContexts.has(row.context))),all:summarizePendingAttempts(pendingAttempts)},null,2));
   console.log('Pending friendship origins '+JSON.stringify(pendingOrigins.filter(row=>row.event==='start').reduce((counts,row)=>{ const key=row.context+':'+row.direction+':'+row.reason; counts[key]=(counts[key]??0)+1; return counts; },{})));
   writeFileSync(resolve(out,'friendship-reactive-samples.json'),JSON.stringify(friendshipSamples,null,2));
   writeFileSync(resolve(out,'browser-diagnostics.json'),JSON.stringify(browserErrors,null,2));

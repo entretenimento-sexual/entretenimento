@@ -48,6 +48,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Test attempt accounting
+        run: node --test scripts/tests/chat-integrated-browser-metrics.test.mjs
       - name: Install application and Functions
         run: |
           npm ci
