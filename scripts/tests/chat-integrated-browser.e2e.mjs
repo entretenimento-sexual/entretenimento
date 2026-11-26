@@ -816,6 +816,21 @@ async function certifyConcurrency() {
   };
   const waitBootstrap=begin=>until('all three directional bootstraps',()=>names.every(context=>['inbound','outbound'].every(direction=>
     rows().some(row=>row.context===context&&row.direction===direction&&row.startMs>=begin&&row.httpStatus===200))),Boolean,45_000);
+  // Production quota is per UID across documents: 20 units / 60s, 100 / 10min.
+  // A limit=60 request costs two units. Do not reset the ledger, lower the
+  // limit, bypass the backend or suppress 429 assertions. Keep concurrent
+  // events within a stage; allow quota renewal between different workloads.
+  const sharedUidRows=()=>rows().filter(row=>row.context===names[0]||row.context===names[1]);
+  const reserveBurst=async(label,expectedCalls)=>{
+    currentPhase='concurrency: budget before '+label;
+    const start=performance.now();
+    const recent=()=>sharedUidRows().filter(row=>performance.now()-row.startMs<65_000);
+    const before=recent().length;
+    await until('read quota headroom '+label,()=>recent().length+expectedCalls<=10,Boolean,70_000);
+    concurrencySamples.stages.push({phase:'budget before '+label,elapsedMs:elapsed(start),
+      observedRecentBefore:before,observedRecentAfter:recent().length,plannedCalls:expectedCalls,
+      conservativeWindowMs:65_000,unitCost:2,burstUnits:20});
+  };
   let releaseHold;
   const gate=new Promise(resolve=>{releaseHold=resolve;});
   let held=null,holdError=null,mode='pass';
@@ -866,6 +881,9 @@ async function certifyConcurrency() {
       await Promise.all(tabs.map(page=>page.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'})));
       await capture('modules');
     });
+    // Leave room for four outbound invalidations plus possible independent
+    // periodic reads. The two mutations still execute back-to-back.
+    await reserveBurst('canonical burst',6);
     await takeStage('canonical burst with held old epoch',async begin=>{
       await signInWithEmailAndPassword(auth,email(viewer),password);
       mode='hold';
@@ -878,10 +896,18 @@ async function certifyConcurrency() {
       assert.equal(await card(c).count(),0);
       const cancelAt=performance.now();
       assert.equal((await httpsCallable(functions,'cancelFriendRequest')({requestId:sent.requestId})).data.status,'canceled');
-      await card(b).waitFor({state:'hidden',timeout:20_000});
-      await a.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'});
-      await until('new epoch HTTP on held tab',()=>rows().some(row=>row.context===names[0]&&row.direction==='outbound'&&row.startMs>=cancelAt&&row.httpStatus===200),Boolean,20_000);
-      concurrencySamples.convergences.push({event:'cancel',context:names[0],ms:elapsed(cancelAt)},{event:'cancel',context:names[1],ms:elapsed(cancelAt)});
+      await Promise.all([
+        (async()=>{
+          await card(b).waitFor({state:'hidden',timeout:20_000});
+          await until('new epoch HTTP on second tab',()=>rows().some(row=>row.context===names[1]&&row.direction==='outbound'&&row.startMs>=cancelAt&&row.httpStatus===200),Boolean,20_000);
+          concurrencySamples.convergences.push({event:'cancel',context:names[1],ms:elapsed(cancelAt)});
+        })(),
+        (async()=>{
+          await until('new epoch HTTP on held tab',()=>rows().some(row=>row.context===names[0]&&row.direction==='outbound'&&row.startMs>=cancelAt&&row.httpStatus===200),Boolean,20_000);
+          await a.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'});
+          concurrencySamples.convergences.push({event:'cancel',context:names[0],ms:elapsed(cancelAt)});
+        })()
+      ]);
       releaseHold();
       await until('held epoch delivered',()=>{if(holdError)throw holdError;return held.attempt.httpStatus===200;},Boolean,20_000);
       await sleep(500);
@@ -892,11 +918,15 @@ async function certifyConcurrency() {
       assert.equal(starts.filter(row=>row.direction==='inbound'||row.context===names[2]).length,0);
       concurrencySamples.held={durationMs:elapsed(held.at),httpStatus:held.attempt.httpStatus,obsoleteVisible:false};
     });
+    // Four shared-UID recovery calls, with reserve for a scheduled poll.
+    await reserveBurst('simultaneous reconnect',6);
     await takeStage('simultaneous reconnect',async()=>{
-      await Promise.all([a.context().setOffline(true),c.context().setOffline(true)]);
+      await Promise.all([setVerifiedOffline(a,true),setVerifiedOffline(c,true)]);
+      await b.waitForFunction(()=>navigator.onLine===false,undefined,{timeout:10_000});
       await sleep(1_000);
       const begin=performance.now();
-      await Promise.all([a.context().setOffline(false),c.context().setOffline(false)]);
+      await Promise.all([setVerifiedOffline(a,false),setVerifiedOffline(c,false)]);
+      await b.waitForFunction(()=>navigator.onLine===true,undefined,{timeout:10_000});
       await waitBootstrap(begin);
       concurrencySamples.convergences.push({event:'reconnect-all',context:'all',ms:elapsed(begin)});
       await capture('reconnected');
@@ -931,6 +961,7 @@ async function certifyConcurrency() {
       assert.equal(rows().length,before,'Orphan concurrent polling after logout');
       concurrencySamples.anonymous={observedMs:185_000,attempts:0};
     });
+    assert.equal(rows().filter(row=>row.httpStatus===429).length,0,'Concurrent workload exceeded unchanged read quota');
     pass('concurrent tabs and modules, directional burst, stale epoch discard, reconnect and teardown');
   } catch(error) {
     await Promise.allSettled(tabs.map((page,index)=>screenshot(page,names[index]+'-failure')));
