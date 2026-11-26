@@ -20,10 +20,10 @@ const MAX_CANDIDATES = 500;
 const MAX_PAGE_SIZE = 100;
 const CURSOR_TTL_MS = 15 * 60_000;
 const CURSOR_PATTERN = /^[A-Za-z0-9_-]{43}$/;
-type PageRequest = { pageSize: number; cursor: string | null };
+type PageRequest = { pageSize: number; cursor: string | null; order: 'id' | 'activity' };
 type CandidateResponse = { chatIds: string[] };
 type PageResponse = CandidateResponse & { nextCursor: string | null; revision: number };
-type DiscoveryRequest = { pageSize?: number; cursor?: string | null; chatId?: string };
+type DiscoveryRequest = { pageSize?: number; cursor?: string | null; chatId?: string; order?: 'activity' };
 
 function parsePageRequest(raw: unknown): PageRequest | null {
   if (raw == null) return null;
@@ -32,13 +32,18 @@ function parsePageRequest(raw: unknown): PageRequest | null {
   }
   const data = raw as Record<string, unknown>;
   if (Object.keys(data).length === 0) return null;
-  if (Object.keys(data).some(key => key !== 'pageSize' && key !== 'cursor') ||
+  if (Object.keys(data).some(key => key !== 'pageSize' && key !== 'cursor' && key !== 'order') ||
+      (data.order !== undefined && data.order !== 'activity') ||
       typeof data.pageSize !== 'number' || !Number.isInteger(data.pageSize) ||
       data.pageSize < 1 || data.pageSize > MAX_PAGE_SIZE ||
       (data.cursor != null && (typeof data.cursor !== 'string' || !CURSOR_PATTERN.test(data.cursor)))) {
     throw new HttpsError('invalid-argument', 'Página de conversas inválida.');
   }
-  return { pageSize: data.pageSize, cursor: (data.cursor as string | null | undefined) ?? null };
+  return {
+    pageSize: data.pageSize,
+    cursor: (data.cursor as string | null | undefined) ?? null,
+    order: data.order === 'activity' ? 'activity' : 'id',
+  };
 }
 
 function cursorReference(owner: string, token: string) {
@@ -89,7 +94,7 @@ export const listDirectChatCandidates = onCall<DiscoveryRequest>(
       }, { readOnly: true });
     }
     const page = parsePageRequest(request.data);
-    if (page) return listPage(owner, page);
+    if (page) return page.order === 'activity' ? listActivityPage(owner, page) : listPage(owner, page);
     return db.runTransaction(async tx => {
       const actor = await tx.get(db.doc('users/' + owner));
       assertPlatformAccountAccessData(actor.data());
@@ -191,4 +196,91 @@ async function listPage(owner: string, page: PageRequest): Promise<PageResponse>
     });
   }
   return { chatIds: result.chatIds, nextCursor, revision: result.revision };
+}
+
+type ActivityPosition = {
+  phase: 'recent' | 'legacy';
+  after: string | null;
+  afterTimestamp: Timestamp | null;
+};
+
+const INITIAL_ACTIVITY_POSITION: ActivityPosition = { phase: 'recent', after: null, afterTimestamp: null };
+const MIN_ACTIVITY_TIMESTAMP = new Timestamp(-62135596800, 0);
+const MAX_ACTIVITY_TIMESTAMP = new Timestamp(253402300799, 999999999);
+
+async function readActivityPosition(
+  tx: Transaction, owner: string, page: PageRequest, revision: number, now: number
+): Promise<ActivityPosition> {
+  if (!page.cursor) return INITIAL_ACTIVITY_POSITION;
+  const snapshot = await tx.get(cursorReference(owner, page.cursor));
+  const data = snapshot.data();
+  if (!data || data.version !== 2 || data.order !== 'activity' ||
+      data.revision !== revision || data.pageSize !== page.pageSize ||
+      !(data.expiresAt instanceof Timestamp) || data.expiresAt.toMillis() <= now ||
+      (data.after !== null && (typeof data.after !== 'string' || !data.after || data.after.includes('/')))) {
+    throw invalidCursor();
+  }
+  if (data.phase === 'recent' && typeof data.after === 'string' && data.afterTimestamp instanceof Timestamp) {
+    return { phase: 'recent', after: data.after, afterTimestamp: data.afterTimestamp };
+  }
+  if (data.phase === 'legacy' && data.afterTimestamp === null) {
+    return { phase: 'legacy', after: data.after, afterTimestamp: null };
+  }
+  throw invalidCursor();
+}
+
+async function listActivityPage(owner: string, page: PageRequest): Promise<PageResponse> {
+  const now = Date.now();
+  const result = await db.runTransaction(async tx => {
+    const actor = await tx.get(db.doc('users/' + owner));
+    assertPlatformAccountAccessData(actor.data());
+    const revision = readRevision(await tx.get(db.doc('direct_chat_discovery/' + owner)));
+    const position = await readActivityPosition(tx, owner, page, revision, now);
+    const chats = db.collection('chats').where('participants', 'array-contains', owner);
+    let query = position.phase === 'recent'
+      ? chats.where('timestamp', '>=', MIN_ACTIVITY_TIMESTAMP)
+        .where('timestamp', '<=', MAX_ACTIVITY_TIMESTAMP)
+        .orderBy('timestamp', 'desc').orderBy(FieldPath.documentId(), 'desc')
+      : chats.orderBy(FieldPath.documentId());
+    if (position.after !== null) {
+      query = position.phase === 'recent'
+        ? query.startAfter(position.afterTimestamp, position.after)
+        : query.startAfter(position.after);
+    }
+    const candidates = await tx.get(query.limit(page.pageSize + 1));
+    const consumed = candidates.docs.slice(0, page.pageSize);
+    // Missing and malformed timestamps require a bounded complementary scan.
+    const eligible = consumed.filter(chat =>
+      (chat.get('timestamp') instanceof Timestamp) === (position.phase === 'recent'));
+    const allowed = new Set(await authorizeCandidates(tx, owner, eligible));
+    const chatIds = eligible.filter(chat => allowed.has(chat.id)).map(chat => chat.id);
+    let next: ActivityPosition | null = null;
+    if (candidates.size > page.pageSize) {
+      const last = consumed[consumed.length - 1];
+      if (position.phase === 'recent') {
+        const timestamp = last.get('timestamp');
+        if (!(timestamp instanceof Timestamp)) throw invalidCursor();
+        next = { phase: 'recent', after: last.id, afterTimestamp: timestamp };
+      } else {
+        next = { phase: 'legacy', after: last.id, afterTimestamp: null };
+      }
+    } else if (position.phase === 'recent') {
+      next = { phase: 'legacy', after: null, afterTimestamp: null };
+    }
+    return { chatIds, revision, next };
+  }, { readOnly: true });
+
+  let nextCursor: string | null = null;
+  if (result.next) {
+    nextCursor = randomBytes(32).toString('base64url');
+    await cursorReference(owner, nextCursor).create({
+      version: 2,
+      order: 'activity',
+      revision: result.revision,
+      pageSize: page.pageSize,
+      ...result.next,
+      expiresAt: Timestamp.fromMillis(now + CURSOR_TTL_MS),
+    });
+  }
+  return { chatIds: result.chatIds, revision: result.revision, nextCursor };
 }

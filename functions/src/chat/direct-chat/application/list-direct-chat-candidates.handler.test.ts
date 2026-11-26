@@ -134,4 +134,72 @@ run('CHAT-R1.5 authorized discovery', () => {
     }
   });
 
+  it('orders indexed activity by full timestamp and ID, then includes undated authorized histories', async () => {
+    const prefix = 'r10332-' + randomUUID();
+    const owner = prefix + '-owner', peer = prefix + '-peer', denied = prefix + '-denied';
+    const users = [owner, peer, denied];
+    const root = (uid: string) => db.doc('direct_chat_discovery/' + uid);
+    const user = (uid: string) => ({
+      uid, profileCompleted: true, accountStatus: 'active',
+      acceptedTerms: { accepted: true, version: TERMS_ACCEPTANCE_VERSION,
+        termsDocumentVersion: '2026-09-29.1', privacyNoticeVersion: '2026-09-29.1',
+        acknowledgedPrivacyNotice: true },
+    });
+    const environment = require('firebase-functions-test')({
+      projectId: process.env.GCLOUD_PROJECT || 'demo-entretenimento',
+    });
+    const invoke = environment.wrap(require('./list-direct-chat-candidates.handler').listDirectChatCandidates);
+    const request = (data: Record<string, unknown>, uid = owner) =>
+      invoke({ data, app: { appId: 'test-chat-app' }, auth: { uid, token: { email_verified: true } } }, {});
+    const id = (suffix: string) => prefix + '-' + suffix;
+    const fixtures: Record<string, unknown>[] = [
+      { id: id('a-old'), timestamp: new Timestamp(10, 2000) },
+      { id: id('b-tie'), timestamp: new Timestamp(20, 1000) },
+      { id: id('c-tie'), timestamp: new Timestamp(20, 1000) },
+      { id: id('d-new'), timestamp: new Timestamp(20, 2000) },
+      { id: id('e-missing') },
+      { id: id('f-null'), timestamp: null },
+      { id: id('g-invalid'), timestamp: 'invalid' },
+      { id: id('h-denied'), timestamp: new Timestamp(30, 0), participants: [owner, denied] },
+    ];
+    try {
+      await Promise.all(users.map(uid => db.doc('users/' + uid).set(user(uid))));
+      await root(owner).set({ version: 1, revision: 1 });
+      await db.doc('users/' + denied + '/blocks/' + owner).set({ isBlocked: true });
+      await Promise.all(fixtures.map(({ id, ...data }) =>
+        db.doc('chats/' + id).set({ participants: [owner, peer], ...data })));
+      const first = await request({ pageSize: 2, order: 'activity' });
+      assert.deepEqual(first.chatIds, [id('d-new')]);
+      assert.equal(first.revision, 1);
+      assert.ok(first.nextCursor);
+      await assert.rejects(request({ pageSize: 2, cursor: first.nextCursor }), { code: 'failed-precondition' });
+      await assert.rejects(request({ pageSize: 2, order: 'activity', cursor: first.nextCursor }, peer),
+        { code: 'failed-precondition' });
+      const byId = await request({ pageSize: 2 });
+      await assert.rejects(request({ pageSize: 2, order: 'activity', cursor: byId.nextCursor }),
+        { code: 'failed-precondition' });
+      await assert.rejects(request({ pageSize: 2, order: 'unknown' }), { code: 'invalid-argument' });
+      const ids = [...first.chatIds];
+      let cursor: string | null = first.nextCursor;
+      let pages = 0;
+      while (cursor) {
+        assert.ok(++pages <= 9);
+        const next = await request({ pageSize: 2, order: 'activity', cursor });
+        ids.push(...next.chatIds);
+        cursor = next.nextCursor;
+      }
+      assert.deepEqual(ids, ['d-new', 'c-tie', 'b-tie', 'a-old', 'e-missing', 'f-null', 'g-invalid'].map(id));
+      assert.equal(new Set(ids).size, ids.length);
+      await db.runTransaction(async tx => stageDirectChatDiscoveryInvalidation(tx, owner));
+      await assert.rejects(request({ pageSize: 2, order: 'activity', cursor: first.nextCursor }),
+        { code: 'failed-precondition' });
+    } finally {
+      await Promise.all(fixtures.map(data => db.doc('chats/' + data.id).delete()));
+      await Promise.all(users.flatMap(uid => [
+        db.recursiveDelete(db.doc('users/' + uid)), db.recursiveDelete(root(uid)),
+      ]));
+      environment.cleanup();
+    }
+  });
+
 });

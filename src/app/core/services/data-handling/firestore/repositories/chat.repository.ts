@@ -79,8 +79,8 @@ export class ChatRepository {
       switchMap((allowed): Observable<DirectChatPageState> => allowed
         ? observeDirectChatPages$(owner, this.observeRevision$(owner), loadMore$, cursor =>
           this.ctx.deferPromise$(() => httpsCallable<
-            { pageSize: number; cursor: string | null }, DirectChatPageResponse
-          >(this.functions, 'listDirectChatCandidates')({ pageSize: 50, cursor })).pipe(map(result => result.data)),
+            { pageSize: number; cursor: string | null; order: 'activity' }, DirectChatPageResponse
+          >(this.functions, 'listDirectChatCandidates')({ pageSize: 50, cursor, order: 'activity' })).pipe(map(result => result.data)),
           error => { this.failedScope(owner, error); }
         ).pipe(catchError(error => {
           this.failedScope(owner, error);
