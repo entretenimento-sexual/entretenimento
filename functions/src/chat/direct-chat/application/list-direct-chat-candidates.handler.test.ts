@@ -46,7 +46,7 @@ run('CHAT-R1.5 authorized discovery', () => {
     }
   });
 
-  it('paginates more than 500 canonical histories and never returns denied identifiers or foreign cursors', async () => {
+  it('paginates over 500 histories without returning denied identifiers or accepting foreign cursors', async () => {
     const prefix = 'r103-' + randomUUID();
     const owner = prefix + '-owner', peer = prefix + '-peer', denied = prefix + '-denied', outsider = prefix + '-other';
     const users = [owner, peer, denied, outsider];
