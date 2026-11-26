@@ -1839,6 +1839,12 @@
   ],
   "fieldOverrides": [
     {
+      "collectionGroup": "direct_chat_page_cursors",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
       "collectionGroup": "photos",
       "fieldPath": "feedPublicationExpiresAtMs",
       "indexes": [

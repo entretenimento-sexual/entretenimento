@@ -7,3 +7,7 @@ Base de58a5983983302deb504e5ac0fdbe8f63e031cc aprovada no Chromium e Quality Gat
 - Orçamento só é reiniciado depois de um período de 30 segundos com valor confirmado pelo consumidor. Cache, loading e fallback não são usados como prova. Projeção privada usa metadados de servidor; thread, conversas individuais e notificações usam valores positivos conservadores, pois zero/lista vazia podem representar cache. A descoberta global permanece conservadora sem predicado.
 - repeat encerra gerações anteriores e não reinscreve após conclusão normal. Cancelamento externo por sessão/seleção encerra timers e listeners. Nenhuma alteração de Rules, Functions, rate limits, fontes canônicas, nomenclatura existente ou apresentação de erros.
 - Quatro regressões adicionais sobre tentativa lenta limitada, recuperação sem evento, estabilidade confirmada e cache/observação breve. Testes não executados localmente; aprovação de CI e Chromium do novo SHA obrigatória. Recuperação após a tentativa adicional esgotada continua dependente de evento/alteração do contexto; não é uma garantia de reconexão automática permanente. Escala de descoberta, agregação de não lidos e certificação dos demais pontos de entrada permanecem pendentes.
+
+## Homologação
+
+95f9a084efe695ef42606b6f17dc4514895802ef: Quality Gate 45722191086 e aggregate success; Chromium 45722191158 success, job 139582992008 com sete PASS, incluindo revogação, recuperação e A→C→A.

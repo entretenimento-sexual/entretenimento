@@ -175,3 +175,9 @@ match /direct_chat_discovery/{ownerUid} {
     && currentUserCanUseAdultSocialPlatform();
   allow list, create, update, delete: if false;
 }
+
+
+// CHAT-R1.10.3.1: opaque scan cursors contain private continuation state.
+match /direct_chat_discovery/{ownerUid}/direct_chat_page_cursors/{cursorHash} {
+  allow read, write: if false;
+}
