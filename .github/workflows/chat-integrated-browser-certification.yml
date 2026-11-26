@@ -27,6 +27,10 @@ concurrency:
 jobs:
   chat-browser:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        replica: [1, 2, 3]
     timeout-minutes: 35
     env:
       CI: 'true'
@@ -69,6 +73,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: chat-browser-${{ github.sha }}
+          name: chat-browser-${{ github.sha }}-r${{ matrix.replica }}
           path: artifacts/chat-browser
           if-no-files-found: error

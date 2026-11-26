@@ -67,7 +67,7 @@ export class VisitedProfileFriendshipFacade {
         }
 
         return combineLatest([
-          this.friendshipService.watchOutboundRequests(safeViewerUid).pipe(
+          this.friendshipService.watchOutboundRequests(safeViewerUid, 'profile').pipe(
             catchError((error) => {
               this.reportSilent(
                 error,

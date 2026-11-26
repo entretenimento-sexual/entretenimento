@@ -39,6 +39,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { defer, from, map, Observable } from 'rxjs';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { FriendshipRepo } from './friendship.repo';
+import type { PendingRequestConsumer } from './repo/requests.repo';
 import { Friend } from '../../../interfaces/friendship/friend.interface';
 import { FriendRequest } from '../../../interfaces/friendship/friend-request.interface';
 import { BlockedUserActive } from '../../../interfaces/friendship/blocked-user.interface';
@@ -305,23 +306,23 @@ export class FriendshipService {
   }
 
   /** Solicitações enviadas pendentes. */
-  listOutboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
-    return this.repo.listOutboundRequests(uid);
+  listOutboundRequests(uid: string, consumer?: PendingRequestConsumer): Observable<(FriendRequest & { id: string })[]> {
+    return consumer ? this.repo.listOutboundRequests(uid, consumer) : this.repo.listOutboundRequests(uid);
   }
 
   /** Solicitações recebidas pendentes. */
-  listInboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
-    return this.repo.listInboundRequests(uid);
+  listInboundRequests(uid: string, consumer?: PendingRequestConsumer): Observable<(FriendRequest & { id: string })[]> {
+    return consumer ? this.repo.listInboundRequests(uid, consumer) : this.repo.listInboundRequests(uid);
   }
 
   /** Realtime de solicitações recebidas. */
-  watchInboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
-    return this.repo.watchInboundRequests(uid);
+  watchInboundRequests(uid: string, consumer?: PendingRequestConsumer): Observable<(FriendRequest & { id: string })[]> {
+    return consumer ? this.repo.watchInboundRequests(uid, consumer) : this.repo.watchInboundRequests(uid);
   }
 
   /** Realtime de solicitações enviadas. */
-  watchOutboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
-    return this.repo.watchOutboundRequests(uid);
+  watchOutboundRequests(uid: string, consumer?: PendingRequestConsumer): Observable<(FriendRequest & { id: string })[]> {
+    return consumer ? this.repo.watchOutboundRequests(uid, consumer) : this.repo.watchOutboundRequests(uid);
   }
 
   /* ==========================================================================

@@ -46,7 +46,7 @@ const browserErrors = [];
 const phases = [];
 // Diagnostic-only counters: no request body, auth header, UID or URL query recorded.
 const callableCounts = new Map();
-const pendingReadTrace = [], friendshipSamples = [];
+const pendingReadTrace = [], friendshipSamples = [], pendingOrigins = [];
 const requestStarts = new WeakMap();
 let currentPhase = 'initial';
 const callableTransportFailures = new Map();
@@ -138,7 +138,17 @@ async function newPage(name, viewport={width:1440,height:1000}) {
     const url = new URL(route.request().url());
     return ['127.0.0.1','localhost'].includes(url.hostname) ? route.continue() : route.abort();
   });
+  await context.addInitScript(() => localStorage.setItem('DEBUG_FRIENDS', '1'));
   const page = await context.newPage();
+  const routeCategory = () => {
+    const route = new URL(page.url()).pathname.split('/')[1];
+    return ['login','perfil','friends','chat','notificacoes','dashboard'].includes(route) ? route : 'other';
+  };
+  let documentNumber=0;
+  page.on('framenavigated', frame => {
+    if(frame===page.mainFrame()) pendingOrigins.push({context:name,event:'navigation',route:routeCategory(),phase:currentPhase,atMs:performance.now()});
+  });
+  page.on('domcontentloaded',()=>{documentNumber++;});
   page.setDefaultTimeout(60_000);
   page.on('request',request=>{
     const url=new URL(request.url());
@@ -153,6 +163,8 @@ async function newPage(name, viewport={width:1440,height:1000}) {
   page.on('requestfailed', request => recordCallableTransportFailure(name,request));
   page.on('pageerror', error => browserErrors.push({name,type:'pageerror',message:error.message}));
   page.on('console', message => {
+    const match=/^\[Friends\] pending-read (start|subscribe|join|signal) (inbound|outbound) (session|profile|post-mutation|explicit|other|session-retry|subscriber-join|canonical-event|listener-recovery|poll)\s*$/.exec(message.text());
+    if(match) pendingOrigins.push({context:name,event:match[1],direction:match[2],reason:match[3],route:routeCategory(),document:documentNumber,phase:currentPhase,atMs:performance.now()});
     if (message.type()==='error' || message.type()==='warning') {
       browserErrors.push({name,type:message.type(),message:message.text().slice(0,600)});
     }
@@ -725,6 +737,8 @@ try {
     const rows=[...callableCounts.values()].filter(row=>row.endpoint===endpoint);
     assert.equal(rows.reduce((sum,row)=>sum+row.rateLimited,0),0,'No HTTP 429 including reactive workload: '+endpoint);
   }
+  assert.ok(pendingOrigins.some(row=>row.event==='start'&&row.reason==='session'),'Session origin tracing unavailable');
+  assert.ok(pendingOrigins.some(row=>row.event==='start'&&row.reason==='canonical-event'),'Canonical origin tracing unavailable');
   console.log('Friendship reactive measurements '+JSON.stringify({originalWorkload,samples:friendshipSamples,
     online:sampleSummary(friendshipSamples.filter(row=>!row.reconnect).flatMap(row=>[row.senderMs,row.receiverMs])),
     reconnect:sampleSummary(friendshipSamples.filter(row=>row.reconnect).map(row=>row.receiverMs))}));
@@ -737,6 +751,8 @@ try {
   throw error;
 } finally {
   writeFileSync(resolve(out,'pending-read-trace.json'),JSON.stringify(pendingReadTrace,null,2));
+  writeFileSync(resolve(out,'pending-read-origins.json'),JSON.stringify(pendingOrigins,null,2));
+  console.log('Pending friendship origins '+JSON.stringify(pendingOrigins.filter(row=>row.event==='start').reduce((counts,row)=>{ const key=row.context+':'+row.direction+':'+row.reason; counts[key]=(counts[key]??0)+1; return counts; },{})));
   writeFileSync(resolve(out,'friendship-reactive-samples.json'),JSON.stringify(friendshipSamples,null,2));
   writeFileSync(resolve(out,'browser-diagnostics.json'),JSON.stringify(browserErrors,null,2));
   writeFileSync(resolve(out,'callable-counts.json'),JSON.stringify([...callableCounts.values()].sort((a,b)=>b.total-a.total),null,2));

@@ -3,7 +3,7 @@
 import { Injectable, inject } from '@angular/core';
 import { FriendsRepo } from './friends.repo';
 import { BlocksRepo } from './blocks.repo';
-import { RequestsRepo } from './requests.repo';
+import { RequestsRepo, type PendingRequestConsumer } from './requests.repo';
 import { map, Observable, of } from 'rxjs';
 import { IUserDados } from '../../../../interfaces/iuser-dados';
 import {
@@ -41,10 +41,10 @@ watchFriends(uid: string) {
   }
 
   /* Requests */
-  listInboundRequests(uid: string) { return this.reqs.listInboundRequests(uid); }
-  listOutboundRequests(uid: string) { return this.reqs.listOutboundRequests(uid); }
-  watchInboundRequests(uid: string) { return this.reqs.watchInboundRequests(uid); }
-  watchOutboundRequests(uid: string) { return this.reqs.watchOutboundRequests(uid); }
+  listInboundRequests(uid: string, consumer?: PendingRequestConsumer) { return consumer ? this.reqs.listInboundRequests(uid, consumer) : this.reqs.listInboundRequests(uid); }
+  listOutboundRequests(uid: string, consumer?: PendingRequestConsumer) { return consumer ? this.reqs.listOutboundRequests(uid, consumer) : this.reqs.listOutboundRequests(uid); }
+  watchInboundRequests(uid: string, consumer?: PendingRequestConsumer) { return consumer ? this.reqs.watchInboundRequests(uid, consumer) : this.reqs.watchInboundRequests(uid); }
+  watchOutboundRequests(uid: string, consumer?: PendingRequestConsumer) { return consumer ? this.reqs.watchOutboundRequests(uid, consumer) : this.reqs.watchOutboundRequests(uid); }
 
   /**
    * Busca pública por apelido.

@@ -1,5 +1,5 @@
 // src/app/core/services/interactions/friendship/repo/requests.repo.ts
-import { Injectable, EnvironmentInjector } from '@angular/core';
+import { Injectable, EnvironmentInjector, Optional } from '@angular/core';
 import {
   Firestore,
   doc,
@@ -32,17 +32,21 @@ import {
   of,
   timeout,
   take,
+  tap,
 } from 'rxjs';
 import type { User } from 'firebase/auth';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { SessionReadInFlight } from '@core/services/autentication/auth/session-read-in-flight';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
+import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 
 import { FirestoreRepoBase } from './base.repo';
 import { FriendRequest } from '../../../../interfaces/friendship/friend-request.interface';
 
 type PendingRequests = (FriendRequest & { id: string })[];
 type RequestDirection = 'inbound' | 'outbound';
+export type PendingRequestConsumer = 'session' | 'profile' | 'post-mutation' | 'explicit' | 'other';
+type ReadReason = PendingRequestConsumer | 'session-retry' | 'subscriber-join' | 'canonical-event' | 'listener-recovery' | 'poll';
 type Revisions = Record<RequestDirection, number | null>;
 interface RevisionEpoch { readonly value: number | null; readonly key: number }
 interface RevisionScope {
@@ -55,7 +59,8 @@ const UNKNOWN_REVISIONS: Revisions = { inbound: null, outbound: null };
 interface PendingWatch {
   readonly user: User;
   readonly version: number;
-  readonly refresh: Subject<void>;
+  readonly refresh: Subject<ReadReason>;
+  readonly pending: () => boolean;
   readonly stream$: Observable<PendingRequests>;
 }
 
@@ -77,7 +82,8 @@ export class RequestsRepo extends FirestoreRepoBase {
     env: EnvironmentInjector,
     private readonly functions: Functions,
     private readonly session: AuthSessionService,
-    private readonly applicationError: ApplicationErrorService
+    private readonly applicationError: ApplicationErrorService,
+    @Optional() private readonly privacyDebug?: PrivacyDebugLoggerService
   ) {
     super(db, env);
     this.inFlight = new SessionReadInFlight(this.session);
@@ -101,25 +107,43 @@ export class RequestsRepo extends FirestoreRepoBase {
     );
   }
 
+  private trace(event: 'start' | 'subscribe' | 'join' | 'signal', direction: RequestDirection, reason: ReadReason): void {
+    // Fixed allowlisted labels only. Never log UID, revision, request data or token.
+    this.privacyDebug?.log('friends', 'pending-read ' + event + ' ' + direction + ' ' + reason);
+  }
+
   private observeRevisions$(uid: string): Observable<Revisions> {
     const readRevision = (value: unknown): number | null =>
       value === undefined ? 0 : typeof value === 'number' &&
         Number.isSafeInteger(value) && value >= 0 ? value : null;
-    return new Observable<Revisions>(sink => this.inCtxSync(() =>
+    return new Observable<Revisions>(sink => {
+      let unconfirmed = false;
+      return this.inCtxSync(() =>
       onSnapshot(doc(this.db, 'users', uid), { includeMetadataChanges: true }, snapshot => {
         // Ignore cache/pending writes; neither may invalidate from a forged
         // local value. On reconnect the confirmed snapshot is authoritative
         // only as an invalidation signal, never as permission or list data.
-        if (snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) return;
+        if (snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) {
+          unconfirmed = true;
+          return;
+        }
+        if (unconfirmed) {
+          this.trace('signal', 'inbound', 'listener-recovery');
+          this.trace('signal', 'outbound', 'listener-recovery');
+          unconfirmed = false;
+        }
         const data = snapshot.data();
         sink.next(snapshot.exists() && data ? {
           inbound: readRevision(data['pendingFriendRequestsInboundRevision']),
           outbound: readRevision(data['pendingFriendRequestsOutboundRevision']),
         } : UNKNOWN_REVISIONS);
       }, error => sink.error(error))
-    )).pipe(
+      );
+    }).pipe(
       timeout({ first: 5_000 }),
       catchError(error => {
+        this.trace('signal', 'inbound', 'listener-recovery');
+        this.trace('signal', 'outbound', 'listener-recovery');
         this.applicationError.report(error, {
           feature: 'friendship', operation: 'RequestsRepo.observeRevisions',
           fallbackMessage: 'Não foi possível observar as alterações de solicitações.',
@@ -160,31 +184,34 @@ export class RequestsRepo extends FirestoreRepoBase {
   /* =========================
    * LISTAGENS (pendentes)
    * ========================= */
-  listInboundRequests(uid: string) {
-    return this.listPendingRequests$(uid, 'inbound');
+  listInboundRequests(uid: string, consumer: PendingRequestConsumer = 'explicit') {
+    return this.listPendingRequests$(uid, 'inbound', consumer);
   }
 
-  listOutboundRequests(uid: string) {
-    return this.listPendingRequests$(uid, 'outbound');
+  listOutboundRequests(uid: string, consumer: PendingRequestConsumer = 'explicit') {
+    return this.listPendingRequests$(uid, 'outbound', consumer);
   }
 
-  private loadPendingRequests$(uid: string, direction: RequestDirection, epoch: number): Observable<PendingRequests> {
+  private loadPendingRequests$(uid: string, direction: RequestDirection, epoch: number, reason: ReadReason): Observable<PendingRequests> {
     return this.inFlight.read$(JSON.stringify([direction, epoch]), () =>
-      defer(() => from(this.getPendingRequestsCallable()({ direction, limit: 60 })))
+      defer(() => {
+        this.trace('start', direction, reason);
+        return from(this.getPendingRequestsCallable()({ direction, limit: 60 }));
+      })
         .pipe(map((response) => response.data.items ?? [])),
       uid
     );
   }
 
-  private listPendingRequests$(uid: string, direction: RequestDirection): Observable<PendingRequests> {
+  private listPendingRequests$(uid: string, direction: RequestDirection, consumer: PendingRequestConsumer): Observable<PendingRequests> {
     return defer(() => {
       const user = this.session.currentAuthUser;
       const version = this.session.terminationVersionSnapshot;
       if (!user || user.uid !== uid || this.session.isTerminatingSnapshot) {
-        return this.loadPendingRequests$(uid, direction, -1); // existing typed session error
+        return this.loadPendingRequests$(uid, direction, -1, consumer); // existing typed session error
       }
       return this.directionEpoch$(user, version, direction).pipe(
-        switchMap(epoch => this.loadPendingRequests$(uid, direction, epoch.key)),
+        switchMap(epoch => this.loadPendingRequests$(uid, direction, epoch.key, consumer)),
         take(1),
         takeUntil(this.session.authUser$.pipe(filter(active =>
           active?.uid !== uid || this.session.currentAuthUser !== user ||
@@ -196,21 +223,23 @@ export class RequestsRepo extends FirestoreRepoBase {
   /* =========================
    * REALTIME WATCHERS
    * ========================= */
-  watchInboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
-    return this.watchPendingRequests$(uid, 'inbound');
+  watchInboundRequests(uid: string, consumer: PendingRequestConsumer = 'other'): Observable<(FriendRequest & { id: string })[]> {
+    return this.watchPendingRequests$(uid, 'inbound', consumer);
   }
 
-  watchOutboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
-    return this.watchPendingRequests$(uid, 'outbound');
+  watchOutboundRequests(uid: string, consumer: PendingRequestConsumer = 'other'): Observable<(FriendRequest & { id: string })[]> {
+    return this.watchPendingRequests$(uid, 'outbound', consumer);
   }
 
-  private watchPendingRequests$(uid: string, direction: RequestDirection): Observable<PendingRequests> {
+  private watchPendingRequests$(uid: string, direction: RequestDirection, consumer: PendingRequestConsumer): Observable<PendingRequests> {
+    let subscriptions = 0;
     return defer(() => {
+      const reason: ReadReason = ++subscriptions > 1 && consumer === 'session' ? 'session-retry' : consumer;
       const user = this.session.currentAuthUser;
       const version = this.session.terminationVersionSnapshot;
       if (!user || user.uid !== uid || this.session.isTerminatingSnapshot) {
         // Preserve the existing session boundary and its typed error.
-        return this.listPendingRequests$(uid, direction);
+        return this.listPendingRequests$(uid, direction, consumer);
       }
 
       const key = JSON.stringify([uid, direction]);
@@ -219,7 +248,9 @@ export class RequestsRepo extends FirestoreRepoBase {
         !this.session.isTerminatingSnapshot;
       let entry = this.watches.get(key);
       if (!entry || entry.user !== user || entry.version !== version) {
-        const refresh = new Subject<void>();
+        const refresh = new Subject<ReadReason>();
+        let pending = false;
+        let previousEpoch: RevisionEpoch | undefined;
         const revoked$ = merge(
           this.session.uid$.pipe(filter(activeUid => activeUid !== uid || !isCurrent())),
           this.session.authUser$.pipe(filter(activeUser => activeUser?.uid !== uid || !isCurrent()))
@@ -232,11 +263,25 @@ export class RequestsRepo extends FirestoreRepoBase {
         // response as authorization. The next periodic tick is measured from
         // that check instead of creating another independent timer.
         const stream$ = combineLatest([refresh, this.directionEpoch$(user, version, direction)]).pipe(
-          switchMap(([, epoch]) => timer(0, 60_000).pipe(
-            exhaustMap(() => isCurrent()
-              ? this.loadPendingRequests$(uid, direction, epoch.key)
-              : EMPTY)
-          )),
+          switchMap(([trigger, epoch]) => {
+            const initial: ReadReason = previousEpoch && previousEpoch.key !== epoch.key
+              ? (previousEpoch.value === null || epoch.value === null ? 'listener-recovery' : 'canonical-event')
+              : trigger;
+            previousEpoch = epoch;
+            pending = true; // scheduled or actively reading, not a response cache
+            return timer(0, 60_000).pipe(
+              exhaustMap(tick => {
+                if (!isCurrent()) return EMPTY;
+                pending = true;
+                return this.loadPendingRequests$(uid, direction, epoch.key, tick === 0 ? initial : 'poll').pipe(
+                  // Clear before forwarding; a late consumer must get a fresh read.
+                  tap({ next: () => { pending = false; } }),
+                  finalize(() => { pending = false; })
+                );
+              }),
+              finalize(() => { pending = false; })
+            );
+          }),
           takeUntil(revoked$),
           filter(() => isCurrent()),
           catchError(error => isCurrent() ? throwError(() => error) : EMPTY),
@@ -244,15 +289,20 @@ export class RequestsRepo extends FirestoreRepoBase {
           share({ connector: () => new Subject<PendingRequests>(),
             resetOnError: true, resetOnComplete: true, resetOnRefCountZero: true })
         );
-        const created: PendingWatch = { user, version, refresh, stream$ };
+        const created: PendingWatch = { user, version, refresh, stream$, pending: () => pending };
         entry = created;
         this.watches.set(key, created);
       }
 
       const watch = entry;
       return new Observable<PendingRequests>(subscriber => {
+        const joining = watch.pending();
+        this.trace('subscribe', direction, reason);
         const subscription = watch.stream$.subscribe(subscriber);
-        if (!subscriber.closed) watch.refresh.next();
+        if (!subscriber.closed) {
+          if (joining) this.trace('join', direction, reason);
+          else watch.refresh.next(reason);
+        }
         return subscription;
       });
     });

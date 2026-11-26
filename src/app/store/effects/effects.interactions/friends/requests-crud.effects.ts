@@ -92,8 +92,8 @@ export class FriendsRequestsCrudEffects {
     this.actions$.pipe(
       ofType(A.loadOutboundRequests),
       filter(({ uid }) => !!uid),
-      switchMap(({ uid }) =>
-        this.svc.listOutboundRequests(uid).pipe(
+      switchMap(({ uid, source }) =>
+        (source ? this.svc.listOutboundRequests(uid, source) : this.svc.listOutboundRequests(uid)).pipe(
           map((requests) =>
             A.loadOutboundRequestsSuccess({ requests })
           ),
@@ -168,8 +168,8 @@ export class FriendsRequestsCrudEffects {
     this.actions$.pipe(
       ofType(A.loadInboundRequests),
       filter(({ uid }) => !!uid),
-      switchMap(({ uid }) =>
-        this.svc.listInboundRequests(uid).pipe(
+      switchMap(({ uid, source }) =>
+        (source ? this.svc.listInboundRequests(uid, source) : this.svc.listInboundRequests(uid)).pipe(
           map((requests) =>
             A.loadInboundRequestsSuccess({ requests })
           ),
@@ -253,8 +253,8 @@ syncAfterRequestMutation$ = createEffect(() =>
       const refreshRequests =
         action.type === A.sendFriendRequestSuccess.type ||
         action.type === A.cancelFriendRequestSuccess.type
-          ? A.loadOutboundRequests({ uid: safeUid })
-          : A.loadInboundRequests({ uid: safeUid });
+          ? A.loadOutboundRequests({ uid: safeUid, source: 'post-mutation' })
+          : A.loadInboundRequests({ uid: safeUid, source: 'post-mutation' });
 
       if (action.type === A.acceptFriendRequestSuccess.type) {
         return of(

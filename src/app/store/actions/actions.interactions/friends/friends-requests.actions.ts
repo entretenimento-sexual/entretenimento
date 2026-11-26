@@ -21,7 +21,7 @@ export const sendFriendRequestFailure = createAction(
 
 export const loadInboundRequests = createAction(
   '[Friendship] Load Inbound Requests',
-  props<{ uid: string }>()
+  props<{ uid: string; source?: 'post-mutation' }>()
 );
 
 export const loadInboundRequestsSuccess = createAction(
@@ -36,7 +36,7 @@ export const loadInboundRequestsFailure = createAction(
 
 export const loadOutboundRequests = createAction(
   '[Friendship] Load Outbound Requests',
-  props<{ uid: string }>()
+  props<{ uid: string; source?: 'post-mutation' }>()
 );
 
 export const loadOutboundRequestsSuccess = createAction(

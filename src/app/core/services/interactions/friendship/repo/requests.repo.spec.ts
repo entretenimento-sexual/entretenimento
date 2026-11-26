@@ -28,6 +28,7 @@ describe('RequestsRepo', () => {
   });
   const doc = vi.fn((_db: unknown, ...path: string[]) => path.join('/'));
   const report = vi.fn();
+  const log = vi.fn();
   const callable = vi.fn();
   const httpsCallable = vi.fn(() => callable);
   const db = {} as any;
@@ -64,7 +65,7 @@ describe('RequestsRepo', () => {
     authUser$ = new BehaviorSubject<{ uid: string } | null>({ uid: 'bob' });
     session = { currentAuthUser: authUser$.value, uid$, authUser$, terminationVersionSnapshot: 0, isTerminatingSnapshot: false };
     revision$ = new BehaviorSubject(revision());
-    repo = new RequestsRepoToken(db, env, functions, session, { report });
+    repo = new RequestsRepoToken(db, env, functions, session, { report }, { log });
   });
 
   it('lista solicitações recebidas pela callable canônica', async () => {
@@ -171,6 +172,35 @@ describe('RequestsRepo', () => {
       subscriptions.push(repo.watchOutboundRequests('bob').subscribe());
       await vi.advanceTimersByTimeAsync(0);
       expect(callable).toHaveBeenCalledTimes(5);
+    } finally {
+      subscriptions.forEach(sub => sub.unsubscribe());
+      vi.useRealTimers();
+    }
+  });
+
+  it('consumidor que entra durante leitura pendente não reinicia o relógio nem recebe replay', async () => {
+    vi.useFakeTimers();
+    const subscriptions: { unsubscribe(): void }[] = [];
+    try {
+      let resolve!: (value: unknown) => void;
+      callable.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+      callable.mockResolvedValue({ data: { items: [] } });
+      const first = vi.fn(), second = vi.fn();
+      subscriptions.push(repo.watchOutboundRequests('bob', 'session').subscribe(first));
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(10_000);
+      subscriptions.push(repo.watchOutboundRequests('bob', 'profile').subscribe(second));
+      expect(second).not.toHaveBeenCalled();
+      resolve({ data: { items: [{ id: 'fresh' }] } });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(first).toHaveBeenCalledWith([{ id: 'fresh' }]);
+      expect(second).toHaveBeenCalledWith([{ id: 'fresh' }]);
+      expect(callable).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(50_000);
+      expect(callable).toHaveBeenCalledTimes(2); // original clock, not 70s
+      expect(log).toHaveBeenCalledWith('friends', 'pending-read start outbound session');
+      expect(log).toHaveBeenCalledWith('friends', 'pending-read join outbound profile');
+      expect(log).toHaveBeenCalledWith('friends', 'pending-read start outbound poll');
     } finally {
       subscriptions.forEach(sub => sub.unsubscribe());
       vi.useRealTimers();

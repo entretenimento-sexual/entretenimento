@@ -37,7 +37,7 @@ export class FriendsRequestsRealtimeEffects {
     withLatestFrom(this.access.authUid$),
     filter(([{ uid }, currentUid]) => uid === currentUid),
     switchMap(([{ uid }]) =>
-        this.svc.watchInboundRequests(uid).pipe(
+        this.svc.watchInboundRequests(uid, 'session').pipe(
           map(requests => RT.inboundRequestsChanged({ requests })),
           // Uma falha da callable não pode encerrar a observação da sessão.
           // Reutiliza o intervalo de contingência existente (sem novo tuning).
@@ -58,7 +58,7 @@ export class FriendsRequestsRealtimeEffects {
     withLatestFrom(this.access.authUid$),
     filter(([{ uid }, currentUid]) => uid === currentUid),
     switchMap(([{ uid }]) =>
-        this.svc.watchOutboundRequests(uid).pipe(
+        this.svc.watchOutboundRequests(uid, 'session').pipe(
           map(requests => RT.outboundRequestsChanged({ requests })),
           // Uma falha da callable não pode encerrar a observação da sessão.
           // Reutiliza o intervalo de contingência existente (sem novo tuning).

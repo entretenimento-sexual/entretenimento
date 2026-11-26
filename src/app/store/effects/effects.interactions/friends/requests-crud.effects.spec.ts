@@ -29,10 +29,10 @@ describe('FriendsRequestsCrudEffects / atualização direcional', () => {
       actions.next(A.declineFriendRequestSuccess({ requestId: 'req' }));
       actions.next(A.acceptFriendRequestSuccess({ requestId: 'req' }));
       expect(output).toEqual([
-        A.loadOutboundRequests({ uid: 'user-a' }),
-        A.loadOutboundRequests({ uid: 'user-a' }),
-        A.loadInboundRequests({ uid: 'user-a' }),
-        A.loadInboundRequests({ uid: 'user-a' }),
+        A.loadOutboundRequests({ uid: 'user-a', source: 'post-mutation' }),
+        A.loadOutboundRequests({ uid: 'user-a', source: 'post-mutation' }),
+        A.loadInboundRequests({ uid: 'user-a', source: 'post-mutation' }),
+        A.loadInboundRequests({ uid: 'user-a', source: 'post-mutation' }),
         A.loadFriends({ uid: 'user-a' }),
       ]);
       uid.next(null);
