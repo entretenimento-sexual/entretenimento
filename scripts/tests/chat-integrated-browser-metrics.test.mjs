@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { summarizePendingAttempts } from './chat-integrated-browser-metrics.mjs';
+import { summarizePendingAttempts, recoverPendingAttempt } from './chat-integrated-browser-metrics.mjs';
 
 test('counts starts even when navigation aborts before HTTP response',()=>{
   const rows=[{httpStatus:200},{httpStatus:200},{httpStatus:null,transportFailure:'net::ERR_ABORTED'}];
@@ -28,4 +28,42 @@ test('empty workload is not mistaken for success or a completed call',()=>{
   assert.equal(result.started,0);
   assert.equal(result.httpResponses,0);
   assert.equal(result.unsettled,0);
+});
+
+const attempt=()=>({httpStatus:null,transportFailure:null});
+const callbacks=(row,request)=>({
+  onResponse: response=>{row.httpStatus=response.status();},
+  onFailure: ()=>{row.transportFailure=request.failure().errorText;},
+  timeoutMs:10,
+});
+test('recovers the exact request HTTP response',async()=>{
+  const row=attempt();
+  const request={failure:()=>null,response:async()=>({status:()=>200})};
+  await recoverPendingAttempt(request,row,callbacks(row,request));
+  assert.equal(summarizePendingAttempts([row]).httpResponses,1);
+  assert.equal(summarizePendingAttempts([row]).unsettled,0);
+});
+test('recovers a confirmed request failure',async()=>{
+  const row=attempt();
+  const request={failure:()=>({errorText:'net::ERR_ABORTED'}),response:async()=>null};
+  await recoverPendingAttempt(request,row,callbacks(row,request));
+  assert.equal(summarizePendingAttempts([row]).abortedBeforeResponse,1);
+});
+test('context closure and rejected response do not manufacture evidence',async()=>{
+  const row={...attempt(),contextClosedWithoutTerminalEvent:true};
+  const request={failure:()=>null,response:async()=>{throw Error('context closed');}};
+  await recoverPendingAttempt(request,row,callbacks(row,request));
+  assert.equal(summarizePendingAttempts([row]).unsettled,1);
+});
+test('bounded wait preserves an unknown outcome',async()=>{
+  const row=attempt();
+  const request={failure:()=>null,response:()=>new Promise(()=>{})};
+  await recoverPendingAttempt(request,row,callbacks(row,request));
+  assert.equal(summarizePendingAttempts([row]).unsettled,1);
+});
+test('does not replace already-recorded terminal evidence',async()=>{
+  const row={httpStatus:200,transportFailure:null};
+  const request={failure:()=>{throw Error('must not query settled request');},response:()=>{throw Error('must not query settled request');}};
+  await recoverPendingAttempt(request,row,callbacks(row,request));
+  assert.equal(row.httpStatus,200);
 });

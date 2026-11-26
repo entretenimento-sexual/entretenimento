@@ -20,3 +20,19 @@ export function summarizePendingAttempts(rows) {
   }
   return counts;
 }
+
+// Read only terminal evidence associated with the original request handle.
+// A missing event, closure or deadline does not imply a transport abort.
+export async function recoverPendingAttempt(request,row,{onResponse,onFailure,timeoutMs=1500}) {
+  if(Number.isInteger(row.httpStatus)||row.transportFailure) return;
+  if(request.failure()?.errorText) { onFailure(); return; }
+  let timer;
+  try {
+    const response=await Promise.race([
+      Promise.resolve().then(()=>request.response()).catch(()=>null),
+      new Promise(resolve=>{timer=setTimeout(()=>resolve(null),timeoutMs);}),
+    ]);
+    if(response&&!Number.isInteger(row.httpStatus)) onResponse(response);
+    if(request.failure()?.errorText&&!row.transportFailure) onFailure();
+  } finally { clearTimeout(timer); }
+}

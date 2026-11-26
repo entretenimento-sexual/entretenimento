@@ -12,3 +12,7 @@ RequestsRepo é autoridade compartilhada de leitura de pendências por sessão/d
 
 ## Certificação
 Pendente CI. Sem homologação da D.5. Este incremento não resolve saturação multi-dispositivo, latência, nem encerra a consolidação intermodular. Não executar deploy.
+
+## D.5.1A — Correção proposta da contabilidade de transporte
+
+Em ee6f0a4: 72 fases Chromium aprovadas, 305 tentativas, 266 respostas HTTP, 34 abortos, 3 outras falhas antes da resposta e 2 tentativas inconclusivas na R2 (offline-accept-receiver, inbound/outbound). Zero HTTP 429. Encerramento do contexto não comprova aborto; não imputar status ausente. Capturar evidência redundante no contexto, deduplicar eventos por requisição, recuperar resposta/falha do handle original antes do encerramento do cenário complementar e na consolidação final. A certificação exige zero tentativas inconclusivas e zero falhas HTTP nas leituras de pendências. Nenhuma alteração de aplicação, autorização ou quotas. Recertificação Chromium e Quality Gate obrigatória; D.5.2A permanece pendente.
