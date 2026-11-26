@@ -30,6 +30,7 @@ import { CacheService } from '@core/services/general/cache/cache.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { AuthAppBlockService } from '@core/services/autentication/auth/auth-app-block.service';
 
+import { revokedDirectChatInbox, type DirectChatInboxScope } from '@core/services/data-handling/firestore/repositories/chat-inbox-projection';
 import { ChatRepository } from '@core/services/data-handling/firestore/repositories/chat.repository';
 import { ChatMessagesRepository } from '@core/services/data-handling/firestore/repositories/chat-messages.repository';
 
@@ -290,6 +291,17 @@ export class ChatService implements OnDestroy {
     return this.listeningUid$.pipe(
       switchMap(active => active === uid ? this.chatsRepo.watchDirectChatForOwner$(uid, chatId) : of(null)),
       catchError(error => this.reportSilent('watchDirectChatForOwner$', error))
+    );
+  }
+
+  watchDirectChatInboxForOwner$(
+    uid: string, loadMore$: Observable<unknown>, refresh$: Observable<unknown>
+  ): Observable<DirectChatInboxScope> {
+    return this.listeningUid$.pipe(
+      switchMap(active => active === uid
+        ? this.chatsRepo.watchDirectChatInboxForOwner$(uid, loadMore$, refresh$)
+        : of(revokedDirectChatInbox())),
+      catchError(error => this.reportSilent('watchDirectChatInboxForOwner$', error))
     );
   }
 

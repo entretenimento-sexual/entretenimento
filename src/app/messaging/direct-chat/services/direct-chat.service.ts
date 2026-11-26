@@ -35,6 +35,7 @@ import {
 import type { ConversationPace } from 'src/app/preferences/catalogs/conversation-pace.catalog';
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 
+import type { DirectChatInboxScope } from '@core/services/data-handling/firestore/repositories/chat-inbox-projection';
 import { ChatService } from '@core/services/batepapo/chat-service/chat.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
@@ -137,6 +138,12 @@ private readonly myDirectChatScope$ = defer(() => combineLatest([
 
   observeDirectChatForOwner$(owner: string, chatId: string): Observable<IChat | null> {
     return this.chatService.watchDirectChatForOwner$(owner, chatId);
+  }
+
+  observeDirectChatInboxForOwner$(
+    owner: string, loadMore$: Observable<unknown>, refresh$: Observable<unknown>
+  ): Observable<DirectChatInboxScope> {
+    return this.chatService.watchDirectChatInboxForOwner$(owner, loadMore$, refresh$);
   }
 
   getMyDirectChatScope$(): Observable<{ ownerUid: string | null; chats: IChat[] }> {

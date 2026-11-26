@@ -16,7 +16,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { of } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 
 import { ChatListComponent } from './chat-list.component';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
@@ -26,7 +26,7 @@ import { DirectChatFacade } from '../../messaging/direct-chat/application/direct
 import { ApplicationErrorService } from '../../core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 import { ContentStateComponent } from '../../shared/content-state/content-state.component';
-import type { DirectChatListItem } from '../../messaging/direct-chat/models/direct-chat.models';
+import type { DirectChatInboxState, DirectChatListItem } from '../../messaging/direct-chat/models/direct-chat.models';
 
 const DIRECT_ITEMS_CONTEXT =
   'ChatList.directChatItems' + String.fromCharCode(36);
@@ -36,10 +36,16 @@ describe('ChatListComponent', () => {
   let fixture: ComponentFixture<ChatListComponent>;
   let selectChatMock: ReturnType<typeof vi.fn>;
   let applicationErrorReportMock: ReturnType<typeof vi.fn>;
+  let inbox$: BehaviorSubject<DirectChatInboxState>;
+  let loadMoreMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     selectChatMock = vi.fn();
     applicationErrorReportMock = vi.fn();
+    loadMoreMock = vi.fn();
+    inbox$ = new BehaviorSubject<DirectChatInboxState>({
+      items: [], status: 'ready', hasMore: false, unconfirmedCount: 0, directUnreadCount: 0,
+    });
 
     TestBed.configureTestingModule({
       declarations: [ChatListComponent],
@@ -66,6 +72,10 @@ describe('ChatListComponent', () => {
           provide: DirectChatFacade,
           useValue: {
             items$: of([]),
+            observeProgressiveInbox$: (more$: import('rxjs').Observable<unknown>) => {
+              more$.subscribe(loadMoreMock);
+              return inbox$;
+            },
             selectChat: selectChatMock,
           },
         },
@@ -97,6 +107,17 @@ describe('ChatListComponent', () => {
 
   it('cria a inbox de conversas diretas sem infraestrutura de Salas', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('não anuncia lista vazia quando há uma página seguinte e oferece controle acessível', () => {
+    inbox$.next({ ...inbox$.value, hasMore: true });
+    fixture.detectChanges();
+    const button = [...fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>]
+      .find(node => node.textContent?.includes('Carregar mais conversas'));
+    expect(button).toBeTruthy();
+    expect(fixture.nativeElement.textContent).not.toContain('Nenhuma conversa ainda');
+    button?.click();
+    expect(loadMoreMock).toHaveBeenCalledTimes(1);
   });
 
   it('seleciona somente o contrato de chat direto', () => {

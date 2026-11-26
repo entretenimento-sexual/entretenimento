@@ -145,6 +145,16 @@ try {
   await ready(a);
   await openChat(b,chatId);
   pass('independent real Angular login and notification deep link');
+  const more = a.getByRole('button',{name:'Carregar mais conversas',exact:true});
+  await more.waitFor({state:'visible'});
+  assert.ok((await more.boundingBox()).height >= 44,'Load more minimum touch target');
+  await composer(a).fill('Draft during pagination');
+  await more.click();
+  await more.waitFor({state:'hidden'});
+  await ready(a);
+  assert.equal(await composer(a).inputValue(),'Draft during pagination');
+  await composer(a).fill('');
+  pass('progressive inbox preserves selected conversation and draft');
   assert.ok((await notice.get()).data().readAt != null,'Notification mark-read callable');
   const first='Browser message A '+id;
   await composer(a).fill(first);

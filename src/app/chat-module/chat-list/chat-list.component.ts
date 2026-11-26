@@ -27,7 +27,7 @@ import {
   inject,
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { BehaviorSubject, combineLatest, Observable, of } from 'rxjs';
+import { BehaviorSubject, Subject, combineLatest, Observable, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -37,12 +37,11 @@ import {
   switchMap,
   take,
   tap,
-  startWith,
 } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
-import { DirectChatListItem } from 'src/app/messaging/direct-chat/models/direct-chat.models';
+import { DirectChatInboxState, DirectChatListItem } from 'src/app/messaging/direct-chat/models/direct-chat.models';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
@@ -56,11 +55,6 @@ type ChatSelection = {
   peerPhotoURL?: string | null;
 };
 
-type ConversationCollectionState<T> = {
-  items: T[];
-  loading: boolean;
-};
-
 type ChatListViewModel = {
   searchTerm: string;
   hasSearch: boolean;
@@ -69,6 +63,11 @@ type ChatListViewModel = {
   filteredDirectChats: DirectChatListItem[];
   showLoadingState: boolean;
   shouldShowEmptyState: boolean;
+  loading: boolean;
+  hasMore: boolean;
+  canRefresh: boolean;
+  error: boolean;
+  unconfirmedCount: number;
 };
 
 @Component({
@@ -90,6 +89,9 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   @Output() chatSelected = new EventEmitter<ChatSelection>();
 
+  private readonly loadMoreSubject = new Subject<void>();
+  private readonly refreshInboxSubject = new Subject<void>();
+  private inboxState$!: Observable<DirectChatInboxState>;
   private readonly searchTermSubject = new BehaviorSubject<string>('');
   private readonly hideMessagePreviewsSubject = new BehaviorSubject<boolean>(
     this.readStoredBoolean('CHAT_HIDE_MESSAGE_PREVIEWS')
@@ -114,7 +116,14 @@ export class ChatListComponent implements OnInit, OnDestroy {
     this.bindViewModel();
   }
 
-  ngOnDestroy(): void {}
+  ngOnDestroy(): void {
+    this.loadMoreSubject.complete();
+    this.refreshInboxSubject.complete();
+  }
+
+  loadMoreConversations(): void { this.loadMoreSubject.next(); }
+
+  refreshConversations(): void { this.refreshInboxSubject.next(); }
 
   setSearchTerm(value: string | null | undefined): void {
     this.searchTermSubject.next(String(value ?? ''));
@@ -196,6 +205,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   getDirectChatActivityEpoch(chat: DirectChatListItem): number | null {
     const epoch =
+      this.coerceEpochMs(chat?.chat?.timestamp) ||
       this.coerceEpochMs(chat?.lastMessageAt) ||
       this.coerceEpochMs(chat?.chat?.lastMessageAt) ||
       this.coerceEpochMs(chat?.chat?.lastMessage?.timestamp) ||
@@ -256,74 +266,50 @@ export class ChatListComponent implements OnInit, OnDestroy {
   }
 
   private bindDirectChatsStream(): void {
-    this.directChatItems$ = this.directChatFacade.items$.pipe(
-      tap((items) => this.dbg('Direct chats loaded', { count: items.length })),
-      catchError((err) => {
-        this.handleError('ChatList.directChatItems$', err, false);
-        return of([] as DirectChatListItem[]);
+    const empty: DirectChatInboxState = {
+      items: [], status: 'loading', hasMore: false, unconfirmedCount: 0, directUnreadCount: 0,
+    };
+    this.inboxState$ = this.createLoadGate$(this.access.canListenRealtime$).pipe(
+      switchMap(canLoad => canLoad
+        ? this.directChatFacade.observeProgressiveInbox$(this.loadMoreSubject, this.refreshInboxSubject)
+        : of(empty)),
+      catchError(error => {
+        this.handleError('ChatList.directChatItems$', error, false);
+        return of({ ...empty, status: 'error' as const });
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+    this.directChatItems$ = this.inboxState$.pipe(map(state => state.items));
   }
 
   private bindViewModel(): void {
-    const directChatsState$ = this.createLoadGate$(
-      this.access.canListenRealtime$
-    ).pipe(
-      switchMap((canLoad) => {
-        if (!canLoad) {
-          return of({
-            items: [],
-            loading: true,
-          } as ConversationCollectionState<DirectChatListItem>);
-        }
-
-        return this.directChatItems$.pipe(
-          map((items) => ({
-            items: this.sortDirectChatsByActivity(items),
-            loading: false,
-          })),
-          startWith({
-            items: [],
-            loading: true,
-          } as ConversationCollectionState<DirectChatListItem>)
-        );
-      })
-    );
-
     this.vm$ = combineLatest([
-      directChatsState$,
+      this.inboxState$,
       this.searchTermSubject.pipe(distinctUntilChanged()),
       this.hideMessagePreviewsSubject.pipe(distinctUntilChanged()),
     ]).pipe(
-      map(([directChatsState, searchTerm, hideMessagePreviews]) => {
+      map(([state, searchTerm, hideMessagePreviews]) => {
         const term = this.normalizeText(searchTerm);
-        const filteredDirectChats = !term
-          ? directChatsState.items
-          : directChatsState.items.filter((item) => {
-              const nickname = this.normalizeText(item.otherParticipantNickname);
-
-              if (hideMessagePreviews) return nickname.includes(term);
-
-              const preview = this.normalizeText(item.lastMessagePreview);
-              return nickname.includes(term) || preview.includes(term);
-            });
-
-        const directUnreadCount = directChatsState.items.reduce(
-          (total, chat) => total + Math.max(0, Number(chat?.unreadCount ?? 0)),
-          0
-        );
-
+        const filteredDirectChats = !term ? state.items : state.items.filter(item => {
+          const nickname = this.normalizeText(item.otherParticipantNickname);
+          if (hideMessagePreviews) return nickname.includes(term);
+          return nickname.includes(term) || this.normalizeText(item.lastMessagePreview).includes(term);
+        });
+        const loading = state.status === 'loading' || state.status === 'revoked';
         return {
           searchTerm,
           hasSearch: term.length > 0,
           hideMessagePreviews,
-          directUnreadCount,
+          directUnreadCount: state.directUnreadCount,
           filteredDirectChats,
-          showLoadingState:
-            directChatsState.loading && filteredDirectChats.length === 0,
-          shouldShowEmptyState:
-            !directChatsState.loading && filteredDirectChats.length === 0,
+          loading,
+          hasMore: state.hasMore,
+          canRefresh: state.status === 'ready' || state.status === 'error',
+          error: state.status === 'error',
+          unconfirmedCount: state.unconfirmedCount,
+          showLoadingState: loading && filteredDirectChats.length === 0,
+          shouldShowEmptyState: state.status === 'ready' && !state.hasMore &&
+            state.unconfirmedCount === 0 && filteredDirectChats.length === 0,
         } satisfies ChatListViewModel;
       }),
       shareReplay({ bufferSize: 1, refCount: true })
@@ -342,16 +328,6 @@ export class ChatListComponent implements OnInit, OnDestroy {
       ),
       distinctUntilChanged()
     );
-  }
-
-  private sortDirectChatsByActivity(
-    items: DirectChatListItem[]
-  ): DirectChatListItem[] {
-    return (items ?? []).slice().sort((a, b) => {
-      const timeA = this.getDirectChatActivityEpoch(a) ?? 0;
-      const timeB = this.getDirectChatActivityEpoch(b) ?? 0;
-      return timeB - timeA;
-    });
   }
 
   private getSafePreview(value: unknown): string {

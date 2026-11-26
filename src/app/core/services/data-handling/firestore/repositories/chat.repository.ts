@@ -8,6 +8,7 @@ import { ApplicationErrorService } from '@core/services/error-handler/applicatio
 import { createChatDiscoveryScope$, type ChatDiscoveryScope } from './chat-discovery-scope';
 import { revalidateDiscoveryOnRevision$ } from './chat-discovery-invalidation';
 import { observeDirectChatPages$, type DirectChatPageResponse, type DirectChatPageState } from './chat-discovery-pages';
+import { observeConfirmedDirectChatInbox$, revokedDirectChatInbox, type DirectChatInboxScope } from './chat-inbox-projection';
 import { recoverDirectChatListener$ } from 'src/app/messaging/direct-chat/services/direct-chat-listener-recovery';
 
 import {
@@ -89,6 +90,21 @@ export class ChatRepository {
         : of(revoked)),
       startWith<DirectChatPageState>(revoked)
     );
+  }
+
+  watchDirectChatInboxForOwner$(
+    uid: string, loadMore$: Observable<unknown>, refresh$: Observable<unknown>
+  ): Observable<DirectChatInboxScope> {
+    return refresh$.pipe(startWith(null), switchMap(() =>
+      observeConfirmedDirectChatInbox$(uid, this.watchDirectChatPagesForOwner$(uid, loadMore$),
+        id => this.observeChat$(id)).pipe(
+        startWith(revokedDirectChatInbox()),
+        catchError(error => {
+          this.failedScope(uid, error);
+          return of({ ...revokedDirectChatInbox(), ownerUid: uid, status: 'error' as const });
+        })
+      )
+    ));
   }
 
   private observeTransport$(uid: string): Observable<ChatDiscoveryScope> {

@@ -537,3 +537,26 @@
     flex-basis: 40px;
   }
 }
+.conversation-list__pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.conversation-list__pagination .conversation-list__chip,
+.conversation-list__search-clear,
+.conversation-list__filters .conversation-list__chip {
+  min-height: 44px;
+}
+.conversation-list__search-clear { min-width: 44px; }
+.conversation-list__pagination .conversation-list__chip:disabled {
+  opacity: .65;
+  cursor: default;
+}
+.conversation-list__pagination-note {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: .85rem;
+  color: var(--text-color);
+}
+.conversation-list__pagination-note:empty { display: none; }

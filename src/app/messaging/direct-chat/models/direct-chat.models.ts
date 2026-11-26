@@ -130,3 +130,12 @@ export interface DirectChatListState {
   loaded?: boolean;
   errorMessage?: string | null;
 }
+
+// Progressive inbox is independent of selection and legacy media consumers.
+export interface DirectChatInboxState {
+  items: DirectChatListItem[];
+  status: 'loading' | 'ready' | 'error' | 'revoked';
+  hasMore: boolean;
+  unconfirmedCount: number;
+  directUnreadCount: number;
+}

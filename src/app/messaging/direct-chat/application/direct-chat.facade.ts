@@ -36,6 +36,7 @@ import { UserPublic } from '@core/interfaces/user-public.interface';
 import {
   DirectChatListItem,
   DirectChatListState,
+  DirectChatInboxState,
 } from '../models/direct-chat.models';
 
 import { ChatNotificationService } from '@core/services/batepapo/chat-notification.service';
@@ -176,6 +177,63 @@ export class DirectChatFacade {
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  observeProgressiveInbox$(
+    loadMore$: Observable<unknown>, refresh$: Observable<unknown>
+  ): Observable<DirectChatInboxState> {
+    const empty: DirectChatInboxState = {
+      items: [], status: 'revoked', hasMore: false, unconfirmedCount: 0, directUnreadCount: 0,
+    };
+    return this.sessionIdentity$.pipe(
+      switchMap(({ uid }) => {
+        if (!uid) return of(empty);
+        const scoped$ = defer(() => this.directChatService.observeDirectChatInboxForOwner$(uid, loadMore$, refresh$))
+          .pipe(shareReplay({ bufferSize: 1, refCount: true }));
+        const items$ = scoped$.pipe(
+          map(scope => scope.ownerUid === uid ? scope.chats
+            .filter(chat => !!chat.id && !!this.canonicalPeer(chat, uid, chat.id))
+            .map(chat => this.toListItem(chat, uid)) : []),
+          shareReplay({ bufferSize: 1, refCount: true })
+        );
+        const profiles$ = items$.pipe(
+          map(items => [...new Set(items.map(item => item.otherParticipantUid)
+            .filter((peer): peer is string => !!peer))].sort()),
+          distinctUntilChanged((a, b) => a.length === b.length && a.every((value, i) => value === b[i])),
+          switchMap(uids => uids.length
+            ? this.firestoreUserQuery.getUsersPublicMap$(uids).pipe(
+              startWith({} as Record<string, UserPublic>),
+              catchError(error => {
+                this.reportSilent(error, 'DirectChatFacade.observeProgressiveInbox$.profiles');
+                return of({} as Record<string, UserPublic>);
+              })
+            ) : of({} as Record<string, UserPublic>))
+        );
+        return combineLatest([scoped$, profiles$, this.chatNotification.unreadState$]).pipe(
+          map(([scope, profiles, unread]): DirectChatInboxState => {
+            if (scope.ownerUid !== uid) return empty;
+            const counts = unread.ownerUid === uid ? unread.counts : new Map<string, number>();
+            // Derive items from the same scope, never from a lagging separate list.
+            const items = scope.chats.filter(chat => !!chat.id && !!this.canonicalPeer(chat, uid, chat.id))
+              .map(chat => this.toListItem(chat, uid));
+            return {
+              items: this.applyPublicProfiles(items, profiles).map(item => ({
+                ...item, unreadCount: counts.get(item.id) ?? 0,
+              })),
+              status: scope.status, hasMore: scope.hasMore,
+              unconfirmedCount: scope.unconfirmedCount,
+              directUnreadCount: [...counts.values()].reduce((total, count) => total + count, 0),
+            };
+          }),
+          startWith({ ...empty, status: 'loading' as const }),
+          catchError(error => {
+            this.reportSilent(error, 'DirectChatFacade.observeProgressiveInbox$');
+            return of({ ...empty, status: 'error' as const });
+          })
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
 
   private readonly selectedCanonicalScope$ = combineLatest([
     this.sessionIdentity$, this.selectedChatRequestSubject,
