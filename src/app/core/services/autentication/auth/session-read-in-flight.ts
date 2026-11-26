@@ -1,5 +1,5 @@
 import type { User } from 'firebase/auth';
-import { EMPTY, Observable, catchError, defer, filter, finalize, merge, shareReplay, takeUntil, tap, throwError } from 'rxjs';
+import { EMPTY, NEVER, Observable, ReplaySubject, catchError, defer, filter, finalize, merge, of, share, takeUntil, tap, throwError } from 'rxjs';
 import type { AuthSessionService } from './auth-session.service';
 
 type SessionScope = Pick<AuthSessionService,
@@ -23,7 +23,8 @@ export class SessionReadInFlight<T> {
 
   constructor(private readonly session: SessionScope) {}
 
-  read$(requestKey: string, load: () => Observable<T>, expectedUid?: string): Observable<T> {
+  read$(requestKey: string, load: (markStarted: () => void) => Observable<T>, expectedUid?: string,
+    cancelBeforeStart = false): Observable<T> {
     return defer(() => {
       const user = this.session.currentAuthUser;
       const version = this.session.terminationVersionSnapshot;
@@ -55,7 +56,10 @@ export class SessionReadInFlight<T> {
       // when the operational authentication authority reports a replacement.
       const revoked$ = this.session.authUser$ ? merge(uidRevoked$,
         this.session.authUser$.pipe(filter(active => active !== user || !isCurrent()))) : uidRevoked$;
-      const stream$ = defer(load).pipe(
+      // Queued admission is cancellable until the actual transport begins.
+      // Other callers retain the original in-flight semantics by default.
+      let started = !cancelBeforeStart;
+      const stream$ = defer(() => load(() => { started = true; })).pipe(
         takeUntil(revoked$),
         filter(() => isCurrent()),
         // A same-UID SDK replacement may not emit on uid$. Never deliver its stale error.
@@ -63,7 +67,8 @@ export class SessionReadInFlight<T> {
         // Remove before forwarding a result/error, including reentrant reads.
         tap({ next: release, error: release, complete: release }),
         finalize(release),
-        shareReplay({ bufferSize: 1, refCount: false })
+        share({ connector: () => new ReplaySubject<T>(1), resetOnError: true,
+          resetOnComplete: false, resetOnRefCountZero: () => started ? NEVER : of(void 0) })
       );
       entry = { user, version, stream$ };
       this.pending.set(key, entry);

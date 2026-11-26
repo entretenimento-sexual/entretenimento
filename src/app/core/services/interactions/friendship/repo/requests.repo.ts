@@ -46,12 +46,13 @@ import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-
 import { NetworkStatusService } from '@core/services/network/network-status.service';
 
 import { FirestoreRepoBase } from './base.repo';
+import { PendingReadAdmission } from './pending-read-admission';
 import { FriendRequest } from '../../../../interfaces/friendship/friend-request.interface';
 
 type PendingRequests = (FriendRequest & { id: string })[];
 type RequestDirection = 'inbound' | 'outbound';
 export type PendingRequestConsumer = 'session' | 'profile' | 'post-mutation' | 'explicit' | 'other';
-type ReadReason = PendingRequestConsumer | 'session-retry' | 'subscriber-join' | 'canonical-event' | 'listener-recovery' | 'poll';
+type ReadReason = PendingRequestConsumer | 'session-retry' | 'subscriber-join' | 'canonical-event' | 'listener-recovery' | 'poll' | 'quota-wait';
 type Revisions = Record<RequestDirection, number | null>;
 const DEGRADED_POLL_MS = 60_000;
 const VISIBLE_POLL_MS = 120_000;
@@ -88,6 +89,7 @@ interface PendingWatch {
 @Injectable({ providedIn: 'root' })
 export class RequestsRepo extends FirestoreRepoBase {
   private readonly inFlight: SessionReadInFlight<PendingRequests>;
+  private readonly admission: PendingReadAdmission;
   private readonly watches = new Map<string, PendingWatch>();
   private readonly revisions$: Observable<RevisionScope | null>;
   private nextEpoch = 0;
@@ -103,6 +105,7 @@ export class RequestsRepo extends FirestoreRepoBase {
   ) {
     super(db, env);
     this.inFlight = new SessionReadInFlight(this.session);
+    this.admission = new PendingReadAdmission(this.document);
     this.revisions$ = this.session.authUser$.pipe(
       map(user => ({ user, version: this.session.terminationVersionSnapshot })),
       distinctUntilChanged((a, b) => a.user === b.user && a.version === b.version),
@@ -252,14 +255,20 @@ export class RequestsRepo extends FirestoreRepoBase {
   }
 
   private loadPendingRequests$(uid: string, direction: RequestDirection, epoch: number, reason: ReadReason): Observable<PendingRequests> {
-    return this.inFlight.read$(JSON.stringify([direction, epoch]), () =>
-      defer(() => {
-        this.trace('start', direction, reason);
-        return from(this.getPendingRequestsCallable()({ direction, limit: 60 }));
-      })
-        .pipe(map((response) => response.data.items ?? [])),
-      uid
-    );
+    return this.inFlight.read$(JSON.stringify([direction, epoch]), markStarted => {
+      const user = this.session.currentAuthUser;
+      const version = this.session.terminationVersionSnapshot;
+      const isCurrent = () => this.session.currentAuthUser === user &&
+        this.session.terminationVersionSnapshot === version && !this.session.isTerminatingSnapshot;
+      return this.admission.wait$(uid, isCurrent, () => this.trace('signal', direction, 'quota-wait')).pipe(
+        switchMap(() => defer(() => {
+          markStarted();
+          this.trace('start', direction, reason);
+          return from(this.getPendingRequestsCallable()({ direction, limit: 60 }));
+        })),
+        map(response => response.data.items ?? [])
+      );
+    }, uid, true);
   }
 
   private listPendingRequests$(uid: string, direction: RequestDirection, consumer: PendingRequestConsumer): Observable<PendingRequests> {

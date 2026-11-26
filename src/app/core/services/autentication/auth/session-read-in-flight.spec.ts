@@ -108,6 +108,26 @@ describe('SessionReadInFlight', () => {
     expect(authUser$.observers).toHaveLength(0);
   });
 
+  it('cancela admissão sem consumidores, mas mantém transporte já iniciado', () => {
+    const { reads } = setup();
+    const cleanup = vi.fn();
+    let start!: () => void;
+    const load = vi.fn((markStarted: () => void) => new Observable<string>(() => {
+      start = markStarted;
+      return cleanup;
+    }));
+    const queued = reads.read$('pending', load, 'a', true).subscribe();
+    queued.unsubscribe();
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    const admitted = reads.read$('pending', load, 'a', true).subscribe();
+    start();
+    admitted.unsubscribe();
+    const joined = reads.read$('pending', load, 'a', true).subscribe();
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    joined.unsubscribe();
+  });
+
   it('propaga erros e libera a chave para nova tentativa', async () => {
     const { reads } = setup();
     const error = new Error('permission-denied');
