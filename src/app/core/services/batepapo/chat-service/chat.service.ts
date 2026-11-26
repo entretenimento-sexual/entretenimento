@@ -285,6 +285,46 @@ export class ChatService implements OnDestroy {
    * - NÃO usa cache “stale”.
    * - Effects controla start/stop (takeUntil).
    */
+  watchDirectChatForOwner$(uid: string, chatId: string): Observable<IChat | null> {
+    return this.listeningUid$.pipe(
+      switchMap(active => active === uid ? this.chatsRepo.watchDirectChatForOwner$(uid, chatId) : of(null)),
+      catchError(error => this.reportSilent('watchDirectChatForOwner
+    const id = (uid ?? '').toString().trim();
+    if (!id) return of([]);
+
+    return this.listeningUid$.pipe(
+      switchMap(listeningUid => {
+        if (listeningUid !== id) return of([] as IChat[]);
+        return this.chatsRepo.watchChats$(id, limit);
+      }),
+      catchError(err => this.reportSilent('watchChats$', err))
+    );
+  }
+
+  /**
+   * getChats:
+   * - Mantido por compat.
+   * - Usa a mesma fonte reativa, sem cache legado.
+   */
+  getChats(userId: string, lastChatTimestamp?: Timestamp): Observable<IChat[]> {
+    const uid = (userId ?? '').toString().trim();
+    if (!uid) return of([]);
+
+    return this.listeningUid$.pipe(
+      switchMap(listeningUid => {
+        if (listeningUid !== uid) return of([] as IChat[]);
+        return lastChatTimestamp
+          ? this.chatsRepo.getChatsPageOnce$(uid, lastChatTimestamp, 10)
+          : this.chatsRepo.watchChats$(uid, 10);
+      }),
+      catchError(err => this.reportSilent('getChats', err))
+    );
+  }
+}
+, error))
+    );
+  }
+
   watchChats$(uid: string, limit = 10): Observable<IChat[]> {
     const id = (uid ?? '').toString().trim();
     if (!id) return of([]);

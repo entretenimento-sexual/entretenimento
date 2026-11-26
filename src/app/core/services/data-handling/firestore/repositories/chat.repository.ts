@@ -1,7 +1,7 @@
 // src/app/core/services/data-handling/firestore/repositories/chat.repository.ts
 import { Injectable, inject } from '@angular/core';
 import { Observable, combineLatest, defer, of, throwError } from 'rxjs';
-import { catchError, filter, map, startWith, switchMap, take } from 'rxjs/operators';
+import { catchError, distinctUntilChanged, filter, map, startWith, switchMap, take } from 'rxjs/operators';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
@@ -48,8 +48,8 @@ export class ChatRepository {
   }
 
   // Only the backend discovers IDs. Each individual listener still uses Rules.
-  private observeTransport$(uid: string): Observable<ChatDiscoveryScope> {
-    const revision$ = this.ctx.deferObservable$(() => {
+  private observeRevision$(uid: string): Observable<number | null> {
+    return this.ctx.deferObservable$(() => {
       const ref = doc(this.db, 'direct_chat_discovery', uid);
       return new Observable<number | null>(sink => onSnapshot(ref,
         { includeMetadataChanges: true }, snapshot => {
@@ -64,6 +64,10 @@ export class ChatRepository {
           } else sink.error(new Error('Sinal de descoberta inválido.'));
         }, error => sink.error(error)));
     });
+  }
+
+  private observeTransport$(uid: string): Observable<ChatDiscoveryScope> {
+    const revision$ = this.observeRevision$(uid);
     const loading: ChatDiscoveryScope = { ownerUid: uid, status: 'loading', chats: [] };
     return revalidateDiscoveryOnRevision$(revision$, loading, () =>
       this.ctx.deferPromise$(() =>
@@ -85,6 +89,42 @@ export class ChatRepository {
         }),
         catchError(error => of(this.failedScope(uid, error)))
       )
+    );
+  }
+
+  // A selected history is not a member of a visible page. Revalidate the
+  // canonical individual candidate on every owner revision, before Rules reads.
+  watchDirectChatForOwner$(uid: string, chatId: string): Observable<IChat | null> {
+    const owner = String(uid ?? '').trim();
+    const id = String(chatId ?? '').trim();
+    if (!owner || !id || owner.includes('/') || id.includes('/') ||
+        id === '.' || id === '..' || /^__.*__$/.test(id)) return of(null);
+    return combineLatest([this.access.authUid$, this.access.canRunChatRealtime$]).pipe(
+      map(([active, allowed]) => active === owner && allowed),
+      distinctUntilChanged(),
+      switchMap(allowed => allowed ? recoverDirectChatListener$<IChat | null>(
+        () => revalidateDiscoveryOnRevision$(this.observeRevision$(owner), null as IChat | null, () =>
+          recoverDirectChatListener$<IChat | null>(() => this.ctx.deferPromise$(() =>
+            httpsCallable<{ chatId: string }, { chatIds: string[] }>(
+              this.functions, 'listDirectChatCandidates'
+            )({ chatId: id })
+          ).pipe(
+            switchMap(({data}) => Array.isArray(data.chatIds) &&
+              data.chatIds.length === 1 && data.chatIds[0] === id
+                ? this.observeChat$(id) : of(null))
+          ), error => {
+            this.failedScope(owner, error);
+            return null;
+          })
+        ), error => {
+          this.failedScope(owner, error);
+          return null;
+        }
+      ).pipe(catchError(error => {
+        this.failedScope(owner, error);
+        return of(null);
+      })) : of(null)),
+      startWith(null)
     );
   }
 

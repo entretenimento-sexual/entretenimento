@@ -135,6 +135,10 @@ private readonly myDirectChatScope$ = defer(() => combineLatest([
     return this.myDirectChats$;
   }
 
+  observeDirectChatForOwner$(owner: string, chatId: string): Observable<IChat | null> {
+    return this.chatService.watchDirectChatForOwner$(owner, chatId);
+  }
+
   getMyDirectChatScope$(): Observable<{ ownerUid: string | null; chats: IChat[] }> {
     return this.myDirectChatScope$;
   }

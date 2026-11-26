@@ -1,7 +1,7 @@
 // CHAT-R1.5: server-only discovery, including unreconciled historical chats.
 // Returns identifiers only; every document read remains subject to Firestore Rules.
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
-import { FieldPath, Timestamp, type QueryDocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
+import { FieldPath, Timestamp, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
 import { createHash, randomBytes } from 'node:crypto';
 import { db } from '../../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
@@ -23,7 +23,7 @@ const CURSOR_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 type PageRequest = { pageSize: number; cursor: string | null };
 type CandidateResponse = { chatIds: string[] };
 type PageResponse = CandidateResponse & { nextCursor: string | null; revision: number };
-type DiscoveryRequest = { pageSize?: number; cursor?: string | null };
+type DiscoveryRequest = { pageSize?: number; cursor?: string | null; chatId?: string };
 
 function parsePageRequest(raw: unknown): PageRequest | null {
   if (raw == null) return null;
@@ -74,6 +74,20 @@ export const listDirectChatCandidates = onCall<DiscoveryRequest>(
       config: ENSURE_DIRECT_CHAT_RATE_LIMIT_CONFIG,
       message: 'Muitas solicitações de conversas.',
     });
+    if (request.data && Object.prototype.hasOwnProperty.call(request.data, 'chatId')) {
+      const chatId = request.data.chatId;
+      if (Object.keys(request.data).length !== 1 || typeof chatId !== 'string' ||
+          !chatId || chatId.includes('/') || Buffer.byteLength(chatId) > 1500 ||
+          chatId === '.' || chatId === '..' || /^__.*__$/.test(chatId)) {
+        throw new HttpsError('invalid-argument', 'Conversa inválida.');
+      }
+      return db.runTransaction(async tx => {
+        const actor = await tx.get(db.doc('users/' + owner));
+        assertPlatformAccountAccessData(actor.data());
+        const chat = await tx.get(db.collection('chats').doc(chatId));
+        return { chatIds: await authorizeCandidates(tx, owner, [chat]) };
+      }, { readOnly: true });
+    }
     const page = parsePageRequest(request.data);
     if (page) return listPage(owner, page);
     return db.runTransaction(async tx => {
@@ -93,11 +107,12 @@ export const listDirectChatCandidates = onCall<DiscoveryRequest>(
 
 // Both transports share the same canonical bilateral and lifecycle checks.
 async function authorizeCandidates(
-  tx: Transaction, owner: string, candidates: readonly QueryDocumentSnapshot[]
+  tx: Transaction, owner: string, candidates: readonly DocumentSnapshot[]
 ): Promise<string[]> {
   const byPeer = new Map<string, string[]>();
   for (const chat of candidates) {
     const data = chat.data();
+    if (!data) continue;
     const pair = data.participants;
     if (!Array.isArray(pair) || pair.length !== 2 || !pair.includes(owner)
       || !pair.every(safeUid) || !isEligibleExistingDirectChat(data, pair)) continue;

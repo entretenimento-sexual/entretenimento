@@ -177,64 +177,45 @@ export class DirectChatFacade {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly selectedChatId$: Observable<string | null> = combineLatest([
-    this.chats$,
-    this.requestedSelectedChatId$,
+  private readonly selectedCanonicalScope$ = combineLatest([
+    this.sessionIdentity$, this.selectedChatRequestSubject,
   ]).pipe(
-    map(([chats, requestedId]) => {
-      if (!requestedId) return null;
-
-      const exists = (chats ?? []).some(
-        (chat) => (chat?.id ?? '').trim() === requestedId
-      );
-
-      return exists ? requestedId : null;
-    }),
-    distinctUntilChanged(),
-    catchError((error) => {
-      this.reportSilent(error, 'DirectChatFacade.selectedChatId$');
-      return of(null);
-    }),
+    map(([session, request]) => session.uid && request.ownerUid === session.uid &&
+      request.sessionEpoch === session.epoch && request.chatId
+      ? { owner: session.uid, epoch: session.epoch, chatId: request.chatId } : null),
+    distinctUntilChanged((a,b) => a === b || (!!a && !!b &&
+      a.owner === b.owner && a.epoch === b.epoch && a.chatId === b.chatId)),
+    switchMap(context => context ? defer(() =>
+      this.directChatService.observeDirectChatForOwner$(context.owner, context.chatId)
+    ).pipe(
+      map(chat => {
+        const peer = this.canonicalPeer(chat, context.owner, context.chatId);
+        return chat && peer ? { ...context, peer, chat } : null;
+      }),
+      startWith(null),
+      catchError(error => {
+        this.reportSilent(error, 'DirectChatFacade.selectedCanonicalScope$');
+        return of(null);
+      })
+    ) : of(null)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly selectedChat$: Observable<IChat | null> = combineLatest([
-    this.chats$,
-    this.selectedChatId$,
-  ]).pipe(
-    map(([chats, selectedChatId]) => {
-      if (!selectedChatId) return null;
+  readonly selectedChatId$: Observable<string | null> = this.selectedCanonicalScope$.pipe(
+    map(scope => scope?.chatId ?? null),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
-      return (
-        (chats ?? []).find(
-          (chat) => (chat?.id ?? '').trim() === selectedChatId
-        ) ?? null
-      );
-    }),
-    catchError((error) => {
-      this.reportSilent(error, 'DirectChatFacade.selectedChat$');
-      return of(null);
-    }),
+  readonly selectedChat$: Observable<IChat | null> = this.selectedCanonicalScope$.pipe(
+    map(scope => scope?.chat ?? null),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
   readonly selectedChatAccess$: Observable<{
     owner: string; epoch: number; chatId: string; peer: string; available: boolean; readable: boolean;
-  } | null> = combineLatest([
-    this.sessionChats$, this.selectedChatRequestSubject,
-  ]).pipe(
-    map(([session, request]) => {
-      if (!session.uid || request.ownerUid !== session.uid ||
-          request.sessionEpoch !== session.epoch || !request.chatId) return null;
-      const chat = session.chats.find(item => item.id === request.chatId);
-      const participants = chat?.participants ?? [];
-      if (!chat || Boolean((chat as { isRoom?: boolean }).isRoom) ||
-          participants.length !== 2 || participants[0] === participants[1] ||
-          !participants.includes(session.uid) ||
-          participants.some(uid => typeof uid !== 'string' || !uid.trim())) return null;
-      const peer = participants.find(uid => uid !== session.uid);
-      return peer ? { owner: session.uid, epoch: session.epoch, chatId: request.chatId, peer } : null;
-    }),
+  } | null> = this.selectedCanonicalScope$.pipe(
+    map(scope => scope ? { owner: scope.owner, epoch: scope.epoch, chatId: scope.chatId, peer: scope.peer } : null),
     distinctUntilChanged((a, b) => a === b || (!!a && !!b &&
       a.owner === b.owner && a.epoch === b.epoch && a.chatId === b.chatId && a.peer === b.peer)),
     switchMap(context => context ? this.availabilityService.observeForCurrentUser$(context.peer, context.owner).pipe(
@@ -316,17 +297,11 @@ export class DirectChatFacade {
     return defer(() => {
       if (!session.uid || !id || this.sessionIdentitySubject.value !== session) return of(false);
       const owner = session.uid;
-      return this.sessionChats$.pipe(
-        map(scope => {
-          if (scope.uid !== owner || scope.epoch !== session.epoch) return null;
-          const chat = scope.chats.find(item => item.id === id);
-          const participants = chat?.participants ?? [];
-          if (!chat || Boolean((chat as { isRoom?: boolean }).isRoom) ||
-              participants.length !== 2 || participants[0] === participants[1] ||
-              !participants.includes(owner) ||
-              participants.some(uid => typeof uid !== 'string' || !uid.trim())) return null;
-          return participants.find(uid => uid !== owner) ?? null;
-        }),
+      return this.sessionIdentity$.pipe(
+        switchMap(current => current === session
+          ? defer(() => this.directChatService.observeDirectChatForOwner$(owner, id)).pipe(
+            map(chat => this.canonicalPeer(chat, owner, id)), startWith(null)
+          ) : of(null)),
         distinctUntilChanged(),
         switchMap(peer => peer
           ? this.availabilityService.observeForCurrentUser$(peer, owner).pipe(startWith(false))
@@ -338,6 +313,18 @@ export class DirectChatFacade {
         })
       );
     });
+  }
+
+  private canonicalPeer(chat: IChat | null, owner: string, id: string): string | null {
+    if (!chat || chat.id !== id || chat.isRoom || !Array.isArray(chat.participants)) return null;
+    const pair = chat.participants;
+    if (pair.length !== 2 || pair[0] === pair[1] || !pair.includes(owner) ||
+        pair.some(uid => typeof uid !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(uid))) return null;
+    const data = chat as IChat & { conversationType?: unknown; conversationStatus?: unknown };
+    const kind = String(data.conversationType ?? '').trim().toLowerCase();
+    const status = String(data.conversationStatus ?? '').trim().toLowerCase();
+    if ((kind && kind !== 'direct') || (status && status !== 'active')) return null;
+    return pair.find(uid => uid !== owner) ?? null;
   }
 
   selectChat(chatId: string | null | undefined): void {

@@ -21,7 +21,7 @@ run('CHAT-R1.5 authorized discovery', () => {
       projectId: process.env.GCLOUD_PROJECT || 'demo-entretenimento',
     });
     const invoke = environment.wrap(require('./list-direct-chat-candidates.handler').listDirectChatCandidates);
-    const request = (verified = true) => invoke({ data: {}, app: { appId: 'test-chat-app' },
+    const request = (verified = true, data: Record<string, unknown> = {}) => invoke({ data, app: { appId: 'test-chat-app' },
       auth: { uid: owner, token: { email_verified: verified } } }, {});
     try {
       await Promise.all([owner, peer, outsider].map(uid => db.doc('users/' + uid).set(user(uid))));
@@ -29,15 +29,21 @@ run('CHAT-R1.5 authorized discovery', () => {
       await db.doc('chats/' + foreign).set({ participants: [peer, outsider] });
       await assert.rejects(request(false), { code: 'failed-precondition' });
       assert.deepEqual(await request(), { chatIds: [history] });
+      assert.deepEqual(await request(true, { chatId: history }), { chatIds: [history] });
+      assert.deepEqual(await request(true, { chatId: foreign }), { chatIds: [] });
+      assert.deepEqual(await request(true, { chatId: prefix + '-missing' }), { chatIds: [] });
+      await assert.rejects(request(true, { chatId: history, pageSize: 1 }), { code: 'invalid-argument' });
       for (const [a, b] of [[owner, peer], [peer, owner]]) {
         const block = db.doc('users/' + a + '/blocks/' + b);
         await block.set({ isBlocked: true });
         assert.deepEqual(await request(), { chatIds: [] });
+        assert.deepEqual(await request(true, { chatId: history }), { chatIds: [] });
         await block.delete();
       }
       assert.deepEqual(await request(), { chatIds: [history] });
       await db.doc('users/' + peer).update({ accountStatus: 'deleted' });
       assert.deepEqual(await request(), { chatIds: [] });
+      assert.deepEqual(await request(true, { chatId: history }), { chatIds: [] });
       assert.equal((await db.doc('chats/' + history).get()).exists, true);
     } finally {
       await Promise.all([owner, peer, outsider].map(uid => db.recursiveDelete(db.doc('users/' + uid))));
@@ -82,6 +88,7 @@ run('CHAT-R1.5 authorized discovery', () => {
         await batch.commit();
       }
       await assert.rejects(request({}), {code:'resource-exhausted'});
+      assert.deepEqual(await request({chatId:visible[500]}),{chatIds:[visible[500]]});
       await assert.rejects(request({pageSize:101}), {code:'invalid-argument'});
       await assert.rejects(request({pageSize:100,cursor:'raw-id'}), {code:'invalid-argument'});
       await assert.rejects(request({pageSize:100},owner,false), {code:'failed-precondition'});

@@ -1,0 +1,7 @@
+# CHAT-R1.10.3.2 — Seleção independente da lista
+
+Base bae3c831: Quality Gate aggregate success, job 139624217659 success; Chromium 45734462970 success.
+
+A callable listDirectChatCandidates aceita agora {chatId} exclusivamente: valida App Check, e-mail, quota existente, conta do ator e candidato específico com a mesma política de leitura da descoberta. Ausência, terceiro, bloqueio e conta do peer inelegível retornam lista vazia; não há consulta por página nem autorização de envio. Sem mudanças nas Rules. A fronteira individual revalida o sinal opaco do proprietário, limpa durante transições, só observa documento após resposta positiva e exige snapshot de servidor. Gating de sessão e acesso existente mantido; facade compartilha escopo selecionado e valida identidade, participantes e tipo. Envio a conversa não selecionada (Media) usa intenção vinculada à sessão e projeção de disponibilidade; não altera seleção. A ausência de amizade não revoga leitura por si só. A alteração de elegibilidade do peer depende do sinal de lifecycle existente; Rules continuam autoridade e sua paridade integral permanece tema de auditoria.
+
+Testes: consulta específica fora de 500, bloqueios, terceiro, inexistente, conta desativada, payload misto; regressão Angular com conversa fora da lista, mudança de página, revogação, envio separado e logout/login. Lista e notificações ainda usam contrato legado; otimização de listeners, teste browser de volume, cobertura dos demais módulos e limpeza dos cursores seguem pendentes. Não houve execução local nem deploy; CI obrigatória.

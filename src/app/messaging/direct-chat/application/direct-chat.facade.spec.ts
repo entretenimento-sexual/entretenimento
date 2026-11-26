@@ -72,7 +72,7 @@ describe('DirectChatFacade session isolation', () => {
     const userAChats = new BehaviorSubject<IChat[]>([
       buildChat('shared-chat', ['user-a', 'peer-a']),
     ]);
-    const userBChats = new Subject<IChat[]>();
+    const userBChats = new BehaviorSubject<IChat[]>([]);
 
     const directChatService = {
       getMyDirectChatScope$: () => {
@@ -80,6 +80,8 @@ describe('DirectChatFacade session isolation', () => {
         const source = ownerUid === 'user-a' ? userAChats : ownerUid === 'user-b' ? userBChats : of([] as IChat[]);
         return source.pipe(map(chats => ({ ownerUid, chats })));
       },
+      observeDirectChatForOwner$: (owner: string, id: string) =>
+        (owner === 'user-a' ? userAChats : userBChats).pipe(map(items => items.find(chat => chat.id === id) ?? null)),
       ensureDirectChatIdWithUser$: () => of(null),
     } as unknown as DirectChatService;
 
@@ -164,6 +166,7 @@ describe('DirectChatFacade session isolation', () => {
     const facade = new DirectChatFacade(
       {
         getMyDirectChatScope$: () => chats$.pipe(map(chats => ({ ownerUid: 'user-a', chats }))),
+        observeDirectChatForOwner$: (_owner: string, id: string) => chats$.pipe(map(items => items.find(chat => chat.id === id) ?? null)),
       } as unknown as DirectChatService,
       buildAuthSession(uid$),
       { getUsersPublicMap$: () => of({}) } as unknown as FirestoreUserQueryService,
@@ -204,7 +207,11 @@ describe('DirectChatFacade session isolation', () => {
     const chats$ = new BehaviorSubject<IChat[]>([buildChat('invalid', ['peer-b', 'peer-c'])]);
     const observe$ = vi.fn(() => of(true));
     const facade = new DirectChatFacade(
-      { getMyDirectChatScope$: () => chats$.pipe(map(chats => ({ ownerUid: 'user-a', chats }))) } as unknown as DirectChatService,
+      {
+        getMyDirectChatScope$: () => chats$.pipe(map(chats => ({ ownerUid: 'user-a', chats }))),
+        observeDirectChatForOwner$: (_owner: string, id: string) =>
+          chats$.pipe(map(items => items.find(chat => chat.id === id) ?? null)),
+      } as unknown as DirectChatService,
       buildAuthSession(uid$),
       { getUsersPublicMap$: () => of({}) } as unknown as FirestoreUserQueryService,
       buildApplicationError().service,
@@ -601,7 +608,11 @@ describe('DirectChatFacade non-selected send access', () => {
     const available$ = new BehaviorSubject(false);
     const observeForCurrentUser$ = vi.fn(() => available$);
     const facade = new DirectChatFacade(
-      { getMyDirectChatScope$: () => chats$.pipe(map(chats => ({ ownerUid: 'user-a', chats }))) } as unknown as DirectChatService,
+      {
+        getMyDirectChatScope$: () => chats$.pipe(map(chats => ({ ownerUid: 'user-a', chats }))),
+        observeDirectChatForOwner$: (_owner: string, id: string) =>
+          chats$.pipe(map(items => items.find(chat => chat.id === id) ?? null)),
+      } as unknown as DirectChatService,
       buildAuthSession(uid$),
       { getUsersPublicMap$: () => of({}) } as unknown as FirestoreUserQueryService,
       buildApplicationError().service,
@@ -643,4 +654,49 @@ describe('DirectChatFacade non-selected send access', () => {
     sub.unsubscribe();
     selectedSub.unsubscribe();
   });
+});
+
+
+it('opens a canonical history outside the visible page and revokes it independently', () => {
+  const uid = new BehaviorSubject<string | null>('user-a');
+  const page = new BehaviorSubject<IChat[]>([buildChat('recent', ['user-a','peer-c'])]);
+  const history = new BehaviorSubject<IChat | null>(buildChat('old-history',['user-a','peer-b']));
+  const observe = vi.fn(() => history);
+  const availability = new BehaviorSubject(true);
+  const facade = new DirectChatFacade({
+    getMyDirectChatScope$: () => page.pipe(map(chats => ({ownerUid:'user-a', chats}))),
+    observeDirectChatForOwner$: observe,
+  } as unknown as DirectChatService, buildAuthSession(uid),
+    {getUsersPublicMap$:()=>of({})} as unknown as FirestoreUserQueryService,
+    buildApplicationError().service, buildDestroyRef(), buildAvailability(()=>availability),
+    {unreadState$:of({ownerUid:null,counts:new Map()})} as any);
+  const selected: Array<string|null> = [];
+  const readable: boolean[] = [];
+  const send: boolean[] = [];
+  const list = facade.chats$.subscribe();
+  const selection = facade.selectedChatId$.subscribe(id=>selected.push(id));
+  const access = facade.selectedChatAccess$.subscribe(value=>readable.push(value?.readable===true));
+  facade.selectChat('old-history');
+  expect(last(selected)).toBe('old-history');
+  expect(last(readable)).toBe(true);
+  expect(observe).toHaveBeenCalledTimes(1);
+  const share = facade.observeCanSendToChat$('old-history').subscribe(value=>send.push(value));
+  expect(last(send)).toBe(true);
+  page.next([]);
+  expect(last(selected)).toBe('old-history');
+  expect(last(send)).toBe(true);
+  availability.next(false);
+  expect(last(readable)).toBe(true);
+  expect(last(send)).toBe(false);
+  history.next(null);
+  expect(last(selected)).toBeNull();
+  expect(last(readable)).toBe(false);
+  history.next(buildChat('old-history',['user-a','peer-b']));
+  expect(last(selected)).toBe('old-history');
+  uid.next(null);
+  uid.next('user-a');
+  availability.next(true);
+  expect(last(selected)).toBeNull();
+  expect(last(send)).toBe(false);
+  list.unsubscribe();selection.unsubscribe();access.unsubscribe();share.unsubscribe();
 });
