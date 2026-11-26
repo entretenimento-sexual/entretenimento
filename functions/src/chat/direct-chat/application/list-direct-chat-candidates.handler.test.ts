@@ -21,7 +21,8 @@ run('CHAT-R1.5 authorized discovery', () => {
       projectId: process.env.GCLOUD_PROJECT || 'demo-entretenimento',
     });
     const invoke = environment.wrap(require('./list-direct-chat-candidates.handler').listDirectChatCandidates);
-    const request = (verified = true, data: Record<string, unknown> = {}) => invoke({ data, app: { appId: 'test-chat-app' },
+    const request = (verified = true, data: Record<string, unknown> = {}) => invoke({ data,
+      app: { appId: 'test-chat-app' },
       auth: { uid: owner, token: { email_verified: verified } } }, {});
     try {
       await Promise.all([owner, peer, outsider].map(uid => db.doc('users/' + uid).set(user(uid))));
