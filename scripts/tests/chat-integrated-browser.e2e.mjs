@@ -381,11 +381,13 @@ async function certifySpaLifecycle() {
     currentPhase='spa: '+label;
     const begin=performance.now(),beforeDocs=documents(),before=attempts().length;
     const originOffset=origins().length;
+    let passed=false;
     try {
       await work(begin);
       if(internal) { await sameDocument(); assert.equal(documents(),beforeDocs,'Unexpected document navigation: '+label); }
+      passed=true;
     } finally {
-      spaSamples.push({phase:label,elapsedMs:elapsed(begin),documentRequests:documents()-beforeDocs,
+      spaSamples.push({phase:label,status:passed?'PASS':'FAIL',elapsedMs:elapsed(begin),documentRequests:documents()-beforeDocs,
         attemptsStarted:attempts().length-before,origins:origins().slice(originOffset).filter(row=>row.event!=='navigation'&&row.event!=='document-request').map(({event,direction,reason})=>({event,direction,reason}))});
     }
   }
@@ -420,7 +422,7 @@ async function certifySpaLifecycle() {
     await stage('chat-to-home',toHome,{internal:true});
     await stage('friend-requests',toRequests,{internal:true});
     await stage('notifications',()=>navigate(activity('/notificacoes'),'/notificacoes',page.getByRole('heading',{name:'Notificações',exact:true})),{internal:true});
-    await stage('communities',()=>navigate(side('Descobrir grupos permanentes de pessoas'),'/dashboard/comunidades',page.locator('app-community-discovery-page')),{internal:true});
+    await stage('communities',()=>navigate(side('Grupo coletivo persistente com membros, regras, mural, moderação e recursos de interação próprios.'),'/dashboard/comunidades',page.locator('app-community-discovery-page')),{internal:true});
     await stage('friends-list',async()=>{await toHome();await toFriends();},{internal:true});
     await stage('profile-alpha',async begin=>{
       await openProfile(peerA,names[1]);
@@ -944,7 +946,10 @@ try {
   writeFileSync(resolve(out,'pending-read-trace.json'),JSON.stringify(pendingReadTrace,null,2));
   writeFileSync(resolve(out,'pending-read-origins.json'),JSON.stringify(pendingOrigins,null,2));
   writeFileSync(resolve(out,'pending-read-attempts.json'),JSON.stringify(pendingAttempts,null,2));
-  writeFileSync(resolve(out,'pending-read-accounting.json'),JSON.stringify({original:summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context))),complementary:summarizePendingAttempts(pendingAttempts.filter(isComplementary)),spa:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===spaContext)),all:summarizePendingAttempts(pendingAttempts)},null,2));
+  const finalAccounting={original:summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context))),complementary:summarizePendingAttempts(pendingAttempts.filter(isComplementary)),spa:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===spaContext)),all:summarizePendingAttempts(pendingAttempts)};
+  writeFileSync(resolve(out,'pending-read-accounting.json'),JSON.stringify(finalAccounting,null,2));
+  console.log('Pending friendship final accounting '+JSON.stringify(finalAccounting));
+  console.log('SPA lifecycle stage evidence '+JSON.stringify(spaSamples));
   console.log('Pending friendship origins '+JSON.stringify(pendingOrigins.filter(row=>row.event==='start').reduce((counts,row)=>{ const key=row.context+':'+row.direction+':'+row.reason; counts[key]=(counts[key]??0)+1; return counts; },{})));
   writeFileSync(resolve(out,'spa-lifecycle-samples.json'),JSON.stringify(spaSamples,null,2));
   writeFileSync(resolve(out,'friendship-reactive-samples.json'),JSON.stringify(friendshipSamples,null,2));
