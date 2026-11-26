@@ -17,3 +17,8 @@ O result.json do browser inclui amostras de tempo monotônico em ms, p50/p95 des
 ## Homologação
 
 A CI do novo commit precisa aprovar os testes; nenhuma medição real desta versão é alegada antes do artefato do runner. Próxima subetapa 4.3B: revisar evidência real, ampliar carga/reconexão/paginação sob histórico volumoso, avaliar os pontos de entrada entre módulos e estabelecer baseline comparável antes de definir SLOs. O Quality Gate agregado continua exigido juntamente com o workflow de Chromium.
+
+
+## Homologação 4.3A — 9d4c779d
+
+Quality Gate 45813552505 (aggregate success), Chromium 45813552581 (11 PASS, artifact 15114198896), Media E2E 45813552529 (foto e vídeo success). Result.json: envio/recepção 8 amostras P50 232 ms, P95/máximo 256 ms; alternância 6 amostras P50 119 ms, P95/máximo 218 ms; reconexão 2306 ms; convergência residual de recibos 10 ms. Mobile 390/390 px, botão 46 px, nome acessível. Sem exceções não tratadas de página. Valores de ambiente demo, não SLO.
