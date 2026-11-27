@@ -454,13 +454,20 @@ async function certifySpaLifecycle() {
   const page=await newPage(spaContext);
   const attempts=()=>pendingAttempts.filter(row=>row.context===spaContext);
   const watchRows=()=>sharedFriendsTrace.filter(row=>row.context===spaContext);
-  const watchDocument=()=>watchRows().filter(row=>row.resource==='listener'&&row.event==='open').at(-1)?.document;
+  const watchDocument=()=>watchRows().filter(row=>row.size===24&&row.resource==='listener'&&row.event==='open').at(-1)?.document;
   const watchState=doc=>summarizeSharedFriendsWatch(watchRows().filter(row=>row.document===doc),24);
   const watchSample=async(label,expected,doc=watchDocument())=>{
     assert.ok(Number.isInteger(doc),'Missing shared friends listener trace: '+label);
-    await until('shared friends '+label,()=>watchState(doc),state=>
-      state.listener.active===(expected===0?0:1)&&state.consumer.active===expected&&
-      (expected===0?state.hydration.active===0:true),20_000);
+    try {
+      await until('shared friends '+label,()=>watchState(doc),state=>
+        state.listener.active===(expected===0?0:1)&&state.consumer.active===expected&&
+        (expected===0?state.hydration.active===0:true),20_000);
+    } catch(error) {
+      console.log('Shared friends watch mismatch '+JSON.stringify({
+        label,document:doc,expectedConsumers:expected,...watchState(doc)
+      }));
+      throw error;
+    }
     const state=watchState(doc);
     assert.equal(state.listener.peak,1,'Multiple shared friends listeners: '+label);
     assert.equal(state.hydration.peakPerSnapshot<=1,true,'Duplicate simultaneous hydration: '+label);
@@ -519,16 +526,35 @@ async function certifySpaLifecycle() {
       await sessionReads(begin);
       await page.locator('#app-sidebar').waitFor({state:'visible'});
       await mark();
+      if(new URL(page.url()).pathname!=='/dashboard/principal') await toHome();
+      await page.locator('.principal-page').waitFor({state:'visible'});
       await until('initial shared friends watch',()=>watchDocument(),Number.isInteger,20_000);
-      await watchSample('bootstrap',1);
+      // The home feed has a legitimate second consumer (PrincipalFeedService).
+      // It must share the session's single listener and release it on exit.
+      await watchSample('bootstrap-home',2);
     });
-    await stage('home',async()=>{ if(new URL(page.url()).pathname!=='/dashboard/principal') await toHome(); },{internal:true});
-    await stage('chat',()=>navigate(side('Abrir mensagens diretas'),'/chat',page.locator('.chat-shell')),{internal:true});
-    await stage('chat-to-home',toHome,{internal:true});
-    await stage('friend-requests',toRequests,{internal:true});
+    await stage('home',async()=>{
+      if(new URL(page.url()).pathname!=='/dashboard/principal') await toHome();
+      await watchSample('home',2);
+    },{internal:true});
+    await stage('chat',async()=>{
+      await navigate(side('Abrir mensagens diretas'),'/chat',page.locator('.chat-shell'));
+      await watchSample('chat-after-home',1);
+    },{internal:true});
+    await stage('chat-to-home',async()=>{
+      await toHome();
+      await watchSample('chat-to-home',2);
+    },{internal:true});
+    await stage('friend-requests',async()=>{
+      await toRequests();
+      await watchSample('requests-after-home',1);
+    },{internal:true});
     await stage('notifications',()=>navigate(activity('/notificacoes'),'/notificacoes',page.getByRole('heading',{name:'Notificações',exact:true})),{internal:true});
     await stage('communities',()=>navigate(side('Grupo coletivo persistente com membros, regras, mural, moderação e recursos de interação próprios.'),'/dashboard/comunidades',page.locator('app-community-discovery-page')),{internal:true});
-    await stage('friends-list',async()=>{await toHome();await toFriends();},{internal:true});
+    await stage('friends-list',async()=>{
+      await toHome();await watchSample('home-before-friends',2);
+      await toFriends();await watchSample('friends-list',1);
+    },{internal:true});
     await stage('profile-alpha',async begin=>{
       await openProfile(peerA,names[1]);
       await until('profile alpha subscribes outbound',()=>origins().some(row=>row.atMs>=begin&&row.event==='subscribe'&&row.direction==='outbound'&&row.reason==='profile'),Boolean);
@@ -540,7 +566,9 @@ async function certifySpaLifecycle() {
       await watchSample('close-alpha',1);
     },{internal:true});
     await stage('profile-beta',async begin=>{
-      await toHome();await toFriends();await openProfile(peerB,names[2]);
+      await toHome();await watchSample('home-before-beta',2);
+      await toFriends();await watchSample('friends-list-before-beta',1);
+      await openProfile(peerB,names[2]);
       await until('profile beta subscribes outbound',()=>origins().some(row=>row.atMs>=begin&&row.event==='subscribe'&&row.direction==='outbound'&&row.reason==='profile'),Boolean);
       await watchSample('profile-beta',2);
     },{internal:true});
@@ -549,6 +577,7 @@ async function certifySpaLifecycle() {
       await toRequests();
       await page.getByRole('tab',{name:/Enviadas/}).click();
       await page.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'});
+      await watchSample('return-requests',1);
     },{internal:true});
     // A healthy session retains its original subscriptions during route changes.
     const beforePoll=origins().filter(row=>row.event==='subscribe'&&(row.reason==='session'||row.reason==='session-retry'));
