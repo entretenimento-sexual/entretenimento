@@ -1,0 +1,33 @@
+name: Browser Transport Probe
+on:
+  push:
+    branches: [ux-r1-0b-webkit-diagnostics]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated Playwright
+        run: |
+          npm install --no-save --package-lock=false --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps ${{ matrix.engine }}
+      - name: Execute isolated transport probe
+        run: node scripts/tests/browser-transport-probe.mjs ${{ matrix.engine }}
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-transport-probe-${{ matrix.engine }}
+          path: artifacts/browser-transport-probe/
+          if-no-files-found: error
