@@ -251,7 +251,7 @@ async function newPage(name, viewport={width:1440,height:1000}, existingContext=
   pages.push({name,page});
   return page;
 }
-async function reconcilePendingTransportEvidence(accepts=()=>true) {
+async function reconcilePendingTransportEvidence(accepts=()=>true, timeoutMs=1500) {
   await Promise.allSettled([...accountingTasks]);
   const unresolved=[...pendingRequestHandles].filter(([,row])=>accepts(row)&&row.httpStatus===null&&!row.transportFailure);
   await Promise.all(unresolved.map(([request,row])=>recoverPendingAttempt(request,row,{
@@ -262,6 +262,7 @@ async function reconcilePendingTransportEvidence(accepts=()=>true) {
       }
     },
     onFailure: ()=>recordCallableTransportFailure(row.context,request),
+    timeoutMs,
   })));
 }
 async function setVerifiedOffline(page, offline) {
@@ -1458,6 +1459,10 @@ try {
   assert.equal((await threadIds(b)).some(key=>privateIds.has(key)),false);
   pass('live revocation purges loaded history without affecting independent chat');
   assert.equal(browserErrors.filter(e=>e.type==='pageerror').length,0,'Unhandled browser exceptions');
+  // Preserve the original request handles while the contexts are alive.
+  // Closing first may lose both the response and the requestfailed event,
+  // especially for a read started during the history reconnection.
+  await reconcilePendingTransportEvidence(row=>originalContexts.has(row.context),15_000);
   const discovery = [...callableCounts.values()].filter(row=>row.endpoint==='listDirectChatCandidates');
   const discoveryTotal = discovery.reduce((sum,row)=>sum+row.total,0);
   const discovery429 = discovery.reduce((sum,row)=>sum+row.rateLimited,0);
@@ -1476,6 +1481,7 @@ try {
   const originalWorkload={discovery:discoveryTotal,pending:pendingTotal};
   assert.equal(pendingRequests.reduce((sum,row)=>sum+row.failed,0),0,'Original pending workload HTTP failures');
   await Promise.all([a.context().close(),b.context().close(),d.context().close()]);
+  await reconcilePendingTransportEvidence(row=>originalContexts.has(row.context));
   const originalAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context)));
   assert.ok(originalAttempts.started>=pendingTotal,'Attempt counting must include completed responses');
   console.log('Pending friendship original attempt accounting '+JSON.stringify(originalAttempts));

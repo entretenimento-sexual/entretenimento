@@ -61,6 +61,13 @@ test('bounded wait preserves an unknown outcome',async()=>{
   await recoverPendingAttempt(request,row,callbacks(row,request));
   assert.equal(summarizePendingAttempts([row]).unsettled,1);
 });
+test('allows a live request to deliver delayed terminal evidence within the explicit budget',async()=>{
+  const row=attempt();
+  const request={failure:()=>null,response:()=>new Promise(resolve=>setTimeout(()=>resolve({status:()=>200}),20))};
+  await recoverPendingAttempt(request,row,{...callbacks(row,request),timeoutMs:500});
+  assert.equal(summarizePendingAttempts([row]).httpResponses,1);
+  assert.equal(summarizePendingAttempts([row]).unsettled,0);
+});
 test('does not replace already-recorded terminal evidence',async()=>{
   const row={httpStatus:200,transportFailure:null};
   const request={failure:()=>{throw Error('must not query settled request');},response:()=>{throw Error('must not query settled request');}};
