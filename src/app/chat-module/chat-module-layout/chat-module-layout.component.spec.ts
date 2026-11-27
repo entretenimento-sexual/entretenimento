@@ -7,6 +7,7 @@ import { BehaviorSubject, of, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatModuleLayoutComponent } from './chat-module-layout.component';
+import { ContentStateComponent } from '../../shared/content-state/content-state.component';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
@@ -41,7 +42,7 @@ describe('ChatModuleLayoutComponent', () => {
     selectedType$ = new BehaviorSubject<'chat' | null>(null);
     await TestBed.configureTestingModule({
       declarations: [ChatModuleLayoutComponent, MockChatEmojiComposerDirective],
-      imports: [CommonModule, RouterTestingModule],
+      imports: [CommonModule, RouterTestingModule, ContentStateComponent],
       providers: [
         { provide: DirectChatService, useValue: { getConversationStarter$: vi.fn(() => of(null)) } },
         {

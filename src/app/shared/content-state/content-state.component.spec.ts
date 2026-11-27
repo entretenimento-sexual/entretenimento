@@ -59,11 +59,11 @@ describe('ContentStateComponent', () => {
       .toContain('Selecione uma conversa');
     expect(host.querySelector('.app-card')).toBeNull();
     expect(host.querySelector('.content-state__icon')).toBeNull();
-    component.actionLabel = 'Continuar';
+    fixture.componentRef.setInput('actionLabel', 'Continuar');
     fixture.detectChanges();
     expect(host.querySelector('.content-state__action')).toBeTruthy();
-    component.state = 'error';
-    component.actionLabel = '';
+    fixture.componentRef.setInput('state', 'error');
+    fixture.componentRef.setInput('actionLabel', '');
     fixture.detectChanges();
     expect(host.querySelector('[role="alert"]')).toBeTruthy();
   });
