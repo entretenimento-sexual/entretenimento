@@ -23,7 +23,7 @@
 //   gravado por Cloud Function no aceite da amizade;
 // - por enquanto, a fonte pública canônica permanece /public_profiles.
 // -----------------------------------------------------------------------------
-import { Injectable, EnvironmentInjector } from '@angular/core';
+import { Injectable, EnvironmentInjector, inject } from '@angular/core';
 import {
   Firestore,
   collection,
@@ -41,7 +41,9 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 
-import { defer, firstValueFrom, Observable, of, switchMap } from 'rxjs';
+import { defer, firstValueFrom, Observable, of } from 'rxjs';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { SharedFriendsWatch } from './shared-friends-watch';
 
 import { FirestoreRepoBase } from './base.repo';
 import type {
@@ -75,6 +77,7 @@ type FriendForCard = Friend & {
 
 @Injectable({ providedIn: 'root' })
 export class FriendsRepo extends FirestoreRepoBase {
+  private readonly sharedWatch = new SharedFriendsWatch(inject(AuthSessionService));
   constructor(
   db: Firestore,
   env: EnvironmentInjector,
@@ -151,7 +154,7 @@ watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
       return of([] as FriendForCard[]);
     }
 
-    const source$ = this.inCtxSync(() => {
+    return this.sharedWatch.watch$(safeUid, pageSize, () => this.inCtxSync(() => {
       const col = collection(
         this.db,
         `users/${safeUid}/friends`
@@ -164,10 +167,7 @@ watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
       );
 
       return collectionSnapshots(qRef);
-    });
-
-    return source$.pipe(
-      switchMap(async (snapshots) => {
+    }), snapshots => defer(async () => {
         const items = snapshots.map((snapshot) => {
           const data = snapshot.data() as FriendDoc;
 
@@ -186,8 +186,7 @@ watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
         });
 
         return hydrated;
-      })
-    );
+      }));
   });
 }
 
