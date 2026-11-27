@@ -9,6 +9,13 @@ export interface FriendDoc {
   distanceKm?: number;
 }
 
+/** Cursor da aresta Firestore, sem Timestamp nem perda de precisão no NgRx. */
+export interface FriendsPageCursor {
+  readonly seconds: number;
+  readonly nanoseconds: number;
+  readonly documentId: string;
+}
+
 /** ✅ Tipo serializável (Store/UI) */
 export interface Friend {
   friendUid: string;

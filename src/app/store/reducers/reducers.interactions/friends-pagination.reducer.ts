@@ -56,6 +56,7 @@ export const friendsPaginationReducer = createReducer(
   // Next => append: mantém itens e só liga loading
   on(P.loadFriendsNextPage, (state, { uid }) => {
     const current = ensureSlice(state, uid);
+    if (current.reachedEnd || current.nextOrderValue === null || current.loading) return state;
     return {
       ...state,
       byUid: { ...state.byUid, [uid]: { ...current, loading: true, error: null } },

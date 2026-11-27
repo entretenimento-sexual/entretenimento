@@ -1,13 +1,10 @@
 // src/app/store/states/states.interactions/friends-pagination.state.ts
-import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
+import { Friend, type FriendsPageCursor } from 'src/app/core/interfaces/friendship/friend.interface';
 
 export interface FriendsPageSlice {
   items: Friend[];
-  /**
-   * ✅ Store serializável: cursor sempre epoch (number) ou null.
-   * (nada de Timestamp aqui)
-   */
-  nextOrderValue: number | null;
+  /** Cursor composto serializável; sem instância de Timestamp. */
+  nextOrderValue: FriendsPageCursor | null;
   reachedEnd: boolean;
   loading: boolean;
   error: string | null;

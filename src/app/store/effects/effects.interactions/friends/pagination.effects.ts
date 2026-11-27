@@ -9,18 +9,17 @@ import { Store } from '@ngrx/store';
 import { concatLatestFrom } from '@ngrx/operators';
 
 import { of } from 'rxjs';
-import { catchError, filter, map, switchMap, exhaustMap, tap } from 'rxjs/operators';
+import { catchError, filter, map, switchMap, exhaustMap, tap, takeUntil } from 'rxjs/operators';
 
 import * as P from '../../../actions/actions.interactions/friends/friends-pagination.actions';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { AppState } from 'src/app/store/states/app.state';
 import {
-  selectFriendsPageLoading,
   selectFriendsPageNextOrder,
   selectFriendsPageReachedEnd,
 } from '../../../selectors/selectors.interactions/friends/pagination.selectors';
 
-import { toEpoch } from 'src/app/store/utils/user-store.serializer';
+import type { FriendsPageCursor } from 'src/app/core/interfaces/friendship/friend.interface';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
 @Injectable()
@@ -41,10 +40,9 @@ export class FriendsPaginationEffects {
     console.debug(`[FriendsPaginationEffects] ${label}`, data ?? {});
   }
 
-  /** normaliza cursor para Store: number | null (epoch) */
-  private normalizeCursor(v: unknown): number | null {
-    const epoch = toEpoch(v as any);
-    return typeof epoch === 'number' ? epoch : null;
+  /** Não converter o cursor em epoch: preserva a ordem total e a precisão. */
+  private normalizeCursor(v: FriendsPageCursor | null | undefined): FriendsPageCursor | null {
+    return v ?? null;
   }
 
   private report(err: unknown, context: Record<string, unknown>): void {
@@ -67,12 +65,13 @@ export class FriendsPaginationEffects {
         const size = pageSize ?? 24;
 
         return this.svc.listFriendsPage(uid, size, null).pipe(
+          takeUntil(this.actions$.pipe(ofType(P.resetFriendsPagination), filter(event => event.uid === uid))),
           tap(({ items, nextAfter, reachedEnd }) =>
             this.debug('first-or-refresh:svc:ok', {
               uid,
               size,
               items: items?.length ?? 0,
-              nextAfterEpoch: this.normalizeCursor(nextAfter),
+              hasNextCursor: nextAfter !== null,
               reachedEnd,
             })
           ),
@@ -101,33 +100,38 @@ export class FriendsPaginationEffects {
       ofType(P.loadFriendsNextPage),
       tap(({ uid, pageSize }) => this.debug('next:action', { uid, pageSize })),
       concatLatestFrom((action) => [
-        this.store.select(selectFriendsPageLoading(action.uid)),
         this.store.select(selectFriendsPageReachedEnd(action.uid)),
         this.store.select(selectFriendsPageNextOrder(action.uid)),
       ]),
-      filter(([action, loading, reachedEnd]) => {
+      filter(([action, reachedEnd, cursor]) => {
         const uidOk = !!(action.uid ?? '').trim();
-        const canRun = uidOk && !loading && !reachedEnd;
+        // Effects observe actions after reducers set loading=true. A valid
+        // cursor plus exhaustMap, not that flag, admits the next page.
+        const canRun = uidOk && !reachedEnd && cursor !== null;
 
         if (!canRun) {
-          this.debug('next:skipped', { uid: action.uid, loading, reachedEnd });
+          this.debug('next:skipped', { uid: action.uid, reachedEnd, hasCursor: cursor !== null });
         }
 
         return canRun;
       }),
-      exhaustMap(([action, _loading, _reachedEnd, nextOrderValue]) => {
-        const afterEpoch = this.normalizeCursor(nextOrderValue);
+      exhaustMap(([action, _reachedEnd, nextOrderValue]) => {
+        const after = this.normalizeCursor(nextOrderValue);
         const size = action.pageSize ?? 24;
 
-        this.debug('next:svc:call', { uid: action.uid, size, afterEpoch });
+        this.debug('next:svc:call', { uid: action.uid, size, after });
 
-        return this.svc.listFriendsPage(action.uid, size, afterEpoch).pipe(
+        return this.svc.listFriendsPage(action.uid, size, after).pipe(
+          takeUntil(this.actions$.pipe(
+            ofType(P.loadFriendsFirstPage, P.refreshFriendsPage, P.resetFriendsPagination),
+            filter(event => event.uid === action.uid)
+          )),
           tap(({ items, nextAfter, reachedEnd }) =>
             this.debug('next:svc:ok', {
               uid: action.uid,
               size,
               items: items?.length ?? 0,
-              nextAfterEpoch: this.normalizeCursor(nextAfter),
+              hasNextCursor: nextAfter !== null,
               reachedEnd,
             })
           ),
@@ -141,8 +145,8 @@ export class FriendsPaginationEffects {
             })
           ),
           catchError((err) => {
-            this.report(err, { step: 'next', uid: action.uid, pageSize: size, afterEpoch });
-            this.debug('next:svc:error', { uid: action.uid, size, afterEpoch, err: String((err as any)?.message ?? err) });
+            this.report(err, { step: 'next', uid: action.uid, pageSize: size, after });
+            this.debug('next:svc:error', { uid: action.uid, size, after, err: String((err as any)?.message ?? err) });
             return of(P.loadFriendsPageFailure({ uid: action.uid, error: String((err as any)?.message ?? err) }));
           })
         );

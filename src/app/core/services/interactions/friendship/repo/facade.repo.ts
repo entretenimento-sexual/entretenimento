@@ -5,6 +5,7 @@ import { FriendsRepo } from './friends.repo';
 import { BlocksRepo } from './blocks.repo';
 import { RequestsRepo, type PendingRequestConsumer } from './requests.repo';
 import { map, Observable, of } from 'rxjs';
+import type { FriendsPageCursor } from '../../../../interfaces/friendship/friend.interface';
 import { IUserDados } from '../../../../interfaces/iuser-dados';
 import {
   PublicProfileReadBoundaryService,
@@ -77,7 +78,7 @@ watchFriends(uid: string) {
     );
   }
 
-  listFriendsPage(uid: string, pageSize = 24, after: number | null = null) {
+  listFriendsPage(uid: string, pageSize = 24, after: FriendsPageCursor | null = null) {
     return this.friends.listFriendsPage(uid, pageSize, after);
   }
 

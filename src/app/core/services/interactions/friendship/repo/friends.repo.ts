@@ -15,7 +15,7 @@
 // - a amizade é uma relação privada do usuário autenticado;
 // - o card social só recebe dados públicos;
 // - dados sensíveis de conta permanecem fora da UI pública;
-// - falha ao hidratar um perfil público não derruba a lista inteira.
+// - perfil público ausente é omitido; falha técnica não é lista vazia.
 //
 // Expansão futura:
 // - este modelo funciona para web e mobile;
@@ -31,6 +31,7 @@ import {
   query,
   limit,
   orderBy,
+  documentId,
   startAfter,
   collectionSnapshots,
 } from '@angular/fire/firestore';
@@ -38,10 +39,9 @@ import {
 import {
   CollectionReference,
   DocumentData,
-  Timestamp,
 } from 'firebase/firestore';
 
-import { defer, firstValueFrom, Observable, of } from 'rxjs';
+import { defer, firstValueFrom, map, Observable, of } from 'rxjs';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { SharedFriendsWatch } from './shared-friends-watch';
 
@@ -49,10 +49,11 @@ import { FirestoreRepoBase } from './base.repo';
 import type {
   FriendDoc,
   Friend,
+  FriendsPageCursor,
 } from '../../../../interfaces/friendship/friend.interface';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { sanitizeFriendForStore } from 'src/app/store/utils/friend-store.serializer';
-import { toEpoch } from '../../../../utils/epoch-utils';
+import { createFriendsPageCursor, friendsPageStartAfter } from './friends-page-cursor';
 import {
   PublicProfileReadBoundaryService,
 } from '../../../discovery/public-profile-read-boundary.service';
@@ -94,44 +95,27 @@ private dbg(msg: string, extra?: unknown): void {
   this.privacyDebug.log('friends', msg, extra);
 }
 
-  /**
-   * Lista simples de amigos.
-   *
-   * Usada pelo bootstrap do estado de amizade. Já retorna dados enriquecidos
-   * para evitar que cards exibam UID quando há public_profile disponível.
-   */
+  /** A primeira página e a listagem pontual usam a mesma consulta e projeção. */
   listFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
-    return this.inCtx$(async () => {
-      const safeUid = this.normalizeText(uid);
+    return this.listFriendsPage(uid, pageSize).pipe(map(page => page.items));
+  }
 
-      if (!safeUid) {
-        return [];
-      }
+  /** Ordem total compartilhada; o desempate acompanha a direção do timestamp. */
+  private friendsQuery(uid: string, pageSize: number, after: FriendsPageCursor | null = null) {
+    const col = collection(this.db, `users/${uid}/friends`) as CollectionReference<DocumentData>;
+    const ordered = query(col, orderBy('lastInteractionAt', 'desc'), orderBy(documentId(), 'desc'));
+    return after === null
+      ? query(ordered, limit(pageSize))
+      : query(ordered, startAfter(...friendsPageStartAfter(after)), limit(pageSize));
+  }
 
-      const col = collection(this.db, `users/${safeUid}/friends`);
-      const qRef = query(col, limit(pageSize));
-
-      const snap = await getDocs(qRef);
-
-      const items = snap.docs.map((snapshot) => {
-        const data = snapshot.data() as FriendDoc;
-
-        return sanitizeFriendForStore({
-          ...data,
-          friendUid: this.resolveFriendUid(data, snapshot.id),
-        });
+  private projectFriends(docs: readonly { id: string; data(): DocumentData }[]): Promise<FriendForCard[]> {
+    return this.hydrateFriendsWithPublicProfiles(docs.map(snapshot => {
+      const data = snapshot.data() as FriendDoc;
+      return sanitizeFriendForStore({
+        ...data, friendUid: this.resolveFriendUid(data, snapshot.id),
       });
-
-      const hydrated = await this.hydrateFriendsWithPublicProfiles(items);
-
-      this.dbg('listFriends', {
-        uid: safeUid,
-        count: hydrated.length,
-        hydrated: hydrated.filter((item) => item.nickname !== item.uid).length,
-      });
-
-      return hydrated;
-    });
+    }));
   }
 
 /**
@@ -158,30 +142,9 @@ watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
     }
 
     return this.sharedWatch.watch$(safeUid, pageSize, () => this.inCtxSync(() => {
-      const col = collection(
-        this.db,
-        `users/${safeUid}/friends`
-      ) as CollectionReference<DocumentData>;
-
-      const qRef = query(
-        col,
-        orderBy('lastInteractionAt', 'desc'),
-        limit(pageSize)
-      );
-
-      return collectionSnapshots(qRef);
+      return collectionSnapshots(this.friendsQuery(safeUid, pageSize));
     }), snapshots => defer(async () => {
-        const items = snapshots.map((snapshot) => {
-          const data = snapshot.data() as FriendDoc;
-
-          return sanitizeFriendForStore({
-            ...data,
-            friendUid: this.resolveFriendUid(data, snapshot.id),
-          });
-        });
-
-        // A failed public hydration is unknown, not a verified empty list.
-        const hydrated = await this.hydrateFriendsWithPublicProfiles(items, true);
+        const hydrated = await this.projectFriends(snapshots);
 
         this.dbg('watchFriends', {
           uid: safeUid,
@@ -197,15 +160,15 @@ watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
   /**
    * Página de amigos, ordenada por lastInteractionAt desc.
    *
-   * Store usa epoch number. Firestore usa Timestamp.
+   * Cursor serializável preserva segundos, nanossegundos e ID bruto.
    */
   listFriendsPage(
     uid: string,
     pageSize = 24,
-    after: number | null = null
+    after: FriendsPageCursor | null = null
   ): Observable<{
     items: FriendForCard[];
-    nextAfter: number | null;
+    nextAfter: FriendsPageCursor | null;
     reachedEnd: boolean;
   }> {
     return this.inCtx$(async () => {
@@ -219,47 +182,14 @@ watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
         };
       }
 
-      const col = collection(
-        this.db,
-        `users/${safeUid}/friends`
-      ) as CollectionReference<DocumentData>;
-
-      let qRef = query(
-        col,
-        orderBy('lastInteractionAt', 'desc'),
-        limit(pageSize)
-      );
-
-      if (after != null) {
-        const cursor = Timestamp.fromMillis(after);
-
-        qRef = query(
-          col,
-          orderBy('lastInteractionAt', 'desc'),
-          startAfter(cursor),
-          limit(pageSize)
-        );
-      }
-
-      const snap = await getDocs(qRef);
-
-      const docs = snap.docs.map((snapshot) => ({
-        id: snapshot.id,
-        data: snapshot.data() as FriendDoc,
-      }));
-
-      const items = docs.map(({ id, data }) =>
-        sanitizeFriendForStore({
-          ...data,
-          friendUid: this.resolveFriendUid(data, id),
-        })
-      );
-
-      const hydrated = await this.hydrateFriendsWithPublicProfiles(items);
-
-      const lastRaw = docs.at(-1)?.data?.lastInteractionAt;
-      const nextAfter = toEpoch(lastRaw);
-      const reachedEnd = docs.length < pageSize;
+      const snap = await getDocs(this.friendsQuery(safeUid, pageSize, after));
+      const hydrated = await this.projectFriends(snap.docs);
+      // Cursor derivado da última aresta bruta, não do último perfil visível.
+      const last = snap.docs.at(-1);
+      const nextAfter = last
+        ? createFriendsPageCursor(last.id, (last.data() as FriendDoc).lastInteractionAt)
+        : null;
+      const reachedEnd = snap.docs.length < pageSize;
 
       this.dbg('listFriendsPage', {
         uid: safeUid,
@@ -310,11 +240,10 @@ watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
    * Importante:
    * - dados privados não são lidos;
    * - ausência/expiração do perfil remove o card da lista;
-   * - falha da boundary retorna vazio para não reexpor snapshot legado.
+   * - falha técnica é propagada ao tratamento centralizado; nunca é um vazio confirmado.
    */
   private async hydrateFriendsWithPublicProfiles(
-    friends: Friend[],
-    propagateFailure = false
+    friends: Friend[]
   ): Promise<FriendForCard[]> {
     const uids = Array.from(
       new Set(
@@ -328,38 +257,28 @@ watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
       return [];
     }
 
-    try {
-      const response = await firstValueFrom(
-        this.publicProfileRead.readByUids$(uids)
-      );
-      const profilesByUid = new Map<string, Record<string, unknown>>();
+    const response = await firstValueFrom(
+      this.publicProfileRead.readByUids$(uids)
+    );
+    const profilesByUid = new Map<string, Record<string, unknown>>();
 
-      for (const raw of response.items ?? []) {
-        const uid = this.normalizeText(raw['uid']);
-        if (uid) {
-          profilesByUid.set(uid, raw);
-        }
+    for (const raw of response.items ?? []) {
+      const uid = this.normalizeText(raw['uid']);
+      if (uid) {
+        profilesByUid.set(uid, raw);
       }
-
-      return friends.flatMap((friend) => {
-        const uid = this.normalizeText(friend.friendUid);
-        const profile = profilesByUid.get(uid);
-
-        // A relação pode existir, mas sem perfil público adulto vigente
-        // nenhum snapshot antigo da aresta pode continuar visível.
-        return profile
-          ? [this.mergeFriendWithPublicProfile(friend, profile)]
-          : [];
-      });
-    } catch (error) {
-      if (propagateFailure) throw error;
-      this.dbg('public profile batch hydration failed', {
-        friendCount: friends.length,
-        error: String((error as Error)?.message ?? error),
-      });
-
-      return [];
     }
+
+    return friends.flatMap((friend) => {
+      const uid = this.normalizeText(friend.friendUid);
+      const profile = profilesByUid.get(uid);
+
+      // A relação pode existir, mas sem perfil público adulto vigente
+      // nenhum snapshot antigo da aresta pode continuar visível.
+      return profile
+        ? [this.mergeFriendWithPublicProfile(friend, profile)]
+        : [];
+    });
   }
 
   /**

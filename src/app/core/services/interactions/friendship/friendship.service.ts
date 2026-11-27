@@ -40,7 +40,7 @@ import { defer, from, map, Observable } from 'rxjs';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { FriendshipRepo } from './friendship.repo';
 import type { PendingRequestConsumer } from './repo/requests.repo';
-import { Friend } from '../../../interfaces/friendship/friend.interface';
+import { Friend, type FriendsPageCursor } from '../../../interfaces/friendship/friend.interface';
 import { FriendRequest } from '../../../interfaces/friendship/friend-request.interface';
 import { BlockedUserActive } from '../../../interfaces/friendship/blocked-user.interface';
 import { IUserDados } from '../../../interfaces/iuser-dados';
@@ -337,7 +337,7 @@ export class FriendshipService {
     return this.repo.watchFriends(uid);
   }
 
-  listFriendsPage(uid: string, pageSize = 24, after: number | null = null) {
+  listFriendsPage(uid: string, pageSize = 24, after: FriendsPageCursor | null = null) {
     return this.repo.listFriendsPage(uid, pageSize, after);
   }
 

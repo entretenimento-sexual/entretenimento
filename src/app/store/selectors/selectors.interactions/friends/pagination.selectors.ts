@@ -10,6 +10,7 @@ import {
   MemoizedSelector,
 } from '@ngrx/store';
 
+import type { FriendsPageCursor } from 'src/app/core/interfaces/friendship/friend.interface';
 import { FriendsPaginationState } from '../../../states/states.interactions/friends-pagination.state';
 
 export const FRIENDS_PAGES_FEATURE = 'friendsPages';
@@ -77,10 +78,10 @@ export const selectFriendsPageReachedEnd = (uid: string) =>
     createSelector(selectFriendsPageSlice(uid), (slice) => !!slice?.reachedEnd) as Sel<boolean>
   );
 
-const nextOrderCache = new Map<string, Sel<number | null>>();
+const nextOrderCache = new Map<string, Sel<FriendsPageCursor | null>>();
 export const selectFriendsPageNextOrder = (uid: string) =>
   getOrCreate(nextOrderCache, uid, () =>
-    createSelector(selectFriendsPageSlice(uid), (slice) => slice?.nextOrderValue ?? null) as Sel<number | null>
+    createSelector(selectFriendsPageSlice(uid), (slice) => slice?.nextOrderValue ?? null) as Sel<FriendsPageCursor | null>
   );
 
 const countCache = new Map<string, Sel<number>>();
