@@ -11,3 +11,9 @@ A matriz multinavegador de UX permanece separada.
 ## D.5.2A.1 — consumer lifecycle
 
 AuthSessionService now emits replacement User instances even with unchanged UID/e-mail, while uid$ still deduplicates. The store watch rebinds and clears its observed list on replacement, recovers technical errors using the existing 60-second contingency interval and centralized ApplicationErrorService; normal revocation is not a technical incident. The profile facade revalidates all three relationship sources on identity replacement and emits an unverified state first. Public-profile hydration failures in realtime observation propagate as unknown rather than successful empty results; one-shot semantics are unchanged. Remaining point-in-time reads, paginated state and real browser resource counts require separate audit; no cross-browser certification is inferred.
+
+## D.5.2A.2 — quantitative certification and CI publication
+
+Opt-in DEBUG_FRIENDS logical resource events contain only a document-local sequence, page size, snapshot ordinal and open/close category. They contain no UID, payload, token or authorization information. The real SPA suite measures bootstrap, two profile mounts, profile disposal, and explicit logout; it requires a single listener with two concurrent consumers, no simultaneous duplicate hydration for the same snapshot, balanced teardown and zero unmatched closures. Counts are RxJS lifetimes, not physical Firebase operations or invoices. Chromium three replicas are explicitly enabled on this branch; cross-browser UX certification remains independent.
+
+Quality Gate aggregate evaluation checks all 15 required outcomes. A cancelled run does not publish a new aggregate status; missing/skipped required checks on a completed run fail closed. Native workflow status remains authoritative for cancelled runs. No historical status is rewritten by this patch.

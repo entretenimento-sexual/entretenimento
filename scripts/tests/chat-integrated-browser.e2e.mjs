@@ -12,7 +12,7 @@ import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
 import { seedPublicMediaCompliance } from './media-e2e-compliance-fixture.mjs';
-import { summarizePendingAttempts, recoverPendingAttempt } from './chat-integrated-browser-metrics.mjs';
+import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch } from './chat-integrated-browser-metrics.mjs';
 
 const PROJECT = 'demo-entretenimento-media-e2e';
 const BASE = 'http://127.0.0.1:4200';
@@ -63,6 +63,7 @@ const adaptiveSamples = {};
 const concurrencyContexts = new Set(['concurrency-tab-a','concurrency-tab-b','concurrency-peer']);
 const concurrencySamples = {stages:[], resources:[], convergences:[]};
 const pendingResources = [];
+const sharedFriendsTrace = [], sharedFriendsSamples = [];
 const pendingAdmission = [];
 const admissionCancellationContext = 'admission-cancellation';
 const admissionCancellationSamples = {};
@@ -239,6 +240,10 @@ async function newPage(name, viewport={width:1440,height:1000}, existingContext=
     if(admission) pendingAdmission.push({context:name,document:documentNumber,operation:Number(admission[1]),direction:admission[2],event:admission[3],phase:currentPhase,atMs:performance.now()});
     const resource=/^\[Friends\] pending-resource (listener|inbound|outbound) (open|close)\s*$/.exec(message.text());
     if(resource) pendingResources.push({context:name,document:documentNumber,resource:resource[1],event:resource[2],phase:currentPhase,atMs:performance.now()});
+    const shared=/^\[Friends\] shared-watch (\d+) (\d+) (listener|consumer|hydration) (open|close) (\d+)\s*$/.exec(message.text());
+    if(shared) sharedFriendsTrace.push({context:name,document:documentNumber,entry:Number(shared[1]),
+      size:Number(shared[2]),resource:shared[3],event:shared[4],snapshot:Number(shared[5]),
+      phase:currentPhase,atMs:performance.now()});
     if (message.type()==='error' || message.type()==='warning') {
       browserErrors.push({name,type:message.type(),message:message.text().slice(0,600)});
     }
@@ -448,6 +453,20 @@ async function certifySpaLifecycle() {
   }
   const page=await newPage(spaContext);
   const attempts=()=>pendingAttempts.filter(row=>row.context===spaContext);
+  const watchRows=()=>sharedFriendsTrace.filter(row=>row.context===spaContext);
+  const watchDocument=()=>watchRows().filter(row=>row.resource==='listener'&&row.event==='open').at(-1)?.document;
+  const watchState=doc=>summarizeSharedFriendsWatch(watchRows().filter(row=>row.document===doc),24);
+  const watchSample=async(label,expected,doc=watchDocument())=>{
+    assert.ok(Number.isInteger(doc),'Missing shared friends listener trace: '+label);
+    await until('shared friends '+label,()=>watchState(doc),state=>
+      state.listener.active===(expected===0?0:1)&&state.consumer.active===expected&&
+      (expected===0?state.hydration.active===0:true),20_000);
+    const state=watchState(doc);
+    assert.equal(state.listener.peak,1,'Multiple shared friends listeners: '+label);
+    assert.equal(state.hydration.peakPerSnapshot<=1,true,'Duplicate simultaneous hydration: '+label);
+    assert.equal(state.unmatchedCloses,0,'Unmatched shared friends close: '+label);
+    sharedFriendsSamples.push({label,document:doc,...state});
+  };
   const origins=()=>pendingOrigins.filter(row=>row.context===spaContext);
   const documents=()=>origins().filter(row=>row.event==='document-request').length;
   const starts=(reason,direction,since=0)=>origins().filter(row=>row.event==='start'&&row.reason===reason&&(!direction||row.direction===direction)&&row.atMs>=since);
@@ -500,6 +519,8 @@ async function certifySpaLifecycle() {
       await sessionReads(begin);
       await page.locator('#app-sidebar').waitFor({state:'visible'});
       await mark();
+      await until('initial shared friends watch',()=>watchDocument(),Number.isInteger,20_000);
+      await watchSample('bootstrap',1);
     });
     await stage('home',async()=>{ if(new URL(page.url()).pathname!=='/dashboard/principal') await toHome(); },{internal:true});
     await stage('chat',()=>navigate(side('Abrir mensagens diretas'),'/chat',page.locator('.chat-shell')),{internal:true});
@@ -511,14 +532,17 @@ async function certifySpaLifecycle() {
     await stage('profile-alpha',async begin=>{
       await openProfile(peerA,names[1]);
       await until('profile alpha subscribes outbound',()=>origins().some(row=>row.atMs>=begin&&row.event==='subscribe'&&row.direction==='outbound'&&row.reason==='profile'),Boolean);
+      await watchSample('profile-alpha',2);
     },{internal:true});
     await stage('close-alpha',async begin=>{
       await navigate(page.getByRole('link',{name:'Voltar para os perfis',exact:true}),'/dashboard/explorar',page.locator('.profiles-discovery-page'));
       await until('profile alpha subscription disposed',()=>origins().some(row=>row.atMs>=begin&&row.event==='unsubscribe'&&row.direction==='outbound'&&row.reason==='profile'),Boolean);
+      await watchSample('close-alpha',1);
     },{internal:true});
     await stage('profile-beta',async begin=>{
       await toHome();await toFriends();await openProfile(peerB,names[2]);
       await until('profile beta subscribes outbound',()=>origins().some(row=>row.atMs>=begin&&row.event==='subscribe'&&row.direction==='outbound'&&row.reason==='profile'),Boolean);
+      await watchSample('profile-beta',2);
     },{internal:true});
     await stage('return-requests',async()=>{
       await navigate(page.getByRole('link',{name:'Voltar para os perfis',exact:true}),'/dashboard/explorar',page.locator('.profiles-discovery-page'));
@@ -562,7 +586,10 @@ async function certifySpaLifecycle() {
       assert.ok(documents()>prior,'Reload must create a document');
     });
     await stage('logout',async()=>{
+      const doc=watchDocument();
+      await watchSample('before-logout',1,doc);
       await logout(page);
+      await watchSample('logout',0,doc);
       await pendingCard.waitFor({state:'hidden'});
       const prior=attempts().length;
       await sleep(1_000);
@@ -1501,6 +1528,9 @@ try {
   writeFileSync(resolve(out,'adaptive-polling-samples.json'),JSON.stringify(adaptiveSamples,null,2));
   writeFileSync(resolve(out,'concurrency-samples.json'),JSON.stringify(concurrencySamples,null,2));
   writeFileSync(resolve(out,'pending-resource-trace.json'),JSON.stringify(pendingResources,null,2));
+  writeFileSync(resolve(out,'shared-friends-watch-trace.json'),JSON.stringify(sharedFriendsTrace,null,2));
+  writeFileSync(resolve(out,'shared-friends-watch-samples.json'),JSON.stringify(sharedFriendsSamples,null,2));
+  console.log('Shared friends watch samples '+JSON.stringify(sharedFriendsSamples));
   writeFileSync(resolve(out,'pending-admission-trace.json'),JSON.stringify(pendingAdmission,null,2));
   writeFileSync(resolve(out,'admission-cancellation-samples.json'),JSON.stringify(admissionCancellationSamples,null,2));
   console.log('Admission cancellation evidence '+JSON.stringify(admissionCancellationSamples));

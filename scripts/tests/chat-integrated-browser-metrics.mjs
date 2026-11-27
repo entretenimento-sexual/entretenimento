@@ -36,3 +36,25 @@ export async function recoverPendingAttempt(request,row,{onResponse,onFailure,ti
     if(request.failure()?.errorText&&!row.transportFailure) onFailure();
   } finally { clearTimeout(timer); }
 }
+
+// Logical RxJS subscriptions only, not physical sockets or billed operations.
+export function summarizeSharedFriendsWatch(rows,size) {
+  const counter=()=>({opened:0,closed:0,active:0,peak:0});
+  const result={listener:counter(),consumer:counter(),hydration:{...counter(),peakPerSnapshot:0},unmatchedCloses:0};
+  const balances=new Map();
+  for(const row of rows.filter(row=>row.size===size)) {
+    const counter=result[row.resource];
+    if(!counter) throw new Error('Unknown shared watch resource');
+    const key=JSON.stringify([row.entry,row.resource,row.snapshot]);
+    const prior=balances.get(key)??0;
+    if(row.event==='open') {
+      balances.set(key,prior+1);
+      counter.opened++;counter.active++;counter.peak=Math.max(counter.peak,counter.active);
+      if(row.resource==='hydration')counter.peakPerSnapshot=Math.max(counter.peakPerSnapshot,prior+1);
+    } else if(row.event==='close') {
+      if(prior===0)result.unmatchedCloses++;
+      else {balances.set(key,prior-1);counter.closed++;counter.active--;}
+    } else throw new Error('Unknown shared watch event');
+  }
+  return result;
+}

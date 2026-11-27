@@ -77,7 +77,10 @@ type FriendForCard = Friend & {
 
 @Injectable({ providedIn: 'root' })
 export class FriendsRepo extends FirestoreRepoBase {
-  private readonly sharedWatch = new SharedFriendsWatch(inject(AuthSessionService));
+  private readonly sharedWatch = new SharedFriendsWatch(inject(AuthSessionService),
+    (entry, size, resource, event, snapshot) => {
+      this.privacyDebug.log('friends', `shared-watch ${entry} ${size} ${resource} ${event} ${snapshot}`);
+    });
   constructor(
   db: Firestore,
   env: EnvironmentInjector,

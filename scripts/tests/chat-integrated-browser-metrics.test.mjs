@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { summarizePendingAttempts, recoverPendingAttempt } from './chat-integrated-browser-metrics.mjs';
+import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch } from './chat-integrated-browser-metrics.mjs';
 
 test('counts starts even when navigation aborts before HTTP response',()=>{
   const rows=[{httpStatus:200},{httpStatus:200},{httpStatus:null,transportFailure:'net::ERR_ABORTED'}];
@@ -66,4 +66,22 @@ test('does not replace already-recorded terminal evidence',async()=>{
   const request={failure:()=>{throw Error('must not query settled request');},response:()=>{throw Error('must not query settled request');}};
   await recoverPendingAttempt(request,row,callbacks(row,request));
   assert.equal(row.httpStatus,200);
+});
+
+test('counts shared logical resources and independent sequential hydrations',()=>{
+  const row=(resource,event,snapshot=0,entry=1,size=24)=>({resource,event,snapshot,entry,size});
+  const result=summarizeSharedFriendsWatch([
+    row('consumer','open'),row('listener','open'),row('consumer','open'),
+    row('hydration','open',1),row('hydration','close',1),row('hydration','open',1),row('hydration','close',1),
+    row('consumer','close'),row('consumer','close'),row('listener','close'),row('listener','open',0,2,48)
+  ],24);
+  assert.equal(result.listener.peak,1);assert.equal(result.consumer.peak,2);
+  assert.equal(result.hydration.opened,2);assert.equal(result.hydration.peakPerSnapshot,1);
+  assert.equal(result.unmatchedCloses,0);assert.equal(result.listener.active,0);assert.equal(result.consumer.active,0);
+});
+test('exposes duplicate hydration, overlapping listeners and unmatched closes',()=>{
+  const row=(resource,event,snapshot=0,entry=1)=>({resource,event,snapshot,entry,size:24});
+  const result=summarizeSharedFriendsWatch([row('listener','open'),row('listener','open',0,2),
+    row('hydration','open',1),row('hydration','open',1),row('consumer','close')],24);
+  assert.equal(result.listener.peak,2);assert.equal(result.hydration.peakPerSnapshot,2);assert.equal(result.unmatchedCloses,1);
 });

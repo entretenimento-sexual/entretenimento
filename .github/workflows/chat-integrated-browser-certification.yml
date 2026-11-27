@@ -3,7 +3,7 @@ name: Chat Integrated Browser Certification
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, chat-r1-10-3-4-3d-5-2a-2]
     paths:
       - '.github/workflows/chat-integrated-browser-certification.yml'
       - 'scripts/tests/chat-integrated-browser*.mjs'

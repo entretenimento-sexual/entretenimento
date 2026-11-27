@@ -8,6 +8,7 @@ type SessionScope = Pick<AuthSessionService, 'authUser$' | 'uid$' | 'currentAuth
 interface Entry {
   user: User;
   version: number;
+  id: number;
   stream$: Observable<Observable<unknown>>;
 }
 
@@ -19,8 +20,10 @@ interface Entry {
  */
 export class SharedFriendsWatch {
   private readonly entries = new Map<string, Entry>();
+  private sequence = 0;
 
-  constructor(private readonly session: SessionScope) {}
+  constructor(private readonly session: SessionScope,
+    private readonly trace: (entry: number, pageSize: number, resource: 'listener' | 'consumer' | 'hydration', event: 'open' | 'close', snapshot: number) => void = () => {}) {}
 
   watch$<S, T>(uid: string, pageSize: number, load: () => Observable<S>,
     hydrate: (snapshot: S) => Observable<T>): Observable<T> {
@@ -45,27 +48,43 @@ export class SharedFriendsWatch {
         const release = () => {
           if (this.entries.get(key) === created) this.entries.delete(key);
         };
-        const stream$ = defer(load).pipe(
+        const id = ++this.sequence;
+        let snapshotSequence = 0;
+        const stream$ = defer(() => {
+          this.trace(id, pageSize, 'listener', 'open', 0);
+          return defer(load).pipe(finalize(() => this.trace(id, pageSize, 'listener', 'close', 0)));
+        }).pipe(
           takeUntil(revoked$),
           filter(current),
-          map(snapshot => defer(() => current() ? hydrate(snapshot) : throwError(revokedError)).pipe(
-            filter(current),
-            // Only simultaneous hydration, no completed result replay.
-            share({ connector: () => new Subject<T>(), resetOnError: true,
-              resetOnComplete: true, resetOnRefCountZero: true })
-          )),
+          map(snapshot => {
+            const snapshotId = ++snapshotSequence;
+            return defer(() => {
+              if (!current()) return throwError(revokedError);
+              this.trace(id, pageSize, 'hydration', 'open', snapshotId);
+              return defer(() => hydrate(snapshot)).pipe(
+                finalize(() => this.trace(id, pageSize, 'hydration', 'close', snapshotId)));
+            }).pipe(
+              filter(current),
+              // Only simultaneous hydration, no completed result replay.
+              share({ connector: () => new Subject<T>(), resetOnError: true,
+                resetOnComplete: true, resetOnRefCountZero: true })
+            );
+          }),
           finalize(release),
           share({ connector: () => new ReplaySubject<Observable<T>>(1),
             resetOnError: true, resetOnComplete: true, resetOnRefCountZero: true })
         );
-        created = { user, version, stream$ };
+        created = { user, version, id, stream$ };
         this.entries.set(key, created);
         entry = created;
       }
       // The key and instance identify a single typed query in FriendsRepo.
+      const entryId = entry.id;
+      this.trace(entryId, pageSize, 'consumer', 'open', 0);
       return (entry.stream$ as Observable<Observable<T>>).pipe(
         switchMap(hydration$ => hydration$),
-        filter(current)
+        filter(current),
+        finalize(() => this.trace(entryId, pageSize, 'consumer', 'close', 0))
       );
     });
   }

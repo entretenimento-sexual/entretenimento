@@ -392,7 +392,7 @@ jobs:
 
       - name: Resolve aggregate result
         id: aggregate
-        if: always()
+        if: always() && !cancelled()
         shell: bash
         env:
           APP_INSTALL: ${{ steps.app_install.outcome }}
@@ -411,40 +411,8 @@ jobs:
           MEDIA_REVOCATION_E2E: ${{ steps.media_revocation_e2e.outcome }}
           COMMUNITY_INTERACTION_E2E: ${{ steps.community_interaction_e2e.outcome }}
         run: |
-          state='success'
-          description='Todos os checks de qualidade passaram.'
-
-          declare -a checks=(
-            "app_install:$APP_INSTALL"
-            "functions_install:$FUNCTIONS_INSTALL"
-            "firestore_indexes:$FIRESTORE_INDEXES"
-            "app_audit:$APP_AUDIT"
-            "functions_audit:$FUNCTIONS_AUDIT"
-            "functions_lint:$FUNCTIONS_LINT"
-            "functions_test:$FUNCTIONS_TEST"
-            "functions_exports:$FUNCTIONS_EXPORTS"
-            "angular_tests:$ANGULAR_TESTS"
-            "angular_build:$ANGULAR_BUILD"
-            "firestore_rules:$FIRESTORE_RULES"
-            "chat_reconciliation:$CHAT_RECONCILIATION"
-            "bilateral_block_e2e:$BILATERAL_BLOCK_E2E"
-            "media_revocation_e2e:$MEDIA_REVOCATION_E2E"
-            "community_interaction_e2e:$COMMUNITY_INTERACTION_E2E"
-          )
-
-          for check in "${checks[@]}"; do
-            name="${check%%:*}"
-            result="${check#*:}"
-            echo "${name}=${result}"
-            if [[ "$result" != 'success' ]]; then
-              state='failure'
-              description="Quality Gate falhou em ${name} (${result})."
-              break
-            fi
-          done
-
-          echo "state=$state" >> "$GITHUB_OUTPUT"
-          echo "description=$description" >> "$GITHUB_OUTPUT"
+          node --test scripts/quality/resolve-quality-gate.test.mjs
+          node scripts/quality/resolve-quality-gate.mjs
 
       - name: Publish validation summary
         if: always()
@@ -490,8 +458,9 @@ jobs:
 
       - name: Publish aggregate commit status
         if: >-
-          always() &&
+          always() && !cancelled() &&
           steps.aggregate.outcome == 'success' &&
+          steps.aggregate.outputs.publishable == 'true' &&
           (github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository)
         shell: bash
@@ -526,5 +495,5 @@ jobs:
           retention-days: 14
 
       - name: Enforce aggregate result
-        if: always() && steps.aggregate.outputs.state != 'success'
+        if: always() && !cancelled() && steps.aggregate.outputs.state != 'success'
         run: exit 1
