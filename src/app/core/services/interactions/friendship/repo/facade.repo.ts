@@ -31,6 +31,10 @@ watchFriends(uid: string) {
   return this.friends.watchFriends(uid);
 }
 
+  watchFriendsPage(uid: string, pageSize = 24) {
+    return this.friends.watchFriendsPage(uid, pageSize);
+  }
+
   /* Blocks — leitura apenas; writes passam por FriendshipService/callables */
   listBlocked(uid: string) { return this.blocks.listBlocked(uid); }
   watchBlocked(ownerUid: string, targetUid: string) {

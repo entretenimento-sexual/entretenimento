@@ -44,7 +44,7 @@ import {
   selectFriendsPageReachedEnd,
   selectFriendsPageOnlineCount,
   selectFriendsPageCount,
-  selectFriendsPageNextOrder,
+  selectFriendsPageSlice,
 } from 'src/app/store/selectors/selectors.interactions/friends/pagination.selectors';
 
 import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
@@ -147,17 +147,15 @@ export class FriendListPageComponent implements OnInit, OnDestroy {
         });
     }, { root: null, rootMargin, threshold: 0 });
 
-    // A sentinel initially visible while page 1 is loading need not emit
-    // another intersection. Rearm only when a new successful cursor arrives.
-    this.observerSub = combineLatest([
-      this.store.select(selectFriendsPageNextOrder(uid)),
-      this.store.select(selectFriendsPageLoading(uid)),
-      this.store.select(selectFriendsPageReachedEnd(uid)),
-    ]).pipe(
-      filter(([cursor, loading, end]) => cursor !== null && !loading && !end),
-      map(([cursor]) => cursor!),
-      distinctUntilChanged((a, b) => a.documentId === b.documentId &&
-        a.seconds === b.seconds && a.nanoseconds === b.nanoseconds),
+    // A nova primeira página pode manter o mesmo cursor. Observar o slice
+    // atomicamente e rearmar também quando a geração dos itens for substituída.
+    this.observerSub = this.store.select(selectFriendsPageSlice(uid)).pipe(
+      filter(slice => !!slice && !slice.loading && !slice.reachedEnd &&
+        !slice.error && slice.nextOrderValue !== null),
+      map(slice => ({ cursor: slice!.nextOrderValue!, items: slice!.items })),
+      distinctUntilChanged((a, b) => a.items === b.items &&
+        a.cursor.documentId === b.cursor.documentId &&
+        a.cursor.seconds === b.cursor.seconds && a.cursor.nanoseconds === b.cursor.nanoseconds),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(() => {
       if (this.activeUid !== uid || !this.sentinel?.nativeElement) return;
@@ -167,10 +165,12 @@ export class FriendListPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    const uid = this.activeUid;
     this.activeUid = null;
     this.io?.disconnect();
     this.sub?.unsubscribe();
     this.observerSub?.unsubscribe();
+    if (uid) this.store.dispatch(P.resetFriendsPagination({ uid }));
   }
 
   onSortChange(v: 'recent' | 'online' | 'distance' | 'alpha') {

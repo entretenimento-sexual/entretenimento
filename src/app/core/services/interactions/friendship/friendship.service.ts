@@ -337,6 +337,10 @@ export class FriendshipService {
     return this.repo.watchFriends(uid);
   }
 
+  watchFriendsPage(uid: string, pageSize = 24) {
+    return this.repo.watchFriendsPage(uid, pageSize);
+  }
+
   listFriendsPage(uid: string, pageSize = 24, after: FriendsPageCursor | null = null) {
     return this.repo.listFriendsPage(uid, pageSize, after);
   }

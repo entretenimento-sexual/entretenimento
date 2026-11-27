@@ -1,7 +1,6 @@
 // src/app/store/effects/effects.interactions/friends/requests-crud.effects.ts
 import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { Store } from '@ngrx/store';
 import { of } from 'rxjs';
 import {
   catchError,
@@ -12,20 +11,16 @@ import {
   map,
   mergeMap,
   switchMap,
-  withLatestFrom,
 } from 'rxjs/operators';
 
 import * as A from '../../../actions/actions.interactions/actions.friends';
 
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
-import { AppState } from 'src/app/store/states/app.state';
-import { selectCurrentUserUid } from 'src/app/store/selectors/selectors.user/user.selectors';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 @Injectable()
 export class FriendsRequestsCrudEffects {
   private readonly actions$ = inject(Actions);
-  private readonly store = inject(Store<AppState>);
   private readonly svc = inject(FriendshipService);
   private readonly notifier = inject(ErrorNotificationService);
 
@@ -231,18 +226,7 @@ export class FriendsRequestsCrudEffects {
     )
   );
 
-  /**
-   * A transação backend incrementa as revisões direcionais dos participantes.
-   * RequestsRepo observa essas revisões e mantém polling de contingência.
-   * Não iniciar leitura pontual concorrente após a mutação de solicitações.
-   * Preservar a atualização de amigos no aceite até alinhar as duas consultas.
-   */
-  syncAfterRequestMutation$ = createEffect(() =>
-    this.actions$.pipe(
-      ofType(A.acceptFriendRequestSuccess),
-      withLatestFrom(this.store.select(selectCurrentUserUid)),
-      filter(([, uid]) => !!uid),
-      map(([, uid]) => A.loadFriends({ uid: uid! }))
-    )
-  );
+  // O aceite cria as duas arestas no backend. O listener compartilhado
+  // atualiza o estado principal e a primeira página; não iniciar getDocs
+  // após o sucesso local da callable.
 } // Linha 232, fim do arquivo

@@ -33,7 +33,7 @@ export const loadFriendsPageSuccess = createAction(
 
 export const loadFriendsPageFailure = createAction(
   '[Friends Page] Failure',
-  props<{ uid: string; error: string }>()
+  props<{ uid: string; error: string; replace?: boolean }>()
 );
 
 export const resetFriendsPagination = createAction(

@@ -86,8 +86,8 @@ export const friendsPaginationReducer = createReducer(
   }),
 
   // Failure
-  on(P.loadFriendsPageFailure, (state, { uid, error }) => {
-    const current = ensureSlice(state, uid);
+  on(P.loadFriendsPageFailure, (state, { uid, error, replace }) => {
+    const current = replace ? { ...emptyFriendsPageSlice, reachedEnd: true } : ensureSlice(state, uid);
     return {
       ...state,
       byUid: { ...state.byUid, [uid]: { ...current, loading: false, error } },

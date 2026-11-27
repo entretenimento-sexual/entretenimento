@@ -138,11 +138,20 @@ private dbg(msg: string, extra?: unknown): void {
  * - usamos inCtxSync() apenas para criar query/listener dentro do Injection Context.
  */
 watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
+  return this.watchFriendsPage(uid, pageSize).pipe(map(page => page.items));
+}
+
+/** Primeira página viva: a mesma hidratação e o mesmo listener do fluxo principal. */
+watchFriendsPage(uid: string, pageSize = 24): Observable<{
+  items: FriendForCard[];
+  nextAfter: FriendsPageCursor | null;
+  reachedEnd: boolean;
+}> {
   return defer(() => {
     const safeUid = this.normalizeText(uid);
 
     if (!safeUid) {
-      return of([] as FriendForCard[]);
+      return of({ items: [] as FriendForCard[], nextAfter: null, reachedEnd: true });
     }
 
     return this.sharedWatch.watch$(safeUid, pageSize, () => this.inCtxSync(() => {
@@ -156,7 +165,12 @@ watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
           hydrated: hydrated.filter((item) => item.nickname !== item.uid).length,
         });
 
-        return hydrated;
+        const last = snapshots.at(-1);
+        return {
+          items: hydrated,
+          nextAfter: last ? createFriendsPageCursor(last.id, (last.data() as FriendDoc).lastInteractionAt) : null,
+          reachedEnd: snapshots.length < pageSize,
+        };
       }));
   });
 }

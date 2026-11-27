@@ -435,18 +435,18 @@ async function certifyFriendshipPair(label,keys,actions) {
 
 async function certifyFriendsPagination() {
   currentPhase='friends-pagination: seed';
-  const owner=uid('pagination-owner'), other=uid('pagination-other');
+  const owner=uid('pagination-owner'), other=uid('pagination-other'), acceptor=uid('pagination-acceptor');
   const context='friends-pagination';
   const peers=Array.from({length:27},(_,i)=>uid('pagination-peer-'+String(i).padStart(2,'0')));
   // Synthetic edges only in the isolated emulator; real Auth for both viewers.
-  for(const viewer of [owner,other]) {
+  for(const viewer of [owner,other,acceptor]) {
     await adminAuth.createUser({uid:viewer,email:email(viewer),password,emailVerified:true});
     await until('pagination registration seed',()=>db.doc('users/'+viewer).get(),snap=>snap.exists);
   }
-  await seedPublicMediaCompliance(db,[owner,other,...peers]);
-  const names=new Map([owner,other,...peers].map((user,index)=>[user,'Browser Pagination '+String(index).padStart(2,'0')]));
+  await seedPublicMediaCompliance(db,[owner,other,acceptor,...peers]);
+  const names=new Map([owner,other,...peers,acceptor].map((user,index)=>[user,'Browser Pagination '+String(index).padStart(2,'0')]));
   const batch=db.batch();
-  for(const user of [owner,other,...peers]) {
+  for(const user of [owner,other,acceptor,...peers]) {
     const nickname=names.get(user);
     const profile={uid:user,nickname,nicknameNormalized:nickname.toLowerCase(),
       gender:'mulher',identityCode:'mulher',identityCatalogVersion:1,orientation:'bissexual',role:'free',
@@ -465,6 +465,8 @@ async function certifyFriendsPagination() {
   const cards=list.locator('.friend-cards-item');
   const end=list.getByRole('status').filter({hasText:'Você chegou ao fim.'});
   const expected=peers.slice().reverse().map(peer=>names.get(peer));
+  const acceptContext='friends-pagination-acceptor';
+  let acceptingPage;
   try {
     currentPhase='friends-pagination: 27 equal timestamps';
     await login(page,owner);
@@ -481,6 +483,46 @@ async function certifyFriendsPagination() {
       assert.equal(rendered.filter(text=>text.includes(name)).length,1,'Friend appears exactly once');
     }
     pass('27 friends with identical timestamps, exact document order and no omissions or duplicates');
+    currentPhase='friends-pagination: accept while remote list mounted';
+    await page.evaluate(()=>{window.__friendsPaginationDocument=true;});
+    await signInWithEmailAndPassword(auth,email(owner),password);
+    const request=(await httpsCallable(functions,'sendFriendRequest')({targetUid:acceptor})).data;
+    acceptingPage=await newPage(acceptContext);
+    await login(acceptingPage,acceptor);
+    await acceptingPage.goto(BASE+'/friends/requests');
+    const inbound=acceptingPage.locator('.request-card--inbound[aria-labelledby="request-inbound-'+request.requestId+'"]');
+    await inbound.waitFor({state:'visible'});
+    const begin=performance.now();
+    await inbound.getByRole('button',{name:/Aceitar solicitação/}).click();
+    await inbound.waitFor({state:'hidden',timeout:30_000});
+    await cards.filter({hasText:names.get(acceptor)}).waitFor({state:'visible',timeout:30_000});
+    await list.locator('.infinite-sentinel').scrollIntoViewIfNeeded();
+    await until('all 28 friends after remote acceptance',()=>cards.count(),count=>count===28,30_000);
+    await end.waitFor({state:'visible'});
+    const after=await cards.allTextContents();
+    for(const [index,name] of [names.get(acceptor),...expected].entries()) {
+      assert.ok(after[index].includes(name),'Canonical friend order after acceptance at '+index);
+      assert.equal(after.filter(value=>value.includes(name)).length,1,'Duplicate or missing friend after acceptance');
+    }
+    assert.equal(await page.evaluate(()=>window.__friendsPaginationDocument),true,'Remote observer reloaded');
+    await acceptingPage.locator('#app-sidebar').getByRole('link',{name:'Ir para Hoje',exact:true}).click();
+    await acceptingPage.waitForURL(url=>url.pathname==='/dashboard/principal');
+    await acceptingPage.getByRole('listitem',{name:'Ver todas as conexões',exact:true}).click();
+    await acceptingPage.waitForURL(url=>url.pathname==='/dashboard/friends/list');
+    await acceptingPage.locator('.friend-cards-item').filter({hasText:names.get(owner)}).waitFor({state:'visible',timeout:30_000});
+    assert.equal(await acceptingPage.locator('.friend-cards-item').count(),1,'Unexpected actor friendships');
+    const pointReads=friendsPointReads.filter(row=>[context,acceptContext].includes(row.context)&&row.atMs>=begin).length;
+    assert.equal(pointReads,0,'Redundant friends point read after acceptance');
+    const ownerRows=sharedFriendsTrace.filter(row=>row.context===context);
+    const ownerDoc=ownerRows.filter(row=>row.size===24&&row.resource==='listener'&&row.event==='open').at(-1).document;
+    const ownerWatch=summarizeSharedFriendsWatch(ownerRows.filter(row=>row.document===ownerDoc),24);
+    assert.equal(ownerWatch.listener.active,1);
+    assert.equal(ownerWatch.listener.peak,1);
+    const acceptanceEvidence={pointReads,remoteRendered:28,actorRendered:1,duplicates:0,missing:0,activeListeners:ownerWatch.listener.active,peakListeners:ownerWatch.listener.peak,remoteDocumentPreserved:true};
+    console.log('Friends acceptance evidence '+JSON.stringify(acceptanceEvidence));
+    writeFileSync(resolve(out,'friends-acceptance-evidence.json'),JSON.stringify(acceptanceEvidence,null,2));
+    pass('UI acceptance updates bilateral friendship without redundant point read and repaginates mounted observer');
+
     currentPhase='friends-pagination: different authenticated viewer';
     await logout(page);
     await login(page,other);
@@ -491,8 +533,8 @@ async function certifyFriendsPagination() {
     pass('paginated friend list isolates independent authenticated viewer');
     console.log('Friends pagination evidence '+JSON.stringify({seeded:27,firstPageLimit:24,rendered:27,equalTimestamps:27,duplicates:0,missing:0,otherViewer:0}));
   } finally {
-    try { await reconcilePendingTransportEvidence(row=>row.context===context,15_000); }
-    finally { await page.context().close(); }
+    try { await reconcilePendingTransportEvidence(row=>row.context===context||row.context===acceptContext,15_000); }
+    finally { await Promise.all([page.context().close(),...(acceptingPage?[acceptingPage.context().close()]:[])]); }
   }
 }
 
@@ -626,7 +668,7 @@ async function certifySpaLifecycle() {
     await stage('communities',()=>navigate(side('Grupo coletivo persistente com membros, regras, mural, moderação e recursos de interação próprios.'),'/dashboard/comunidades',page.locator('app-community-discovery-page')),{internal:true});
     await stage('friends-list',async()=>{
       await toHome();await watchSample('home-before-friends',2);
-      await toFriends();await watchSample('friends-list',1);
+      await toFriends();await watchSample('friends-list',2);
     },{internal:true});
     await stage('profile-alpha',async begin=>{
       await openProfile(peerA,names[1]);
@@ -640,7 +682,7 @@ async function certifySpaLifecycle() {
     },{internal:true});
     await stage('profile-beta',async begin=>{
       await toHome();await watchSample('home-before-beta',2);
-      await toFriends();await watchSample('friends-list-before-beta',1);
+      await toFriends();await watchSample('friends-list-before-beta',2);
       await openProfile(peerB,names[2]);
       await until('profile beta subscribes outbound',()=>origins().some(row=>row.atMs>=begin&&row.event==='subscribe'&&row.direction==='outbound'&&row.reason==='profile'),Boolean);
       await watchSample('profile-beta',2);

@@ -1,6 +1,6 @@
 // src/app/store/effects/effects.interactions/friends/pagination.effects.ts
 // Efeitos de paginação da lista de amigos
-// - loadFirstOrRefresh: carrega a primeira página ou recarrega (replace)
+// - loadFirstOrRefresh: observa a primeira página canônica (replace)
 // - loadNext: carrega a próxima página (append)
 // - debug fica atrás de flag local para não poluir console nem expor diagnóstico em fluxo normal
 import { Injectable, inject, isDevMode } from '@angular/core';
@@ -57,7 +57,7 @@ export class FriendsPaginationEffects {
     } catch { /* noop */ }
   }
 
-  /** First + Refresh (replace) */
+  /** Primeira página viva + refresh explícito; mesmo listener da sessão. */
   loadFirstOrRefresh$ = createEffect(() =>
     this.actions$.pipe(
       ofType(P.loadFriendsFirstPage, P.refreshFriendsPage),
@@ -68,7 +68,7 @@ export class FriendsPaginationEffects {
       switchMap(([{ uid, pageSize }, user]) => {
         const size = pageSize ?? 24;
 
-        return this.svc.listFriendsPage(uid, size, null).pipe(
+        return this.svc.watchFriendsPage(uid, size).pipe(
           takeUntil(this.session.authUser$.pipe(filter(current => current !== user))),
           takeUntil(this.actions$.pipe(ofType(P.resetFriendsPagination), filter(event => event.uid === uid))),
           tap(({ items, nextAfter, reachedEnd }) =>
@@ -92,7 +92,7 @@ export class FriendsPaginationEffects {
           catchError((err) => {
             this.report(err, { step: 'first-or-refresh', uid, pageSize: size });
             this.debug('first-or-refresh:svc:error', { uid, size, err: String((err as any)?.message ?? err) });
-            return of(P.loadFriendsPageFailure({ uid, error: String((err as any)?.message ?? err) }));
+            return of(P.loadFriendsPageFailure({ uid, error: String((err as any)?.message ?? err), replace: true }));
           })
         );
       })
@@ -132,6 +132,15 @@ export class FriendsPaginationEffects {
           takeUntil(this.actions$.pipe(
             ofType(P.loadFriendsFirstPage, P.refreshFriendsPage, P.resetFriendsPagination),
             filter(event => event.uid === action.uid)
+          )),
+          // Um novo snapshot da primeira página invalida a geração do cursor.
+          takeUntil(this.actions$.pipe(
+            ofType(P.loadFriendsPageSuccess),
+            filter(event => event.uid === action.uid && !event.append)
+          )),
+          takeUntil(this.actions$.pipe(
+            ofType(P.loadFriendsPageFailure),
+            filter(event => event.uid === action.uid && event.replace === true)
           )),
           tap(({ items, nextAfter, reachedEnd }) =>
             this.debug('next:svc:ok', {

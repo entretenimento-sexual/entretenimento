@@ -21,17 +21,19 @@ describe('FriendsPaginationEffects / sessão operacional', () => {
   let session: BehaviorSubject<User | null>;
   let pending: Subject<typeof page>;
   let list: ReturnType<typeof vi.fn>;
+  let watch: ReturnType<typeof vi.fn>;
   let effects: FriendsPaginationEffects;
   beforeEach(() => {
     actions = new Subject<Action>();
     session = new BehaviorSubject<User | null>(user('owner'));
     pending = new Subject<typeof page>();
     list = vi.fn(() => pending.asObservable());
+    watch = vi.fn(() => pending.asObservable());
     TestBed.configureTestingModule({ providers: [
       FriendsPaginationEffects,
       { provide: Actions, useValue: new Actions(actions) },
       { provide: AuthSessionService, useValue: { authUser$: session.asObservable() } },
-      { provide: FriendshipService, useValue: { listFriendsPage: list } },
+      { provide: FriendshipService, useValue: { listFriendsPage: list, watchFriendsPage: watch } },
       { provide: GlobalErrorHandlerService, useValue: { handleError: vi.fn() } },
       provideMockStore({ selectors: [
         { selector: selectFriendsPageNextOrder('owner'), value: cursor },
@@ -47,7 +49,13 @@ describe('FriendsPaginationEffects / sessão operacional', () => {
     const results: unknown[] = [];
     const sub = (effects[effect] as Observable<unknown>).subscribe(value => results.push(value));
     actions.next(action);
-    expect(list).toHaveBeenCalledWith('owner', 24, expectedCursor);
+    if (effect === 'loadFirstOrRefresh$') {
+      expect(watch).toHaveBeenCalledWith('owner', 24);
+      expect(list).not.toHaveBeenCalled();
+    } else {
+      expect(list).toHaveBeenCalledWith('owner', 24, expectedCursor);
+      expect(watch).not.toHaveBeenCalled();
+    }
     session.next(user('owner'));
     pending.next(page);
     expect(results).toEqual([]);
@@ -65,6 +73,34 @@ describe('FriendsPaginationEffects / sessão operacional', () => {
     session.next(user('other'));
     actions.next(P.refreshFriendsPage({ uid: 'owner' }));
     expect(list).not.toHaveBeenCalled();
+    expect(watch).not.toHaveBeenCalled();
+    sub.unsubscribe();
+  });
+  it('mantém primeira página viva, emite substituições e libera no reset da rota', () => {
+    const results: unknown[] = [];
+    const sub = effects.loadFirstOrRefresh$.subscribe(value => results.push(value));
+    actions.next(P.loadFriendsFirstPage({ uid: 'owner' }));
+    pending.next(page);
+    const accepted = { ...page, items: [{ friendUid: 'new-peer' }] as Friend[] };
+    pending.next(accepted);
+    expect(results).toEqual([page, accepted].map(snapshot => P.loadFriendsPageSuccess({
+      uid: 'owner', items: snapshot.items, nextOrderValue: cursor, reachedEnd: true, append: false,
+    })));
+    expect(watch).toHaveBeenCalledTimes(1);
+    expect(list).not.toHaveBeenCalled();
+    actions.next(P.resetFriendsPagination({ uid: 'owner' }));
+    pending.next(page);
+    expect(results).toHaveLength(2);
+    sub.unsubscribe();
+  });
+  it('cancela append antigo após snapshot canônico substituir a primeira página', () => {
+    const results: unknown[] = [];
+    const sub = effects.loadNext$.subscribe(value => results.push(value));
+    actions.next(P.loadFriendsNextPage({ uid: 'owner' }));
+    actions.next(P.loadFriendsPageSuccess({ uid: 'other', items: [], nextOrderValue: null, reachedEnd: true, append: false }));
+    actions.next(P.loadFriendsPageSuccess({ uid: 'owner', items: page.items, nextOrderValue: cursor, reachedEnd: false, append: false }));
+    pending.next(page);
+    expect(results).toEqual([]);
     sub.unsubscribe();
   });
   it('cancela append pendente ao atualizar a primeira página', () => {
@@ -74,6 +110,14 @@ describe('FriendsPaginationEffects / sessão operacional', () => {
     actions.next(P.refreshFriendsPage({ uid: 'owner' }));
     pending.next(page);
     expect(results).toEqual([]);
+    sub.unsubscribe();
+  });
+  it('marca falha da primeira página para descartar projeção anterior', () => {
+    const results: unknown[] = [];
+    const sub = effects.loadFirstOrRefresh$.subscribe(value => results.push(value));
+    actions.next(P.loadFriendsFirstPage({ uid: 'owner' }));
+    pending.error(new Error('read failed'));
+    expect(results).toEqual([P.loadFriendsPageFailure({ uid: 'owner', error: 'read failed', replace: true })]);
     sub.unsubscribe();
   });
 });
