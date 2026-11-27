@@ -12,6 +12,7 @@ import { of } from 'rxjs';
 import { catchError, filter, map, switchMap, exhaustMap, tap, takeUntil } from 'rxjs/operators';
 
 import * as P from '../../../actions/actions.interactions/friends/friends-pagination.actions';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { AppState } from 'src/app/store/states/app.state';
 import {
@@ -27,6 +28,7 @@ export class FriendsPaginationEffects {
   private readonly actions$ = inject(Actions);
   private readonly store = inject(Store<AppState>);
   private readonly svc = inject(FriendshipService);
+  private readonly session = inject(AuthSessionService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
 
   private readonly debugEnabled =
@@ -61,10 +63,13 @@ export class FriendsPaginationEffects {
       ofType(P.loadFriendsFirstPage, P.refreshFriendsPage),
       filter(({ uid }) => !!(uid ?? '').trim()),
       tap(({ uid, pageSize }) => this.debug('first-or-refresh:action', { uid, pageSize })),
-      switchMap(({ uid, pageSize }) => {
+      concatLatestFrom(() => this.session.authUser$),
+      filter(([action, user]) => !!user && user.uid === action.uid),
+      switchMap(([{ uid, pageSize }, user]) => {
         const size = pageSize ?? 24;
 
         return this.svc.listFriendsPage(uid, size, null).pipe(
+          takeUntil(this.session.authUser$.pipe(filter(current => current !== user))),
           takeUntil(this.actions$.pipe(ofType(P.resetFriendsPagination), filter(event => event.uid === uid))),
           tap(({ items, nextAfter, reachedEnd }) =>
             this.debug('first-or-refresh:svc:ok', {
@@ -102,12 +107,13 @@ export class FriendsPaginationEffects {
       concatLatestFrom((action) => [
         this.store.select(selectFriendsPageReachedEnd(action.uid)),
         this.store.select(selectFriendsPageNextOrder(action.uid)),
+        this.session.authUser$,
       ]),
-      filter(([action, reachedEnd, cursor]) => {
+      filter(([action, reachedEnd, cursor, user]) => {
         const uidOk = !!(action.uid ?? '').trim();
         // Effects observe actions after reducers set loading=true. A valid
         // cursor plus exhaustMap, not that flag, admits the next page.
-        const canRun = uidOk && !reachedEnd && cursor !== null;
+        const canRun = uidOk && user?.uid === action.uid && !reachedEnd && cursor !== null;
 
         if (!canRun) {
           this.debug('next:skipped', { uid: action.uid, reachedEnd, hasCursor: cursor !== null });
@@ -115,13 +121,14 @@ export class FriendsPaginationEffects {
 
         return canRun;
       }),
-      exhaustMap(([action, _reachedEnd, nextOrderValue]) => {
+      exhaustMap(([action, _reachedEnd, nextOrderValue, user]) => {
         const after = this.normalizeCursor(nextOrderValue);
         const size = action.pageSize ?? 24;
 
         this.debug('next:svc:call', { uid: action.uid, size, after });
 
         return this.svc.listFriendsPage(action.uid, size, after).pipe(
+          takeUntil(this.session.authUser$.pipe(filter(current => current !== user))),
           takeUntil(this.actions$.pipe(
             ofType(P.loadFriendsFirstPage, P.refreshFriendsPage, P.resetFriendsPagination),
             filter(event => event.uid === action.uid)

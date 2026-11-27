@@ -30,12 +30,12 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Store } from '@ngrx/store';
-import { Subscription, combineLatest } from 'rxjs';
-import { filter, map, switchMap, take } from 'rxjs/operators';
+import { Subscription, combineLatest, of } from 'rxjs';
+import { distinctUntilChanged, filter, map, switchMap, take } from 'rxjs/operators';
 import { toObservable, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AppState } from 'src/app/store/states/app.state';
-import { selectCurrentUserUid } from 'src/app/store/selectors/selectors.user/user.selectors';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 
 import * as P from 'src/app/store/actions/actions.interactions/friends/friends-pagination.actions';
 import {
@@ -44,6 +44,7 @@ import {
   selectFriendsPageReachedEnd,
   selectFriendsPageOnlineCount,
   selectFriendsPageCount,
+  selectFriendsPageNextOrder,
 } from 'src/app/store/selectors/selectors.interactions/friends/pagination.selectors';
 
 import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
@@ -61,12 +62,13 @@ import { PageHeaderComponent } from '../../../shared/page-header/page-header.com
 export class FriendListPageComponent implements OnInit, OnDestroy {
   private readonly store = inject<Store<AppState>>(Store as any);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly session = inject(AuthSessionService);
 
   trackByUid = (_: number, f: any) => f?.uid || f?.id;
 
-  private readonly uid$ = this.store.select(selectCurrentUserUid).pipe(
-    map(uid => uid?.trim() || null),
-    filter((uid): uid is string => !!uid),
+  private readonly uid$ = this.session.authUser$.pipe(
+    distinctUntilChanged(),
+    map(user => user?.uid?.trim() || null),
   );
 
   sortBy = signal<'recent' | 'online' | 'distance' | 'alpha'>('recent');
@@ -77,7 +79,7 @@ export class FriendListPageComponent implements OnInit, OnDestroy {
   private readonly filters$ = toObservable(this.filters);
 
   private readonly itemsFromStore$ = this.uid$.pipe(
-    switchMap(uid => this.store.select(selectFriendsPageItems(uid)))
+    switchMap(uid => uid ? this.store.select(selectFriendsPageItems(uid)) : of([]))
   );
 
   readonly items$ = combineLatest([this.itemsFromStore$, this.sortBy$, this.filters$]).pipe(
@@ -85,19 +87,19 @@ export class FriendListPageComponent implements OnInit, OnDestroy {
   );
 
   readonly loading$ = this.uid$.pipe(
-    switchMap(uid => this.store.select(selectFriendsPageLoading(uid)))
+    switchMap(uid => uid ? this.store.select(selectFriendsPageLoading(uid)) : of(false))
   );
 
   readonly reachedEnd$ = this.uid$.pipe(
-    switchMap(uid => this.store.select(selectFriendsPageReachedEnd(uid)))
+    switchMap(uid => uid ? this.store.select(selectFriendsPageReachedEnd(uid)) : of(false))
   );
 
   readonly friendsCount$ = this.uid$.pipe(
-    switchMap(uid => this.store.select(selectFriendsPageCount(uid)))
+    switchMap(uid => uid ? this.store.select(selectFriendsPageCount(uid)) : of(0))
   );
 
   readonly onlineCount$ = this.uid$.pipe(
-    switchMap(uid => this.store.select(selectFriendsPageOnlineCount(uid)))
+    switchMap(uid => uid ? this.store.select(selectFriendsPageOnlineCount(uid)) : of(0))
   );
 
   readonly pendingRequestsCount$ = this.friendsCount$.pipe(map(() => 0));
@@ -106,14 +108,19 @@ export class FriendListPageComponent implements OnInit, OnDestroy {
   @ViewChild('sentinel', { static: true }) sentinel!: ElementRef<HTMLDivElement>;
   private io?: IntersectionObserver;
   private sub?: Subscription;
+  private observerSub?: Subscription;
+  private activeUid: string | null = null;
 
   ngOnInit(): void {
     this.uid$
-      .pipe(
-        take(1),
-        takeUntilDestroyed(this.destroyRef)
-      )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(uid => {
+        this.io?.disconnect();
+        this.sub?.unsubscribe();
+        this.observerSub?.unsubscribe();
+        if (this.activeUid) this.store.dispatch(P.resetFriendsPagination({ uid: this.activeUid }));
+        this.activeUid = uid;
+        if (!uid) return;
         this.store.dispatch(P.loadFriendsFirstPage({ uid, pageSize: 24 }));
         this.setupInfiniteScroll(uid);
       });
@@ -125,7 +132,7 @@ export class FriendListPageComponent implements OnInit, OnDestroy {
 
     this.io = new IntersectionObserver((entries) => {
       const e = entries[0];
-      if (!e?.isIntersecting) return;
+      if (!e?.isIntersecting || this.activeUid !== uid) return;
 
       this.sub?.unsubscribe();
       this.sub = combineLatest([
@@ -140,14 +147,30 @@ export class FriendListPageComponent implements OnInit, OnDestroy {
         });
     }, { root: null, rootMargin, threshold: 0 });
 
-    if (this.sentinel?.nativeElement) {
-      this.io.observe(this.sentinel.nativeElement);
-    }
+    // A sentinel initially visible while page 1 is loading need not emit
+    // another intersection. Rearm only when a new successful cursor arrives.
+    this.observerSub = combineLatest([
+      this.store.select(selectFriendsPageNextOrder(uid)),
+      this.store.select(selectFriendsPageLoading(uid)),
+      this.store.select(selectFriendsPageReachedEnd(uid)),
+    ]).pipe(
+      filter(([cursor, loading, end]) => cursor !== null && !loading && !end),
+      map(([cursor]) => cursor!),
+      distinctUntilChanged((a, b) => a.documentId === b.documentId &&
+        a.seconds === b.seconds && a.nanoseconds === b.nanoseconds),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(() => {
+      if (this.activeUid !== uid || !this.sentinel?.nativeElement) return;
+      this.io?.unobserve(this.sentinel.nativeElement);
+      this.io?.observe(this.sentinel.nativeElement);
+    });
   }
 
   ngOnDestroy(): void {
+    this.activeUid = null;
     this.io?.disconnect();
     this.sub?.unsubscribe();
+    this.observerSub?.unsubscribe();
   }
 
   onSortChange(v: 'recent' | 'online' | 'distance' | 'alpha') {

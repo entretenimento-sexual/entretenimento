@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { initializeApp as initializeAdminApp, deleteApp as deleteAdminApp } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
-import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
+import { getFirestore as getAdminFirestore, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
@@ -427,6 +427,69 @@ async function certifyFriendshipPair(label,keys,actions) {
     // Resolve original request evidence while the complementary contexts are alive.
     try { await reconcilePendingTransportEvidence(row=>row.context===senderName||row.context===receiverName); }
     finally { await Promise.all([s.context().close(),t.context().close()]); }
+  }
+}
+
+async function certifyFriendsPagination() {
+  currentPhase='friends-pagination: seed';
+  const owner=uid('pagination-owner'), other=uid('pagination-other');
+  const context='friends-pagination';
+  const peers=Array.from({length:27},(_,i)=>uid('pagination-peer-'+String(i).padStart(2,'0')));
+  // Synthetic edges only in the isolated emulator; real Auth for both viewers.
+  for(const viewer of [owner,other]) {
+    await adminAuth.createUser({uid:viewer,email:email(viewer),password,emailVerified:true});
+    await until('pagination registration seed',()=>db.doc('users/'+viewer).get(),snap=>snap.exists);
+  }
+  await seedPublicMediaCompliance(db,[owner,other,...peers]);
+  const names=new Map([owner,other,...peers].map((user,index)=>[user,'Browser Pagination '+String(index).padStart(2,'0')]));
+  const batch=db.batch();
+  for(const user of [owner,other,...peers]) {
+    const nickname=names.get(user);
+    const profile={uid:user,nickname,nicknameNormalized:nickname.toLowerCase(),
+      gender:'mulher',identityCode:'mulher',identityCatalogVersion:1,orientation:'bissexual',role:'free',
+      municipio:'Rio de Janeiro',estado:'RJ',createdAt:new Date(),updatedAt:new Date()};
+    batch.set(db.doc('users/'+user),{...profile,emailVerified:true,loginAllowed:true,accountLocked:false},{merge:true});
+    batch.set(db.doc('public_profiles/'+user),profile);
+  }
+  const stamp=new AdminTimestamp(1700000000,123456000);
+  for(const peer of peers) {
+    batch.set(db.doc('users/'+owner+'/friends/'+peer),{accepted:true,friendUid:peer,since:stamp,lastInteractionAt:stamp});
+    batch.set(db.doc('users/'+peer+'/friends/'+owner),{accepted:true,friendUid:owner,since:stamp,lastInteractionAt:stamp});
+  }
+  await batch.commit();
+  const page=await newPage(context);
+  const list=page.locator('app-friend-list-page');
+  const cards=list.locator('.friend-cards-item');
+  const end=list.getByRole('status').filter({hasText:'Você chegou ao fim.'});
+  const expected=peers.slice().reverse().map(peer=>names.get(peer));
+  try {
+    currentPhase='friends-pagination: 27 equal timestamps';
+    await login(page,owner);
+    await page.goto(BASE+'/dashboard/friends/list');
+    await list.waitFor({state:'visible'});
+    await until('first friends page or completed pagination',()=>cards.count(),count=>count===24||count===27,30_000);
+    await list.locator('.infinite-sentinel').scrollIntoViewIfNeeded();
+    await until('all 27 friends across equal timestamp cursor',()=>cards.count(),count=>count===27,30_000);
+    await end.waitFor({state:'visible'});
+    const rendered=await cards.allTextContents();
+    assert.equal(rendered.length,expected.length);
+    for(const [index,name] of expected.entries()) {
+      assert.ok(rendered[index].includes(name),'Canonical friend order at position '+index);
+      assert.equal(rendered.filter(text=>text.includes(name)).length,1,'Friend appears exactly once');
+    }
+    pass('27 friends with identical timestamps, exact document order and no omissions or duplicates');
+    currentPhase='friends-pagination: different authenticated viewer';
+    await logout(page);
+    await login(page,other);
+    await page.goto(BASE+'/dashboard/friends/list');
+    await list.waitFor({state:'visible'});
+    await end.waitFor({state:'visible'});
+    assert.equal(await cards.count(),0,'Old viewer cards leaked after identity change');
+    pass('paginated friend list isolates independent authenticated viewer');
+    console.log('Friends pagination evidence '+JSON.stringify({seeded:27,firstPageLimit:24,rendered:27,equalTimestamps:27,duplicates:0,missing:0,otherViewer:0}));
+  } finally {
+    try { await reconcilePendingTransportEvidence(row=>row.context===context,15_000); }
+    finally { await page.context().close(); }
   }
 }
 
@@ -1527,6 +1590,7 @@ try {
       await page.context().close();
     }
   }
+  await certifyFriendsPagination();
   assert.equal(browserErrors.filter(e=>e.type==='pageerror').length,0,'Unhandled browser exceptions including friendship');
   for(const endpoint of ['getPendingFriendRequests','listDirectChatCandidates']) {
     const rows=[...callableCounts.values()].filter(row=>row.endpoint===endpoint);
@@ -1539,7 +1603,7 @@ try {
   const terminalAccounting=summarizePendingAttempts(pendingAttempts);
   assert.equal(terminalAccounting.unsettled,0,'Every pending attempt requires terminal transport evidence');
   assert.equal(terminalAccounting.httpFailures,0,'No pending request HTTP failures');
-  const fullAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==resilienceContext&&row.context!==adaptiveContext&&!concurrencyContexts.has(row.context)));
+  const fullAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context!=='friends-pagination'&&row.context!==resilienceContext&&row.context!==adaptiveContext&&!concurrencyContexts.has(row.context)));
   const adaptiveAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context===adaptiveContext));
   const concurrencyAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>concurrencyContexts.has(row.context)));
   const resilienceAttempts=summarizePendingAttempts(pendingAttempts.filter(row=>row.context===resilienceContext));
@@ -1573,7 +1637,7 @@ try {
   writeFileSync(resolve(out,'pending-read-trace.json'),JSON.stringify(pendingReadTrace,null,2));
   writeFileSync(resolve(out,'pending-read-origins.json'),JSON.stringify(pendingOrigins,null,2));
   writeFileSync(resolve(out,'pending-read-attempts.json'),JSON.stringify(pendingAttempts,null,2));
-  const finalAccounting={original:summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context))),complementary:summarizePendingAttempts(pendingAttempts.filter(isComplementary)),spa:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===spaContext)),resilience:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===resilienceContext)),adaptive:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===adaptiveContext)),legacyTotal:summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==resilienceContext&&row.context!==adaptiveContext&&!concurrencyContexts.has(row.context))),previousFour:summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==adaptiveContext&&!concurrencyContexts.has(row.context))),previousFive:summarizePendingAttempts(pendingAttempts.filter(row=>!concurrencyContexts.has(row.context))),concurrency:summarizePendingAttempts(pendingAttempts.filter(row=>concurrencyContexts.has(row.context))),all:summarizePendingAttempts(pendingAttempts)};
+  const finalAccounting={original:summarizePendingAttempts(pendingAttempts.filter(row=>originalContexts.has(row.context))),complementary:summarizePendingAttempts(pendingAttempts.filter(isComplementary)),spa:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===spaContext)),resilience:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===resilienceContext)),adaptive:summarizePendingAttempts(pendingAttempts.filter(row=>row.context===adaptiveContext)),legacyTotal:summarizePendingAttempts(pendingAttempts.filter(row=>row.context!=='friends-pagination'&&row.context!==resilienceContext&&row.context!==adaptiveContext&&!concurrencyContexts.has(row.context))),previousFour:summarizePendingAttempts(pendingAttempts.filter(row=>row.context!==adaptiveContext&&!concurrencyContexts.has(row.context))),previousFive:summarizePendingAttempts(pendingAttempts.filter(row=>!concurrencyContexts.has(row.context))),concurrency:summarizePendingAttempts(pendingAttempts.filter(row=>concurrencyContexts.has(row.context))),all:summarizePendingAttempts(pendingAttempts)};
   writeFileSync(resolve(out,'pending-read-accounting.json'),JSON.stringify(finalAccounting,null,2));
   console.log('Pending friendship final accounting '+JSON.stringify(finalAccounting));
   console.log('SPA lifecycle stage evidence '+JSON.stringify(spaSamples));

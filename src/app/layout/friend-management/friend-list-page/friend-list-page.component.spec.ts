@@ -2,6 +2,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { provideMockStore } from '@ngrx/store/testing';
+import { BehaviorSubject } from 'rxjs';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import type { User } from 'firebase/auth';
 
 import { FriendListPageComponent } from './friend-list-page.component';
 
@@ -20,11 +23,14 @@ describe('FriendListPageComponent', () => {
   let component: FriendListPageComponent;
 
   const user = { uid: 'u1', nickname: 'Alex' } as unknown as IUserDados;
+  let authUser: BehaviorSubject<User | null>;
 
   beforeEach(async () => {
+    authUser = new BehaviorSubject<User | null>(user as unknown as User);
     await TestBed.configureTestingModule({
       imports: [FriendListPageComponent, NoopAnimationsModule],
       providers: [
+        { provide: AuthSessionService, useValue: { authUser$: authUser.asObservable() } },
         provideMockStore({
           selectors: [
             { selector: selectCurrentUser, value: user },
@@ -45,6 +51,15 @@ describe('FriendListPageComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('emite lista vazia no encerramento da sessão', () => {
+    const output: unknown[] = [];
+    const subscription = component.items$.subscribe(items => output.push(items));
+    authUser.next(null);
+    fixture.detectChanges();
+    expect(output.at(-1)).toEqual([]);
+    subscription.unsubscribe();
   });
 
   it('signals handlers should update ui state', () => {
