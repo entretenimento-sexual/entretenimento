@@ -80,9 +80,8 @@ private dbg(msg: string, extra?: unknown): void {
         this.dbg('gate=true -> bootstrap feature', { uid: gate.uid });
 
         return of(
-          A.loadFriends({ uid: gate.uid }),
-          // Os listeners de solicitações já realizam a leitura canônica inicial.
-          // Não iniciar uma segunda listagem para a mesma direção.
+          // Os listeners de amigos e solicitações já realizam a leitura inicial.
+          // Não iniciar uma listagem pontual concorrente no bootstrap.
           A.loadBlockedUsers({ uid: gate.uid }),
           RT.startFriendsListener({ uid: gate.uid }),
           RT.startInboundRequestsListener({ uid: gate.uid }),

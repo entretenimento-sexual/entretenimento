@@ -50,11 +50,10 @@ describe('FriendsNetworkEffects / isolamento entre UIDs', () => {
     effects = TestBed.inject(FriendsNetworkEffects);
   });
 
-  it('inicializa solicitações apenas pelos listeners, preservando amigos e bloqueados', () => {
+  it('inicializa amigos e solicitações apenas pelos listeners, preservando bloqueados', () => {
     const output: unknown[] = [];
     const sub = effects.bootstrapOnEligibleUser$.subscribe(action => output.push(action));
     expect(output).toEqual([
-      A.loadFriends({ uid: 'user-a' }),
       A.loadBlockedUsers({ uid: 'user-a' }),
       RT.startFriendsListener({ uid: 'user-a' }),
       RT.startInboundRequestsListener({ uid: 'user-a' }),
@@ -71,6 +70,26 @@ describe('FriendsNetworkEffects / isolamento entre UIDs', () => {
       A.loadOutboundRequestsSuccess({ requests: [] }),
       A.loadBlockedUsersSuccess({ blocked: [] }),
     ]);
+    output.length = 0;
+    uid.next('user-b');
+    expect(output).toEqual([
+      A.loadBlockedUsers({ uid: 'user-b' }),
+      RT.startFriendsListener({ uid: 'user-b' }),
+      RT.startInboundRequestsListener({ uid: 'user-b' }),
+      RT.startOutboundRequestsListener({ uid: 'user-b' }),
+    ]);
+    expect(TestBed.inject(FriendshipService).listFriends).not.toHaveBeenCalled();
+    sub.unsubscribe();
+  });
+
+  it('mantém a leitura pontual explícita fora do bootstrap', () => {
+    const output: unknown[] = [];
+    const sub = effects.loadFriends$.subscribe(action => output.push(action));
+    actions.next(A.loadFriends({ uid: 'user-a' }));
+    expect(TestBed.inject(FriendshipService).listFriends).toHaveBeenCalledTimes(1);
+    expect(TestBed.inject(FriendshipService).listFriends).toHaveBeenCalledWith('user-a');
+    pendingFriends.next([]);
+    expect(output).toEqual([A.loadFriendsSuccess({ friends: [] })]);
     sub.unsubscribe();
   });
 

@@ -97,7 +97,11 @@ private dbg(msg: string, extra?: unknown): void {
 
   /** A primeira página e a listagem pontual usam a mesma consulta e projeção. */
   listFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
-    return this.listFriendsPage(uid, pageSize).pipe(map(page => page.items));
+    return defer(() => {
+      // Contagem lógica opt-in, sem UID ou conteúdo de perfis.
+      this.dbg('point-read start');
+      return this.listFriendsPage(uid, pageSize).pipe(map(page => page.items));
+    });
   }
 
   /** Ordem total compartilhada; o desempate acompanha a direção do timestamp. */

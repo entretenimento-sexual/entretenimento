@@ -63,7 +63,7 @@ const adaptiveSamples = {};
 const concurrencyContexts = new Set(['concurrency-tab-a','concurrency-tab-b','concurrency-peer']);
 const concurrencySamples = {stages:[], resources:[], convergences:[]};
 const pendingResources = [];
-const sharedFriendsTrace = [], sharedFriendsSamples = [];
+const sharedFriendsTrace = [], sharedFriendsSamples = [], friendsPointReads = [];
 const pendingAdmission = [];
 const admissionCancellationContext = 'admission-cancellation';
 const admissionCancellationSamples = {};
@@ -240,6 +240,9 @@ async function newPage(name, viewport={width:1440,height:1000}, existingContext=
     if(admission) pendingAdmission.push({context:name,document:documentNumber,operation:Number(admission[1]),direction:admission[2],event:admission[3],phase:currentPhase,atMs:performance.now()});
     const resource=/^\[Friends\] pending-resource (listener|inbound|outbound) (open|close)\s*$/.exec(message.text());
     if(resource) pendingResources.push({context:name,document:documentNumber,resource:resource[1],event:resource[2],phase:currentPhase,atMs:performance.now()});
+    if (/^\[Friends\] point-read start\s*$/.test(message.text())) {
+      friendsPointReads.push({context:name,document:documentNumber,phase:currentPhase,atMs:performance.now()});
+    }
     const shared=/^\[Friends\] shared-watch (\d+) (\d+) (listener|consumer|hydration) (open|close) (\d+)\s*$/.exec(message.text());
     if(shared) sharedFriendsTrace.push({context:name,document:documentNumber,entry:Number(shared[1]),
       size:Number(shared[2]),resource:shared[3],event:shared[4],snapshot:Number(shared[5]),
@@ -596,6 +599,12 @@ async function certifySpaLifecycle() {
       // The home feed has a legitimate second consumer (PrincipalFeedService).
       // It must share the session's single listener and release it on exit.
       await watchSample('bootstrap-home',2);
+      const pointReads=friendsPointReads.filter(row=>row.context===spaContext&&row.atMs>=begin).length;
+      const listener=watchState(watchDocument()).listener;
+      const bootstrapEvidence={pointReads,activeListeners:listener.active,peakListeners:listener.peak};
+      console.log('Friends bootstrap evidence '+JSON.stringify(bootstrapEvidence));
+      writeFileSync(resolve(out,'friends-bootstrap-evidence.json'),JSON.stringify(bootstrapEvidence,null,2));
+      assert.equal(pointReads,0,'Redundant friends point read during authenticated bootstrap');
     });
     await stage('home',async()=>{
       if(new URL(page.url()).pathname!=='/dashboard/principal') await toHome();
