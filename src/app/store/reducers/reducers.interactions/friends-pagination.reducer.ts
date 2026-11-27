@@ -4,6 +4,7 @@ import { FriendsPaginationState, initialFriendsPaginationState, emptyFriendsPage
         } from '../../states/states.interactions/friends-pagination.state';
 import * as P from '../../actions/actions.interactions/friends/friends-pagination.actions';
 import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
+import { isFriendshipAfter } from 'src/app/core/utils/friendship-generation';
 
 function ensureSlice(state: FriendsPaginationState, uid: string) {
   return state.byUid[uid] ?? emptyFriendsPageSlice;
@@ -102,8 +103,10 @@ export const friendsPaginationReducer = createReducer(
  * - endFriendshipSuccess atualizava apenas o FriendsState principal;
  * - sem este handler, o card podia continuar visível até refresh/reload.
  */
-on(P.removeFriendFromFriendsPage, (state, { uid, friendUid }) => {
-  const current = ensureSlice(state, uid);
+on(P.removeFriendFromFriendsPage, (state, { uid, friendUid, endedThrough }) => {
+  const current = state.byUid[uid];
+  // Não fabricar slice de uma rota fechada.
+  if (!current) return state;
 
   return {
     ...state,
@@ -111,8 +114,10 @@ on(P.removeFriendFromFriendsPage, (state, { uid, friendUid }) => {
       ...state.byUid,
       [uid]: {
         ...current,
-        items: current.items.filter(item => !isSameFriend(item, friendUid)),
-        loading: false,
+        items: current.items.filter(item => !isSameFriend(item, friendUid) ||
+          isFriendshipAfter(item.sinceVersion, endedThrough)),
+        // Append será cancelado, mas a primeira página ainda pode estar em hidratação.
+        loading: current.loading && current.nextOrderValue === null,
         error: null,
       },
     },

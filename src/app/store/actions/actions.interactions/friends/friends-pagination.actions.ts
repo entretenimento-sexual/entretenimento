@@ -1,6 +1,6 @@
 // src/app/store/actions/actions.interactions/friends/friends-pagination.actions.ts
 import { createAction, props } from '@ngrx/store';
-import { Friend, type FriendsPageCursor } from 'src/app/core/interfaces/friendship/friend.interface';
+import { Friend, type FriendsPageCursor, type FriendshipVersion } from 'src/app/core/interfaces/friendship/friend.interface';
 
 export const loadFriendsFirstPage = createAction(
   '[Friends Page] Load First',
@@ -51,7 +51,7 @@ export const resetFriendsPagination = createAction(
  */
 export const removeFriendFromFriendsPage = createAction(
   '[Friends Page] Remove Friend Locally',
-  props<{ uid: string; friendUid: string }>()
+  props<{ uid: string; friendUid: string; endedThrough?: FriendshipVersion | null }>()
 );
 
 //Timestamp não é serializável

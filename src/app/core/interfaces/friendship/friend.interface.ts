@@ -16,10 +16,17 @@ export interface FriendsPageCursor {
   readonly documentId: string;
 }
 
+/** Versão temporal privada da aresta; sem perda de precisão ou relógio local. */
+export interface FriendshipVersion {
+  readonly seconds: number;
+  readonly nanoseconds: number;
+}
+
 /** ✅ Tipo serializável (Store/UI) */
 export interface Friend {
   friendUid: string;
   since?: number | null;
+  sinceVersion?: FriendshipVersion | null;
   lastInteractionAt?: number | null;
   nickname?: string;
   distanceKm?: number;

@@ -103,6 +103,16 @@ describe('FriendsPaginationEffects / sessão operacional', () => {
     expect(results).toEqual([]);
     sub.unsubscribe();
   });
+  it('cancela append pendente após confirmação local do encerramento', () => {
+    const results: unknown[] = [];
+    const sub = effects.loadNext$.subscribe(value => results.push(value));
+    actions.next(P.loadFriendsNextPage({ uid: 'owner' }));
+    actions.next(P.removeFriendFromFriendsPage({ uid: 'other', friendUid: 'peer' }));
+    actions.next(P.removeFriendFromFriendsPage({ uid: 'owner', friendUid: 'peer' }));
+    pending.next(page);
+    expect(results).toEqual([]);
+    sub.unsubscribe();
+  });
   it('cancela append pendente ao atualizar a primeira página', () => {
     const results: unknown[] = [];
     const sub = effects.loadNext$.subscribe(value => results.push(value));

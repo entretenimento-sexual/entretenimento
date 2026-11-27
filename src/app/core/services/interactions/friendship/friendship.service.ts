@@ -40,7 +40,8 @@ import { defer, from, map, Observable } from 'rxjs';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { FriendshipRepo } from './friendship.repo';
 import type { PendingRequestConsumer } from './repo/requests.repo';
-import { Friend, type FriendsPageCursor } from '../../../interfaces/friendship/friend.interface';
+import { Friend, type FriendsPageCursor, type FriendshipVersion } from '../../../interfaces/friendship/friend.interface';
+import { friendshipVersionOf } from '../../../utils/friendship-generation';
 import { FriendRequest } from '../../../interfaces/friendship/friend-request.interface';
 import { BlockedUserActive } from '../../../interfaces/friendship/blocked-user.interface';
 import { IUserDados } from '../../../interfaces/iuser-dados';
@@ -103,6 +104,7 @@ interface EndFriendshipCallableResponse {
   actorUid: string;
   friendUid: string;
   status: 'ended';
+  endedThrough?: FriendshipVersion;
 }
 
 interface BlockUserCallablePayload {
@@ -353,7 +355,7 @@ export class FriendshipService {
    * - mantém histórico de chat;
    * - bloqueia nova mensagem porque sendDirectMessage exige amizade bilateral.
    */
-  endFriendship(ownerUid: string, friendUid: string): Observable<void> {
+  endFriendship(ownerUid: string, friendUid: string): Observable<FriendshipVersion | null> {
     const safeFriendUid = String(friendUid ?? '').trim();
 
     if (!safeFriendUid) {
@@ -367,13 +369,17 @@ export class FriendshipService {
       friendUid: safeFriendUid,
     });
 
-    return defer(() =>
-      from(
-        this.endFriendshipCallable({
-          friendUid: safeFriendUid,
+    return defer(() => {
+      const confirm = this.repo.prepareEndFriendship(ownerUid, safeFriendUid);
+      return from(this.endFriendshipCallable({ friendUid: safeFriendUid })).pipe(
+        map(({ data }) => {
+          // A resposta de versões antigas do backend não concede geração nova.
+          const cutoff = friendshipVersionOf(data.endedThrough);
+          confirm(cutoff);
+          return cutoff;
         })
-      )
-    ).pipe(map(() => void 0));
+      );
+    });
   }
 
   /* ==========================================================================

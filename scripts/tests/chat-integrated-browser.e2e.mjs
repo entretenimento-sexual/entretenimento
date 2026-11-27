@@ -523,6 +523,50 @@ async function certifyFriendsPagination() {
     writeFileSync(resolve(out,'friends-acceptance-evidence.json'),JSON.stringify(acceptanceEvidence,null,2));
     pass('UI acceptance updates bilateral friendship without redundant point read and repaginates mounted observer');
 
+    currentPhase='friends-pagination: end and reestablish friendship';
+    await acceptingPage.evaluate(()=>{window.__friendsEndDocument=true;});
+    const endBegin=performance.now();
+    await acceptingPage.getByRole('button',{name:'Desfazer conexão com '+names.get(owner),exact:true}).click();
+    await acceptingPage.getByRole('button',{name:'Desfazer conexão',exact:true}).click();
+    await until('ended bilateral edges',async()=>[
+      (await db.doc('users/'+owner+'/friends/'+acceptor).get()).exists,
+      (await db.doc('users/'+acceptor+'/friends/'+owner).get()).exists,
+    ],edges=>edges.every(exists=>!exists),30_000);
+    await acceptingPage.locator('.friend-cards-item').filter({hasText:names.get(owner)}).waitFor({state:'hidden',timeout:30_000});
+    await cards.filter({hasText:names.get(acceptor)}).waitFor({state:'hidden',timeout:30_000});
+    await list.locator('.infinite-sentinel').scrollIntoViewIfNeeded();
+    await until('27 friends after end',()=>cards.count(),count=>count===27,30_000);
+    await end.waitFor({state:'visible'});
+    const remaining=await cards.allTextContents();
+    for(const [index,name] of expected.entries()) {
+      assert.ok(remaining[index].includes(name),'Canonical friend order after end at '+index);
+      assert.equal(remaining.filter(value=>value.includes(name)).length,1,'Duplicate or missing friend after end');
+    }
+    assert.equal(await acceptingPage.locator('.friend-cards-item').count(),0,'Actor retained ended edge');
+    const endPointReads=friendsPointReads.filter(row=>[context,acceptContext].includes(row.context)&&row.atMs>=endBegin).length;
+    assert.equal(endPointReads,0,'Redundant friends point read after end');
+    // Restore only through the authorized backend accept, never through a timer
+    // or an old projection. Both independent browser lists remain mounted.
+    await signInWithEmailAndPassword(auth,email(owner),password);
+    const renewed=(await httpsCallable(functions,'sendFriendRequest')({targetUid:acceptor})).data;
+    await signInWithEmailAndPassword(auth,email(acceptor),password);
+    const restored=(await httpsCallable(functions,'acceptFriendRequest')({requestId:renewed.requestId})).data;
+    assert.equal(restored.status,'accepted');
+    await acceptingPage.locator('.friend-cards-item').filter({hasText:names.get(owner)}).waitFor({state:'visible',timeout:30_000});
+    await cards.filter({hasText:names.get(acceptor)}).waitFor({state:'visible',timeout:30_000});
+    await list.locator('.infinite-sentinel').scrollIntoViewIfNeeded();
+    await until('28 friends after canonical reacceptance',()=>cards.count(),count=>count===28,30_000);
+    await end.waitFor({state:'visible'});
+    assert.equal(await page.evaluate(()=>window.__friendsPaginationDocument),true);
+    assert.equal(await acceptingPage.evaluate(()=>window.__friendsEndDocument),true);
+    assert.equal(await acceptingPage.locator('.friend-cards-item').count(),1);
+    const finalPointReads=friendsPointReads.filter(row=>[context,acceptContext].includes(row.context)&&row.atMs>=endBegin).length;
+    assert.equal(finalPointReads,0);
+    const endEvidence={pointReads:endPointReads,remoteAfterEnd:27,actorAfterEnd:0,remoteAfterReaccept:28,actorAfterReaccept:1,pointReadsThroughReaccept:finalPointReads,documentsPreserved:true};
+    console.log('Friends end evidence '+JSON.stringify(endEvidence));
+    writeFileSync(resolve(out,'friends-end-evidence.json'),JSON.stringify(endEvidence,null,2));
+    pass('UI end updates both mounted friend lists and canonical reacceptance restores new generation without point read');
+
     currentPhase='friends-pagination: different authenticated viewer';
     await logout(page);
     await login(page,other);

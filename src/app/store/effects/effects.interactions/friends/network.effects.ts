@@ -1,13 +1,14 @@
 // src/app/store/effects/effects.interactions/friends/network.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { of, combineLatest, timer } from 'rxjs';
+import { of, combineLatest } from 'rxjs';
 import { catchError, distinctUntilChanged, filter, map, mergeMap, switchMap, takeUntil, tap, withLatestFrom } from 'rxjs/operators';
 
 import * as A from '../../../actions/actions.interactions/actions.friends';
 import * as RT from '../../../actions/actions.interactions/friends/friends-realtime.actions';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import * as P from '../../../actions/actions.interactions/friends/friends-pagination.actions';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
@@ -19,7 +20,8 @@ export class FriendsNetworkEffects {
     private svc: FriendshipService,
     private access: AccessControlService,
     private notifier: ErrorNotificationService,
-    private privacyDebug: PrivacyDebugLoggerService
+    private privacyDebug: PrivacyDebugLoggerService,
+    private session: AuthSessionService
   ) {}
 
 private dbg(msg: string, extra?: unknown): void {
@@ -94,10 +96,11 @@ private dbg(msg: string, extra?: unknown): void {
   loadFriends$ = createEffect(() =>
     this.actions$.pipe(
       ofType(A.loadFriends),
-      withLatestFrom(this.access.authUid$),
-      filter(([{ uid }, currentUid]) => uid === currentUid),
-      switchMap(([{ uid }]) =>
+      withLatestFrom(this.access.authUid$, this.session.authUser$),
+      filter(([{ uid }, currentUid, user]) => uid === currentUid && user?.uid === uid),
+      switchMap(([{ uid }, , user]) =>
         this.svc.listFriends(uid).pipe(
+          takeUntil(this.session.authUser$.pipe(filter(current => current !== user))),
           takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== uid))),
           map(friends => A.loadFriendsSuccess({ friends })),
           catchError(err => of(A.loadFriendsFailure({ error: String(err?.message ?? err) })))
@@ -107,44 +110,30 @@ private dbg(msg: string, extra?: unknown): void {
   );
 
   endFriendship$ = createEffect(() =>
-  this.actions$.pipe(
-    ofType(A.endFriendship),
-    withLatestFrom(this.access.authUid$),
-    filter(([{ ownerUid }, currentUid]) => ownerUid === currentUid),
-    mergeMap(([{ ownerUid, friendUid }]) =>
-      this.svc.endFriendship(ownerUid, friendUid).pipe(
-        takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== ownerUid))),
-        mergeMap(() => {
-          this.notifier.showSuccess('Amizade desfeita.');
-
-         return of(
-  A.endFriendshipSuccess({ ownerUid, friendUid }),
-
-  /**
-   * Atualiza a tela paginada imediatamente.
-   * A lista de amigos visual usa friendsPagination, não apenas FriendsState.
-   */
-  P.removeFriendFromFriendsPage({
-    uid: ownerUid,
-    friendUid,
-  }),
-
-  /**
-   * Mantém o estado principal sincronizado com leitura canônica pós-callable.
-   * Isso ajuda caso algum listener realtime emita snapshot antigo durante a hidratação.
-   */
-  A.loadFriends({ uid: ownerUid })
-);
-        }),
-        catchError(err => {
-          const msg = String(err?.message ?? 'Não foi possível desfazer a amizade.');
-          this.notifier.showError(msg);
-          return of(A.endFriendshipFailure({ error: msg }));
-        })
+    this.actions$.pipe(
+      ofType(A.endFriendship),
+      withLatestFrom(this.access.authUid$, this.session.authUser$),
+      filter(([{ ownerUid }, currentUid, user]) => ownerUid === currentUid && user?.uid === ownerUid),
+      mergeMap(([{ ownerUid, friendUid }, , user]) =>
+        this.svc.endFriendship(ownerUid, friendUid).pipe(
+          takeUntil(this.session.authUser$.pipe(filter(current => current !== user))),
+          takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== ownerUid))),
+          mergeMap(endedThrough => {
+            this.notifier.showSuccess('Amizade desfeita.');
+            return of(
+              A.endFriendshipSuccess({ ownerUid, friendUid, endedThrough }),
+              P.removeFriendFromFriendsPage({ uid: ownerUid, friendUid, endedThrough })
+            );
+          }),
+          catchError(err => {
+            const msg = String(err?.message ?? 'Não foi possível desfazer a amizade.');
+            this.notifier.showError(msg);
+            return of(A.endFriendshipFailure({ error: msg }));
+          })
+        )
       )
     )
-  )
-);
+  );
 
   blockUser$ = createEffect(() =>
     this.actions$.pipe(
@@ -197,18 +186,4 @@ private dbg(msg: string, extra?: unknown): void {
     )
   );
 
-  clearFriendTombstoneAfterEnd$ = createEffect(() =>
-  this.actions$.pipe(
-    ofType(A.endFriendshipSuccess),
-    mergeMap(({ friendUid }) =>
-      timer(8000).pipe(
-        map(() =>
-          A.clearLocallyRemovedFriendTombstone({
-            friendUid,
-          })
-        )
-      )
-    )
-  )
-);
 }

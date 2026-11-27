@@ -133,6 +133,10 @@ export class FriendsPaginationEffects {
             ofType(P.loadFriendsFirstPage, P.refreshFriendsPage, P.resetFriendsPagination),
             filter(event => event.uid === action.uid)
           )),
+          takeUntil(this.actions$.pipe(
+            ofType(P.removeFriendFromFriendsPage),
+            filter(event => event.uid === action.uid)
+          )),
           // Um novo snapshot da primeira página invalida a geração do cursor.
           takeUntil(this.actions$.pipe(
             ofType(P.loadFriendsPageSuccess),

@@ -39,6 +39,7 @@ import {
 import { BlockedUserActive } from 'src/app/core/interfaces/friendship/blocked-user.interface';
 
 import { authSessionChanged } from '../../actions/actions.user/auth.actions';
+import { isFriendshipAfter } from 'src/app/core/utils/friendship-generation';
 
 /* ============================================================================
  * Helpers de normalização
@@ -53,10 +54,6 @@ function normalizeUid(value: unknown): string {
 
 function normalizeId(value: unknown): string {
   return String(value ?? '').trim();
-}
-
-function uniqueUidList(values: string[]): string[] {
-  return Array.from(new Set(values.map(normalizeUid).filter(Boolean)));
 }
 
 function getFriendCandidateUids(friend: unknown): string[] {
@@ -79,18 +76,6 @@ function isSameFriend(friend: unknown, targetUid: string): boolean {
   }
 
   return getFriendCandidateUids(friend).includes(safeTargetUid);
-}
-
-function filterRemovedFriends<T>(friends: T[], tombstones: string[]): T[] {
-  const safeTombstones = uniqueUidList(tombstones);
-
-  if (!safeTombstones.length) {
-    return friends;
-  }
-
-  return friends.filter((friend) =>
-    !safeTombstones.some((uid) => isSameFriend(friend, uid))
-  );
 }
 
 function addUniqueId(list: string[], id: string): string[] {
@@ -133,20 +118,8 @@ export const friendsReducer = createReducer(
   on(A.loadFriendsSuccess, (state, { friends }): FriendsState => ({
     ...state,
     loading: false,
-
-    /**
-     * Importante:
-     * Também aplicamos tombstones no load manual.
-     *
-     * Motivo:
-     * - após desfazer amizade, o effect dispara loadFriends;
-     * - se qualquer leitura canônica ainda trouxer snapshot antigo, o amigo
-     *   removido não deve reaparecer visualmente.
-     */
-    friends: filterRemovedFriends(
-      friends,
-      state.locallyRemovedFriendUids
-    ),
+    // FriendsRepo aplica a barreira canônica antes de emitir.
+    friends,
   })),
 
   on(A.loadFriendsFailure, (state, { error }): FriendsState => ({
@@ -162,45 +135,20 @@ export const friendsReducer = createReducer(
     error: null,
   })),
 
-  on(A.endFriendshipSuccess, (state, { friendUid }): FriendsState => {
-    const safeFriendUid = normalizeUid(friendUid);
-
-    return {
-      ...state,
-      endingFriendshipUid: null,
-      endingFriendshipError: null,
-
-      /**
-       * Tombstone local temporária.
-       *
-       * Motivo:
-       * - evita que snapshots atrasados do realtime reintroduzam visualmente
-       *   uma amizade que o usuário acabou de desfazer;
-       * - a limpeza é feita por effect com timer controlado.
-       */
-      locallyRemovedFriendUids: uniqueUidList([
-        ...state.locallyRemovedFriendUids,
-        safeFriendUid,
-      ]),
-
-      friends: state.friends.filter(
-        (friend) => !isSameFriend(friend, safeFriendUid)
-      ),
-    };
-  }),
+  on(A.endFriendshipSuccess, (state, { friendUid, endedThrough }): FriendsState => ({
+    ...state,
+    endingFriendshipUid: null,
+    endingFriendshipError: null,
+    // Não apagar uma nova amizade já confirmada enquanto a callable antiga retornava.
+    friends: state.friends.filter(friend => !isSameFriend(friend, friendUid) ||
+      isFriendshipAfter(friend.sinceVersion, endedThrough)),
+  })),
 
   on(A.endFriendshipFailure, (state, { error }): FriendsState => ({
     ...state,
     endingFriendshipUid: null,
     endingFriendshipError: error,
     error,
-  })),
-
-  on(A.clearLocallyRemovedFriendTombstone, (state, { friendUid }): FriendsState => ({
-    ...state,
-    locallyRemovedFriendUids: state.locallyRemovedFriendUids.filter(
-      (uid) => uid !== normalizeUid(friendUid)
-    ),
   })),
 
   /* ==========================================================================
@@ -521,17 +469,8 @@ export const friendsReducer = createReducer(
   on(RT.friendsChanged, (state, { friends }): FriendsState => ({
     ...state,
     loading: false,
-
-    /**
-     * Proteção contra snapshot atrasado.
-     *
-     * Não limpamos tombstones aqui.
-     * A limpeza acontece em effect com timer após endFriendshipSuccess.
-     */
-    friends: filterRemovedFriends(
-      friends,
-      state.locallyRemovedFriendUids
-    ),
+    // Mesma barreira do fluxo pontual, aplicada no repositório.
+    friends,
   })),
 
   on(RT.stopFriendsListener, (state): FriendsState => ({

@@ -5,6 +5,10 @@ import { vi } from 'vitest';
 
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import type { User } from 'firebase/auth';
+import type { FriendshipVersion } from 'src/app/core/interfaces/friendship/friend.interface';
+import * as P from '../../../actions/actions.interactions/friends/friends-pagination.actions';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import * as A from '../../../actions/actions.interactions/actions.friends';
@@ -17,7 +21,8 @@ describe('FriendsNetworkEffects / isolamento entre UIDs', () => {
   let pendingFriends: Subject<unknown[]>;
   let pendingBlocked: Subject<unknown[]>;
   let effects: FriendsNetworkEffects;
-  let pendingMutation: Subject<void>;
+  let pendingMutation: Subject<FriendshipVersion | null>;
+  let session: BehaviorSubject<User | null>;
   let notifier: { showSuccess: ReturnType<typeof vi.fn>; showError: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
@@ -25,7 +30,8 @@ describe('FriendsNetworkEffects / isolamento entre UIDs', () => {
     uid = new BehaviorSubject<string | null>('user-a');
     pendingFriends = new Subject();
     pendingBlocked = new Subject();
-    pendingMutation = new Subject<void>();
+    pendingMutation = new Subject<FriendshipVersion | null>();
+    session = new BehaviorSubject<User | null>({ uid: 'user-a' } as User);
     notifier = { showSuccess: vi.fn(), showError: vi.fn() };
     TestBed.configureTestingModule({
       providers: [
@@ -43,6 +49,7 @@ describe('FriendsNetworkEffects / isolamento entre UIDs', () => {
           canEnterCore$: new BehaviorSubject(true),
           canUseAdultSocial$: new BehaviorSubject(true),
         } },
+        { provide: AuthSessionService, useValue: { authUser$: session.asObservable() } },
         { provide: ErrorNotificationService, useValue: notifier },
         { provide: PrivacyDebugLoggerService, useValue: { log: vi.fn() } },
       ],
@@ -93,6 +100,35 @@ describe('FriendsNetworkEffects / isolamento entre UIDs', () => {
     sub.unsubscribe();
   });
 
+  it('encerra sem loadFriends e transporta a fronteira canônica para os dois estados', () => {
+    const output: unknown[] = [];
+    const sub = effects.endFriendship$.subscribe(action => output.push(action));
+    const endedThrough = { seconds: 10, nanoseconds: 123456000 };
+    actions.next(A.endFriendship({ ownerUid: 'user-a', friendUid: 'peer' }));
+    pendingMutation.next(endedThrough);
+    expect(output).toEqual([
+      A.endFriendshipSuccess({ ownerUid: 'user-a', friendUid: 'peer', endedThrough }),
+      P.removeFriendFromFriendsPage({ uid: 'user-a', friendUid: 'peer', endedThrough }),
+    ]);
+    expect(notifier.showSuccess).toHaveBeenCalledTimes(1);
+    expect(TestBed.inject(FriendshipService).listFriends).not.toHaveBeenCalled();
+    sub.unsubscribe();
+  });
+
+  it('cancela encerramento e leitura pontual na substituição da sessão com mesmo UID', () => {
+    const output: unknown[] = [];
+    const one = effects.endFriendship$.subscribe(action => output.push(action));
+    const two = effects.loadFriends$.subscribe(action => output.push(action));
+    actions.next(A.endFriendship({ ownerUid: 'user-a', friendUid: 'peer' }));
+    actions.next(A.loadFriends({ uid: 'user-a' }));
+    session.next({ uid: 'user-a' } as User);
+    pendingMutation.next({ seconds: 10, nanoseconds: 0 });
+    pendingFriends.next([{ friendUid: 'old' }]);
+    expect(output).toEqual([]);
+    expect(notifier.showSuccess).not.toHaveBeenCalled();
+    one.unsubscribe(); two.unsubscribe();
+  });
+
   it('cancela resultado de lista de amigos A ao trocar para B', () => {
     const output: unknown[] = [];
     const sub = effects.loadFriends$.subscribe(action => output.push(action));
@@ -131,7 +167,7 @@ describe('FriendsNetworkEffects / isolamento entre UIDs', () => {
     const sub = (effects[effectName] as Observable<unknown>).subscribe((action: unknown) => output.push(action));
     actions.next(createAction());
     uid.next('user-b');
-    pendingMutation.next();
+    pendingMutation.next(null);
     pendingMutation.complete();
     expect(output).toEqual([]);
     expect(notifier.showSuccess).not.toHaveBeenCalled();

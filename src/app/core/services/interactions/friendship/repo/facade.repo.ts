@@ -31,6 +31,10 @@ watchFriends(uid: string) {
   return this.friends.watchFriends(uid);
 }
 
+  prepareEndFriendship(uid: string, friendUid: string) {
+    return this.friends.prepareEndFriendship(uid, friendUid);
+  }
+
   watchFriendsPage(uid: string, pageSize = 24) {
     return this.friends.watchFriendsPage(uid, pageSize);
   }

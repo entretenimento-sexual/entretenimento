@@ -44,6 +44,8 @@ import {
 import { defer, firstValueFrom, map, Observable, of } from 'rxjs';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { SharedFriendsWatch } from './shared-friends-watch';
+import { EndedFriendshipFence } from './ended-friendship-fence';
+import { friendshipVersionOf } from '../../../../utils/friendship-generation';
 
 import { FirestoreRepoBase } from './base.repo';
 import type {
@@ -78,7 +80,9 @@ type FriendForCard = Friend & {
 
 @Injectable({ providedIn: 'root' })
 export class FriendsRepo extends FirestoreRepoBase {
-  private readonly sharedWatch = new SharedFriendsWatch(inject(AuthSessionService),
+  private readonly session = inject(AuthSessionService);
+  private readonly endedFence = new EndedFriendshipFence(this.session);
+  private readonly sharedWatch = new SharedFriendsWatch(this.session,
     (entry, size, resource, event, snapshot) => {
       this.privacyDebug.log('friends', `shared-watch ${entry} ${size} ${resource} ${event} ${snapshot}`);
     });
@@ -104,6 +108,11 @@ private dbg(msg: string, extra?: unknown): void {
     });
   }
 
+  /** Confirmação da mutação capturada na sessão que iniciou a callable. */
+  prepareEndFriendship(uid: string, friendUid: string) {
+    return this.endedFence.capture(uid, friendUid);
+  }
+
   /** Ordem total compartilhada; o desempate acompanha a direção do timestamp. */
   private friendsQuery(uid: string, pageSize: number, after: FriendsPageCursor | null = null) {
     const col = collection(this.db, `users/${uid}/friends`) as CollectionReference<DocumentData>;
@@ -116,9 +125,12 @@ private dbg(msg: string, extra?: unknown): void {
   private projectFriends(docs: readonly { id: string; data(): DocumentData }[]): Promise<FriendForCard[]> {
     return this.hydrateFriendsWithPublicProfiles(docs.map(snapshot => {
       const data = snapshot.data() as FriendDoc;
-      return sanitizeFriendForStore({
-        ...data, friendUid: this.resolveFriendUid(data, snapshot.id),
-      });
+      return {
+        ...sanitizeFriendForStore({
+          ...data, friendUid: this.resolveFriendUid(data, snapshot.id),
+        }),
+        sinceVersion: friendshipVersionOf(data.since),
+      };
     }));
   }
 
@@ -171,7 +183,11 @@ watchFriendsPage(uid: string, pageSize = 24): Observable<{
           nextAfter: last ? createFriendsPageCursor(last.id, (last.data() as FriendDoc).lastInteractionAt) : null,
           reachedEnd: snapshots.length < pageSize,
         };
-      }));
+      })).pipe(map(page => ({
+        ...page,
+        // Aplicar depois da hidratação compartilhada, inclusive para resultado tardio.
+        items: this.endedFence.filter(safeUid, page.items),
+      })));
   });
 }
 
@@ -189,8 +205,11 @@ watchFriendsPage(uid: string, pageSize = 24): Observable<{
     nextAfter: FriendsPageCursor | null;
     reachedEnd: boolean;
   }> {
-    return this.inCtx$(async () => {
+    return defer(() => {
       const safeUid = this.normalizeText(uid);
+      const user = this.session.currentAuthUser;
+      const version = this.session.terminationVersionSnapshot;
+      return this.inCtx$(async () => {
 
       if (!safeUid) {
         return {
@@ -224,6 +243,16 @@ watchFriendsPage(uid: string, pageSize = 24): Observable<{
         nextAfter,
         reachedEnd,
       };
+      }).pipe(map(page => {
+        // A mesma UID pode pertencer a outra sessão operacional.
+        if (this.session.currentAuthUser !== user ||
+            this.session.terminationVersionSnapshot !== version ||
+            this.session.isTerminatingSnapshot) {
+          throw Object.assign(new Error('Sessão indisponível para listar conexões.'),
+            { code: 'friends/session-revoked' });
+        }
+        return { ...page, items: this.endedFence.filter(safeUid, page.items) };
+      }));
     });
   }
 

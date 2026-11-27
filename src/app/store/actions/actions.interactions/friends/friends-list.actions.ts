@@ -1,6 +1,6 @@
 //src\app\store\actions\actions.interactions\friends\friends-list.actions.ts
 import { createAction, props } from '@ngrx/store';
-import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
+import { Friend, type FriendshipVersion } from 'src/app/core/interfaces/friendship/friend.interface';
 
 // -----------------------------
 // Friends (lista do usuário)
@@ -27,7 +27,7 @@ export const endFriendship = createAction(
 
 export const endFriendshipSuccess = createAction(
   '[Friendship] End Friendship Success',
-  props<{ ownerUid: string; friendUid: string }>()
+  props<{ ownerUid: string; friendUid: string; endedThrough?: FriendshipVersion | null }>()
 );
 
 export const endFriendshipFailure = createAction(
@@ -35,7 +35,3 @@ export const endFriendshipFailure = createAction(
   props<{ error: string }>()
 );
 
-export const clearLocallyRemovedFriendTombstone = createAction(
-  '[Friendship] Clear Locally Removed Friend Tombstone',
-  props<{ friendUid: string }>()
-);

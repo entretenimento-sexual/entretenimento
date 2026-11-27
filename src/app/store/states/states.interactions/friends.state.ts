@@ -34,7 +34,6 @@ export interface FriendsState {
   blockError: string | null;
   endingFriendshipUid: string | null;
   endingFriendshipError: string | null;
-  locallyRemovedFriendUids: string[];
 }
 
 export const initialState: FriendsState = {
@@ -67,5 +66,4 @@ export const initialState: FriendsState = {
   blockError: null,
   endingFriendshipUid: null,
   endingFriendshipError: null,
-  locallyRemovedFriendUids: [],
 };

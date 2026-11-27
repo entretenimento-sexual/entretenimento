@@ -27,6 +27,7 @@ interface EndFriendshipResponse {
   actorUid: string;
   friendUid: string;
   status: 'ended';
+  endedThrough: { seconds: number; nanoseconds: number };
 }
 
 interface FriendshipUserDoc {
@@ -157,6 +158,13 @@ export const endFriendship = onCall<EndFriendshipPayload>(
         actorUid,
         friendUid,
         status: 'ended',
+        // A leitura transacional das duas arestas precede a remoção e é
+        // refeita em caso de conflito. Uma nova conexão aceita depois da
+        // remoção tem since estritamente posterior a esta fronteira.
+        endedThrough: {
+          seconds: actorFriendSnapshot.readTime.seconds,
+          nanoseconds: actorFriendSnapshot.readTime.nanoseconds,
+        },
       };
     });
 
