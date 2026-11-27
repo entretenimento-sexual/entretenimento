@@ -150,6 +150,43 @@ describe('FriendsRequestsRealtimeEffects / isolamento de sessão', () => {
     subscription.unsubscribe();
   });
 
+  it.each(['inbound', 'outbound'] as const)('rearma %s no mesmo UID sem aceitar resultado anterior', direction => {
+    const actions = new Subject<ReturnType<typeof RT.startInboundRequestsListener> | ReturnType<typeof RT.startOutboundRequestsListener>>();
+    const uid = new BehaviorSubject<string | null>('user-a');
+    const auth = new BehaviorSubject({ uid: 'user-a' });
+    const first = new Subject<any[]>(), second = new Subject<any[]>();
+    const watcher = vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(second);
+    TestBed.configureTestingModule({ providers: [
+      FriendsRequestsRealtimeEffects,
+      { provide: Actions, useValue: new Actions(actions) },
+      { provide: AccessControlService, useValue: { authUid$: uid } },
+      { provide: AuthSessionService, useValue: { authUser$: auth } },
+      { provide: ApplicationErrorService, useValue: { report: vi.fn() } },
+      { provide: FriendshipService, useValue: { watchInboundRequests: watcher, watchOutboundRequests: watcher } },
+    ] });
+    const effects = TestBed.inject(FriendsRequestsRealtimeEffects);
+    const stream = direction === 'inbound' ? effects.listenInboundRequests$ : effects.listenOutboundRequests$;
+    const start = direction === 'inbound' ? RT.startInboundRequestsListener : RT.startOutboundRequestsListener;
+    const changed = direction === 'inbound' ? RT.inboundRequestsChanged : RT.outboundRequestsChanged;
+    const output: unknown[] = [];
+    const sub = (stream as Observable<unknown>).subscribe(action => output.push(action));
+    try {
+      actions.next(start({ uid: 'user-a' }));
+      first.next([{ id: 'old' }]);
+      auth.next(auth.value);
+      expect(watcher).toHaveBeenCalledTimes(1);
+      auth.next({ uid: 'user-a' });
+      expect(watcher).toHaveBeenCalledTimes(2);
+      first.next([{ id: 'stale' }]);
+      second.next([{ id: 'fresh' }]);
+      expect(output).toEqual([
+        changed({ requests: [{ id: 'old' }] as any }),
+        changed({ requests: [] }),
+        changed({ requests: [{ id: 'fresh' }] as any }),
+      ]);
+    } finally { sub.unsubscribe(); }
+  });
+
   it.each(['inbound', 'outbound'] as const)('recupera %s após falha sem repetir fora da sessão', async direction => {
     vi.useFakeTimers();
     const actions = new Subject<ReturnType<typeof RT.startInboundRequestsListener> | ReturnType<typeof RT.startOutboundRequestsListener>>();

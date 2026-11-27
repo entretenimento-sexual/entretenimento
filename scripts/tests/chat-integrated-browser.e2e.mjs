@@ -1528,6 +1528,7 @@ try {
   }
   assert.ok(pendingOrigins.some(row=>row.event==='start'&&row.reason==='session'),'Session origin tracing unavailable');
   assert.ok(pendingOrigins.some(row=>row.event==='start'&&row.reason==='canonical-event'),'Canonical origin tracing unavailable');
+  assert.equal(pendingOrigins.filter(row=>row.event==='start'&&row.reason==='post-mutation').length,0,'No redundant pending friendship transport after local mutation');
   await reconcilePendingTransportEvidence();
   const terminalAccounting=summarizePendingAttempts(pendingAttempts);
   assert.equal(terminalAccounting.unsettled,0,'Every pending attempt requires terminal transport evidence');

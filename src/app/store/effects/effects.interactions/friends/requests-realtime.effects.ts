@@ -64,42 +64,62 @@ export class FriendsRequestsRealtimeEffects {
   listenInboundRequests$ = createEffect(() =>
     this.actions$.pipe(
       ofType(RT.startInboundRequestsListener),
-    withLatestFrom(this.access.authUid$),
-    filter(([{ uid }, currentUid]) => uid === currentUid),
-    switchMap(([{ uid }]) =>
-        this.svc.watchInboundRequests(uid, 'session').pipe(
-          map(requests => RT.inboundRequestsChanged({ requests })),
-          // Uma falha da callable não pode encerrar a observação da sessão.
-          // Reutiliza o intervalo de contingência existente (sem novo tuning).
-          catchError((err, source) => concat(
-            of(A.loadInboundRequestsFailure({ error: String(err?.message ?? err) })),
-            timer(60_000).pipe(switchMap(() => source))
-          )),
+      withLatestFrom(this.access.authUid$),
+      filter(([{ uid }, currentUid]) => uid === currentUid),
+      switchMap(([{ uid }]) => {
+        let observed = false;
+        return this.session.authUser$.pipe(
+          distinctUntilChanged(),
+          switchMap(user => {
+            if (user?.uid !== uid) return EMPTY;
+            const reset = observed;
+            observed = true;
+            // Rebind even when the replacement AuthUser retains the same UID.
+            // Preserve the observable across retries for session-retry accounting.
+            const watch$ = this.svc.watchInboundRequests(uid, 'session').pipe(
+              map(requests => RT.inboundRequestsChanged({ requests })),
+              catchError((err, source) => concat(
+                of(A.loadInboundRequestsFailure({ error: String(err?.message ?? err) })),
+                timer(60_000).pipe(switchMap(() => source))
+              ))
+            );
+            return reset ? concat(of(RT.inboundRequestsChanged({ requests: [] })), watch$) : watch$;
+          }),
           takeUntil(this.actions$.pipe(ofType(RT.stopInboundRequestsListener))),
-        takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== uid)))
-        )
-      )
+          takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== uid)))
+        );
+      })
     )
   );
 
   listenOutboundRequests$ = createEffect(() =>
     this.actions$.pipe(
       ofType(RT.startOutboundRequestsListener),
-    withLatestFrom(this.access.authUid$),
-    filter(([{ uid }, currentUid]) => uid === currentUid),
-    switchMap(([{ uid }]) =>
-        this.svc.watchOutboundRequests(uid, 'session').pipe(
-          map(requests => RT.outboundRequestsChanged({ requests })),
-          // Uma falha da callable não pode encerrar a observação da sessão.
-          // Reutiliza o intervalo de contingência existente (sem novo tuning).
-          catchError((err, source) => concat(
-            of(A.loadOutboundRequestsFailure({ error: String(err?.message ?? err) })),
-            timer(60_000).pipe(switchMap(() => source))
-          )),
+      withLatestFrom(this.access.authUid$),
+      filter(([{ uid }, currentUid]) => uid === currentUid),
+      switchMap(([{ uid }]) => {
+        let observed = false;
+        return this.session.authUser$.pipe(
+          distinctUntilChanged(),
+          switchMap(user => {
+            if (user?.uid !== uid) return EMPTY;
+            const reset = observed;
+            observed = true;
+            // Rebind even when the replacement AuthUser retains the same UID.
+            // Preserve the observable across retries for session-retry accounting.
+            const watch$ = this.svc.watchOutboundRequests(uid, 'session').pipe(
+              map(requests => RT.outboundRequestsChanged({ requests })),
+              catchError((err, source) => concat(
+                of(A.loadOutboundRequestsFailure({ error: String(err?.message ?? err) })),
+                timer(60_000).pipe(switchMap(() => source))
+              ))
+            );
+            return reset ? concat(of(RT.outboundRequestsChanged({ requests: [] })), watch$) : watch$;
+          }),
           takeUntil(this.actions$.pipe(ofType(RT.stopOutboundRequestsListener))),
-        takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== uid)))
-        )
-      )
+          takeUntil(this.access.authUid$.pipe(filter(currentUid => currentUid !== uid)))
+        );
+      })
     )
   );
 

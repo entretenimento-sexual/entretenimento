@@ -8,7 +8,7 @@ import * as A from '../../../actions/actions.interactions/actions.friends';
 import { FriendsRequestsCrudEffects } from './requests-crud.effects';
 
 describe('FriendsRequestsCrudEffects / atualização direcional', () => {
-  it('mantém contingência apenas na direção afetada e atualiza amigos no aceite', () => {
+  it('não relê solicitações após mutação e preserva somente a atualização de amigos no aceite', () => {
     const actions = new Subject<ReturnType<typeof A.sendFriendRequestSuccess> | ReturnType<typeof A.cancelFriendRequestSuccess> | ReturnType<typeof A.acceptFriendRequestSuccess> | ReturnType<typeof A.declineFriendRequestSuccess>>();
     const uid = new BehaviorSubject<string | null>('user-a');
     TestBed.configureTestingModule({
@@ -29,15 +29,12 @@ describe('FriendsRequestsCrudEffects / atualização direcional', () => {
       actions.next(A.declineFriendRequestSuccess({ requestId: 'req' }));
       actions.next(A.acceptFriendRequestSuccess({ requestId: 'req' }));
       expect(output).toEqual([
-        A.loadOutboundRequests({ uid: 'user-a', source: 'post-mutation' }),
-        A.loadOutboundRequests({ uid: 'user-a', source: 'post-mutation' }),
-        A.loadInboundRequests({ uid: 'user-a', source: 'post-mutation' }),
-        A.loadInboundRequests({ uid: 'user-a', source: 'post-mutation' }),
         A.loadFriends({ uid: 'user-a' }),
       ]);
       uid.next(null);
       actions.next(A.sendFriendRequestSuccess());
-      expect(output).toHaveLength(5);
+      actions.next(A.acceptFriendRequestSuccess({ requestId: 'req' }));
+      expect(output).toHaveLength(1);
     } finally { sub.unsubscribe(); }
   });
 });

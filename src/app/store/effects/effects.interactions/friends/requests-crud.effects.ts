@@ -232,39 +232,17 @@ export class FriendsRequestsCrudEffects {
   );
 
   /**
-   * A revisão canônica invalida a direção afetada. A leitura explícita
-   * pós-mutação permanece como contingência local, mas não solicita a
-   * direção oposta, que a transação não modificou. Aceite também atualiza
-   * a lista de amigos.
+   * A transação backend incrementa as revisões direcionais dos participantes.
+   * RequestsRepo observa essas revisões e mantém polling de contingência.
+   * Não iniciar leitura pontual concorrente após a mutação de solicitações.
+   * Preservar a atualização de amigos no aceite até alinhar as duas consultas.
    */
-syncAfterRequestMutation$ = createEffect(() =>
-  this.actions$.pipe(
-    ofType(
-      A.sendFriendRequestSuccess,
-      A.cancelFriendRequestSuccess,
-      A.acceptFriendRequestSuccess,
-      A.declineFriendRequestSuccess
-    ),
-    withLatestFrom(this.store.select(selectCurrentUserUid)),
-    filter(([, uid]) => !!uid),
-    mergeMap(([action, uid]) => {
-      const safeUid = uid!;
-
-      const refreshRequests =
-        action.type === A.sendFriendRequestSuccess.type ||
-        action.type === A.cancelFriendRequestSuccess.type
-          ? A.loadOutboundRequests({ uid: safeUid, source: 'post-mutation' })
-          : A.loadInboundRequests({ uid: safeUid, source: 'post-mutation' });
-
-      if (action.type === A.acceptFriendRequestSuccess.type) {
-        return of(
-          refreshRequests,
-          A.loadFriends({ uid: safeUid })
-        );
-      }
-
-      return of(refreshRequests);
-    })
-  )
-);
+  syncAfterRequestMutation$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(A.acceptFriendRequestSuccess),
+      withLatestFrom(this.store.select(selectCurrentUserUid)),
+      filter(([, uid]) => !!uid),
+      map(([, uid]) => A.loadFriends({ uid: uid! }))
+    )
+  );
 } // Linha 232, fim do arquivo
