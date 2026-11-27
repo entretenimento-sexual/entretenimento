@@ -185,22 +185,15 @@ export class ChatListComponent implements OnInit, OnDestroy {
   }
 
   getDirectChatStatusLabel(chat: DirectChatListItem): string {
-    if (this.hasUnread(chat)) {
-      return `${chat.unreadCount} não lida${chat.unreadCount > 1 ? 's' : ''}`;
-    }
-
-    if (this.isLastDirectMessageFromMe(chat)) return 'Enviada por você';
-    return 'Conversa direta';
+    return this.hasUnread(chat)
+      ? `${chat.unreadCount} mensagens não lidas.`
+      : 'Sem mensagens não lidas.';
   }
 
   getDirectChatAriaLabel(chat: DirectChatListItem): string {
     const title = this.getDirectChatTitle(chat);
     const preview = this.getDirectChatPreview(chat);
-    const unread = this.hasUnread(chat)
-      ? `${chat.unreadCount} mensagens não lidas.`
-      : 'Sem mensagens não lidas.';
-
-    return `${title}. ${preview}. ${unread}`;
+    return `${title}. ${preview}. ${this.getDirectChatStatusLabel(chat)}`;
   }
 
   getDirectChatActivityEpoch(chat: DirectChatListItem): number | null {

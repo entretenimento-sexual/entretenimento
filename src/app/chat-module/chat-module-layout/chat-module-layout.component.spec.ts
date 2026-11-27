@@ -501,16 +501,18 @@ describe('ChatModuleLayoutComponent', () => {
     sessionStorage.removeItem(key);
   });
 
-  it('mantém apenas atalhos do chat direto no estado vazio', () => {
+  it('mantém estado vazio conciso sem duplicar a navegação global', () => {
     const text = fixture.nativeElement.textContent as string;
     const hrefs = Array.from(
       fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
     ).map((link) => link.getAttribute('href'));
 
-    expect(text).toContain('Conexões');
-    expect(text).toContain('Solicitações de conexão');
+    expect(text).toContain('Selecione uma conversa');
+    expect(text).not.toContain('Abra uma conversa existente');
     expect(text).not.toContain('Salas');
-    expect(hrefs).toContain('/friends/requests');
+    expect(hrefs).not.toContain('/friends/list');
+    expect(hrefs).not.toContain('/friends/requests');
+    expect(fixture.nativeElement.querySelector('.chat-shell__empty-state[role="status"]')).toBeTruthy();
     expect(hrefs).not.toContain('/chat/rooms');
     expect(hrefs).not.toContain('/chat/room-invites');
     expect(hrefs).not.toContain('/chat/invite-list');

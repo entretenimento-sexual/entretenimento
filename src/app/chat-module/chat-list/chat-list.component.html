@@ -105,9 +105,6 @@
                       }
                     </span>
 
-                    <span publicUserIdentitySupplement class="conversation-card__status">
-                      {{ getDirectChatStatusLabel(chat) }}
-                    </span>
                   </app-public-user-identity>
                 } @else {
                   <app-public-user-identity
@@ -130,9 +127,6 @@
                       }
                     </span>
 
-                    <span publicUserIdentitySupplement class="conversation-card__status">
-                      {{ getDirectChatStatusLabel(chat) }}
-                    </span>
                   </app-public-user-identity>
                 }
               </button>
@@ -178,14 +172,12 @@
             class="conversation-list__state"
             state="empty"
             title="Nenhuma conversa encontrada"
-            message="Limpe ou ajuste a busca para localizar uma conversa direta."
           />
         } @else {
           <app-content-state
             class="conversation-list__state"
             state="empty"
             title="Nenhuma conversa ainda"
-            message="Suas conversas diretas aparecerão aqui quando houver atividade."
           />
         }
       }

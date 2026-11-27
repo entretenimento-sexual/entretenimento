@@ -120,6 +120,20 @@ describe('ChatListComponent', () => {
     expect(loadMoreMock).toHaveBeenCalledTimes(1);
   });
 
+  it('preserva autoria e não lidas na identificação acessível sem status visual redundante', () => {
+    const chat = {
+      id: 'chat-u1-u2',
+      otherParticipantNickname: 'Pessoa 2',
+      lastMessagePreview: 'Olá',
+      unreadCount: 2,
+      chat: { lastMessage: { senderUid: 'u1' } },
+    } as unknown as DirectChatListItem;
+    expect(component.getDirectChatStatusLabel(chat)).toBe('2 mensagens não lidas.');
+    expect(component.getDirectChatAriaLabel(chat)).toContain('2 mensagens não lidas.');
+    expect(component.getDirectChatStatusLabel({ ...chat, unreadCount: 0 }))
+      .toBe('Sem mensagens não lidas.');
+  });
+
   it('seleciona somente o contrato de chat direto', () => {
     const selected = vi.fn();
     component.chatSelected.subscribe(selected);
