@@ -30,13 +30,15 @@ describe('VisitedProfileFriendshipFacade', () => {
         : input?.blocked$ ?? of(input?.blocked ?? false)
     );
     const report = vi.fn();
+    const auth = new BehaviorSubject<{uid: string} | null>({ uid: 'viewer' });
 
     const facade = new VisitedProfileFriendshipFacade(
       { watchOutboundRequests, watchFriends, watchBlocked } as any,
-      { report } as any
+      { report } as any,
+      { authUser$: auth } as any
     );
 
-    return { facade, watchOutboundRequests, watchFriends, watchBlocked, report };
+    return { facade, watchOutboundRequests, watchFriends, watchBlocked, report, auth };
   }
 
   function collect(facade: VisitedProfileFriendshipFacade, target$ = of('target')) {
@@ -206,6 +208,28 @@ describe('VisitedProfileFriendshipFacade', () => {
     facade.refresh();
     expect(states).toEqual([false, true]);
     expect(watchFriends).toHaveBeenCalledTimes(2);
+    subscription.unsubscribe();
+  });
+
+  it('revoga a relação e revalida as três fontes após substituição do mesmo UID', () => {
+    const { facade, auth, watchFriends, watchOutboundRequests, watchBlocked } = setup();
+    const previous = new Subject<any[]>(), current = new Subject<any[]>();
+    watchFriends.mockReturnValueOnce(previous).mockReturnValueOnce(current);
+    const { values, subscription } = collect(facade);
+    previous.next([{ friendUid: 'target' }]);
+    expect(values.at(-1)?.isFriend).toBe(true);
+    auth.next({ uid: 'viewer' });
+    expect(values.at(-1)?.statusVerified).toBe(false);
+    previous.next([{ friendUid: 'target' }]);
+    expect(values.at(-1)?.statusVerified).toBe(false);
+    current.next([]);
+    expect(values.at(-1)?.statusVerified).toBe(true);
+    expect(values.at(-1)?.isFriend).toBe(false);
+    expect(watchFriends).toHaveBeenCalledTimes(2);
+    expect(watchOutboundRequests).toHaveBeenCalledTimes(2);
+    expect(watchBlocked).toHaveBeenCalledTimes(2);
+    auth.next(null);
+    expect(values.at(-1)?.statusVerified).toBe(false);
     subscription.unsubscribe();
   });
 

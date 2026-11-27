@@ -87,6 +87,37 @@ describe('AuthSessionService e recuperação transitória', () => {
     await expect(firstValueFrom(service.refreshCurrentUser$())).resolves.toBe(active);
   });
 
+  it('publica substituição do objeto User com mesmo UID sem repetir refresh do mesmo objeto', () => {
+    let notify!: (value: unknown) => void;
+    const unsubscribe = vi.fn();
+    const auth = {
+      currentUser: user('a'),
+      onIdTokenChanged: vi.fn((next: (value: unknown) => void) => {
+        notify = next;
+        return unsubscribe;
+      }),
+    };
+    const service = new AuthSessionService(auth as unknown as Auth,
+      { log: vi.fn() } as unknown as PrivacyDebugLoggerService,
+      new AuthAppBlockService());
+    const seen: unknown[] = [];
+    const uids: unknown[] = [];
+    const sub = service.authUser$.subscribe(value => seen.push(value));
+    const uidSub = service.uid$.subscribe(value => uids.push(value));
+    const previous = auth.currentUser;
+    notify(previous);
+    notify(previous);
+    auth.currentUser = user('a');
+    notify(auth.currentUser);
+    expect(seen).toEqual([previous, auth.currentUser]);
+    expect(seen[0]).not.toBe(seen[1]);
+    expect(uids).toEqual(['a']);
+    expect(auth.onIdTokenChanged).toHaveBeenCalledOnce();
+    sub.unsubscribe();
+    uidSub.unsubscribe();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
   it('descarta o refresh depois da troca de conta', async () => {
     const { auth, service } = setup();
     const previous = auth.currentUser;

@@ -50,7 +50,10 @@ function snapshotAuthUser(user: User | null): AuthUserState {
 }
 
 function sameAuthUserState(previous: AuthUserState, current: AuthUserState): boolean {
-  return previous.uid === current.uid && previous.emailVerified === current.emailVerified;
+  // UID and e-mail may be identical after the SDK replaces the User object.
+  // Preserve the operational identity for session-scoped consumers.
+  return previous.user === current.user && previous.uid === current.uid &&
+    previous.emailVerified === current.emailVerified;
 }
 
 @Injectable({ providedIn: 'root' })

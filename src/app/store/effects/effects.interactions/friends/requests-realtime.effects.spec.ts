@@ -4,6 +4,9 @@ import { BehaviorSubject, defer, Observable, of, Subject, throwError } from 'rxj
 import { vi } from 'vitest';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
+import * as A from '../../../actions/actions.interactions/actions.friends';
 import * as RT from '../../../actions/actions.interactions/friends/friends-realtime.actions';
 import { FriendsRequestsRealtimeEffects } from './requests-realtime.effects';
 
@@ -25,6 +28,8 @@ describe('FriendsRequestsRealtimeEffects / isolamento de sessão', () => {
         FriendsRequestsRealtimeEffects,
         { provide: Actions, useValue: new Actions(actions) },
         { provide: AccessControlService, useValue: { authUid$: uid.asObservable() } },
+        { provide: AuthSessionService, useValue: { authUser$: of({ uid: 'user-a' }) } },
+        { provide: ApplicationErrorService, useValue: { report: vi.fn() } },
         { provide: FriendshipService, useValue: { watchFriends } },
       ],
     });
@@ -42,6 +47,70 @@ describe('FriendsRequestsRealtimeEffects / isolamento de sessão', () => {
     expect(watchFriends).toHaveBeenCalledTimes(1);
     sub.unsubscribe();
   });
+  it('rearma observação no mesmo UID, limpa lista anterior e descarta emissões tardias', () => {
+    const actions = new Subject<ReturnType<typeof RT.startFriendsListener>>();
+    const uid = new BehaviorSubject<string | null>('user-a');
+    const auth = new BehaviorSubject({ uid: 'user-a' });
+    const first = new Subject<any[]>(), second = new Subject<any[]>();
+    const watcher = vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(second);
+    TestBed.configureTestingModule({ providers: [
+      FriendsRequestsRealtimeEffects,
+      { provide: Actions, useValue: new Actions(actions) },
+      { provide: AccessControlService, useValue: { authUid$: uid } },
+      { provide: AuthSessionService, useValue: { authUser$: auth } },
+      { provide: ApplicationErrorService, useValue: { report: vi.fn() } },
+      { provide: FriendshipService, useValue: { watchFriends: watcher } },
+    ] });
+    const output: unknown[] = [];
+    const sub = TestBed.inject(FriendsRequestsRealtimeEffects).listenFriends$.subscribe(x => output.push(x));
+    actions.next(RT.startFriendsListener({ uid: 'user-a' }));
+    first.next([{ friendUid: 'old' }]);
+    auth.next(auth.value);
+    expect(watcher).toHaveBeenCalledOnce();
+    auth.next({ uid: 'user-a' });
+    expect(watcher).toHaveBeenCalledTimes(2);
+    expect(output.at(-1)).toEqual(RT.friendsChanged({ friends: [] }));
+    first.next([{ friendUid: 'stale' }]);
+    second.next([{ friendUid: 'fresh' }]);
+    expect(output).toEqual([
+      RT.friendsChanged({ friends: [{ friendUid: 'old' }] as any }),
+      RT.friendsChanged({ friends: [] }),
+      RT.friendsChanged({ friends: [{ friendUid: 'fresh' }] as any }),
+    ]);
+    sub.unsubscribe();
+  });
+
+  it('reporta falha, limpa estado e recupera após contingência; não repete após sair', async () => {
+    vi.useFakeTimers();
+    const actions = new Subject<ReturnType<typeof RT.startFriendsListener>>();
+    const uid = new BehaviorSubject<string | null>('user-a');
+    const report = vi.fn();
+    const error = new Error('offline');
+    const watcher = vi.fn().mockReturnValueOnce(throwError(() => error)).mockReturnValue(of([]));
+    TestBed.configureTestingModule({ providers: [
+      FriendsRequestsRealtimeEffects,
+      { provide: Actions, useValue: new Actions(actions) },
+      { provide: AccessControlService, useValue: { authUid$: uid } },
+      { provide: AuthSessionService, useValue: { authUser$: of({ uid: 'user-a' }) } },
+      { provide: ApplicationErrorService, useValue: { report } },
+      { provide: FriendshipService, useValue: { watchFriends: watcher } },
+    ] });
+    const output: unknown[] = [];
+    const sub = TestBed.inject(FriendsRequestsRealtimeEffects).listenFriends$.subscribe(x => output.push(x));
+    try {
+      actions.next(RT.startFriendsListener({ uid: 'user-a' }));
+      expect(report).toHaveBeenCalledWith(error, expect.objectContaining({ presentation: { surface: 'none', severity: 'error' } }));
+      expect(output).toEqual([RT.friendsChanged({ friends: [] }), A.loadFriendsFailure({ error: 'Não foi possível atualizar suas conexões.' })]);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(watcher).toHaveBeenCalledTimes(2);
+      watcher.mockReturnValue(throwError(() => error));
+      actions.next(RT.startFriendsListener({ uid: 'user-a' }));
+      uid.next(null);
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(watcher).toHaveBeenCalledTimes(3);
+    } finally { sub.unsubscribe(); vi.useRealTimers(); }
+  });
+
   it.each([
     ['inbound', 'listenInboundRequests$', RT.startInboundRequestsListener],
     ['outbound', 'listenOutboundRequests$', RT.startOutboundRequestsListener],
@@ -59,6 +128,8 @@ describe('FriendsRequestsRealtimeEffects / isolamento de sessão', () => {
         FriendsRequestsRealtimeEffects,
         { provide: Actions, useValue: new Actions(actions) },
         { provide: AccessControlService, useValue: { authUid$: uid.asObservable() } },
+        { provide: AuthSessionService, useValue: { authUser$: of({ uid: 'user-a' }) } },
+        { provide: ApplicationErrorService, useValue: { report: vi.fn() } },
         { provide: FriendshipService, useValue: {
           watchInboundRequests: watcher,
           watchOutboundRequests: watcher,
@@ -91,6 +162,8 @@ describe('FriendsRequestsRealtimeEffects / isolamento de sessão', () => {
         FriendsRequestsRealtimeEffects,
         { provide: Actions, useValue: new Actions(actions) },
         { provide: AccessControlService, useValue: { authUid$: uid.asObservable() } },
+        { provide: AuthSessionService, useValue: { authUser$: of({ uid: 'user-a' }) } },
+        { provide: ApplicationErrorService, useValue: { report: vi.fn() } },
         { provide: FriendshipService, useValue: { watchInboundRequests: watcher, watchOutboundRequests: watcher } },
       ],
     });

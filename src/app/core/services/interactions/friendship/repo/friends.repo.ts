@@ -177,7 +177,8 @@ watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
           });
         });
 
-        const hydrated = await this.hydrateFriendsWithPublicProfiles(items);
+        // A failed public hydration is unknown, not a verified empty list.
+        const hydrated = await this.hydrateFriendsWithPublicProfiles(items, true);
 
         this.dbg('watchFriends', {
           uid: safeUid,
@@ -309,7 +310,8 @@ watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
    * - falha da boundary retorna vazio para não reexpor snapshot legado.
    */
   private async hydrateFriendsWithPublicProfiles(
-    friends: Friend[]
+    friends: Friend[],
+    propagateFailure = false
   ): Promise<FriendForCard[]> {
     const uids = Array.from(
       new Set(
@@ -347,6 +349,7 @@ watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
           : [];
       });
     } catch (error) {
+      if (propagateFailure) throw error;
       this.dbg('public profile batch hydration failed', {
         friendCount: friends.length,
         error: String((error as Error)?.message ?? error),

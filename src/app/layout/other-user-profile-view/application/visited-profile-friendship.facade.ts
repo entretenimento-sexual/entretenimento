@@ -11,6 +11,7 @@ import {
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 
 export interface VisitedProfileFriendshipRelation {
   isFriend: boolean;
@@ -38,7 +39,8 @@ export class VisitedProfileFriendshipFacade {
 
   constructor(
     private readonly friendshipService: FriendshipService,
-    private readonly applicationError: ApplicationErrorService
+    private readonly applicationError: ApplicationErrorService,
+    private readonly session: AuthSessionService
   ) {}
 
   observe$(
@@ -49,13 +51,14 @@ export class VisitedProfileFriendshipFacade {
       viewerUid$.pipe(distinctUntilChanged()),
       targetUid$.pipe(distinctUntilChanged()),
       this.refreshSubject,
+      this.session.authUser$.pipe(distinctUntilChanged()),
     ]).pipe(
-      switchMap(([viewerUid, targetUid]) => {
+      switchMap(([viewerUid, targetUid, , user]) => {
         const safeViewerUid = String(viewerUid ?? '').trim();
         const safeTargetUid = String(targetUid ?? '').trim();
 
         if (
-          !safeViewerUid ||
+          !safeViewerUid || user?.uid !== safeViewerUid ||
           !safeTargetUid ||
           safeViewerUid === safeTargetUid
         ) {
@@ -79,11 +82,13 @@ export class VisitedProfileFriendshipFacade {
           ),
           this.friendshipService.watchFriends(safeViewerUid).pipe(
             catchError((error) => {
-              this.reportSilent(
-                error,
-                'VisitedProfileFriendshipFacade.watchFriends',
-                safeTargetUid
-              );
+              if (error?.code !== 'friends/session-revoked') {
+                this.reportSilent(
+                  error,
+                  'VisitedProfileFriendshipFacade.watchFriends',
+                  safeTargetUid
+                );
+              }
               return of(null);
             })
           ),
