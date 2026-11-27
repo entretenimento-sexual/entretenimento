@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { summarizePendingAttempts, recoverPendingAttempt } from './chat-integrated-browser-metrics.mjs';
+import { summarizePendingAttempts, recoverPendingAttempt, mountedDocumentReadsComplete, correlateBrowserNetworkErrors } from './chat-integrated-browser-metrics.mjs';
 
 test('counts starts even when navigation aborts before HTTP response',()=>{
   const rows=[{httpStatus:200},{httpStatus:200},{httpStatus:null,transportFailure:'net::ERR_ABORTED'}];
@@ -66,4 +66,26 @@ test('does not replace already-recorded terminal evidence',async()=>{
   const request={failure:()=>{throw Error('must not query settled request');},response:()=>{throw Error('must not query settled request');}};
   await recoverPendingAttempt(request,row,callbacks(row,request));
   assert.equal(row.httpStatus,200);
+});
+
+test('requires both directions in each actual mounted document independent of navigation ordinal',()=>{
+  const mounted=[{context:'sender',document:3},{context:'receiver',document:4}];
+  const rows=mounted.flatMap(row=>['inbound','outbound'].map(direction=>({...row,route:'friends',direction,httpStatus:200})));
+  assert.equal(mountedDocumentReadsComplete(rows,mounted),true);
+  assert.equal(mountedDocumentReadsComplete(rows.map(row=>({...row,document:2})),mounted),false);
+  assert.equal(mountedDocumentReadsComplete(rows.slice(0,-1),mounted),false);
+  assert.equal(mountedDocumentReadsComplete(rows.map(row=>({...row,route:'login'})),mounted),false);
+  assert.equal(mountedDocumentReadsComplete(rows.map(row=>({...row,httpStatus:429})),mounted),false);
+  assert.equal(mountedDocumentReadsComplete([],[]),false);
+});
+test('correlates only exact local URL and context without serializing session query strings',()=>{
+  const error={name:'a',phase:'navigation',document:2,atMs:1000,url:'http://127.0.0.1:18080/listen?SID=secret',endpoint:'http://127.0.0.1:18080/listen'};
+  const failure={...error,document:1,atMs:1010};
+  const [match]=correlateBrowserNetworkErrors([error],[failure]);
+  assert.equal(match.matched,true);
+  assert.equal(match.failureDocument,1);
+  assert.equal(JSON.stringify(match).includes('secret'),false);
+  assert.equal(correlateBrowserNetworkErrors([error],[{...failure,url:failure.url+'2'}])[0].matched,false);
+  assert.equal(correlateBrowserNetworkErrors([error],[{...failure,name:'b'}])[0].matched,false);
+  assert.equal(correlateBrowserNetworkErrors([error],[{...failure,atMs:4000}])[0].matched,false);
 });

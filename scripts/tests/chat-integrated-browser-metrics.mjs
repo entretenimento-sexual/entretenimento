@@ -36,3 +36,23 @@ export async function recoverPendingAttempt(request,row,{onResponse,onFailure,ti
     if(request.failure()?.errorText&&!row.transportFailure) onFailure();
   } finally { clearTimeout(timer); }
 }
+
+// Both authenticated directions must belong to each actual mounted document.
+export function mountedDocumentReadsComplete(attempts, mountedDocuments) {
+  return mountedDocuments.length>0 && mountedDocuments.every(({context,document})=>
+    Number.isInteger(document)&&document>0&&['inbound','outbound'].every(direction=>
+      attempts.some(row=>row.context===context&&row.document===document&&row.route==='friends'&&
+        row.direction===direction&&row.httpStatus===200)));
+}
+
+// Diagnostic only. Match exact URLs in memory; never persist query strings.
+// A match is not permission to remove a pageerror from the strict gate.
+export function correlateBrowserNetworkErrors(errors, failures) {
+  return errors.map(({url,...error})=>{
+    const match=failures.filter(row=>row.name===error.name&&row.url===url&&
+      Math.abs(row.atMs-error.atMs)<=2000)
+      .sort((a,b)=>Math.abs(a.atMs-error.atMs)-Math.abs(b.atMs-error.atMs))[0];
+    return {...error,matched:!!match,...(match?{failurePhase:match.phase,
+      failureDocument:match.document,deltaMs:Math.round(match.atMs-error.atMs)}:{})};
+  });
+}
