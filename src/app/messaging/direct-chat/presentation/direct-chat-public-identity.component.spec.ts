@@ -1,5 +1,7 @@
 // src/app/messaging/direct-chat/presentation/direct-chat-public-identity.component.spec.ts
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { PublicUserPreviewTriggerDirective } from 'src/app/core/components/public-user-preview-popover/public-user-preview-trigger.directive';
 import { of } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 
@@ -74,6 +76,9 @@ describe('DirectChatPublicIdentityComponent', () => {
     expect(text).toContain('Conversa direta');
     expect(previewButton).toBeTruthy();
     expect(previewButton?.getAttribute('aria-label')).toContain('serale');
+    const trigger = fixture.debugElement.query(By.directive(PublicUserPreviewTriggerDirective))
+      .injector.get(PublicUserPreviewTriggerDirective);
+    expect(trigger.publicUserPreviewOpenOnHover()).toBe(false);
   });
 
   it('preserva fallback visual sem expor controle de prévia enquanto o perfil público não chegou', async () => {

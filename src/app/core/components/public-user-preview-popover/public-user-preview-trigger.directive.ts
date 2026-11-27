@@ -49,6 +49,7 @@ const DESKTOP_POSITIONS: readonly ConnectedPosition[] = [
 export class PublicUserPreviewTriggerDirective {
   readonly appPublicUserPreviewTrigger = input<PublicUserPreview | null>(null);
   readonly publicUserPreviewRelationship = input<string | null>(null);
+  readonly publicUserPreviewOpenOnHover = input(true);
   readonly publicUserPreviewProfileRoute = input<readonly string[] | null>(null);
   readonly isOpen = signal(false);
 
@@ -68,7 +69,8 @@ export class PublicUserPreviewTriggerDirective {
   }
 
   onPointerEnter(event: PointerEvent): void {
-    if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') {
+    if (!this.publicUserPreviewOpenOnHover() ||
+        (event.pointerType !== 'mouse' && event.pointerType !== 'pen')) {
       return;
     }
 
@@ -76,6 +78,7 @@ export class PublicUserPreviewTriggerDirective {
   }
 
   onPointerLeave(): void {
+    if (!this.publicUserPreviewOpenOnHover()) return;
     this.scheduleClose();
   }
 

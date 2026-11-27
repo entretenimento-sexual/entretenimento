@@ -3,6 +3,7 @@ import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { RouterTestingModule } from '@angular/router/testing';
+import { vi } from 'vitest';
 
 import type { PublicUserPreview } from '../../domain/public-user-preview/public-user-preview.model';
 import { PublicUserPreviewTriggerDirective } from './public-user-preview-trigger.directive';
@@ -15,6 +16,7 @@ import { PublicUserPreviewTriggerDirective } from './public-user-preview-trigger
       type="button"
       [appPublicUserPreviewTrigger]="preview"
       [publicUserPreviewRelationship]="'Vocês estão conectados'"
+      [publicUserPreviewOpenOnHover]="openOnHover"
       [publicUserPreviewProfileRoute]="['/perfil', 'user-public-1']"
     >
       Perfil
@@ -22,6 +24,7 @@ import { PublicUserPreviewTriggerDirective } from './public-user-preview-trigger
   `,
 })
 class PreviewTriggerHostComponent {
+  openOnHover = true;
   preview: PublicUserPreview | null = {
     identity: {
       profileId: null,
@@ -97,6 +100,48 @@ describe('PublicUserPreviewTriggerDirective', () => {
         'app-public-user-preview-popover'
       )
     ).toBeNull();
+  });
+
+  it('preserva a abertura automática por hover nos consumidores existentes', () => {
+    vi.useFakeTimers();
+    const directive = fixture.debugElement.query(
+      By.directive(PublicUserPreviewTriggerDirective)
+    ).injector.get(PublicUserPreviewTriggerDirective);
+    try {
+      directive.onPointerEnter({ pointerType: 'mouse' } as PointerEvent);
+      vi.advanceTimersByTime(340);
+      expect(directive.isOpen()).toBe(true);
+      directive.onPointerLeave();
+      vi.advanceTimersByTime(180);
+      expect(directive.isOpen()).toBe(false);
+    } finally {
+      directive.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it('permite abertura explícita sem hover e sem fechar pela saída do gatilho', () => {
+    vi.useFakeTimers();
+    fixture.componentInstance.openOnHover = false;
+    fixture.detectChanges();
+    const directive = fixture.debugElement.query(
+      By.directive(PublicUserPreviewTriggerDirective)
+    ).injector.get(PublicUserPreviewTriggerDirective);
+    try {
+      directive.onPointerEnter({ pointerType: 'mouse' } as PointerEvent);
+      vi.advanceTimersByTime(500);
+      expect(directive.isOpen()).toBe(false);
+      directive.toggle();
+      expect(directive.isOpen()).toBe(true);
+      directive.onPointerLeave();
+      vi.advanceTimersByTime(500);
+      expect(directive.isOpen()).toBe(true);
+      directive.toggle();
+      expect(directive.isOpen()).toBe(false);
+    } finally {
+      directive.close();
+      vi.useRealTimers();
+    }
   });
 
   it('não injeta classes visuais órfãs no painel do overlay', () => {

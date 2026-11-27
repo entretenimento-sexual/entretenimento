@@ -57,6 +57,7 @@ interface DirectChatPublicIdentityViewModel {
       <div
         class="direct-chat-public-identity"
         [appPublicUserPreviewTrigger]="vm.preview"
+        [publicUserPreviewOpenOnHover]="false"
         [publicUserPreviewProfileRoute]="vm.profileRoute"
         #quickPreview="publicUserPreviewTrigger"
       >
