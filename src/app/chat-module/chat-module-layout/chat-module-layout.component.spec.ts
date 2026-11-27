@@ -512,7 +512,7 @@ describe('ChatModuleLayoutComponent', () => {
     expect(text).not.toContain('Salas');
     expect(hrefs).not.toContain('/friends/list');
     expect(hrefs).not.toContain('/friends/requests');
-    expect(fixture.nativeElement.querySelector('.chat-shell__empty-state[role="status"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.chat-shell__empty-state [role="status"]')).toBeTruthy();
     expect(hrefs).not.toContain('/chat/rooms');
     expect(hrefs).not.toContain('/chat/room-invites');
     expect(hrefs).not.toContain('/chat/invite-list');

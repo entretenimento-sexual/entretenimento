@@ -3,7 +3,7 @@ name: Chat Integrated Browser Certification
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, ux-r1-0a-chat-simplification]
     paths:
       - '.github/workflows/chat-integrated-browser-certification.yml'
       - 'scripts/tests/chat-integrated-browser*.mjs'
@@ -30,11 +30,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        replica: [1, 2, 3]
+        include:
+          - { browser: chromium, replica: 1, artifact: r1 }
+          - { browser: chromium, replica: 2, artifact: r2 }
+          - { browser: chromium, replica: 3, artifact: r3 }
+          - { browser: chrome, replica: 1, artifact: chrome }
+          - { browser: msedge, replica: 1, artifact: msedge }
+          - { browser: firefox, replica: 1, artifact: firefox }
+          - { browser: webkit, replica: 1, artifact: webkit }
     timeout-minutes: 35
     env:
       CI: 'true'
       CHAT_BROWSER_ARTIFACTS: artifacts/chat-browser
+      CHAT_BROWSER_NAME: ${{ matrix.browser }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -54,10 +62,10 @@ jobs:
         run: |
           npm ci
           npm --prefix functions ci
-      - name: Install isolated Chromium runner
+      - name: Install isolated browser runner
         run: |
           npm install --prefix "$RUNNER_TEMP/chat-browser-playwright" --no-save --package-lock=false playwright@1.56.1
-          "$RUNNER_TEMP/chat-browser-playwright/node_modules/.bin/playwright" install --with-deps chromium
+          "$RUNNER_TEMP/chat-browser-playwright/node_modules/.bin/playwright" install --with-deps ${{ matrix.browser }}
       - name: Prepare disposable demo topology
         run: |
           mkdir -p "$CHAT_BROWSER_ARTIFACTS"
@@ -75,6 +83,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: chat-browser-${{ github.sha }}-r${{ matrix.replica }}
+          name: chat-browser-${{ github.sha }}-${{ matrix.artifact }}
           path: artifacts/chat-browser
           if-no-files-found: error

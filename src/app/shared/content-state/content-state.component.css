@@ -227,3 +227,12 @@
     animation: none;
   }
 }
+
+/* A quiet, opt-in empty state; errors and actions always retain full UI. */
+.content-state__minimal {
+  color: var(--text-color);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  text-align: center;
+}
+.content-state__minimal p { margin: 0; }

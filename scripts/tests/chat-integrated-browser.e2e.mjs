@@ -26,7 +26,12 @@ process.env.GCLOUD_PROJECT = PROJECT;
 process.env.GCP_PROJECT = PROJECT;
 const out = resolve(process.env.CHAT_BROWSER_ARTIFACTS ?? 'artifacts/chat-browser');
 mkdirSync(out, { recursive: true });
-const { chromium } = await import(pathToFileURL(resolve(process.env.CHAT_BROWSER_PLAYWRIGHT)).href);
+const { chromium, firefox, webkit } = await import(pathToFileURL(resolve(process.env.CHAT_BROWSER_PLAYWRIGHT)).href);
+const browserName = process.env.CHAT_BROWSER_NAME ?? 'chromium';
+assert.ok(['chromium','chrome','msedge','firefox','webkit'].includes(browserName), 'Unsupported browser');
+const browserType = browserName === 'firefox' ? firefox : browserName === 'webkit' ? webkit : chromium;
+const browserChannel = ['chrome','msedge'].includes(browserName) ? browserName : undefined;
+const supportsCDP = browserType === chromium;
 const id = randomUUID().replaceAll('-', '').slice(0, 12);
 const password = 'Emulator-Only-123Aa!';
 const uid = key => 'chat-browser-' + key + '-' + id;
@@ -842,6 +847,10 @@ async function certifyConcurrency() {
   };
   const capture=async(label)=>{
     for(const [i,page] of tabs.entries()) {
+      if (!supportsCDP) {
+        concurrencySamples.resources.push({phase:label,context:names[i],cdp:'not-available-on-engine'});
+        continue;
+      }
       const session=await page.context().newCDPSession(page);
       try {
         await session.send('Performance.enable');
@@ -1037,7 +1046,11 @@ try {
     if(server.exitCode!==null) throw new Error('Angular exited: '+server.exitCode);
     try {return (await fetch(BASE+'/login')).ok;} catch {return false;}
   },Boolean,180_000);
-  browser = await chromium.launch({headless:true});
+  browser = await browserType.launch({headless:true,...(browserChannel ? {channel:browserChannel} : {})});
+  writeFileSync(resolve(out,'browser-version.json'),JSON.stringify({
+    browser:browserName,engine:browserType.name(),version:browser.version(),
+    platform:process.platform,cdpMetrics:supportsCDP
+  },null,2));
   const a = await newPage('a');
   const b = await newPage('b');
   await Promise.all([login(a,aUid),login(b,bUid)]);

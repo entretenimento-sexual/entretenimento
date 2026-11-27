@@ -40,7 +40,8 @@
         }
 
         @if (!selectedType || !selectedChatId) {
-          <p class="chat-shell__empty-state" role="status">Selecione uma conversa</p>
+          <app-content-state class="chat-shell__empty-state"
+            state="empty" title="Selecione uma conversa" [minimal]="true" />
         }
       </div>
 

@@ -40,6 +40,7 @@ export class ContentStateComponent {
   @Input() message = '';
   @Input() actionLabel = '';
   @Input() compact = false;
+  @Input() minimal = false;
   @Input() skeletonRows = 3;
   @Input() skeletonVariant: ContentStateSkeletonVariant = 'list';
 

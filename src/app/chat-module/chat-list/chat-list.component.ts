@@ -27,13 +27,14 @@ import {
   inject,
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { BehaviorSubject, Subject, combineLatest, Observable, of } from 'rxjs';
+import { BehaviorSubject, Subject, combineLatest, defer, EMPTY, Observable, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
   filter,
   map,
   shareReplay,
+  startWith,
   switchMap,
   take,
   tap,
@@ -98,6 +99,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
   );
 
   private currentUserUid: string | null = null;
+  private lastAutoLoadExtent: number | null = null;
 
   constructor(
     private readonly authSession: AuthSessionService,
@@ -123,7 +125,27 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   loadMoreConversations(): void { this.loadMoreSubject.next(); }
 
-  refreshConversations(): void { this.refreshInboxSubject.next(); }
+  refreshConversations(): void {
+    this.lastAutoLoadExtent = null;
+    this.refreshInboxSubject.next();
+  }
+
+  onInboxScroll(event: Event, vm: ChatListViewModel): void {
+    const container = event.currentTarget as HTMLElement | null;
+    if (!container) return;
+    const extent = container.scrollHeight;
+    const distance = extent - container.clientHeight - container.scrollTop;
+    if (container.scrollTop <= 0 || distance > 96) {
+      this.lastAutoLoadExtent = null;
+      return;
+    }
+    // No eager scan of sparse pages or partial search results. The explicit
+    // accessible continuation remains available, including short lists.
+    if (!vm.hasMore || vm.loading || vm.error || vm.hasSearch ||
+        this.lastAutoLoadExtent === extent) return;
+    this.lastAutoLoadExtent = extent;
+    this.loadMoreConversations();
+  }
 
   setSearchTerm(value: string | null | undefined): void {
     this.searchTermSubject.next(String(value ?? ''));
@@ -263,12 +285,22 @@ export class ChatListComponent implements OnInit, OnDestroy {
       items: [], status: 'loading', hasMore: false, unconfirmedCount: 0, directUnreadCount: 0,
     };
     this.inboxState$ = this.createLoadGate$(this.access.canListenRealtime$).pipe(
-      switchMap(canLoad => canLoad
-        ? this.directChatFacade.observeProgressiveInbox$(this.loadMoreSubject, this.refreshInboxSubject)
-        : of(empty)),
-      catchError(error => {
-        this.handleError('ChatList.directChatItems$', error, false);
-        return of({ ...empty, status: 'error' as const });
+      switchMap(canLoad => {
+        this.lastAutoLoadExtent = null;
+        if (!canLoad) return of(empty);
+        // Retry recreates the observable even when the previous stream
+        // completed after an error. Selection and composer remain independent.
+        return this.refreshInboxSubject.pipe(
+          startWith(void 0),
+          switchMap(() => defer(() => this.directChatFacade.observeProgressiveInbox$(this.loadMoreSubject, EMPTY))
+            .pipe(
+              startWith(empty),
+              catchError(error => {
+                this.handleError('ChatList.directChatItems$', error, false);
+                return of({ ...empty, status: 'error' as const });
+              })
+            ))
+        );
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -297,7 +329,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
           filteredDirectChats,
           loading,
           hasMore: state.hasMore,
-          canRefresh: state.status === 'ready' || state.status === 'error',
+          canRefresh: state.status === 'error' || (state.status === 'ready' && state.unconfirmedCount > 0),
           error: state.status === 'error',
           unconfirmedCount: state.unconfirmedCount,
           showLoadingState: loading && filteredDirectChats.length === 0,

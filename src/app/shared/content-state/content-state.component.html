@@ -48,6 +48,11 @@
       }
     }
   </section>
+} @else if (state === 'empty' && minimal && !actionLabel) {
+  <div class="content-state__minimal" role="status" aria-live="polite" aria-atomic="true">
+    @if (title) { <p>{{ title }}</p> }
+    @if (message) { <p>{{ message }}</p> }
+  </div>
 } @else {
   <section
     class="content-state app-card app-card--flat"
@@ -65,7 +70,7 @@
 
     <div class="content-state__copy">
       <h3>{{ title }}</h3>
-      <p>{{ message }}</p>
+      @if (message) { <p>{{ message }}</p> }
     </div>
 
     @if (actionLabel) {

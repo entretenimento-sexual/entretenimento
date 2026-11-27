@@ -49,6 +49,25 @@ describe('ContentStateComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Falha ao carregar');
   });
 
+  it('apresenta estado vazio mínimo sem cartão ou ícone, mas mantém anúncio', () => {
+    component.state = 'empty';
+    component.title = 'Selecione uma conversa';
+    component.minimal = true;
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.content-state__minimal[role="status"]')?.textContent)
+      .toContain('Selecione uma conversa');
+    expect(host.querySelector('.app-card')).toBeNull();
+    expect(host.querySelector('.content-state__icon')).toBeNull();
+    component.actionLabel = 'Continuar';
+    fixture.detectChanges();
+    expect(host.querySelector('.content-state__action')).toBeTruthy();
+    component.state = 'error';
+    component.actionLabel = '';
+    fixture.detectChanges();
+    expect(host.querySelector('[role="alert"]')).toBeTruthy();
+  });
+
   it('limita a quantidade de linhas do skeleton', () => {
     component.state = 'loading';
     component.skeletonRows = 99;
