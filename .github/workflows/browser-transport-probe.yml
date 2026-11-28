@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/browser-transport-probe.yml'
       - 'scripts/tests/browser-transport-probe.mjs'
+      - 'scripts/tests/browser-transport-stream-probe.mjs'
   workflow_dispatch:
 permissions:
   contents: read
@@ -28,6 +29,10 @@ jobs:
           npx playwright install --with-deps ${{ matrix.engine }}
       - name: Execute isolated transport probe
         run: node scripts/tests/browser-transport-probe.mjs ${{ matrix.engine }}
+      - name: Validate synthetic streaming server
+        run: node scripts/tests/browser-transport-stream-probe.mjs --self-test
+      - name: Execute partial response transport probe
+        run: node scripts/tests/browser-transport-stream-probe.mjs ${{ matrix.engine }}
       - name: Upload diagnostic evidence
         if: always()
         uses: actions/upload-artifact@v4
