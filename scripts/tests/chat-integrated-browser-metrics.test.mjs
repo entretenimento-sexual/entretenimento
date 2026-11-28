@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch } from './chat-integrated-browser-metrics.mjs';
+import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch, resolveBrowserEngine } from './chat-integrated-browser-metrics.mjs';
 
 test('counts starts even when navigation aborts before HTTP response',()=>{
   const rows=[{httpStatus:200},{httpStatus:200},{httpStatus:null,transportFailure:'net::ERR_ABORTED'}];
@@ -91,4 +91,12 @@ test('exposes duplicate hydration, overlapping listeners and unmatched closes',(
   const result=summarizeSharedFriendsWatch([row('listener','open'),row('listener','open',0,2),
     row('hydration','open',1),row('hydration','open',1),row('consumer','close')],24);
   assert.equal(result.listener.peak,2);assert.equal(result.hydration.peakPerSnapshot,2);assert.equal(result.unmatchedCloses,1);
+});
+
+test('selects supported browser engines without changing the Chromium default',()=>{
+  assert.equal(resolveBrowserEngine(),'chromium');
+  for(const engine of ['chromium','firefox','webkit']) assert.equal(resolveBrowserEngine(engine),engine);
+});
+test('rejects explicit unsupported browser configuration instead of silently using Chromium',()=>{
+  for(const engine of ['',null,'edge','safari','Chromium',' chromium ']) assert.throws(()=>resolveBrowserEngine(engine),/Unsupported CHAT_BROWSER_ENGINE/);
 });

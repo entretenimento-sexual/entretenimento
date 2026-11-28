@@ -12,7 +12,7 @@ import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
 import { seedPublicMediaCompliance } from './media-e2e-compliance-fixture.mjs';
-import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch } from './chat-integrated-browser-metrics.mjs';
+import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch, resolveBrowserEngine } from './chat-integrated-browser-metrics.mjs';
 
 const PROJECT = 'demo-entretenimento-media-e2e';
 const BASE = 'http://127.0.0.1:4200';
@@ -26,7 +26,11 @@ process.env.GCLOUD_PROJECT = PROJECT;
 process.env.GCP_PROJECT = PROJECT;
 const out = resolve(process.env.CHAT_BROWSER_ARTIFACTS ?? 'artifacts/chat-browser');
 mkdirSync(out, { recursive: true });
-const { chromium } = await import(pathToFileURL(resolve(process.env.CHAT_BROWSER_PLAYWRIGHT)).href);
+const browserEngine = resolveBrowserEngine(process.env.CHAT_BROWSER_ENGINE);
+const playwright = await import(pathToFileURL(resolve(process.env.CHAT_BROWSER_PLAYWRIGHT)).href);
+const browserType = playwright[browserEngine];
+assert.equal(browserType?.name(), browserEngine, 'Requested Playwright engine unavailable');
+console.log('Browser engine '+browserEngine);
 const id = randomUUID().replaceAll('-', '').slice(0, 12);
 const password = 'Emulator-Only-123Aa!';
 const uid = key => 'chat-browser-' + key + '-' + id;
@@ -1106,6 +1110,12 @@ async function certifyConcurrency() {
   };
   const capture=async(label)=>{
     for(const [i,page] of tabs.entries()) {
+      // CDP diagnostics are Chromium-only. Logical resource assertions below
+      // remain mandatory on every engine; unavailable metrics are never zero.
+      if(browserEngine!=='chromium') {
+        concurrencySamples.resources.push({phase:label,context:names[i],metrics:null,metricsUnavailable:'chromium-cdp-only'});
+        continue;
+      }
       const session=await page.context().newCDPSession(page);
       try {
         await session.send('Performance.enable');
@@ -1301,7 +1311,7 @@ try {
     if(server.exitCode!==null) throw new Error('Angular exited: '+server.exitCode);
     try {return (await fetch(BASE+'/login')).ok;} catch {return false;}
   },Boolean,180_000);
-  browser = await chromium.launch({headless:true});
+  browser = await browserType.launch({headless:true});
   const a = await newPage('a');
   const b = await newPage('b');
   await Promise.all([login(a,aUid),login(b,bUid)]);
@@ -1759,11 +1769,11 @@ try {
   console.log('Friendship reactive measurements '+JSON.stringify({originalWorkload,originalAttempts,complementaryAttempts,fullAttempts,samples:friendshipSamples,
     online:sampleSummary(friendshipSamples.filter(row=>!row.reconnect).flatMap(row=>[row.senderMs,row.receiverMs])),
     reconnect:sampleSummary(friendshipSamples.filter(row=>row.reconnect).map(row=>row.receiverMs))}));
-  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,originalAttempts,complementaryAttempts,spaAttempts,spaSamples,fullAttempts,resilienceAttempts,resilienceSamples,adaptiveAttempts,adaptiveSamples,concurrencyAttempts,concurrencySamples,terminalAccounting,admissionCancellationSamples,baselineComparison:baselineComparison(),
+  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',browserEngine,browserVersion:browser.version(),phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,originalAttempts,complementaryAttempts,spaAttempts,spaSamples,fullAttempts,resilienceAttempts,resilienceSamples,adaptiveAttempts,adaptiveSamples,concurrencyAttempts,concurrencySamples,terminalAccounting,admissionCancellationSamples,baselineComparison:baselineComparison(),
     performanceSummary:{budgetMs:PHASE_BUDGET_MS,sendReceive:sampleSummary(performanceSamples.roundTrips.map(row=>row.ms)),
       conversationSwitch:sampleSummary(performanceSamples.switches.map(row=>row.ms))}},null,2));
 } catch(error) {
-  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'FAIL',phases,performanceSamples,historySamples,baselineComparison:baselineComparison(),error:String(error)},null,2));
+  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'FAIL',browserEngine,browserVersion:browser?.version()??null,phases,performanceSamples,historySamples,baselineComparison:baselineComparison(),error:String(error)},null,2));
   for(const {name,page} of pages) await screenshot(page,name+'-failure').catch(()=>{});
   throw error;
 } finally {

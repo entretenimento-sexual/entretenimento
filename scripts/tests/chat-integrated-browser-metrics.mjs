@@ -58,3 +58,12 @@ export function summarizeSharedFriendsWatch(rows,size) {
   }
   return result;
 }
+
+// Omitted configuration preserves the existing Chromium certification.
+// Explicit unknown or empty configuration must fail, never fall back silently.
+export function resolveBrowserEngine(value = 'chromium') {
+  if (!['chromium','firefox','webkit'].includes(value)) {
+    throw new Error('Unsupported CHAT_BROWSER_ENGINE');
+  }
+  return value;
+}
