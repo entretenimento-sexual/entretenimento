@@ -576,6 +576,20 @@ async function certifyFriendsPagination() {
     const revisionOf=async ref=>(await ref.get()).data()?.friendshipMembershipRevision??0;
     const [ownerRevision,peerRevision]=await Promise.all([revisionOf(ownerRef),revisionOf(peerRef)]);
     const firstBefore=(await cards.allTextContents()).slice(0,24);
+    const firstIdentityBefore=await cards.evaluateAll(elements=>elements.slice(0,24).map(element=>{
+      const card=element.querySelector('article[aria-labelledby]');
+      return card?.getAttribute('aria-labelledby')??null;
+    }));
+    assert.equal(new Set(firstIdentityBefore).size,24,'First page must have 24 unique stable identities');
+    assert.ok(firstIdentityBefore.every(Boolean),'Missing first-page identity');
+    // Track actual nodes, not only text: remounting resets per-card access observers.
+    const firstNodes=await cards.evaluateAll(elements=>{
+      window.__friendsTailFirstNodes=elements.slice(0,24);
+      return window.__friendsTailFirstNodes.length;
+    });
+    assert.equal(firstNodes,24);
+    const availableBefore=await cards.evaluateAll(elements=>elements.slice(0,24).map(element=>
+      element.querySelector('.user-card__action--message')?.getAttribute('aria-disabled')==='false'));
     assert.ok(!firstBefore.some(value=>value.includes(names.get(tailPeer))));
     assert.equal(await cards.filter({hasText:names.get(tailPeer)}).count(),1);
     const opensBefore=sharedFriendsTrace.filter(row=>row.context===context&&row.document===ownerDoc&&
@@ -593,7 +607,24 @@ async function certifyFriendsPagination() {
     await end.waitFor({state:'visible'});
     const tailRemaining=await cards.allTextContents();
     const expectedTail=[names.get(acceptor),...expected.filter(name=>name!==names.get(tailPeer))];
-    assert.deepEqual(tailRemaining.slice(0,24),firstBefore,'First page unchanged');
+    const firstIdentityAfter=await cards.evaluateAll(elements=>elements.slice(0,24).map(element=>
+      element.querySelector('article[aria-labelledby]')?.getAttribute('aria-labelledby')??null));
+    assert.deepEqual(firstIdentityAfter,firstIdentityBefore,'First page unchanged: exact stable identity and order');
+    const firstNodesPreserved=await cards.evaluateAll(elements=>
+      window.__friendsTailFirstNodes?.length===24&&
+      elements.slice(0,24).every((element,index)=>element===window.__friendsTailFirstNodes[index]));
+    assert.equal(firstNodesPreserved,true,'First-page card nodes must not remount during tail recomposition');
+    // Dynamic permission labels are not membership identities. Keep their
+    // diagnostic comparison and require previously confirmed access to recover
+    // for unaffected peers, without bypassing the application's fail-closed gate.
+    await until('unaffected previously available chat actions converge',()=>cards.evaluateAll(elements=>
+      elements.slice(0,24).map(element=>element.querySelector('.user-card__action--message')?.getAttribute('aria-disabled')==='false')),
+      availability=>availableBefore.every((wasAvailable,index)=>!wasAvailable||availability[index]===true),30_000);
+    console.log('Friends tail first-page presentation evidence '+JSON.stringify({
+      exactTextPreserved:tailRemaining.slice(0,24).every((value,index)=>value===firstBefore[index]),
+      firstNodesPreserved,previouslyAvailable:availableBefore.filter(Boolean).length
+    }));
+    await page.evaluate(()=>{delete window.__friendsTailFirstNodes;});
     for(const [index,name] of expectedTail.entries()) {
       assert.ok(tailRemaining[index].includes(name),'Canonical order after tail-only removal at '+index);
       assert.equal(tailRemaining.filter(value=>value.includes(name)).length,1);
@@ -608,7 +639,7 @@ async function certifyFriendsPagination() {
     assert.equal(afterWatch.listener.peak,1);
     assert.equal(await page.evaluate(()=>window.__friendsPaginationDocument),true);
     const tailEvidence={remoteBefore:28,remoteAfter:27,removedOutsideFirstPage:true,
-      firstPagePreserved:true,pointReads:tailPointReads,listenerReopens:opensAfter-opensBefore,
+      firstPagePreserved:true,firstPageNodesPreserved:firstNodesPreserved,pointReads:tailPointReads,listenerReopens:opensAfter-opensBefore,
       activeListeners:afterWatch.listener.active,peakListeners:afterWatch.listener.peak,
       bilateralRevisionDelta:[ownerAfter-ownerRevision,peerAfter-peerRevision],
       duplicates:0,missing:0,documentPreserved:true};

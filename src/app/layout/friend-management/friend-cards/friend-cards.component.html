@@ -5,40 +5,27 @@
   <!-- Headline só para leitores de tela -->
   <h4 id="friends-heading" class="visually-hidden">Lista de Amigos</h4>
 
-  <!-- Loading: NÃO renderiza grid enquanto carrega -->
-  @if (isLoading()) {
-  <app-content-state
-    state="loading"
-    message="Carregando amigos…"
-    [compact]="true"
-    [skeletonRows]="2"
-  />
-  } @else {
+  <!-- Append: mantém a grade montada, inclusive observadores e foco dos cards. -->
   @if (visibleUsers$ | async; as friends) {
-  @if (friends.length === 0) {
-  <app-content-state
-    state="empty"
-    title="Nenhum amigo encontrado"
-    message="Quando você tiver amigos, eles aparecerão aqui."
-    [compact]="true"
-  />
-  } @else {
-  <div class="friend-cards-grid" role="list">
-    @for (u of friends; track trackByUid($index, u)) {
-    <div class="friend-cards-item" role="listitem">
-      <app-user-card [user]="u" [distanciaKm]="u.distanciaKm ?? null"></app-user-card>
-    </div>
+    @if (friends.length > 0) {
+      <div class="friend-cards-grid" role="list">
+        @for (u of friends; track trackByUid($index, u)) {
+          <div class="friend-cards-item" role="listitem">
+            <app-user-card [user]="u" [distanciaKm]="u.distanciaKm ?? null"></app-user-card>
+          </div>
+        }
+      </div>
+      @if (isLoading()) {
+        <app-content-state state="loading" message="Carregando mais amigos…" [compact]="true" [skeletonRows]="1" />
+      }
+    } @else if (isLoading()) {
+      <app-content-state state="loading" message="Carregando amigos…" [compact]="true" [skeletonRows]="2" />
+    } @else {
+      <app-content-state state="empty" title="Nenhum amigo encontrado"
+        message="Quando você tiver amigos, eles aparecerão aqui." [compact]="true" />
     }
-  </div>
-  }
   } @else {
-  <app-content-state
-    state="loading"
-    message="Carregando amigos…"
-    [compact]="true"
-    [skeletonRows]="2"
-  />
-  }
+    <app-content-state state="loading" message="Carregando amigos…" [compact]="true" [skeletonRows]="2" />
   }
 
   <!-- Fim da lista: aparece se o pai sinalizar fim de paginação -->
