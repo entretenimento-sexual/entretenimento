@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch, resolveBrowserEngine, mountedDocumentReadsComplete, correlateBrowserNetworkErrors, resolveBrowserChannel, browserTransportFailureCategory, summarizeBrowserNetworkLifecycle } from './chat-integrated-browser-metrics.mjs';
+import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch, resolveBrowserEngine, mountedDocumentReadsComplete, correlateBrowserNetworkErrors, resolveBrowserChannel, browserTransportFailureCategory, summarizeBrowserNetworkLifecycle, summarizeBrowserNavigationProximity } from './chat-integrated-browser-metrics.mjs';
 
 test('counts starts even when navigation aborts before HTTP response',()=>{
   const rows=[{httpStatus:200},{httpStatus:200},{httpStatus:null,transportFailure:'net::ERR_ABORTED'}];
@@ -163,4 +163,31 @@ test('links active and recently completed exact transport intervals without leak
   assert.equal(result.candidates[0].status,200);
   assert.equal(result.candidates[1].terminal,'finished');
   assert.equal(JSON.stringify(result).includes('private'),false);
+});
+
+test('reports only prior same-page document requests and separates endpoint from exact matches',()=>{
+  const endpoint='http://127.0.0.1:18080/listen';
+  const error={name:'a',phase:'navigation',document:2,atMs:5000,endpoint,url:endpoint+'?SID=private'};
+  const origins=[{context:'a',event:'document-request',atMs:4700,route:'login'},
+    {context:'b',event:'document-request',atMs:4999,route:'login'},
+    {context:'a',event:'navigation',atMs:4990,route:'chat'},
+    {context:'a',event:'document-request',atMs:5001,route:'chat'}];
+  const row={name:'a',endpoint,url:endpoint+'?SID=other',startMs:4500,endMs:4950,
+    document:1,method:'GET',terminal:'failed',failureCategory:'Load request cancelled'};
+  const [result]=summarizeBrowserNavigationProximity([error],origins,[row,
+    {...row,url:error.url,status:200},{...row,name:'b'},{...row,endMs:1000}]);
+  assert.equal(result.priorNavigationDeltaMs,300);
+  assert.equal(result.priorNavigationRoute,'login');
+  assert.equal(result.within500Ms,true);
+  assert.equal(result.endpointCandidateCount,2);
+  assert.equal(result.exactCandidateCount,1);
+  assert.equal(JSON.stringify(result).includes('SID='),false);
+  assert.equal(JSON.stringify(result).includes('private'),false);
+});
+test('does not infer navigation evidence from a future or unrelated document',()=>{
+  const [row]=summarizeBrowserNavigationProximity([{name:'a',atMs:1000,endpoint:'local'}],
+    [{context:'a',event:'document-request',atMs:1001},{context:'b',event:'document-request',atMs:999}],[]);
+  assert.equal(row.priorNavigationDeltaMs,null);
+  assert.equal(row.within500Ms,false);
+  assert.equal(row.endpointCandidateCount,0);
 });

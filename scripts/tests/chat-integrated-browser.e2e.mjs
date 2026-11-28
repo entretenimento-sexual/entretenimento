@@ -12,7 +12,7 @@ import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
 import { seedPublicMediaCompliance } from './media-e2e-compliance-fixture.mjs';
-import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch, resolveBrowserEngine, mountedDocumentReadsComplete, correlateBrowserNetworkErrors, resolveBrowserChannel, browserTransportFailureCategory, summarizeBrowserNetworkLifecycle } from './chat-integrated-browser-metrics.mjs';
+import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch, resolveBrowserEngine, mountedDocumentReadsComplete, correlateBrowserNetworkErrors, resolveBrowserChannel, browserTransportFailureCategory, summarizeBrowserNetworkLifecycle, summarizeBrowserNavigationProximity } from './chat-integrated-browser-metrics.mjs';
 
 const PROJECT = 'demo-entretenimento-media-e2e';
 const BASE = 'http://127.0.0.1:4200';
@@ -72,7 +72,7 @@ const concurrencyContexts = new Set(['concurrency-tab-a','concurrency-tab-b','co
 const concurrencySamples = {stages:[], resources:[], convergences:[]};
 const pendingResources = [];
 const sharedFriendsTrace = [], sharedFriendsSamples = [], friendsPointReads = [];
-const pendingAdmission = [], pendingAdmissionDecisions = [];
+const pendingAdmission = [], pendingAdmissionDecisions = [], pendingAdmissionLedger = [];
 const admissionCancellationContext = 'admission-cancellation';
 const admissionCancellationSamples = {};
 // Independent transport barrier for the complementary offline proof.
@@ -209,7 +209,7 @@ async function newPage(name, viewport={width:1440,height:1000}, existingContext=
   page.on('request',request=>{
     const url=new URL(request.url());
     if(browserEngine==='webkit' && url.hostname==='127.0.0.1' && ['15001','18080'].includes(url.port)) {
-      browserNetworkRequests.set(request,{name,url:url.href,method:request.method(),document:documentNumber,
+      browserNetworkRequests.set(request,{name,url:url.href,endpoint:url.origin+url.pathname,method:request.method(),document:documentNumber,
         phase:currentPhase,startMs:performance.now(),status:null,endMs:null,terminal:null});
     }
     if(request.isNavigationRequest() && request.resourceType()==='document' && request.frame()===page.mainFrame()) {
@@ -251,7 +251,7 @@ async function newPage(name, viewport={width:1440,height:1000}, existingContext=
   page.on('requestfailed', request => {
     recordCallableTransportFailure(name,request);
     const evidence=browserNetworkRequests.get(request);
-    if(evidence) {evidence.endMs=performance.now();evidence.terminal='failed';}
+    if(evidence) {evidence.endMs=performance.now();evidence.terminal='failed';evidence.failureCategory=browserTransportFailureCategory(request.failure()?.errorText);}
     if(browserEngine==='webkit') {
       const url=new URL(request.url());
       if(url.hostname==='127.0.0.1' && ['15001','18080'].includes(url.port)) {
@@ -294,6 +294,10 @@ async function newPage(name, viewport={width:1440,height:1000}, existingContext=
     if(admission) pendingAdmission.push({context:name,document:documentNumber,operation:Number(admission[1]),direction:admission[2],event:admission[3],phase:currentPhase,atMs:performance.now()});
     const decision=/^\[Friends\] pending-admission-decision (\d+) (inbound|outbound) (reserved|waiting|no-window|no-locks|no-crypto|digest-failed|storage-failed|lock-failed)\s*$/.exec(message.text());
     if(decision) pendingAdmissionDecisions.push({context:name,document:documentNumber,operation:Number(decision[1]),direction:decision[2],decision:decision[3],phase:currentPhase,atMs:performance.now()});
+    const ledger=/^\[Friends\] pending-admission-ledger (\d+) (inbound|outbound) (\d+) (\d+) (\d+) (\d+)\s*$/.exec(message.text());
+    if(ledger) pendingAdmissionLedger.push({context:name,document:documentNumber,operation:Number(ledger[1]),
+      direction:ledger[2],live:Number(ledger[3]),burst:Number(ledger[4]),future:Number(ledger[5]),delayMs:Number(ledger[6]),
+      phase:currentPhase,atMs:performance.now()});
     const resource=/^\[Friends\] pending-resource (listener|inbound|outbound) (open|close)\s*$/.exec(message.text());
     if(resource) pendingResources.push({context:name,document:documentNumber,resource:resource[1],event:resource[2],phase:currentPhase,atMs:performance.now()});
     if (/^\[Friends\] point-read start\s*$/.test(message.text())) {
@@ -1895,6 +1899,7 @@ try {
   console.log('Shared friends watch samples '+JSON.stringify(sharedFriendsSamples));
   writeFileSync(resolve(out,'pending-admission-trace.json'),JSON.stringify(pendingAdmission,null,2));
   writeFileSync(resolve(out,'pending-admission-decisions.json'),JSON.stringify(pendingAdmissionDecisions,null,2));
+  writeFileSync(resolve(out,'pending-admission-ledger.json'),JSON.stringify(pendingAdmissionLedger,null,2));
   writeFileSync(resolve(out,'admission-cancellation-samples.json'),JSON.stringify(admissionCancellationSamples,null,2));
   console.log('Admission cancellation evidence '+JSON.stringify(admissionCancellationSamples));
   writeFileSync(resolve(out,'pending-read-trace.json'),JSON.stringify(pendingReadTrace,null,2));
@@ -1913,7 +1918,16 @@ try {
   writeFileSync(resolve(out,'browser-diagnostics.json'),JSON.stringify(browserErrors,null,2));
   const networkEvidence=correlateBrowserNetworkErrors(browserNetworkErrors,browserNetworkFailures);
   const networkLifecycle=summarizeBrowserNetworkLifecycle(browserNetworkErrors,[...browserNetworkRequests.values()]);
-  writeFileSync(resolve(out,'browser-runtime-evidence.json'),JSON.stringify({nativeRuntimeFailures,networkEvidence,networkLifecycle},null,2));
+  const navigationProximity=summarizeBrowserNavigationProximity(browserNetworkErrors,pendingOrigins,[...browserNetworkRequests.values()]);
+  writeFileSync(resolve(out,'browser-runtime-evidence.json'),JSON.stringify({nativeRuntimeFailures,networkEvidence,networkLifecycle,navigationProximity},null,2));
+  console.log('Browser navigation proximity '+JSON.stringify({
+    events:navigationProximity.length,
+    within500Ms:navigationProximity.filter(row=>row.within500Ms).length,
+    byEndpoint:navigationProximity.reduce((counts,row)=>{const endpoint=row.endpoint;
+      counts[endpoint]=(counts[endpoint]??0)+1;return counts;},{}),
+    endpointCandidates:navigationProximity.filter(row=>row.endpointCandidateCount>0).length,
+    exactCandidates:navigationProximity.filter(row=>row.exactCandidateCount>0).length
+  }));
   console.log('Browser runtime evidence '+JSON.stringify({nativeRuntimeFailures:nativeRuntimeFailures.length,
     networkErrors:networkEvidence.length,matched:networkEvidence.filter(row=>row.matched).length}));
   writeFileSync(resolve(out,'callable-counts.json'),JSON.stringify([...callableCounts.values()].sort((a,b)=>b.total-a.total),null,2));

@@ -11,6 +11,25 @@ import { AuthSessionService } from '@core/services/autentication/auth/auth-sessi
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { authSessionChanged } from 'src/app/store/actions/actions.user/auth.actions';
 
+const PENDING_REQUEST_RETRY_FLOOR_MS = 60_000;
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
+
+/** Quota hints extend, but never accelerate, the existing retry policy. */
+export function pendingRequestsRetryDelay(error: unknown): number {
+  if (!error || typeof error !== 'object') return PENDING_REQUEST_RETRY_FLOOR_MS;
+  const { code, details } = error as { code?: unknown; details?: unknown };
+  if (code !== 'functions/resource-exhausted' && code !== 'resource-exhausted') {
+    return PENDING_REQUEST_RETRY_FLOOR_MS;
+  }
+  if (!details || typeof details !== 'object') return PENDING_REQUEST_RETRY_FLOOR_MS;
+  const { retryAfterMs } = details as { retryAfterMs?: unknown };
+  if (typeof retryAfterMs !== 'number' || !Number.isFinite(retryAfterMs) || retryAfterMs <= 0) {
+    return PENDING_REQUEST_RETRY_FLOOR_MS;
+  }
+  return Math.max(PENDING_REQUEST_RETRY_FLOOR_MS,
+    Math.min(MAX_TIMER_DELAY_MS, Math.ceil(retryAfterMs)));
+}
+
 @Injectable()
 export class FriendsRequestsRealtimeEffects {
   private actions$ = inject(Actions);
@@ -80,7 +99,7 @@ export class FriendsRequestsRealtimeEffects {
               map(requests => RT.inboundRequestsChanged({ requests })),
               catchError((err, source) => concat(
                 of(A.loadInboundRequestsFailure({ error: String(err?.message ?? err) })),
-                timer(60_000).pipe(switchMap(() => source))
+                timer(pendingRequestsRetryDelay(err)).pipe(switchMap(() => source))
               ))
             );
             return reset ? concat(of(RT.inboundRequestsChanged({ requests: [] })), watch$) : watch$;
@@ -111,7 +130,7 @@ export class FriendsRequestsRealtimeEffects {
               map(requests => RT.outboundRequestsChanged({ requests })),
               catchError((err, source) => concat(
                 of(A.loadOutboundRequestsFailure({ error: String(err?.message ?? err) })),
-                timer(60_000).pipe(switchMap(() => source))
+                timer(pendingRequestsRetryDelay(err)).pipe(switchMap(() => source))
               ))
             );
             return reset ? concat(of(RT.outboundRequestsChanged({ requests: [] })), watch$) : watch$;

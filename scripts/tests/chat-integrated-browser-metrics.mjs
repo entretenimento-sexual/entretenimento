@@ -125,3 +125,29 @@ export function summarizeBrowserNetworkLifecycle(errors, requests) {
     }))};
   });
 }
+
+// Diagnostic only. A nearby navigation or endpoint-level transport is not
+// an exact request match, and must never downgrade a pageerror.
+export function summarizeBrowserNavigationProximity(errors, origins, requests) {
+  const navigations=origins.filter(row=>row.event==='document-request');
+  return errors.map(error=>{
+    const prior=navigations.filter(row=>row.context===error.name&&row.atMs<=error.atMs)
+      .sort((a,b)=>b.atMs-a.atMs)[0];
+    const delta=prior?error.atMs-prior.atMs:null;
+    const candidates=requests.filter(row=>row.name===error.name&&
+      row.endpoint===error.endpoint&&row.startMs<=error.atMs+2000&&
+      (row.endMs==null||row.endMs>=error.atMs-2000));
+    return {name:error.name,phase:error.phase,document:error.document,endpoint:error.endpoint,
+      priorNavigationDeltaMs:delta===null?null:Math.round(delta),
+      priorNavigationRoute:prior?.route??null,
+      within500Ms:delta!==null&&delta<=500,
+      endpointCandidateCount:candidates.length,
+      exactCandidateCount:candidates.filter(row=>row.url===error.url).length,
+      endpointCandidates:candidates.slice(0,20).map(row=>({
+        method:row.method,document:row.document,status:row.status??null,terminal:row.terminal??null,
+        failureCategory:row.failureCategory??null,
+        startDeltaMs:Math.round(row.startMs-error.atMs),
+        endDeltaMs:row.endMs==null?null:Math.round(row.endMs-error.atMs)
+      }))};
+  });
+}

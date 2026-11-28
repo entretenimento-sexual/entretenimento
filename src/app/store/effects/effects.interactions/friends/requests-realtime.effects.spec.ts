@@ -8,7 +8,7 @@ import { AuthSessionService } from '@core/services/autentication/auth/auth-sessi
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import * as A from '../../../actions/actions.interactions/actions.friends';
 import * as RT from '../../../actions/actions.interactions/friends/friends-realtime.actions';
-import { FriendsRequestsRealtimeEffects } from './requests-realtime.effects';
+import { FriendsRequestsRealtimeEffects, pendingRequestsRetryDelay } from './requests-realtime.effects';
 
 describe('FriendsRequestsRealtimeEffects / isolamento de sessão', () => {
   it('desinscreve listener antigo imediatamente ao trocar UID A para B', () => {
@@ -231,6 +231,65 @@ describe('FriendsRequestsRealtimeEffects / isolamento de sessão', () => {
       expect(attempts).toBe(1);
     } finally {
       subscription.unsubscribe();
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('FriendsRequestsRealtimeEffects / recuperação orientada pela quota', () => {
+  it.each([
+    [undefined, 60_000],
+    [new Error('offline'), 60_000],
+    [{code:'functions/unavailable', details:{retryAfterMs:195_000}}, 60_000],
+    [{code:'functions/resource-exhausted', details:{retryAfterMs:10_000}}, 60_000],
+    [{code:'functions/resource-exhausted', details:{retryAfterMs:125_000}}, 125_000],
+    [{code:'resource-exhausted', details:{retryAfterMs:195_000.1}}, 195_001],
+    [{code:'functions/resource-exhausted', details:{retryAfterMs:'195000'}}, 60_000],
+    [{code:'functions/resource-exhausted', details:{retryAfterMs:Infinity}}, 60_000],
+    [{code:'functions/resource-exhausted', details:{retryAfterMs:-1}}, 60_000],
+    [{code:'functions/resource-exhausted', details:{retryAfterMs:9e12}}, 2_147_483_647],
+  ])('respeita a política de espera para %j', (error, expected) => {
+    expect(pendingRequestsRetryDelay(error)).toBe(expected);
+  });
+
+  it.each(['inbound','outbound'] as const)('respeita a renovação de %s e cancela espera no logout', async direction => {
+    vi.useFakeTimers();
+    const actions = new Subject<ReturnType<typeof RT.startInboundRequestsListener> | ReturnType<typeof RT.startOutboundRequestsListener>>();
+    const uid = new BehaviorSubject<string | null>('user-a');
+    const auth = new BehaviorSubject<{uid:string} | null>({uid:'user-a'});
+    const error = Object.assign(new Error('quota'), {code:'functions/resource-exhausted', details:{retryAfterMs:125_000}});
+    let attempts = 0;
+    const watcher = vi.fn(() => defer(() => {
+      attempts++;
+      return throwError(() => error);
+    }));
+    TestBed.configureTestingModule({providers:[
+      FriendsRequestsRealtimeEffects,
+      {provide:Actions,useValue:new Actions(actions)},
+      {provide:AccessControlService,useValue:{authUid$:uid}},
+      {provide:AuthSessionService,useValue:{authUser$:auth}},
+      {provide:ApplicationErrorService,useValue:{report:vi.fn()}},
+      {provide:FriendshipService,useValue:{watchInboundRequests:watcher,watchOutboundRequests:watcher}},
+    ]});
+    const effects = TestBed.inject(FriendsRequestsRealtimeEffects);
+    const stream = direction === 'inbound' ? effects.listenInboundRequests$ : effects.listenOutboundRequests$;
+    const start = direction === 'inbound' ? RT.startInboundRequestsListener : RT.startOutboundRequestsListener;
+    const output: unknown[] = [];
+    const sub = (stream as Observable<unknown>).subscribe(value=>output.push(value));
+    try {
+      actions.next(start({uid:'user-a'}));
+      expect(attempts).toBe(1);
+      await vi.advanceTimersByTimeAsync(124_999);
+      expect(attempts).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(attempts).toBe(2);
+      expect(output).toHaveLength(2);
+      auth.next(null);
+      uid.next(null);
+      await vi.advanceTimersByTimeAsync(250_000);
+      expect(attempts).toBe(2);
+    } finally {
+      sub.unsubscribe();
       vi.useRealTimers();
     }
   });

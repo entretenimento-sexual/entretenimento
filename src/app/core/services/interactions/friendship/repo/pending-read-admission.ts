@@ -68,11 +68,18 @@ export type PendingReadAdmissionDecision =
   | 'reserved' | 'waiting' | 'no-window' | 'no-locks' | 'no-crypto'
   | 'digest-failed' | 'storage-failed' | 'lock-failed';
 
+export interface PendingReadLedgerEvidence {
+  readonly live: number;
+  readonly burst: number;
+  readonly future: number;
+  readonly delay: number;
+}
 interface Admission {
   readonly delay: number;
   readonly mode: 'reserved' | 'fallback' | 'waiting';
   readonly reason?: 'storage-failed' | 'lock-failed';
   readonly lease?: PendingReadLease;
+  readonly evidence?: PendingReadLedgerEvidence;
 }
 
 /**
@@ -85,7 +92,8 @@ export class PendingReadAdmission {
 
   wait$(uid: string, isCurrent: () => boolean, onWait: () => void,
     onDecision: (decision: PendingReadAdmissionDecision) => void = () => {},
-    onReservation: (lease: PendingReadLease) => void = () => {}): Observable<void> {
+    onReservation: (lease: PendingReadLease) => void = () => {},
+    onLedger: (evidence: PendingReadLedgerEvidence) => void = () => {}): Observable<void> {
     return defer(() => {
       const view = this.document?.defaultView;
       const locks = view?.navigator.locks;
@@ -141,10 +149,13 @@ export class PendingReadAdmission {
             const ledger = readLedger(storage, now);
             const starts = ledger[key] ?? [];
             const delay = pendingReadDelay(starts, now);
-            if (delay > 0) return {delay,mode:'waiting'};
+            const evidence: PendingReadLedgerEvidence = {live:starts.length,
+              burst:starts.filter(value=>value>now-BURST_WINDOW_MS).length,
+              future:starts.filter(value=>value>now).length,delay};
+            if (delay > 0) return {delay,mode:'waiting',evidence};
             if (!(key in ledger) && Object.keys(ledger).length >= MAX_ACCOUNTS) {
               // Do not evict recent accounts and manufacture new capacity.
-              return {delay:MAX_WAIT_MS+1,mode:'waiting'};
+              return {delay:MAX_WAIT_MS+1,mode:'waiting',evidence};
             }
             // Unique within the live numerical ledger; old tabs continue to
             // observe the charge. Never evict a live entry to reserve capacity.
@@ -160,10 +171,10 @@ export class PendingReadAdmission {
               if (!(id in index)) {
                 index[id] = {key, marker};
                 storage.setItem(LEASE_KEY, JSON.stringify(index));
-                return {delay:0,mode:'reserved',lease:createLease(id,key,marker)};
+                return {delay:0,mode:'reserved',lease:createLease(id,key,marker),evidence};
               }
             } catch { /* finite conservative charge remains in the v1 ledger */ }
-            return {delay:0,mode:'reserved'};
+            return {delay:0,mode:'reserved',evidence};
           } catch {
             // Storage/security failures are not permission decisions.
             return {delay:0,mode:'fallback',reason:'storage-failed'};
@@ -180,6 +191,7 @@ export class PendingReadAdmission {
         return reserve(key).pipe(switchMap(result => {
           if (!isCurrent()) return EMPTY;
           if (result.mode === 'fallback') return fallback(result.reason ?? 'lock-failed');
+          if (result.evidence && (result.delay === 0 || !waitingReported)) onLedger(result.evidence);
           if (result.delay === 0) {
             onDecision(result.mode);
             if (result.lease) onReservation(result.lease);

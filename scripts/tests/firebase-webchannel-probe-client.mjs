@@ -36,6 +36,8 @@ globalThis.startProbeWrite=()=>{
   state.writeAck=false;
   void setDoc(target,{value:1}).then(()=>{state.writeAck=true;},report);
 };
+globalThis.unsubscribeProbe=()=>{unsubscribe?.();};
+globalThis.drainProbe=()=>waitForPendingWrites(db);
 globalThis.stopProbe=async()=>{
   await waitForPendingWrites(db);
   unsubscribe?.();

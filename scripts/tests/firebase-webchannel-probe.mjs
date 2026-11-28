@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -48,13 +49,22 @@ try {
   const types=await import(pathToFileURL(resolve(process.env.CHAT_BROWSER_PLAYWRIGHT)).href);
   browser=await types[engine].launch({headless:true});
   out.version=browser.version();
-  for(const polling of ['default','forced'])for(const action of ['graceful','abrupt']){
+  for(const polling of ['default','forced'])for(const action of ['graceful','abrupt','unsubscribe-only','drain-only']){
     const context=await browser.newContext({serviceWorkers:'block'});
-    const result={polling,action,network:[],pageErrors:[],nativeErrors:[],blockedExternal:0};
+    const result={polling,action,network:[],pageErrors:[],nativeErrors:[],blockedExternal:0,blockedRequests:[]};
     out.cases.push(result);
     await context.route('**/*',route=>{
-      if(!allowed.has(new URL(route.request().url()).origin)){
-        result.blockedExternal++;return route.abort();
+      const request=route.request(),url=new URL(request.url());
+      if(!allowed.has(url.origin)){
+        result.blockedExternal++;
+        // Keep unknown origin identifiers runner-local and non-reversible in
+        // the artifact; disclose only known public service hostnames.
+        const known=['www.gstatic.com','apis.google.com','accounts.google.com','www.googleapis.com',
+          'identitytoolkit.googleapis.com','securetoken.googleapis.com','firestore.googleapis.com'];
+        result.blockedRequests.push({scheme:url.protocol,host:known.includes(url.hostname)
+          ?url.hostname:'other',originDigest:createHash('sha256').update(url.origin).digest('hex').slice(0,16),
+          resourceType:request.resourceType()});
+        return route.abort();
       }
       return route.continue();
     });
@@ -98,6 +108,11 @@ try {
       if(action==='graceful'){
         await page.evaluate(()=>globalThis.stopProbe());
         await page.waitForFunction(()=>globalThis.probeState.cleanup&&globalThis.probeState.writeAck);
+      } else if(action==='unsubscribe-only'){
+        await page.evaluate(()=>globalThis.unsubscribeProbe());
+      } else if(action==='drain-only'){
+        await page.evaluate(()=>globalThis.drainProbe());
+        await page.waitForFunction(()=>globalThis.probeState.writeAck);
       }
       result.beforeNavigation=await page.evaluate(()=>({...globalThis.probeState}));
       result.activeBeforeNavigation=result.network.filter(row=>row.terminal===null).map(row=>row.channel);
@@ -116,10 +131,10 @@ try {
       polling,action,failed:!!result.failed,blockedExternal:result.blockedExternal,
       activeBeforeNavigation:result.activeBeforeNavigation??[],
       writeAckBeforeNavigation:result.beforeNavigation?.writeAck??null,
-      pageErrors:result.pageErrors.length,nativeErrors:result.nativeErrors.length
+      blockedRequests:result.blockedRequests,pageErrors:result.pageErrors.length,nativeErrors:result.nativeErrors.length
     }));
   }
-  assert.equal(out.cases.length,4);
+  assert.equal(out.cases.length,8);
   assert.ok(out.cases.every(c=>!c.failed&&c.blockedExternal===0),'Probe controls failed');
   assert.ok(out.cases.every(c=>c.pageErrors.length===0&&c.nativeErrors.length===0),
     'Observed runtime error; inspect diagnostic evidence');

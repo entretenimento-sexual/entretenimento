@@ -31,6 +31,7 @@ jobs:
       - name: Install locked application SDK
         run: npm ci
       - name: Install isolated browser runner
+        id: browser_install
         run: |
           npm install --prefix "$RUNNER_TEMP/webchannel-playwright" --no-save --package-lock=false playwright@1.56.1
           "$RUNNER_TEMP/webchannel-playwright/node_modules/.bin/playwright" install --with-deps ${{ matrix.engine }}
@@ -43,6 +44,14 @@ jobs:
           node --check scripts/tests/firebase-webchannel-probe-client.mjs
           node --check scripts/tests/firebase-webchannel-probe.mjs
           npx --no-install firebase emulators:exec --config firebase.webchannel-probe.json --only auth,firestore --project demo-firebase-webchannel-probe "node scripts/tests/firebase-webchannel-probe.mjs ${{ matrix.engine }}"
+      - name: Validate shared storage and Web Lock invariants
+        if: always() && steps.browser_install.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CHAT_BROWSER_PLAYWRIGHT="$RUNNER_TEMP/webchannel-playwright/node_modules/playwright/index.mjs"
+          node --check scripts/tests/firebase-webchannel-probe-ledger.mjs
+          node scripts/tests/firebase-webchannel-probe-ledger.mjs ${{ matrix.engine }}
       - name: Upload isolated evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -46,7 +46,7 @@ import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-
 import { NetworkStatusService } from '@core/services/network/network-status.service';
 
 import { FirestoreRepoBase } from './base.repo';
-import { PendingReadAdmission, type PendingReadAdmissionDecision, type PendingReadLease } from './pending-read-admission';
+import { PendingReadAdmission, type PendingReadAdmissionDecision, type PendingReadLease, type PendingReadLedgerEvidence } from './pending-read-admission';
 import { FriendRequest } from '../../../../interfaces/friendship/friend-request.interface';
 
 type PendingRequests = (FriendRequest & { id: string })[];
@@ -152,6 +152,13 @@ export class RequestsRepo extends FirestoreRepoBase {
 
   private traceAdmissionDecision(operation: number, direction: RequestDirection, decision: PendingReadAdmissionDecision): void {
     this.privacyDebug?.log('friends', 'pending-admission-decision ' + operation + ' ' + direction + ' ' + decision);
+  }
+
+  private traceAdmissionLedger(operation: number, direction: RequestDirection, evidence: PendingReadLedgerEvidence): void {
+    // Only aggregate counts measured under the shared lock; no key, UID,
+    // timestamp, token, lease ID or request payload.
+    this.privacyDebug?.log('friends', 'pending-admission-ledger ' + operation + ' ' + direction + ' ' +
+      evidence.live + ' ' + evidence.burst + ' ' + evidence.future + ' ' + Math.ceil(evidence.delay));
   }
 
   private traceResource(resource: 'listener' | RequestDirection, event: 'open' | 'close'): void {
@@ -311,7 +318,8 @@ export class RequestsRepo extends FirestoreRepoBase {
       return defer(() => this.admission.wait$(uid, isCurrent, () => {
         this.trace('signal', direction, 'quota-wait');
         this.traceAdmission(operation, direction, 'waiting');
-      }, decision => this.traceAdmissionDecision(operation, direction, decision), reservation => { lease = reservation; })).pipe(
+      }, decision => this.traceAdmissionDecision(operation, direction, decision), reservation => { lease = reservation; },
+      evidence => this.traceAdmissionLedger(operation, direction, evidence))).pipe(
         tap({
           next: () => this.traceAdmission(operation, direction, 'admitted'),
           error: error => {
