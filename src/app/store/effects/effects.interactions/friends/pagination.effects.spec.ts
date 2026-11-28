@@ -10,7 +10,8 @@ import { FriendshipService } from 'src/app/core/services/interactions/friendship
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import type { Friend, FriendsPageCursor } from 'src/app/core/interfaces/friendship/friend.interface';
 import * as P from '../../../actions/actions.interactions/friends/friends-pagination.actions';
-import { selectFriendsPageNextOrder, selectFriendsPageReachedEnd } from '../../../selectors/selectors.interactions/friends/pagination.selectors';
+import { selectFriendsPageSlice } from '../../../selectors/selectors.interactions/friends/pagination.selectors';
+import { emptyFriendsPageSlice } from '../../../states/states.interactions/friends-pagination.state';
 import { FriendsPaginationEffects } from './pagination.effects';
 
 describe('FriendsPaginationEffects / sessão operacional', () => {
@@ -22,6 +23,8 @@ describe('FriendsPaginationEffects / sessão operacional', () => {
   let pending: Subject<typeof page>;
   let list: ReturnType<typeof vi.fn>;
   let watch: ReturnType<typeof vi.fn>;
+  let membership: Subject<boolean>;
+  let observeMembership: ReturnType<typeof vi.fn>;
   let effects: FriendsPaginationEffects;
   beforeEach(() => {
     actions = new Subject<Action>();
@@ -29,15 +32,18 @@ describe('FriendsPaginationEffects / sessão operacional', () => {
     pending = new Subject<typeof page>();
     list = vi.fn(() => pending.asObservable());
     watch = vi.fn(() => pending.asObservable());
+    membership = new Subject<boolean>();
+    observeMembership = vi.fn(() => membership.asObservable());
     TestBed.configureTestingModule({ providers: [
       FriendsPaginationEffects,
       { provide: Actions, useValue: new Actions(actions) },
       { provide: AuthSessionService, useValue: { authUser$: session.asObservable() } },
-      { provide: FriendshipService, useValue: { listFriendsPage: list, watchFriendsPage: watch } },
+      { provide: FriendshipService, useValue: { listFriendsPage: list, watchFriendsPage: watch, watchFriendshipMembership: observeMembership } },
       { provide: GlobalErrorHandlerService, useValue: { handleError: vi.fn() } },
       provideMockStore({ selectors: [
-        { selector: selectFriendsPageNextOrder('owner'), value: cursor },
-        { selector: selectFriendsPageReachedEnd('owner'), value: false },
+        { selector: selectFriendsPageSlice('owner'), value: {
+          ...emptyFriendsPageSlice, nextOrderValue: cursor, tailConfirmed: true, reachedEnd: false,
+        } },
       ] }),
     ] });
     effects = TestBed.inject(FriendsPaginationEffects);
@@ -93,6 +99,38 @@ describe('FriendsPaginationEffects / sessão operacional', () => {
     expect(results).toHaveLength(2);
     sub.unsubscribe();
   });
+  it('observa revisão somente na rota e não reabre o listener de amigos', () => {
+    const results: unknown[] = [];
+    const sub = effects.invalidateTailOnMembership$.subscribe(value => results.push(value));
+    actions.next(P.loadFriendsFirstPage({ uid: 'other' }));
+    expect(observeMembership).not.toHaveBeenCalled();
+    actions.next(P.loadFriendsFirstPage({ uid: 'owner' }));
+    membership.next(true); membership.next(true); membership.next(false); membership.next(true);
+    expect(results).toEqual([true,true,false,true].map(confirmed =>
+      P.invalidateFriendsTail({ uid:'owner',confirmed })));
+    expect(watch).not.toHaveBeenCalled();
+    expect(list).not.toHaveBeenCalled();
+    actions.next(P.resetFriendsPagination({ uid: 'owner' }));
+    membership.next(true);
+    expect(results).toHaveLength(4);
+    sub.unsubscribe();
+  });
+
+  it('cancela append na revisão bilateral e admite novo cursor na próxima ação', () => {
+    const results: unknown[] = [];
+    const sub = effects.loadNext$.subscribe(value => results.push(value));
+    actions.next(P.loadFriendsNextPage({ uid:'owner' }));
+    actions.next(P.invalidateFriendsTail({ uid:'other',confirmed:true }));
+    actions.next(P.invalidateFriendsTail({ uid:'owner',confirmed:true }));
+    pending.next(page);
+    expect(results).toEqual([]);
+    actions.next(P.loadFriendsNextPage({ uid:'owner' }));
+    pending.next(page);
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(results).toHaveLength(1);
+    sub.unsubscribe();
+  });
+
   it('cancela append antigo após snapshot canônico substituir a primeira página', () => {
     const results: unknown[] = [];
     const sub = effects.loadNext$.subscribe(value => results.push(value));

@@ -36,6 +36,12 @@ export const loadFriendsPageFailure = createAction(
   props<{ uid: string; error: string; replace?: boolean }>()
 );
 
+/** Revisão privada confirmada ou perda de confirmação. Não carrega dados. */
+export const invalidateFriendsTail = createAction(
+  '[Friends Page] Membership Revision',
+  props<{ uid: string; confirmed: boolean }>()
+);
+
 export const resetFriendsPagination = createAction(
   '[Friends Page] Reset',
   props<{ uid: string }>()

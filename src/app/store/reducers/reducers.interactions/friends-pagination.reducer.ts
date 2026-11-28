@@ -57,7 +57,7 @@ export const friendsPaginationReducer = createReducer(
   // Next => append: mantém itens e só liga loading
   on(P.loadFriendsNextPage, (state, { uid }) => {
     const current = ensureSlice(state, uid);
-    if (current.reachedEnd || current.nextOrderValue === null || current.loading) return state;
+    if (!current.tailConfirmed || current.reachedEnd || current.nextOrderValue === null || current.loading) return state;
     return {
       ...state,
       byUid: { ...state.byUid, [uid]: { ...current, loading: true, error: null } },
@@ -66,7 +66,8 @@ export const friendsPaginationReducer = createReducer(
 
   // Success (append controla merge ou replace)
   on(P.loadFriendsPageSuccess, (state, { uid, items, nextOrderValue, reachedEnd, append }) => {
-    const current = ensureSlice(state, uid);
+    const current = state.byUid[uid];
+    if (!current || (append && !current.tailConfirmed)) return state;
     const merged = append ? [...current.items, ...items] : items;
     const deduped = dedupeByFriendUid(merged);
 
@@ -77,6 +78,7 @@ export const friendsPaginationReducer = createReducer(
         [uid]: {
           ...current,
           items: deduped,
+          firstPage: append ? current.firstPage ?? null : { items: deduped, nextOrderValue, reachedEnd },
           nextOrderValue,
           reachedEnd,
           loading: false,
@@ -88,10 +90,38 @@ export const friendsPaginationReducer = createReducer(
 
   // Failure
   on(P.loadFriendsPageFailure, (state, { uid, error, replace }) => {
-    const current = replace ? { ...emptyFriendsPageSlice, reachedEnd: true } : ensureSlice(state, uid);
+    const existing = state.byUid[uid];
+    if (!existing) return state;
+    const current = replace
+      ? { ...emptyFriendsPageSlice, tailConfirmed: existing.tailConfirmed, reachedEnd: true }
+      : existing;
     return {
       ...state,
       byUid: { ...state.byUid, [uid]: { ...current, loading: false, error } },
+    };
+  }),
+
+  /**
+   * Descarta somente o material paginado após a primeira página. A revisão
+   * pode mudar mesmo sem alteração no resultado limitado a 24 arestas.
+   * Não reabre o listener e não usa a revisão como autorização.
+   */
+  on(P.invalidateFriendsTail, (state, { uid, confirmed }) => {
+    const current = state.byUid[uid];
+    if (!current) return state;
+    const first = current.firstPage;
+    if (!first) {
+      return { ...state, byUid: { ...state.byUid, [uid]: { ...current, tailConfirmed: confirmed } } };
+    }
+    return {
+      ...state,
+      byUid: { ...state.byUid, [uid]: {
+        ...current,
+        ...first,
+        tailConfirmed: confirmed,
+        loading: false,
+        error: null,
+      } },
     };
   }),
 
@@ -108,14 +138,22 @@ on(P.removeFriendFromFriendsPage, (state, { uid, friendUid, endedThrough }) => {
   // Não fabricar slice de uma rota fechada.
   if (!current) return state;
 
+  const survives = (item: Friend) => !isSameFriend(item, friendUid) ||
+    isFriendshipAfter(item.sinceVersion, endedThrough);
+  const items = current.items.filter(survives);
+  const first = current.firstPage;
+  const firstPage = first ? {
+    ...first,
+    items: current.items === first.items ? items : first.items.filter(survives),
+  } : null;
   return {
     ...state,
     byUid: {
       ...state.byUid,
       [uid]: {
         ...current,
-        items: current.items.filter(item => !isSameFriend(item, friendUid) ||
-          isFriendshipAfter(item.sinceVersion, endedThrough)),
+        items,
+        firstPage,
         // Append será cancelado, mas a primeira página ainda pode estar em hidratação.
         loading: current.loading && current.nextOrderValue === null,
         error: null,

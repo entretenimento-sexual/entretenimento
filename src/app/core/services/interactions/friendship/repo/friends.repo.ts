@@ -28,6 +28,7 @@ import {
   Firestore,
   collection,
   getDocs,
+  getDocsFromServer,
   query,
   limit,
   orderBy,
@@ -219,7 +220,10 @@ watchFriendsPage(uid: string, pageSize = 24): Observable<{
         };
       }
 
-      const snap = await getDocs(this.friendsQuery(safeUid, pageSize, after));
+      const pageQuery = this.friendsQuery(safeUid, pageSize, after);
+      // Cauda invalidada por revisão canônica nunca volta a partir de cache
+      // local antigo. Falhas seguem o tratamento centralizado da paginação.
+      const snap = await (after === null ? getDocs(pageQuery) : getDocsFromServer(pageQuery));
       const hydrated = await this.projectFriends(snap.docs);
       // Cursor derivado da última aresta bruta, não do último perfil visível.
       const last = snap.docs.at(-1);

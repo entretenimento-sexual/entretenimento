@@ -16,8 +16,7 @@ import { AuthSessionService } from '@core/services/autentication/auth/auth-sessi
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { AppState } from 'src/app/store/states/app.state';
 import {
-  selectFriendsPageNextOrder,
-  selectFriendsPageReachedEnd,
+  selectFriendsPageSlice,
 } from '../../../selectors/selectors.interactions/friends/pagination.selectors';
 
 import type { FriendsPageCursor } from 'src/app/core/interfaces/friendship/friend.interface';
@@ -99,21 +98,44 @@ export class FriendsPaginationEffects {
     )
   );
 
+  /**
+   * Observa a revisão privada já compartilhada com solicitações apenas
+   * enquanto a rota de amizades está ativa. Não reinicia watchFriendsPage.
+   */
+  invalidateTailOnMembership$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(P.loadFriendsFirstPage, P.refreshFriendsPage),
+      concatLatestFrom(() => this.session.authUser$),
+      filter(([action, user]) => !!user && user.uid === action.uid),
+      switchMap(([{ uid }, user]) => this.svc.watchFriendshipMembership(uid).pipe(
+        takeUntil(this.session.authUser$.pipe(filter(current => current !== user))),
+        takeUntil(this.actions$.pipe(ofType(P.resetFriendsPagination), filter(event => event.uid === uid))),
+        map(confirmed => P.invalidateFriendsTail({ uid, confirmed })),
+        catchError(err => {
+          this.report(err, { step: 'membership' });
+          return of(P.invalidateFriendsTail({ uid, confirmed: false }));
+        })
+      ))
+    )
+  );
+
   /** Next page (append) */
   loadNext$ = createEffect(() =>
     this.actions$.pipe(
       ofType(P.loadFriendsNextPage),
       tap(({ uid, pageSize }) => this.debug('next:action', { uid, pageSize })),
       concatLatestFrom((action) => [
-        this.store.select(selectFriendsPageReachedEnd(action.uid)),
-        this.store.select(selectFriendsPageNextOrder(action.uid)),
+        this.store.select(selectFriendsPageSlice(action.uid)),
         this.session.authUser$,
       ]),
-      filter(([action, reachedEnd, cursor, user]) => {
+      filter(([action, slice, user]) => {
+        const reachedEnd = slice?.reachedEnd ?? true;
+        const cursor = slice?.nextOrderValue ?? null;
         const uidOk = !!(action.uid ?? '').trim();
         // Effects observe actions after reducers set loading=true. A valid
         // cursor plus exhaustMap, not that flag, admits the next page.
-        const canRun = uidOk && user?.uid === action.uid && !reachedEnd && cursor !== null;
+        const canRun = uidOk && user?.uid === action.uid && slice?.tailConfirmed === true &&
+          !reachedEnd && cursor !== null;
 
         if (!canRun) {
           this.debug('next:skipped', { uid: action.uid, reachedEnd, hasCursor: cursor !== null });
@@ -121,8 +143,8 @@ export class FriendsPaginationEffects {
 
         return canRun;
       }),
-      exhaustMap(([action, _reachedEnd, nextOrderValue, user]) => {
-        const after = this.normalizeCursor(nextOrderValue);
+      exhaustMap(([action, slice, user]) => {
+        const after = this.normalizeCursor(slice?.nextOrderValue);
         const size = action.pageSize ?? 24;
 
         this.debug('next:svc:call', { uid: action.uid, size, after });
@@ -134,7 +156,7 @@ export class FriendsPaginationEffects {
             filter(event => event.uid === action.uid)
           )),
           takeUntil(this.actions$.pipe(
-            ofType(P.removeFriendFromFriendsPage),
+            ofType(P.removeFriendFromFriendsPage, P.invalidateFriendsTail),
             filter(event => event.uid === action.uid)
           )),
           // Um novo snapshot da primeira página invalida a geração do cursor.

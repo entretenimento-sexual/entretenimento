@@ -18,6 +18,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { db, FieldValue } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import { stageFriendshipMembershipInvalidation } from './friendship-membership-invalidation';
 
 interface EndFriendshipPayload {
   friendUid?: unknown;
@@ -115,10 +116,12 @@ export const endFriendship = onCall<EndFriendshipPayload>(
 
       const [
         actorSnapshot,
+        friendSnapshot,
         actorFriendSnapshot,
         friendActorSnapshot,
       ] = await Promise.all([
         transaction.get(actorRef),
+        transaction.get(friendRef),
         transaction.get(actorFriendRef),
         transaction.get(friendActorRef),
       ]);
@@ -143,6 +146,8 @@ export const endFriendship = onCall<EndFriendshipPayload>(
       if (friendActorSnapshot.exists) {
         transaction.delete(friendActorRef);
       }
+
+      stageFriendshipMembershipInvalidation(transaction, actorSnapshot, friendSnapshot);
 
       transaction.set(db.collection('friendship_audit').doc(), {
         action: 'end-friendship',

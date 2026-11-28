@@ -35,6 +35,10 @@ watchFriends(uid: string) {
     return this.friends.prepareEndFriendship(uid, friendUid);
   }
 
+  watchFriendshipMembership(uid: string): Observable<boolean> {
+    return this.reqs.watchFriendshipMembership(uid);
+  }
+
   watchFriendsPage(uid: string, pageSize = 24) {
     return this.friends.watchFriendsPage(uid, pageSize);
   }

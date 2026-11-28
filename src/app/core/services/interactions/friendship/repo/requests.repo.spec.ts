@@ -17,9 +17,10 @@ describe('RequestsRepo', () => {
   }
 
   type Snapshot = { metadata: { fromCache: boolean; hasPendingWrites: boolean }; exists(): boolean; data(): Record<string, unknown> };
-  function revision(inbound = 0, outbound = 0, fromCache = false): Snapshot {
+  function revision(inbound = 0, outbound = 0, fromCache = false, membership = 0): Snapshot {
     return { metadata: { fromCache, hasPendingWrites: false }, exists: () => true,
-      data: () => ({ pendingFriendRequestsInboundRevision: inbound, pendingFriendRequestsOutboundRevision: outbound }) };
+      data: () => ({ pendingFriendRequestsInboundRevision: inbound, pendingFriendRequestsOutboundRevision: outbound,
+        friendshipMembershipRevision: membership }) };
   }
   let revision$: BehaviorSubject<Snapshot>;
   let online$: BehaviorSubject<boolean>;
@@ -73,6 +74,39 @@ describe('RequestsRepo', () => {
     visibilityEvents = new EventTarget();
     Object.defineProperty(visibilityEvents, 'visibilityState', { get: () => visibility });
     repo = new RequestsRepoToken(db, env, functions, session, { report }, { log }, { isOnline$: online$ }, visibilityEvents);
+  });
+
+  it('compartilha revisão de amizades com solicitações sem gerar leituras redundantes', async () => {
+    vi.useFakeTimers();
+    const seen = vi.fn();
+    callable.mockResolvedValue({ data: { items: [] } });
+    const pending = repo.watchOutboundRequests('bob','session').subscribe();
+    const membership = repo.watchFriendshipMembership('bob').subscribe(seen);
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(onSnapshot).toHaveBeenCalledTimes(1);
+      expect(callable).toHaveBeenCalledTimes(1);
+      expect(seen.mock.calls).toEqual([[true]]);
+      revision$.next(revision(0,0,false,1));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(seen.mock.calls).toEqual([[true],[true]]);
+      expect(callable).toHaveBeenCalledTimes(1);
+      // Uma atualização apenas de solicitações não invalida amigos.
+      revision$.next(revision(1,0,false,1));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(seen.mock.calls).toEqual([[true],[true]]);
+      revision$.next(revision(1,0,true,999));
+      expect(seen.mock.calls).toEqual([[true],[true],[false]]);
+      revision$.next(revision(1,0,false,1));
+      expect(seen.mock.calls).toEqual([[true],[true],[false],[true]]);
+      // Mesmo UID, novo objeto de sessão: consumidor antigo é encerrado.
+      setUser('bob');
+      expect(membership.closed).toBe(true);
+      revision$.next(revision(1,0,false,2));
+      expect(seen).toHaveBeenCalledTimes(4);
+    } finally {
+      membership.unsubscribe(); pending.unsubscribe(); vi.useRealTimers();
+    }
   });
 
   it('contabiliza uma admissão até o início do transporte', async () => {

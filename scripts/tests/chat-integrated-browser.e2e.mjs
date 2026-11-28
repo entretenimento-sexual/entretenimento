@@ -439,7 +439,8 @@ async function certifyFriendsPagination() {
   const context='friends-pagination';
   const peers=Array.from({length:27},(_,i)=>uid('pagination-peer-'+String(i).padStart(2,'0')));
   // Synthetic edges only in the isolated emulator; real Auth for both viewers.
-  for(const viewer of [owner,other,acceptor]) {
+  const tailPeer=peers[0];
+  for(const viewer of [owner,other,acceptor,tailPeer]) {
     await adminAuth.createUser({uid:viewer,email:email(viewer),password,emailVerified:true});
     await until('pagination registration seed',()=>db.doc('users/'+viewer).get(),snap=>snap.exists);
   }
@@ -566,6 +567,54 @@ async function certifyFriendsPagination() {
     console.log('Friends end evidence '+JSON.stringify(endEvidence));
     writeFileSync(resolve(out,'friends-end-evidence.json'),JSON.stringify(endEvidence,null,2));
     pass('UI end updates both mounted friend lists and canonical reacceptance restores new generation without point read');
+
+    currentPhase='friends-pagination: bilateral invalidation outside first page';
+    // The remote participant is deliberately beyond the 24-edge query:
+    // its removal cannot cause a snapshot change in the owner's first page.
+    const ownerRef=db.doc('users/'+owner);
+    const peerRef=db.doc('users/'+tailPeer);
+    const revisionOf=async ref=>(await ref.get()).data()?.friendshipMembershipRevision??0;
+    const [ownerRevision,peerRevision]=await Promise.all([revisionOf(ownerRef),revisionOf(peerRef)]);
+    const firstBefore=(await cards.allTextContents()).slice(0,24);
+    assert.ok(!firstBefore.some(value=>value.includes(names.get(tailPeer))));
+    assert.equal(await cards.filter({hasText:names.get(tailPeer)}).count(),1);
+    const opensBefore=sharedFriendsTrace.filter(row=>row.context===context&&row.document===ownerDoc&&
+      row.size===24&&row.resource==='listener'&&row.event==='open').length;
+    const tailStart=performance.now();
+    await signInWithEmailAndPassword(auth,email(tailPeer),password);
+    const tailResult=(await httpsCallable(functions,'endFriendship')({friendUid:owner})).data;
+    assert.equal(tailResult.status,'ended');
+    const [ownerAfter,peerAfter]=await Promise.all([revisionOf(ownerRef),revisionOf(peerRef)]);
+    assert.equal(ownerAfter,ownerRevision+1);
+    assert.equal(peerAfter,peerRevision+1);
+    await cards.filter({hasText:names.get(tailPeer)}).waitFor({state:'hidden',timeout:30_000});
+    await list.locator('.infinite-sentinel').scrollIntoViewIfNeeded();
+    await until('all 27 remaining friends after tail-only end',()=>cards.count(),count=>count===27,30_000);
+    await end.waitFor({state:'visible'});
+    const tailRemaining=await cards.allTextContents();
+    const expectedTail=[names.get(acceptor),...expected.filter(name=>name!==names.get(tailPeer))];
+    assert.deepEqual(tailRemaining.slice(0,24),firstBefore,'First page unchanged');
+    for(const [index,name] of expectedTail.entries()) {
+      assert.ok(tailRemaining[index].includes(name),'Canonical order after tail-only removal at '+index);
+      assert.equal(tailRemaining.filter(value=>value.includes(name)).length,1);
+    }
+    const afterWatch=summarizeSharedFriendsWatch(sharedFriendsTrace.filter(row=>row.context===context&&row.document===ownerDoc),24);
+    const opensAfter=sharedFriendsTrace.filter(row=>row.context===context&&row.document===ownerDoc&&
+      row.size===24&&row.resource==='listener'&&row.event==='open').length;
+    const tailPointReads=friendsPointReads.filter(row=>row.context===context&&row.atMs>=tailStart).length;
+    assert.equal(tailPointReads,0);
+    assert.equal(opensAfter,opensBefore,'Membership revision reopened physical first-page listener');
+    assert.equal(afterWatch.listener.active,1);
+    assert.equal(afterWatch.listener.peak,1);
+    assert.equal(await page.evaluate(()=>window.__friendsPaginationDocument),true);
+    const tailEvidence={remoteBefore:28,remoteAfter:27,removedOutsideFirstPage:true,
+      firstPagePreserved:true,pointReads:tailPointReads,listenerReopens:opensAfter-opensBefore,
+      activeListeners:afterWatch.listener.active,peakListeners:afterWatch.listener.peak,
+      bilateralRevisionDelta:[ownerAfter-ownerRevision,peerAfter-peerRevision],
+      duplicates:0,missing:0,documentPreserved:true};
+    console.log('Friends tail evidence '+JSON.stringify(tailEvidence));
+    writeFileSync(resolve(out,'friends-tail-evidence.json'),JSON.stringify(tailEvidence,null,2));
+    pass('bilateral membership revision removes remote tail edge without restarting first-page listener');
 
     currentPhase='friends-pagination: different authenticated viewer';
     await logout(page);

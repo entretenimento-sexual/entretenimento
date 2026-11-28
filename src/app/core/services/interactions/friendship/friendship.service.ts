@@ -339,6 +339,10 @@ export class FriendshipService {
     return this.repo.watchFriends(uid);
   }
 
+  watchFriendshipMembership(uid: string): Observable<boolean> {
+    return this.repo.watchFriendshipMembership(uid);
+  }
+
   watchFriendsPage(uid: string, pageSize = 24) {
     return this.repo.watchFriendsPage(uid, pageSize);
   }

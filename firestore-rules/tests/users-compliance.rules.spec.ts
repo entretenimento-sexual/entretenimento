@@ -11,6 +11,8 @@ import {
   doc,
   setDoc,
   updateDoc,
+  deleteField,
+  getDoc,
 } from 'firebase/firestore';
 import {
   afterAll,
@@ -227,6 +229,20 @@ describe('Firestore Rules / users compliance', () => {
     await assertSucceeds(updateDoc(doc(db, 'users', USER_UID), {
       descricao: 'Descrição permitida após bootstrap privado.',
     }));
+  });
+
+  it('protege a revisão privada de amizades contra criação, alteração e exclusão pelo cliente', async () => {
+    await seedUserAsAdmin();
+    const own = doc(authenticatedDb(), 'users', USER_UID);
+    await assertFails(updateDoc(own, { friendshipMembershipRevision: 1 }));
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await updateDoc(doc(context.firestore(), 'users', USER_UID), { friendshipMembershipRevision: 2 });
+    });
+    await assertSucceeds(getDoc(own));
+    await assertFails(updateDoc(own, { friendshipMembershipRevision: 3 }));
+    await assertFails(updateDoc(own, { friendshipMembershipRevision: deleteField() }));
+    const stranger = testEnv.authenticatedContext('stranger', { email_verified: true }).firestore();
+    await assertFails(getDoc(doc(stranger, 'users', USER_UID)));
   });
 
   it('preserva atualização de campo comum do próprio perfil', async () => {

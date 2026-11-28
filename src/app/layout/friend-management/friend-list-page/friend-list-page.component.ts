@@ -31,7 +31,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { Store } from '@ngrx/store';
 import { Subscription, combineLatest, of } from 'rxjs';
-import { distinctUntilChanged, filter, map, switchMap, take } from 'rxjs/operators';
+import { distinctUntilChanged, map, switchMap, take } from 'rxjs/operators';
 import { toObservable, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AppState } from 'src/app/store/states/app.state';
@@ -135,13 +135,11 @@ export class FriendListPageComponent implements OnInit, OnDestroy {
       if (!e?.isIntersecting || this.activeUid !== uid) return;
 
       this.sub?.unsubscribe();
-      this.sub = combineLatest([
-        this.store.select(selectFriendsPageReachedEnd(uid)),
-        this.store.select(selectFriendsPageLoading(uid)),
-      ])
+      this.sub = this.store.select(selectFriendsPageSlice(uid))
         .pipe(take(1))
-        .subscribe(([end, loading]) => {
-          if (!end && !loading) {
+        .subscribe(slice => {
+          if (slice?.tailConfirmed === true && slice.nextOrderValue &&
+              !slice.reachedEnd && !slice.loading && !slice.error) {
             this.store.dispatch(P.loadFriendsNextPage({ uid, pageSize: 24 }));
           }
         });
@@ -150,15 +148,15 @@ export class FriendListPageComponent implements OnInit, OnDestroy {
     // A nova primeira página pode manter o mesmo cursor. Observar o slice
     // atomicamente e rearmar também quando a geração dos itens for substituída.
     this.observerSub = this.store.select(selectFriendsPageSlice(uid)).pipe(
-      filter(slice => !!slice && !slice.loading && !slice.reachedEnd &&
-        !slice.error && slice.nextOrderValue !== null),
-      map(slice => ({ cursor: slice!.nextOrderValue!, items: slice!.items })),
-      distinctUntilChanged((a, b) => a.items === b.items &&
+      map(slice => slice?.tailConfirmed === true && !slice.loading && !slice.reachedEnd &&
+        !slice.error && slice.nextOrderValue !== null
+        ? { cursor: slice.nextOrderValue, items: slice.items } : null),
+      distinctUntilChanged((a, b) => a === b || (!!a && !!b && a.items === b.items &&
         a.cursor.documentId === b.cursor.documentId &&
-        a.cursor.seconds === b.cursor.seconds && a.cursor.nanoseconds === b.cursor.nanoseconds),
+        a.cursor.seconds === b.cursor.seconds && a.cursor.nanoseconds === b.cursor.nanoseconds)),
       takeUntilDestroyed(this.destroyRef)
-    ).subscribe(() => {
-      if (this.activeUid !== uid || !this.sentinel?.nativeElement) return;
+    ).subscribe(ready => {
+      if (!ready || this.activeUid !== uid || !this.sentinel?.nativeElement) return;
       this.io?.unobserve(this.sentinel.nativeElement);
       this.io?.observe(this.sentinel.nativeElement);
     });

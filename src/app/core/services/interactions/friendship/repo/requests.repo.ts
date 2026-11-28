@@ -60,7 +60,7 @@ const HIDDEN_POLL_MS = 180_000;
 const WAKE_COALESCE_MS = 5_000;
 // Only a successful read in this same live epoch can suppress a foreground wake.
 const RECENT_CONFIRMED_READ_MS = 60_000;
-interface RevisionObservation { readonly revisions: Revisions | null; readonly confirmed: boolean }
+interface RevisionObservation { readonly revisions: Revisions | null; readonly confirmed: boolean; readonly membershipRevision?: number | null }
 interface PollingPolicy { readonly online: boolean; readonly visible: boolean; readonly healthy: boolean; readonly interval: number }
 interface RevisionEpoch { readonly value: number | null; readonly key: number }
 interface RevisionScope {
@@ -68,6 +68,7 @@ interface RevisionScope {
   readonly version: number;
   readonly inbound: RevisionEpoch;
   readonly outbound: RevisionEpoch;
+  readonly membership: RevisionEpoch;
   readonly confirmed: boolean;
 }
 const UNKNOWN_REVISIONS: Revisions = { inbound: null, outbound: null };
@@ -119,8 +120,12 @@ export class RequestsRepo extends FirestoreRepoBase {
               inbound: previous?.inbound.value ?? null,
               outbound: previous?.outbound.value ?? null,
             };
+            const membership = observation.membershipRevision === undefined
+              ? previous?.membership.value ?? null : observation.membershipRevision;
             return {
               user, version, confirmed: observation.confirmed,
+              membership: previous?.membership.value === membership
+                ? previous.membership : { value: membership, key: ++this.nextEpoch },
               inbound: previous?.inbound.value === revision.inbound
                 ? previous.inbound : { value: revision.inbound, key: ++this.nextEpoch },
               outbound: previous?.outbound.value === revision.outbound
@@ -173,7 +178,9 @@ export class RequestsRepo extends FirestoreRepoBase {
         }
         const data = snapshot.data();
         confirmedOnce = true;
-        sink.next({ confirmed: snapshot.exists() && !!data, revisions: snapshot.exists() && data ? {
+        sink.next({ confirmed: snapshot.exists() && !!data,
+          membershipRevision: snapshot.exists() && data ? readRevision(data['friendshipMembershipRevision']) : null,
+          revisions: snapshot.exists() && data ? {
           inbound: readRevision(data['pendingFriendRequestsInboundRevision']),
           outbound: readRevision(data['pendingFriendRequestsOutboundRevision']),
         } : UNKNOWN_REVISIONS });
@@ -199,8 +206,34 @@ export class RequestsRepo extends FirestoreRepoBase {
       }),
       retry({ delay: 60_000 }),
       distinctUntilChanged((a, b) => a.confirmed === b.confirmed &&
-        a.revisions?.inbound === b.revisions?.inbound && a.revisions?.outbound === b.revisions?.outbound)
+        a.revisions?.inbound === b.revisions?.inbound && a.revisions?.outbound === b.revisions?.outbound &&
+        a.membershipRevision === b.membershipRevision)
     );
+  }
+
+  /**
+   * Reutiliza o mesmo listener privado das solicitações. A chave de amizade
+   * é independente dos epochs de entrada/saída; mudança de vínculo não
+   * dispara consultas de solicitações. False invalida a cauda até reconexão.
+   */
+  watchFriendshipMembership(uid: string): Observable<boolean> {
+    return defer(() => {
+      const user = this.session.currentAuthUser;
+      const version = this.session.terminationVersionSnapshot;
+      if (!user || user.uid !== uid || this.session.isTerminatingSnapshot) return EMPTY;
+      const current = () => this.session.currentAuthUser === user &&
+        this.session.terminationVersionSnapshot === version && !this.session.isTerminatingSnapshot;
+      return this.revisions$.pipe(
+        filter((scope): scope is RevisionScope => scope !== null &&
+          scope.user === user && scope.version === version && current()),
+        map(scope => ({ key: scope.membership.key,
+          confirmed: scope.confirmed && scope.membership.value !== null })),
+        distinctUntilChanged((a, b) => a.confirmed === b.confirmed && a.key === b.key),
+        map(event => event.confirmed),
+        takeUntil(this.session.authUser$.pipe(filter(() => !current()))),
+        takeUntil(this.session.uid$.pipe(filter(() => !current())))
+      );
+    });
   }
 
   private directionEpoch$(user: User, version: number, direction: RequestDirection): Observable<RevisionEpoch> {
