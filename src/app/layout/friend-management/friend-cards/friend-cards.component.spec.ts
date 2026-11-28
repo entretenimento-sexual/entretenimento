@@ -49,6 +49,29 @@ describe('FriendCardsComponent pagination continuity',()=>{
     expect(cards()[0]).toBe(before[0]);
     expect(cards()[1]).toBe(before[1]);
   });
+  it('exposes busy state without hiding mounted cards and distinguishes initial loading from empty',async()=>{
+    fixture.componentRef.setInput('isLoading',true);
+    await render();
+    const region=(): HTMLElement => fixture.nativeElement.querySelector('.friend-cards');
+    expect(region().getAttribute('aria-busy')).toBe('true');
+    expect(cards().length).toBe(0);
+    expect(region().textContent).toContain('Carregando amigos');
+    fixture.componentRef.setInput('items',items);
+    await render();
+    expect(cards().length).toBe(2);
+    expect(region().getAttribute('aria-busy')).toBe('true');
+    expect(region().textContent).toContain('Carregando mais amigos');
+    const mounted=cards();
+    fixture.componentRef.setInput('isLoading',false);
+    await render();
+    expect(region().hasAttribute('aria-busy')).toBe(false);
+    expect(cards()[0]).toBe(mounted[0]);
+    expect(cards()[1]).toBe(mounted[1]);
+    fixture.componentRef.setInput('items',[]);
+    await render();
+    expect(cards().length).toBe(0);
+    expect(region().textContent).toContain('Nenhum amigo encontrado');
+  });
   it('does not retain cards when the input is cleared during loading',async()=>{
     fixture.componentRef.setInput('items',items);
     await render();
