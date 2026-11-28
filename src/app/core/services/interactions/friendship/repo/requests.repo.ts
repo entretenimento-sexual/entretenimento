@@ -46,7 +46,7 @@ import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-
 import { NetworkStatusService } from '@core/services/network/network-status.service';
 
 import { FirestoreRepoBase } from './base.repo';
-import { PendingReadAdmission, type PendingReadAdmissionDecision } from './pending-read-admission';
+import { PendingReadAdmission, type PendingReadAdmissionDecision, type PendingReadLease } from './pending-read-admission';
 import { FriendRequest } from '../../../../interfaces/friendship/friend-request.interface';
 
 type PendingRequests = (FriendRequest & { id: string })[];
@@ -306,11 +306,12 @@ export class RequestsRepo extends FirestoreRepoBase {
         this.session.terminationVersionSnapshot === version && !this.session.isTerminatingSnapshot;
       const operation = ++this.nextAdmissionOperation;
       let terminal = false;
+      let lease: PendingReadLease | undefined;
       this.traceAdmission(operation, direction, 'queued');
       return defer(() => this.admission.wait$(uid, isCurrent, () => {
         this.trace('signal', direction, 'quota-wait');
         this.traceAdmission(operation, direction, 'waiting');
-      }, decision => this.traceAdmissionDecision(operation, direction, decision))).pipe(
+      }, decision => this.traceAdmissionDecision(operation, direction, decision), reservation => { lease = reservation; })).pipe(
         tap({
           next: () => this.traceAdmission(operation, direction, 'admitted'),
           error: error => {
@@ -320,11 +321,17 @@ export class RequestsRepo extends FirestoreRepoBase {
           }
         }),
         switchMap(() => defer(() => {
+          if (!isCurrent()) return EMPTY;
           markStarted();
           terminal = true;
           this.traceAdmission(operation, direction, 'transport-started');
           this.trace('start', direction, reason);
-          return from(this.getPendingRequestsCallable()({ direction, limit: 60 }));
+          // Attach settlement to the underlying Promise, not RxJS finalize:
+          // revocation discards the UI result but cannot abort this callable.
+          return from(this.getPendingRequestsCallable()({ direction, limit: 60 }).then(response => {
+            lease?.settleSuccess();
+            return response;
+          }));
         })),
         map(response => response.data.items ?? []),
         finalize(() => {
