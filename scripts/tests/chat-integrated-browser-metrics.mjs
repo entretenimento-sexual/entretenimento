@@ -110,3 +110,18 @@ export function resolveBrowserChannel(engine, value = '') {
   }
   return value;
 }
+
+// Diagnostic only: link exact local URL and principal context to observed
+// transport intervals. Raw URLs are never returned or serialized.
+export function summarizeBrowserNetworkLifecycle(errors, requests) {
+  return errors.map(({url,...error})=>{
+    const candidates=requests.filter(row=>row.name===error.name&&row.url===url&&
+      row.startMs<=error.atMs+2000&&(row.endMs==null||row.endMs>=error.atMs-2000));
+    return {...error,candidates:candidates.map(row=>({
+      method:row.method,document:row.document,phase:row.phase,
+      status:row.status??null,terminal:row.terminal??null,
+      startDeltaMs:Math.round(row.startMs-error.atMs),
+      endDeltaMs:row.endMs==null?null:Math.round(row.endMs-error.atMs)
+    }))};
+  });
+}

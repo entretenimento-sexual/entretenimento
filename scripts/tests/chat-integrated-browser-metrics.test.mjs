@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch, resolveBrowserEngine, mountedDocumentReadsComplete, correlateBrowserNetworkErrors, resolveBrowserChannel, browserTransportFailureCategory } from './chat-integrated-browser-metrics.mjs';
+import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch, resolveBrowserEngine, mountedDocumentReadsComplete, correlateBrowserNetworkErrors, resolveBrowserChannel, browserTransportFailureCategory, summarizeBrowserNetworkLifecycle } from './chat-integrated-browser-metrics.mjs';
 
 test('counts starts even when navigation aborts before HTTP response',()=>{
   const rows=[{httpStatus:200},{httpStatus:200},{httpStatus:null,transportFailure:'net::ERR_ABORTED'}];
@@ -150,4 +150,17 @@ test('does not infer cancellation from an unknown error or classify a response t
   assert.equal(counts.otherFailureBeforeResponse,5);
   assert.equal(counts.transportFailureAfterResponse,1);
   assert.equal(counts.unsettled,1);
+});
+
+test('links active and recently completed exact transport intervals without leaking URLs',()=>{
+  const url='http://127.0.0.1:18080/listen?SID=private';
+  const error={name:'a',url,atMs:5000,phase:'live',document:2};
+  const row={name:'a',url,startMs:100,method:'GET',document:2,phase:'mount',status:200};
+  const requests=[row,{...row,endMs:4500,terminal:'finished'},
+    {...row,endMs:1000,terminal:'failed'},{...row,name:'b'},{...row,url:url+'2'}];
+  const [result]=summarizeBrowserNetworkLifecycle([error],requests);
+  assert.equal(result.candidates.length,2);
+  assert.equal(result.candidates[0].status,200);
+  assert.equal(result.candidates[1].terminal,'finished');
+  assert.equal(JSON.stringify(result).includes('private'),false);
 });

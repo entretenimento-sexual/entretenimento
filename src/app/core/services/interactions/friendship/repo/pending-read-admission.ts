@@ -35,7 +35,15 @@ function readLedger(storage: Storage, now: number): Ledger {
   return ledger;
 }
 
-interface Admission { readonly delay: number; readonly mode: 'reserved' | 'fallback' | 'waiting' }
+export type PendingReadAdmissionDecision =
+  | 'reserved' | 'waiting' | 'no-window' | 'no-locks' | 'no-crypto'
+  | 'digest-failed' | 'storage-failed' | 'lock-failed';
+
+interface Admission {
+  readonly delay: number;
+  readonly mode: 'reserved' | 'fallback' | 'waiting';
+  readonly reason?: 'storage-failed' | 'lock-failed';
+}
 
 /**
  * Advisory, same-origin admission only. Never shares results, credentials,
@@ -45,12 +53,20 @@ interface Admission { readonly delay: number; readonly mode: 'reserved' | 'fallb
 export class PendingReadAdmission {
   constructor(private readonly document?: Document) {}
 
-  wait$(uid: string, isCurrent: () => boolean, onWait: () => void): Observable<void> {
+  wait$(uid: string, isCurrent: () => boolean, onWait: () => void,
+    onDecision: (decision: PendingReadAdmissionDecision) => void = () => {}): Observable<void> {
     return defer(() => {
       const view = this.document?.defaultView;
       const locks = view?.navigator.locks;
-      const subtle = view?.crypto.subtle;
-      if (!view || !locks || !subtle) return isCurrent() ? of(void 0) : EMPTY;
+      const subtle = view?.crypto?.subtle;
+      const fallback = (reason: PendingReadAdmissionDecision): Observable<void> => {
+        if (!isCurrent()) return EMPTY;
+        onDecision(reason);
+        return of(void 0);
+      };
+      if (!view) return fallback('no-window');
+      if (!locks) return fallback('no-locks');
+      if (!subtle) return fallback('no-crypto');
       const started = Date.now();
       const key$ = from(subtle.digest('SHA-256', new TextEncoder().encode(uid))
         .then(bytes => Array.from(new Uint8Array(bytes),value=>value.toString(16).padStart(2,'0')).join(''))
@@ -78,12 +94,12 @@ export class PendingReadAdmission {
             return {delay:0,mode:'reserved'};
           } catch {
             // Storage/security failures are not permission decisions.
-            return {delay:0,mode:'fallback'};
+            return {delay:0,mode:'fallback',reason:'storage-failed'};
           }
         }).then(result => {
           if (!sink.closed) { sink.next(result); sink.complete(); }
         }, () => {
-          if (!sink.closed) { sink.next({delay:0,mode:'fallback'}); sink.complete(); }
+          if (!sink.closed) { sink.next({delay:0,mode:'fallback',reason:'lock-failed'}); sink.complete(); }
         });
         return () => controller.abort();
       });
@@ -91,6 +107,8 @@ export class PendingReadAdmission {
         if (!isCurrent()) return EMPTY;
         return reserve(key).pipe(switchMap(result => {
           if (!isCurrent()) return EMPTY;
+          if (result.mode === 'fallback') return fallback(result.reason ?? 'lock-failed');
+          onDecision(result.mode);
           if (result.delay === 0) return of(void 0);
           onWait();
           if (Date.now()-started+result.delay > MAX_WAIT_MS) {
@@ -102,7 +120,7 @@ export class PendingReadAdmission {
           return timer(Math.max(1,result.delay)).pipe(switchMap(()=>attempt(key)));
         }));
       });
-      return key$.pipe(switchMap(key=>key ? attempt(key) : isCurrent() ? of(void 0) : EMPTY));
+      return key$.pipe(switchMap(key=>key ? attempt(key) : fallback('digest-failed')));
     });
   }
 }

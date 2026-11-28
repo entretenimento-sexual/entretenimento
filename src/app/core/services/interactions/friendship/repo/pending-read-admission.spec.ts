@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { firstValueFrom } from 'rxjs';
-import { PendingReadAdmission, pendingReadDelay } from './pending-read-admission';
+import { PendingReadAdmission, pendingReadDelay, type PendingReadAdmissionDecision } from './pending-read-admission';
 
 describe('PendingReadAdmission', () => {
   it('preserva margem de dez leituras por janela móvel de 65 segundos', () => {
@@ -23,5 +23,44 @@ describe('PendingReadAdmission', () => {
     const sub=new PendingReadAdmission().wait$('a',()=>false,()=>{}).subscribe(()=>emitted=true);
     expect(emitted).toBe(false);
     expect(sub.closed).toBe(true);
+  });
+});
+
+describe('PendingReadAdmission diagnostic decisions', () => {
+  const documentFor = (options: { noLocks?: boolean; digestFails?: boolean; lockFails?: boolean; storageFails?: boolean } = {}) => {
+    const storage = new Map<string, string>();
+    return { defaultView: {
+      navigator: { onLine: true, locks: options.noLocks ? undefined : {
+        request: async (_name: string, _options: unknown, callback: () => unknown) => {
+          if (options.lockFails) throw new Error('lock denied');
+          return callback();
+        }
+      }},
+      crypto: { subtle: { digest: async () => {
+        if (options.digestFails) throw new Error('digest denied');
+        return new Uint8Array(32).buffer;
+      }}},
+      localStorage: {
+        getItem: (key: string) => {
+          if (options.storageFails) throw new Error('storage denied');
+          return storage.get(key) ?? null;
+        },
+        setItem: (key: string, value: string) => storage.set(key, value)
+      }
+    }} as unknown as Document;
+  };
+  it.each([
+    [{}, 'reserved'], [{noLocks:true}, 'no-locks'],
+    [{digestFails:true}, 'digest-failed'], [{lockFails:true}, 'lock-failed'],
+    [{storageFails:true}, 'storage-failed']
+  ] as const)('reports the actual decision for %j', async (options, expected) => {
+    const decisions: PendingReadAdmissionDecision[] = [];
+    await firstValueFrom(new PendingReadAdmission(documentFor(options)).wait$('a',()=>true,()=>{},decision=>decisions.push(decision)));
+    expect(decisions).toEqual([expected]);
+  });
+  it('does not report an admission or fallback for a revoked session', () => {
+    const decisions: PendingReadAdmissionDecision[] = [];
+    new PendingReadAdmission().wait$('a',()=>false,()=>{},decision=>decisions.push(decision)).subscribe();
+    expect(decisions).toEqual([]);
   });
 });

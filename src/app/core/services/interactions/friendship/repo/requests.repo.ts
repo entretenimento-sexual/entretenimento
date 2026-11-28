@@ -46,7 +46,7 @@ import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-
 import { NetworkStatusService } from '@core/services/network/network-status.service';
 
 import { FirestoreRepoBase } from './base.repo';
-import { PendingReadAdmission } from './pending-read-admission';
+import { PendingReadAdmission, type PendingReadAdmissionDecision } from './pending-read-admission';
 import { FriendRequest } from '../../../../interfaces/friendship/friend-request.interface';
 
 type PendingRequests = (FriendRequest & { id: string })[];
@@ -148,6 +148,10 @@ export class RequestsRepo extends FirestoreRepoBase {
     event: 'queued' | 'waiting' | 'admitted' | 'expired' | 'failed' | 'cancelled' | 'transport-started'): void {
     // Document-local sequence only; no UID, revision, request ID or payload.
     this.privacyDebug?.log('friends', 'pending-admission ' + operation + ' ' + direction + ' ' + event);
+  }
+
+  private traceAdmissionDecision(operation: number, direction: RequestDirection, decision: PendingReadAdmissionDecision): void {
+    this.privacyDebug?.log('friends', 'pending-admission-decision ' + operation + ' ' + direction + ' ' + decision);
   }
 
   private traceResource(resource: 'listener' | RequestDirection, event: 'open' | 'close'): void {
@@ -306,7 +310,7 @@ export class RequestsRepo extends FirestoreRepoBase {
       return defer(() => this.admission.wait$(uid, isCurrent, () => {
         this.trace('signal', direction, 'quota-wait');
         this.traceAdmission(operation, direction, 'waiting');
-      })).pipe(
+      }, decision => this.traceAdmissionDecision(operation, direction, decision))).pipe(
         tap({
           next: () => this.traceAdmission(operation, direction, 'admitted'),
           error: error => {
