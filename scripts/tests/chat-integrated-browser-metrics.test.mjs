@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch, resolveBrowserEngine, mountedDocumentReadsComplete, correlateBrowserNetworkErrors, resolveBrowserChannel } from './chat-integrated-browser-metrics.mjs';
+import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch, resolveBrowserEngine, mountedDocumentReadsComplete, correlateBrowserNetworkErrors, resolveBrowserChannel, browserTransportFailureCategory } from './chat-integrated-browser-metrics.mjs';
 
 test('counts starts even when navigation aborts before HTTP response',()=>{
   const rows=[{httpStatus:200},{httpStatus:200},{httpStatus:null,transportFailure:'net::ERR_ABORTED'}];
@@ -130,4 +130,24 @@ test('accepts only installed Chromium channels and rejects incompatible engines'
   for(const [engine,channel] of [['firefox','chrome'],['webkit','msedge'],['chromium','edge'],['chromium',null]]) {
     assert.throws(()=>resolveBrowserChannel(engine,channel),/Unsupported CHAT_BROWSER_CHANNEL/);
   }
+});
+
+test('preserves exact observed cancellation codes across all three engines',()=>{
+  const codes=['net::ERR_ABORTED','NS_BINDING_ABORTED','Load request cancelled'];
+  for(const code of codes) assert.equal(browserTransportFailureCategory(code),code);
+  const counts=summarizePendingAttempts(codes.map(transportFailure=>({httpStatus:null,transportFailure})));
+  assert.equal(counts.abortedBeforeResponse,3);
+  assert.equal(counts.otherFailureBeforeResponse,0);
+});
+test('does not infer cancellation from an unknown error or classify a response twice',()=>{
+  const codes=['net::ERR_CONNECTION_RESET','NS_ERROR_FAILURE','Load failed','Load request cancelled: extra','https://example.test/?secret'];
+  const rows=codes.map(code=>({httpStatus:null,transportFailure:browserTransportFailureCategory(code)}));
+  assert.equal(rows[0].transportFailure,'net::ERR_CONNECTION_RESET');
+  assert.ok(rows.slice(1).every(row=>row.transportFailure==='other'));
+  assert.equal(browserTransportFailureCategory(null),null);
+  const counts=summarizePendingAttempts([...rows,{httpStatus:200,transportFailure:'NS_BINDING_ABORTED'},{httpStatus:null}]);
+  assert.equal(counts.abortedBeforeResponse,0);
+  assert.equal(counts.otherFailureBeforeResponse,5);
+  assert.equal(counts.transportFailureAfterResponse,1);
+  assert.equal(counts.unsettled,1);
 });

@@ -1,3 +1,17 @@
+// Exact native cancellation codes independently observed in the loopback probe.
+// They indicate cancellation, not whether the cancellation was intentional.
+const nativeCancellationCodes = new Set(['net::ERR_ABORTED','NS_BINDING_ABORTED','Load request cancelled']);
+export function isBrowserTransportCancellation(code) {
+  return nativeCancellationCodes.has(code);
+}
+
+// Preserve known native codes without persisting arbitrary error text or URLs.
+export function browserTransportFailureCategory(code) {
+  if (!code) return null;
+  return isBrowserTransportCancellation(code) ||
+    (typeof code==='string' && /^net::ERR_[A-Z_]+$/.test(code)) ? code : 'other';
+}
+
 // Client-observed POST attempts, not Firestore operations or billed requests.
 // A response followed by a transport error remains a single attempt.
 export function summarizePendingAttempts(rows) {
@@ -10,7 +24,7 @@ export function summarizePendingAttempts(rows) {
       if(row.httpStatus>=400) counts.httpFailures++;
       if(row.httpStatus===429) counts.rateLimited++;
       if(row.transportFailure) counts.transportFailureAfterResponse++;
-    } else if(row.transportFailure==='net::ERR_ABORTED') {
+    } else if(isBrowserTransportCancellation(row.transportFailure)) {
       counts.abortedBeforeResponse++;
     } else if(row.transportFailure) {
       counts.otherFailureBeforeResponse++;

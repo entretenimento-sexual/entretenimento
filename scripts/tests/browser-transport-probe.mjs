@@ -7,7 +7,7 @@ import { chromium, firefox, webkit } from 'playwright';
 const engine = process.argv[2];
 assert.ok(['chromium', 'firefox', 'webkit'].includes(engine));
 const types = { chromium, firefox, webkit };
-const out = { engine, cases: [], controls: [] };
+const out = { engine, cases: [], controls: [], explicitAbortCases: [] };
 let frontOrigin;
 const pending = new Map();
 const sockets = new Set();
@@ -28,6 +28,12 @@ const respond = (req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1');
   if (url.pathname === '/probe/ok' || url.pathname === '/probe/denied' || url.pathname === '/probe/slow') {
     if (url.pathname !== '/probe/denied') res.setHeader('Access-Control-Allow-Origin', frontOrigin);
+    if (req.method === 'OPTIONS' && url.pathname === '/probe/slow') {
+      res.setHeader('Access-Control-Allow-Methods', 'POST');
+      res.setHeader('Access-Control-Allow-Headers', 'content-type,x-probe');
+      res.statusCode = 204;
+      return res.end();
+    }
     res.setHeader('Content-Type', 'text/plain');
     if (url.pathname !== '/probe/slow') return res.end('ok');
     const token = url.searchParams.get('case');
@@ -68,6 +74,66 @@ try {
       assert.equal(denied, true, 'CORS negative control must be rejected');
       out.controls.push({ routed, allowed: good[0], denied });
       await page.close();
+      // Unlike full navigation, explicitly cancel a cross-origin preflighted
+      // POST in the still-mounted document. Compare native and runner events.
+      for (const transport of ['fetch','xhr']) {
+        const token = 'explicit-abort-' + routed + '-' + transport;
+        const result = { routed, transport, pageErrors: [], nativeErrors: [], failures: [], outcomes: [], responses: [] };
+        out.explicitAbortCases.push(result);
+        const probe = await context.newPage();
+        const url = api.origin + '/probe/slow?case=' + token;
+        let received;
+        const arrival = new Promise(resolve=>{received=resolve;});
+        const entry={received,res:undefined,closed:false};
+        pending.set(token,entry);
+        try {
+          await probe.exposeBinding('reportExplicitAbort', (_,kind,detail)=>{
+            (kind==='native'?result.nativeErrors:result.outcomes).push(detail);
+          });
+          await probe.addInitScript(()=>{
+            addEventListener('error',e=>{if(e instanceof ErrorEvent) void globalThis.reportExplicitAbort('native',String(e.message)).catch(()=>{});});
+            addEventListener('unhandledrejection',e=>{void globalThis.reportExplicitAbort('native',String(e.reason)).catch(()=>{});});
+          });
+          probe.on('pageerror',e=>result.pageErrors.push(e.message));
+          probe.on('requestfailed',r=>{if(r.url()===url&&r.method()==='POST') result.failures.push(r.failure()?.errorText??'unknown');});
+          probe.on('response',r=>{if(r.url()===url) result.responses.push({method:r.request().method(),status:r.status()});});
+          await probe.goto(front.origin);
+          await probe.evaluate(({url,transport})=>{
+            const report=detail=>{void globalThis.reportExplicitAbort('outcome',detail).catch(()=>{});};
+            if(transport==='fetch') {
+              const controller=new AbortController();
+              globalThis.cancelProbeRequest=()=>controller.abort();
+              void fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-Probe':'1'},body:'{}',signal:controller.signal})
+                .then(()=>report('unexpected-success'),error=>report(error.name));
+            } else {
+              const xhr=new XMLHttpRequest();
+              xhr.open('POST',url);
+              xhr.setRequestHeader('Content-Type','application/json');
+              xhr.setRequestHeader('X-Probe','1');
+              xhr.onload=()=>report('unexpected-success');
+              xhr.onerror=()=>report('xhr-error');
+              xhr.onabort=()=>report('xhr-abort');
+              globalThis.cancelProbeRequest=()=>xhr.abort();
+              xhr.send('{}');
+            }
+          },{url,transport});
+          let timer;
+          try {
+            await Promise.race([arrival,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('POST not received: '+token)),10000);})]);
+          } finally {clearTimeout(timer);}
+          await probe.evaluate(()=>globalThis.cancelProbeRequest());
+          const expected=transport==='fetch'?'AbortError':'xhr-abort';
+          const deadline=Date.now()+5000;
+          while(!result.outcomes.includes(expected)&&Date.now()<deadline) await new Promise(resolve=>setTimeout(resolve,50));
+          assert.ok(result.outcomes.includes(expected),'explicit abort control failed: '+token);
+          await new Promise(resolve=>setTimeout(resolve,350));
+          result.serverClosed=entry.closed;
+        } finally {
+          if(entry.res&&!entry.res.destroyed) entry.res.end('ok');
+          pending.delete(token);
+          await probe.close();
+        }
+      }
       for (const crossOrigin of [false, true]) {
         for (const navigate of [false, true]) {
           for (const transport of ['fetch', 'xhr']) {
@@ -139,6 +205,7 @@ try {
     } finally { await context.close(); }
   }
   assert.equal(out.cases.length, 16);
+  assert.equal(out.explicitAbortCases.length,4);
 } catch (error) {
   out.error = String(error);
   process.exitCode = 1;

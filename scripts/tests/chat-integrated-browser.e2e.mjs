@@ -12,7 +12,7 @@ import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
 import { seedPublicMediaCompliance } from './media-e2e-compliance-fixture.mjs';
-import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch, resolveBrowserEngine, mountedDocumentReadsComplete, correlateBrowserNetworkErrors, resolveBrowserChannel } from './chat-integrated-browser-metrics.mjs';
+import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch, resolveBrowserEngine, mountedDocumentReadsComplete, correlateBrowserNetworkErrors, resolveBrowserChannel, browserTransportFailureCategory } from './chat-integrated-browser-metrics.mjs';
 
 const PROJECT = 'demo-entretenimento-media-e2e';
 const BASE = 'http://127.0.0.1:4200';
@@ -90,7 +90,7 @@ function recordCallableTransportFailure(name, request) {
   const error = request.failure()?.errorText;
   if(!error || recordedTransportFailures.has(request)) return;
   recordedTransportFailures.add(request);
-  const category = /^net::ERR_[A-Z_]+$/.test(error) ? error : 'other';
+  const category = browserTransportFailureCategory(error);
   if(endpoint==='getPendingFriendRequests') {
     const attempt=requestStarts.get(request);
     if(attempt) { attempt.transportFailure=category; attempt.failureMs=elapsed(attempt.startMs); }
