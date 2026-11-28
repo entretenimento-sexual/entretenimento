@@ -23,3 +23,7 @@ Para App Check, reCAPTCHA Enterprise (Fraud Defense) ou Web Push de
 [App Check e Web Push no ensaio da release](./docs/operations/production-release-deferred-audit-checklist.md#app-check-e-web-push-no-ensaio-da-release).
 A ativação e a homologação hospedada foram adiadas para o pré-deploy por
 possível custo. No desenvolvimento, use `dev-emu`.
+
+## Branch policy
+
+All interventions, corrections and certification must be on `main`. Do not create or use parallel intervention or homologation branches. Preserve existing quality and security checks.
