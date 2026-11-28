@@ -547,3 +547,36 @@
   color: var(--text-color);
 }
 .conversation-list__pagination-note:empty { display: none; }
+
+/* The primary conversation action must never be covered by an automatic
+ * profile preview. Profile details remain a separate explicit action. */
+.conversation-list__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.conversation-list__row > .conversation-card {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.conversation-list__profile-preview {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 1.15rem;
+  cursor: pointer;
+}
+.conversation-list__profile-preview:hover,
+.conversation-list__profile-preview:focus-visible {
+  background: var(--header-hover-bg);
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}

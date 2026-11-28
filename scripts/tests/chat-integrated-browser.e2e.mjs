@@ -1346,6 +1346,11 @@ async function certifyConcurrency() {
     concurrencySamples.admission={waitSignals:quotaWaits.length,contexts:quotaWaits.reduce((acc,row)=>{
       acc[row.context]=(acc[row.context]??0)+1;return acc;
     },{}),harnessBudgetWaits:0};
+    const decisions=pendingAdmissionDecisions.filter(row=>concurrencyContexts.has(row.context));
+    concurrencySamples.admission.decisions=decisions.reduce((acc,row)=>{
+      acc[row.decision]=(acc[row.decision]??0)+1;return acc;
+    },{});
+    console.log('Concurrency admission decisions '+JSON.stringify(concurrencySamples.admission));
     assert.ok(quotaWaits.length>0,'Unpaced workload never exercised application admission');
     assert.equal(rows().filter(row=>row.httpStatus===429).length,0,'Concurrent workload exceeded unchanged read quota');
     pass('concurrent tabs and modules, directional burst, stale epoch discard, reconnect and teardown');
@@ -1554,6 +1559,14 @@ try {
     const target = alternate ? cardC : cardB;
     const expected = alternate ? secondMarker : offlineMessage;
     const forbidden = alternate ? offlineMessage : secondMarker;
+    // A deliberate pointer dwell must not obscure the primary conversation
+    // action with the independently available public profile preview.
+    if (i===0) {
+      await target.hover();
+      await sleep(500);
+      assert.equal(await a.locator('.public-user-preview__header').filter({visible:true}).count(),0,
+        'Conversation hover must not open an intercepting profile preview');
+    }
     const start = performance.now();
     await target.click();
     await message(a,expected).waitFor({state:'visible'});

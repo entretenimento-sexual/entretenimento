@@ -72,6 +72,7 @@
 
           <div class="conversation-list__items">
             @for (chat of vm.filteredDirectChats; track chat.id) {
+              <div class="conversation-list__row">
               <button
                 type="button"
                 class="conversation-card"
@@ -80,8 +81,6 @@
                 [class.conversation-card--unread]="hasUnread(chat)"
                 [attr.aria-label]="getDirectChatAriaLabel(chat)"
                 [attr.aria-pressed]="isDirectChatSelected(chat.id)"
-                [appPublicUserPreviewTrigger]="chat.otherParticipantPreview ?? null"
-                [publicUserPreviewProfileRoute]="chat.otherParticipantUid ? ['/perfil', chat.otherParticipantUid] : null"
               >
                 @if (getDirectChatActivityEpoch(chat); as activityEpoch) {
                   <app-public-user-identity
@@ -131,6 +130,22 @@
                   </app-public-user-identity>
                 }
               </button>
+              @if (chat.otherParticipantPreview) {
+                <button
+                  type="button"
+                  class="conversation-list__profile-preview"
+                  [attr.aria-label]="'Ver prévia de perfil de ' + getDirectChatTitle(chat)"
+                  [appPublicUserPreviewTrigger]="chat.otherParticipantPreview"
+                  [publicUserPreviewOpenOnHover]="false"
+                  [publicUserPreviewProfileRoute]="chat.otherParticipantUid ? ['/perfil', chat.otherParticipantUid] : null"
+                  #profilePreview="publicUserPreviewTrigger"
+                  [attr.aria-expanded]="profilePreview.isOpen()"
+                  (click)="profilePreview.toggle()"
+                >
+                  <span aria-hidden="true">ⓘ</span>
+                </button>
+              }
+              </div>
             }
           </div>
         </section>
