@@ -82,7 +82,7 @@
 }
 
 .conversation-list__search-box input::placeholder {
-  color: color-mix(in oklab, var(--text-color) 55%, transparent);
+  color: color-mix(in oklab, var(--text-color) 75%, transparent);
 }
 
 .conversation-list__search-clear {
@@ -368,22 +368,12 @@
   margin: 0;
   font-size: 0.86rem;
   line-height: 1.32;
-  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  color: color-mix(in oklab, var(--text-color) 85%, transparent);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.conversation-card__status {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.72rem;
-  line-height: 1.2;
-  color: color-mix(in oklab, var(--text-color) 46%, transparent);
-}
 
 .conversation-card__badge {
   flex: 0 0 auto;
@@ -421,7 +411,7 @@
 .conversation-list__empty-text {
   margin: 0;
   line-height: 1.45;
-  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  color: color-mix(in oklab, var(--text-color) 85%, transparent);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -507,9 +497,6 @@
     text-overflow: ellipsis;
   }
 
-  .conversation-card__status {
-    display: none;
-  }
 
 }
 

@@ -16,7 +16,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, Observable, of } from 'rxjs';
 
 import { ChatListComponent } from './chat-list.component';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
@@ -38,6 +38,7 @@ describe('ChatListComponent', () => {
   let applicationErrorReportMock: ReturnType<typeof vi.fn>;
   let inbox$: BehaviorSubject<DirectChatInboxState>;
   let loadMoreMock: ReturnType<typeof vi.fn<() => void>>;
+  let observeInboxMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     selectChatMock = vi.fn();
@@ -45,6 +46,14 @@ describe('ChatListComponent', () => {
     loadMoreMock = vi.fn<() => void>();
     inbox$ = new BehaviorSubject<DirectChatInboxState>({
       items: [], status: 'ready', hasMore: false, unconfirmedCount: 0, directUnreadCount: 0,
+    });
+
+    observeInboxMock = vi.fn((more$: import('rxjs').Observable<unknown>) => {
+      const subscription = more$.subscribe(() => loadMoreMock());
+      return new Observable<DirectChatInboxState>(sink => {
+        const sub = inbox$.subscribe(sink);
+        return () => { sub.unsubscribe(); subscription.unsubscribe(); };
+      });
     });
 
     TestBed.configureTestingModule({
@@ -72,10 +81,7 @@ describe('ChatListComponent', () => {
           provide: DirectChatFacade,
           useValue: {
             items$: of([]),
-            observeProgressiveInbox$: (more$: import('rxjs').Observable<unknown>) => {
-              more$.subscribe(() => loadMoreMock());
-              return inbox$;
-            },
+            observeProgressiveInbox$: observeInboxMock,
             selectChat: selectChatMock,
           },
         },
@@ -118,6 +124,58 @@ describe('ChatListComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Nenhuma conversa ainda');
     button?.click();
     expect(loadMoreMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserva autoria e não lidas na identificação acessível sem status visual redundante', () => {
+    const chat = {
+      id: 'chat-u1-u2',
+      otherParticipantNickname: 'Pessoa 2',
+      lastMessagePreview: 'Olá',
+      unreadCount: 2,
+      chat: { lastMessage: { senderUid: 'u1' } },
+    } as unknown as DirectChatListItem;
+    expect(component.getDirectChatStatusLabel(chat)).toBe('2 mensagens não lidas.');
+    expect(component.getDirectChatAriaLabel(chat)).toContain('2 mensagens não lidas.');
+    expect(component.getDirectChatStatusLabel({ ...chat, unreadCount: 0 }))
+      .toBe('Sem mensagens não lidas.');
+  });
+
+  it('carrega uma vez por aproximação do fim e conserva alternativa manual', () => {
+    inbox$.next({ ...inbox$.value, hasMore: true });
+    fixture.detectChanges();
+    const scroll = fixture.nativeElement.querySelector('.conversation-list__scroll') as HTMLElement;
+    Object.defineProperties(scroll, {
+      scrollHeight: { configurable: true, value: 1000 },
+      clientHeight: { configurable: true, value: 400 },
+      scrollTop: { configurable: true, writable: true, value: 300 },
+    });
+    scroll.dispatchEvent(new Event('scroll'));
+    expect(loadMoreMock).not.toHaveBeenCalled();
+    scroll.scrollTop = 560;
+    scroll.dispatchEvent(new Event('scroll'));
+    scroll.dispatchEvent(new Event('scroll'));
+    expect(loadMoreMock).toHaveBeenCalledTimes(1);
+    scroll.scrollTop = 300;
+    scroll.dispatchEvent(new Event('scroll'));
+    component.setSearchTerm('teste');
+    fixture.detectChanges();
+    scroll.scrollTop = 560;
+    scroll.dispatchEvent(new Event('scroll'));
+    expect(loadMoreMock).toHaveBeenCalledTimes(1);
+    expect(fixture.nativeElement.textContent).toContain('Carregar mais conversas');
+  });
+
+  it('não oferece atualização em estado saudável e permite reconstruir o stream em falha', () => {
+    expect(fixture.nativeElement.textContent).not.toContain('Atualizar conversas');
+    expect(fixture.nativeElement.textContent).not.toContain('Tentar novamente');
+    inbox$.next({ ...inbox$.value, status: 'error' });
+    fixture.detectChanges();
+    const retry = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Tentar novamente'));
+    expect(retry).toBeTruthy();
+    const before = observeInboxMock.mock.calls.length;
+    retry?.click();
+    expect(observeInboxMock.mock.calls.length).toBe(before + 1);
   });
 
   it('seleciona somente o contrato de chat direto', () => {

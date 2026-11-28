@@ -48,7 +48,8 @@
       </section>
     </header>
 
-    <div class="conversation-list__scroll" [attr.aria-busy]="vm.loading">
+    <div class="conversation-list__scroll" [attr.aria-busy]="vm.loading"
+      (scroll)="onInboxScroll($event, vm)">
       @if (vm.filteredDirectChats.length > 0 || vm.directUnreadCount > 0) {
         <section
           class="conversation-list__section"
@@ -105,9 +106,6 @@
                       }
                     </span>
 
-                    <span publicUserIdentitySupplement class="conversation-card__status">
-                      {{ getDirectChatStatusLabel(chat) }}
-                    </span>
                   </app-public-user-identity>
                 } @else {
                   <app-public-user-identity
@@ -130,9 +128,6 @@
                       }
                     </span>
 
-                    <span publicUserIdentitySupplement class="conversation-card__status">
-                      {{ getDirectChatStatusLabel(chat) }}
-                    </span>
                   </app-public-user-identity>
                 }
               </button>
@@ -151,13 +146,13 @@
           }
           @if (vm.canRefresh) {
             <button type="button" class="conversation-list__chip" (click)="refreshConversations()">
-              {{ vm.error ? 'Tentar novamente' : 'Atualizar conversas' }}
+              Tentar novamente
             </button>
           }
           <p role="status" class="conversation-list__pagination-note">
             @if (vm.error) { Não foi possível carregar suas conversas. }
-            @else if (vm.hasSearch && vm.hasMore) { Busca nas conversas carregadas. Carregue mais para ampliar. }
-            @else if (vm.hasMore && vm.filteredDirectChats.length === 0) { Há mais conversas a consultar. }
+            @else if (vm.hasSearch && vm.hasMore) { Busca parcial. }
+            @else if (vm.hasMore && vm.filteredDirectChats.length === 0) { Mais conversas disponíveis. }
             @else if (vm.unconfirmedCount > 0) { Algumas conversas aguardam confirmação de acesso. }
           </p>
         </div>
@@ -178,14 +173,14 @@
             class="conversation-list__state"
             state="empty"
             title="Nenhuma conversa encontrada"
-            message="Limpe ou ajuste a busca para localizar uma conversa direta."
+            [minimal]="true"
           />
         } @else {
           <app-content-state
             class="conversation-list__state"
             state="empty"
             title="Nenhuma conversa ainda"
-            message="Suas conversas diretas aparecerão aqui quando houver atividade."
+            [minimal]="true"
           />
         }
       }

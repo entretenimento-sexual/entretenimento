@@ -40,24 +40,8 @@
         }
 
         @if (!selectedType || !selectedChatId) {
-          <div class="chat-shell__empty-state">
-            <app-content-state
-              state="empty"
-              title="Selecione uma conversa"
-              message="Abra uma conversa existente ou consulte suas conexões para iniciar uma conversa direta."
-              [compact]="true"
-            />
-
-            <div class="chat-shell__empty-actions" aria-label="Atalhos de conversa">
-              <a class="app-action app-action--primary" routerLink="/friends/list">
-                Conexões
-              </a>
-
-              <a class="app-action app-action--ghost" routerLink="/friends/requests">
-                Solicitações de conexão
-              </a>
-            </div>
-          </div>
+          <app-content-state class="chat-shell__empty-state"
+            state="empty" title="Selecione uma conversa" [minimal]="true" />
         }
       </div>
 

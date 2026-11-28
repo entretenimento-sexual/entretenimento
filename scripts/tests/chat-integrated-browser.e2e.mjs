@@ -12,7 +12,7 @@ import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
 import { seedPublicMediaCompliance } from './media-e2e-compliance-fixture.mjs';
-import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch, resolveBrowserEngine } from './chat-integrated-browser-metrics.mjs';
+import { summarizePendingAttempts, recoverPendingAttempt, summarizeSharedFriendsWatch, resolveBrowserEngine, mountedDocumentReadsComplete, correlateBrowserNetworkErrors, resolveBrowserChannel } from './chat-integrated-browser-metrics.mjs';
 
 const PROJECT = 'demo-entretenimento-media-e2e';
 const BASE = 'http://127.0.0.1:4200';
@@ -27,10 +27,12 @@ process.env.GCP_PROJECT = PROJECT;
 const out = resolve(process.env.CHAT_BROWSER_ARTIFACTS ?? 'artifacts/chat-browser');
 mkdirSync(out, { recursive: true });
 const browserEngine = resolveBrowserEngine(process.env.CHAT_BROWSER_ENGINE);
+const browserChannel = resolveBrowserChannel(browserEngine,process.env.CHAT_BROWSER_CHANNEL);
+const browserName = browserChannel ?? browserEngine;
 const playwright = await import(pathToFileURL(resolve(process.env.CHAT_BROWSER_PLAYWRIGHT)).href);
 const browserType = playwright[browserEngine];
 assert.equal(browserType?.name(), browserEngine, 'Requested Playwright engine unavailable');
-console.log('Browser engine '+browserEngine);
+console.log('Browser engine '+browserEngine+'; browser '+browserName);
 const id = randomUUID().replaceAll('-', '').slice(0, 12);
 const password = 'Emulator-Only-123Aa!';
 const uid = key => 'chat-browser-' + key + '-' + id;
@@ -48,6 +50,7 @@ const log = createWriteStream(resolve(out,'angular.log'));
 let server, browser;
 const pages = [];
 const browserErrors = [];
+const nativeRuntimeFailures = [], browserNetworkFailures = [], browserNetworkErrors = [];
 const phases = [];
 // Diagnostic-only counters: no request body, auth header, UID or URL query recorded.
 const callableCounts = new Map();
@@ -234,12 +237,43 @@ async function newPage(name, viewport={width:1440,height:1000}, existingContext=
     accountingTasks.add(task);
     void task.finally(()=>accountingTasks.delete(task));
   });
-  page.on('requestfailed', request => recordCallableTransportFailure(name,request));
+  page.on('requestfailed', request => {
+    recordCallableTransportFailure(name,request);
+    if(browserEngine==='webkit') {
+      const url=new URL(request.url());
+      if(url.hostname==='127.0.0.1' && ['15001','18080'].includes(url.port)) {
+        browserNetworkFailures.push({name,phase:currentPhase,document:documentNumber,atMs:performance.now(),
+          url:url.href,endpoint:url.origin+url.pathname});
+      }
+    }
+  });
   page.on('close',()=>{
     for(const row of pendingAttempts) if(row.context===name && row.httpStatus===null && !row.transportFailure) row.contextClosedWithoutTerminalEvent=true;
   });
-  page.on('pageerror', error => browserErrors.push({name,type:'pageerror',message:error.message,
-    phase:currentPhase,document:documentNumber,route:routeCategory(),offlineBarrier:offlineContexts.has(context)}));
+  // Native runtime errors are an independent signal; never excuse a pageerror.
+  await page.exposeBinding('__chatCertificationReportRuntimeError', (source, kind) => {
+    if(source.frame!==page.mainFrame() || !['error','unhandledrejection'].includes(kind)) return;
+    nativeRuntimeFailures.push({name,kind,phase:currentPhase,document:documentNumber,atMs:performance.now()});
+  });
+  await page.addInitScript(()=>{
+    const report=kind=>{ void window.__chatCertificationReportRuntimeError(kind).catch(()=>{}); };
+    window.addEventListener('error',event=>{if(event instanceof ErrorEvent) report('error');},true);
+    window.addEventListener('unhandledrejection',()=>report('unhandledrejection'));
+  });
+  page.on('pageerror', error => {
+    const message=String(error.message);
+    const raw=message.match(/(?:https?:\/\/|\/)127\.0\.0\.1:(?:18080|15001)\/\S+(?= due to access control checks\.?$)/)?.[0];
+    if(browserEngine==='webkit' && raw) {
+      try {
+        const url=new URL(raw.startsWith('/')?'http:/'+raw:raw);
+        browserNetworkErrors.push({name,phase:currentPhase,document:documentNumber,atMs:performance.now(),
+          url:url.href,endpoint:url.origin+url.pathname});
+      } catch { /* Malformed diagnostic must not suppress the strict pageerror gate. */ }
+    }
+    browserErrors.push({name,type:'pageerror',phase:currentPhase,document:documentNumber,
+      route:routeCategory(),offlineBarrier:offlineContexts.has(context),
+      message:message.replace(/\?\S+/g,'?[redacted]').slice(0,600)});
+  });
   page.on('console', message => {
     const match=/^\[Friends\] pending-read (start|subscribe|join|signal|unsubscribe) (inbound|outbound) (session|profile|post-mutation|explicit|other|session-retry|subscriber-join|canonical-event|listener-recovery|poll|quota-wait)\s*$/.exec(message.text());
     if(match) pendingOrigins.push({context:name,event:match[1],direction:match[2],reason:match[3],route:routeCategory(),document:documentNumber,phase:currentPhase,atMs:performance.now()});
@@ -382,16 +416,20 @@ async function certifyFriendshipPair(label,keys,actions) {
     currentPhase=label+': mount';
     await Promise.all([login(s,sender),login(t,receiver)]);
     await Promise.all([s.goto(BASE+'/friends/requests'),t.goto(BASE+'/friends/requests')]);
-    const mountedDocuments = new Map([[senderName,mountedDocumentNumbers.get(s)],[receiverName,mountedDocumentNumbers.get(t)]]);
-    assert.ok([...mountedDocuments.values()].every(Number.isInteger),'Mounted requests document must be observed');
+    const mountedDocuments=[
+      {context:senderName,document:mountedDocumentNumbers.get(s)},
+      {context:receiverName,document:mountedDocumentNumbers.get(t)},
+    ];
+    assert.ok(mountedDocuments.every(row=>Number.isInteger(row.document)&&row.document>0),'Mounted requests document must be observed');
     await s.getByRole('tab',{name:/Enviadas/}).click();
     await t.getByRole('tab',{name:/Recebidas/}).waitFor({state:'visible'});
     for(const page of [s,t]) await page.evaluate(()=>{window.__chatFriendshipCertificationDocument=true;});
     // The login document may already have completed reads. Wait for BOTH
     // directions in the mounted requests document before interrupting transport.
-    await until(label+' initial canonical reads in mounted documents',()=>[senderName,receiverName].every(context=>
-      ['inbound','outbound'].every(direction=>pendingAttempts.some(row=>row.context===context&&
-        row.route==='friends'&&row.document===mountedDocuments.get(context)&&row.direction===direction&&row.httpStatus===200))),Boolean);
+    await until(label+' initial canonical reads in mounted documents',()=>
+      mountedDocumentReadsComplete(pendingAttempts,mountedDocuments),Boolean);
+    assert.equal(mountedDocumentNumbers.get(s),mountedDocuments[0].document,'Sender document replaced during bootstrap');
+    assert.equal(mountedDocumentNumbers.get(t),mountedDocuments[1].document,'Receiver document replaced during bootstrap');
     await s.getByText('Nenhuma solicitação enviada',{exact:true}).waitFor({state:'visible'});
     await t.getByText('Nenhuma solicitação recebida',{exact:true}).waitFor({state:'visible'});
     for(const action of actions) {
@@ -1347,7 +1385,11 @@ try {
     if(server.exitCode!==null) throw new Error('Angular exited: '+server.exitCode);
     try {return (await fetch(BASE+'/login')).ok;} catch {return false;}
   },Boolean,180_000);
-  browser = await browserType.launch({headless:true});
+  browser = await browserType.launch({headless:true,...(browserChannel?{channel:browserChannel}:{})});
+  writeFileSync(resolve(out,'browser-version.json'),JSON.stringify({
+    browser:browserName,engine:browserEngine,version:browser.version(),platform:process.platform,
+    cdpMetrics:browserEngine==='chromium'
+  },null,2));
   const a = await newPage('a');
   const b = await newPage('b');
   await Promise.all([login(a,aUid),login(b,bUid)]);
@@ -1711,6 +1753,7 @@ try {
   await message(b,offlineMessage).waitFor({state:'visible'});
   assert.equal((await threadIds(b)).some(key=>privateIds.has(key)),false);
   pass('live revocation purges loaded history without affecting independent chat');
+  assert.equal(nativeRuntimeFailures.length,0,'Native runtime exceptions or unhandled rejections');
   assert.equal(browserErrors.filter(e=>e.type==='pageerror').length,0,'Unhandled browser exceptions');
   // Preserve the original request handles while the contexts are alive.
   // Closing first may lose both the response and the requestfailed event,
@@ -1781,6 +1824,7 @@ try {
     }
   }
   await certifyFriendsPagination();
+  assert.equal(nativeRuntimeFailures.length,0,'Native runtime exceptions or unhandled rejections including friendship');
   assert.equal(browserErrors.filter(e=>e.type==='pageerror').length,0,'Unhandled browser exceptions including friendship');
   for(const endpoint of ['getPendingFriendRequests','listDirectChatCandidates']) {
     const rows=[...callableCounts.values()].filter(row=>row.endpoint===endpoint);
@@ -1805,11 +1849,11 @@ try {
   console.log('Friendship reactive measurements '+JSON.stringify({originalWorkload,originalAttempts,complementaryAttempts,fullAttempts,samples:friendshipSamples,
     online:sampleSummary(friendshipSamples.filter(row=>!row.reconnect).flatMap(row=>[row.senderMs,row.receiverMs])),
     reconnect:sampleSummary(friendshipSamples.filter(row=>row.reconnect).map(row=>row.receiverMs))}));
-  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',browserEngine,browserVersion:browser.version(),phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,originalAttempts,complementaryAttempts,spaAttempts,spaSamples,fullAttempts,resilienceAttempts,resilienceSamples,adaptiveAttempts,adaptiveSamples,concurrencyAttempts,concurrencySamples,terminalAccounting,admissionCancellationSamples,baselineComparison:baselineComparison(),
+  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'PASS',browserEngine,browserName,browserVersion:browser.version(),phases,metrics,performanceSamples,historySamples,friendshipSamples,originalWorkload,originalAttempts,complementaryAttempts,spaAttempts,spaSamples,fullAttempts,resilienceAttempts,resilienceSamples,adaptiveAttempts,adaptiveSamples,concurrencyAttempts,concurrencySamples,terminalAccounting,admissionCancellationSamples,baselineComparison:baselineComparison(),
     performanceSummary:{budgetMs:PHASE_BUDGET_MS,sendReceive:sampleSummary(performanceSamples.roundTrips.map(row=>row.ms)),
       conversationSwitch:sampleSummary(performanceSamples.switches.map(row=>row.ms))}},null,2));
 } catch(error) {
-  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'FAIL',browserEngine,browserVersion:browser?.version()??null,phases,performanceSamples,historySamples,baselineComparison:baselineComparison(),error:String(error)},null,2));
+  writeFileSync(resolve(out,'result.json'),JSON.stringify({status:'FAIL',browserEngine,browserName,browserVersion:browser?.version()??null,phases,performanceSamples,historySamples,baselineComparison:baselineComparison(),error:String(error)},null,2));
   for(const {name,page} of pages) await screenshot(page,name+'-failure').catch(()=>{});
   throw error;
 } finally {
@@ -1838,6 +1882,10 @@ try {
   writeFileSync(resolve(out,'spa-lifecycle-samples.json'),JSON.stringify(spaSamples,null,2));
   writeFileSync(resolve(out,'friendship-reactive-samples.json'),JSON.stringify(friendshipSamples,null,2));
   writeFileSync(resolve(out,'browser-diagnostics.json'),JSON.stringify(browserErrors,null,2));
+  const networkEvidence=correlateBrowserNetworkErrors(browserNetworkErrors,browserNetworkFailures);
+  writeFileSync(resolve(out,'browser-runtime-evidence.json'),JSON.stringify({nativeRuntimeFailures,networkEvidence},null,2));
+  console.log('Browser runtime evidence '+JSON.stringify({nativeRuntimeFailures:nativeRuntimeFailures.length,
+    networkErrors:networkEvidence.length,matched:networkEvidence.filter(row=>row.matched).length}));
   writeFileSync(resolve(out,'callable-counts.json'),JSON.stringify([...callableCounts.values()].sort((a,b)=>b.total-a.total),null,2));
   writeFileSync(resolve(out,'callable-transport-failures.json'),JSON.stringify([...callableTransportFailures.values()].sort((a,b)=>b.total-a.total),null,2));
   writeFileSync(resolve(out,'history-fixture-checks.json'),JSON.stringify(historyFixtureChecks,null,2));

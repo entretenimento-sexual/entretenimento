@@ -67,3 +67,32 @@ export function resolveBrowserEngine(value = 'chromium') {
   }
   return value;
 }
+
+// Both authenticated directions must belong to each actual mounted document.
+export function mountedDocumentReadsComplete(attempts, mountedDocuments) {
+  return mountedDocuments.length>0 && mountedDocuments.every(({context,document})=>
+    Number.isInteger(document)&&document>0&&['inbound','outbound'].every(direction=>
+      attempts.some(row=>row.context===context&&row.document===document&&row.route==='friends'&&
+        row.direction===direction&&row.httpStatus===200)));
+}
+
+// Diagnostic only. Match exact URLs in memory; never persist query strings.
+// A match is not permission to remove a pageerror from the strict gate.
+export function correlateBrowserNetworkErrors(errors, failures) {
+  return errors.map(({url,...error})=>{
+    const match=failures.filter(row=>row.name===error.name&&row.url===url&&
+      Math.abs(row.atMs-error.atMs)<=2000)
+      .sort((a,b)=>Math.abs(a.atMs-error.atMs)-Math.abs(b.atMs-error.atMs))[0];
+    return {...error,matched:!!match,...(match?{failurePhase:match.phase,
+      failureDocument:match.document,deltaMs:Math.round(match.atMs-error.atMs)}:{})};
+  });
+}
+
+// Installed Chrome/Edge channels share the Chromium engine, not its bundled binary.
+export function resolveBrowserChannel(engine, value = '') {
+  if (value === '') return undefined;
+  if (engine !== 'chromium' || !['chrome','msedge'].includes(value)) {
+    throw new Error('Unsupported CHAT_BROWSER_CHANNEL for engine');
+  }
+  return value;
+}

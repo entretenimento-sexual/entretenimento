@@ -49,8 +49,7 @@
 .chat-shell__main,
 .chat-shell__content,
 .chat-shell__input,
-.chat-shell__composer-main,
-.chat-shell__empty-actions {
+.chat-shell__composer-main {
   display: flex;
 }
 
@@ -124,23 +123,11 @@
   padding-inline: var(--chat-content-gutter);
 }
 
-.chat-shell__thread--empty .chat-shell__empty-state {
-  width: min(100%, 620px);
-  margin: 0;
-}
-
 .chat-shell__empty-state {
-  display: grid;
-  gap: 16px;
-  max-width: 620px;
-  box-sizing: border-box;
-}
-
-.chat-shell__empty-actions {
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-  margin-top: 16px;
+  margin: 0;
+  color: var(--text-color);
+  text-align: center;
+  font-size: 0.9rem;
 }
 
 .chat-shell__input {
@@ -309,11 +296,6 @@
     padding-inline: 0.75rem;
   }
 
-  .chat-shell__empty-actions { width: 100%; }
-  .chat-shell__empty-actions .app-action {
-    flex: 1 1 100%;
-    justify-content: center;
-  }
 }
 
 @media (max-width: 520px) {
@@ -331,11 +313,6 @@
   }
 
   .chat-shell__composer-help { font-size: 0.68rem; }
-  .chat-shell__empty-state {
-    margin: 1rem auto;
-    padding: 18px 16px;
-    border-radius: 16px;
-  }
 }
 
 @media (max-width: 360px) {

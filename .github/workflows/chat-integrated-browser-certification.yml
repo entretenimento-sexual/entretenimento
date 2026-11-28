@@ -35,12 +35,15 @@ jobs:
           - { engine: chromium, replica: 1, artifact: r1 }
           - { engine: chromium, replica: 2, artifact: r2 }
           - { engine: chromium, replica: 3, artifact: r3 }
+          - { engine: chromium, channel: chrome, replica: 1, artifact: chrome }
+          - { engine: chromium, channel: msedge, replica: 1, artifact: msedge }
           - { engine: firefox, replica: 1, artifact: firefox-r1 }
           - { engine: webkit, replica: 1, artifact: webkit-r1 }
     timeout-minutes: 35
     env:
       CI: 'true'
       CHAT_BROWSER_ENGINE: ${{ matrix.engine }}
+      CHAT_BROWSER_CHANNEL: ${{ matrix.channel || '' }}
       CHAT_BROWSER_ARTIFACTS: artifacts/chat-browser
     steps:
       - uses: actions/checkout@v6
@@ -64,7 +67,7 @@ jobs:
       - name: Install isolated browser runner
         run: |
           npm install --prefix "$RUNNER_TEMP/chat-browser-playwright" --no-save --package-lock=false playwright@1.56.1
-          "$RUNNER_TEMP/chat-browser-playwright/node_modules/.bin/playwright" install --with-deps "$CHAT_BROWSER_ENGINE"
+          "$RUNNER_TEMP/chat-browser-playwright/node_modules/.bin/playwright" install --with-deps "${CHAT_BROWSER_CHANNEL:-$CHAT_BROWSER_ENGINE}"
       - name: Prepare disposable demo topology
         run: |
           mkdir -p "$CHAT_BROWSER_ARTIFACTS"

@@ -7,6 +7,7 @@ import { BehaviorSubject, of, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatModuleLayoutComponent } from './chat-module-layout.component';
+import { ContentStateComponent } from '../../shared/content-state/content-state.component';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
@@ -41,7 +42,7 @@ describe('ChatModuleLayoutComponent', () => {
     selectedType$ = new BehaviorSubject<'chat' | null>(null);
     await TestBed.configureTestingModule({
       declarations: [ChatModuleLayoutComponent, MockChatEmojiComposerDirective],
-      imports: [CommonModule, RouterTestingModule],
+      imports: [CommonModule, RouterTestingModule, ContentStateComponent],
       providers: [
         { provide: DirectChatService, useValue: { getConversationStarter$: vi.fn(() => of(null)) } },
         {
@@ -501,16 +502,18 @@ describe('ChatModuleLayoutComponent', () => {
     sessionStorage.removeItem(key);
   });
 
-  it('mantém apenas atalhos do chat direto no estado vazio', () => {
+  it('mantém estado vazio conciso sem duplicar a navegação global', () => {
     const text = fixture.nativeElement.textContent as string;
     const hrefs = Array.from(
       fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
     ).map((link) => link.getAttribute('href'));
 
-    expect(text).toContain('Conexões');
-    expect(text).toContain('Solicitações de conexão');
+    expect(text).toContain('Selecione uma conversa');
+    expect(text).not.toContain('Abra uma conversa existente');
     expect(text).not.toContain('Salas');
-    expect(hrefs).toContain('/friends/requests');
+    expect(hrefs).not.toContain('/friends/list');
+    expect(hrefs).not.toContain('/friends/requests');
+    expect(fixture.nativeElement.querySelector('.chat-shell__empty-state [role="status"]')).toBeTruthy();
     expect(hrefs).not.toContain('/chat/rooms');
     expect(hrefs).not.toContain('/chat/room-invites');
     expect(hrefs).not.toContain('/chat/invite-list');
